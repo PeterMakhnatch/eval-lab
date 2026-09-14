@@ -93,7 +93,7 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:f6badfdb9aeab10623be2c90820214f90a01ab4c844b34a60e3a700a2ab1738d
+    digest: sha256:9af9ed6a52035eae5cec3762c9d80f3e1def60c07486d0d22f63d6fdd6916aae
   - path: docs/operator-demo.md
     digest: sha256:b54d6ca909a715b9aff042cdff57737b4ff6b33c5c481a02f44e1f3f6d0215b3
   - path: docs/parallel-work.md
@@ -109,7 +109,7 @@ inputs:
   - path: docs/quota-accounting.md
     digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
   - path: docs/repo-map.md
-    digest: sha256:3173db6ab485117a023443a19c013878f5d655484ac6d24b547dfb47b0e48699
+    digest: sha256:c119235daa71a3150d3f59c851278dca8a767616ef6962a11b09f6437abfdec9
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md

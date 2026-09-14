@@ -51,6 +51,20 @@ from evallab.execution_contracts import (
     REDACTED_SECRET_VALUE,
     SUPPORT_COMMAND_TIMEOUT_SECONDS,
     WATCHDOG_POLL_SECONDS,
+    ZAI_CAPABILITY_EXPIRES_AT_ENV,
+    ZAI_INPUT_COST_MICROS_PER_MILLION,
+    ZAI_OPENCODE_AGENT,
+    ZAI_OUTPUT_COST_MICROS_PER_MILLION,
+    ZAI_PROXY_ATTEMPT_ID_ENV,
+    ZAI_PROXY_CAPABILITY_ENV,
+    ZAI_PROXY_GID_ENV,
+    ZAI_PROXY_HOST,
+    ZAI_PROXY_SCRIPT,
+    ZAI_PROXY_SCRIPT_ENV,
+    ZAI_PROXY_UID_ENV,
+    ZAI_PROXY_USAGE_DIR_ENV,
+    ZAI_PROXY_USAGE_FILE_ENV,
+    ZAI_SECRET_FILE_ENV,
     ExecutionFailure,
     HarborProcessResult,
     ProxyTrialLimits,
@@ -62,6 +76,7 @@ from evallab.execution_contracts import (
     collected_secret_values,
     is_lease_generation,
     materialize_deepseek_secret_file,
+    materialize_zai_secret_file,
     persist_private_bytes,
     proxy_runtime_identity,
     read_owner_secret_file,
@@ -343,7 +358,6 @@ def _active_trial_directories(job_dir: Path) -> tuple[Path, ...]:
     )
 
 
-
 def _unlink_secret_dir(directory: Path | None, secret_file: Path | None) -> None:
     if secret_file is not None:
         with suppress(OSError):
@@ -351,6 +365,8 @@ def _unlink_secret_dir(directory: Path | None, secret_file: Path | None) -> None
     if directory is not None:
         with suppress(OSError):
             shutil.rmtree(directory)
+
+
 class _StreamingRedactor:
     """Redact exact secret bytes before any child output reaches disk."""
 
@@ -389,8 +405,6 @@ class _StreamingRedactor:
         for secret in self.secrets:
             safe = safe.replace(secret, b"<redacted>")
         return safe
-
-
 
 
 def assert_no_secret_material(
@@ -521,45 +535,50 @@ def _read_proxy_usage(
     capability_id: str,
     attempt_id: str,
     limits: ProxyTrialLimits,
+    provider_label: str = "DeepSeek",
+    expected_pricing: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     try:
         payload = json.loads(read_owner_secret_file(path))
     except (OSError, json.JSONDecodeError) as exc:
         raise ExecutionFailure(
             "proxy_usage_invalid",
-            "DeepSeek proxy usage report is unreadable",
+            f"{provider_label} proxy usage report is unreadable",
         ) from exc
     if not isinstance(payload, dict):
-        raise ExecutionFailure("proxy_usage_invalid", "DeepSeek proxy usage report is invalid")
+        raise ExecutionFailure(
+            "proxy_usage_invalid",
+            f"{provider_label} proxy usage report is invalid",
+        )
 
     def integer(value: object, label: str) -> int:
-        if (
-            not isinstance(value, int)
-            or isinstance(value, bool)
-            or value < 0
-            or value > 2**63 - 1
-        ):
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0 or value > 2**63 - 1:
             raise ExecutionFailure(
                 "proxy_usage_invalid",
-                f"DeepSeek proxy usage field {label} is invalid",
+                f"{provider_label} proxy usage field {label} is invalid",
             )
         return value
 
     expected_limits = asdict(limits)
-    if (
+    binding_invalid = (
         payload.get("schema_version") != 1
         or payload.get("capability_id") != capability_id
         or payload.get("attempt_id") != attempt_id
         or payload.get("limits") != expected_limits
-    ):
+        or (expected_pricing is not None and payload.get("pricing") != expected_pricing)
+    )
+    if binding_invalid:
         raise ExecutionFailure(
             "proxy_usage_invalid",
-            "DeepSeek proxy usage binding does not match this trial",
+            f"{provider_label} proxy usage binding does not match this trial",
         )
     calls = payload.get("calls")
     totals = payload.get("totals")
     if not isinstance(calls, list) or not isinstance(totals, dict):
-        raise ExecutionFailure("proxy_usage_invalid", "DeepSeek proxy usage report is invalid")
+        raise ExecutionFailure(
+            "proxy_usage_invalid",
+            f"{provider_label} proxy usage report is invalid",
+        )
     computed = {
         "requests": len(calls),
         "input_tokens": 0,
@@ -572,7 +591,7 @@ def _read_proxy_usage(
         if not isinstance(raw_call, dict) or integer(raw_call.get("call_id"), "call_id") != index:
             raise ExecutionFailure(
                 "proxy_usage_invalid",
-                "DeepSeek proxy call sequence is invalid",
+                f"{provider_label} proxy call sequence is invalid",
             )
         state = raw_call.get("state")
         if state == "reconciled":
@@ -586,10 +605,14 @@ def _read_proxy_usage(
             )
             unresolved += 1
             expected_sequence += 1 if state == "reserved" else 2
+        elif state == "exceeded":
+            source_fields = ("input_tokens", "output_tokens", "cost_micros")
+            unresolved += 1
+            expected_sequence += 2
         else:
             raise ExecutionFailure(
                 "proxy_usage_invalid",
-                "DeepSeek proxy call state is invalid",
+                f"{provider_label} proxy call state is invalid",
             )
         computed["input_tokens"] += integer(raw_call.get(source_fields[0]), source_fields[0])
         computed["output_tokens"] += integer(raw_call.get(source_fields[1]), source_fields[1])
@@ -599,14 +622,13 @@ def _read_proxy_usage(
         "total_tokens": computed["input_tokens"] + computed["output_tokens"],
     }
     if (
-        {name: integer(totals.get(name), name) for name in expected_totals}
-        != expected_totals
+        {name: integer(totals.get(name), name) for name in expected_totals} != expected_totals
         or integer(payload.get("unresolved_requests"), "unresolved_requests") != unresolved
         or integer(payload.get("sequence"), "sequence") != expected_sequence
     ):
         raise ExecutionFailure(
             "proxy_usage_invalid",
-            "DeepSeek proxy totals do not reconcile with provider calls",
+            f"{provider_label} proxy totals do not reconcile with provider calls",
         )
     return payload
 
@@ -636,13 +658,19 @@ def run_harbor_process(
     repo_imports = (*HARBOR_AGENT_IMPORT_PATHS.values(), HARBOR_STATE_JOURNAL_PLUGIN)
     deepseek_adapter = HARBOR_AGENT_IMPORT_PATHS["mini-swe-agent"]
     deepseek_lane = deepseek_adapter in command
-    runtime_environment = subscription_environment(include_deepseek_credentials=deepseek_lane)
+    zai_adapter = HARBOR_AGENT_IMPORT_PATHS[ZAI_OPENCODE_AGENT]
+    zai_lane = zai_adapter in command
+    runtime_environment = subscription_environment(
+        include_deepseek_credentials=deepseek_lane,
+        include_zai_credentials=zai_lane,
+    )
     secret_values = collected_secret_values()
     owned_secret_dir: Path | None = None
     owned_secret_path: Path | None = None
     owned_usage_dir: Path | None = None
     owned_usage_path: Path | None = None
     capability_id: str | None = None
+    proxy_pricing: dict[str, int] | None = None
     try:
         if deepseek_lane:
             if proxy_attempt_id is None or proxy_limits is None:
@@ -666,9 +694,7 @@ def run_harbor_process(
             runtime_environment[DEEPSEEK_ALLOWED_MODEL_ENV] = os.environ.get(
                 DEEPSEEK_ALLOWED_MODEL_ENV, DEEPSEEK_ALLOWED_MODEL
             )
-            runtime_environment["EVALLAB_DEEPSEEK_MAX_REQUESTS"] = str(
-                proxy_limits.max_requests
-            )
+            runtime_environment["EVALLAB_DEEPSEEK_MAX_REQUESTS"] = str(proxy_limits.max_requests)
             runtime_environment["EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS"] = str(
                 proxy_limits.max_input_tokens
             )
@@ -681,17 +707,13 @@ def run_harbor_process(
             runtime_environment["EVALLAB_DEEPSEEK_MAX_COST_MICROS"] = str(
                 proxy_limits.max_cost_micros
             )
-            runtime_environment["EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION"] = (
-                os.environ.get(
-                    "EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION",
-                    "280000",
-                )
+            runtime_environment["EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION"] = os.environ.get(
+                "EVALLAB_DEEPSEEK_INPUT_COST_MICROS_PER_MILLION",
+                "280000",
             )
-            runtime_environment["EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION"] = (
-                os.environ.get(
-                    "EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION",
-                    "420000",
-                )
+            runtime_environment["EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION"] = os.environ.get(
+                "EVALLAB_DEEPSEEK_OUTPUT_COST_MICROS_PER_MILLION",
+                "420000",
             )
             runtime_environment["EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT"] = str(
                 time.time() + float(timeout_seconds) + 60.0
@@ -724,12 +746,68 @@ def run_harbor_process(
                 owned_secret_path = owned_secret_dir / "key"
                 materialize_deepseek_secret_file(owned_secret_path)
                 runtime_environment[DEEPSEEK_SECRET_FILE_ENV] = str(owned_secret_path)
-            runtime_environment[DEEPSEEK_PROXY_SCRIPT_ENV] = str((cwd / DEEPSEEK_PROXY_SCRIPT).resolve())
+            runtime_environment[DEEPSEEK_PROXY_SCRIPT_ENV] = str(
+                (cwd / DEEPSEEK_PROXY_SCRIPT).resolve()
+            )
             proxy_uid, proxy_gid = proxy_runtime_identity(
                 Path(runtime_environment[DEEPSEEK_SECRET_FILE_ENV])
             )
             runtime_environment[DEEPSEEK_PROXY_UID_ENV] = str(proxy_uid)
             runtime_environment[DEEPSEEK_PROXY_GID_ENV] = str(proxy_gid)
+            secret_values = collected_secret_values({**os.environ, **runtime_environment})
+        if zai_lane:
+            if proxy_attempt_id is None or proxy_limits is None:
+                raise ValueError("Z.ai execution requires a bound trial capability")
+            capability = secrets.token_urlsafe(32)
+            capability_id = "sha256:" + hashlib.sha256(capability.encode()).hexdigest()
+            owned_usage_dir = Path(
+                tempfile.mkdtemp(
+                    prefix="evallab-zai-usage.",
+                    dir=os.environ.get("TMPDIR") or None,
+                )
+            )
+            os.chmod(owned_usage_dir, 0o700)
+            owned_usage_path = owned_usage_dir / "zai-proxy-usage.json"
+            runtime_environment[ZAI_PROXY_ATTEMPT_ID_ENV] = proxy_attempt_id
+            runtime_environment[ZAI_PROXY_USAGE_DIR_ENV] = str(owned_usage_dir)
+            runtime_environment[ZAI_PROXY_USAGE_FILE_ENV] = str(owned_usage_path)
+            runtime_environment["EVALLAB_ZAI_MAX_REQUESTS"] = str(proxy_limits.max_requests)
+            runtime_environment["EVALLAB_ZAI_MAX_INPUT_TOKENS"] = str(proxy_limits.max_input_tokens)
+            runtime_environment["EVALLAB_ZAI_MAX_OUTPUT_TOKENS"] = str(
+                proxy_limits.max_output_tokens
+            )
+            runtime_environment["EVALLAB_ZAI_MAX_TOTAL_TOKENS"] = str(proxy_limits.max_total_tokens)
+            runtime_environment["EVALLAB_ZAI_MAX_COST_MICROS"] = str(proxy_limits.max_cost_micros)
+            proxy_pricing = {
+                "input_cost_micros_per_million": ZAI_INPUT_COST_MICROS_PER_MILLION,
+                "output_cost_micros_per_million": ZAI_OUTPUT_COST_MICROS_PER_MILLION,
+            }
+            runtime_environment["EVALLAB_ZAI_INPUT_COST_MICROS_PER_MILLION"] = str(
+                ZAI_INPUT_COST_MICROS_PER_MILLION
+            )
+            runtime_environment["EVALLAB_ZAI_OUTPUT_COST_MICROS_PER_MILLION"] = str(
+                ZAI_OUTPUT_COST_MICROS_PER_MILLION
+            )
+            owned_secret_dir = Path(
+                tempfile.mkdtemp(
+                    prefix="evallab-zai-secret.",
+                    dir=os.environ.get("TMPDIR") or None,
+                )
+            )
+            os.chmod(owned_secret_dir, 0o700)
+            owned_secret_path = owned_secret_dir / "key"
+            materialize_zai_secret_file(owned_secret_path)
+            runtime_environment[ZAI_SECRET_FILE_ENV] = str(owned_secret_path)
+            runtime_environment[ZAI_PROXY_SCRIPT_ENV] = str((cwd / ZAI_PROXY_SCRIPT).resolve())
+            proxy_uid, proxy_gid = proxy_runtime_identity(owned_secret_path)
+            runtime_environment[ZAI_PROXY_UID_ENV] = str(proxy_uid)
+            runtime_environment[ZAI_PROXY_GID_ENV] = str(proxy_gid)
+            runtime_environment[ZAI_PROXY_CAPABILITY_ENV] = capability
+            runtime_environment[ZAI_CAPABILITY_EXPIRES_AT_ENV] = str(
+                time.time() + float(timeout_seconds) + 60.0
+            )
+            runtime_environment["ZAI_CODING_PLAN_API_KEY"] = capability
+            runtime_environment["ZAI_API_KEY"] = capability
             secret_values = collected_secret_values({**os.environ, **runtime_environment})
         if any(import_path in command for import_path in repo_imports):
             source_root = cwd / "src"
@@ -748,7 +826,7 @@ def run_harbor_process(
         ) -> HarborProcessResult:
             proxy_usage = None
             if (
-                deepseek_lane
+                (deepseek_lane or zai_lane)
                 and owned_usage_path is not None
                 and owned_usage_path.is_file()
                 and capability_id is not None
@@ -760,6 +838,8 @@ def run_harbor_process(
                     capability_id=capability_id,
                     attempt_id=proxy_attempt_id,
                     limits=proxy_limits,
+                    provider_label="Z.ai" if zai_lane else "DeepSeek",
+                    expected_pricing=proxy_pricing,
                 )
             return HarborProcessResult(
                 returncode=returncode,
@@ -768,6 +848,7 @@ def run_harbor_process(
                 timed_out_trial=timed_out_trial,
                 proxy_usage=proxy_usage,
             )
+
         read_fd, write_fd = os.pipe()
         writer = RedactingBinaryWriter(log_path, secret_bytes)
 
@@ -817,9 +898,7 @@ def run_harbor_process(
                     _terminate_process_group(process)
                     pump.join(timeout=5)
                     return _result(
-                        returncode=(
-                            process.returncode if process.returncode is not None else -1
-                        ),
+                        returncode=(process.returncode if process.returncode is not None else -1),
                         timed_out=False,
                     )
                 returncode = process.poll()
@@ -856,9 +935,7 @@ def run_harbor_process(
                     _terminate_process_group(process)
                     pump.join(timeout=5)
                     return _result(
-                        returncode=(
-                            process.returncode if process.returncode is not None else -1
-                        ),
+                        returncode=(process.returncode if process.returncode is not None else -1),
                         timed_out=True,
                         timed_out_trial=timed_out_trial,
                     )
@@ -878,8 +955,6 @@ def run_harbor_process(
     finally:
         _unlink_secret_dir(owned_secret_dir, owned_secret_path)
         _unlink_secret_dir(owned_usage_dir, owned_usage_path)
-
-
 
 
 def _executor_log_path(request: RunRequest) -> Path:
@@ -1085,10 +1160,7 @@ def _stage_task_for_host(
     if any(path.is_symlink() for path in source.rglob("*")):
         raise ValueError("task package snapshots reject symlinks")
     source_digest_before = compute_task_digests(source).package
-    if (
-        expected_package_digest is not None
-        and source_digest_before != expected_package_digest
-    ):
+    if expected_package_digest is not None and source_digest_before != expected_package_digest:
         raise ValueError("task package differs from its frozen digest before staging")
 
     if staging_dir.exists():
@@ -1120,7 +1192,6 @@ def _stage_task_for_host(
     return staging_dir, adaptation
 
 
-
 def _sanitize_persisted_job_tree(root: Path, secrets: tuple[bytes, ...]) -> None:
     """Redact then chmod lab-owned persisted streams under a Harbor job directory."""
     if not root.is_dir() or not secrets:
@@ -1137,7 +1208,7 @@ def _sanitize_persisted_job_tree(root: Path, secrets: tuple[bytes, ...]) -> None
 
 
 def _proxy_trial_limits(request: RunRequest) -> ProxyTrialLimits | None:
-    if request.agent != "mini-swe-agent":
+    if request.agent not in {"mini-swe-agent", ZAI_OPENCODE_AGENT}:
         return None
     if (
         request.max_requests is None
@@ -1146,7 +1217,7 @@ def _proxy_trial_limits(request: RunRequest) -> ProxyTrialLimits | None:
         or request.max_total_tokens is None
         or request.cost_limit_usd is None
     ):
-        raise ValueError("DeepSeek execution requires explicit provider ceilings")
+        raise ValueError(f"{request.agent} execution requires explicit provider ceilings")
     return ProxyTrialLimits(
         max_requests=request.max_requests,
         max_input_tokens=request.max_input_tokens,
@@ -1157,23 +1228,19 @@ def _proxy_trial_limits(request: RunRequest) -> ProxyTrialLimits | None:
 
 
 def _proxy_attempt_id(request: RunRequest) -> str | None:
-    if request.agent != "mini-swe-agent":
+    if request.agent not in {"mini-swe-agent", ZAI_OPENCODE_AGENT}:
         return None
     if request.provenance is not None:
-        return (
-            request.provenance.campaign_attempt_id
-            or request.provenance.spec_id
-            or request.name
-        )
+        return request.provenance.campaign_attempt_id or request.provenance.spec_id or request.name
     return request.name
 
 
 def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     validate_request(request)
-    if request.agent == "mini-swe-agent":
+    if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT}:
         decision = preflight_request(request)
         if not decision.proceed:
-            raise RuntimeError(f"DeepSeek credential preflight stopped: {decision.reason}")
+            raise RuntimeError(f"{request.agent} credential preflight stopped: {decision.reason}")
     if not shutil.which("harbor"):
         raise RuntimeError("harbor is not installed or not on PATH")
 
@@ -1192,12 +1259,12 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             request.task,
             staging_dir,
             agent_allowed_hosts=(
-                (DEEPSEEK_PROXY_HOST,) if request.agent == "mini-swe-agent" else ()
+                (DEEPSEEK_PROXY_HOST,)
+                if request.agent == "mini-swe-agent"
+                else ((ZAI_PROXY_HOST,) if request.agent == ZAI_OPENCODE_AGENT else ())
             ),
             expected_package_digest=(
-                request.provenance.package_digest
-                if request.provenance is not None
-                else None
+                request.provenance.package_digest if request.provenance is not None else None
             ),
         )
         staged_request: RunRequest = replace(request, task=staged_task)
@@ -1244,9 +1311,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             request,
             started_at=started,
             status=(
-                "failed"
-                if cancelled or process.timed_out or process.returncode != 0
-                else "running"
+                "failed" if cancelled or process.timed_out or process.returncode != 0 else "running"
             ),
             log_path=executor_log,
             finished_at=finished,
@@ -1296,20 +1361,21 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             raise ExecutionFailure(
                 f"Harbor exited with {process.returncode}; inspect {executor_log}{cleanup_detail}"
             )
-        if request.agent == "mini-swe-agent":
+        if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT}:
+            provider_label = "Z.ai" if request.agent == ZAI_OPENCODE_AGENT else "DeepSeek"
             if process.proxy_usage is None:
                 cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
                 cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
                 raise ExecutionFailure(
                     "proxy_usage_missing",
-                    f"DeepSeek proxy usage report is missing{cleanup_detail}",
+                    f"{provider_label} proxy usage report is missing{cleanup_detail}",
                 )
             if process.proxy_usage.get("unresolved_requests") != 0:
                 cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
                 cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
                 raise ExecutionFailure(
                     "proxy_usage_unreconciled",
-                    f"DeepSeek proxy has unreconciled provider calls{cleanup_detail}",
+                    f"{provider_label} proxy has unreconciled provider calls{cleanup_detail}",
                 )
         job = load_job(job_dir)
         _write_executor_state(

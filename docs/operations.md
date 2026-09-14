@@ -81,6 +81,71 @@ prior day's budget across midnight.
 The legacy `run` and `matrix` commands are restricted to Oracle/no-op controls.
 All real-model work must pass through the queue and standing policy.
 
+## Optional GEPA experiments
+
+Normal `run`, `submit`, and `tick` operations do **not** start an optimizer.
+GEPA is an explicit outer experiment over unchanged Harbor task packages:
+candidate supplementary instructions → normal Lab execution → score and bounded
+task/trajectory feedback → another proposed candidate. The evaluator uses the
+same registered agent/model profiles and native extra-instruction path as the
+runner. Unregistered model/harness combinations fail before submission.
+
+Install the optional pinned engine in the working checkout:
+
+```bash
+uv sync --locked
+uv pip install -r research/experiments/harness-gepa/requirements.txt
+```
+
+Campaign JSON accepts `"enabled": false` to disable optimization before loading
+GEPA or creating execution state. Calling the dedicated `run` command explicitly
+opts in when that field is omitted or true. The committed
+`research/experiments/harness-gepa/glm-flash-event-summary.json` example is disabled;
+its task and model pins are configuration, not permission to spend.
+
+```bash
+uv run --no-sync python -m evallab.gepa_optimizer run campaign.json \
+  --proposer-approval-ref proposer-approval.json
+uv run --no-sync python -m evallab.gepa_optimizer status campaign.json
+uv run --no-sync python -m evallab.gepa_optimizer stop campaign.json
+uv run --no-sync python -m evallab.gepa_optimizer resume campaign.json
+```
+
+`stop` prevents the next optimizer evaluation or reflection request. It does not
+cancel a provider request already in flight or revoke a separately approved
+queue spec. Use the normal Lab queue lifecycle for those jobs. `resume` only
+clears the campaign stop marker; it does not launch a run. Concurrent invocations
+of the same campaign are refused.
+
+Candidate evaluation defaults to `"candidate_evaluation": "review"`. A proposed
+instruction is retained by its full content digest and reported as
+`candidate_review_required` **without submitting it**. Inspect it with `status`,
+then permit that exact artifact to reach the normal evaluation gate:
+
+```bash
+uv run --no-sync python -m evallab.gepa_optimizer approve-candidate campaign.json \
+  --candidate FULL_SHA256
+```
+
+Run the campaign again to continue. Candidate review is **not** paid-run approval:
+target specs still need the normal per-spec authorization. Set
+`"candidate_evaluation": "automatic"` only when automatic proposal submission is
+intended; it still does not approve or dispatch billable jobs.
+
+The proposer authorization binds the exact campaign configuration, seed digest,
+qualified GEPA release and qualification mode. Its request journal prevents
+automatic retries of ambiguous requests and reuses completed responses on resume.
+Proposer and target budgets are separate; catalog-based dollar estimates are not
+authoritative subscription billing. Broker-backed targets require all five
+`provider_ceilings` fields, while a proposer has its own request and cost limits.
+
+Neither search selection nor candidate review changes task files, the seed, or
+the instructions used by future ordinary runs. Adoption is explicit: reference
+the retained candidate path and digest in a subsequent experiment spec. Search
+scores use development tasks; freeze the artifact before a separate held-out
+comparison. Missing traces remain missing, and infrastructure failures never
+become reward zero.
+
 ## Paid execution requires a recorded authorisation
 
 **Nothing billable runs unless Peter authorises that specific spec.** A spec is

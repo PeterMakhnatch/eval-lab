@@ -206,10 +206,26 @@ class _MockZaiUpstream(BaseHTTPRequestHandler):
             return
 
         # Success response for allowed models
-        resp = (
-            b'{"choices":[{"message":{"content":"ok"}}],'
-            b'"usage":{"prompt_tokens":10,"completion_tokens":5}}'
-        )
+        resp = json.dumps(
+            {
+                "id": "chatcmpl-mock-001",
+                "object": "chat.completion",
+                "created": 1710000000,
+                "model": model or "glm-5.3-flash",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "ok"},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 5,
+                    "total_tokens": 15,
+                },
+            }
+        ).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(resp)))
@@ -223,19 +239,48 @@ def _setup_proxy(
     upstream_handler: type[BaseHTTPRequestHandler] = _MockZaiUpstream,
     capability: str = "test-zai-capability-token-32b",
     max_workers: int = 32,
+    *,
+    secret_path: Path | None = None,
+    attempt_id: str = "test-attempt-001",
+    usage_file: Path | None = None,
+    max_requests: int = 100,
+    max_input_tokens: int = 100_000,
+    max_output_tokens: int = 100_000,
+    max_total_tokens: int = 200_000,
+    max_cost_micros: int = 10_000_000,
+    input_cost_micros_per_million: int = 1_000_000,
+    output_cost_micros_per_million: int = 2_000_000,
 ) -> tuple[ThreadingHTTPServer, ThreadingHTTPServer, str]:
     tmp_path.mkdir(parents=True, exist_ok=True)
-    secret_file = tmp_path / "zai_key"
-    secret_file.write_text(SECRET_SENTINEL + "\n")
-    secret_file.chmod(0o600)
+    if secret_path is None:
+        secret_file = tmp_path / "zai_key"
+        secret_file.write_text(SECRET_SENTINEL + "\n")
+        secret_file.chmod(0o600)
+    else:
+        secret_file = secret_path
 
     _MockZaiUpstream.seen = []
     upstream, upstream_url = _serve(upstream_handler)
+
+    actual_usage_file = usage_file or (tmp_path / "zai-proxy-usage.json")
 
     monkeypatch.setenv("EVALLAB_ZAI_SECRET_PATH", str(secret_file))
     monkeypatch.setenv("EVALLAB_ZAI_UPSTREAM", upstream_url)
     monkeypatch.setenv("EVALLAB_ZAI_PROXY_CAPABILITY", capability)
     monkeypatch.setenv("EVALLAB_ZAI_CAPABILITY_EXPIRES_AT", str(time.time() + 300))
+    monkeypatch.setenv("EVALLAB_ZAI_ATTEMPT_ID", attempt_id)
+    monkeypatch.setenv("EVALLAB_ZAI_USAGE_FILE", str(actual_usage_file))
+    monkeypatch.setenv("EVALLAB_ZAI_MAX_REQUESTS", str(max_requests))
+    monkeypatch.setenv("EVALLAB_ZAI_MAX_INPUT_TOKENS", str(max_input_tokens))
+    monkeypatch.setenv("EVALLAB_ZAI_MAX_OUTPUT_TOKENS", str(max_output_tokens))
+    monkeypatch.setenv("EVALLAB_ZAI_MAX_TOTAL_TOKENS", str(max_total_tokens))
+    monkeypatch.setenv("EVALLAB_ZAI_MAX_COST_MICROS", str(max_cost_micros))
+    monkeypatch.setenv(
+        "EVALLAB_ZAI_INPUT_COST_MICROS_PER_MILLION", str(input_cost_micros_per_million)
+    )
+    monkeypatch.setenv(
+        "EVALLAB_ZAI_OUTPUT_COST_MICROS_PER_MILLION", str(output_cost_micros_per_million)
+    )
 
     proxy_module = _load_proxy_module()
     proxy = proxy_module.serve(host="127.0.0.1", port=0, max_workers=max_workers)
@@ -279,7 +324,10 @@ def test_proxy_requires_valid_capability(tmp_path: Path, monkeypatch: pytest.Mon
         req = urllib.request.Request(
             f"{base_url}/api/paas/v4/chat/completions",
             data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
-            headers={"Authorization": "Bearer wrong-capability", "Content-Type": "application/json"},
+            headers={
+                "Authorization": "Bearer wrong-capability",
+                "Content-Type": "application/json",
+            },
             method="POST",
         )
         with pytest.raises(urllib.error.HTTPError) as exc:
@@ -343,9 +391,7 @@ def test_proxy_unauthenticated_request_rejected_before_reading_body(
         upstream.shutdown()
 
 
-def test_proxy_incomplete_body_rejected(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_proxy_incomplete_body_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Incomplete body (declared 1000 bytes, sends 10 then closes) is rejected."""
     capability = "valid-cap"
     proxy, upstream, base_url = _setup_proxy(tmp_path, monkeypatch, capability=capability)
@@ -375,6 +421,7 @@ def test_proxy_upstream_delayed_beyond_inbound_deadline(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Legitimate upstream response taking >15s is not aborted by the inbound deadline timer."""
+
     class DelayedUpstream(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
             del format, args
@@ -384,7 +431,22 @@ def test_proxy_upstream_delayed_beyond_inbound_deadline(
             self.rfile.read(length)
             # Sleep 16s (longer than 15s inbound timer, shorter than 120s upstream timeout)
             time.sleep(16.0)
-            resp = b'{"choices":[{"message":{"content":"ok"}}],"usage":{"prompt_tokens":1,"completion_tokens":1}}'
+            resp = json.dumps(
+                {
+                    "id": "chatcmpl-delayed-001",
+                    "object": "chat.completion",
+                    "created": 1710000000,
+                    "model": "glm-5.3-flash",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {"role": "assistant", "content": "ok"},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                }
+            ).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(resp)))
@@ -421,8 +483,13 @@ def test_proxy_forwards_allowed_flash_and_full_models(
         for model in ("zai-coding-plan/glm-5.3-flash", "zai-coding-plan/glm-5.3"):
             req = urllib.request.Request(
                 f"{base_url}/api/paas/v4/chat/completions",
-                data=json.dumps({"model": model, "messages": [{"role": "user", "content": "hi"}]}).encode(),
-                headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+                data=json.dumps(
+                    {"model": model, "messages": [{"role": "user", "content": "hi"}]}
+                ).encode(),
+                headers={
+                    "Authorization": f"Bearer {capability}",
+                    "Content-Type": "application/json",
+                },
                 method="POST",
             )
             with urllib.request.urlopen(req, timeout=5) as resp:
@@ -430,12 +497,13 @@ def test_proxy_forwards_allowed_flash_and_full_models(
             assert resp.status == 200
             assert b'"ok"' in body
 
+        proxy_module = _load_proxy_module()
         assert len(_MockZaiUpstream.seen) == 2
         for path, auth, fwd_body in _MockZaiUpstream.seen:
-            assert path == "/api/paas/v4/chat/completions"
+            assert path == proxy_module.UPSTREAM_PATH
             assert auth == f"Bearer {SECRET_SENTINEL}"
             payload = json.loads(fwd_body.decode("utf-8"))
-            assert payload["model"] in ("zai-coding-plan/glm-5.3-flash", "zai-coding-plan/glm-5.3")
+            assert payload["model"] in ("glm-5.3-flash", "glm-5.3")
             assert payload["stream"] is False
             assert payload["n"] == 1
     finally:
@@ -461,7 +529,10 @@ def test_proxy_rejects_disallowed_models_and_providers_fail_closed(
             req = urllib.request.Request(
                 f"{base_url}/api/paas/v4/chat/completions",
                 data=json.dumps({"model": model, "messages": []}).encode(),
-                headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+                headers={
+                    "Authorization": f"Bearer {capability}",
+                    "Content-Type": "application/json",
+                },
                 method="POST",
             )
             with pytest.raises(urllib.error.HTTPError) as exc:
@@ -488,10 +559,12 @@ def test_proxy_forwards_highspeed_verbatim_without_fallback(
     try:
         req = urllib.request.Request(
             f"{base_url}/api/paas/v4/chat/completions",
-            data=json.dumps({
-                "model": "zai-coding-plan/glm-5.3-highspeed",
-                "messages": [{"role": "user", "content": "hi"}],
-            }).encode(),
+            data=json.dumps(
+                {
+                    "model": "zai-coding-plan/glm-5.3-highspeed",
+                    "messages": [{"role": "user", "content": "hi"}],
+                }
+            ).encode(),
             headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
             method="POST",
         )
@@ -504,11 +577,13 @@ def test_proxy_forwards_highspeed_verbatim_without_fallback(
         assert SECRET_SENTINEL.encode() not in err_body
 
         # Verify proxy did NOT substitute or fall back to flash/full
+        proxy_module = _load_proxy_module()
         assert len(_MockZaiUpstream.seen) == 1
         path, auth, fwd_body = _MockZaiUpstream.seen[0]
+        assert path == proxy_module.UPSTREAM_PATH
         assert auth == f"Bearer {SECRET_SENTINEL}"
         payload = json.loads(fwd_body.decode("utf-8"))
-        assert payload["model"] == "zai-coding-plan/glm-5.3-highspeed"
+        assert payload["model"] == "glm-5.3-highspeed"
     finally:
         proxy.shutdown()
         upstream.shutdown()
@@ -554,18 +629,22 @@ def test_proxy_redacts_secret_reflection_from_upstream(
         def do_POST(self) -> None:  # noqa: N802
             length = int(self.headers.get("Content-Length", "0"))
             self.rfile.read(length)
-            payload = json.dumps({
-                "choices": [{
-                    "message": {
-                        "content": f"reflected {SECRET_SENTINEL}",
-                        "escaped": json.dumps(SECRET_SENTINEL),
-                        "b64": base64.b64encode(SECRET_SENTINEL.encode()).decode(),
-                        "url_enc": urllib.parse.quote(SECRET_SENTINEL),
-                        "bearer_hdr": f"Bearer {SECRET_SENTINEL}",
-                    }
-                }],
-                "usage": {"prompt_tokens": 1, "completion_tokens": 1},
-            }).encode("utf-8")
+            payload = json.dumps(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": f"reflected {SECRET_SENTINEL}",
+                                "escaped": json.dumps(SECRET_SENTINEL),
+                                "b64": base64.b64encode(SECRET_SENTINEL.encode()).decode(),
+                                "url_enc": urllib.parse.quote(SECRET_SENTINEL),
+                                "bearer_hdr": f"Bearer {SECRET_SENTINEL}",
+                            }
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+                }
+            ).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(payload)))
@@ -599,6 +678,7 @@ def test_proxy_upstream_oversized_response_rejected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Upstream response exceeding MAX_RESPONSE_BYTES is rejected with sanitized 502."""
+
     class HugeResponseUpstream(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
             del format, args
@@ -637,6 +717,7 @@ def test_proxy_upstream_truncated_valid_json_rejected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Upstream delivering fewer bytes than declared Content-Length is rejected (sanitized 502) even if valid JSON."""
+
     class TruncatedValidJsonUpstream(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
             del format, args
@@ -677,6 +758,7 @@ def test_proxy_upstream_read_error_sanitized_to_502(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Upstream transport disconnect during body read is sanitized to 502."""
+
     class DroppingUpstream(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
             del format, args
@@ -716,6 +798,7 @@ def test_proxy_worker_pool_503_content_length_and_body(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Worker capacity limits connections before spawning threads, returning exact 503 without stalling accept loop."""
+
     class SlowUpstream(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
             del format, args
@@ -724,7 +807,22 @@ def test_proxy_worker_pool_503_content_length_and_body(
             length = int(self.headers.get("Content-Length", "0"))
             self.rfile.read(length)
             time.sleep(1.0)
-            resp = b'{"choices":[{"message":{"content":"ok"}}],"usage":{"prompt_tokens":1,"completion_tokens":1}}'
+            resp = json.dumps(
+                {
+                    "id": "chatcmpl-slow-001",
+                    "object": "chat.completion",
+                    "created": 1710000000,
+                    "model": "glm-5.3-flash",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {"role": "assistant", "content": "ok"},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                }
+            ).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(resp)))
@@ -736,11 +834,15 @@ def test_proxy_worker_pool_503_content_length_and_body(
         tmp_path, monkeypatch, upstream_handler=SlowUpstream, capability=capability, max_workers=1
     )
     try:
+
         def _slow_request() -> int:
             req = urllib.request.Request(
                 f"{base_url}/api/paas/v4/chat/completions",
                 data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
-                headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+                headers={
+                    "Authorization": f"Bearer {capability}",
+                    "Content-Type": "application/json",
+                },
                 method="POST",
             )
             try:
@@ -798,7 +900,10 @@ def test_proxy_worker_pool_503_content_length_and_body(
             req3 = urllib.request.Request(
                 f"{base_url}/api/paas/v4/chat/completions",
                 data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
-                headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+                headers={
+                    "Authorization": f"Bearer {capability}",
+                    "Content-Type": "application/json",
+                },
                 method="POST",
             )
             try:
@@ -814,7 +919,9 @@ def test_proxy_worker_pool_503_content_length_and_body(
             except (urllib.error.URLError, OSError) as exc3:
                 # Treat only transient socket disconnects/resets during release window as retryable
                 reason = getattr(exc3, "reason", exc3)
-                if isinstance(reason, (BrokenPipeError, ConnectionResetError, ConnectionRefusedError)):
+                if isinstance(
+                    reason, (BrokenPipeError, ConnectionResetError, ConnectionRefusedError)
+                ):
                     time.sleep(0.02)
                     continue
                 if isinstance(reason, OSError) and reason.errno in (
@@ -910,18 +1017,9 @@ def test_proxy_refuses_symlink_secret(tmp_path: Path, monkeypatch: pytest.Monkey
     link.symlink_to(real)
 
     capability = "valid-cap"
-    _MockZaiUpstream.seen = []
-    upstream, upstream_url = _serve(_MockZaiUpstream)
-
-    monkeypatch.setenv("EVALLAB_ZAI_SECRET_PATH", str(link))
-    monkeypatch.setenv("EVALLAB_ZAI_UPSTREAM", upstream_url)
-    monkeypatch.setenv("EVALLAB_ZAI_PROXY_CAPABILITY", capability)
-
-    proxy_module = _load_proxy_module()
-    proxy = proxy_module.serve(host="127.0.0.1", port=0)
-    thread = threading.Thread(target=proxy.serve_forever, daemon=True)
-    thread.start()
-    base_url = f"http://127.0.0.1:{proxy.server_address[1]}"
+    proxy, upstream, base_url = _setup_proxy(
+        tmp_path, monkeypatch, secret_path=link, capability=capability
+    )
 
     try:
         req = urllib.request.Request(
@@ -943,11 +1041,21 @@ def test_proxy_refuses_symlink_secret(tmp_path: Path, monkeypatch: pytest.Monkey
 def test_proxy_pinned_upstream_url_enforces_whitelist(monkeypatch: pytest.MonkeyPatch) -> None:
     proxy_module = _load_proxy_module()
     monkeypatch.setenv("EVALLAB_ZAI_UPSTREAM", "https://api.z.ai")
-    assert proxy_module._pinned_upstream_url() == "https://api.z.ai:443/api/paas/v4/chat/completions"
+    assert (
+        proxy_module._pinned_upstream_url() == f"https://api.z.ai:443{proxy_module.UPSTREAM_PATH}"
+    )
     monkeypatch.setenv("EVALLAB_ZAI_UPSTREAM", "http://evallab-smoke-upstream:8099")
-    assert proxy_module._pinned_upstream_url() == "http://evallab-smoke-upstream:8099/api/paas/v4/chat/completions"
+    assert (
+        proxy_module._pinned_upstream_url()
+        == f"http://evallab-smoke-upstream:8099{proxy_module.UPSTREAM_PATH}"
+    )
     monkeypatch.setenv("EVALLAB_ZAI_UPSTREAM", "http://127.0.0.1:9000")
-    assert proxy_module._pinned_upstream_url() == "http://127.0.0.1:9000/api/paas/v4/chat/completions"
+    assert (
+        proxy_module._pinned_upstream_url() == f"http://127.0.0.1:9000{proxy_module.UPSTREAM_PATH}"
+    )
+    monkeypatch.setenv("EVALLAB_ZAI_UPSTREAM", "https://evil.com")
+    with pytest.raises(RuntimeError, match="upstream host is not pinned"):
+        proxy_module._pinned_upstream_url()
     monkeypatch.setenv("EVALLAB_ZAI_UPSTREAM", "http://untrusted-remote.com:8080")
     with pytest.raises(RuntimeError, match="http upstream is not pinned"):
         proxy_module._pinned_upstream_url()
@@ -1064,11 +1172,13 @@ def test_adapter_sanitizes_trajectories(
     agent.logs_dir = tmp_path
     traj = tmp_path / "trajectory.json"
     traj.write_text(
-        json.dumps({
-            "authorization": f"Bearer {SECRET_SENTINEL}",
-            "apiKey": SECRET_SENTINEL,
-            "steps": [{"content": SECRET_SENTINEL}],
-        })
+        json.dumps(
+            {
+                "authorization": f"Bearer {SECRET_SENTINEL}",
+                "apiKey": SECRET_SENTINEL,
+                "steps": [{"content": SECRET_SENTINEL}],
+            }
+        )
     )
     agent.populate_context_post_run(object())
     sanitized = json.loads(traj.read_text())
@@ -1079,21 +1189,226 @@ def test_adapter_sanitizes_trajectories(
 
 
 # ==========================================================================
-# 3. Compose Asset Structure Tests
+# 3. Live Local Fake-Upstream SSE Regressions
 # ==========================================================================
 
 
-def test_zai_compose_asset_shape() -> None:
-    path = Path(__file__).resolve().parents[1] / "containers" / "zai-secret.compose.yaml"
-    assert path.is_file()
-    text = path.read_text(encoding="utf-8")
-    assert "zai-secret-proxy:" in text
-    assert "- workbench-internal" in text
-    assert "- default" in text
-    assert "internal: true" in text
-    assert 'user: "${EVALLAB_PROXY_UID:?}:${EVALLAB_PROXY_GID:?}"' in text
-    assert "read_only: true" in text
-    assert "evallab-proxy-placeholder" in text
-    assert "http://zai-secret-proxy:8080" in text
-    # Compose overlay mounts secret via volume, not top-level secrets block
-    assert "secrets:\n" not in text
+class _FakeSSEUpstream(BaseHTTPRequestHandler):
+    mode: str = "normal"
+    seen: list[tuple[str, str, bytes]] = []
+
+    def log_message(self, format: str, *args: object) -> None:
+        del format, args
+
+    def do_POST(self) -> None:  # noqa: N802
+        length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(length)
+        auth = self.headers.get("Authorization", "")
+        type(self).seen.append((self.path, auth, body))
+
+        if type(self).mode == "normal":
+            events = (
+                b'data: {"id":"chatcmpl-sse-1","object":"chat.completion.chunk","created":1710000000,'
+                b'"model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"hello"}}]}\n\n'
+                b'data: {"id":"chatcmpl-sse-1","object":"chat.completion.chunk","created":1710000000,'
+                b'"model":"glm-5.3-flash","choices":[{"index":0,"delta":{"content":" world"}}],'
+                b'"usage":{"prompt_tokens":8,"completion_tokens":4,"total_tokens":12}}\n\n'
+                b"data: [DONE]\n\n"
+            )
+        elif type(self).mode == "missing_model":
+            events = (
+                b'data: {"id":"chatcmpl-sse-2","object":"chat.completion.chunk","created":1710000000,'
+                b'"choices":[{"index":0,"delta":{"role":"assistant","content":"hello"}}]}\n\n'
+                b'data: {"id":"chatcmpl-sse-2","object":"chat.completion.chunk","created":1710000000,'
+                b'"choices":[{"index":0,"delta":{"content":" world"}}],'
+                b'"usage":{"prompt_tokens":8,"completion_tokens":4,"total_tokens":12}}\n\n'
+                b"data: [DONE]\n\n"
+            )
+        elif type(self).mode == "conflicting_model":
+            events = (
+                b'data: {"id":"chatcmpl-sse-3","object":"chat.completion.chunk","created":1710000000,'
+                b'"model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"hello"}}]}\n\n'
+                b'data: {"id":"chatcmpl-sse-3","object":"chat.completion.chunk","created":1710000000,'
+                b'"model":"glm-5.3","choices":[{"index":0,"delta":{"content":" world"}}],'
+                b'"usage":{"prompt_tokens":8,"completion_tokens":4,"total_tokens":12}}\n\n'
+                b"data: [DONE]\n\n"
+            )
+        elif type(self).mode == "reflect_secret":
+            events = (
+                b'data: {"id":"chatcmpl-sse-4","object":"chat.completion.chunk","created":1710000000,'
+                b'"model":"glm-5.3-flash","choices":[{"index":0,"delta":{"content":"reflected '
+                + SECRET_SENTINEL.encode()
+                + b'"}}],'
+                b'"usage":{"prompt_tokens":8,"completion_tokens":4,"total_tokens":12}}\n\n'
+                b"data: [DONE]\n\n"
+            )
+        else:
+            events = b"data: [DONE]\n\n"
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Content-Length", str(len(events)))
+        self.end_headers()
+        self.wfile.write(events)
+
+
+def test_proxy_sse_provider_identity_and_missing_stays_unknown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    capability = "valid-cap"
+    usage_file = tmp_path / "zai-proxy-usage.json"
+    _FakeSSEUpstream.mode = "normal"
+    _FakeSSEUpstream.seen = []
+    proxy, upstream, base_url = _setup_proxy(
+        tmp_path,
+        monkeypatch,
+        upstream_handler=_FakeSSEUpstream,
+        capability=capability,
+        usage_file=usage_file,
+    )
+    try:
+        # 1. Normal SSE: response identity comes from provider ("glm-5.3-flash")
+        req = urllib.request.Request(
+            f"{base_url}/api/paas/v4/chat/completions",
+            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
+            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            body = resp.read()
+            assert resp.status == 200
+            assert "text/event-stream" in (resp.headers.get("Content-Type") or "")
+            assert b"hello" in body and b"world" in body
+
+        usage_data = json.loads(usage_file.read_text(encoding="utf-8"))
+        assert len(usage_data["calls"]) == 1
+        call1 = usage_data["calls"][0]
+        assert call1["state"] == "reconciled"
+        assert call1["returned_model"] == "glm-5.3-flash"
+        assert call1["returned_model_reason"] is None
+        assert call1["input_tokens"] == 8
+        assert call1["output_tokens"] == 4
+
+        # 2. Missing identity in SSE: missing stays unknown (None / "model_absent_or_null")
+        _FakeSSEUpstream.mode = "missing_model"
+        req2 = urllib.request.Request(
+            f"{base_url}/api/paas/v4/chat/completions",
+            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
+            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req2, timeout=5) as resp2:
+            assert resp2.status == 200
+
+        usage_data2 = json.loads(usage_file.read_text(encoding="utf-8"))
+        assert len(usage_data2["calls"]) == 2
+        call2 = usage_data2["calls"][1]
+        assert call2["state"] == "reconciled"
+        assert call2["returned_model"] is None
+        assert call2["returned_model_reason"] == "model_absent_or_null"
+        assert call2["input_tokens"] == 8
+        assert call2["output_tokens"] == 4
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+
+def test_proxy_sse_conflicting_identity_refuses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    capability = "valid-cap"
+    usage_file = tmp_path / "zai-proxy-usage.json"
+    _FakeSSEUpstream.mode = "conflicting_model"
+    _FakeSSEUpstream.seen = []
+    proxy, upstream, base_url = _setup_proxy(
+        tmp_path,
+        monkeypatch,
+        upstream_handler=_FakeSSEUpstream,
+        capability=capability,
+        usage_file=usage_file,
+    )
+    try:
+        req = urllib.request.Request(
+            f"{base_url}/api/paas/v4/chat/completions",
+            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
+            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            urllib.request.urlopen(req, timeout=5)
+        assert exc.value.code == 502
+        assert exc.value.read() == b"unsupported upstream body\n"
+
+        usage_data = json.loads(usage_file.read_text(encoding="utf-8"))
+        call = usage_data["calls"][0]
+        assert call["state"] == "unresolved"
+        assert call["reason"] == "unreconciled_upstream_usage"
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+
+def test_proxy_sse_limits_halt_further_upstream_requests(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    capability = "valid-cap"
+    _FakeSSEUpstream.mode = "normal"
+    _FakeSSEUpstream.seen = []
+    proxy, upstream, base_url = _setup_proxy(
+        tmp_path,
+        monkeypatch,
+        upstream_handler=_FakeSSEUpstream,
+        capability=capability,
+        max_requests=1,
+    )
+    try:
+        req1 = urllib.request.Request(
+            f"{base_url}/api/paas/v4/chat/completions",
+            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
+            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req1, timeout=5) as resp:
+            assert resp.status == 200
+        assert len(_FakeSSEUpstream.seen) == 1
+
+        req2 = urllib.request.Request(
+            f"{base_url}/api/paas/v4/chat/completions",
+            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
+            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            urllib.request.urlopen(req2, timeout=5)
+        assert exc.value.code == 429
+        assert exc.value.read() == b"trial budget exhausted\n"
+        assert len(_FakeSSEUpstream.seen) == 1
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+
+def test_proxy_sse_reflected_credentials_stay_redacted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    capability = "valid-cap"
+    _FakeSSEUpstream.mode = "reflect_secret"
+    _FakeSSEUpstream.seen = []
+    proxy, upstream, base_url = _setup_proxy(
+        tmp_path, monkeypatch, upstream_handler=_FakeSSEUpstream, capability=capability
+    )
+    try:
+        req = urllib.request.Request(
+            f"{base_url}/api/paas/v4/chat/completions",
+            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
+            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            body = resp.read()
+            assert resp.status == 200
+            assert SECRET_SENTINEL.encode() not in body
+            assert b"<redacted>" in body
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()

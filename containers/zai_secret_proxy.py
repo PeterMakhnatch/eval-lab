@@ -14,12 +14,14 @@ Hardening features:
 - Strict upstream response reading: requires bytes_read == declared Content-Length; EOF-short payloads return 502.
 - Size-bounded upstream response reading (limit+1) with sanitized 502 classification.
 - Multi-encoding secret redaction (raw, JSON, Base64, URL-encoded, Unicode, UTF-16, Bearer).
+- Trial budget accounting with durable usage reports and SSE response handling.
 """
 
 from __future__ import annotations
 
 import base64
 import contextlib
+import hashlib
 import hmac
 import http.client
 import json
@@ -39,6 +41,7 @@ from typing import Any
 DEFAULT_SECRET_PATH = Path("/run/secrets/evallab_zai_api_key")
 DEFAULT_UPSTREAM = "https://api.z.ai"
 ALLOWED_PATH = "/api/paas/v4/chat/completions"
+UPSTREAM_PATH = "/api/coding/paas/v4/chat/completions"
 HEALTHZ_PATH = "/healthz"
 MAX_REQUEST_BYTES = 4 * 1024 * 1024
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
@@ -52,6 +55,7 @@ ALLOWED_HTTP_HOSTS = frozenset(
     {"127.0.0.1", "localhost", "evallab-smoke-upstream", "host.docker.internal"}
 )
 REQUIRED_MODEL_PREFIX = "zai-coding-plan/"
+ALLOWED_MODEL_IDS = frozenset({"glm-5.3", "glm-5.3-flash", "glm-5.3-highspeed"})
 
 HOP_BY_HOP = frozenset(
     {
@@ -144,7 +148,7 @@ def _pinned_upstream_url() -> str:
             raise RuntimeError("upstream port is not pinned")
         if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
             raise RuntimeError("upstream path is not pinned")
-        return f"https://{PINNED_HTTPS_HOST}:{PINNED_HTTPS_PORT}{ALLOWED_PATH}"
+        return f"https://{PINNED_HTTPS_HOST}:{PINNED_HTTPS_PORT}{UPSTREAM_PATH}"
     if parsed.scheme == "http":
         host = parsed.hostname
         if not host or host not in ALLOWED_HTTP_HOSTS:
@@ -154,7 +158,7 @@ def _pinned_upstream_url() -> str:
             raise RuntimeError("http upstream port is not pinned")
         if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
             raise RuntimeError("upstream path is not pinned")
-        return f"http://{host}:{port}{ALLOWED_PATH}"
+        return f"http://{host}:{port}{UPSTREAM_PATH}"
     raise RuntimeError("upstream scheme is not pinned")
 
 
@@ -190,25 +194,28 @@ def _redact_key(data: bytes, key: str) -> bytes:
     return redacted
 
 
+def _scrub_json(value: Any, key: str) -> Any:
+    if isinstance(value, str):
+        return _redact_key(value.encode("utf-8"), key).decode("utf-8")
+    if isinstance(value, list):
+        return [_scrub_json(item, key) for item in value]
+    if isinstance(value, dict):
+        return {
+            _redact_key(str(name).encode("utf-8"), key).decode("utf-8"): _scrub_json(item, key)
+            for name, item in value.items()
+        }
+    return value
+
+
 def _canonicalize_and_redact_json(data: bytes, key: str) -> bytes:
     try:
         payload = json.loads(data.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError("unsupported upstream body") from exc
 
-    def _scrub(value: object) -> object:
-        if isinstance(value, str):
-            return _redact_key(value.encode("utf-8"), key).decode("utf-8")
-        if isinstance(value, list):
-            return [_scrub(item) for item in value]
-        if isinstance(value, dict):
-            return {
-                _redact_key(str(name).encode("utf-8"), key).decode("utf-8"): _scrub(item)
-                for name, item in value.items()
-            }
-        return value
-
-    canonical = json.dumps(_scrub(payload), ensure_ascii=True, separators=(",", ":")).encode("ascii")
+    canonical = json.dumps(
+        _scrub_json(payload, key), ensure_ascii=True, separators=(",", ":")
+    ).encode("ascii")
     sanitized = _redact_key(canonical, key)
     for needle in _key_needles(key):
         if needle in sanitized:
@@ -216,7 +223,89 @@ def _canonicalize_and_redact_json(data: bytes, key: str) -> bytes:
     return sanitized
 
 
-def _response_encoding_ok(headers: http.client.HTTPMessage) -> bool:
+def _canonicalize_sse_and_usage(
+    data: bytes, key: str
+) -> tuple[bytes, dict[str, int] | None, str | None]:
+    """Redact a text/event-stream and extract usage from the final data event.
+
+    Returns the sanitized SSE body and, if present, a usage dict with
+    ``prompt_tokens`` and ``completion_tokens``.
+    """
+    usage: dict[str, int] | None = None
+    returned_models: set[str] = set()
+    events: list[list[bytes]] = []
+    current: list[bytes] = []
+    for line in data.splitlines(keepends=True):
+        if line in (b"\n", b"\r\n"):
+            if current:
+                events.append(current)
+                current = []
+        else:
+            current.append(line.rstrip(b"\r\n"))
+    if current:
+        events.append(current)
+
+    sanitized_events: list[bytes] = []
+    for event in events:
+        data_lines: list[bytes] = []
+        other_lines: list[bytes] = []
+        for line in event:
+            if line.startswith(b"data:"):
+                data_lines.append(line[5:].lstrip(b" "))
+            else:
+                other_lines.append(line)
+        if not data_lines:
+            if other_lines:
+                sanitized_events.append(b"\n".join(other_lines))
+            continue
+        joined = b"".join(data_lines)
+        if joined == b"[DONE]":
+            if other_lines:
+                sanitized_events.append(b"\n".join([*other_lines, b"data: [DONE]"]))
+            else:
+                sanitized_events.append(b"data: [DONE]")
+            continue
+        try:
+            payload = json.loads(joined.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ValueError("unsupported upstream sse payload") from exc
+        if isinstance(payload, dict):
+            u = payload.get("usage")
+            if isinstance(u, dict):
+                prompt = u.get("prompt_tokens")
+                completion = u.get("completion_tokens")
+                if isinstance(prompt, int) and isinstance(completion, int):
+                    usage = {
+                        "prompt_tokens": prompt,
+                        "completion_tokens": completion,
+                    }
+            payload = _scrub_json(payload, key)
+            observed_model = payload.get("model")
+            if (
+                isinstance(observed_model, str)
+                and observed_model
+                and "<redacted>" not in observed_model
+            ):
+                returned_models.add(observed_model)
+        canonical = json.dumps(payload, ensure_ascii=True, separators=(",", ":")).encode("ascii")
+        canonical = _redact_key(canonical, key)
+        for needle in _key_needles(key):
+            if needle in canonical:
+                raise ValueError("reflected secret remains")
+        if other_lines:
+            sanitized_events.append(b"\n".join([*other_lines, b"data: " + canonical]))
+        else:
+            sanitized_events.append(b"data: " + canonical)
+
+    body = b"\n\n".join(sanitized_events)
+    if body:
+        body += b"\n\n"
+    if len(returned_models) > 1:
+        raise ValueError("upstream SSE events disagree on model identity")
+    return _redact_key(body, key), usage, next(iter(returned_models), None)
+
+
+def _response_encoding_ok(headers: http.client.HTTPMessage, *, stream: bool = False) -> bool:
     encoding = (headers.get("Content-Encoding") or "identity").strip().casefold()
     transfer = (headers.get("Transfer-Encoding") or "identity").strip().casefold()
     if encoding not in {"identity", ""}:
@@ -225,8 +314,12 @@ def _response_encoding_ok(headers: http.client.HTTPMessage) -> bool:
         return False
     content_type = headers.get("Content-Type") or ""
     media, _, params = content_type.partition(";")
-    if media.strip().casefold() not in {"application/json"}:
-        return False
+    if stream:
+        if media.strip().casefold() not in {"application/json", "text/event-stream"}:
+            return False
+    else:
+        if media.strip().casefold() not in {"application/json"}:
+            return False
     charset = "utf-8"
     for part in params.split(";"):
         name, _, value = part.strip().partition("=")
@@ -258,12 +351,36 @@ def _expired() -> bool:
     return time.time() >= deadline
 
 
-def _validate_model(model: Any) -> str | None:
-    """Validate model selector against zai-coding-plan/ prefix.
+def _int_env(name: str) -> int:
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        raise ValueError(name)
+    value = int(raw)
+    if value < 0:
+        raise ValueError(name)
+    return value
 
-    Returns the valid model name string or None if disallowed.
-    Disallowed model/provider paths fail closed.
-    """
+
+def _estimate_tokens(payload: dict[str, Any]) -> int:
+    """Reserve a conservative upper bound. Never trust characters/4."""
+    billed = {
+        "messages": payload.get("messages"),
+        "tools": payload.get("tools"),
+        "tool_choice": payload.get("tool_choice"),
+    }
+    encoded = json.dumps(billed, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return max(1, len(encoded))
+
+
+def _cost_micros(input_tokens: int, output_tokens: int) -> int:
+    input_rate = _int_env("EVALLAB_ZAI_INPUT_COST_MICROS_PER_MILLION")
+    output_rate = _int_env("EVALLAB_ZAI_OUTPUT_COST_MICROS_PER_MILLION")
+    numerator = input_tokens * input_rate + output_tokens * output_rate
+    return (numerator + 999_999) // 1_000_000
+
+
+def _validate_model(model: Any) -> str | None:
+    """Validate model selector and return the allowed model identifier."""
     if not isinstance(model, str) or not model:
         return None
     if "/" not in model:
@@ -271,13 +388,234 @@ def _validate_model(model: Any) -> str | None:
     provider, _, suffix = model.partition("/")
     if f"{provider}/" != REQUIRED_MODEL_PREFIX:
         return None
-    if not suffix:
+    if suffix not in ALLOWED_MODEL_IDS:
         return None
-    return model
+    return suffix
+
+
+class TrialBudget:
+    """Concurrency-safe, durable accounting for one trial capability."""
+
+    def __init__(self) -> None:
+        capability = os.environ.get("EVALLAB_ZAI_PROXY_CAPABILITY", "")
+        attempt_id = os.environ.get("EVALLAB_ZAI_ATTEMPT_ID", "")
+        usage_path = os.environ.get("EVALLAB_ZAI_USAGE_FILE", "")
+        if not capability or not attempt_id or not usage_path:
+            raise ValueError("proxy capability accounting is not configured")
+        self._lock = threading.Lock()
+        self._requests = 0
+        self._input_tokens = 0
+        self._output_tokens = 0
+        self._cost_micros = 0
+        self._nonces: set[bytes] = set()
+        self._calls: list[dict[str, Any]] = []
+        self._sequence = 0
+        self._path = Path(usage_path)
+        self._attempt_id = attempt_id
+        self._capability_id = "sha256:" + hashlib.sha256(capability.encode()).hexdigest()
+        self._limits = {
+            "max_requests": _int_env("EVALLAB_ZAI_MAX_REQUESTS"),
+            "max_input_tokens": _int_env("EVALLAB_ZAI_MAX_INPUT_TOKENS"),
+            "max_output_tokens": _int_env("EVALLAB_ZAI_MAX_OUTPUT_TOKENS"),
+            "max_total_tokens": _int_env("EVALLAB_ZAI_MAX_TOTAL_TOKENS"),
+            "max_cost_micros": _int_env("EVALLAB_ZAI_MAX_COST_MICROS"),
+        }
+        self._pricing = {
+            "input_cost_micros_per_million": _int_env("EVALLAB_ZAI_INPUT_COST_MICROS_PER_MILLION"),
+            "output_cost_micros_per_million": _int_env(
+                "EVALLAB_ZAI_OUTPUT_COST_MICROS_PER_MILLION"
+            ),
+        }
+        self._persist_locked()
+
+    def _persist_locked(self) -> None:
+        unresolved = sum(1 for call in self._calls if call["state"] != "reconciled")
+        payload = {
+            "schema_version": 1,
+            "capability_id": self._capability_id,
+            "attempt_id": self._attempt_id,
+            "sequence": self._sequence,
+            "limits": self._limits,
+            "pricing": self._pricing,
+            "totals": {
+                "requests": self._requests,
+                "input_tokens": self._input_tokens,
+                "output_tokens": self._output_tokens,
+                "total_tokens": self._input_tokens + self._output_tokens,
+                "cost_micros": self._cost_micros,
+            },
+            "unresolved_requests": unresolved,
+            "calls": self._calls,
+        }
+        encoded = (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode()
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self._path.with_name(
+            f".{self._path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+        )
+        descriptor = os.open(
+            temporary,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+            0o600,
+        )
+        try:
+            view = memoryview(encoded)
+            while view:
+                written = os.write(descriptor, view)
+                view = view[written:]
+            os.fsync(descriptor)
+        except BaseException:
+            os.close(descriptor)
+            with contextlib.suppress(OSError):
+                os.unlink(temporary)
+            raise
+        os.close(descriptor)
+        os.replace(temporary, self._path)
+
+    def consume_nonce(self, nonce: bytes) -> bool:
+        with self._lock:
+            if nonce in self._nonces:
+                return False
+            self._nonces.add(nonce)
+            return True
+
+    def reserve(
+        self,
+        *,
+        input_tokens: int,
+        output_tokens: int,
+        cost_micros: int,
+        requested_model: str,
+    ) -> int | None:
+        with self._lock:
+            if self._requests + 1 > self._limits["max_requests"]:
+                return None
+            if self._input_tokens + input_tokens > self._limits["max_input_tokens"]:
+                return None
+            if self._output_tokens + output_tokens > self._limits["max_output_tokens"]:
+                return None
+            if (
+                self._input_tokens + self._output_tokens + input_tokens + output_tokens
+                > self._limits["max_total_tokens"]
+            ):
+                return None
+            if self._cost_micros + cost_micros > self._limits["max_cost_micros"]:
+                return None
+            call_id = self._requests + 1
+            self._requests += 1
+            self._input_tokens += input_tokens
+            self._output_tokens += output_tokens
+            self._cost_micros += cost_micros
+            self._calls.append(
+                {
+                    "call_id": call_id,
+                    "state": "reserved",
+                    "requested_model": requested_model,
+                    "reserved_input_tokens": input_tokens,
+                    "reserved_output_tokens": output_tokens,
+                    "reserved_cost_micros": cost_micros,
+                }
+            )
+            self._sequence += 1
+            self._persist_locked()
+            return call_id
+
+    def reconcile(
+        self,
+        *,
+        call_id: int,
+        used_input: int,
+        used_output: int,
+        used_cost: int,
+        status: int,
+        returned_model: Any = None,
+        returned_model_reason: str | None = "response_not_observed",
+    ) -> None:
+        if min(used_input, used_output, used_cost) < 0:
+            raise ValueError("negative provider usage")
+        with self._lock:
+            call = self._calls[call_id - 1]
+            if call["call_id"] != call_id or call["state"] != "reserved":
+                raise ValueError("provider call accounting state is invalid")
+            reserved_input = int(call["reserved_input_tokens"])
+            reserved_output = int(call["reserved_output_tokens"])
+            reserved_cost = int(call["reserved_cost_micros"])
+            self._input_tokens = self._input_tokens - reserved_input + used_input
+            self._output_tokens = self._output_tokens - reserved_output + used_output
+            self._cost_micros = self._cost_micros - reserved_cost + used_cost
+            call.update(
+                {
+                    "state": "reconciled",
+                    "status": status,
+                    "returned_model": returned_model,
+                    "returned_model_reason": returned_model_reason,
+                    "input_tokens": used_input,
+                    "output_tokens": used_output,
+                    "cost_micros": used_cost,
+                }
+            )
+            self._sequence += 1
+            self._persist_locked()
+
+    def mark_unresolved(
+        self,
+        *,
+        call_id: int,
+        reason: str,
+        returned_model: Any = None,
+        returned_model_reason: str | None = "response_not_observed",
+    ) -> None:
+        with self._lock:
+            call = self._calls[call_id - 1]
+            if call["call_id"] != call_id or call["state"] != "reserved":
+                raise ValueError("provider call accounting state is invalid")
+            call.update({"state": "unresolved", "reason": reason})
+            call.update(
+                returned_model=returned_model,
+                returned_model_reason=returned_model_reason,
+            )
+            self._sequence += 1
+            self._persist_locked()
+
+    def mark_exceeded(
+        self,
+        *,
+        call_id: int,
+        reason: str,
+        input_tokens: int,
+        output_tokens: int,
+        cost_micros: int,
+    ) -> None:
+        with self._lock:
+            call = self._calls[call_id - 1]
+            if call["call_id"] != call_id or call["state"] != "reserved":
+                raise ValueError("provider call accounting state is invalid")
+            reserved_input = int(call["reserved_input_tokens"])
+            reserved_output = int(call["reserved_output_tokens"])
+            reserved_cost = int(call["reserved_cost_micros"])
+            self._input_tokens = self._input_tokens - reserved_input + input_tokens
+            self._output_tokens = self._output_tokens - reserved_output + output_tokens
+            self._cost_micros = self._cost_micros - reserved_cost + cost_micros
+            call.update(
+                {
+                    "state": "exceeded",
+                    "reason": reason,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "cost_micros": cost_micros,
+                }
+            )
+            self._sequence += 1
+            self._persist_locked()
+
+    def remaining_output(self) -> int:
+        with self._lock:
+            return max(0, self._limits["max_output_tokens"] - self._output_tokens)
 
 
 class ProxyServer(ThreadingHTTPServer):
     """Threading HTTPServer with bounded concurrent worker semaphore acquired before thread spawn."""
+
+    budget: TrialBudget
 
     def __init__(
         self,
@@ -466,6 +804,11 @@ class Handler(BaseHTTPRequestHandler):
 
         return b"".join(chunks)
 
+    def _budget(self) -> TrialBudget:
+        server = self.server
+        assert isinstance(server, ProxyServer)
+        return server.budget
+
     def _proxy(self, body: bytes) -> None:
         try:
             payload = json.loads(body.decode("utf-8"))
@@ -476,37 +819,84 @@ class Handler(BaseHTTPRequestHandler):
             self._reject(400, b"invalid json\n")
             return
 
+        nonce = (self.headers.get("X-Evallab-Proxy-Nonce") or "").encode("utf-8")
+        if nonce and not self._budget().consume_nonce(nonce):
+            self._reject(409, b"replay rejected\n")
+            return
+
         model = _validate_model(payload.get("model"))
         if model is None:
             self._reject(403, b"model not allowed\n")
+            return
+        full_model = f"{REQUIRED_MODEL_PREFIX}{model}"
+
+        try:
+            input_tokens = _estimate_tokens(payload)
+            max_output = _int_env("EVALLAB_ZAI_MAX_OUTPUT_TOKENS")
+            requested_output = payload.get("max_tokens")
+            if requested_output is None or int(requested_output) <= 0:
+                output_tokens = max_output
+            else:
+                output_tokens = min(int(requested_output), max_output)
+            remaining_output = self._budget().remaining_output()
+            output_tokens = min(output_tokens, remaining_output)
+            if output_tokens <= 0:
+                self._reject(429, b"trial budget exhausted\n")
+                return
+            cost = _cost_micros(input_tokens, output_tokens)
+        except (TypeError, ValueError):
+            self._reject(400, b"invalid budget fields\n")
+            return
+
+        try:
+            call_id = self._budget().reserve(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_micros=cost,
+                requested_model=full_model,
+            )
+        except (OSError, ValueError):
+            self._reject(503, b"budget accounting unavailable\n")
+            return
+        if call_id is None:
+            self._reject(429, b"trial budget exhausted\n")
             return
 
         try:
             key = provider_key()
         except RuntimeError:
+            self._budget().reconcile(
+                call_id=call_id,
+                used_input=0,
+                used_output=0,
+                used_cost=0,
+                status=0,
+            )
             self._reject(500, b"provider secret unavailable\n")
             return
 
         headers = {
             name: value
             for name, value in self.headers.items()
-            if name.casefold() not in HOP_BY_HOP
-            and name.casefold() not in STRIP_INBOUND_HEADERS
+            if name.casefold() not in HOP_BY_HOP and name.casefold() not in STRIP_INBOUND_HEADERS
         }
 
-        # Forward safe fields verbatim without fallback or model substitution
-        forwarded: dict[str, Any] = {
+        forwarded = {
             name: payload[name]
             for name in ("model", "messages", "tools", "tool_choice", "temperature")
             if name in payload
         }
         forwarded["model"] = model
         if "max_tokens" in payload and payload["max_tokens"] is not None:
-            forwarded["max_tokens"] = payload["max_tokens"]
+            forwarded["max_tokens"] = min(int(payload["max_tokens"]), output_tokens)
+        else:
+            forwarded["max_tokens"] = output_tokens
         forwarded["n"] = 1
         forwarded["stream"] = False
 
-        forwarded_body = json.dumps(forwarded, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        forwarded_body = json.dumps(forwarded, ensure_ascii=False, separators=(",", ":")).encode(
+            "utf-8"
+        )
         headers["Authorization"] = f"Bearer {key}"
         headers["Content-Length"] = str(len(forwarded_body))
         headers["Accept-Encoding"] = "identity"
@@ -515,6 +905,13 @@ class Handler(BaseHTTPRequestHandler):
         try:
             target = _pinned_upstream_url()
         except RuntimeError:
+            self._budget().reconcile(
+                call_id=call_id,
+                used_input=0,
+                used_output=0,
+                used_cost=0,
+                status=0,
+            )
             self._reject(502, b"provider unavailable\n")
             return
 
@@ -536,10 +933,18 @@ class Handler(BaseHTTPRequestHandler):
             response = opener.open(request, timeout=UPSTREAM_TIMEOUT_SECONDS)
         except urllib.error.HTTPError as exc:
             if 300 <= int(exc.code) < 400:
+                self._budget().mark_unresolved(
+                    call_id=call_id,
+                    reason="upstream_redirect",
+                )
                 self._reject(502, b"redirects disabled\n")
                 return
             response = exc
         except (OSError, urllib.error.URLError, http.client.HTTPException):
+            self._budget().mark_unresolved(
+                call_id=call_id,
+                reason="upstream_transport_error",
+            )
             self._reject(502, b"provider unavailable\n")
             return
 
@@ -547,36 +952,142 @@ class Handler(BaseHTTPRequestHandler):
             raw_status = getattr(response, "status", 502)
             status = raw_status if isinstance(raw_status, int) else 502
             if 300 <= status < 400:
+                self._budget().mark_unresolved(
+                    call_id=call_id,
+                    reason="upstream_redirect",
+                )
                 self._reject(502, b"redirects disabled\n")
                 return
-            if not _response_encoding_ok(response.headers):  # ty: ignore[invalid-argument-type]
+
+            content_type = response.headers.get("Content-Type") or ""
+            is_stream = "text/event-stream" in content_type.casefold()
+            if not _response_encoding_ok(response.headers, stream=is_stream):
+                self._budget().mark_unresolved(
+                    call_id=call_id,
+                    reason="unsupported_upstream_encoding",
+                )
                 self._reject(502, b"unsupported upstream encoding\n")
                 return
 
             upstream_body = self._read_upstream_body(response)
             if upstream_body is None:
+                self._budget().mark_unresolved(
+                    call_id=call_id,
+                    reason="unsupported_upstream_body",
+                )
                 self._reject(502, b"unsupported upstream body\n")
                 return
             if b"\x00" in upstream_body:
+                self._budget().mark_unresolved(
+                    call_id=call_id,
+                    reason="unsupported_upstream_body",
+                )
                 self._reject(502, b"unsupported upstream body\n")
                 return
 
+            returned_model = None
+            returned_model_reason = "response_not_observed"
+            usage: dict[str, int] | None = None
             try:
-                sanitized_body = _canonicalize_and_redact_json(upstream_body, key)
-            except ValueError:
+                if is_stream:
+                    sanitized_body, usage, returned_model = _canonicalize_sse_and_usage(
+                        upstream_body, key
+                    )
+                    returned_model_reason = (
+                        "model_absent_or_null" if returned_model is None else None
+                    )
+                else:
+                    sanitized_body = _canonicalize_and_redact_json(upstream_body, key)
+                    upstream_payload = json.loads(sanitized_body.decode("ascii"))
+                    if not isinstance(upstream_payload, dict):
+                        raise ValueError("upstream payload is not an object")
+                    returned_model = upstream_payload.get("model")
+                    returned_model_reason = (
+                        "model_absent_or_null" if returned_model is None else None
+                    )
+                    if "<redacted>" in json.dumps(returned_model):
+                        returned_model = None
+                        returned_model_reason = "model_redacted"
+                    usage = upstream_payload.get("usage")
+            except (KeyError, TypeError, ValueError):
+                self._budget().mark_unresolved(
+                    call_id=call_id,
+                    reason="unreconciled_upstream_usage",
+                    returned_model=returned_model,
+                    returned_model_reason=returned_model_reason,
+                )
                 self._reject(502, b"unsupported upstream body\n")
                 return
 
-            with contextlib.suppress(OSError):
-                self.send_response(status)
-                content_type = response.headers.get("Content-Type", "application/json")
-                sanitized_type = _redact_key(content_type.encode("utf-8"), key).decode("utf-8")
-                self.send_header("Content-Type", sanitized_type)
-                self.send_header("Content-Encoding", "identity")
-                self.send_header("Content-Length", str(len(sanitized_body)))
-                self.send_header("Connection", "close")
-                self.end_headers()
-                self.wfile.write(sanitized_body)
+            if status >= 400 and not isinstance(usage, dict):
+                self._budget().mark_unresolved(
+                    call_id=call_id,
+                    reason=f"provider_http_{status}_usage_unknown",
+                    returned_model=returned_model,
+                    returned_model_reason=returned_model_reason,
+                )
+                self._reject(status, sanitized_body)
+                return
+
+            if not isinstance(usage, dict) or not all(
+                k in usage for k in ("prompt_tokens", "completion_tokens")
+            ):
+                self._budget().mark_unresolved(
+                    call_id=call_id,
+                    reason="unreconciled_upstream_usage",
+                    returned_model=returned_model,
+                    returned_model_reason=returned_model_reason,
+                )
+                self._reject(502, b"unsupported upstream body\n")
+                return
+
+            used_input = usage["prompt_tokens"]
+            used_output = usage["completion_tokens"]
+            if any(
+                isinstance(value, bool) or not isinstance(value, int) or value < 0
+                for value in (used_input, used_output)
+            ):
+                self._budget().mark_unresolved(
+                    call_id=call_id,
+                    reason="negative_upstream_usage",
+                    returned_model=returned_model,
+                    returned_model_reason=returned_model_reason,
+                )
+                self._reject(502, b"unsupported upstream body\n")
+                return
+
+            # Budget overruns are recorded as exceeded and still emitted so the
+            # runner can reconcile the call.
+            used_cost = _cost_micros(used_input, used_output)
+            if used_input > input_tokens or used_output > output_tokens or used_cost > cost:
+                self._budget().mark_exceeded(
+                    call_id=call_id,
+                    reason="provider_usage_exceeded_reservation",
+                    input_tokens=used_input,
+                    output_tokens=used_output,
+                    cost_micros=used_cost,
+                )
+                self._reject(429, b"trial budget exhausted\n")
+                return
+
+            self._budget().reconcile(
+                call_id=call_id,
+                used_input=used_input,
+                used_output=used_output,
+                used_cost=used_cost,
+                status=status,
+                returned_model=returned_model,
+                returned_model_reason=returned_model_reason,
+            )
+
+            self.send_response(status)
+            sanitized_type = _redact_key(content_type.encode("utf-8"), key).decode("utf-8")
+            self.send_header("Content-Type", sanitized_type)
+            self.send_header("Content-Encoding", "identity")
+            self.send_header("Content-Length", str(len(sanitized_body)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(sanitized_body)
 
 
 def serve(
@@ -585,7 +1096,9 @@ def serve(
     max_workers: int = MAX_CONCURRENT_WORKERS,
 ) -> ThreadingHTTPServer:
     bound_port = int(os.environ.get("PORT", "8080") if port is None else port)
-    return ProxyServer((host, bound_port), Handler, max_workers=max_workers)
+    server = ProxyServer((host, bound_port), Handler, max_workers=max_workers)
+    server.budget = TrialBudget()
+    return server
 
 
 if __name__ == "__main__":

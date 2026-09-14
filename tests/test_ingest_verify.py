@@ -244,23 +244,45 @@ def test_ingest_verify_accounts_for_exception_in_gaps(tmp_path: Path) -> None:
     assert res.is_complete is True
 
 
-def test_ingest_verify_cli_output(capsys: pytest.CaptureFixture[str]) -> None:
-    """CLI entry point python -m evallab.ingest_verify renders summary and json."""
-    from evallab.ingest_verify import main
+def test_ingest_verify_cli_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The CLI fails for a missing projection and succeeds after it is supplied."""
+    import evallab.ingest_verify as ingest_verify
 
-    repo_root = Path(__file__).resolve().parents[1]
+    job_id = "00000000-0000-0000-0000-000000000001"
+    trial_id = "00000000-0000-0000-0000-000000000002"
+    job = tmp_path / "runs" / "job"
+    trial = job / "trial"
+    trial.mkdir(parents=True)
+    (job / "result.json").write_text(json.dumps({"id": job_id}))
+    (trial / "result.json").write_text(json.dumps({"id": trial_id}))
+    (trial / "config.json").write_text("{}")
+    (trial / "lock.json").write_text("{}")
+    jobs = {job_id: {"id": job_id, "name": "job", "path": str(job)}}
+    trials = {
+        trial_id: {
+            "id": trial_id,
+            "job_id": job_id,
+            "name": "trial",
+            "path": str(trial),
+        }
+    }
+    monkeypatch.setattr(ingest_verify, "_default_catalog_loader", lambda _url: (jobs, trials))
+    derived_root = tmp_path / "derived"
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(derived_root))
 
-    code = main(["--root", str(repo_root), "--json"])
-    assert code == 0
-    out = capsys.readouterr().out
-    data = json.loads(out)
-    assert "is_complete" in data
-    assert data["is_complete"] is True
-    assert data["gaps_count"] == 0
+    assert ingest_verify.main(["--root", str(tmp_path), "--json"]) == 1
+    missing = json.loads(capsys.readouterr().out)
+    assert missing["is_complete"] is False
+    assert [(gap["entity_id"], gap["reason"]) for gap in missing["gaps"]] == [
+        (job_id, "missing_jobs_parquet")
+    ]
 
-    # Table output
-    code_tbl = main(["--root", str(repo_root)])
-    assert code_tbl == 0
-    out_tbl = capsys.readouterr().out
-    assert "Ingest Completeness Verification" in out_tbl
-    assert "COMPLETE (0 gaps)" in out_tbl
+    _write_complete_partition(derived_root, job_id, trial_id)
+    assert ingest_verify.main(["--root", str(tmp_path), "--json"]) == 0
+    complete = json.loads(capsys.readouterr().out)
+    assert complete["is_complete"] is True
+    assert complete["gaps"] == []

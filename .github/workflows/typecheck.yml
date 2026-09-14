@@ -5,7 +5,10 @@ name: typecheck
 
 on:
   pull_request:
-    branches: [main, "integrate/**"]
+    # Include retargeting: stacked PRs may change base without a new head commit.
+    types: [opened, synchronize, reopened, edited]
+  merge_group:
+    types: [checks_requested]
   push:
     branches: [main, "integrate/**"]
   workflow_dispatch:
@@ -63,3 +66,18 @@ jobs:
           fi
 
           echo "ty at or below baseline (0 <= $TY_BASELINE)."
+
+  typecheck-required:
+    name: typecheck-required
+    needs: [ty]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    permissions: {}
+    steps:
+      - name: Require successful typecheck
+        env:
+          TY_RESULT: ${{ needs.ty.result }}
+        run: |
+          printf 'ty=%s\n' "$TY_RESULT"
+          [[ "$TY_RESULT" == success ]]

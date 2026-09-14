@@ -49,6 +49,12 @@ POLICY = StandingApprovalsPolicy(
 )
 
 
+@pytest.fixture(autouse=True)
+def isolate_derived_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep staging writes inside each test's own repository, not the host ledger."""
+    monkeypatch.delenv("EVALLAB_DERIVED_ROOT", raising=False)
+
+
 class CountingAdapter:
     def __init__(self, response_file="saved-response.json"):
         self.calls = 0

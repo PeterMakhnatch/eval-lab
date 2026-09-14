@@ -80,6 +80,36 @@ def test_missing_checker_is_not_a_clean_result(tmp_path: Path, surface: str) -> 
     assert _gate(tmp_path, _environment(tmp_path, None), surface).returncode == 127
 
 
+@pytest.mark.parametrize(
+    ("workflow_file", "job", "result_names"),
+    [
+        ("ci.yml", "quality-required", ("LINT_RESULT", "TEST_RESULT")),
+        ("typecheck.yml", "typecheck-required", ("TY_RESULT",)),
+    ],
+)
+def test_required_gate_rejects_every_non_success_prerequisite(
+    tmp_path: Path, workflow_file: str, job: str, result_names: tuple[str, ...]
+) -> None:
+    workflow = yaml.safe_load((ROOT / ".github/workflows" / workflow_file).read_text())
+    command = [BASH, "-e", "-c", workflow["jobs"][job]["steps"][0]["run"]]
+    successful = {name: "success" for name in result_names}
+
+    def run(results: dict[str, str]) -> int:
+        return subprocess.run(
+            command,
+            cwd=tmp_path,
+            env={"HOME": str(tmp_path), **results},
+            capture_output=True,
+            check=False,
+        ).returncode
+
+    assert run(successful) == 0
+    for name in result_names:
+        for result in ("failure", "cancelled", "skipped", "neutral", "", "unknown"):
+            assert run({**successful, name: result}) != 0, (name, result)
+        assert run({key: value for key, value in successful.items() if key != name}) != 0
+
+
 def _git(root: Path, *args: str) -> str:
     return subprocess.check_output(
         [GIT, "-c", "core.hooksPath=/dev/null", *args],

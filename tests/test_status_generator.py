@@ -7,6 +7,8 @@ import json
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 from evallab.automation import NightlyCycle
 from evallab.digest import DigestRenderer
 from evallab.queue import DirectoryQueue, Executor, load_events
@@ -425,8 +427,11 @@ def test_nightly_cycle_handles_status_updater_failure_cleanly(tmp_path: Path) ->
         and "RuntimeError" in (e.reason_code or "")
         for e in events
     )
-def test_status_rendering_zero_trials_renders_nothing_ran_and_no_trial_ids(tmp_path: Path) -> None:
+def test_status_rendering_zero_trials_renders_nothing_ran_and_no_trial_ids(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
     repo = _setup_mock_repo(tmp_path)
+    monkeypatch.setenv("EVALLAB_DERIVED_ROOT", str(repo / "derived/parquet"))
     # Seed both a yesterday job and a historical job on the filesystem
     _write_mock_job(
         repo / "runs",
@@ -448,6 +453,7 @@ def test_status_rendering_zero_trials_renders_nothing_ran_and_no_trial_ids(tmp_p
         repo,
         target_date=TARGET_DATE,
         trial_loader=lambda _day: [],
+        storm_loader=lambda _day: [],
     )
     assert data.catalog_accessible is True
     assert data.trials_source == "catalog"
@@ -457,6 +463,7 @@ def test_status_rendering_zero_trials_renders_nothing_ran_and_no_trial_ids(tmp_p
         repo,
         target_date=TARGET_DATE,
         trial_loader=lambda _day: [],
+        storm_loader=lambda _day: [],
     )
     assert "## RECENT (Yesterday: 2026-08-15)" in rendered
     assert "No completed trials observed in the reporting window." in rendered

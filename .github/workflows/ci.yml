@@ -2,7 +2,10 @@ name: quality
 
 on:
   pull_request:
-    branches: [main, "integrate/**"]
+    # Include retargeting: stacked PRs may change base without a new head commit.
+    types: [opened, synchronize, reopened, edited]
+  merge_group:
+    types: [checks_requested]
   push:
     branches: [main, "integrate/**"]
   workflow_dispatch:
@@ -63,3 +66,19 @@ jobs:
       - run: uv run --no-sync pytest
       - if: matrix.python-version == '3.12'
         run: uv run --no-sync python -m evallab.smoke --docker-free
+
+  quality-required:
+    name: quality-required
+    needs: [lint, test]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    permissions: {}
+    steps:
+      - name: Require successful quality jobs
+        env:
+          LINT_RESULT: ${{ needs.lint.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+        run: |
+          printf 'lint=%s test=%s\n' "$LINT_RESULT" "$TEST_RESULT"
+          [[ "$LINT_RESULT" == success && "$TEST_RESULT" == success ]]

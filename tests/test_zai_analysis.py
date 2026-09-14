@@ -27,7 +27,7 @@ def test_parse_trial_directory_nonexistent() -> None:
 
 def test_build_seed_blocked_contrasts_empty() -> None:
     contrasts = build_seed_blocked_contrasts([])
-    assert isinstance(contrasts, list)
+    assert contrasts == []
 
 
 def test_build_seed_blocked_contrasts_action_memory_and_recovery() -> None:

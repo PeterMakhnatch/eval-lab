@@ -53,7 +53,7 @@
   `default_novel_designer` is a deterministic stub. No provider SDK is installed
   (`openai`, `litellm`, `dspy`, `sentence-transformers` all absent). Execution against
   real agents *does* work — 33 `codex` trials in the catalog beside 57 `oracle` + 2 `nop`.
-  Corrected on the board and in `docs/platform-architecture.md` §12, which also had
+  Corrected on the board and in `docs/archive/platform-architecture.md` §12, which also had
   `queue.py` as unbuilt (leases landed, M020) and `craft.py` as unbuilt (shipped, M023).
 - 2026-08-18 [integrator]: embedder swap is smaller than assumed and has one real trap.
   `lance.py` already has the seam — `Embedder` Protocol (`lance.py:43`), every builder

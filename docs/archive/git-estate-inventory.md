@@ -61,6 +61,6 @@ Any future hygiene execution MUST adhere strictly to the following invariants:
 
 ## 4. Dataset Artifacts & Navigation
 
-- **Machine-Readable Snapshot**: [`research/analysis/git-estate-inventory-2026-08-27.json`](../research/analysis/git-estate-inventory-2026-08-27.json) (Contains all 591 entity rows with full evidence digests).
+- **Machine-Readable Snapshot**: [`research/archive/2026-W36/git-estate-inventory-2026-08-27.json`](../../research/archive/2026-W36/git-estate-inventory-2026-08-27.json) (Contains all 591 entity rows with full evidence digests).
 - **Handoffs & Quarantined Ledger**: [`research/analysis/git-estate-handoffs-2026-08-27.md`](../research/analysis/git-estate-handoffs-2026-08-27.md) (Comprehensive accounting of all dirty worktrees, unmerged-useful assets, unknown historical branches, and primary evidence reconciliation).
 - **Preserved Primary Context**: [`research/analysis/preserved-primary-evidence-AGENTS-2026-08-27.md`](../research/analysis/preserved-primary-evidence-AGENTS-2026-08-27.md) (Byte-identical preservation of divergent primary evidence note, SHA-256: `f9a82e52cbebb23c9b815caf70f37e395d0e10f1d1ad75b817a76333459607b5`).

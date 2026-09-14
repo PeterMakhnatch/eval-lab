@@ -23,6 +23,8 @@ import pytest
 
 from evallab.fetch import UNPINNED_VERSIONS, FetchError, parse_pin
 
+pytestmark = pytest.mark.docs_consumer
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXTERNAL_ROOT = REPO_ROOT / "research" / "external"
 
@@ -61,8 +63,7 @@ def test_corpus_states_its_contamination_class(name: str) -> None:
     """The caveat must live with the data, not in a doc someone may not open."""
     text = (EXTERNAL_ROOT / name / "README.md").read_text(encoding="utf-8").lower()
     assert any(term in text for term in CONTAMINATION_TERMS), (
-        f"{name}: README must state the contamination class "
-        f"(one of {CONTAMINATION_TERMS})"
+        f"{name}: README must state the contamination class (one of {CONTAMINATION_TERMS})"
     )
 
 
@@ -84,9 +85,7 @@ def test_unacquired_corpus_says_so_instead_of_looking_empty(name: str) -> None:
     """
     corpus = EXTERNAL_ROOT / name
     data_files = [
-        p
-        for p in corpus.rglob("*")
-        if p.is_file() and p.name not in {"README.md", ".gitkeep"}
+        p for p in corpus.rglob("*") if p.is_file() and p.name not in {"README.md", ".gitkeep"}
     ]
     if not data_files:
         text = (corpus / "README.md").read_text(encoding="utf-8").lower()

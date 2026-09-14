@@ -7,7 +7,6 @@ trajectory; it is not presented as process capture.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from collections import OrderedDict
@@ -334,8 +333,3 @@ def create_fallback_atif_for_print_mode(
 
 def _as_str(value: Any) -> str | None:
     return value if isinstance(value, str) and value else None
-
-
-def redact_digest(value: str) -> str:
-    """Stable digest for diagnostics without retaining credential-shaped input."""
-    return hashlib.sha256(value.encode()).hexdigest()

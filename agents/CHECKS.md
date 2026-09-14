@@ -20,7 +20,7 @@ gates to **GitHub Actions**; the review status is issued by the integration owne
 
 | Required check | Direct prerequisites |
 |---|---|
-| `quality-required` | `lint`, `test (3.12)`, `test (3.14)` via the `test` matrix |
+| `quality-required` | `lint`, `test (3.12, 1/2)`, `test (3.12, 2/2)`, `test (3.14, 1/2)`, `test (3.14, 2/2)` via the `test` matrix |
 | `typecheck-required` | `ty` |
 | `independent-review` | Integration-owner attestation of an actual independent review of this exact head |
 
@@ -48,15 +48,15 @@ trigger and dependency handling fail closed, including merge-group support.
 
 | Gate | Command | Version / interpreter |
 |---|---|---|
-| Locked install | `uv sync --locked` | uv 0.9.24; Python 3.12 and 3.14 |
+| Locked install | `uv sync --locked` (tests: `--no-group observability --group benchmarks --group lance`) | uv 0.9.24; Python 3.12 and 3.14; `observability` stays opt-in, `lance` is an opt-in group for lancedb contract tests |
 | Lint | `uv run ruff check .` | locked Ruff; Python 3.12 |
 | Doc index freshness | `uv run python -m evallab.docindex check` | locked; Python 3.12 |
 | Repository map freshness | `uv run python -m evallab.repomap check` | locked; Python 3.12 |
 | Governance | `uv run python -m evallab.governance check` | Required governance documents, live handoff headers, tracked root freeze |
 | Registry audit | `uv run evallab registry audit --json` | locked; clean-checkout task/inventory audit |
 | Lessons freshness | `uv run python -m evallab.lessons` | locked; statistical lessons lineage |
-| Tests | `uv run pytest` | locked pytest; Python 3.12 and 3.14 |
-| Types | `uvx ty@0.0.71 check src/ --output-format=concise` | Python 3.12; zero-diagnostic gate |
+| Tests | `uv run pytest` (CI: `--shard ${{ matrix.shard }}`) | locked pytest; Python 3.12 and 3.14 across a two-shard matrix (`test (3.12, 1/2)`, `test (3.12, 2/2)`, `test (3.14, 1/2)`, `test (3.14, 2/2)`) |
+| Types | `uvx ty@0.0.71 check src/ --output-format=concise` | Python 3.12; zero-diagnostic gate (runs before tests in premerge) |
 
 The ty job fails on any diagnostic. Keep the local premerge baseline and the
 GitHub `typecheck` workflow at zero; never restore a positive baseline.
@@ -64,15 +64,25 @@ GitHub `typecheck` workflow at zero; never restore a positive baseline.
 Run `make premerge` before pushing. Before final review and doc freshness checks,
 run explicit `make docs` to regenerate `docs/INDEX.md` and `docs/repo-map.md`.
 `scripts/premerge.sh` pins Python 3.12, checks uv 0.9.24, performs the locked
-install (including the `benchmarks` dependency group so the live
-fastmcp/cryptography contract tests run locally instead of skipping via
-`pytest.importorskip`), runs every gate above, and applies the same ty 0.0.71
+install (including the `benchmarks` and `lance` dependency groups so the live
+fastmcp/cryptography/lancedb contract tests run locally instead of skipping via
+`pytest.importorskip`), runs the static type check (`ty`) *before* pytest so type
+errors surface in seconds, runs every gate above, and applies the same ty 0.0.71
 ratchet. It reproduces the commands in `quality` and `typecheck` on Python 3.12;
 the GitHub matrix additionally proves Python 3.14. It does not reproduce GitHub's
 event routing or branch enforcement.
 
 During active local development loops, prefer focused checks for touched modules
 rather than running the entire project-wide test suite on every small edit.
+Use `make loop` or `uv run evallab registry devloop [--run]` to compute the exact
+affected test modules from working-tree changes and execute only the relevant subset.
+
+Benchmark and certification workflows declare `concurrency` groups with
+`cancel-in-progress: true` to terminate superseded PR runs promptly. Heavy
+certification suites retain automatic PR path triggers (including workbench edits);
+no weekly schedule is added as implied authorization. Similarly, the dose-ladder
+workflow retains automatic triggers; its dispatch-only reduction is superseded.
+
 ## Deterministic-test rule
 
 Tests must inject every external-state probe or seam. They must never depend on a
@@ -139,7 +149,8 @@ triggers prepare the CI side only; they do not authorize or enable a queue.
 
 After publishing the workflow change, open or update a PR against a non-`main`,
 non-`integrate/**` stack base and retarget it without changing its head. Confirm
-fresh PR runs contain `lint`, `test (3.12)`, `test (3.14)`, `ty`, and both gates.
+fresh PR runs contain `lint`, `test (3.12, 1/2)`, `test (3.12, 2/2)`, `test (3.14, 1/2)`,
+`test (3.14, 2/2)`, `ty`, and both gates.
 Wait for successful runs before selecting the new check names in settings.
 Reopen or synchronize older PRs whose workflow definitions predate this change;
 do not dispatch an unrelated workflow and call them green.

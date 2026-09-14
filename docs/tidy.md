@@ -8,7 +8,7 @@ audience:
 # Working Tree Discipline and Tidy Sweeps (`evallab tidy`)
 
 The platform janitor enforcing tenet **T7** (*janitorial duty inside every contract*),
-specified in `docs/platform-architecture.md` (T7, §2.6, §8).
+specified in `docs/archive/platform-architecture.md` (T7, §2.6, §8).
 
 `evallab tidy` sweeps the repository and linked worktrees for working tree debt,
 untracked strays, stale worktrees, unindexed documentation, and retention violations.
@@ -57,16 +57,17 @@ malformed output the sweep fails closed: no candidates, no actions.
   can never escalate into deleting a live directory.
 
 ### 2. Merged Local Branches
-Inspects local branches matching `role/*` to see if their commits are fully contained
-in `origin/main`.
+Inspects local branches across all namespaces except `main`, anything under `integrate/`,
+and the branch currently checked out in the primary checkout to see if their commits
+are fully contained in `origin/main`.
 - **Active worktree protection:** Branches currently checked out in an active worktree
   or backing uncommitted work are preserved and classified separately, never labelled as
   "merged" on ancestry containment alone nor presented under a heading that invites deletion.
 - **Safety invariant:** Never deletes a branch with an open GitHub pull request. If the
   `gh` CLI is not installed, not authenticated, or returns an error, the sweep skips the
   branch and preserves it rather than guessing.
-- **Action under `--apply`:** Deletes clean local `role/*` branches that are merged and
-  confirmed to have no open PR and no active worktree.
+- **Action under `--apply`:** Deletes clean local branches (across all namespaces except
+  main/integrate/current) that are merged and confirmed to have no open PR and no active worktree.
 
 ### 3. Unindexed Documentation
 Inspects documentation files under `docs/` using `evallab.docindex` to identify markdown
@@ -93,7 +94,7 @@ either **recognized junk** or **unrecognized stray (possible draft)**.
 
 ### 5. Retention Violations
 Inspects storage zones for records that have exceeded their retention limits under
-`docs/platform-architecture.md` §2.6:
+`docs/archive/platform-architecture.md` §2.6:
 - **Z3 hot partitions:** Parquet files in `derived/parquet/` older than 7 days (compaction required).
 - **Z1 unpromoted jobs:** Completed job directories in `runs/` older than 14 days without promotion.
 - **Events log:** `queue/events.jsonl` entries older than the 30-day rolling retention window.

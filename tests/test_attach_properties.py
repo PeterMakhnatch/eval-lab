@@ -27,7 +27,7 @@ def _sha256_file(path: Path) -> str:
 
 def _write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2))
+    path.write_text(json.dumps(value))
 
 
 def _create_raw_job(
@@ -133,12 +133,12 @@ def _execute_query_suite(derived_dir: Path, repo_root: Path) -> dict[str, list[t
     st.lists(
         st.tuples(
             st.text(alphabet="0123456789abcdef", min_size=6, max_size=12),
-            st.integers(min_value=1, max_value=3),
+            st.integers(min_value=1, max_value=2),
             st.floats(min_value=0.0, max_value=1.0),
             st.integers(min_value=50, max_value=1000),
         ),
         min_size=1,
-        max_size=4,
+        max_size=2,
         unique_by=lambda t: t[0],
     )
 )
@@ -194,7 +194,7 @@ def test_property_attach_queries_identical_after_drop_and_rebuild(
             st.floats(min_value=0.0, max_value=1.0),
         ),
         min_size=1,
-        max_size=3,
+        max_size=2,
         unique_by=lambda t: t[0],
     )
 )

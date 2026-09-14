@@ -12,6 +12,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
+pytest.importorskip("lancedb")
+
 from evallab.lance import (
     DEFAULT_REDACTION_POLICY_DIGEST,
     EmbeddingArtifactV1,
@@ -1624,3 +1626,13 @@ def test_manifest_persisted_for_all_built_tables(tmp_path, monkeypatch):
         assert len(manifest.snapshot_digest) == 64
         assert len(manifest.candidate_pool_digest) == 64
         assert manifest.redaction_policy_digest == DEFAULT_REDACTION_POLICY_DIGEST
+
+
+def test_missing_lancedb_raises_clear_importerror() -> None:
+    from evallab.lance import _require_lancedb
+
+    with (
+        patch.dict("sys.modules", {"lancedb": None}),
+        pytest.raises(ImportError, match="lancedb is not installed; uv sync --group lance"),
+    ):
+        _require_lancedb()

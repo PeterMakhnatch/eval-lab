@@ -19,6 +19,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from pydantic import Field, field_validator, model_validator
 
+from evallab.evidence.parquet_io import write_table_atomic
 from evallab.schemas import ContractModel
 
 Digest = str
@@ -349,19 +350,12 @@ def project_fact_bundle(
     """Write all named fact tables, including derived trial×construct coverage."""
     normalized = normalize_bundle(bundle)
     destination = Path(output_dir)
-    destination.mkdir(parents=True, exist_ok=True)
     paths: dict[str, Path] = {}
     for name in FACT_TYPES:
         rows = getattr(normalized, name)
-        table = pa.Table.from_pylist(
-            [_row(item) for item in rows], schema=SEMANTIC_FACT_SCHEMAS[name]
-        )
+        records = [_row(item) for item in rows]
         path = destination / f"{name}.parquet"
-        temporary = path.with_suffix(".parquet.tmp")
-        pq.write_table(
-            table, temporary, compression="zstd", use_dictionary=False, write_statistics=True
-        )
-        temporary.replace(path)
+        write_table_atomic(path, records, SEMANTIC_FACT_SCHEMAS[name])
         paths[name] = path
     return paths
 

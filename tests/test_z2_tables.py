@@ -11,6 +11,7 @@ Covers:
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlsplit, urlunsplit
@@ -28,8 +29,10 @@ _DSN_FOR_TEST = database_url_from_environment()
 def _catalog_reachable(dsn: str | None = None) -> bool:
     try:
         import psycopg
-
-        url = dsn or _DSN_FOR_TEST
+    except ImportError:
+        return False
+    try:
+        url = dsn or os.environ.get("DATABASE_URL") or _DSN_FOR_TEST
         with psycopg.connect(url, connect_timeout=1) as conn:
             conn.execute("SELECT 1")
         return True
@@ -45,13 +48,13 @@ def _derive_isolated_db_url(base_url: str, name: str) -> str:
 @pytest.fixture(scope="module")
 def isolated_database_url() -> Iterator[str]:
     """Create and drop an isolated PostgreSQL database for test isolation."""
-    if not _catalog_reachable():
-        yield _DSN_FOR_TEST
-        return
-
+    pytest.importorskip("psycopg", reason="psycopg required for PostgreSQL tests")
     import psycopg
 
-    base_url = _DSN_FOR_TEST
+    base_url = os.environ.get("DATABASE_URL") or _DSN_FOR_TEST
+    if not _catalog_reachable(base_url):
+        pytest.skip(f"requires live PostgreSQL at {base_url} (unreachable)")
+
     db_name = f"test_z2_{uuid4().hex[:12]}"
     target_url = _derive_isolated_db_url(base_url, db_name)
 
@@ -60,22 +63,21 @@ def isolated_database_url() -> Iterator[str]:
 
     try:
         initialize(target_url)
-        yield target_url
+        old_env = os.environ.get("DATABASE_URL")
+        os.environ["DATABASE_URL"] = target_url
+        try:
+            yield target_url
+        finally:
+            if old_env is not None:
+                os.environ["DATABASE_URL"] = old_env
+            else:
+                os.environ.pop("DATABASE_URL", None)
     finally:
         with psycopg.connect(base_url, autocommit=True) as conn:
             try:
                 conn.execute(f'DROP DATABASE IF EXISTS "{db_name}" WITH (FORCE)')
             except Exception:
                 conn.execute(f'DROP DATABASE IF EXISTS "{db_name}"')
-
-
-@pytest.fixture(autouse=True)
-def _isolate_database_env(
-    isolated_database_url: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Ensure DATABASE_URL environment variable points to the isolated test database."""
-    if _catalog_reachable():
-        monkeypatch.setenv("DATABASE_URL", isolated_database_url)
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +175,7 @@ def test_v_quota_today_utc_bucketing_duckdb() -> None:
 
 @pytest.mark.skipif(
     not _catalog_reachable(),
-    reason=f"requires live PostgreSQL {_DSN_FOR_TEST}",
+    reason="requires live PostgreSQL (unreachable or psycopg missing)",
 )
 def test_schema_ddl_idempotent(isolated_database_url: str) -> None:
     """Applying schema DDL multiple times succeeds and leaves one set of objects."""
@@ -209,7 +211,7 @@ def test_schema_ddl_idempotent(isolated_database_url: str) -> None:
 
 @pytest.mark.skipif(
     not _catalog_reachable(),
-    reason=f"requires live PostgreSQL {_DSN_FOR_TEST}",
+    reason="requires live PostgreSQL (unreachable or psycopg missing)",
 )
 def test_unfrozen_suite_accepts_membership_mutations(isolated_database_url: str) -> None:
     """An unfrozen suite allows inserting, updating, and deleting members."""
@@ -267,7 +269,7 @@ def test_unfrozen_suite_accepts_membership_mutations(isolated_database_url: str)
 
 @pytest.mark.skipif(
     not _catalog_reachable(),
-    reason=f"requires live PostgreSQL {_DSN_FOR_TEST}",
+    reason="requires live PostgreSQL (unreachable or psycopg missing)",
 )
 def test_frozen_suite_rejects_membership_mutations(isolated_database_url: str) -> None:
     """A frozen suite rejects all membership insertions, updates, and deletions in the DB.
@@ -365,7 +367,7 @@ def test_frozen_suite_rejects_membership_mutations(isolated_database_url: str) -
 
 @pytest.mark.skipif(
     not _catalog_reachable(),
-    reason=f"requires live PostgreSQL {_DSN_FOR_TEST}",
+    reason="requires live PostgreSQL (unreachable or psycopg missing)",
 )
 def test_v_quota_today_postgres_utc_bucketing(isolated_database_url: str) -> None:
     """v_quota_today in PostgreSQL aggregates only trials started on current UTC day."""

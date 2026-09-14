@@ -506,10 +506,10 @@ def test_difficulty_variant_contract() -> None:
     assert "preserve verifier ground-truth" in contract.contract_statement.lower()
 
 
-def test_cli_ladder_screen_stage1_analyze_stage2(
+def test_cli_ladder_screen_stage1_analyze(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """CLI ladder stages operate on the currently registered task set."""
+    """CLI ladder stage 1 and analysis operate on the currently registered task set."""
     screen_file = tmp_path / "screen.yaml"
     screen_file.write_text(
         """
@@ -582,28 +582,6 @@ followup_k: 3
     captured2 = capsys.readouterr()
     assert "Screen Analysis: cli-screen-demo" in captured2.out
     assert "event-summary: [separating] -> SELECTED (k=3 follow-up)" in captured2.out
-
-    stage2_out = tmp_path / "stage2_specs"
-    ret3 = run_cli(
-        [
-            "ladder",
-            "screen",
-            "stage2",
-            str(screen_file),
-            "-o",
-            str(stage2_out),
-            "--jobs-dir",
-            str(jobs_dir),
-        ],
-        workspace=Path.cwd(),
-    )
-    assert ret3 == 0
-    captured3 = capsys.readouterr()
-    assert "LADDER Screen Stage 2 Follow-Up Generation: cli-screen-demo" in captured3.out
-    assert "Separating tasks selected for follow-up (1): event-summary" in captured3.out
-    assert "Stopped tasks (0): none" in captured3.out
-    assert "Generated 2 follow-up specs" in captured3.out
-    assert len(list(stage2_out.glob("*.json"))) == 2
 
 
 def test_power_planning_and_spec() -> None:

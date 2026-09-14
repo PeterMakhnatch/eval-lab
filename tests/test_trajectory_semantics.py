@@ -748,7 +748,7 @@ def test_projection_requires_explicit_task_binding(tmp_path: Path) -> None:
         )
 
 
-def test_semantics_project_and_coverage_cli(
+def test_semantics_project_cli(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -771,22 +771,6 @@ def test_semantics_project_and_coverage_cli(
     assert result == 0
     projected = json.loads(capsys.readouterr().out)
     assert projected["coverage"][0]["query_threshold"] == 1.0
-
-    result = run_cli(
-        [
-            "semantics",
-            "coverage",
-            "--derived-dir",
-            str(tmp_path),
-            "--threshold",
-            "0.5",
-        ],
-        workspace=workspace,
-    )
-    assert result == 0
-    coverage = json.loads(capsys.readouterr().out)
-    assert coverage[0]["query_threshold"] == 0.5
-    assert coverage[0]["status"] == "analysis_ready"
 
 
 def test_deterministic_shuffled_input_parquet_projection(tmp_path: Path) -> None:

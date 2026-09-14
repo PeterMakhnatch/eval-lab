@@ -111,8 +111,8 @@ never pivot — the board and Peter decide. Recipes, never scale. Briefs
 ## Key documents map
 
 docs/research-questions.md (the question ladder — what the lab studies,
-rungs 1–5); docs/mentor-review-2026-08.md (flaws + curriculum);
-docs/build-plan.md and docs/prompts/build-program.md (what's being
+rungs 1–5); docs/archive/mentor-review-2026-08.md (flaws + curriculum);
+docs/archive/build-plan.md and docs/prompts/build-program.md (what's being
 built, in what order); docs/prompts/context-supply-program.md (how
 external knowledge becomes agent context); docs/prompts/gym-campaign.md
 (the current run campaign); docs/prompts/radar.md (search methods);

@@ -814,7 +814,6 @@ benchmarks = [
 dev = [
     { name = "harbor-atif2otel" },
     { name = "hypothesis" },
-    { name = "lancedb" },
     { name = "pip" },
     { name = "pytest" },
     { name = "pytest-xdist" },
@@ -823,6 +822,9 @@ dev = [
 inspect = [
     { name = "inspect-ai" },
     { name = "inspect-harbor" },
+]
+lance = [
+    { name = "lancedb" },
 ]
 observability = [
     { name = "arize-phoenix-client" },
@@ -853,7 +855,6 @@ benchmarks = [
 dev = [
     { name = "harbor-atif2otel", specifier = ">=0.1.0" },
     { name = "hypothesis", specifier = ">=6.100,<7" },
-    { name = "lancedb", specifier = ">=0.37,<1" },
     { name = "pip", specifier = "==26.1.2" },
     { name = "pytest", specifier = ">=8.4,<9" },
     { name = "pytest-xdist", specifier = ">=3.8,<4" },
@@ -863,6 +864,7 @@ inspect = [
     { name = "inspect-ai", specifier = "==0.3.261" },
     { name = "inspect-harbor", specifier = "==0.7.4" },
 ]
+lance = [{ name = "lancedb", specifier = ">=0.37,<1" }]
 observability = [
     { name = "arize-phoenix-client", specifier = ">=3.3.0" },
     { name = "harbor-atif2otel", specifier = ">=0.1.0" },

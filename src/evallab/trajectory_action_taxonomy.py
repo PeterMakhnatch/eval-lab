@@ -72,7 +72,6 @@ class ActionClassification:
 
 # Regex patterns for bash classification
 _REDIRECT_OUT_PATTERN = re.compile(r"(?:>>?|>\|)\s*([^\s;&|]+)")
-_SED_INPLACE_PATTERN = re.compile(r"\bsed\s+.*-(?:i|e\s+.*-i)")
 
 _EDIT_TOOL_NAMES = frozenset(
     {"edit", "write", "patch", "str_replace_editor", "replace", "create_file", "save_file"}

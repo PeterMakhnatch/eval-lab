@@ -367,46 +367,6 @@ def _unlink_secret_dir(directory: Path | None, secret_file: Path | None) -> None
             shutil.rmtree(directory)
 
 
-class _StreamingRedactor:
-    """Redact exact secret bytes before any child output reaches disk."""
-
-    def __init__(self, secrets: frozenset[str]) -> None:
-        self.secrets = tuple(
-            sorted(
-                (secret.encode() for secret in secrets if secret),
-                key=len,
-                reverse=True,
-            )
-        )
-        self.pending = b""
-        self.max_secret_length = max((len(secret) for secret in self.secrets), default=0)
-
-    def feed(self, chunk: bytes) -> bytes:
-        if not self.secrets:
-            return chunk
-        combined = self.pending + chunk
-        cut = max(0, len(combined) - self.max_secret_length + 1)
-        for secret in self.secrets:
-            search_from = max(0, cut - len(secret) + 1)
-            start = combined.find(secret, search_from)
-            while start >= 0:
-                if start < cut < start + len(secret):
-                    cut = start
-                start = combined.find(secret, start + 1)
-        safe = combined[:cut]
-        self.pending = combined[cut:]
-        for secret in self.secrets:
-            safe = safe.replace(secret, b"<redacted>")
-        return safe
-
-    def finish(self) -> bytes:
-        safe = self.pending
-        self.pending = b""
-        for secret in self.secrets:
-            safe = safe.replace(secret, b"<redacted>")
-        return safe
-
-
 def assert_no_secret_material(
     paths: tuple[Path, ...],
     *,

@@ -1,13 +1,13 @@
 """E16: working tree tidy sweep reporting strays, stale worktrees, and retention violations.
 
-Authority: docs/platform-architecture.md (T7, §2.6, §8).
+Authority: docs/archive/platform-architecture.md (T7, §2.6, §8).
 
 Sweeps:
 1. Stale worktrees: registered linked worktrees (authoritative inventory from
    `git worktree list --porcelain`; paths may live anywhere on disk) whose branch is
    merged, or whose registration Git reports prunable (skips dirty; missing branches
    classify unproven and are preserved, never removed).
-2. Merged local branches: role/* fully contained in origin/main without open PR.
+2. Merged local branches: all namespaces except main/integrate/current fully contained in origin/main without open PR.
 3. Unindexed docs: docs/ absent from docs/INDEX.md or with missing/invalid front-matter.
 4. Untracked strays: untracked files not gitignored, distinguishing recognized junk from drafts.
 5: Retention violations: Z3 hot partitions >7d, unpromoted Z1 jobs >14d, events.jsonl >30d
@@ -44,18 +44,42 @@ NEVER_TOUCH_PREFIXES: tuple[str, ...] = (
     "agents/briefs",
 )
 
-RECOGNIZED_JUNK_EXTENSIONS: frozenset[str] = frozenset({
-    ".tmp", ".temp", ".bak", ".backup", ".swp", ".swo", ".orig", ".rej",
-    ".old", ".log", ".pyc", ".pyo", ".pyd",
-})
+RECOGNIZED_JUNK_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        ".tmp",
+        ".temp",
+        ".bak",
+        ".backup",
+        ".swp",
+        ".swo",
+        ".orig",
+        ".rej",
+        ".old",
+        ".log",
+        ".pyc",
+        ".pyo",
+        ".pyd",
+    }
+)
 
-RECOGNIZED_JUNK_FILENAMES: frozenset[str] = frozenset({
-    ".DS_Store", "Thumbs.db", "dump.rdb", "core",
-})
+RECOGNIZED_JUNK_FILENAMES: frozenset[str] = frozenset(
+    {
+        ".DS_Store",
+        "Thumbs.db",
+        "dump.rdb",
+        "core",
+    }
+)
 
-RECOGNIZED_JUNK_DIR_PARTS: frozenset[str] = frozenset({
-    "__pycache__", ".pytest_cache", ".coverage", ".mypy_cache", ".ruff_cache",
-})
+RECOGNIZED_JUNK_DIR_PARTS: frozenset[str] = frozenset(
+    {
+        "__pycache__",
+        ".pytest_cache",
+        ".coverage",
+        ".mypy_cache",
+        ".ruff_cache",
+    }
+)
 
 RECOGNIZED_JUNK_PREFIXES: tuple[str, ...] = ("tmp_", "temp_", "scratch_", "test_output_")
 
@@ -662,8 +686,15 @@ def default_gh_pr_checker(branch: str, root: Path) -> tuple[bool, int | None, st
 
     res = subprocess.run(
         [
-            "gh", "pr", "list", "--head", branch,
-            "--state", "open", "--json", "number,url",
+            "gh",
+            "pr",
+            "list",
+            "--head",
+            branch,
+            "--state",
+            "open",
+            "--json",
+            "number,url",
         ],
         cwd=root,
         capture_output=True,
@@ -689,15 +720,30 @@ def sweep_branches(
     *,
     gh_checker: Callable[[str, Path], tuple[bool, int | None, str | None]] | None = None,
 ) -> list[BranchFinding]:
-    """Sweep local role/* branches fully contained in origin/main."""
+    """Sweep local branches fully contained in origin/main across all namespaces except main, integrate/*, and current checkout."""
     primary = shared_checkout_root(root)
     target_main = get_target_main_ref(primary) or "origin/main"
 
-    # List local branches under refs/heads/role/
+    # Determine branch currently checked out in primary checkout
+    primary_branch: str | None = None
+    head_res = subprocess.run(
+        ["git", "-C", str(primary), "symbolic-ref", "--short", "-q", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if head_res.returncode == 0 and head_res.stdout.strip():
+        primary_branch = head_res.stdout.strip()
+
+    # List local branches under refs/heads/
     res = subprocess.run(
         [
-            "git", "-C", str(primary), "for-each-ref",
-            "--format=%(refname:short)", "refs/heads/role/",
+            "git",
+            "-C",
+            str(primary),
+            "for-each-ref",
+            "--format=%(refname:short)",
+            "refs/heads/",
         ],
         capture_output=True,
         text=True,
@@ -706,8 +752,17 @@ def sweep_branches(
     if res.returncode != 0 or not res.stdout.strip():
         return []
 
-    branch_names = [line.strip() for line in res.stdout.splitlines() if line.strip()]
+    raw_branch_names = [line.strip() for line in res.stdout.splitlines() if line.strip()]
 
+    excluded_branches: set[str] = {"main"}
+    if primary_branch:
+        excluded_branches.add(primary_branch)
+
+    branch_names = [
+        b
+        for b in raw_branch_names
+        if b not in excluded_branches and b != "integrate" and not b.startswith("integrate/")
+    ]
     # Find which branches are currently checked out across all worktrees
     wt_res = subprocess.run(
         ["git", "-C", str(primary), "worktree", "list", "--porcelain"],
@@ -743,11 +798,15 @@ def sweep_branches(
         # Check if branch tip equals target_main (no commits of its own)
         b_res = subprocess.run(
             ["git", "-C", str(primary), "rev-parse", f"refs/heads/{branch}"],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         t_res = subprocess.run(
             ["git", "-C", str(primary), "rev-parse", target_main],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         branch_sha = b_res.stdout.strip() if b_res.returncode == 0 else ""
         target_sha = t_res.stdout.strip() if t_res.returncode == 0 else ""
@@ -915,7 +974,7 @@ def sweep_retention_violations(
     *,
     now: datetime | None = None,
 ) -> list[RetentionFinding]:
-    """Sweep for retention violations according to platform-architecture.md §2.6.
+    """Sweep for retention violations according to docs/archive/platform-architecture.md §2.6.
 
     Report only: evidence deletion is the job of evallab gc with tombstones.
     """
@@ -1101,7 +1160,9 @@ def apply_deletions(report: TidyReport, root: Path) -> TidyReport:
         # fails closed (preserve path and registration, claim nothing).
         res = subprocess.run(
             ["git", "-C", str(primary), "worktree", "remove", str(wt.path)],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         if res.returncode == 0:
             report.deleted_worktrees.append(rel)
@@ -1109,14 +1170,18 @@ def apply_deletions(report: TidyReport, root: Path) -> TidyReport:
     if prunable_paths:
         prune_res = subprocess.run(
             ["git", "-C", str(primary), "worktree", "prune"],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         if prune_res.returncode == 0:
             # Verify with a fresh Git listing: report only registrations that
             # prune actually removed.
             relist = subprocess.run(
                 ["git", "-C", str(primary), "worktree", "list", "--porcelain"],
-                capture_output=True, text=True, check=False,
+                capture_output=True,
+                text=True,
+                check=False,
             )
             if relist.returncode == 0:
                 registered = {
@@ -1133,7 +1198,9 @@ def apply_deletions(report: TidyReport, root: Path) -> TidyReport:
         if branch.actionable:
             res = subprocess.run(
                 ["git", "-C", str(primary), "branch", "-D", branch.branch],
-                capture_output=True, text=True, check=False,
+                capture_output=True,
+                text=True,
+                check=False,
             )
             if res.returncode == 0:
                 report.deleted_branches.append(branch.branch)
@@ -1179,8 +1246,7 @@ def format_tidy_report(report: TidyReport, root: Path) -> str:
     # Active worktrees (not swept) — sizes intentionally not walked
     if active_worktrees:
         lines.append(
-            f"## Active worktrees (not swept) "
-            f"({len(active_worktrees)} items, sizes not walked)"
+            f"## Active worktrees (not swept) ({len(active_worktrees)} items, sizes not walked)"
         )
         for wt in active_worktrees:
             rel = _rel_path_str(wt.path, primary)
@@ -1191,7 +1257,7 @@ def format_tidy_report(report: TidyReport, root: Path) -> str:
     merged_branches = [b for b in report.branches if b.status != "active_worktree"]
     lines.append(f"## 2. Merged local branches ({len(merged_branches)} items)")
     if not merged_branches:
-        lines.append("  (clean — no merged local role/* branches found)")
+        lines.append("  (clean — no merged local branches found)")
     else:
         for b in merged_branches:
             action_tag = " [eligible for deletion]" if b.actionable else ""
@@ -1258,9 +1324,7 @@ def format_tidy_report(report: TidyReport, root: Path) -> str:
             lines.append(f"- Removed {len(report.deleted_strays)} stray junk files:")
             for st in sorted(report.deleted_strays):
                 lines.append(f"    - `{st}`")
-        if not (
-            report.deleted_worktrees or report.deleted_branches or report.deleted_strays
-        ):
+        if not (report.deleted_worktrees or report.deleted_branches or report.deleted_strays):
             lines.append("- No actionable items were eligible for deletion.")
         lines.append("")
     else:

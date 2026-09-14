@@ -1,0 +1,303 @@
+{
+  "schema_version": 1,
+  "cohort_id": "harness-first-20260909",
+  "linear_issue": "HAR-14",
+  "frozen_at_utc": "2026-09-09T18:58:16+00:00",
+  "frozen_at_commit": "000750a897b612948067e3d00651f56da501bcbd",
+  "scientific_question": "On identical already-eligible development tasks and the same root model, does an authors-RLM-derived Harbor agent change task reward versus mini-swe-agent? One-attempt cells are operability/descriptive evidence, not a ranking or training result.",
+  "primary_metric": "task-level Harbor reward with pass_threshold 1.0; pairing_key task_digest; k=1; declared_variable agent_name",
+  "primary_variable": "harness/agent_name; root model, task, verifier, environment, attempts, and extra instruction stay fixed",
+  "max_tasks": 4,
+  "selected_count": 3,
+  "attempts": 1,
+  "environment": "docker",
+  "arms": [
+    {
+      "arm_id": "mini-swe",
+      "role": "baseline",
+      "harness": "mini-swe-agent",
+      "agent_parameter": "required",
+      "notes": "Pinned conventional loop. Exact Harbor agent identifier is an Integration/Harness execution parameter."
+    },
+    {
+      "arm_id": "authors-rlm",
+      "role": "candidate",
+      "harness": "authors-rlm-derived-depth-1",
+      "agent_parameter": "required",
+      "notes": "Existing managed worker, depth-1, not a DSPy production track. Exact Harbor agent identifier is an Integration/Harness execution parameter."
+    }
+  ],
+  "required_execution_parameters": {
+    "baseline_agent": "Harbor BaseAgent entrypoint for mini-swe-agent",
+    "candidate_agent": "Harbor BaseAgent entrypoint for the authors-RLM-derived agent",
+    "root_model": "Exact configured root model/checkpoint shared by both arms; immutable revision when available, otherwise unknown revision must be qualified",
+    "worker_model": "Explicit fixed worker identity, initially same checkpoint as root if supported; plain bounded completions, no recursive worker tools"
+  },
+  "canary_task_id": "event-summary",
+  "remaining_task_ids": [
+    "travel-lisbon-002",
+    "syn-funcdag-easy"
+  ],
+  "members": [
+    {
+      "task_id": "event-summary",
+      "registered_ref": "registered/event-summary",
+      "task_family": "event-summary",
+      "version": "1.0.0",
+      "task_path": "library/tasks/event-summary",
+      "stage": "canary",
+      "scientific_role": "conventional_control",
+      "rlm_rationale": "Single JSONL aggregation to a fixed schema. Recursive RLM decomposition is not required; this is the operability control.",
+      "state": "registered",
+      "allowed_uses": [
+        "measurement",
+        "training"
+      ],
+      "approved_by": "Peter Makhnatch",
+      "approved_at": "2026-08-19T23:31:07.675598+00:00",
+      "provenance_zone": "02-local-evidence",
+      "is_synthetic": false,
+      "source_uri": "local/event-summary@1.0.0",
+      "source_ref": null,
+      "license": "MIT",
+      "split_group": "event-summary",
+      "heldout": false,
+      "limits": {
+        "timeout_seconds": 180,
+        "max_memory_mb": 512,
+        "max_cpus": 1.0
+      },
+      "digests": {
+        "task_toml": "sha256:9a9d26e2fc1235e9d45ae55836a34bb4b191509463cffac96ad8aad8f043a1a8",
+        "instruction": "sha256:4bc29dad530dd6db841d77bb342f19b3d2cfe3c16722bb84e4670b042025dd55",
+        "environment": "sha256:a647b33b303a1c7c3fe16507837e20885b7365c3f6c03836397350eb690bf46d",
+        "verifier": "sha256:1f499d550a3c39e1cb3e6ce9f88ac7afcd6ec2e1998bb46d3ce34d4c8e094a15",
+        "package": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d"
+      },
+      "harbor_task_digest": "sha256:2c16dfb286d74d3ba9069ea19f436d3754887df8cac9613947a20e1b60cebdb3",
+      "instruction_bytes": 710,
+      "environment_files": [
+        "environment/Dockerfile",
+        "environment/events.jsonl"
+      ],
+      "environment_bytes": 572,
+      "input_output": {
+        "instruction": "instruction.md",
+        "artifacts": [
+          "/app/input/events.jsonl",
+          "/app/output/summary.json"
+        ],
+        "description": "Summarize a JSONL event stream without changing the source data"
+      },
+      "agent_timeout_sec": 120.0,
+      "verifier_timeout_sec": 60.0,
+      "control_evidence": {
+        "oracle": {
+          "job_name": "event-summary-oracle-evidence",
+          "trial_name": "event-summary__FZg7pvq",
+          "reward": 1.0,
+          "evidence_path": "research/evidence/runs/event-summary-oracle-evidence/event-summary__FZg7pvq/result.json",
+          "evidence_digest": "sha256:e321dd6223db69303e01de3646bc474a05820b8872a6d3b2f08abb2fcba1689c",
+          "lock_digest": "sha256:de0f3d237245e61c67fda643c5620df200c18c621793e2b60425923efc1ef330",
+          "observed_at": "2026-08-14T00:33:53.021226+00:00",
+          "harbor_task_digest": "sha256:2c16dfb286d74d3ba9069ea19f436d3754887df8cac9613947a20e1b60cebdb3"
+        },
+        "nop": {
+          "job_name": "event-summary-nop-evidence",
+          "trial_name": "event-summary__edzDz6R",
+          "reward": 0.0,
+          "evidence_path": "research/evidence/runs/event-summary-nop-evidence/event-summary__edzDz6R/result.json",
+          "evidence_digest": "sha256:309c37d94a23b195dffc2de8a23e8ab6fd4e3bfa1078782a5cbfb2fe5db799d8",
+          "lock_digest": "sha256:64a7f5aabfba24abf95a1b261e292504de23923ca36e9ce46bb7654649b8277e",
+          "observed_at": "2026-08-14T00:34:02.898236+00:00",
+          "harbor_task_digest": "sha256:2c16dfb286d74d3ba9069ea19f436d3754887df8cac9613947a20e1b60cebdb3"
+        }
+      },
+      "certification_state": "legacy_missing"
+    },
+    {
+      "task_id": "travel-lisbon-002",
+      "registered_ref": "registered/travel-lisbon-002",
+      "task_family": "travel-planning",
+      "version": "1.0.0",
+      "task_path": "library/tasks/experimental/deepplanning-v1/travel-lisbon-002",
+      "stage": "matrix",
+      "scientific_role": "cross_artifact_planning",
+      "rlm_rationale": "Must inspect task sources for flights, hotels, and passes under a budget, or refuse. Closest eligible information-gathering/cross-artifact case. RLM might help if the agent needs recursive source inspection; not a promised win.",
+      "state": "registered",
+      "allowed_uses": [
+        "measurement",
+        "training"
+      ],
+      "approved_by": "Peter Makhnatch",
+      "approved_at": "2026-08-28T03:52:43.151298+00:00",
+      "provenance_zone": "01-external",
+      "is_synthetic": false,
+      "source_uri": "https://huggingface.co/datasets/Qwen/DeepPlanning",
+      "source_ref": "213876cce679f993a476d01042e13d111c0e3648",
+      "license": "Apache-2.0",
+      "split_group": "travel-planning",
+      "heldout": false,
+      "limits": {
+        "timeout_seconds": 180,
+        "max_memory_mb": 512,
+        "max_cpus": 1.0
+      },
+      "digests": {
+        "task_toml": "sha256:f09edc851fd462e17dab153b50a5122901ad1d29a9540f5b872d1a63b1d9d1aa",
+        "instruction": "sha256:1cf64eb0ec441bff98814e32f6a30c00d119cdbaeeed8cb2d9a16b91f8a9f0f1",
+        "environment": "sha256:4a228bcddccf22ea42c3c898be5b869cc75cf54208f0550855d43d934485faa2",
+        "verifier": "sha256:0fbda1cd0c982b41946adb9ea2ac5da92cef5dc7511613adae14e887a844b76c",
+        "package": "sha256:8dec991845b4f20619581d6160440328f0ad9684dcfc6cdbebd103e83ba7e7aa"
+      },
+      "harbor_task_digest": "sha256:45610e3dcd4dc277b8ce34a0d1028619510b2bab38f1c974d945a514c288d81c",
+      "instruction_bytes": 331,
+      "environment_files": [
+        "environment/Dockerfile",
+        "environment/data/task.json"
+      ],
+      "environment_bytes": 1628,
+      "input_output": {
+        "instruction": "instruction.md",
+        "artifacts": [
+          "/app/answer.json"
+        ],
+        "description": "Offline deterministic DeepPlanning case travel-lisbon-002"
+      },
+      "agent_timeout_sec": 120.0,
+      "verifier_timeout_sec": 60.0,
+      "control_evidence": {
+        "oracle": {
+          "job_name": "deepplanning-travel-lisbon-registry-oracle",
+          "trial_name": "travel-lisbon-002__HGpE9HJ",
+          "reward": 1.0,
+          "evidence_path": "research/evidence/runs/deepplanning-travel-lisbon-registry-oracle/travel-lisbon-002__HGpE9HJ/result.json",
+          "evidence_digest": "sha256:d2c34487923679b0300ead7df15abd261e1e4b784c7000d8386093ec9c1a848e",
+          "lock_digest": "sha256:bd4a19de3238793e072a9b407831f84640debf2d42987b4187f53d610ae0e3dd",
+          "observed_at": "2026-08-28T03:43:56.073506+00:00",
+          "harbor_task_digest": "sha256:45610e3dcd4dc277b8ce34a0d1028619510b2bab38f1c974d945a514c288d81c"
+        },
+        "nop": {
+          "job_name": "deepplanning-travel-lisbon-registry-nop",
+          "trial_name": "travel-lisbon-002__6mhXqHS",
+          "reward": 0.0,
+          "evidence_path": "research/evidence/runs/deepplanning-travel-lisbon-registry-nop/travel-lisbon-002__6mhXqHS/result.json",
+          "evidence_digest": "sha256:e1e85601bdaacfec21bd51cfb33108b0413507f25c01572b6638639ee2d8f4f4",
+          "lock_digest": "sha256:10215621cab52785f470d6e8f80f09e90ed85779680523b687c009a4d60132f6",
+          "observed_at": "2026-08-28T03:44:30.354762+00:00",
+          "harbor_task_digest": "sha256:45610e3dcd4dc277b8ce34a0d1028619510b2bab38f1c974d945a514c288d81c"
+        }
+      },
+      "certification_state": "bound"
+    },
+    {
+      "task_id": "syn-funcdag-easy",
+      "registered_ref": "registered/syn-funcdag-easy",
+      "task_family": "family_b_funcdag_v2",
+      "version": "1.0.0",
+      "task_path": "library/tasks/experimental/syn-funcdag-easy",
+      "stage": "matrix",
+      "scientific_role": "conventional_multifile",
+      "rlm_rationale": "Tiny two-layer deterministic DAG over three short files. Conventional structured evaluation; RLM should not uniquely help.",
+      "state": "registered",
+      "allowed_uses": [
+        "measurement"
+      ],
+      "approved_by": "Peter Makhnatch",
+      "approved_at": "2026-08-28T01:51:59.370992+00:00",
+      "provenance_zone": "03-synthetic",
+      "is_synthetic": true,
+      "source_uri": "eval-lab/synthetic/funcdag/easy",
+      "source_ref": "local/eval-lab/synthetic/funcdag/easy@1.0.0",
+      "license": "Apache-2.0",
+      "split_group": "family_b_funcdag_v2",
+      "heldout": false,
+      "limits": {
+        "timeout_seconds": 60,
+        "max_memory_mb": 512,
+        "max_cpus": 1.0
+      },
+      "digests": {
+        "task_toml": "sha256:8def2caa0dd08eca9ec3f4a506211917ceb8b3215d252d43d55b48bb08567bdc",
+        "instruction": "sha256:264c98f3508cef3bf894bab59445aaab95b6c541f27dc39d8e95034930c0acbb",
+        "environment": "sha256:85a7e370b2ee52c66d8844900931e57112c220b1de4e95bae820bf1769e64893",
+        "verifier": "sha256:c706665f958f15b45f4e29deef871410622627849c6333d7a9e66972a0f2413e",
+        "package": "sha256:a0523d926254bb7025eed41ece31f66cf8974c20839ad1f9647e0224c35568f5"
+      },
+      "harbor_task_digest": "sha256:ea2c8d4be4a9f3cd72a0be5731669f79a34064ef95dbddbf312f86577af2f1bc",
+      "instruction_bytes": 1563,
+      "environment_files": [
+        "environment/Dockerfile",
+        "environment/dag_code.py",
+        "environment/dag_spec.json",
+        "environment/inputs.json"
+      ],
+      "environment_bytes": 3167,
+      "input_output": {
+        "instruction": "instruction.md",
+        "artifacts": [
+          "/app/output/result.json"
+        ],
+        "description": "Evaluate deterministic function dependency graph target node n_2_0"
+      },
+      "agent_timeout_sec": 60.0,
+      "verifier_timeout_sec": 60.0,
+      "control_evidence": {
+        "oracle": {
+          "job_name": "syn-funcdag-easy-registry-oracle-33133765977",
+          "trial_name": "syn-funcdag-easy__KVthvbs",
+          "reward": 1.0,
+          "evidence_path": "research/evidence/runs/syn-funcdag-easy-registry-oracle-33133765977/syn-funcdag-easy__KVthvbs/result.json",
+          "evidence_digest": "sha256:3cd5889794c977b2076aa3bf8371ccdd33a91e2db49a0cb81719397f1bc7f0bd",
+          "lock_digest": "sha256:990a02506b839867f5f5ed1d66737d91d89752e0d75e7ba5fb5f07a977a5d4e7",
+          "observed_at": "2026-08-28T01:50:23.914237+00:00",
+          "harbor_task_digest": "sha256:ea2c8d4be4a9f3cd72a0be5731669f79a34064ef95dbddbf312f86577af2f1bc"
+        },
+        "nop": {
+          "job_name": "syn-funcdag-easy-registry-nop-33133765977",
+          "trial_name": "syn-funcdag-easy__peGyXfC",
+          "reward": 0.0,
+          "evidence_path": "research/evidence/runs/syn-funcdag-easy-registry-nop-33133765977/syn-funcdag-easy__peGyXfC/result.json",
+          "evidence_digest": "sha256:20aa049c4e8b6ba51d99d1167ca5b1d99677233e2258c34420078289f2b11c88",
+          "lock_digest": "sha256:c1f7085ce36a5c76b6166a41fd2804dbf90f8657bc2c87d6f6672bd3e6b4b188",
+          "observed_at": "2026-08-28T01:50:55.365640+00:00",
+          "harbor_task_digest": "sha256:ea2c8d4be4a9f3cd72a0be5731669f79a34064ef95dbddbf312f86577af2f1bc"
+        }
+      },
+      "certification_state": "bound"
+    }
+  ],
+  "exclusions": [
+    {
+      "task_id": "query-optimize",
+      "reason": "registry state=candidate; control_evidence null; not human-approved"
+    },
+    {
+      "task_id": "transaction-reconciliation",
+      "reason": "registry state=candidate; control_evidence null; not human-approved"
+    },
+    {
+      "task_id": "terminal-bench-html-js-filter",
+      "reason": "registry state=candidate; control_evidence null; not human-approved"
+    },
+    {
+      "task_id": "tau3-retail-1",
+      "reason": "registry state=candidate; allowed_uses canary-only; Tau3 construct is isolated from this development comparison"
+    },
+    {
+      "task_id": "FACET task_000009",
+      "reason": "sealed final-evaluation exclusion; not inspected"
+    }
+  ],
+  "gap": {
+    "missing_fourth_task": true,
+    "why": "Only three library/registry records are registered for measurement with oracle=1/nop=0 evidence. None is a long-context actionable-memory task.",
+    "admission_request": "Do not silently register. After existing oracle/nop promotion and Peter registration, admit one already-materialized development instance from library/benchmarks/action-memory-v1 if a registered measurement package exists. That construct matches the intended context/delegation question. Not FACET/SETA/PR-generation and not Tau3 mixing."
+  },
+  "not_claims": [
+    "No RLM success promise or cherry-pick",
+    "No model execution, spend, or task admission in this freeze",
+    "Prior oracle/nop rewards are reused control evidence, not this comparison",
+    "n=3 k=1 cannot establish a statistically ranked win"
+  ]
+}

@@ -15,7 +15,9 @@ import sys
 import tempfile
 import threading
 import time
-from contextlib import suppress
+import tomllib
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -92,7 +94,7 @@ from evallab.harbor_network import (
     adapt_task_toml_for_host,
     with_agent_network_allowlist,
 )
-from evallab.results import load_job
+from evallab.results import JobRecord, load_job
 from evallab.schemas import ExperimentMatrix, MatrixRun
 
 __all__ = [
@@ -125,6 +127,8 @@ __all__ = [
     "profile_for_request",
     "redact_environment",
     "request_from_matrix",
+    "staged_matrix_request",
+    "matrix_run_outcome",
     "resolve_harbor_agent",
     "resolve_harbor_model",
     "run_experiment",
@@ -1430,6 +1434,113 @@ def request_from_matrix(matrix: ExperimentMatrix, run: MatrixRun, *, repo_root: 
         timeout_seconds=matrix.timeout_seconds,
         allow_billable=run.allow_billable,
     )
+
+
+@contextmanager
+def staged_matrix_request(
+    matrix: ExperimentMatrix, run: MatrixRun, *, repo_root: Path
+) -> Iterator[tuple[RunRequest, dict[str, str]]]:
+    """Keep a solution-control snapshot alive only for the duration of its run."""
+    from evallab.registry import compute_task_digests
+
+    request = request_from_matrix(matrix, run, repo_root=repo_root)
+    if run.solution is None:
+        yield request, {}
+        return
+
+    relative = Path(run.solution)
+    solution = (repo_root / relative).resolve()
+    if relative.is_absolute() or not solution.is_relative_to(repo_root.resolve()):
+        raise ValueError("matrix solution must be a repo-root-relative path inside the repository")
+    if not solution.is_file():
+        raise ValueError(f"matrix solution is not a regular file: {run.solution}")
+    script = solution.read_bytes()
+    source = request.task
+    task_config = tomllib.loads((source / "task.toml").read_text())
+    if task_config.get("steps"):
+        raise ValueError(
+            "matrix solution overrides do not support declared task steps; "
+            "the override contract selects only root solution/solve.sh"
+        )
+    with tempfile.TemporaryDirectory(prefix="evallab-matrix-") as temporary:
+        staged = Path(temporary) / source.name
+        shutil.copytree(
+            source,
+            staged,
+            symlinks=True,
+            ignore=lambda directory, names: (
+                {"controls"} if Path(directory) == source and "controls" in names else set()
+            ),
+        )
+        if any(path.is_symlink() for path in staged.rglob("*")):
+            raise ValueError("task package snapshots reject symlinks")
+        solve = staged / "solution" / "solve.sh"
+        solve.parent.mkdir(parents=True, exist_ok=True)
+        solve.write_bytes(script)
+        solve.chmod(0o755)
+        yield replace(request, task=staged), {
+            "solution_sha256": hashlib.sha256(script).hexdigest(),
+            "staged_task_digest": compute_task_digests(staged).package,
+        }
+
+
+def matrix_run_outcome(job: JobRecord, run: MatrixRun) -> dict[str, Any]:
+    """Never count harness failures or absent/non-finite rewards as negative controls."""
+    if job.result.get("exception_info") or len(job.trials) != run.attempts:
+        return {"status": "infra", "rewards": [], "error": "job exception or trial count mismatch"}
+    rewards: list[float] = []
+    for trial in job.trials:
+        if run.agent == "oracle":
+            # Harbor 0.21/0.22 writes exit-code.txt only on nonzero script exit;
+            # a successful Harbor process and reward zero do not establish setup.
+            exit_path = trial.path / "agent" / "exit-code.txt"
+            try:
+                exit_code = int(exit_path.read_text()) if exit_path.exists() else None
+            except (OSError, ValueError):
+                return {
+                    "status": "infra",
+                    "rewards": [],
+                    "error": f"trial {trial.path.name} has unreadable oracle exit evidence",
+                }
+            if exit_code is not None and exit_code != 0:
+                return {
+                    "status": "infra",
+                    "rewards": [],
+                    "error": f"trial {trial.path.name} oracle script exited {exit_code}",
+                }
+            phases = trial.result.get("step_results") or [trial.result]
+            if (
+                not (trial.path / "agent" / "oracle.txt").is_file()
+                or any(
+                    phase.get("exception_info")
+                    or not (phase.get("agent_execution") or {}).get("started_at")
+                    or not (phase.get("agent_execution") or {}).get("finished_at")
+                    for phase in phases
+                )
+            ):
+                return {
+                    "status": "infra",
+                    "rewards": [],
+                    "error": f"trial {trial.path.name} has no completed oracle execution evidence",
+                }
+        reward = trial.primary_reward
+        raw = (trial.result.get("verifier_result") or {}).get("rewards") or {}
+        if (
+            trial.result.get("exception_info")
+            or not trial.result.get("finished_at")
+            or isinstance(raw.get("reward"), bool)
+            or reward is None
+            or not math.isfinite(reward)
+        ):
+            return {
+                "status": "infra",
+                "rewards": [],
+                "error": f"trial {trial.path.name} has an exception or no valid reward",
+            }
+        rewards.append(reward)
+    expected = expected_primary_reward(run)
+    mismatch = expected is not None and any(reward != expected for reward in rewards)
+    return {"status": "mismatch" if mismatch else "ok", "rewards": rewards, "error": None}
 
 
 def expected_primary_reward(run: MatrixRun) -> float | None:

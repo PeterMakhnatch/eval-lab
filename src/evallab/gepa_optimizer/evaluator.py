@@ -404,8 +404,8 @@ def _check_job_provenance(
     return True
 
 
-def _returned_deepseek_models(job: JobRecord) -> frozenset[str | None]:
-    """Return the verbatim provider-returned model names for a DeepSeek job.
+def _returned_provider_models(job: JobRecord) -> frozenset[str | None]:
+    """Return verbatim model identities from native broker response records.
 
     Only the secret proxy's per-call accounting (``provider_usage.calls[*]``,
     persisted by the runner) is provider-side evidence. Harbor's
@@ -637,19 +637,20 @@ class LabEvaluator:
         }
         if "provider_usage" in job_record.metadata:
             usage["provider_usage"] = job_record.metadata["provider_usage"]
-        if self.agent == DEEPSEEK_TARGET_AGENT:
+        if self.agent in {DEEPSEEK_TARGET_AGENT, "zai-opencode"}:
             # Observed identity comes only from the proxy's per-call records;
             # an unrecorded model is unknown, never inferred as matched, and
             # calls that disagree with the pin (or each other) are a mismatch.
-            returned = _returned_deepseek_models(job_record)
+            expected_model = DEEPSEEK_ALLOWED_MODEL if self.agent == DEEPSEEK_TARGET_AGENT else str(self.model).rsplit("/", 1)[-1]
+            returned = _returned_provider_models(job_record)
             known = {name for name in returned if name is not None}
-            if known - {DEEPSEEK_ALLOWED_MODEL}:
+            if known - {expected_model}:
                 raise ProvenanceMismatchError(
-                    f"DeepSeek job at {job_dir} returned model {sorted(known)!r}, "
-                    f"expected provider model {DEEPSEEK_ALLOWED_MODEL!r}"
+                    f"Broker-backed job at {job_dir} returned model {sorted(known)!r}, "
+                    f"expected provider model {expected_model!r}"
                 )
-            observed = DEEPSEEK_ALLOWED_MODEL if known else None
-            identity_status = "matched" if returned == {DEEPSEEK_ALLOWED_MODEL} else "unknown"
+            observed = expected_model if known else None
+            identity_status = "matched" if returned == {expected_model} else "unknown"
             usage["identity"] = {
                 "requested_model": self.model,
                 "observed_model": observed,

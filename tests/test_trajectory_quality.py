@@ -94,6 +94,30 @@ def test_clean_atif_pass(sample_trial_dir: Path) -> None:
     assert report.raw_result_digest is not None
 
 
+def test_fallback_atif_quality_uses_inspected_digest(sample_trial_dir: Path) -> None:
+    trajectory = sample_trial_dir / "agent" / "trajectory.json"
+    fallback = trajectory.rename(sample_trial_dir / "trajectory.json")
+
+    report, findings = evaluate_trial_quality(sample_trial_dir)
+
+    assert report.status == QualityStatus.PASS
+    assert report.is_analysis_ready is True
+    assert report.raw_atif_digest == "sha256:" + hashlib.sha256(fallback.read_bytes()).hexdigest()
+    assert not any(f.code == "ATIF_MISSING" for f in findings)
+
+
+def test_malformed_preferred_atif_is_not_masked_by_valid_fallback(sample_trial_dir: Path) -> None:
+    trajectory = sample_trial_dir / "agent" / "trajectory.json"
+    (sample_trial_dir / "trajectory.json").write_bytes(trajectory.read_bytes())
+    trajectory.write_text("{broken", encoding="utf-8")
+
+    report, findings = evaluate_trial_quality(sample_trial_dir)
+
+    assert report.status == QualityStatus.FAIL
+    assert report.raw_atif_digest == "sha256:" + hashlib.sha256(trajectory.read_bytes()).hexdigest()
+    assert any(f.code == "ATIF_PARSE_ERROR" for f in findings)
+
+
 def test_warning_atif_remains_ingestable_and_analysis_ready(sample_trial_dir: Path) -> None:
     """Non-fatal anomalies (like empty steps or non-monotonic ids) produce warnings but remain analysis ready."""
     traj_path = sample_trial_dir / "agent" / "trajectory.json"
@@ -117,11 +141,14 @@ def test_warning_atif_remains_ingestable_and_analysis_ready(sample_trial_dir: Pa
     assert any(f.severity == FindingSeverity.WARN for f in findings)
 
 
+@pytest.mark.parametrize("use_fallback", [False, True])
 def test_malformed_atif_is_catalog_visible_but_analysis_ineligible(
-    sample_trial_dir: Path,
+    sample_trial_dir: Path, use_fallback: bool
 ) -> None:
     """Malformed ATIF JSON remains catalog ingestable but is strictly ineligible for semantic analysis."""
     traj_path = sample_trial_dir / "agent" / "trajectory.json"
+    if use_fallback:
+        traj_path = traj_path.rename(sample_trial_dir / "trajectory.json")
     traj_path.write_text("{broken json syntax... [", encoding="utf-8")
 
     report, findings = evaluate_trial_quality(sample_trial_dir)
@@ -131,6 +158,7 @@ def test_malformed_atif_is_catalog_visible_but_analysis_ineligible(
     assert report.errors_count >= 1
     assert report.quarantine_reason is not None
     assert "atif_parse_error" in report.quarantine_reason
+    assert any(f.code == "ATIF_PARSE_ERROR" for f in findings)
 
 
 def test_infrastructure_exception_quarantined_not_reward_zero(

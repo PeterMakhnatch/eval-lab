@@ -84,6 +84,44 @@ Extract facts before asking a model to interpret them. At minimum:
 Derived facts should be reproducible by rerunning the extractor. They belong in
 PostgreSQL for catalog queries and in Parquet for step-level analytical queries;
 the original ATIF remains canonical.
+### CLI reference: deterministic trajectory analysis
+
+The deterministic analyzer runs directly on retained raw native ATIF trajectories without invoking models, sandboxes, or tools:
+
+```bash
+uv run python research/analysis/harness-mechanics/analyze.py \
+  --trajectory <raw ATIF path> \
+  --repo-root . \
+  --output <new derived directory> \
+  --evidence-kind historical
+```
+
+Parameters and options:
+
+- `--trajectory <path>`: Repeatable argument pointing to one or more raw native ATIF trajectory JSON files.
+- `--manifest <path>`: Mutually exclusive alternative to `--trajectory`. The manifest JSON object must contain `"evidence_kind"` (`"historical"`, `"fixture"`, or `"model-run"`) and `"trajectories": ["<path>", ...]`.
+- `--repo-root <path>`: Path to repository root used for relative trajectory path resolution and safety checks (relative paths must resolve inside the repo root).
+- `--output <path>`: Path to a non-existent target directory. The tool refuses to overwrite existing directories or symlinks, publishing all outputs atomically.
+- `--evidence-kind`: User-declared provenance (`"historical"`, `"fixture"`, or `"model-run"`). Defaults to `"historical"` when omitting `--manifest`.
+
+Inputs and supported formats:
+
+- Input trajectories must be raw native ATIF JSON structures. Normalized flat IR files (such as converted step tables or intermediate schemas) are not valid raw native ATIF input.
+- Controls (e.g. `oracle` or `nop` runs) and non-trajectory records are classified as `unsupported`.
+
+Produced artifacts:
+
+- `report.json`: Machine-readable diagnostics containing source hashes, raw-source `locator` JSON pointers, recorded `step_id` and `tool_call_id`, identity metadata, and summaries across stopping, clipping, and shell behavior.
+- `report.txt`: Human-readable summary table of evaluated records, observed facts, and diagnostic counts.
+- `ablation-plan.json`: Single-variable proposals linked to substantive evidence, or an empty proposal list when evidence is insufficient. `execution_authorized` remains false; this artifact is neither an approval nor an executable queue specification.
+
+Execution and interpretation semantics:
+
+- Exit codes: Returns `0` when all provided trajectories are supported and valid; returns `2` on invalid CLI usage, bad shapes, errors, or when any trajectory record is classified as `unsupported`.
+- Atomic writing: Writes outputs to a temporary sibling directory and moves it into place. Refuses to overwrite an existing directory or symlink.
+- Observational discipline: Outputs record observed facts, hypotheses, and unknowns. They distinguish factual runtime observations from diagnostic hypotheses and record `unknown` when evidence is incomplete.
+- No model/tool execution: Analysis is entirely deterministic and static over the provided files.
+- Descriptive, not causal: Diagnostic facts characterize mechanics in the observed sample. They do not infer causal capability claims, benchmark rankings, or harness superiority.
 
 ## Stage 3: define a cohort
 

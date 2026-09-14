@@ -70,6 +70,7 @@ packages = ["src/evallab"]
 
 [tool.pytest.ini_options]
 addopts = "-q -n 4 --dist loadscope"
+pythonpath = ["research/analysis/harness-mechanics"]
 testpaths = [
     "tests",
     "dashboard/tests",

@@ -37,3 +37,42 @@ Harbor 0.21 accepts `--extra-instruction-path`. `evallab.runner.build_command`
 does not forward it, and `ExperimentSpec` forbids unknown fields. Preamble A/B
 is designed here and is not executable through the queue until BUILDER adds
 that field.
+
+## Matrix solution controls
+
+`evallab matrix <matrix.json>` accepts a per-run `solution` path relative to
+the repository root, only for nonbillable `oracle` runs. For example:
+
+```json
+{"name": "task-mutant", "agent": "oracle", "expect_reward": 0.0,
+ "solution": "library/tasks/task/controls/mutant.sh"}
+```
+
+The selected script replaces `solution/solve.sh` in a temporary task snapshot;
+the source task is not modified. Declared task `steps` are unsupported by this
+override contract and are refused before execution or script provenance is
+published, including steps that would otherwise fall back to the root solution.
+There is no implied per-step script mapping.
+
+Oracle qualification requires completed agent-execution timing and the retained
+`agent/oracle.txt` log (which may be empty). Harbor writes `agent/exit-code.txt`
+on nonzero script exit, without necessarily failing the Harbor process. That
+failure, unreadable exit evidence, missing execution artifacts, trial exceptions,
+and missing or non-finite rewards are infrastructure outcomes with no qualifying
+rewards, never successful negative controls.
+
+This behavior was inspected in both the installed Harbor **0.21.0** source and
+the PR's `uv.lock`-pinned Harbor **0.22.0** wheel (SHA-256
+`4c4c6571b3d160ed0cb45b82918136751fb08e7b8596412723ac00dde12eeabb`).
+Both prioritize a declared step's solution directory and write the exit marker
+only on failure. Source inspection is not a Docker-backed control run or a
+claim that the installed CLI has been upgraded.
+
+The `.executor/<matrix_id>.matrix.json` receipt retains completed job rows and
+their script/staged-task digests. A refused later invocation cannot replace a
+successful row or its receipt bytes; restore the original script and use
+`--reuse-existing` to validate the retained job without dispatching it again.
+Each invocation's per-run outcome, including refusals, is appended separately to
+`.executor/<matrix_id>.matrix.invocations.jsonl`. Reuse still checks the actual
+job evidence and any executor failure state; a preserved receipt does not turn
+failed or incomplete execution into a pass.

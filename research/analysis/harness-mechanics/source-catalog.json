@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "catalog_id": "harness-mechanics-source-catalog",
+  "provenance": {
+    "report": {
+      "title": "DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression",
+      "authors": "DeepSeek-AI",
+      "artifact_path": "/tmp/deepseek-v41-story-NFrqX4/report.pdf",
+      "date": "2026-09"
+    },
+    "repositories": [
+      {
+        "name": "deepseek-harness",
+        "commit": "c291e7961a515f6d7af9304e7fd1d257929aef26",
+        "url": "https://github.com/deepseek-ai/deepseek-harness/blob/c291e7961a515f6d7af9304e7fd1d257929aef26/packages/bundle/sdk-minimal/cordis.patch.yml"
+      },
+      {
+        "name": "mini-SWE-agent",
+        "commit": "04d809ceab9df28f9adaed044884180159172930",
+        "url": "https://github.com/SWE-agent/mini-SWE-agent/blob/04d809ceab9df28f9adaed044884180159172930/src/minisweagent/config/mini.yaml"
+      }
+    ]
+  },
+  "pinned_sources": {
+    "deepseek_report_section_5_1_2": {
+      "title": "RL in Synthesized Tasks",
+      "pages": [26, 27],
+      "factual_findings": [
+        "Rollout execution decoupled into an agent sandbox (scaffold + tools) and worker container (scaffold-agnostic control layer, normalizes interactions into common trajectory schema, communicates with trainer on DSec).",
+        "Long-lived rollouts and fine-grained GPU training scheduling are separated; during trainer preemption, rollout execution is suspended and offloaded with full state preserved for resumption.",
+        "Model merging across runs and configurations aggregates parallel RL compute across heterogeneous scaffolds.",
+        "Scales along two dimensions: training compute (cumulative RL steps) and number of scaffolds."
+      ],
+      "harness_relevance": "Decoupled rollout/control architecture isolates harness execution state from inference scheduling; resumption depends on complete state capture."
+    },
+    "deepseek_report_section_5_3_4": {
+      "title": "Performance across agent scaffolds",
+      "pages": [34, 35],
+      "factual_findings": [
+        "Evaluated 8 configurations across 6 scaffold families: Claude Code (v2.1.251), Codex (v0.147.0), OpenCode (v1.18.15), Pi (v0.84.2), mini-SWE (commit 04d809ceab9d), and DeepSeek Harness (Minimal, Standard, PTC modes).",
+        "Shared evaluation settings: Linux task containers, temperature 1.0, top-p 0.95, 1M-token context window, max_steps=500 model-generation rounds per agent.",
+        "DeepSWE v1.1 evaluated at N=8 samples per task; Terminal-Bench v2.1 evaluated at N=3 samples per task without network access.",
+        "Reported Pass@1 / Resolved at Max reasoning effort (100): DeepSWE v1.1 resolved mini-SWE 74.2%, DSH Minimal 72.6%, DSH Standard 70.5%, Claude Code 69.8%, DSH PTC 67.6%, Pi 66.2%, Codex 65.6%, OpenCode 65.5%; Terminal-Bench v2.1 Pass@1 DSH Minimal 90.6%, mini-SWE 90.3%, Claude Code 88.0%, Pi 86.1%, DSH Standard 85.8%, DSH PTC 85.8%, OpenCode 85.0%, Codex 84.1%."
+      ],
+      "harness_relevance": "Demonstrates that scaffold choice introduces substantial variance under identical model weights, context window, and sampling hyperparameters."
+    },
+    "deepseek_report_appendix_b": {
+      "title": "Evaluation Details",
+      "pages": [47, 48, 49],
+      "subsections": {
+        "B.1": {
+          "title": "Scaffold Configurations",
+          "details": [
+            "All scaffolds run in Linux task containers using shared settings without experimental system prompt additions.",
+            "Claude Code (v2.1.105, v2.1.238, v2.1.251, v2.1.259): uses Claude Agent SDK with native tool interface.",
+            "Codex (v0.147.0): standard app-server mode with adapted tool schemas.",
+            "OpenCode (v1.18.15): build agent with shell and file tools, and native task delegation.",
+            "Pi (v0.84.2): RPC mode with file and shell tools plus search extension (search, open_page, find_in_page).",
+            "mini-SWE: mini_swe_v2 port (commit 04d809ceab9df28f9adaed044884180159172930) with single bash tool, requiring tool call each turn and submission marker to finish.",
+            "DeepSeek Harness (DSH): Minimal mode has single persistent bash tool; Standard mode has full SDK profile with 26 initial function tools; PTC mode uses run_code for TypeScript with 24 underlying tools. Standard and PTC require custom build v0.1.1+custom.202609011522."
+          ]
+        },
+        "B.2": {
+          "title": "Reasoning Efforts across Scaffolds",
+          "details": [
+            "Output tokens scale monotonically with reasoning effort (b=25..100) across all scaffolds and benchmarks.",
+            "Accuracy (Pass@1) does not scale monotonically; exhibits plateaus and non-monotonic dips at intermediate settings.",
+            "Scaffolds calibrate differently: Claude Code has flattest token curve; DSH Minimal gains most at highest token cost; mini-SWE is intermediate."
+          ]
+        },
+        "B.3": {
+          "title": "Detailed Results of Reasoning Benchmarks",
+          "details": [
+            "Smooth continuous control of response length (2.0-3.1x scaling from effort 25 to 100) on single-response reasoning.",
+            "Transfer of effort knob to long-horizon agentic rollouts governs total exploration/verification turns."
+          ]
+        }
+      },
+      "harness_relevance": "Pins the exact tool surface, turn-taking rules, and effort scaling behavior for each scaffold."
+    },
+    "deepseek_report_section_5_3_1_mitigations": {
+      "title": "Evaluation Setup & Anti-Gaming Mitigations",
+      "pages": [32, 33],
+      "factual_findings": [
+        "Automated purging of transient build/package caches: Go module caches (go/mod), node_modules dependency artifacts, compiled .jar files, and Python __pycache__ directories.",
+        "Git histories stripped from environment and internet access disabled for coding benchmarks.",
+        "Official benchmark harness coupling: DeepSWE v1.1 evaluated with mini-SWE harness to match official setup; SEC-Bench Pro uses Claude Code specifically for session compaction design; Visual agent uses Claude Code with 512k context."
+      ],
+      "harness_relevance": "Environment sanitization alters filesystem discovery and build artifacts, introducing silent reproduction gaps if omitted."
+    },
+    "deepseek_harness_c291e79": {
+      "commit": "c291e7961a515f6d7af9304e7fd1d257929aef26",
+      "profile": "sdk-minimal (Cordis patch bundle cordis.patch.yml)",
+      "pinned_mechanisms": {
+        "shell_persistence": "Persistent bash tool (@deepseek-ai/dsh-tool-bash-persistent) retains state and working directory across command calls and user turns.",
+        "shell_timeout": "Command execution timeout set to 300,000 ms (5 minutes).",
+        "shell_prompt_instruction": "Explicitly instructs agent: 'State is persistent across command calls and discussions with the user... Please avoid commands that may produce a very large amount of output... Please run long lived commands in the background, e.g. sleep 10 &'.",
+        "observation_clipping": "Current Minimal implementation clips command output at 16,000 characters; output is not unbounded.",
+        "permissions_policy": "danger-full-access with workspaceRoot set to process.cwd().",
+        "token_limit_policy": "maxTokensAsSuccess: false configured on sdk-jsonrpc-server; hitting token limits does not record success.",
+        "context_window": "Default 1,000,000 tokens (DSH_CONTEXT_WINDOW).",
+        "session_persistence": "@deepseek-ai/dsh-session-persistence-jsonl persists session event stream to JSONL files."
+      }
+    },
+    "mini_swe_agent_04d809c": {
+      "commit": "04d809ceab9df28f9adaed044884180159172930",
+      "config": "src/minisweagent/config/mini.yaml",
+      "pinned_mechanisms": {
+        "shell_persistence": "Stateless subshell per action; directory (cd) and environment variable changes are NOT persistent across turns. Requires inline compounding: MY_ENV=val cd ... && ...",
+        "stopping_mechanism": "Explicit submission marker required: 'echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT'. No further commands accepted once issued.",
+        "observation_clipping": {
+          "threshold_chars": 10000,
+          "strategy": "head_tail_elision",
+          "head_chars": 5000,
+          "tail_chars": 5000,
+          "retained_metadata": ["returncode", "output_head", "output_tail", "elided_chars", "warning"]
+        },
+        "length_cutoff_handling": "Detects finish_reason == 'length' and warns agent: 'Your previous response reached the output token limit... Respond more concisely and finish with exactly one bash tool call.'",
+        "budget_limits": {
+          "cost_limit": 3.0,
+          "step_limit": 0
+        }
+      }
+    }
+  },
+  "reproduction_gaps": [
+    {
+      "gap_id": "custom_build_dependency",
+      "description": "DeepSeek Harness Standard and PTC modes require custom proprietary build v0.1.1+custom.202609011522 not published in public releases or npm.",
+      "impact": "Standard and PTC configurations cannot be directly executed in standard open-source environments without vendor-provided binary assets. However, unverified historical custom builds do not make all future counterfactual ablations impossible, as open Minimal configurations or clean-room mechanism implementations remain testable."
+    },
+    {
+      "gap_id": "sandbox_scheduler_discrepancy",
+      "description": "DeepSeek runs rollouts on DSec with custom non-Kubernetes placement engines, Sub-NUMA VM resource partitioning, and latency-sensitive SCHED_IDLE scheduling at 2,500 containers/node.",
+      "impact": "Standard Harbor or local Docker runners operate without NUMA confinement or core scheduling, causing different latency and I/O noise characteristics."
+    },
+    {
+      "gap_id": "native_harbor_adapter_absence",
+      "description": "Neither DeepSeek Harness nor mini-SWE ships a native Harbor adapter; historical runs rely on retrospective JSONL-to-ATIF or stdout conversion.",
+      "impact": "Converting session logs after execution can lose intermediate unbuffered terminal events or conflate harness wrappers with agent decisions."
+    },
+    {
+      "gap_id": "environment_cache_sanitization",
+      "description": "DeepSeek evaluation automatically purges Go module caches, node_modules, compiled .jar files, and __pycache__ while stripping git histories.",
+      "impact": "Benchmark tasks evaluated in standard environments without automated cache purging may leak pre-cached dependencies or git commit messages."
+    },
+    {
+      "gap_id": "scaffold_specific_harness_coupling",
+      "description": "DeepSWE v1.1 is coupled to mini-SWE (74.2%) while SEC-Bench Pro is coupled to Claude Code for session compaction (62.8%).",
+      "impact": "Direct cross-harness ranking on historical trajectories confounds scaffold-specific prompt engineering and tool interfaces with underlying agent reasoning capability."
+    }
+  ],
+  "limitations": [
+    "Pinned configuration values represent specific committed snapshots and published report sections, not permanent truths about current or future harness releases.",
+    "Observational markers from historical trajectories provide correlational evidence only; causal claims require controlled counterfactual ablation.",
+    "Reproduction gaps document structural differences between published evaluation platforms and local lab capabilities; unverified custom historical builds do not make future counterfactual ablations impossible.",
+    "Proposals must not fabricate synthetic benchmark task IDs or profile IDs, and observational diagnostics do not constitute evidence of causality."
+  ]
+}

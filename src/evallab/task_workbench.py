@@ -35,6 +35,7 @@ import yaml
 
 from evallab.results import load_job
 from evallab.runner import subscription_environment
+from evallab.task_import import discover_task_packages
 
 SCHEMA_VERSION = 1
 WORKBENCH_VERSION = "m049-v1"
@@ -4211,6 +4212,77 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
     )
 
 
+def scan_candidates(*, repo_root: Path, task_root: Path, source: CandidateSource) -> dict[str, Any]:
+    """Screen a task collection without executing, copying, or admitting candidates.
+
+    Uses the same static policy as single-task inspection. A refusal can mean
+    unsupported packaging or missing lab-specific evidence, not a defective
+    upstream task. Even a static pass leaves runtime and semantic quality unknown.
+    """
+    repo_root = repo_root.resolve()
+    task_root = task_root if task_root.is_absolute() else repo_root / task_root
+    if not _is_under(task_root, repo_root):
+        raise UnsafePathError(f"candidate root escapes repository: {task_root}")
+    task_root = task_root.resolve()
+    if not task_root.is_dir():
+        raise WorkbenchError(f"candidate root is missing: {task_root}")
+    packages = discover_task_packages(task_root)
+    tasks: list[dict[str, Any]] = []
+    counts = {"static_passed": 0, "static_failed": 0, "inspection_error": 0}
+    tasks_by_diagnostic: dict[str, int] = {}
+    for task_dir in packages:
+        relative = task_dir.relative_to(repo_root).as_posix()
+        try:
+            # Do not let a package symlink feed host files into static readers.
+            # Inspection itself diagnoses symlinks, but some later readers would
+            # still follow them. Batch screening must stop before those readers.
+            if any(path.is_symlink() for path in task_dir.rglob("*")):
+                raise UnsafePathError("candidate contains unsupported symlinks")
+            inspection = inspect_candidate(repo_root=repo_root, task_path=task_dir, source=source)
+            status = "static_passed" if inspection.static_passed else "static_failed"
+            diagnostics = [item.to_dict() for item in inspection.diagnostics]
+            row = {
+                "task_path": relative,
+                "status": status,
+                "candidate_id": inspection.candidate["candidate_id"],
+                "package_digest": inspection.candidate["digests"]["package"],
+                "diagnostics": diagnostics,
+            }
+            for code in {item.code for item in inspection.diagnostics}:
+                tasks_by_diagnostic[code] = tasks_by_diagnostic.get(code, 0) + 1
+        except Exception as exc:
+            # An unreadable/malformed package must not hide healthy siblings.
+            # Exception text may contain task secrets; retain type, not bytes.
+            status = "inspection_error"
+            row = {
+                "task_path": relative,
+                "status": status,
+                "candidate_id": None,
+                "package_digest": None,
+                "diagnostics": [],
+                "error_type": type(exc).__name__,
+            }
+        counts[status] += 1
+        tasks.append(row)
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "kind": "task_workbench_scan",
+        "workbench_version": WORKBENCH_VERSION,
+        "task_root": task_root.relative_to(repo_root).as_posix(),
+        "source": source.to_dict(),
+        "candidate_only": True,
+        "controls_executed": False,
+        "assessment_scope": "static_workbench_policy",
+        "not_assessed": ["runtime_solvability", "verifier_alignment", "training_utility"],
+        "summary": {
+            "discovered": len(packages),
+            **counts,
+            "tasks_by_diagnostic": dict(sorted(tasks_by_diagnostic.items())),
+        },
+        "tasks": tasks,
+    }
+
+
 def _materialize_command(command: Sequence[str], repo_root: Path) -> tuple[str, ...]:
     prefix = "$REPO/"
     return tuple(
@@ -5767,6 +5839,10 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     plan = subparsers.add_parser("plan", help="inspect and print frozen local control plan")
     _add_common_arguments(plan)
+    scan = subparsers.add_parser(
+        "scan", help="screen a collection read-only; no controls or admission"
+    )
+    _add_common_arguments(scan)
     check = subparsers.add_parser("check", help="run static checks and assess/run controls")
     _add_common_arguments(check)
     controls = check.add_mutually_exclusive_group()
@@ -5789,6 +5865,13 @@ def run_cli(
     repo_root = args.repo_root.resolve()
     source = _source_from_args(args)
     try:
+        if args.command == "scan":
+            scan = scan_candidates(repo_root=repo_root, task_root=args.task, source=source)
+            sys.stdout.buffer.write(_canonical_bytes(scan))
+            summary = scan["summary"]
+            if summary["discovered"] == 0:
+                return 2
+            return 0 if summary["static_passed"] == summary["discovered"] else 1
         inspection = inspect_candidate(repo_root=repo_root, task_path=args.task, source=source)
         if args.command == "plan":
             sys.stdout.buffer.write(_canonical_bytes(inspection.to_dict()))

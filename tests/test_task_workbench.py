@@ -1874,6 +1874,21 @@ def test_certificate_binds_registry_reload_and_rejects_tamper_replay_and_circula
     verify_certification_packet(repo, reloaded)
     assert audit_registry(repo).passed
 
+    # Apply only the proposal's fixed envelope requirements to real producer
+    # output. IDs, digests, observation counts and axes stay fixture-derived.
+    checklist = json.loads(
+        (
+            ROOT
+            / "research/experiments/harness-first-fourth-task/registration-checklist.json"
+        ).read_text()
+    )
+    envelope = reloaded.certification.model_dump(mode="json")
+    envelope.update(checklist["certification_bound_shape"]["fields"])
+    proposed = TaskRegistryRecord.model_validate(
+        {**reloaded.model_dump(mode="json"), "certification": envelope}
+    )
+    verify_certification_packet(repo, proposed)
+
     original = certification_path.read_bytes()
     certification_path.write_bytes(original + b" ")
     with pytest.raises(TaskCertificationError, match="envelope|packet bytes"):

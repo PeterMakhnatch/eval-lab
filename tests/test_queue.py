@@ -1253,6 +1253,34 @@ def test_parallel_1_compatibility_matches_single_threaded(tmp_path: Path) -> Non
     assert len(service.queue.list_leases()) == 0
 
 
+def test_dispatch_refuses_unimplemented_provider_routes_before_execution(tmp_path: Path) -> None:
+    requests: list[RunRequest] = []
+    service = executor(tmp_path, runner=lambda request: requests.append(request) or tmp_path)
+    raw = spec("routed-model", agent="codex", model="model-v1", est_cost_usd=1).model_dump()
+    raw.update(
+        provider_routes=[
+            {
+                "route_id": name,
+                "provider": name,
+                "model": "model-v1",
+                "credential_requirement": "codex_auth",
+                "logical_model_revision": "revision-1",
+                "tool_contract_digest": "sha256:" + "a" * 64,
+                "max_cost_usd": 0.5,
+            }
+            for name in ("primary", "secondary")
+        ],
+        provider_failover_max_cost_usd=1,
+        provider_exhaustion_behavior="wait",
+    )
+    item = ExperimentSpec.model_validate(raw)
+
+    with pytest.raises(ExecutionFailure) as failure:
+        service.execute_spec(item)
+    assert failure.value.reason_code == "provider_routes_unsupported"
+    assert requests == []
+
+
 def test_dispatch_preserves_bound_factor_execution_values(tmp_path: Path) -> None:
     requests: list[RunRequest] = []
     service = executor(tmp_path, runner=lambda request: requests.append(request) or tmp_path)

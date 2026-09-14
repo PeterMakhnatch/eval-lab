@@ -28,6 +28,7 @@ from evallab.execution_contracts import (
     DEEPSEEK_PROXY_CAPABILITY_ENV,
     DEEPSEEK_PROXY_TOKEN,
     DEEPSEEK_PROXY_URL,
+    DEEPSEEK_REASONING_EFFORT_TIERS,
     REDACTED_SECRET_VALUE,
     collected_secret_values,
     persist_private_bytes,
@@ -101,6 +102,18 @@ def _scrubbed_connection_env(connection: ResolvedModelConnection) -> dict[str, s
 
 class SecretSafeDeepSeekMiniSweAgent(MiniSweAgent):
     """MiniSweAgent that talks only to the internal credential broker."""
+
+    def __init__(
+        self, *args: Any, reasoning_effort: str | None = None, **kwargs: Any
+    ) -> None:
+        if reasoning_effort is not None:
+            if (
+                not isinstance(reasoning_effort, str)
+                or reasoning_effort not in DEEPSEEK_REASONING_EFFORT_TIERS
+            ):
+                raise ValueError("reasoning_effort must be one of low, high, max")
+            kwargs["reasoning_effort"] = reasoning_effort
+        super().__init__(*args, **kwargs)
 
     @property
     def model_connection(self) -> ResolvedModelConnection:

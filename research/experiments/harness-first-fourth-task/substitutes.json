@@ -1,0 +1,181 @@
+{
+  "experiment": "harness-first-fourth-task",
+  "ticket": "HAR-18",
+  "evaluated_at": "2026-09-10",
+  "purpose": "Systematic evaluation and rejection of weaker candidate substitute tasks for the fourth development slot in the harness-first mini-swe vs authors-RLM context/delegation cohort comparison.",
+  "selected_candidate": {
+    "cell_id": "dl-semantic-distractor-16384-s42",
+    "family": "action-memory-v1",
+    "dose_bytes": 16384,
+    "arm": "semantic_distractor",
+    "seed": 42,
+    "rationale": "Directly targets the context/delegation boundary through a controlled 16 KiB dose with 65 read opportunities across 3 step budgets, where recursive chunk inspection in authors-RLM contrasts meaningfully with mini-swe."
+  },
+  "rejected_substitutes": [
+    {
+      "task_id": "query-optimize",
+      "task_family": "query-optimization",
+      "version": "1.0.0",
+      "source_registry_file": "library/registry/query-optimize.json",
+      "state": "candidate",
+      "state_reason": "durable_identity_bound_control_evidence_missing",
+      "allowed_uses": [
+        "measurement",
+        "training"
+      ],
+      "control_evidence": null,
+      "certification": {
+        "state": "legacy_missing",
+        "reason": "legacy_record_has_no_certificate_packet"
+      },
+      "provenance_zone": "02-local-evidence",
+      "source_uri": "local/query-optimize@1.0.0",
+      "limits": {
+        "timeout_seconds": 2700,
+        "max_memory_mb": 2048,
+        "max_cpus": 1.0
+      },
+      "rejection_analysis": {
+        "admission_gate_status": "rejected",
+        "admission_gate_reasons": [
+          "Registry state is 'candidate' with state_reason 'durable_identity_bound_control_evidence_missing'.",
+          "control_evidence is null (no durable identity-bound oracle=1 or nop=0 runs recorded in registry).",
+          "certification.state is 'legacy_missing' with no certificate packet."
+        ],
+        "context_delegation_fit": "fails_gap",
+        "context_delegation_rationale": "The task is a localized single-query SQL optimization problem (rewriting /app/my-sql-query.sql into /app/sol.sql for SQLite). It lacks multi-file repository structure, code navigation, context scaling across files, and sub-delegation pressure. It cannot differentiate harness context management in mini-swe from recursive chunk inspection in authors-RLM."
+      }
+    },
+    {
+      "task_id": "transaction-reconciliation",
+      "task_family": "transaction-reconciliation",
+      "version": "0.1.0",
+      "source_registry_file": "library/registry/transaction-reconciliation.json",
+      "state": "candidate",
+      "state_reason": "durable_identity_bound_control_evidence_missing",
+      "allowed_uses": [
+        "measurement",
+        "training"
+      ],
+      "control_evidence": null,
+      "certification": {
+        "state": "legacy_missing",
+        "reason": "legacy_record_has_no_certificate_packet"
+      },
+      "provenance_zone": "02-local-evidence",
+      "source_uri": "local/transaction-reconciliation@0.1.0",
+      "limits": {
+        "timeout_seconds": 240,
+        "max_memory_mb": null,
+        "max_cpus": null
+      },
+      "rejection_analysis": {
+        "admission_gate_status": "rejected",
+        "admission_gate_reasons": [
+          "Registry state is 'candidate' with state_reason 'durable_identity_bound_control_evidence_missing'.",
+          "control_evidence is null (no durable identity-bound oracle=1 or nop=0 runs recorded in registry).",
+          "certification.state is 'legacy_missing' with no certificate packet."
+        ],
+        "context_delegation_fit": "fails_gap",
+        "context_delegation_rationale": "Toy single-database repair problem with a 240-second timeout. Requires finding mismatched rows in /app/data/ledger.db against a settlement feed and issuing an UPDATE. Involves zero software repository exploration, trivial single-turn context size, and no opportunity or requirement for recursive subagent delegation or context window management."
+      }
+    },
+    {
+      "task_id": "terminal-bench-html-js-filter",
+      "task_family": "terminal-bench-html-js-filter",
+      "version": "1.0.0",
+      "source_registry_file": "library/registry/terminal-bench-html-js-filter.json",
+      "state": "candidate",
+      "state_reason": "durable_identity_bound_control_evidence_missing",
+      "allowed_uses": [
+        "measurement",
+        "training"
+      ],
+      "control_evidence": null,
+      "certification": {
+        "state": "legacy_missing",
+        "reason": "legacy_record_has_no_certificate_packet"
+      },
+      "provenance_zone": "02-local-evidence",
+      "source_uri": "local/terminal-bench-html-js-filter@1.0.0",
+      "limits": {
+        "timeout_seconds": 5400,
+        "max_memory_mb": 4096,
+        "max_cpus": 1.0
+      },
+      "rejection_analysis": {
+        "admission_gate_status": "rejected",
+        "admission_gate_reasons": [
+          "Registry state is 'candidate' with state_reason 'durable_identity_bound_control_evidence_missing'.",
+          "control_evidence is null (no durable identity-bound control evidence runs recorded in registry).",
+          "certification.state is 'legacy_missing' with no certificate packet."
+        ],
+        "context_delegation_fit": "fails_gap",
+        "context_delegation_rationale": "Single-script Python implementation (/app/filter.py) parsing HTML to strip script tags and JavaScript event handlers. This is an isolated standalone algorithm/sanitizer contained entirely in one file, requiring no repository exploration, no hierarchical code search, and no sub-delegation across components. It does not stress context windows or test recursive delegation."
+      }
+    },
+    {
+      "task_id": "tau3-retail-1",
+      "task_family": "tau3-bench",
+      "version": "1.0.0",
+      "source_registry_file": "library/registry/tau3-retail-1.json",
+      "state": "candidate",
+      "state_reason": null,
+      "allowed_uses": [
+        "canary"
+      ],
+      "control_evidence": {
+        "oracle": {
+          "job_name": "tau3-retail-1-oracle-evidence",
+          "trial_name": "tau3-retail-1__zXFDUVJ",
+          "reward": 1.0,
+          "evidence_path": "research/evidence/runs/tau3-retail-1-oracle-evidence/tau3-retail-1__zXFDUVJ/result.json",
+          "evidence_digest": "sha256:92498a2726c9e54d730662c753c70aa603efe5d3bc756d5d79c46931eb26a543",
+          "lock_digest": "sha256:0c602908ee5923ec6037a800c86a932d7113e15e932db051bf597cccefceb5e9",
+          "observed_at": "2026-09-03T14:41:48.823362Z"
+        },
+        "nop": {
+          "job_name": "tau3-retail-1-nop-evidence",
+          "trial_name": "tau3-retail-1__ygLj9MC",
+          "reward": 0.0,
+          "evidence_path": "research/evidence/runs/tau3-retail-1-nop-evidence/tau3-retail-1__ygLj9MC/result.json",
+          "evidence_digest": "sha256:fd5a7ee2e3c9a99c29c82b92ed110aaf190763899c94c6dfff044c7d1a74cb2f",
+          "lock_digest": "sha256:2234037473956718564cfe45f7f20cb8ccfbb4d16abfe23c6833c00bcc98ad36",
+          "observed_at": "2026-09-03T14:42:16.328341Z"
+        }
+      },
+      "certification": {
+        "state": "legacy_missing",
+        "reason": "legacy_record_has_no_certificate_packet"
+      },
+      "provenance_zone": "01-external",
+      "source_uri": "sierra-research/tau2-bench",
+      "source_ref": "tau3-bench-v1.0.0",
+      "limits": {
+        "timeout_seconds": 3900,
+        "max_memory_mb": 8192,
+        "max_cpus": 4.0
+      },
+      "rejection_analysis": {
+        "admission_gate_status": "rejected",
+        "admission_gate_reasons": [
+          "Allowed uses is restricted to ['canary'] only; prohibited from general measurement and cohort development.",
+          "Registry state is uncertified 'candidate' (certification.state is 'legacy_missing', approved_by is null).",
+          "Requires specialized Tau3 runtime isolation and external sidecar service (tau3-runtime:8000/mcp)."
+        ],
+        "context_delegation_fit": "fails_gap",
+        "context_delegation_rationale": "Paradigm mismatch: multi-turn interactive customer support dialog over an MCP server simulating retail transactions and user chat. The target benchmark evaluates software engineering agents (mini-swe harness vs authors-RLM) on code repository exploration, localization, editing, and verifier feedback, not conversational turn-based MCP customer service policy adherence."
+      }
+    }
+  ],
+  "summary": {
+    "total_evaluated": 4,
+    "total_rejected": 4,
+    "rejection_breakdown": {
+      "query-optimize": "candidate; control_evidence null; single-file SQL optimization lacks repo context and delegation pressure",
+      "transaction-reconciliation": "candidate; control_evidence null; toy SQLite repair lacks repo context and delegation pressure",
+      "terminal-bench-html-js-filter": "candidate; control_evidence null; single-file HTML/JS sanitizer lacks repo context and delegation pressure",
+      "tau3-retail-1": "candidate; canary-only allowed_uses; multi-turn customer service MCP dialog is paradigm mismatch for SWE repo context/delegation benchmark"
+    }
+  }
+}

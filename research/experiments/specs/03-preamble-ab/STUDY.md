@@ -18,29 +18,43 @@ identical control.
 A preamble that tells the agent to satisfy the stated contract is a
 plausible, small intervention. The task is also the cheapest canary.
 
-**Harness gap (this study does not run).** Harbor 0.21.0 accepts
-`--extra-instruction-path`. Two lab contracts do not:
+**Harness gap — closed.** This study was blocked because the runner could
+not express the one variable. That is no longer true:
 
-- `ExperimentSpec` uses `extra="forbid"` and has no such field.
-- `evallab.runner.build_command` never forwards the flag.
+- `ExperimentSpec.extra_instruction_path` exists (`src/evallab/schemas/__init__.py`).
+- `build_command` forwards it as `--extra-instruction-path`
+  (`src/evallab/execution_contracts.py`).
 
-RUNNER does not edit `src/`. Submitting two specs that the runner would
-execute identically would be a fake A/B. The treatment arm is therefore
-**not submitted**. The preamble file is staged so BUILDER can add
-`extra_instruction_path: str | None` to `ExperimentSpec` and one
-`--extra-instruction-path` pair in `build_command`.
+`research/experiments/specs/03-preamble-ab/treatment.intended.json` now
+carries the preamble path and the model, so it is the treatment arm rather
+than a second copy of the control. It is **prepared, not submitted**.
 
-**Policy once the field exists.** Control and treatment would both be
-`canary` jobs at $2.50, attempts=3. Together $5.00. Still n=3, so a
-significant A/B is not expected; the first executable version is a
-direction check plus trajectory read, not a claim.
+**Policy.** Control and treatment are both `canary` jobs at $2.50,
+attempts=3. Together $5.00. Still n=3, so a significant A/B is not
+expected; the first executable version is a direction check plus trajectory
+read, not a claim.
 
-**Next spec this implies.** After the field lands, submit the treatment
-arm only and pair it with Study 01's already-run control. If the control
-has not run, submit both together.
+**Next spec this implies.** Submit the treatment arm only and pair it with
+Study 01's already-run control. Do not submit a second identical control.
 
 ## 2026-08-15 PROGRAM reconciliation
 
 Control cell has now run: `runs/canary-event-summary-codex-20260815/`
-3/3 `reward=1.0`. The harness gap remains (`ExperimentSpec` still has
-no `extra_instruction_path`). Still not submitted.
+3/3 `reward=1.0`. Still not submitted.
+
+## 2026-09-10 correction
+
+The "harness gap" recorded above outlived the gap itself and was still
+telling readers to add a field that already existed. Corrected, along with
+the matching `blocker` in `research/experiments/PROGRAM.json`.
+
+The remaining blocker is authorisation, not code: the treatment arm is
+billable `codex` and needs a named human authorisation.
+
+The treatment spec pins `model=gpt-5.6-terra` because this entry's
+`fixed_elicitation` names it and a comparison should pin its model rather
+than inherit the adapter default. The control cell did **not** pin one: it
+ran on the adapter default (`DEFAULT_AGENT_MODELS` in
+`src/evallab/credentials.py`, applied in `src/evallab/queue.py`), which
+resolves to `gpt-5.6-terra` for codex. The two agree today.
+

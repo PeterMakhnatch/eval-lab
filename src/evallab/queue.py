@@ -1856,6 +1856,12 @@ class Executor:
         *,
         lease_generation: str | None = None,
     ) -> Path:
+        if spec.provider_routes:
+            raise ExecutionFailure(
+                "provider_routes_unsupported",
+                "provider route constraints require a route-aware executor; "
+                "this executor cannot dispatch them as an unconstrained single route",
+            )
         task_path = self._safe_repo_path(spec.executable_task_path)
         task_version = spec.task_version
         verifier_digest = spec.verifier_digest

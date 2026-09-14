@@ -5,7 +5,7 @@ Tests verify:
 - Deterministic and resumable per-task job identity (stable ULID-compatible derivation).
 - Fail-closed validation on task count, missing tasks, unexpected tasks, and upstream digest drift.
 - Accidental TB3/TB4 aggregation refusal.
-- Permitted Z.ai provider/agent model selection (highspeed and non-Z.ai models refused at compile time).
+- Permitted Z.ai and DeepSeek model/agent pairs, including the official selector cutover.
 - Explicit TB3/TB4 non-comparability metadata and refusal of floating refs / unpinned checkouts.
 - CLI compilation, JSON output, and exit codes.
 """
@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 
 from evallab import craft
+from evallab.execution_contracts import DEEPSEEK_MODEL_SELECTOR
 
 MANIFEST = """\
 schema_version = "1.0"
@@ -93,6 +94,7 @@ def test_compile_tb4_produces_complete_66_task_job_plan(tmp_path: Path) -> None:
     assert plan["pin"]["schema_unchanged"] is True
     assert plan["timeout_seconds"] == 28_800
     assert plan["task_count"] == 66
+    assert plan["selected_task_count"] == 66
     assert plan["non_comparable"] is True
     assert plan["floating_refs_forbidden"] is True
     assert plan["provider"]["agent"] == "zai-opencode"
@@ -193,24 +195,43 @@ def test_compile_tb4_fails_closed_on_inventory_mismatch(tmp_path: Path) -> None:
         craft.compile_tb4(v4_swapped)
 
 
-def test_compile_tb4_fails_closed_on_upstream_digest_drift(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "baseline",
+    ["full", "full-to-subset", "subset", "narrowed", "legacy-full"],
+)
+def test_compile_tb4_fails_closed_on_upstream_digest_drift(
+    tmp_path: Path, baseline: str
+) -> None:
     v4 = _v4_fixture(tmp_path / "v4")
     out_file = tmp_path / "plan.json"
+    inventory = craft.load_migration_record()["expected_inventory"]
+    selected = [inventory[0]]
 
-    # Initial compile creates baseline snapshot
-    craft.compile_tb4(v4, out=out_file)
-    assert out_file.is_file()
+    # Exercise full and subset baselines, including a full plan overwritten
+    # with a subset before a later drift check.
+    initial_selection = selected if baseline == "subset" else None
+    craft.compile_tb4(v4, out=out_file, include_tasks=initial_selection)
+    if baseline == "narrowed":
+        craft.compile_tb4(v4, out=out_file, include_tasks=selected)
+    elif baseline == "legacy-full":
+        prior = json.loads(out_file.read_text(encoding="utf-8"))
+        del prior["task_digests"]
+        out_file.write_text(json.dumps(prior), encoding="utf-8")
 
-    # Recompiling identical fixture succeeds
-    craft.compile_tb4(v4, out=out_file)
+    receipt = out_file.read_bytes()
+    drifted_ref = inventory[1]
+    drifted_short = drifted_ref.split("/", 1)[1]
+    (v4 / drifted_short / "instruction.md").write_text(
+        "Mutated unselected task instruction content.\n", encoding="utf-8"
+    )
 
-    # Mutate one task's instruction.md -> changes task_digest
-    first_task_short = craft.load_migration_record()["expected_inventory"][0].split("/", 1)[1]
-    (v4 / first_task_short / "instruction.md").write_text("Mutated task instruction content.\n")
-
-    # Recompiling against prior plan must fail closed on digest drift
-    with pytest.raises(ValueError, match="upstream digest drift detected"):
-        craft.compile_tb4(v4, out=out_file)
+    # Filtering emitted jobs must never filter the pinned digest comparison.
+    with pytest.raises(ValueError, match="upstream digest drift detected") as error:
+        craft.compile_tb4(
+            v4, out=out_file, include_tasks=None if baseline == "full" else selected
+        )
+    assert drifted_ref in str(error.value)
+    assert out_file.read_bytes() == receipt
 
 
 def test_compile_tb4_refuses_accidental_tb3_aggregation(tmp_path: Path) -> None:
@@ -227,6 +248,7 @@ def test_compile_tb4_provider_and_model_selection(tmp_path: Path) -> None:
     # Permitted flash model
     plan_flash = craft.compile_tb4(v4, model="zai-coding-plan/glm-5.3-flash")
     assert plan_flash["provider"]["selected_model"] == "zai-coding-plan/glm-5.3-flash"
+    assert plan_flash["provider"]["provider_family"] == "zai"
     assert all(t["model"] == "zai-coding-plan/glm-5.3-flash" for t in plan_flash["tasks"])
 
     # Refuse highspeed model
@@ -240,26 +262,153 @@ def test_compile_tb4_provider_and_model_selection(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="invalid model selector"):
         craft.compile_tb4(v4, model="openai/gpt-4o")
 
+    # DeepSeek model with default zai-opencode agent is refused
     with pytest.raises(ValueError, match="invalid model selector"):
-        craft.compile_tb4(v4, model="deepseek/deepseek-v4-flash")
+        craft.compile_tb4(v4, model=DEEPSEEK_MODEL_SELECTOR)
+
+    # DeepSeek model with mini-swe-agent is permitted
+    plan_ds_mini = craft.compile_tb4(
+        v4, model=DEEPSEEK_MODEL_SELECTOR, agent="mini-swe-agent"
+    )
+    assert plan_ds_mini["provider"]["provider_family"] == "deepseek"
+    assert plan_ds_mini["provider"]["selected_agent"] == "mini-swe-agent"
+    assert plan_ds_mini["provider"]["selected_model"] == DEEPSEEK_MODEL_SELECTOR
+    assert all(t["model"] == DEEPSEEK_MODEL_SELECTOR for t in plan_ds_mini["tasks"])
+    assert all(t["agent"] == "mini-swe-agent" for t in plan_ds_mini["tasks"])
+
+    # DeepSeek model with DSH agent is permitted
+    plan_ds_dsh = craft.compile_tb4(
+        v4,
+        model=DEEPSEEK_MODEL_SELECTOR,
+        agent="evallab.harbor_dsh:DeepSeekHarnessAgent",
+    )
+    assert plan_ds_dsh["provider"]["provider_family"] == "deepseek"
+    assert plan_ds_dsh["provider"]["selected_agent"] == "evallab.harbor_dsh:DeepSeekHarnessAgent"
+
+    # DeepSeek model with unknown agent is refused
+    with pytest.raises(ValueError, match="invalid model selector"):
+        craft.compile_tb4(v4, model=DEEPSEEK_MODEL_SELECTOR, agent="codex")
 
 
-def test_compile_tb4_refuses_floating_refs_and_unpinned_checkouts(tmp_path: Path) -> None:
+def test_compile_tb4_official_selector_cutover(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Simulate PR409's imported constant without changing any runtime or study.
+    official_selector = "deepseek/deepseek-flash"
+    monkeypatch.setattr(craft, "DEEPSEEK_MODEL_SELECTOR", official_selector)
     v4 = _v4_fixture(tmp_path / "v4")
+    selected = [craft.load_migration_record()["expected_inventory"][0]]
+    for agent in ("mini-swe-agent", "evallab.harbor_dsh:DeepSeekHarnessAgent"):
+        plan = craft.compile_tb4(
+            v4, model=official_selector, agent=agent, include_tasks=selected
+        )
+        assert plan["provider"]["provider_family"] == "deepseek"
+        assert plan["tasks"][0]["model"] == official_selector
+        assert plan["tasks"][0]["agent"] == agent
+        assert [official_selector, agent] in plan["provider"]["allowed_pairs"]
+        with pytest.raises(ValueError, match="invalid model selector"):
+            craft.compile_tb4(
+                v4, model="deepseek/deepseek-v4-flash", agent=agent, include_tasks=selected
+            )
+
+
+def test_compile_tb4_include_tasks_subset(tmp_path: Path) -> None:
+    v4 = _v4_fixture(tmp_path / "v4")
+    inventory = craft.load_migration_record()["expected_inventory"]
+    # Pick two tasks: first as short name, second as full ref
+    first_short = inventory[0].split("/", 1)[1]
+    second_full = inventory[1]
+
+    # Full compile for manifest digest baseline
+    full_plan = craft.compile_tb4(v4)
+
+    # Subset compile mixing short name and full ref
+    subset_plan = craft.compile_tb4(
+        v4,
+        include_tasks=[first_short, second_full],
+    )
+
+    assert subset_plan["task_count"] == 66
+    assert subset_plan["selected_task_count"] == 2
+    assert len(subset_plan["tasks"]) == 2
+    assert subset_plan["manifest_digest"] == full_plan["manifest_digest"]
+
+    # Verify task entries order and fields
+    assert subset_plan["tasks"][0]["task_ref"] == inventory[0]
+    assert subset_plan["tasks"][1]["task_ref"] == inventory[1]
+    for task_entry in subset_plan["tasks"]:
+        assert len(task_entry["task_id"]) == 26
+        assert task_entry["task_digest"].startswith("sha256:")
+        assert task_entry["timeout_seconds"] == 28_800
+        assert task_entry["agent"] == "zai-opencode"
+        assert task_entry["model"] == "zai-coding-plan/glm-5.3"
+
+
+    # Changing output selection preserves the full baseline for later resumes.
+    out_file = tmp_path / "subset-plan.json"
+    craft.compile_tb4(v4, out=out_file, include_tasks=[first_short])
+    expanded = craft.compile_tb4(v4, out=out_file, include_tasks=[second_full])
+    assert [task["task_ref"] for task in expanded["tasks"]] == [second_full]
+    restored = craft.compile_tb4(v4, out=out_file)
+    assert [task["task_ref"] for task in restored["tasks"]] == inventory
+
+    # Historical subset-only receipts cannot prove the unselected task bytes.
+    craft.compile_tb4(v4, out=out_file, include_tasks=[first_short])
+    prior = json.loads(out_file.read_text(encoding="utf-8"))
+    del prior["task_digests"]
+    out_file.write_text(json.dumps(prior), encoding="utf-8")
+    receipt = out_file.read_bytes()
+    with pytest.raises(ValueError, match="upstream task set drift"):
+        craft.compile_tb4(v4, out=out_file, include_tasks=[first_short])
+    assert out_file.read_bytes() == receipt
+    # Unknown task name raises ValueError naming the unknown entry
+    with pytest.raises(ValueError, match="no-such-task"):
+        craft.compile_tb4(v4, include_tasks=["no-such-task"])
+
+    # 66-task inventory guard still fires under a subset request
+    v4_missing = tmp_path / "v4_missing"
+    v4_missing.mkdir(parents=True)
+    (v4_missing / "dataset.toml").write_text(
+        '[dataset]\nname = "terminal-bench/terminal-bench"\nversion = "4.0.0"\n',
+        encoding="utf-8",
+    )
+    for ref in inventory[:-1]:
+        _tb_task(v4_missing, ref.split("/", 1)[1])
+
+    with pytest.raises(ValueError, match="task count drift|missing expected task"):
+        craft.compile_tb4(v4_missing, include_tasks=[first_short])
+
+
+@pytest.mark.parametrize("subset", [False, True])
+def test_compile_tb4_refuses_floating_refs_and_unpinned_checkouts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, subset: bool
+) -> None:
+    v4 = _v4_fixture(tmp_path / "v4")
+    selected = [craft.load_migration_record()["expected_inventory"][0]] if subset else None
 
     # Floating ref refused
     for floating in ("terminal-bench/terminal-bench@latest", "latest", "@head"):
         with pytest.raises(ValueError, match="floating"):
-            craft.compile_tb4(v4, ref=floating)
+            craft.compile_tb4(v4, ref=floating, include_tasks=selected)
 
     # Wrong version refused
     with pytest.raises(ValueError, match="wrong version"):
-        craft.compile_tb4(v4, ref="terminal-bench/terminal-bench@3.0.0")
+        craft.compile_tb4(
+            v4, ref="terminal-bench/terminal-bench@3.0.0", include_tasks=selected
+        )
 
     # Wrong dataset name refused
     v4_wrong_ds = _v4_fixture(tmp_path / "v4_wrong_ds", dataset='name = "wrong/dataset"')
     with pytest.raises(ValueError, match="wrong dataset"):
-        craft.compile_tb4(v4_wrong_ds)
+        craft.compile_tb4(v4_wrong_ds, include_tasks=selected)
+
+    # A checkout without a declared version or matching Git pin stays refused.
+    (v4 / "dataset.toml").write_text(
+        '[dataset]\nname = "terminal-bench/terminal-bench"\n', encoding="utf-8"
+    )
+    monkeypatch.setattr(craft, "_git_pin_ref", lambda root: None)
+    with pytest.raises(ValueError, match="unpinned Terminal-Bench checkout"):
+        craft.compile_tb4(v4, include_tasks=selected)
 
 
 def test_compile_tb4_cli_execution(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -284,6 +433,7 @@ def test_compile_tb4_cli_execution(tmp_path: Path, capsys: pytest.CaptureFixture
     data = json.loads(stdout)
     assert data["plan_version"] == "tb4-job-plan/1"
     assert data["task_count"] == 66
+    assert data["selected_task_count"] == 66
     assert out_file.is_file()
 
     # Successful compile via CLI with plain text summary
@@ -300,6 +450,46 @@ def test_compile_tb4_cli_execution(tmp_path: Path, capsys: pytest.CaptureFixture
     text_out = capsys.readouterr().out
     assert "craft compile" in text_out
     assert "66 tasks, flat timeout 28800s (8h)" in text_out
+
+    # CLI compile with --include-task
+    inventory = craft.load_migration_record()["expected_inventory"]
+    short_task = inventory[0].split("/", 1)[1]
+    full_task = inventory[1]
+    subset_out = tmp_path / "cli-subset-plan.json"
+    code_subset = craft.main(
+        [
+            "compile",
+            "--tb4-root",
+            str(v4),
+            "--out",
+            str(subset_out),
+            "--include-task",
+            short_task,
+            "--include-task",
+            full_task,
+            "--json",
+        ]
+    )
+    assert code_subset == 0
+    stdout_subset = capsys.readouterr().out
+    data_subset = json.loads(stdout_subset)
+    assert data_subset["task_count"] == 66
+    assert data_subset["selected_task_count"] == 2
+    assert len(data_subset["tasks"]) == 2
+
+    # CLI rejects unknown --include-task with exit 2 and error text naming task
+    code_unknown = craft.main(
+        [
+            "compile",
+            "--tb4-root",
+            str(v4),
+            "--include-task",
+            "non-existent-task-ref",
+        ]
+    )
+    assert code_unknown == 2
+    err_unknown = capsys.readouterr().err
+    assert "non-existent-task-ref" in err_unknown
 
     # CLI refuses TB3 aggregation flag
     v3 = _v3_fixture(tmp_path / "v3")

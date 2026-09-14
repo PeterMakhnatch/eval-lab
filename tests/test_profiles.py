@@ -104,7 +104,7 @@ def test_api_key_shaped_names_are_rejected_everywhere():
 def test_deepseek_profile_allows_only_admitted_environment_names(tmp_path: Path) -> None:
     profile = builtin_profiles()["mini-swe-agent-deepseek-v4-flash"]
     assert profile.adapter == "mini-swe-agent"
-    assert profile.model == "deepseek/deepseek-v4-flash"
+    assert profile.model == "deepseek/deepseek-flash"
     assert profile.auth_mode == "api-key-environment"
 
     probe = default_probe_for(
@@ -123,7 +123,7 @@ def test_deepseek_profile_allows_only_admitted_environment_names(tmp_path: Path)
         AgentProfile(
             profile_id="bad-env-profile",
             adapter="mini-swe-agent",
-            model="deepseek/deepseek-v4-flash",
+            model="deepseek/deepseek-flash",
             auth_mode="api-key-environment",
             secret_source="env:OPENAI_API_KEY",
         )

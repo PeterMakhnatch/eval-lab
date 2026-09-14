@@ -1,0 +1,130 @@
+{
+  "ticket": "HAR-18",
+  "experiment": "harness-first-fourth-task",
+  "evaluated_at": "2026-09-10",
+  "candidate": {
+    "benchmark_id": "loca-lean-v1",
+    "benchmark_family": "loca-bench",
+    "source_path": "library/benchmarks/loca-lean-v1",
+    "intended_canary": "loca-abtesting-8k-seed42",
+    "upstream_repository": "https://github.com/hkust-nlp/LOCA-bench",
+    "upstream_commit": "8b6fac49d9edd92922593e703b74ea255357c3ec",
+    "verdict": "rejected"
+  },
+  "rejection_summary": "loca-lean-v1 is rejected as the fourth development slot candidate for the harness-first cohort. It is unregistered in library/registry/, requires external HTTPS network fetches to acquire upstream LOCA files during cold-cache materialization, dynamically executes upstream scripts, and directly overlaps in construct with action-memory-v1 while providing inferior experimental isolation (mixing table aggregation with state retention and lacking parameterizable dose ladder support).",
+  "rejection_reasons": {
+    "unregistered": {
+      "status": "unregistered",
+      "registry_file": null,
+      "in_library_registry": false,
+      "details": "loca-lean-v1 has no registration record in library/registry/ (which only contains event-summary, query-optimize, syn-funcdag-easy, tau3-retail-1, terminal-bench-html-js-filter, transaction-reconciliation, and travel-lisbon-002). Admission of any task to an experiment cohort requires explicit registration by Peter using 'evallab registry register', bound certification packets, promoted control evidence (oracle=1.0, nop=0.0), and 'measurement' in allowed_uses. The Factory harness is strictly prohibited from writing to library/registry/ or silently admitting unregistered tasks.",
+      "citations": [
+        "library/registry/",
+        "local://fourth-task-notes.md:24-26"
+      ]
+    },
+    "upstream_loca_fetch": {
+      "status": "external_network_dependency",
+      "details": "loca-lean-v1 is a source-only benchmark generator that replaces the old vendored tree by fetching upstream LOCA-bench files over HTTPS from GitHub when the local cache is cold. In offline mode with an unpopulated cache, materialization fails closed with PinError. Furthermore, materialization dynamically imports and executes upstream Python code (generate_ab_data.py) to synthesize clickstream datasets. This introduces external network fragility, supply-chain risks, and third-party code execution into the benchmark pipeline.",
+      "mechanisms": {
+        "fetch_implementation": "urllib.request.urlopen in library/benchmarks/loca-lean-v1/source.py:114-115",
+        "offline_failure": "Raises PinError('offline mode has no cache entry for ...') in library/benchmarks/loca-lean-v1/source.py:113",
+        "dynamic_script_execution": "Dynamically loads and executes upstream generate_ab_data.py in library/benchmarks/loca-lean-v1/state.py:24 and materializer.py:157-161",
+        "pinned_remote_files": [
+          {
+            "name": "final_8k_set_config.json",
+            "url": "https://raw.githubusercontent.com/hkust-nlp/LOCA-bench/8b6fac49d9edd92922593e703b74ea255357c3ec/task-configs/final_8k_set_config.json",
+            "sha256": "sha256:34c8bfa3c2d28fd1cee8e76e1a9a498a9f5ad57956232a8a2237a97cf52c2e8a"
+          },
+          {
+            "name": "final_64k_set_config.json",
+            "url": "https://raw.githubusercontent.com/hkust-nlp/LOCA-bench/8b6fac49d9edd92922593e703b74ea255357c3ec/task-configs/final_64k_set_config.json",
+            "sha256": "sha256:67336686488ea40bd4f385b5f89c826168fda5ec5f8fd9dd5454f7b1fb2d75a8"
+          },
+          {
+            "name": "final_128k_set_config.json",
+            "url": "https://raw.githubusercontent.com/hkust-nlp/LOCA-bench/8b6fac49d9edd92922593e703b74ea255357c3ec/task-configs/final_128k_set_config.json",
+            "sha256": "sha256:1ccd198f280ebfb5958c96a44cde2417195c210edb485ec715f55d1065bddffc"
+          },
+          {
+            "name": "generate_ab_data.py",
+            "url": "https://raw.githubusercontent.com/hkust-nlp/LOCA-bench/8b6fac49d9edd92922593e703b74ea255357c3ec/gem/envs/ab_testing_s2l/generate_ab_data.py",
+            "sha256": "sha256:fc9a8aef8294326866ae69cf6d70cd60bbc3daf7dab1408c1a7eb2b59078eaa9"
+          },
+          {
+            "name": "mcp_tool_schemas.json",
+            "url": "https://raw.githubusercontent.com/PeterMakhnatch/eval-lab/b29e3d0057a4289d567acd6106c0da42fcea15c4/library/benchmarks/loca-bench/vendor/loca_upstream/scripts/mcp_tool_schemas.json",
+            "sha256": "sha256:0205b4ddb5f7a45fe2bc240983bc592be02446e8e3043cb9ba0fddf9187bbd3a"
+          },
+          {
+            "name": "LICENSE",
+            "url": "https://raw.githubusercontent.com/hkust-nlp/LOCA-bench/8b6fac49d9edd92922593e703b74ea255357c3ec/LICENSE",
+            "sha256": "sha256:2bb75401bf1c737039d17c6defda15c2f37eb2b5eb62facbf6dea50bf72811c2"
+          }
+        ]
+      },
+      "citations": [
+        "library/benchmarks/loca-lean-v1/source.py:106-128",
+        "library/benchmarks/loca-lean-v1/sources.json:1-45",
+        "library/benchmarks/loca-lean-v1/materializer.py:18-23,138-161",
+        "library/benchmarks/loca-lean-v1/README.md:17-23"
+      ]
+    },
+    "construct_overlap_with_action_memory": {
+      "status": "construct_duplicate",
+      "details": "action-memory-v1 was explicitly developed using LOCA-Lean / LOCA-bench as its conceptual foundation and convergent validity anchor. Both benchmarks evaluate actionable memory, dynamic state tracking, and value-bound actions under context pressure. Admitting loca-lean-v1 would create redundant construct overlap rather than addressing an orthogonal evaluation dimension. Furthermore, action-memory-v1 significantly improves upon loca-lean-v1 across all key experimental dimensions.",
+      "comparative_analysis": {
+        "construct_ancestry": "library/benchmarks/action-memory-v1/PROVENANCE.md:5-9 explicitly identifies LOCA-Lean / LOCA-bench as the convergent validity anchor for actionable entity memory, dynamic state inversion, and value-bound action mutation.",
+        "experimental_isolation": "loca-lean-v1 confounds context growth with relational database / A/B testing clickstream aggregation. In contrast, action-memory-v1 cleanly isolates pure actionable memory and entity-value binding under state inversion (K -> V1 -> V2) without extraneous calculation confounds.",
+        "dose_ladder_support": "loca-lean-v1 materialization hard-refuses tasks outside 8k seed 42 (as noted in research/inbox/NEXT-BENCHMARK-PROGRAM-ARCHITECTURE-2026-08-28.md:69). action-memory-v1 implements a full 24-cell dose ladder contract across 0k, 4k, 16k, and 64k doses, clean, neutral_padding, and semantic_distractor arms, and matched control twins.",
+        "reproducibility_and_dependencies": "loca-lean-v1 depends on external HTTPS fetches and upstream generator scripts. action-memory-v1 is 100% self-contained in repo source with zero network or external LLM dependencies, backed by a hash-locked FastMCP wheelhouse manifest.",
+        "verifier_precision": "action-memory-v1 enforces an exact 5-point verifier suite (oracle=1.0, nop=0.0, stale_value=0.0, wrong_entity=0.0, recall_only=0.0) with tamper-evident event journaling."
+      },
+      "citations": [
+        "library/benchmarks/action-memory-v1/README.md:1-29",
+        "library/benchmarks/action-memory-v1/PROVENANCE.md:1-9",
+        "library/benchmarks/action-memory-v1/dose_ladder_contract.json",
+        "research/inbox/NEXT-BENCHMARK-PROGRAM-ARCHITECTURE-2026-08-28.md:68-69"
+      ]
+    }
+  },
+  "comparison_matrix": {
+    "dimensions": [
+      {
+        "dimension": "Registry Status",
+        "loca_lean_v1": "Unregistered (absent from library/registry/)",
+        "action_memory_v1_selected_cell": "Unregistered candidate; admission packet prepared under HAR-18 awaiting Peter registration"
+      },
+      {
+        "dimension": "External Network Fetch",
+        "loca_lean_v1": "Requires HTTPS fetch of 6 pinned upstream files from GitHub when cache is cold; fails offline",
+        "action_memory_v1_selected_cell": "Zero external network fetches; 100% self-contained synthetic source generation"
+      },
+      {
+        "dimension": "Third-Party Code Execution",
+        "loca_lean_v1": "Dynamically executes upstream HKUST generate_ab_data.py",
+        "action_memory_v1_selected_cell": "Executes only repository-native, type-checked Python generator logic"
+      },
+      {
+        "dimension": "Construct Purity",
+        "loca_lean_v1": "Mixes large clickstream CSV/database aggregation with state retention",
+        "action_memory_v1_selected_cell": "Cleanroom actionable memory and entity-value binding under dynamic state inversion (K -> V1 -> V2)"
+      },
+      {
+        "dimension": "Dose Ladder & Arm Control",
+        "loca_lean_v1": "Hard-refuses all tasks except single 8k seed 42 canary; no distractor arms",
+        "action_memory_v1_selected_cell": "24-cell factorial dose ladder (0k/4k/16k/64k) with clean, neutral_padding, and semantic_distractor arms"
+      },
+      {
+        "dimension": "Selected Evaluation Target",
+        "loca_lean_v1": "None (disqualified)",
+        "action_memory_v1_selected_cell": "dl-semantic-distractor-16384-s42 (paired with matched control twin dl-neutral-padding-16384-s42)"
+      }
+    ]
+  },
+  "final_disposition": {
+    "verdict": "rejected",
+    "selected_alternative": "action-memory-v1 (cell dl-semantic-distractor-16384-s42)",
+    "action_required": "Do not admit loca-lean-v1. Maintain cohort boundary until Peter registers the selected action-memory-v1 cell."
+  }
+}

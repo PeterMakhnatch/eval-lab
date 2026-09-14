@@ -41,6 +41,34 @@ def shared_checkout_root(repo_root: Path) -> Path:
     return common_dir.parent.resolve()
 
 
+def resolve_runs_roots(repo_root: Path, runs_root: Path | None = None) -> list[Path]:
+    """Resolve ordered candidate roots for locating raw trial runs."""
+    if runs_root is not None:
+        return [runs_root.resolve()]
+    env = os.environ.get("EVALLAB_RUNS_ROOT")
+    if env:
+        return [Path(env).resolve()]
+    primary = shared_checkout_root(repo_root)
+    candidates = [
+        repo_root / "runs",
+        repo_root / "research/evidence/runs",
+        repo_root / "evidence/runs",
+        primary / "runs",
+        primary / "research/evidence/runs",
+        primary / "evidence/runs",
+    ]
+    seen: set[Path] = set()
+    roots: list[Path] = []
+    for c in candidates:
+        rc = c.resolve()
+        if rc not in seen and rc.exists():
+            seen.add(rc)
+            roots.append(c)
+    if not roots:
+        roots = [repo_root / "runs", primary / "runs"]
+    return roots
+
+
 @dataclass(frozen=True)
 class DerivedRootResolution:
     """Where the derived Parquet root came from, and whose tree it belongs to.

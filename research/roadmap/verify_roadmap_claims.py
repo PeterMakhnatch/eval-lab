@@ -27,7 +27,7 @@ from pathlib import Path
 from evallab.cohort import minimum_detectable_effect, required_tasks_for_effect
 
 REPO = Path(__file__).resolve().parents[2]
-MEMO = REPO / "research/roadmap/analyst-future-research-roadmap-2026-08-29.md"
+MEMO = REPO / "research/archive/2026-W36/analyst-future-research-roadmap-2026-08-29.md"
 RUNS = REPO / "research/evidence/runs"
 
 # Expected values as stated in the memo. Every one is asserted against a

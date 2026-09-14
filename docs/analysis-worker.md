@@ -81,6 +81,11 @@ uv run evallab analyze worker-resolve-ambiguous <request-id> \
 # `--action retry` is an explicit acknowledgement that the prior call may have charged.
 ```
 
+Both resolution flags are required: `--action retry|quarantine` and `--actor`.
+Resolution records an attributed disposition only; it does not invoke a provider,
+approve spend, or bypass admission. A retry returns the request to pending;
+any subsequent `worker-run-one` still passes through the normal admission gates.
+
 `worker-run-one` in the default composition holds **no adapter**. The
 `_no_adapter` sentinel is detected after admission and before
 `begin_invocation`, so the run defers with reason `adapter_not_wired`: the

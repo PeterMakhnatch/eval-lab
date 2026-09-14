@@ -217,9 +217,7 @@ def test_atif_activity_with_attach_surface_and_derived_root_override(tmp_path, m
         partition / "trial_facts.parquet",
     )
     pq.write_table(
-        pa.Table.from_pylist(
-            [{"trial_id": "t1", "function_name": "shell", "call_count": 3}]
-        ),
+        pa.Table.from_pylist([{"trial_id": "t1", "function_name": "shell", "call_count": 3}]),
         partition / "tool_usage.parquet",
     )
 
@@ -235,9 +233,7 @@ def test_atif_activity_with_attach_surface_and_derived_root_override(tmp_path, m
             "tool_call_count": 3,
             "invalid_trial_count": 0,
         }
-        assert activity["tools"] == [
-            {"function_name": "shell", "call_count": 3, "trial_count": 1}
-        ]
+        assert activity["tools"] == [{"function_name": "shell", "call_count": 3, "trial_count": 1}]
     finally:
         source.close()
 
@@ -333,6 +329,13 @@ def test_postgres_attached_integration(tmp_path):
         if not source.is_zone_attached("z2"):
             pytest.skip(f"Postgres not reachable at {dsn}")
         rows = leaderboard(source)
-        assert isinstance(rows, list)
+        if rows:
+            for r in rows:
+                assert {"cohort", "task", "agent", "model", "n_total", "pass_rate"}.issubset(
+                    r.keys()
+                )
+                assert isinstance(r["n_total"], int)
+        else:
+            assert rows == []
     finally:
         source.close()

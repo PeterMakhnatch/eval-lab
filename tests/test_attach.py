@@ -694,12 +694,12 @@ def test_cross_zone_join_with_real_postgres(tmp_path: Path) -> None:
             "SELECT j.job_name, COUNT(*) FROM z2.jobs j "
             "JOIN z3.trial_facts t ON j.id::text = t.job_id::text GROUP BY j.job_name"
         ).fetchall()
-        assert isinstance(rows1, list)
+        assert rows1 == []
         rows2 = result.connection.execute(
             "SELECT j.job_name, COUNT(*) FROM z2.jobs j "
             "JOIN trial_facts t ON j.id::text = t.job_id::text GROUP BY j.job_name"
         ).fetchall()
-        assert isinstance(rows2, list)
+        assert rows2 == []
     finally:
         result.connection.close()
 

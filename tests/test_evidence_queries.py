@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import duckdb
@@ -14,14 +15,16 @@ import evallab.storage.paths
 from evallab.cohort import wilson_interval
 from evallab.lessons import DEFAULT_POWER_THRESHOLD
 
-repo_root_for_check = Path.cwd()
+repo_root_for_check = Path(__file__).resolve().parents[1]
+_explicit_derived = os.environ.get("EVALLAB_DERIVED_ROOT")
+if _explicit_derived:
+    derived_for_check = Path(_explicit_derived).resolve()
+else:
+    derived_for_check = repo_root_for_check / "derived" / "parquet"
+
 try:
-    derived_for_check = evallab.storage.paths.derived_root_from_environment(
-        repo_root_for_check
-    )
-    real_corpus_present = (
-        derived_for_check.exists()
-        and bool(list(derived_for_check.glob("job_id=*")))
+    real_corpus_present = derived_for_check.exists() and bool(
+        list(derived_for_check.glob("job_id=*"))
     )
 except Exception:
     real_corpus_present = False
@@ -39,6 +42,7 @@ HISTORICAL_TASKS = (
     "petermakhnatch/transaction-reconciliation",
     "terminal-bench/html-js-filter",
 )
+
 
 def test_evidence_sql_executes_in_clean_duckdb() -> None:
     """Test sql/evidence_queries.sql in clean DuckDB, zero pre-tables, views resolve."""
@@ -84,6 +88,7 @@ def test_exception_vs_scored_failure_split() -> None:
         assert result.get("harness_exception") == 1
         assert result.get("scored_failure") == 1
         assert result.get("passed") == 1
+
 
 def test_wilson_interval_matches_cohort() -> None:
     """Test Wilson interval matches cohort.py for known inputs."""
@@ -178,20 +183,14 @@ def test_full_corpus_derived_parquet_coverage(
         },
     )
     for trial in fixture_trials:
-        trial_dir = (
-            fixture_root / f"job_id={trial['job_id']}" / f"trial_id={trial['trial_id']}"
-        )
+        trial_dir = fixture_root / f"job_id={trial['job_id']}" / f"trial_id={trial['trial_id']}"
         trial_dir.mkdir(parents=True)
         tbl = pa.table(
             {
                 "task_name": pa.array([trial["task_name"]], type=pa.string()),
                 "primary_reward": pa.array([trial["primary_reward"]], type=pa.float64()),
-                "exception_class": pa.array(
-                    [trial["exception_class"]], type=pa.string()
-                ),
-                "exception_phase": pa.array(
-                    [trial["exception_phase"]], type=pa.string()
-                ),
+                "exception_class": pa.array([trial["exception_class"]], type=pa.string()),
+                "exception_phase": pa.array([trial["exception_phase"]], type=pa.string()),
                 "trial_id": pa.array([trial["trial_id"]], type=pa.string()),
                 "agent_version": pa.array([trial["agent_version"]], type=pa.string()),
                 "agent_name": pa.array([trial["agent_name"]], type=pa.string()),
@@ -244,9 +243,10 @@ def test_full_corpus_derived_parquet_coverage(
     finally:
         attach_result.connection.close()
 
+
 @pytest.mark.skipif(
     not real_corpus_present,
-    reason=f"real corpus at {derived_for_check} absent in CI (gitignored; use fixture)"
+    reason=f"real corpus at {derived_for_check} absent (gitignored; use fixture)",
 )
 def test_full_corpus_derived_parquet_coverage_real() -> None:
     """The real corpus satisfies the coverage invariants (skipped when absent).
@@ -271,7 +271,10 @@ def test_full_corpus_derived_parquet_coverage_real() -> None:
     3. the historically present tasks are still present;
     4. every exception row is classified (a class name, a phase, a positive count).
     """
-    attach_result = evallab.storage.attach.attach()
+    attach_result = evallab.storage.attach.attach(
+        repo_root=repo_root_for_check,
+        explicit_derived=derived_for_check,
+    )
     try:
         con = attach_result.connection
         sql = Path("sql/evidence_queries.sql").read_text()
@@ -312,6 +315,7 @@ def test_full_corpus_derived_parquet_coverage_real() -> None:
             assert tasks_affected > 0, f"{exception_class}: affects no task"
     finally:
         attach_result.connection.close()
+
 
 def test_promoted_only_subset_fails_coverage_assertions() -> None:
     """Assert that a promoted-bundles-only dataset fails the full-corpus requirements."""

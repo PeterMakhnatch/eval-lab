@@ -1,0 +1,4360 @@
+{
+  "(root)": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--version"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "analyst": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "analyst list": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--trial"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "analyst run": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--derived-root"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--model"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--runs-root"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "trial_id",
+        "required": true
+      }
+    ]
+  },
+  "analyst show": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "analysis_id",
+        "required": true
+      }
+    ]
+  },
+  "analyze": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "analyze agreement": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--labels"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": "+",
+        "positional": "paths",
+        "required": true
+      }
+    ]
+  },
+  "analyze batch": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--calibration-report"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--database-url"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--store"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "inventory",
+        "required": true
+      }
+    ]
+  },
+  "analyze calibrate": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "path",
+        "required": true
+      }
+    ]
+  },
+  "analyze ingest-sidecar": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--database-url"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "path",
+        "required": true
+      }
+    ]
+  },
+  "analyze plan": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--agent"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--agent-version"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--model"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "path",
+        "required": true
+      }
+    ]
+  },
+  "analyze quality": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--database-url"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--derived-root"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--fields"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--store"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "inventory",
+        "required": true
+      }
+    ]
+  },
+  "analyze review": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--database-url"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": [
+          "accepted",
+          "needs_revision",
+          "rejected",
+          "superseded"
+        ],
+        "flags": [
+          "--disposition"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--index"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--rationale"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--reviewer"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--superseded-by"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "path",
+        "required": true
+      }
+    ]
+  },
+  "analyze trial": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--calibration-report"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--cas-uri"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--database-url"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--inventory"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--store"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--trial-id"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "analyze worker-plan": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "analyze worker-resolve-ambiguous": {
+    "options": [
+      {
+        "choices": [
+          "quarantine",
+          "retry"
+        ],
+        "flags": [
+          "--action"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--actor"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "request_id",
+        "required": true
+      }
+    ]
+  },
+  "analyze worker-run-one": {
+    "options": [
+      {
+        "choices": [
+          "codex-exec",
+          "none"
+        ],
+        "flags": [
+          "--adapter"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--authorization"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--scratch-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "request_id",
+        "required": true
+      }
+    ]
+  },
+  "analyze worker-status": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "approve": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--actor"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--despite-quota"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "spec_id",
+        "required": true
+      }
+    ]
+  },
+  "behavior": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--agent"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--derived-root"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--task"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "calibrate": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--database-url"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--date"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--dispatch-approved"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--dspy-dry-run"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--est-cost-usd"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--judge-model"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--pending-backend"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--prediction-artifact"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--predictions"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--records-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--skip-catalog"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": [
+          "anthropic",
+          "codex"
+        ],
+        "flags": [
+          "--stage"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--stub"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": [
+          "checkout-pool-exhaustion",
+          "retry-storm-backlog"
+        ],
+        "flags": [],
+        "nargs": null,
+        "positional": "family",
+        "required": true
+      }
+    ]
+  },
+  "campaign": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "campaign plan": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "definition",
+        "required": true
+      }
+    ]
+  },
+  "campaign resume": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--dry-run"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--parallel"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "manifest",
+        "required": true
+      }
+    ]
+  },
+  "campaign run": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--dry-run"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--parallel"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "manifest",
+        "required": true
+      }
+    ]
+  },
+  "campaign status": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "manifest",
+        "required": true
+      }
+    ]
+  },
+  "canary": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "canary import-terminal-bench": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--dataset-ref"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--destination"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--task-name"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      }
+    ]
+  },
+  "card": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "card generate": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--derived-root"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output",
+          "-o"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "target",
+        "required": true
+      }
+    ]
+  },
+  "card validate": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "path",
+        "required": true
+      }
+    ]
+  },
+  "compare": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--database-url"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--index"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "path",
+        "required": true
+      }
+    ]
+  },
+  "curve": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "curve build": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--produced-by"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "path",
+        "required": true
+      }
+    ]
+  },
+  "curve report": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "path",
+        "required": true
+      }
+    ]
+  },
+  "curve validate": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--produced-by"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "path",
+        "required": true
+      }
+    ]
+  },
+  "dashboard": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--address"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--database-url"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--port"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "data": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "data backfill": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--database-url"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--derived-root"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--inventory"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--manifest-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--store-root"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "db": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "db attach": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--derived-root"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--print-sql"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--query"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--zones"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "db init": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--database-url"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "db list": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--database-url"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--limit"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "digest": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--date"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "doctor": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--headless"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "evidence": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "evidence archive": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--kind"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--record-id"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--store"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "source",
+        "required": true
+      }
+    ]
+  },
+  "evidence restore": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--destination"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--store"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "uri",
+        "required": true
+      }
+    ]
+  },
+  "fetch": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--audit"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--list"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--verify-sample"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": "?",
+        "positional": "ref",
+        "required": false
+      }
+    ]
+  },
+  "gc": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--apply"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--runs-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "ingest": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--database-url"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--derived-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": "+",
+        "positional": "paths",
+        "required": true
+      }
+    ]
+  },
+  "inspect-ingest": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--derived-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--store"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "log",
+        "required": true
+      }
+    ]
+  },
+  "ladder": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "ladder generate": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--dry-run"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--no-quota-check"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output",
+          "-o"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--submit"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "grid_spec",
+        "required": true
+      }
+    ]
+  },
+  "ladder screen": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "ladder screen analyze": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--jobs-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "screen_id_or_spec",
+        "required": true
+      }
+    ]
+  },
+  "ladder screen stage1": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--dry-run"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output",
+          "-o"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--submit"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "spec",
+        "required": true
+      }
+    ]
+  },
+  "ladder validate": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "grid_spec",
+        "required": true
+      }
+    ]
+  },
+  "lineage": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--derived-root"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "target",
+        "required": true
+      }
+    ]
+  },
+  "matrix": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--reuse-existing"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "path",
+        "required": true
+      }
+    ]
+  },
+  "nightly": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--date"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "power": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--alpha"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--baseline"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--cluster-size"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--icc"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--k"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--max-k"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--n-tasks"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--pair-correlation"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--power"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--target"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "preflight": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--from"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--useful-effect"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "quality": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "quality audit": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--cohort"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "registry": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "registry audit": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "registry devloop": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--run"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--since"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "registry list": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": [
+          "candidate",
+          "registered",
+          "retired"
+        ],
+        "flags": [
+          "--state"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "registry promote": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--actor"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--allowed-uses"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--certification-packet"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--human-minutes"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--jobs-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--license"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--max-cpus"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--max-memory-mb"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": [
+          "01-external",
+          "02-local-evidence",
+          "03-synthetic",
+          "04-curated"
+        ],
+        "flags": [
+          "--provenance-zone"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--register"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--registry-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--source-ref"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--source-uri"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": [
+          "candidate",
+          "registered"
+        ],
+        "flags": [
+          "--state"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--synthetic"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--task-family"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--task-id"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--timeout-seconds"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--version"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "task_path",
+        "required": true
+      }
+    ]
+  },
+  "registry register": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--actor"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--certification-packet"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--registry-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "task_id",
+        "required": true
+      }
+    ]
+  },
+  "regrade": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "regrade trial": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--environment"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--task"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--trials-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "trial",
+        "required": true
+      }
+    ]
+  },
+  "regrade verifier": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--task"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      }
+    ]
+  },
+  "reject": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--actor"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--reason"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "spec_id",
+        "required": true
+      }
+    ]
+  },
+  "report": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "report card": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "path",
+        "required": true
+      }
+    ]
+  },
+  "report family": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--parquet-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--raw-root"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "task",
+        "required": true
+      }
+    ]
+  },
+  "research": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--date"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "resume": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "run": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--agent"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--allow-billable"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--attempts"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--concurrency"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--environment"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--jobs-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--model"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--name"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--task"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--timeout-seconds"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "run-preflight": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--compile-only"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": "+",
+        "positional": "campaigns",
+        "required": true
+      }
+    ]
+  },
+  "schedule": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "schedule install": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--canary-suite"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--interval-seconds"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--tick-only"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "schedule status": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "schedule uninstall": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "semantic-facts": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "semantic-facts project": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "bundle",
+        "required": true
+      }
+    ]
+  },
+  "semantics": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "semantics project": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--bind"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--coverage-threshold"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--permissive"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": "+",
+        "positional": "paths",
+        "required": true
+      }
+    ]
+  },
+  "status": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--from"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--generate"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output",
+          "-o"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--target-date"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--update"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "stop": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "submit": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "path",
+        "required": true
+      }
+    ]
+  },
+  "summarize": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": "+",
+        "positional": "paths",
+        "required": true
+      }
+    ]
+  },
+  "tasks": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "tasks import": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--destination"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--ledger"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--limit"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "source",
+        "required": true
+      }
+    ]
+  },
+  "tasks lint": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": "+",
+        "positional": "paths",
+        "required": true
+      }
+    ]
+  },
+  "tick": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--agent-capacity"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--canary-suite"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--max-active-trials"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--max-specs"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--parallel"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "tidy": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--apply"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--dry-run"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "trace": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--dry-run"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--endpoint"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--include-controls"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "path",
+        "required": true
+      }
+    ]
+  },
+  "traj": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "traj card": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--compliance-report"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--no-redact"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output",
+          "-o"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--projection-metadata"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--runs-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "trial",
+        "required": true
+      }
+    ]
+  },
+  "traj ir": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output",
+          "-o"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--runs-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "trial",
+        "required": true
+      }
+    ]
+  },
+  "traj label": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--author"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--note"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": [
+          "heuristic",
+          "human"
+        ],
+        "flags": [
+          "--provenance"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "label",
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "trial",
+        "required": true
+      }
+    ]
+  },
+  "traj outline": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--verbose",
+          "-v"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "target",
+        "required": true
+      }
+    ]
+  },
+  "traj pack": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--budget"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": [
+          "json",
+          "markdown"
+        ],
+        "flags": [
+          "--format"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--no-redact"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output",
+          "-o"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--runs-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "trial",
+        "required": true
+      }
+    ]
+  },
+  "traj queue": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--limit"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--runs-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "traj report": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      }
+    ]
+  },
+  "trajectories": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--database-url"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--export"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output-dir"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": "*",
+        "positional": "paths",
+        "required": false
+      }
+    ]
+  },
+  "verdict": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--by"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--database-url"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--derived-root"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--note"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--status"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": "?",
+        "positional": "action_or_id",
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": "?",
+        "positional": "status_or_id",
+        "required": false
+      }
+    ]
+  }
+}

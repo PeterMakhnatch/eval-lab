@@ -84,8 +84,7 @@ class IngestVerificationResult:
     def invariant_ok(self) -> bool:
         """True if projected + accounted == catalog."""
         return (
-            self.parquet_jobs_count + self.accounted_exceptions_count
-            >= self.catalog_jobs_count
+            self.parquet_jobs_count + self.accounted_exceptions_count >= self.catalog_jobs_count
             and not any(g.store == "parquet" for g in self.gaps)
         )
 
@@ -155,9 +154,7 @@ def scan_disk_trials(
             if child.name.startswith((".", "_")) and child.name != "_smoke":
                 continue
 
-            subdirs = [
-                c for c in child.iterdir() if c.is_dir() and c.name not in IGNORED_DIR_NAMES
-            ]
+            subdirs = [c for c in child.iterdir() if c.is_dir() and c.name not in IGNORED_DIR_NAMES]
 
             if (child / "result.json").is_file():
                 trial_subdirs = [
@@ -242,9 +239,7 @@ def scan_disk_trials(
     return projectable, unprojectable
 
 
-CatalogLoader = Callable[
-    [str], tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]
-]
+CatalogLoader = Callable[[str], tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]]
 
 
 def _default_catalog_loader(
@@ -305,6 +300,7 @@ def verify_ingest(
     except Exception as exc:
         print(f"warning: catalog query failed ({type(exc).__name__}: {exc})", file=sys.stderr)
     if catalog_loader is None:
+
         def retained_in_checkout(info: dict[str, Any]) -> bool:
             raw_path = Path(str(info.get("path") or ""))
             candidate = raw_path if raw_path.is_absolute() else root / raw_path
@@ -315,9 +311,7 @@ def verify_ingest(
             return candidate.exists()
 
         catalog_jobs = {
-            job_id: info
-            for job_id, info in catalog_jobs.items()
-            if retained_in_checkout(info)
+            job_id: info for job_id, info in catalog_jobs.items() if retained_in_checkout(info)
         }
         catalog_trials = {
             trial_id: info
@@ -366,9 +360,7 @@ def verify_ingest(
                     pass
 
     # 5. Recorded exceptions from events
-    recorded_exceptions = (
-        _recorded_projection_exceptions_map(ev_path) if ev_path.is_file() else {}
-    )
+    recorded_exceptions = _recorded_projection_exceptions_map(ev_path) if ev_path.is_file() else {}
     exceptions_by_reason = Counter(recorded_exceptions.values())
 
     # 6. Reconcile and detect gaps
@@ -422,33 +414,6 @@ def verify_ingest(
         accounted_exceptions_by_reason=dict(exceptions_by_reason),
         gaps=tuple(gaps),
     )
-
-
-def verify_idempotence(
-    repo_root: Path,
-    job_paths: Sequence[Path],
-    *,
-    database_url: str | None = None,
-    derived_root: Path | None = None,
-) -> bool:
-    """Verify that re-ingesting already-ingested jobs causes zero churn and preserves row counts."""
-    from evallab.evidence.atif import ingest_and_project
-    from evallab.results import load_jobs
-
-    root = repo_root.resolve()
-    db_url = database_url or database_url_from_environment()
-    d_root = derived_root or derived_root_from_environment(root)
-
-    loaded = load_jobs([p.resolve() for p in job_paths])
-    if not loaded:
-        return True
-
-    # First ingest/project
-    res1 = ingest_and_project(db_url, loaded, root=root, output_root=d_root)
-    # Second ingest/project
-    res2 = ingest_and_project(db_url, loaded, root=root, output_root=d_root)
-
-    return res1.row_counts == res2.row_counts and len(res1.failures) == len(res2.failures)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

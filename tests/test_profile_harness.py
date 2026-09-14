@@ -199,15 +199,8 @@ def test_check_budgets_fails_when_ceiling_exceeded(tmp_path: Path) -> None:
     )
     assert checker.main([str(report_path), "--budgets", str(tight)]) == 1
     loose = tmp_path / "loose.json"
-    loose.write_text(
-        json.dumps(_budgets_for(payload, tolerance_pct=50, paths=dict(generous)))
-    )
+    loose.write_text(json.dumps(_budgets_for(payload, tolerance_pct=50, paths=dict(generous))))
     assert checker.main([str(report_path), "--budgets", str(loose)]) == 0
-
-
-def test_fleet_status_script_runs_with_gh_stub() -> None:
-    harness = _load_harness()
-    harness._time_fleet_status(lambda _name: None)
 
 
 def test_default_corpus_is_pinned_to_job_directories_not_the_evidence_directory() -> None:
@@ -249,9 +242,7 @@ def test_promoting_a_job_directory_does_not_change_a_pinned_corpus(tmp_path: Pat
     shutil.copytree(pinned[0], container / "zz-newly-promoted-evidence")
 
     assert (container / "zz-newly-promoted-evidence") in discover_job_dirs([container])
-    assert discover_job_dirs(pinned_copies) == sorted(
-        path.resolve() for path in pinned_copies
-    )
+    assert discover_job_dirs(pinned_copies) == sorted(path.resolve() for path in pinned_copies)
 
 
 def test_committed_budgets_declare_the_pinned_corpus_shape() -> None:

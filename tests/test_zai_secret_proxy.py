@@ -250,6 +250,7 @@ def _setup_proxy(
     max_cost_micros: int = 10_000_000,
     input_cost_micros_per_million: int = 1_000_000,
     output_cost_micros_per_million: int = 2_000_000,
+    request_timeout: float | None = None,
 ) -> tuple[ThreadingHTTPServer, ThreadingHTTPServer, str]:
     tmp_path.mkdir(parents=True, exist_ok=True)
     if secret_path is None:
@@ -283,6 +284,9 @@ def _setup_proxy(
     )
 
     proxy_module = _load_proxy_module()
+    if request_timeout is not None:
+        proxy_module.REQUEST_TIMEOUT_SECONDS = request_timeout
+        proxy_module.Handler.timeout = request_timeout
     proxy = proxy_module.serve(host="127.0.0.1", port=0, max_workers=max_workers)
     thread = threading.Thread(target=proxy.serve_forever, daemon=True)
     thread.start()
@@ -420,7 +424,7 @@ def test_proxy_incomplete_body_rejected(tmp_path: Path, monkeypatch: pytest.Monk
 def test_proxy_upstream_delayed_beyond_inbound_deadline(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Legitimate upstream response taking >15s is not aborted by the inbound deadline timer."""
+    """An upstream response slower than the inbound deadline is not aborted."""
 
     class DelayedUpstream(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
@@ -429,8 +433,8 @@ def test_proxy_upstream_delayed_beyond_inbound_deadline(
         def do_POST(self) -> None:  # noqa: N802
             length = int(self.headers.get("Content-Length", "0"))
             self.rfile.read(length)
-            # Sleep 16s (longer than 15s inbound timer, shorter than 120s upstream timeout)
-            time.sleep(16.0)
+            # Exceed the shortened inbound deadline without a slow wall-clock test.
+            time.sleep(1.0)
             resp = json.dumps(
                 {
                     "id": "chatcmpl-delayed-001",
@@ -455,7 +459,11 @@ def test_proxy_upstream_delayed_beyond_inbound_deadline(
 
     capability = "valid-cap"
     proxy, upstream, base_url = _setup_proxy(
-        tmp_path, monkeypatch, upstream_handler=DelayedUpstream, capability=capability
+        tmp_path,
+        monkeypatch,
+        upstream_handler=DelayedUpstream,
+        capability=capability,
+        request_timeout=0.5,
     )
     try:
         req = urllib.request.Request(
@@ -464,8 +472,7 @@ def test_proxy_upstream_delayed_beyond_inbound_deadline(
             headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
             method="POST",
         )
-        # Timeout 25s for the 16s wait
-        with urllib.request.urlopen(req, timeout=25) as resp:
+        with urllib.request.urlopen(req, timeout=5) as resp:
             body = resp.read()
         assert resp.status == 200
         assert b'"ok"' in body

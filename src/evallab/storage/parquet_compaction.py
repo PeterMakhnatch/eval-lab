@@ -13,8 +13,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
+import stat
 import sys
+import tempfile
+import threading
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
@@ -28,9 +32,13 @@ import pyarrow.parquet as pq
 from evallab.evidence.atif import PARQUET_SCHEMAS
 from evallab.evidence.event_mart import EVENT_MART_SCHEMAS
 from evallab.evidence.facts import FACT_SCHEMAS
+from evallab.evidence.parquet_io import parquet_publication_lock, parquet_root_lock
 from evallab.inspect_adapter import INSPECT_SCHEMAS
 from evallab.semantic_facts import SEMANTIC_FACT_SCHEMAS
+from evallab.storage.fs import durable_mkdir, durable_replace, fsync_directory
 from evallab.storage.paths import (
+    ParquetLayout,
+    ParquetPartition,
     ParquetPartitionDiscovery,
     derived_root_from_environment,
     discover_parquet_partitions,
@@ -260,6 +268,7 @@ class JobPartition:
     path: Path
     dt: str
     table_counts: dict[str, int]
+    file_counts: dict[Path, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -270,6 +279,7 @@ class DayPlan:
     is_prunable: bool
     uncompacted_row_counts: dict[str, int]
     existing_compact_row_counts: dict[str, int]
+    existing_compact_files: tuple[Path, ...]
 
 
 @dataclass(frozen=True)
@@ -327,16 +337,36 @@ class CompactionResult:
 # Discovery & Planning
 # --------------------------------------------------------------------------- #
 
+_ROW_COUNT_CACHE: dict[tuple[Path, tuple[int, ...]], int] = {}
+
+
+def _file_identity(path: Path) -> tuple[int, ...]:
+    st = path.stat(follow_symlinks=False)
+    if not stat.S_ISREG(st.st_mode):
+        raise CompactionValidationError(f"Compaction input is not a regular file: {path}")
+    return (st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+
 
 def count_table_rows(path: Path) -> int:
-    """Read row count from a parquet file metadata without reading data."""
-    if not path.is_file():
-        return 0
+    """Read a verified metadata count; unavailable inputs are never empty.
+
+    This cache is for planning only. Execution reads every input independently,
+    including zero-row files, under writer exclusion.
+    """
     try:
-        parquet_file = pq.ParquetFile(path)
-        return parquet_file.metadata.num_rows
-    except Exception:
-        return 0
+        identity = _file_identity(path)
+        cache_key = (path.resolve(), identity)
+        cached = _ROW_COUNT_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+        with pq.ParquetFile(path) as parquet:
+            num_rows = parquet.metadata.num_rows
+        if _file_identity(path) != identity:
+            raise CompactionValidationError(f"Input changed while counting: {path}")
+        _ROW_COUNT_CACHE[cache_key] = num_rows
+        return num_rows
+    except Exception as exc:
+        raise CompactionValidationError(f"Cannot count Parquet input {path}: {exc}") from exc
 
 
 def discover_uncompacted_jobs(
@@ -365,24 +395,25 @@ def discover_uncompacted_jobs(
         ).isoformat()
 
         counts: dict[str, int] = {}
-        counts["jobs"] = sum(
-            count_table_rows(path)
-            for path in discovery.table_files(
-                "jobs",
-                layouts=("job",),
-                job_id=job_id,
-            )
+        file_counts: dict[Path, int] = {}
+        job_files = discovery.table_files(
+            "jobs",
+            layouts=("job",),
+            job_id=job_id,
         )
+        for path in job_files:
+            file_counts[path] = count_table_rows(path)
+        counts["jobs"] = sum(file_counts[path] for path in job_files)
 
         for table_name in TRIAL_TABLE_NAMES:
-            counts[table_name] = sum(
-                count_table_rows(path)
-                for path in discovery.table_files(
-                    table_name,
-                    layouts=("hot",),
-                    job_id=job_id,
-                )
+            hot_files = discovery.table_files(
+                table_name,
+                layouts=("hot",),
+                job_id=job_id,
             )
+            for path in hot_files:
+                file_counts[path] = count_table_rows(path)
+            counts[table_name] = sum(file_counts[path] for path in hot_files)
 
         partitions.append(
             JobPartition(
@@ -390,6 +421,7 @@ def discover_uncompacted_jobs(
                 path=job_dir,
                 dt=dt,
                 table_counts=counts,
+                file_counts=file_counts,
             )
         )
     return partitions
@@ -424,18 +456,18 @@ def plan_compaction(
     clock_today: date | None = None,
     runs_dir: Path | None = None,
     database_url: str | None = None,
+    partition_discovery: ParquetPartitionDiscovery | None = None,
 ) -> CompactionPlan:
     """Plan parquet compaction across uncompacted partitions."""
     derived_root = derived_root.resolve()
     today = clock_today or datetime.now(UTC).date()
     cutoff = today - timedelta(days=retention_days)
-    partition_discovery = discover_parquet_partitions(derived_root)
-
+    discovery = partition_discovery or discover_parquet_partitions(derived_root)
     uncompacted_jobs = discover_uncompacted_jobs(
         derived_root,
         runs_dir=runs_dir,
         database_url=database_url,
-        partition_discovery=partition_discovery,
+        partition_discovery=discovery,
     )
 
     jobs_by_date: dict[str, list[JobPartition]] = {}
@@ -463,7 +495,7 @@ def plan_compaction(
         existing_counts = discover_compacted_row_counts(
             derived_root,
             dt_str,
-            partition_discovery=partition_discovery,
+            partition_discovery=discovery,
         )
 
         day_plans.append(
@@ -474,6 +506,13 @@ def plan_compaction(
                 is_prunable=is_prunable,
                 uncompacted_row_counts=uncompacted_counts,
                 existing_compact_row_counts=existing_counts,
+                existing_compact_files=tuple(
+                    partition.path
+                    for partition in discovery.partitions
+                    if partition.layout == "cold-day"
+                    and partition.dt == dt_str
+                    and partition.table in PROJECTED_TABLE_NAMES
+                ),
             )
         )
 
@@ -494,6 +533,8 @@ def plan_compaction(
 
 def _coerce_table_to_schema(raw: pa.Table, table_name: str) -> pa.Table:
     schema = TABLE_SCHEMAS[table_name]
+    if raw.schema.equals(schema):
+        return raw
     defaults = LEGACY_COLUMN_DEFAULTS.get(table_name, {})
     columns: list[pa.Array | pa.ChunkedArray] = []
     for schema_field in schema:
@@ -514,11 +555,19 @@ def _coerce_table_to_schema(raw: pa.Table, table_name: str) -> pa.Table:
     return pa.Table.from_arrays(columns, schema=schema)
 
 
-def _read_table_or_empty(path: Path, table_name: str) -> pa.Table:
-    schema = TABLE_SCHEMAS[table_name]
-    if not path.is_file():
-        return pa.Table.from_batches([], schema=schema)
-    return _coerce_table_to_schema(pq.read_table(path), table_name)
+def _read_input_table(path: Path, table_name: str) -> pa.Table:
+    """Read and count the actual input, never trusting a planning cache."""
+    try:
+        with pq.ParquetFile(path) as parquet:
+            expected_rows = parquet.metadata.num_rows
+            raw = parquet.read()
+        if raw.num_rows != expected_rows:
+            raise CompactionValidationError(
+                f"Input row count mismatch for {path}: expected {expected_rows}, got {raw.num_rows}"
+            )
+        return _coerce_table_to_schema(raw, table_name)
+    except Exception as exc:
+        raise CompactionValidationError(f"Cannot read Parquet input {path}: {exc}") from exc
 
 
 def _collect_table_batches(
@@ -537,9 +586,7 @@ def _collect_table_batches(
         layouts=("cold-day",),
         dt=dt,
     ):
-        t = _read_table_or_empty(existing_compact, table_name)
-        if t.num_rows > 0:
-            collected.append(t)
+        collected.append(_read_input_table(existing_compact, table_name))
 
     # 2. Uncompacted job partitions
     layout = ("job",) if table_name == "jobs" else ("hot",)
@@ -549,13 +596,22 @@ def _collect_table_batches(
             layouts=layout,
             job_id=job.job_id,
         ):
-            t = _read_table_or_empty(source_file, table_name)
-            if t.num_rows > 0:
-                collected.append(t)
+            collected.append(_read_input_table(source_file, table_name))
 
     if not collected:
         return [pa.Table.from_batches([], schema=schema)]
     return collected
+
+
+_DUCKDB_LOCAL = threading.local()
+
+
+def _get_duckdb_connection() -> duckdb.DuckDBPyConnection:
+    con = getattr(_DUCKDB_LOCAL, "connection", None)
+    if con is None:
+        con = duckdb.connect(database=":memory:")
+        _DUCKDB_LOCAL.connection = con
+    return con
 
 
 def deduplicate_and_sort(table: pa.Table, table_name: str) -> pa.Table:
@@ -563,6 +619,8 @@ def deduplicate_and_sort(table: pa.Table, table_name: str) -> pa.Table:
     schema = TABLE_SCHEMAS[table_name]
     if table.num_rows == 0:
         return pa.Table.from_batches([], schema=schema)
+    if table.num_rows == 1:
+        return table.cast(schema)
 
     primary_keys = PRIMARY_KEYS[table_name]
     pk_cols = ", ".join(primary_keys)
@@ -571,19 +629,22 @@ def deduplicate_and_sort(table: pa.Table, table_name: str) -> pa.Table:
     # first input row so retention is independent of batch collection order.
     canonical_cols = ", ".join(f'"{name}"' for name in schema.names)
 
-    con = duckdb.connect(database=":memory:")
+    con = _get_duckdb_connection()
     con.register("tbl", table)
-    query = f"""
-    SELECT *
-    FROM tbl
-    QUALIFY row_number() OVER (
-        PARTITION BY {pk_cols}
-        ORDER BY {canonical_cols}
-    ) = 1
-    ORDER BY {pk_cols}
-    """
-    res = con.execute(query).to_arrow_table()
-    return res.cast(schema)
+    try:
+        query = f"""
+        SELECT *
+        FROM tbl
+        QUALIFY row_number() OVER (
+            PARTITION BY {pk_cols}
+            ORDER BY {canonical_cols}
+        ) = 1
+        ORDER BY {pk_cols}
+        """
+        res = con.execute(query).to_arrow_table()
+        return res.cast(schema)
+    finally:
+        con.unregister("tbl")
 
 
 def write_compact_table(
@@ -592,10 +653,16 @@ def write_compact_table(
     table_name: str,
 ) -> int:
     """Write table to target_path atomically and validate row count & schema."""
-    schema = TABLE_SCHEMAS[table_name]
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = target_path.with_suffix(".parquet.tmp")
+    with parquet_publication_lock(target_path):
+        return _write_compact_table_locked(table, target_path, table_name)
 
+
+def _write_compact_table_locked(
+    table: pa.Table, target_path: Path, table_name: str
+) -> int:
+    schema = TABLE_SCHEMAS[table_name]
+    durable_mkdir(target_path.parent)
+    temp_path = target_path.with_suffix(".parquet.tmp")
     pq.write_table(
         table,
         temp_path,
@@ -606,19 +673,20 @@ def write_compact_table(
 
     # Post-write validation
     try:
-        written = pq.read_table(temp_path)
-        if written.num_rows != table.num_rows:
+        pf = pq.ParquetFile(temp_path)
+        written_rows = pf.metadata.num_rows
+        if written_rows != table.num_rows:
             temp_path.unlink(missing_ok=True)
             raise CompactionValidationError(
                 f"Row count mismatch for {table_name}: "
-                f"expected {table.num_rows}, got {written.num_rows}"
+                f"expected {table.num_rows}, got {written_rows}"
             )
-        if not written.schema.equals(schema):
+        if not pf.schema_arrow.equals(schema):
             temp_path.unlink(missing_ok=True)
             raise CompactionValidationError(
-                f"Schema integrity mismatch for {table_name}: {written.schema} != {schema}"
+                f"Schema integrity mismatch for {table_name}: {pf.schema_arrow} != {schema}"
             )
-        temp_path.replace(target_path)
+        durable_replace(temp_path, target_path)
     except Exception as exc:
         temp_path.unlink(missing_ok=True)
         if isinstance(exc, CompactionValidationError):
@@ -635,45 +703,130 @@ def write_compact_table(
 # --------------------------------------------------------------------------- #
 
 
+def _snapshot_tree(root: Path, *, required: bool = True) -> dict[Path, tuple[int, ...]]:
+    """Inventory all files without glob's suppressed traversal errors."""
+    snapshot: dict[Path, tuple[int, ...]] = {}
+    try:
+        root_stat = root.stat(follow_symlinks=False)
+    except FileNotFoundError:
+        if not required:
+            return snapshot
+        raise CompactionValidationError(f"Missing input partition: {root}") from None
+    if not stat.S_ISDIR(root_stat.st_mode):
+        raise CompactionValidationError(f"Input partition is not a directory: {root}")
+    pending = [root]
+    while pending:
+        with os.scandir(pending.pop()) as entries:
+            for entry in entries:
+                path = Path(entry.path)
+                if entry.is_dir(follow_symlinks=False):
+                    pending.append(path)
+                else:
+                    snapshot[path] = _file_identity(path)
+    return snapshot
+
+
 def compact_day(
     derived_root: Path,
     day_plan: DayPlan,
     *,
     prune: bool = True,
 ) -> DayCompactionResult:
-    """Compact all tables for a single day and optionally prune uncompacted jobs."""
+    """Compact a fresh, excluded snapshot, then prune only fully represented jobs.
+
+    Cooperating local projection writers take the same stable root flock for
+    each publication. Exclusion covers inventory, reads, staging, durable
+    publication and pruning. Multi-table exports are not transactions; a writer
+    resuming after pruning recreates its hot directory before publishing.
+    Uncoordinated filesystem edits are unsupported, but detected inventory or
+    identity changes fail closed before publication/pruning.
+    """
     derived_root = derived_root.resolve()
+    with parquet_root_lock(derived_root):
+        return _compact_day_locked(derived_root, day_plan, prune=prune)
+
+
+def _compact_day_locked(
+    derived_root: Path, day_plan: DayPlan, *, prune: bool
+) -> DayCompactionResult:
     dt = day_plan.dt
     dest_dir = derived_root / COMPACT_DIRNAME / f"dt={dt}"
-    partition_discovery = discover_parquet_partitions(derived_root)
+    hot = {job.path: _snapshot_tree(job.path) for job in day_plan.jobs}
+    cold = _snapshot_tree(dest_dir, required=False)
+    if not set(day_plan.existing_compact_files) <= cold.keys():
+        raise CompactionValidationError(f"Planned cold inputs disappeared from {dest_dir}")
+    partitions: list[ParquetPartition] = []
+    represented: dict[Path, set[Path]] = {}
+    for job in day_plan.jobs:
+        files = hot[job.path]
+        if not job.file_counts.keys() <= files.keys():
+            raise CompactionValidationError(f"Planned inputs disappeared from {job.path}")
+        represented[job.path] = set()
+        for path in sorted(files):
+            relative = path.relative_to(job.path)
+            if relative.parts == ("jobs.parquet",):
+                layout: ParquetLayout = "job"
+            elif (
+                len(relative.parts) == 2
+                and relative.parts[0].startswith("trial_id=")
+                and path.suffix == ".parquet"
+                and path.stem in TRIAL_TABLE_NAMES
+            ):
+                layout = "hot"
+            else:
+                # Sidecars, revision partitions and excluded tables must survive.
+                continue
+            represented[job.path].add(path)
+            partitions.append(ParquetPartition(path, path.stem, layout, job_id=job.job_id))
+    for table_name in PROJECTED_TABLE_NAMES:
+        path = dest_dir / f"{table_name}.parquet"
+        if path in cold:
+            partitions.append(ParquetPartition(path, table_name, "cold-day", dt=dt))
+    discovery = ParquetPartitionDiscovery(
+        derived_root, tuple(partitions), tuple(job.path for job in day_plan.jobs)
+    )
+
+    def check_inputs(expected_cold: dict[Path, tuple[int, ...]]) -> None:
+        for job in day_plan.jobs:
+            if _snapshot_tree(job.path) != hot[job.path]:
+                raise CompactionValidationError(f"Input partition changed: {job.path}")
+        if _snapshot_tree(dest_dir, required=False) != expected_cold:
+            raise CompactionValidationError(f"Cold inputs changed: {dest_dir}")
 
     table_row_counts: dict[str, int] = {}
-    for table_name in PROJECTED_TABLE_NAMES:
-        collected = _collect_table_batches(
-            day_plan.jobs,
-            dt,
-            table_name,
-            partition_discovery,
-        )
-        merged = pa.concat_tables(collected, promote_options="default")
-        deduped = deduplicate_and_sort(merged, table_name)
-        target_file = dest_dir / f"{table_name}.parquet"
-        rows = write_compact_table(deduped, target_file, table_name)
-        table_row_counts[table_name] = rows
+    # Stage every table before replacing any readable cold file. An unreadable
+    # later input or a failed output validation leaves the entire cold day intact.
+    with tempfile.TemporaryDirectory(prefix=".compaction-", dir=derived_root) as staging:
+        stage_dir = Path(staging)
+        for table_name in PROJECTED_TABLE_NAMES:
+            collected = _collect_table_batches(day_plan.jobs, dt, table_name, discovery)
+            merged = (
+                collected[0]
+                if len(collected) == 1
+                else pa.concat_tables(collected, promote_options="default")
+            )
+            deduped = deduplicate_and_sort(merged, table_name)
+            table_row_counts[table_name] = _write_compact_table_locked(
+                deduped, stage_dir / f"{table_name}.parquet", table_name
+            )
+        check_inputs(cold)
+        durable_mkdir(dest_dir)
+        published = dict(cold)
+        for table_name in PROJECTED_TABLE_NAMES:
+            target = dest_dir / f"{table_name}.parquet"
+            durable_replace(stage_dir / target.name, target)
+            published[target] = _file_identity(target)
+        check_inputs(published)
 
-    # Pruning decision
     pruned_ids: list[str] = []
     retained_ids: list[str] = []
-
-    if prune and day_plan.is_prunable:
-        for job in day_plan.jobs:
-            if job.path.is_dir():
-                shutil.rmtree(job.path)
+    for job in day_plan.jobs:
+        if prune and day_plan.is_prunable and represented[job.path] == hot[job.path].keys():
+            shutil.rmtree(job.path)
+            fsync_directory(derived_root)
             pruned_ids.append(job.job_id)
-    else:
-        for job in day_plan.jobs:
+        else:
             retained_ids.append(job.job_id)
-
     return DayCompactionResult(
         dt=dt,
         table_row_counts=table_row_counts,
@@ -696,15 +849,26 @@ def compact(
     """Main programmatic interface to execute deterministic Parquet compaction."""
     repo = runs_dir.parent if runs_dir else Path.cwd()
     root = derived_root or derived_root_from_environment(repo)
-    plan = plan_compaction(
-        root,
-        target_date=target_date,
-        retention_days=retention_days,
-        clock_today=clock_today,
-        runs_dir=runs_dir,
-        database_url=database_url,
-    )
-
+    try:
+        partition_discovery = discover_parquet_partitions(root)
+        plan = plan_compaction(
+            root,
+            target_date=target_date,
+            retention_days=retention_days,
+            clock_today=clock_today,
+            runs_dir=runs_dir,
+            database_url=database_url,
+            partition_discovery=partition_discovery,
+        )
+    except Exception as exc:
+        return CompactionResult(
+            derived_root=root,
+            compacted_days=(),
+            total_compacted_rows={tbl: 0 for tbl in PROJECTED_TABLE_NAMES},
+            pruned_jobs=(),
+            retained_jobs=(),
+            errors=(f"Failed to plan compaction: {exc}",),
+        )
     if dry_run:
         day_results: list[DayCompactionResult] = []
         total_rows: dict[str, int] = {tbl: 0 for tbl in PROJECTED_TABLE_NAMES}
@@ -758,7 +922,11 @@ def compact(
         if not day.is_closed:
             continue
         try:
-            day_res = compact_day(root, day, prune=prune)
+            day_res = compact_day(
+                root,
+                day,
+                prune=prune,
+            )
             day_results.append(day_res)
             for tbl, rows in day_res.table_row_counts.items():
                 total_rows[tbl] += rows
@@ -766,6 +934,7 @@ def compact(
             all_retained.extend(day_res.retained_job_ids)
         except Exception as exc:
             errors.append(f"Failed to compact {day.dt}: {exc}")
+            all_retained.extend(job.job_id for job in day.jobs)
 
     return CompactionResult(
         derived_root=root,

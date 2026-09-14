@@ -10,7 +10,6 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
-import os
 import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
@@ -82,6 +81,12 @@ from evallab.interpretation.trajectory_judgment import (
 )
 from evallab.results import sha256_file
 from evallab.schemas import ContractModel
+from evallab.storage.fs import (
+    durable_mkdir as _durable_mkdir,
+)
+from evallab.storage.fs import (
+    durable_replace as _durable_replace,
+)
 
 _SIDECAR_FILES = (
     "trajectory_ir.json",
@@ -112,40 +117,6 @@ def _classify_cas_restore_error(exc: BaseException) -> RuntimeError:
     if isinstance(exc, FileNotFoundError):
         return RuntimeError(f"missing_cas: {exc}")
     return RuntimeError(f"cas_integrity_error: {exc}")
-
-
-# ---------------------------------------------------------------------------
-# Durable filesystem helpers (mirror analysis_worker.py to avoid import cycle)
-# ---------------------------------------------------------------------------
-
-
-def _fsync_directory(directory: Path) -> None:
-    """Fsync a directory so dirents created inside it survive a host crash."""
-    directory_fd = os.open(directory, os.O_RDONLY)
-    try:
-        os.fsync(directory_fd)
-    finally:
-        os.close(directory_fd)
-
-
-def _durable_mkdir(directory: Path) -> None:
-    """Create ``directory``, fsyncing the dirent of every level this adds."""
-    created: list[Path] = []
-    probe = directory
-    while not probe.exists():
-        created.append(probe)
-        probe = probe.parent
-    directory.mkdir(parents=True, exist_ok=True)
-    for path in reversed(created):
-        _fsync_directory(path.parent)
-
-
-def _durable_replace(source: Path, destination: Path) -> None:
-    """Fsync file bytes before atomically publishing the stable sidecar path."""
-    with source.open("rb") as handle:
-        os.fsync(handle.fileno())
-    source.replace(destination)
-    _fsync_directory(destination.parent)
 
 
 # ---------------------------------------------------------------------------

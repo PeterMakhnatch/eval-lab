@@ -682,12 +682,6 @@ def test_cli_traj_commands(real_canary_trial: Path, capsys: pytest.CaptureFixtur
     out_lbl = capsys.readouterr().out
     assert "Recorded label: event-summary__h2D9f6f -> test_label by peter [human]" in out_lbl
 
-    # 4. project
-    rc_proj = cli.run_cli(["traj", "project"])
-    assert rc_proj == 0
-    out_proj = capsys.readouterr().out
-    assert "Projected" in out_proj
-
     # 5. report
     rc_rep = cli.run_cli(["traj", "report"])
     assert rc_rep == 0

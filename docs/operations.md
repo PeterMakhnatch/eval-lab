@@ -146,6 +146,8 @@ scores use development tasks; freeze the artifact before a separate held-out
 comparison. Missing traces remain missing, and infrastructure failures never
 become reward zero.
 
+For Cartesian evaluation grid expansion and budget-bounded experiment generation, see [`docs/ladder.md`](ladder.md).
+
 ## Paid execution requires a recorded authorisation
 
 **Nothing billable runs unless Peter authorises that specific spec.** A spec is
@@ -161,6 +163,8 @@ Which classes need authorisation:
 |---|---|---|
 | `local-controls` | `oracle`, `nop` | yes — no authorisation, no ceremony |
 | everything else | `codex`, `claude-code`, any future paid adapter | no — one recorded authorisation per spec |
+
+For the credential contract and runner configuration for DeepSeek models, see [`docs/deepseek-v4-flash-lane.md`](deepseek-v4-flash-lane.md).
 
 How it is enforced, in order:
 
@@ -520,6 +524,10 @@ Steps run in the exact order below:
   queue error event (e.g. `parquet_compaction_failed`, `lessons_generation_failed`). The cycle is
   **not** quarantined, and subsequent pipeline steps continue executing.
 
+For queue event burst detection and alarm generation rules, see [`docs/storm-alarms.md`](storm-alarms.md).
+For the section ordering and formatting contracts of nightly digests and status projections, see [`docs/surfaces.md`](surfaces.md).
+For telemetry surfaces, span tracing with Phoenix, and diagnostic entry points, see [`docs/observability.md`](observability.md).
+
 ### Idempotence
 
 - **Idempotent steps** (`doctor`, `catalog_ingest`, `analysis_staging`, `parquet_compaction`,
@@ -853,13 +861,14 @@ a resolution nobody named: a `--derived-dir` argument and an absolute
 `evallab status` inside a worktree reported the primary checkout's
 `derived/parquet` with nothing to distinguish it from the worktree's own.
 
-Analysis sidecars follow the same "the catalog is derived" rule. `analyze stub`
-and `analyze review` write the durable artifact under
-`derived/analyses/<analysis_id>/` and index it only when given `--index`; both
-state which of the two happened and, when they did not index, print the exact
-`analyze ingest-sidecar` command that does. `analyze review --index` is the
-single command that populates `analysis_reviews`. `analyze ingest-sidecar`
-also indexes every review sitting beside the sidecar and reports how many.
+Analysis sidecars follow the same "the catalog is derived" rule. `analyze review`
+appends a durable human decision under `derived/analyses/<analysis_id>/reviews/`
+and indexes it only when given `--index`. Without that flag, it prints an
+`analyze ingest-sidecar <analysis.json> --database-url <url>` command.
+That index-only command ingests the sidecar and every existing review beside it,
+reports the review count and catalog identity, and never appends another review.
+Use it to index an existing decision; use `analyze review --index` only when
+intending to append a new decision as well.
 
 A Parquet failure cannot roll back catalog ingest or turn a completed agent run
 into an execution failure. It appends a

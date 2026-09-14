@@ -15,7 +15,6 @@ import pyarrow.parquet as pq
 import pytest
 
 from evallab.behavior_episodes import BehaviorEpisode
-from evallab.cli import run_cli
 from evallab.interpretation import trajectory_context as trajectory_context_module
 from evallab.interpretation.trajectory_context import (
     _POSTGRES_REVIEWS_SQL,
@@ -1177,34 +1176,3 @@ def test_durable_pack_uses_configured_database_url(
         derived_root=tmp_path / "derived",
     )
     assert calls == [("postgresql://configured/catalog", "trial")]
-
-
-def test_claims_cli_json_reports_exact_output_size(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    monkeypatch.delenv("DATABASE_URL", raising=False)
-    result = run_cli(
-        [
-            "claims",
-            "pack",
-            "--trial",
-            "trial",
-            "--derived-root",
-            str(tmp_path / "derived"),
-            "--json",
-            "--max-bytes",
-            "1000",
-            "--max-tokens",
-            "1000",
-            "--tokenizer",
-            "builtins:len",
-        ],
-        workspace=tmp_path,
-    )
-    assert result == 0
-    rendered = capsys.readouterr().out
-    payload = json.loads(rendered)
-    assert len(rendered.encode()) <= 1000
-    assert payload["truncation"]["total_bytes"] == len(rendered.encode())

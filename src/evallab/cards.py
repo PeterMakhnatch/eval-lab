@@ -1,6 +1,6 @@
 """E11: eval-card generator with purpose-bound shape and mandatory uncertainty.
 
-Cards are the platform's citable results (platform-architecture.md v2 §4) and the
+Cards are the platform's citable results (docs/archive/platform-architecture.md v2 §4) and the
 terminus of the spec lifecycle:
     draft -> (purpose=comparison => prereg required) -> submitted -> gated ->
     dispatched -> analyzed -> carded

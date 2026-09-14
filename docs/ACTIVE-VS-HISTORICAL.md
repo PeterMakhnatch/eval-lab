@@ -9,7 +9,7 @@ audience:
 
 # Active vs Historical Asset Taxonomy & Lifecycle Rules
 
-This guide defines the lifecycle boundaries, retention guarantees, and archival rules across active and historical assets in Eval Lab, anchored to [docs/content-inventory.md](content-inventory.md) and [docs/git-estate-inventory.md](git-estate-inventory.md).
+This guide defines the lifecycle boundaries, retention guarantees, and archival rules across active and historical assets in Eval Lab, anchored to [research/archive/2026-W36/content-inventory.md](../research/archive/2026-W36/content-inventory.md) and [docs/archive/git-estate-inventory.md](archive/git-estate-inventory.md).
 
 ---
 
@@ -63,4 +63,4 @@ This guide defines the lifecycle boundaries, retention guarantees, and archival 
 2. **Archival Integrity:**
    - Historical records in `research/analysis/` and `docs/prompts/` document the evolutionary history of the lab. Correct terminology only in active navigation docs without mass-rewriting historical files.
 3. **Branch & Worktree Hygiene:**
-   - Active work proceeds in isolated worktrees (`.worktrees/<name>`). Completed branches and merged worktrees are pruned according to [docs/git-estate-inventory.md](git-estate-inventory.md).
+   - Active work proceeds in isolated worktrees (`.worktrees/<name>`). Completed branches and merged worktrees are pruned according to [docs/archive/git-estate-inventory.md](archive/git-estate-inventory.md).

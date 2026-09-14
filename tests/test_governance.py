@@ -1,6 +1,10 @@
 from pathlib import Path
 
-from evallab.governance import collect_issues, declared_roots
+import pytest
+
+from evallab.governance import collect_issues, declared_roots, folder_documents
+
+pytestmark = pytest.mark.docs_consumer
 
 DOCUMENTS = {
     "agents/missions/ACTIVE.md": "# Mission board\n\n## Now\n\n## Missions\n",
@@ -26,6 +30,10 @@ eval-lab/
 Status: ready | building | blocked | review-wanted | done
 """,
     "agents/CHECKS.md": "# Definition of Green\n\n## CI contract\n\n## Merge rule\n",
+    "agents/README.md": "# agents\n",
+    "research/README.md": "# research\n",
+    "src/README.md": "# src\n",
+    "tests/README.md": "# tests\n",
 }
 
 
@@ -102,3 +110,42 @@ def test_missing_authoritative_board_cannot_fall_back_to_navigation(tmp_path: Pa
         "missing governance document: research/inbox/board.md" in issue
         for issue in collect_issues(tmp_path, ())
     )
+
+
+def test_folder_documents_conforming_tree_passes(tmp_path: Path) -> None:
+    seed_governance(tmp_path)
+    subpkg = tmp_path / "src/evallab/subpkg"
+    subpkg.mkdir(parents=True)
+    (subpkg / "module.py").write_text("# module\n")
+    (subpkg / "AGENTS.md").write_text("# Subpackage\n\n## Purpose\nScope.\n")
+    (tmp_path / ".github").mkdir()
+    (tmp_path / "derived").mkdir()
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs/INDEX.md").write_text("# Index\n")
+    assert folder_documents(tmp_path) == []
+
+
+def test_folder_documents_reports_missing_documents(tmp_path: Path) -> None:
+    seed_governance(tmp_path)
+    (tmp_path / "agents/README.md").unlink()
+    subpkg = tmp_path / "src/evallab/pkg"
+    subpkg.mkdir(parents=True)
+    (subpkg / "algo.py").write_text("# code\n")
+    issues = folder_documents(tmp_path)
+    assert any("missing folder document: agents/README.md" in issue for issue in issues)
+    assert any("missing folder document: src/evallab/pkg/AGENTS.md" in issue for issue in issues)
+
+
+def test_folder_documents_reports_over_length_documents(tmp_path: Path) -> None:
+    seed_governance(tmp_path)
+    over_length = "\n".join(f"line {i}" for i in range(61))
+    (tmp_path / "agents/README.md").write_text(over_length)
+    issues = folder_documents(tmp_path)
+    assert any("agents/README.md: document exceeds 60 lines (61)" in issue for issue in issues)
+
+
+def test_folder_documents_exempt_directories_are_not_reported(tmp_path: Path) -> None:
+    seed_governance(tmp_path)
+    for exempt in (".github", ".omp", ".claude", "derived", "runs", "queue", "backups", "docs"):
+        (tmp_path / exempt).mkdir(parents=True, exist_ok=True)
+    assert folder_documents(tmp_path) == []

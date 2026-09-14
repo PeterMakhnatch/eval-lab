@@ -49,7 +49,6 @@ from evallab.modeladapter import (
     ModelAdapterTimeoutError,
 )
 from evallab.schemas import ProposalAxes, ProposalSpec
-from evallab.storage.paths import derived_root_from_environment
 
 # Completeness checker from meta-task package
 _checker_dir = Path(__file__).resolve().parent.parent / "library/meta/synthesize-task@1/tests"
@@ -1265,16 +1264,20 @@ def test_cli_sample_specs(tmp_path: Path, capsys: pytest.CaptureFixture[str]) ->
     assert data["craft_gap_count"] >= 1
 
 
-def test_real_corpus_sample_specs_coverage_and_split() -> None:
+def test_real_corpus_sample_specs_coverage_and_split(tmp_path: Path) -> None:
     """Real corpus test: sampler emits 20 specs with zero duplicates against ledger.
 
     Asserter: >=1/3 originate from craft gaps.
     """
     repo_root = Path(__file__).resolve().parents[1]
-    derived = derived_root_from_environment(repo_root)
-    craft_pq = derived / "craft" / "craft.parquet"
-    if not craft_pq.is_file():
-        pytest.skip("Machine-local craft.parquet absent; skipped in CI")
+    committed_craft = repo_root / "derived" / "parquet" / "craft" / "craft.parquet"
+    if not committed_craft.is_file():
+        pytest.skip("Committed craft.parquet absent; skipped")
+
+    derived = tmp_path / "derived"
+    target_craft = derived / "craft" / "craft.parquet"
+    target_craft.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(committed_craft, target_craft)
 
     specs = sample_spec_batch(repo_root, count=20, derived_root=derived)
     assert len(specs) == 20

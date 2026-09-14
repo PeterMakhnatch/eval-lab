@@ -1,4 +1,4 @@
-.PHONY: help sync check premerge docs smoke smoke-ci db-up db-down db-init doctor controls ingest summarize
+.PHONY: help sync check premerge docs smoke smoke-ci db-up db-down db-init doctor controls ingest summarize loop
 
 help:
 	@echo "sync       Install locked Python dependencies"
@@ -13,6 +13,7 @@ help:
 	@echo "controls   Run Oracle and no-op controls"
 	@echo "ingest     Ingest raw and curated Harbor jobs"
 	@echo "summarize  Print a Markdown result table"
+	@echo "loop       Run targeted tests for changed modules in the working tree"
 
 sync:
 	uv sync --frozen
@@ -57,3 +58,6 @@ ingest:
 
 summarize:
 	uv run evallab summarize runs research/evidence/runs
+
+loop:
+	uv run evallab registry devloop --run

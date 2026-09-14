@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +18,15 @@ from evallab.interpretation.trajectory_recipe_run import (
 )
 from evallab.interpretation.trajectory_recipes import RecipeFinding
 
-REAL_ANALYSES = Path("/Users/petermakhnatch/Developer/eval-lab/derived/analyses")
+
+def _real_analyses_dir() -> Path:
+    env_dir = os.environ.get("EVALLAB_REAL_ANALYSES")
+    if env_dir:
+        return Path(env_dir).resolve()
+    repo_root = Path(__file__).resolve().parents[1]
+    return repo_root / "derived" / "analyses"
+
+
 REQUIRED_JSONL_KEYS = frozenset(
     {
         "finding_id",
@@ -372,10 +381,11 @@ def test_runner_old_pack_selection_emits_materialization_request(
 
 
 def test_runner_real_pack_smoke_skip_if_absent(tmp_path: Path) -> None:
-    if not REAL_ANALYSES.is_dir():
-        pytest.skip("real analyses packs absent")
+    real_analyses = _real_analyses_dir()
+    if not real_analyses.is_dir():
+        pytest.skip(f"real analyses packs absent at {real_analyses}")
     try:
-        selections = select_trial_sidecars(REAL_ANALYSES)
+        selections = select_trial_sidecars(real_analyses)
     except Exception as exc:
         pytest.skip(f"real pack selection failed: {exc}")
     if not selections:
@@ -383,7 +393,7 @@ def test_runner_real_pack_smoke_skip_if_absent(tmp_path: Path) -> None:
     trial_id = next(iter(selections))
     out = tmp_path / "real-out"
     try:
-        code = main(["--analyses-dir", str(REAL_ANALYSES), "--out", str(out), "--trial", trial_id])
+        code = main(["--analyses-dir", str(real_analyses), "--out", str(out), "--trial", trial_id])
     except Exception as exc:
         pytest.skip(f"real pack load failed: {exc}")
     if code != 0:
@@ -397,7 +407,7 @@ def test_runner_real_pack_smoke_skip_if_absent(tmp_path: Path) -> None:
     for phrase in ("EMBARGOED", "arms executed: 1", "[0, 0.434]", "NOT AUTHORIZED TO RUN"):
         assert phrase in report
     assert (out / IMPROVEMENT_REQUESTS).is_file()
-    assert not (REAL_ANALYSES / FINDINGS_JSONL).exists()
+    assert not (real_analyses / FINDINGS_JSONL).exists()
 
 
 def test_blank_created_at_two_generations_without_pin_is_hard_error(

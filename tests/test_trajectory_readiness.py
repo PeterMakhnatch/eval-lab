@@ -16,8 +16,10 @@ def repo_root() -> Path:
 
 def test_audit_durable_trajectories_scans_and_reports(repo_root: Path) -> None:
     """Verify batch audit scans real durable runs, produces valid counts, and generates Markdown."""
-    report = audit_durable_trajectories(repo_root=repo_root)
-
+    sample_run = (
+        repo_root / "research" / "evidence" / "runs" / "canary-event-summary-codex-20260815"
+    )
+    report = audit_durable_trajectories(runs_roots=[sample_run], repo_root=repo_root)
     assert report.total_trials_scanned >= 5
     assert report.analysis_ready_count > 0
     assert 0.0 <= report.analysis_ready_ratio <= 1.0

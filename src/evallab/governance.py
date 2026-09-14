@@ -88,7 +88,7 @@ def tracked_roots(paths: Iterable[str]) -> frozenset[str]:
 
 
 def folder_documents(root: Path) -> list[str]:
-    """Check that declared root directories and evallab subpackages carry valid folder documents."""
+    """Validate declared folder documents and local or inherited source instructions."""
     issues: list[str] = []
     structure = root / "agents/STRUCTURE.md"
     if structure.is_file():
@@ -121,7 +121,7 @@ def folder_documents(root: Path) -> list[str]:
             doc_path = subpkg / "AGENTS.md"
             relative = f"src/evallab/{subpkg.name}/AGENTS.md"
             if not doc_path.is_file():
-                if has_py:
+                if has_py and not (evallab_dir / "AGENTS.md").is_file():
                     issues.append(f"missing folder document: {relative}")
             else:
                 line_count = len(doc_path.read_text(encoding="utf-8").splitlines())

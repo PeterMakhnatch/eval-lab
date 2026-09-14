@@ -125,6 +125,23 @@ def test_folder_documents_conforming_tree_passes(tmp_path: Path) -> None:
     assert folder_documents(tmp_path) == []
 
 
+def test_source_package_inherits_parent_instructions_but_validates_local_override(
+    tmp_path: Path,
+) -> None:
+    seed_governance(tmp_path)
+    package = tmp_path / "src/evallab/package"
+    package.mkdir(parents=True)
+    (package / "module.py").write_text("# module\n")
+    (package.parent / "AGENTS.md").write_text("# Source rules\n")
+    assert folder_documents(tmp_path) == []
+
+    (package / "AGENTS.md").write_text("\n".join("rule" for _ in range(61)))
+    assert any(
+        "src/evallab/package/AGENTS.md: document exceeds 60 lines" in issue
+        for issue in folder_documents(tmp_path)
+    )
+
+
 def test_folder_documents_reports_missing_documents(tmp_path: Path) -> None:
     seed_governance(tmp_path)
     (tmp_path / "agents/README.md").unlink()

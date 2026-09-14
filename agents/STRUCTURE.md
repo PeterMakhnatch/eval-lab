@@ -146,22 +146,20 @@ Rules that fall out of the buckets:
   Nothing in `queue/`, `runs/`, `derived/`, or `backups/` is hand-edited.
 - Ownership boundaries (`agents/OWNERS.md` lanes and `research/inbox/board.md`
   claims) follow these paths.
-- Folder-doc convention: every top-level directory listed in this map and every
-  subpackage under `src/evallab/` carries exactly one folder document (`AGENTS.md`
-  under `src/evallab/`, `README.md` elsewhere) capped at 60 lines with standard
-  sections. Exemptions: dot-directories (`.github`, `.githooks`, `.omp`,
-  `.claude`), runtime/ignored roots (`derived`, `runs`, `queue`, `backups`,
-  `exports`, `logs`), and `docs/` (which has `INDEX.md`).
+- Folder-doc convention: declared top-level directories carry a bounded README.
+  Source subpackages inherit `src/evallab/AGENTS.md`; add a local `AGENTS.md`
+  only for distinct package-specific guidance. Existing local overrides remain
+  capped at 60 lines. See Folder documents below for the exemptions.
 
 ## Folder documents
 
-Every declared top-level directory in this file's map and every subpackage under
-`src/evallab/` carries exactly one folder document:
-- `AGENTS.md` for subpackages under `src/evallab/`
-- `README.md` for top-level directories elsewhere
+Every declared top-level directory in this file's map carries one `README.md`.
+Source subpackages may inherit `src/evallab/AGENTS.md` instead of duplicating
+the same instructions. A local `AGENTS.md` is appropriate when a package has
+distinct invariants or procedures; its presence does not disable parent rules.
 
-Each folder document is capped at 60 lines and must contain these five sections
-in order:
+Top-level folder documents and explicit package overrides are capped at 60
+lines and use these five sections in order:
 1. Purpose (2–3 lines)
 2. What lives here / entry points
 3. Invariants or rules

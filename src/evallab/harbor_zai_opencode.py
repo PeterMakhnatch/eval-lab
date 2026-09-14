@@ -25,7 +25,6 @@ from harbor.agents.model_connection import (  # ty: ignore[unresolved-import]
 from harbor.environments.base import BaseEnvironment  # ty: ignore[unresolved-import]
 
 from evallab.execution_contracts import (
-    REDACTED_SECRET_VALUE,
     ZAI_CREDENTIAL_ENVIRONMENT_KEYS,
     ZAI_PROXY_CAPABILITY_ENV,
     ZAI_PROXY_TOKEN,

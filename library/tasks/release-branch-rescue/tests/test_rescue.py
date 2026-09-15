@@ -6,8 +6,10 @@ branch configuration, and anti-tampering defenses in a separate container.
 
 import os
 import shutil
+import stat
 import subprocess
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -23,28 +25,118 @@ SAFE_GIT_ENV = {
     "PAGER": "cat",
 }
 
+# Only verifier-created repositories are ever passed to Git's repository commands.
+REPOSITORY_VIEWS = {}
 
-def safe_git(cwd, args, timeout=15):
-    """Execute git with strict isolation and security flags."""
-    cmd = [
-        "/usr/bin/git",
-        "-c", "core.fsmonitor=false",
-        "-c", "core.hooksPath=/dev/null",
-        "-c", f"safe.directory={cwd}",
-        "-c", "core.pager=cat",
-        "--no-replace-objects",
-        "--no-pager",
-        "-C", cwd,
-        *args
-    ]
+
+def copy_regular_tree(source, destination):
+    """Copy data, not symlinks, devices, sockets, or executable configuration."""
+    mode = source.lstat().st_mode
+    if stat.S_ISDIR(mode):
+        destination.mkdir(exist_ok=True)
+        for child in source.iterdir():
+            copy_regular_tree(child, destination / child.name)
+    elif stat.S_ISREG(mode):
+        shutil.copyfile(source, destination)
+        destination.chmod(0o755 if mode & 0o111 else 0o644)
+    else:
+        raise ValueError(f"Non-regular submitted artifact: {source}")
+
+
+def trusted_git(cwd, args, timeout=15):
+    """Run Git only from a verifier-owned directory with a scrubbed environment."""
     return subprocess.run(
-        cmd,
+        [
+            "/usr/bin/git",
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-c",
+            "core.pager=cat",
+            "--no-replace-objects",
+            "--no-pager",
+            "-C",
+            str(cwd),
+            *args,
+        ],
         cwd=cwd,
         env=SAFE_GIT_ENV,
         capture_output=True,
         text=True,
         timeout=timeout,
     )
+
+
+def repository_view(source, destination, *, bare=False):
+    """Reconstruct a data-only repository; never adopt submitted Git configuration.
+
+    Config is parsed explicitly as data, without includes or repository discovery.
+    Only tracking fields are transferred into freshly generated config. Filters,
+    hooks, attributes overrides, external diff drivers, object-store redirections,
+    and all other execution configuration have no authority in this view.
+    """
+    source_git = source if bare else source / ".git"
+    for required in (source, source_git, source_git / "objects", source_git / "refs"):
+        if not stat.S_ISDIR(required.lstat().st_mode):
+            raise ValueError(f"Repository directory is not a real directory: {required}")
+    for name in ("HEAD",) if bare else ("HEAD", "index"):
+        if not stat.S_ISREG((source_git / name).lstat().st_mode):
+            raise ValueError(f"Repository metadata must be a regular file: {source_git / name}")
+    for name in ("refs/replace", "info/grafts", "shallow", "objects/info/alternates"):
+        if os.path.lexists(source_git / name):
+            raise ValueError(f"Prohibited repository mechanism: {source_git / name}")
+    destination.mkdir()
+    args = ["init", "--object-format=sha1", "--initial-branch=main"]
+    if bare:
+        args.append("--bare")
+    result = trusted_git(destination, args)
+    if result.returncode:
+        raise ValueError(f"Cannot initialize verifier repository: {result.stderr}")
+    destination_git = destination if bare else destination / ".git"
+
+    # Copy only repository data. In particular, do not copy config, hooks, info/,
+    # commondir, worktrees/, or any path that selects code or another repository.
+    for name in ("objects", "refs", "HEAD", "packed-refs", "index"):
+        candidate = source_git / name
+        if os.path.lexists(candidate):
+            copy_regular_tree(candidate, destination_git / name)
+    for candidate in source_git.glob("sharedindex.*"):
+        copy_regular_tree(candidate, destination_git / candidate.name)
+
+    if not bare:
+        for child in source.iterdir():
+            if child.name != ".git":
+                copy_regular_tree(child, destination / child.name)
+
+        config = source_git / "config"
+        if not stat.S_ISREG(config.lstat().st_mode):
+            raise ValueError("Submitted config must be a regular file")
+        result = trusted_git(
+            destination, ["config", "--no-includes", "--null", "--file", str(config), "--list"]
+        )
+        if result.returncode:
+            raise ValueError(f"Cannot parse submitted tracking configuration: {result.stderr}")
+        tracking_fields = {
+            "branch.main.remote",
+            "branch.main.merge",
+            "remote.origin.url",
+            "remote.origin.fetch",
+        }
+        for entry in result.stdout.split("\0"):
+            key, separator, value = entry.partition("\n")
+            if key in tracking_fields:
+                if not separator:
+                    raise ValueError(f"Tracking field has no value: {key}")
+                result = trusted_git(destination, ["config", "--local", "--add", key, value])
+                if result.returncode:
+                    raise ValueError(f"Invalid tracking field {key}: {result.stderr}")
+    return destination
+
+
+def safe_git(cwd, args, timeout=15):
+    """Inspect the verifier-owned data view, never the submitted repository."""
+    return trusted_git(REPOSITORY_VIEWS[cwd], args, timeout)
 
 
 def derive_expected_fixture():
@@ -159,7 +251,7 @@ EXPECTED = derive_expected_fixture()
 
 
 @pytest.fixture(scope="session", autouse=True)
-def preflight_security_and_integrity_gate():
+def preflight_security_and_integrity_gate(tmp_path_factory):
     """Security preflight gate: stops entire test run if artifacts or git mechanisms are tampered with.
 
     Prevents subsequent test assertions from running git commands on hostile repository structures.
@@ -173,49 +265,16 @@ def preflight_security_and_integrity_gate():
         if not os.path.isdir(path):
             pytest.exit(f"Artifact path is not a directory: {path}", returncode=1)
 
-    # 2. Check for unsafe git mechanisms in workspace
-    git_dir = os.path.join(WORKSPACE, ".git")
-    for bad_path in [
-        os.path.join(git_dir, "refs", "replace"),
-        os.path.join(git_dir, "info", "grafts"),
-        os.path.join(git_dir, "shallow"),
-        os.path.join(git_dir, "objects", "info", "alternates"),
-    ]:
-        if os.path.exists(bad_path):
-            pytest.exit(f"Prohibited git mechanism detected: {bad_path}", returncode=1)
-
-    config_path = os.path.join(git_dir, "config")
-    if os.path.exists(config_path):
-        with open(config_path, errors="ignore") as f:
-            cfg = f.read().lower()
-            if "fsmonitor" in cfg:
-                pytest.exit("Prohibited fsmonitor config detected in workspace", returncode=1)
-            if "[include" in cfg:
-                pytest.exit("Prohibited include directive in workspace git config", returncode=1)
-
-    hooks_dir = os.path.join(git_dir, "hooks")
-    if os.path.exists(hooks_dir):
-        for fname in os.listdir(hooks_dir):
-            fpath = os.path.join(hooks_dir, fname)
-            if os.path.isfile(fpath) and not fname.endswith(".sample") and os.access(fpath, os.X_OK):
-                pytest.exit(f"Custom executable hook in workspace: {fname}", returncode=1)
-
-    # 3. Check for unsafe git mechanisms in origin repository
-    for bad_path in [
-        os.path.join(ORIGIN_GIT, "refs", "replace"),
-        os.path.join(ORIGIN_GIT, "info", "grafts"),
-        os.path.join(ORIGIN_GIT, "shallow"),
-        os.path.join(ORIGIN_GIT, "objects", "info", "alternates"),
-    ]:
-        if os.path.exists(bad_path):
-            pytest.exit(f"Prohibited git mechanism detected in origin: {bad_path}", returncode=1)
-
-    origin_cfg_path = os.path.join(ORIGIN_GIT, "config")
-    if os.path.exists(origin_cfg_path):
-        with open(origin_cfg_path, errors="ignore") as f:
-            cfg = f.read().lower()
-            if "fsmonitor" in cfg or "[include" in cfg:
-                pytest.exit("Prohibited config directives in origin.git", returncode=1)
+    # Build the execution boundary BEFORE any repository-aware Git invocation.
+    # A submitted filter may remain in config as evidence, but cannot execute.
+    root = tmp_path_factory.mktemp("repository-views")
+    try:
+        REPOSITORY_VIEWS[WORKSPACE] = repository_view(Path(WORKSPACE), root / "workspace")
+        REPOSITORY_VIEWS[ORIGIN_GIT] = repository_view(
+            Path(ORIGIN_GIT), root / "origin.git", bare=True
+        )
+    except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+        pytest.exit(f"Invalid repository data: {exc}", returncode=1)
 
     # 4. Verify object database integrity with fsck
     res = safe_git(ORIGIN_GIT, ["fsck", "--full", "--strict"])
@@ -251,7 +310,9 @@ def test_upstream_origin_untouched():
     res = safe_git(ORIGIN_GIT, ["for-each-ref", "--format=%(refname)"])
     upstream_refs = set(res.stdout.strip().splitlines())
     expected_refs = {"refs/heads/main", "refs/tags/v1"}
-    assert upstream_refs == expected_refs, f"Unexpected refs in upstream repository: {upstream_refs}"
+    assert upstream_refs == expected_refs, (
+        f"Unexpected refs in upstream repository: {upstream_refs}"
+    )
 
 
 def test_v1_tag_preserved():
@@ -300,8 +361,7 @@ def test_main_tracks_origin_main():
 def test_ancestry_and_history():
     """Verify upstream origin/main is an ancestor of local main."""
     res = safe_git(
-        WORKSPACE,
-        ["merge-base", "--is-ancestor", "refs/remotes/origin/main", "refs/heads/main"]
+        WORKSPACE, ["merge-base", "--is-ancestor", "refs/remotes/origin/main", "refs/heads/main"]
     )
     assert res.returncode == 0, "Upstream origin/main (R2) is not an ancestor of local main"
 
@@ -312,7 +372,9 @@ def test_worktree_clean_and_tree_matches():
     res = safe_git(WORKSPACE, ["ls-files", "-v"])
     assert res.returncode == 0, f"git ls-files -v failed: {res.stderr}"
     for line in res.stdout.splitlines():
-        assert line.startswith("H "), f"Suspicious index flag detected (expected normal 'H '): {line}"
+        assert line.startswith("H "), (
+            f"Suspicious index flag detected (expected normal 'H '): {line}"
+        )
 
     # 2. Check for untracked or ignored files
     res = safe_git(WORKSPACE, ["status", "--porcelain", "-uall", "--ignored"])
@@ -341,24 +403,24 @@ def test_worktree_clean_and_tree_matches():
 
 def test_file_contents_and_integration():
     """Verify tracked files contain both local and upstream changes."""
-    limits_path = os.path.join(WORKSPACE, "config", "limits.conf")
+    limits_path = REPOSITORY_VIEWS[WORKSPACE] / "config" / "limits.conf"
     with open(limits_path) as f:
         limits_content = f.read()
         assert "retries=3" in limits_content, "config/limits.conf missing retries=3 (from L1)"
         assert "max_connections=100" in limits_content, "config/limits.conf corrupted"
 
-    timeouts_path = os.path.join(WORKSPACE, "config", "timeouts.conf")
+    timeouts_path = REPOSITORY_VIEWS[WORKSPACE] / "config" / "timeouts.conf"
     with open(timeouts_path) as f:
         timeouts_content = f.read()
         assert "timeout=60" in timeouts_content, "config/timeouts.conf missing timeout=60 (from R1)"
 
-    regions_path = os.path.join(WORKSPACE, "config", "regions.txt")
+    regions_path = REPOSITORY_VIEWS[WORKSPACE] / "config" / "regions.txt"
     with open(regions_path) as f:
         regions_content = f.read()
         assert "us-east" in regions_content, "config/regions.txt missing us-east (from A)"
         assert "eu-west" in regions_content, "config/regions.txt missing eu-west (from L2)"
 
-    runbook_path = os.path.join(WORKSPACE, "docs", "runbook.md")
+    runbook_path = REPOSITORY_VIEWS[WORKSPACE] / "docs" / "runbook.md"
     with open(runbook_path) as f:
         runbook_content = f.read()
         assert "telemetry dashboard" in runbook_content, (

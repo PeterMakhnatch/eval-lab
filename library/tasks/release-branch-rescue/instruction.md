@@ -22,7 +22,7 @@ Your job is to recover the lost release commits, integrate the latest upstream c
 
 ## Done Means
 
-Your work is graded in a fresh, isolated verification container. The grader collects `/workspace/release` and `/srv/origin.git` at their original absolute paths and inspects them using trusted Git tooling:
+Your work is graded in a fresh, isolated verification container. The grader collects `/workspace/release` and `/srv/origin.git` at their original absolute paths, then constructs a verifier-owned data view for trusted Git inspection. It preserves regular files, objects, refs, HEAD, index and the required `main`/`origin` tracking fields; it does not execute submitted hooks or filters or follow submitted Git configuration includes. Your recovered files must be correct on disk without those callbacks.
 
 - `HEAD` symbolically points to `refs/heads/main`.
 - `main` tracks `origin/main`.

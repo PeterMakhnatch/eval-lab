@@ -2,14 +2,15 @@
 
 This hand-authored task exercises Git reflog recovery, integration of divergent
 history, preservation of release provenance, and branch tracking configuration.
-See [instruction.md](instruction.md) for the unchanged agent-visible contract.
+See [instruction.md](instruction.md) for the agent-visible contract.
 
 ## Provenance and placement
 
 Originally imported, including `controls/`, from the recorded source
 `PeterMakhnatch/rl-envs` commit `8f9b1fc12582f0d83190f0063cf7f3ee91924b3b`.
-The 2026-09-14 repair changes verifier isolation and adds an adversarial control;
-the current package is no longer a verbatim copy of that source revision.
+The preserved 2026-09-14 repair isolates pytest and adds a shadow-module control.
+HAR-51 (2026-09-15) additionally removes submitted Git configuration from the
+verifier execution path. This is not a verbatim copy of the original source.
 The original `peter/` name and author are retained: the `local-lab/` example is
 not a mandated namespace. `agents/STRUCTURE.md` assigns lab-authored tasks to
 `library/tasks/` (lines 69–75); it does not require model calibration or an
@@ -51,8 +52,16 @@ removed from the final agent image after constructing the fixture.
 
 `environment_mode = "separate"` builds a fresh verifier image from `tests/`.
 Harbor transfers `/workspace/release` (including `.git`) and `/srv/origin.git`.
-The verifier invokes its own `/usr/bin/git` with a restricted environment,
-disabled hooks/fsmonitor/replacement objects and isolated global/system config.
+Before any repository-aware Git command, the verifier constructs its own temporary
+repository view. Only regular worktree files, Git objects, refs, HEAD, packed refs,
+and index data are copied. Submitted configuration is parsed as data with
+`git config --no-includes --file ...` from a trusted directory and clean environment.
+Only `branch.main.remote`, `branch.main.merge`, `remote.origin.url`, and
+`remote.origin.fetch` are written into newly generated configuration.
+Submitted filters, hooks, includes, attributes overrides, repository redirects,
+and other configuration never become verifier runtime configuration.
+Git status/diff checks and content reads use this owned view, not the submission.
+This is removal of execution authority, not a blacklist of filter spellings.
 It independently reconstructs A, L2, R2, and the exact integrated tree in a fresh
 temporary trusted repository. Unlike the nginx task, this task has no fresh
 secret or randomized HTTP probes: its ground truth is reconstructed Git object
@@ -64,9 +73,10 @@ test loading, and disabled plugin autoload. Only the installed CTRF plugin is
 explicitly enabled. Submitted `pytest.py`, pytest configuration, and plugins
 must not replace or alter the grader.
 
-A preflight gate rejects missing/symlinked repository roots, replacement refs,
-grafts, shallow history, object alternates, config includes/fsmonitor, executable
-workspace hooks, and corrupt object databases. Checks preserve upstream refs and
+A preflight gate rejects missing/symlinked repository data, special filesystem
+entries, replacement refs, grafts, shallow history, object alternates and corrupt
+object databases. Inert submitted hook/filter configuration is not itself a
+failing answer: it is never executed by the grader. Checks preserve upstream refs and
 `v1`, bind `rescue/pre-reset` to the original L2, require attached `main` and
 correct tracking/remote, require upstream ancestry, and inspect normal index
 flags and a clean worktree/index with the exact expected tree. Both merge orders
@@ -93,12 +103,38 @@ evidence, not a proof against all hostile repositories or reward gaming.
 | `controls/game-push-upstream.sh` | 0.0 | Forbidden upstream mutation |
 | `controls/game-reclone.sh` | 0.0 | Reclone loses unpublished work |
 | `controls/game-shadow-pytest.sh` | 0.0 | Submitted `pytest.py` exits zero without recovery |
+| `controls/game-clean-filter.sh` | 0.0 | Configured clean filter plus an uncommitted line |
+| `controls/game-process-filter.sh` | 0.0 | Process-filter protocol plus the same uncommitted line |
+| `controls/game-worktree-redirect.sh` | 0.0 | `core.worktree` redirect hides an untracked file behind a staged pristine copy |
 
-The committed schema-2 matrix at
-`research/experiments/release-branch-rescue-local-controls.json` includes the
-reference, nop, both valid alternatives, and the shadow-module regression control.
-It binds the current package/verifier and uses explicit oracle solution overrides;
-running it does not admit the task or authorize model/training execution.
+The schema-2 matrix at
+`research/experiments/release-branch-rescue-local-controls.json` binds the current
+package/verifier and explicit oracle solution overrides. All controls are
+container-only probes that print `HAR51_SETUP_COMPLETE <name>` once the bad
+action is fully staged; a rejection counts only when that marker is present in
+the agent log.
+
+Measured before/after on 2026-09-15 (native Eval Lab matrices, receipts under
+this worktree's `runs/.executor/`):
+
+- **Old verifier (verifier `sha256:c415b3e1…`) false pass, demonstrated:**
+  `game-worktree-redirect` with `HAR51_SETUP_COMPLETE` present earned reward
+  **1.0** — submitted `core.worktree` redirected the verifier's status/diff
+  checks to a staged pristine copy while the real worktree carried `junk.txt`.
+  Receipt `01M2KK0FKZDB69NWRPK9667ERF`.
+- **Filter masking did not reproduce:** the old verifier already rejected both
+  filter controls (receipt `01M2KJQ3QT34F6829C68F1JRFC`); on this Git, the old
+  command set (`status --porcelain -uall --ignored`, `diff-files --quiet`,
+  `diff-index --quiet`) never invokes conversion, so neither masking nor the
+  filter command executed. Filter execution is a *latent* class: a host probe
+  showed `git diff HEAD` executes a configured clean filter, so any future
+  verifier command that materializes content would have executed submitted
+  code inside the verifier container.
+- **Repaired verifier:** all eight final runs matched expectation — oracle 1,
+  nop 0, both alternatives 1, clean/process-filter 0, worktree-redirect 0,
+  pytest-shadow 0. Receipt `01M2KKAG84QCY4XGTQ98BYK0S7`, package
+  `sha256:e61ad47b…`, verifier `sha256:f5bfa0ea…`; every rejected control
+  printed `HAR51_SETUP_COMPLETE` before grading.
 
 ## Verification
 
@@ -141,3 +177,8 @@ only when setup succeeds and the real separate verifier rejects the submission.
 trials were run; difficulty is unknown. The inherited `medium` metadata is an
 uncalibrated author estimate, not an empirical result. No registration, promotion,
 external dataset publication, paid model call, or cloud execution is claimed.
+
+HAR-51 addresses Git configuration callbacks only. Native Git object/index
+parsers and resource-exhaustion attacks are not comprehensively qualified.
+The separate **nginx submitted-module execution boundary remains unresolved**;
+this change does not qualify or merge the whole held PR415.

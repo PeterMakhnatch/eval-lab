@@ -14,6 +14,7 @@ from typing import Any
 
 from evallab.cohort import write_comparison
 
+from .budget import AggregateBudget, BudgetExhausted
 from .evaluator import (
     DEEPSEEK_TARGET_AGENT,
     PROVIDER_CEILING_FIELDS,
@@ -168,6 +169,8 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         "enabled",
         "candidate_evaluation",
         "feedback_max_chars",
+        "max_target_attempts",
+        "shared_budget",
     }
     if not isinstance(raw, dict) or set(raw) - allowed:
         raise ValueError("Unknown campaign fields; arbitrary engine configuration is not supported")
@@ -182,8 +185,10 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
     ):
         if key not in raw:
             raise ValueError(f"Missing campaign field: {key}")
-    if raw["engine"] not in {"gepa", "meta_harness"}:
-        raise ValueError("Only released gepa and meta_harness engines are supported")
+    if raw["engine"] not in {"gepa", "meta_harness", "omni"}:
+        raise ValueError(
+            "Only released gepa, meta_harness and genuine omni composition are supported"
+        )
     if not isinstance(raw.get("enabled", True), bool):
         raise ValueError("enabled must be a boolean")
     if raw.get("candidate_evaluation", "review") not in {"review", "automatic"}:
@@ -195,6 +200,7 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         "timeout_seconds",
         "max_proposer_requests",
         "feedback_max_chars",
+        "max_target_attempts",
     ):
         value = raw.get(key, 1)
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
@@ -247,6 +253,41 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         raise ValueError(f"Target '{raw['agent']}' requires explicit provider_ceilings")
     if ceilings_raw is not None and raw["agent"] not in {DEEPSEEK_TARGET_AGENT, "zai-opencode"}:
         raise ValueError(f"Target '{raw['agent']}' does not support provider_ceilings")
+    if raw["engine"] == "omni" and (
+        "max_target_attempts" not in raw
+        or raw.get("max_proposer_requests", 1) < 4
+        or raw["max_evals"] < 4
+    ):
+        raise ValueError("Omni requires a native attempt bound and budget for all four stages")
+    shared = raw.get("shared_budget")
+    if shared is not None:
+        required = {
+            "output_dir",
+            "max_target_attempts",
+            "max_proposer_requests",
+            "max_proposer_cost_usd",
+        }
+        if (
+            not isinstance(shared, dict)
+            or set(shared) != required
+            or "max_target_attempts" not in raw
+        ):
+            raise ValueError(
+                "Shared budget requires exact group limits and a campaign native attempt cap"
+            )
+        _path(repo_root.resolve(), shared["output_dir"])
+        for key in ("max_target_attempts", "max_proposer_requests"):
+            value = shared[key]
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError("Shared budget counts must be positive integers")
+        value = shared["max_proposer_cost_usd"]
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            or value <= 0
+        ):
+            raise ValueError("Shared proposer cost must be a finite positive estimate ceiling")
     _path(repo_root.resolve(), raw["seed_candidate_path"])
     _path(repo_root.resolve(), raw["output_dir"])
     return raw
@@ -353,6 +394,25 @@ def _run_campaign(
         _write(binding_path, binding)
     attempt = output / ("attempt-" + uuid.uuid4().hex)
     attempt.mkdir()
+    budgets: tuple[AggregateBudget, ...] = ()
+    if not qualification and "max_target_attempts" in config:
+        local_budget = AggregateBudget(
+            output / "budget",
+            max_target_attempts=config["max_target_attempts"],
+            max_proposer_requests=config.get("max_proposer_requests", 1),
+            max_proposer_cost_usd=config["max_proposer_cost_usd"],
+        )
+        budgets = (local_budget,)
+        if config.get("shared_budget") is not None:
+            shared = config["shared_budget"]
+            budgets += (
+                AggregateBudget(
+                    _path(repo_root, shared["output_dir"]),
+                    max_target_attempts=shared["max_target_attempts"],
+                    max_proposer_requests=shared["max_proposer_requests"],
+                    max_proposer_cost_usd=shared["max_proposer_cost_usd"],
+                ),
+            )
     ceilings = (
         ProviderCeilings(**config["provider_ceilings"])
         if config.get("provider_ceilings") is not None
@@ -378,6 +438,7 @@ def _run_campaign(
         if config.get("candidate_evaluation") == "automatic"
         else frozenset(reviewed),
         feedback_max_chars=config.get("feedback_max_chars", 24000),
+        budgets=budgets,
     )
     validation_ids = set(config.get("validation_task_ids", []))
     train = [row for row in config["examples"] if row["task_id"] not in validation_ids]
@@ -390,6 +451,8 @@ def _run_campaign(
     error_type = None
     error = None
     pending_candidate = None
+    availability = None
+    stage_lms: dict[str, JournaledReflectionLM] = {}
 
     def evaluate(candidate, example):
         try:
@@ -399,6 +462,12 @@ def _run_campaign(
             raise _EvaluationHalt(exc) from exc
 
     try:
+        if config["engine"] == "omni":
+            from .composition import EngineUnavailable, engine_availability, run_omni
+
+            availability = engine_availability(config["proposer_model"])
+            if not availability["all_available"]:
+                raise EngineUnavailable(availability)
         # Resolve the baseline target gate before any paid proposer can start.
         for example in config["examples"]:
             evaluate(seed, example)
@@ -407,65 +476,96 @@ def _run_campaign(
             optimize_anything,
         )
 
-        engine_options: dict[str, Any]
-        if config["engine"] == "gepa":
-            if not qualification:
-                reflection_lm = JournaledReflectionLM(
-                    model=config["proposer_model"],
-                    directory=output / "proposer",
-                    max_requests=config.get("max_proposer_requests", 1),
-                    before_request=lambda: _check_running(output),
-                )
-            engine_options = {
-                "reflection": {
-                    "reflection_lm": reflection_lm,
-                    "custom_candidate_proposer": fixture,
-                    "reflection_minibatch_size": 1,
-                    "skip_perfect_score": False,
-                },
-                "engine": {
-                    "seed": 0,
-                    "max_candidate_proposals": config.get("max_proposer_requests", 1),
-                },
-            }
-        else:
-            engine_options = {
-                "model": config["proposer_model"],
-                "max_iterations": config.get("max_iterations", 1),
-                "max_candidates_per_iter": config.get("max_candidates_per_iter", 1),
-            }
-        upstream_config = OptimizeAnythingConfig(
-            engine=config["engine"],
-            name=config["name"],
-            max_evals=config["max_evals"],
-            max_concurrency=1,
-            max_token_cost=None if qualification else config["max_proposer_cost_usd"],
-            output_dir=attempt / "upstream",
-            run_dir=str(output / "search-state"),
-            sandbox=True,
-            engine_config=engine_options,
+        objective = config.get(
+            "objective", "Improve task success with general supplementary instructions"
         )
-        if config["engine"] == "meta_harness":
-            from .meta_engine import make_meta_harness_engine
+        background = (
+            "Candidates are supplementary instruction text, not executable host code. "
+            "All supplied train and validation examples are search-visible development tasks. "
+            "No task-specific answers, verifier content or final evaluation tasks are permitted."
+        )
 
-            engine = make_meta_harness_engine(upstream_config)
-            upstream_config.engine = engine
-        result = optimize_anything(
-            seed_candidate=seed,
-            evaluator=evaluate,
-            dataset=train,
-            valset=validation or None,
-            test_set=None,
-            config=upstream_config,
-            objective=config.get(
-                "objective", "Improve task success with general supplementary instructions"
-            ),
-            background=(
-                "Candidates are supplementary instruction text, not executable host code. "
-                "All supplied train and validation examples are search-visible development tasks. "
-                "No task-specific answers, verifier content or final evaluation tasks are permitted."
-            ),
-        )
+        def make_config(stage_id: str, engine_name: str):
+            nonlocal reflection_lm
+            composing = config["engine"] == "omni"
+            stages = 4 if composing else 1
+            continuing = stage_id.startswith("continue-")
+            requests = config.get("max_proposer_requests", 1)
+            stage_requests = requests // stages + (requests % stages if continuing else 0)
+            max_evals = config["max_evals"] // stages + (
+                config["max_evals"] % stages if continuing else 0
+            )
+            stage_output = output / "stages" / stage_id if composing else output
+            if engine_name == "gepa":
+                if not qualification:
+                    reflection_lm = JournaledReflectionLM(
+                        model=config["proposer_model"],
+                        directory=stage_output / "proposer",
+                        max_requests=stage_requests,
+                        before_request=lambda: _check_running(output),
+                        budgets=budgets,
+                    )
+                    stage_lms[stage_id] = reflection_lm
+                engine_options = {
+                    "reflection": {
+                        "reflection_lm": reflection_lm,
+                        "custom_candidate_proposer": fixture,
+                        "reflection_minibatch_size": 1,
+                        "skip_perfect_score": False,
+                    },
+                    "engine": {"seed": 0, "max_candidate_proposals": stage_requests},
+                }
+            else:
+                engine_options = {
+                    "model": config["proposer_model"],
+                    "max_iterations": config.get("max_iterations", 1),
+                    "max_candidates_per_iter": config.get("max_candidates_per_iter", 1),
+                }
+            return OptimizeAnythingConfig(
+                engine=engine_name,
+                name=config["name"] + ("-" + stage_id if composing else ""),
+                max_evals=max_evals,
+                max_concurrency=1,
+                max_token_cost=None if qualification else config["max_proposer_cost_usd"] / stages,
+                output_dir=attempt / "upstream" / stage_id if composing else attempt / "upstream",
+                run_dir=str(stage_output / "search-state"),
+                sandbox=True,
+                engine_config=engine_options,
+            )
+
+        if config["engine"] == "omni":
+            result = run_omni(
+                seed_candidate=seed,
+                evaluator=evaluate,
+                dataset=train,
+                valset=validation or None,
+                config_factory=make_config,
+                output_dir=output / "omni",
+                objective=objective,
+                background=background,
+                before_stage=lambda: _check_running(output),
+                proposer_model=config["proposer_model"],
+            )
+        else:
+            upstream_config = make_config(config["engine"], config["engine"])
+            if config["engine"] == "meta_harness":
+                from .meta_engine import make_meta_harness_engine
+
+                engine = make_meta_harness_engine(upstream_config)
+                upstream_config.engine = engine
+            result = optimize_anything(
+                seed_candidate=seed,
+                evaluator=evaluate,
+                dataset=train,
+                valset=validation or None,
+                test_set=None,
+                config=upstream_config,
+                objective=objective,
+                background=background,
+            )
+        # Selection needs full common-pool evidence even after an upstream resume.
+        for example in validation or train:
+            evaluate(result.best_candidate, example)
         status = "completed"
     except _EvaluationHalt as halt:
         if isinstance(halt.cause, CandidateReviewRequired):
@@ -482,6 +582,10 @@ def _run_campaign(
             )
         error_type = type(halt.cause).__name__
         error = str(halt.cause)
+    except BudgetExhausted as exc:
+        status = "budget_exhausted"
+        error_type = type(exc).__name__
+        error = str(exc)
     except CampaignStopped as exc:
         status = "stopped"
         error_type = type(exc).__name__
@@ -491,7 +595,11 @@ def _run_campaign(
         error_type = type(exc).__name__
         error = str(exc)
     except Exception as exc:
-        status = "optimizer_failed"
+        status = (
+            "engine_unavailable"
+            if availability and not availability["all_available"]
+            else "optimizer_failed"
+        )
         error_type = type(exc).__name__
         error = str(exc)
     finally:
@@ -514,10 +622,25 @@ def _run_campaign(
         if required <= {row["task_id"] for row in selected_records} and math.isfinite(
             result.best_score
         ):
+            seed_scores = {
+                row["task_id"]: row["score"]
+                for row in records
+                if row["candidate_id"] == binding["seed_sha256"] and row["task_id"] in required
+            }
+            selected_scores = {
+                row["task_id"]: row["score"]
+                for row in selected_records
+                if row["task_id"] in required
+            }
+            selected_score = sum(selected_scores.values()) / len(required)
+            seed_score = sum(seed_scores.values()) / len(required)
+            if selected_score <= seed_score:
+                candidate_id, best, selected_score = binding["seed_sha256"], seed, seed_score
             selection = {
                 "candidate_id": candidate_id,
                 "text": best,
-                "score": result.best_score,
+                "score": selected_score,
+                "selection_rule": "common_pool_mean_seed_retained_on_tie_or_regression",
                 "search_visible_task_ids": sorted(required),
                 "final_holdout_claim": False,
             }
@@ -545,9 +668,20 @@ def _run_campaign(
         "attempt_dir": str(attempt),
         "release": pin,
         "engine": config["engine"],
-        "evidence_level": "real_gepa_with_local_controls_and_deterministic_proposer"
-        if qualification
-        else "model_search",
+        "engine_availability": availability,
+        "budget_accounting": [
+            {"directory": str(budget.directory), **budget.summary()} for budget in budgets
+        ],
+        "composition": result.metadata
+        if result is not None and config["engine"] == "omni"
+        else None,
+        "evidence_level": (
+            "engine_preflight_only"
+            if status == "engine_unavailable"
+            else "real_gepa_with_local_controls_and_deterministic_proposer"
+            if qualification
+            else "model_search"
+        ),
         "proposer_authorization_ref": str(proposer_approval_ref) if proposer_approval_ref else None,
         "proposer_authorization_sha256": hashlib.sha256(authorization_bytes).hexdigest()
         if authorization_bytes
@@ -558,8 +692,14 @@ def _run_campaign(
             else config["proposer_model"],
             "calls": fixture.calls
             if fixture
-            else (reflection_lm.new_requests if reflection_lm else None),
-            "replayed_responses": reflection_lm.replayed if reflection_lm else 0,
+            else (
+                0
+                if status == "engine_unavailable"
+                else sum(lm.new_requests for lm in stage_lms.values())
+                if stage_lms
+                else None
+            ),
+            "replayed_responses": sum(lm.replayed for lm in stage_lms.values()),
             "reported_cost_usd": 0.0
             if qualification
             else (result.metadata.get("adapter_cost") if result else None),

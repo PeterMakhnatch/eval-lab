@@ -226,6 +226,19 @@
     "ControlEvidenceRef": {
       "additionalProperties": false,
       "properties": {
+        "declared_task_name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Declared Task Name"
+        },
         "evidence_digest": {
           "pattern": "^sha256:[0-9a-f]{64}$",
           "title": "Evidence Digest",
@@ -261,6 +274,32 @@
           "minimum": 0.0,
           "title": "Reward",
           "type": "number"
+        },
+        "staged_harbor_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Staged Harbor Digest"
+        },
+        "staged_task_name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Staged Task Name"
         },
         "task_digests": {
           "$ref": "#/$defs/TaskDigests"

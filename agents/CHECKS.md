@@ -61,21 +61,39 @@ trigger and dependency handling fail closed, including merge-group support.
 The ty job fails on any diagnostic. Keep the local premerge baseline and the
 GitHub `typecheck` workflow at zero; never restore a positive baseline.
 
-Run `make premerge` before pushing. Before final review and doc freshness checks,
-run explicit `make docs` to regenerate `docs/INDEX.md` and `docs/repo-map.md`.
-`scripts/premerge.sh` pins Python 3.12, checks uv 0.9.24, performs the locked
-install (including the `benchmarks` and `lance` dependency groups so the live
-fastmcp/cryptography/lancedb contract tests run locally instead of skipping via
-`pytest.importorskip`), runs the static type check (`ty`) *before* pytest so type
-errors surface in seconds, runs every gate above, and applies the same ty 0.0.71
-ratchet. It reproduces the commands in `quality` and `typecheck` on Python 3.12;
-the GitHub matrix additionally proves Python 3.14. It does not reproduce GitHub's
-event routing or branch enforcement.
+Run focused checks or explicit premerge before pushing. Before final review and
+doc freshness checks, run explicit `make docs` to regenerate `docs/INDEX.md` and
+`docs/repo-map.md`.
 
-During active local development loops, prefer focused checks for touched modules
-rather than running the entire project-wide test suite on every small edit.
-Use `make loop` or `uv run evallab registry devloop [--run]` to compute the exact
-affected test modules from working-tree changes and execute only the relevant subset.
+### Local checkpoints versus full CI
+
+Verification separates rapid local checkpoints, full hosted CI gates, and explicit
+full local reproduction:
+
+1. **Static checkpoint (`make check` or `scripts/premerge.sh --static`)**:
+   Runs static gates only (locked install with `benchmarks` and `lance` groups,
+   `ruff`, `docindex`, `repomap`, `governance`, `registry audit`, `lessons`, and
+   `ty@0.0.71`). No tests or runtime smoke are executed; this is **not** CI green.
+2. **Focused prepush checkpoint (`make prepush TESTS='tests/test_foo.py [pytest args]'` or `scripts/premerge.sh --focused TEST_FILE [PYTEST_ARGS...]`)**:
+   Runs the same static gates and typecheck, followed by explicitly selected pytest
+   tests. `--focused` requires an existing test file or `file::node` selector and
+   refuses immediately (exit code 2) before dependency installation if the selector
+   is missing or invalid. The full test suite and runtime smoke do not run; this is
+   **not** CI green. During inner development loops, `make loop` or
+   `uv run evallab registry devloop [--run]` may also be used to compute and execute
+   targeted tests for changed working-tree modules.
+3. **Explicit full local reproduction (`make premerge` or `scripts/premerge.sh [--full]`)**:
+   Faithfully reproduces the complete Python 3.12 CI gate locally: pins Python 3.12,
+   checks uv 0.9.24, performs the locked install (including `benchmarks` and `lance`
+   dependency groups), runs static typecheck (`ty`) *before* pytest so type errors
+   surface in seconds, runs all static gates, runs the complete pytest suite
+   (`uv run --no-sync pytest`), and runs the Docker-free runtime smoke test
+   (`uv run --no-sync python -m evallab.smoke --docker-free`).
+4. **Full hosted CI gate on GitHub Actions**:
+   The GitHub matrix additionally proves Python 3.14 across two shards. Green is a
+   property of the exact pull-request head on GitHub Actions; local runs reproduce
+   the commands on Python 3.12, but do not substitute for hosted gates or branch
+   enforcement.
 
 Benchmark and certification workflows declare `concurrency` groups with
 `cancel-in-progress: true` to terminate superseded PR runs promptly. Heavy

@@ -230,16 +230,17 @@ def test_zai_opencode_rejects_unsupported_models(tmp_path: Path) -> None:
         build_command(request)
 
 
-def test_repo_owned_agent_adds_src_to_harbor_host_pythonpath(tmp_path: Path) -> None:
-    source_root = tmp_path / "src"
-    source_root.mkdir()
+def test_repo_owned_agent_uses_reviewed_code_not_workspace_source(tmp_path: Path) -> None:
+    stale_package = tmp_path / "src/evallab"
+    stale_package.mkdir(parents=True)
+    (stale_package / "__init__.py").write_text('raise RuntimeError("stale workspace code")\n')
     log_path = tmp_path / "harbor.log"
     import_path = resolve_harbor_agent("antigravity-cli")
     result = run_harbor_process(
         [
             sys.executable,
             "-c",
-            "import os; print(os.environ.get('PYTHONPATH', ''))",
+            "import evallab; print(evallab.__file__)",
             import_path,
         ],
         cwd=tmp_path,
@@ -248,8 +249,9 @@ def test_repo_owned_agent_adds_src_to_harbor_host_pythonpath(tmp_path: Path) -> 
     )
 
     assert result.returncode == 0
-    pythonpath = log_path.read_text().strip().split(os.pathsep)
-    assert str(source_root) in pythonpath
+    assert Path(log_path.read_text().strip()).resolve() == (
+        Path(runner_module.__file__).parent / "__init__.py"
+    ).resolve()
 
 
 def test_deepseek_credentials_reach_only_the_repo_owned_adapter(

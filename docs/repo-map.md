@@ -185,7 +185,7 @@ inputs:
   - path: src/evallab/interpretation/trajectory_judgment.py
     digest: sha256:14e30768a48bdde30a8752717325ec36d6abf76deb516d0c1f9a0e795bffab1e
   - path: src/evallab/interpretation/trajectory_quality.py
-    digest: sha256:8be8276c536c78cada01467695f930eff77b32513ad1431d1cd8d0ab133d7e75
+    digest: sha256:ab9097484fd6136046c66b186fcfc96e75c61d86b424d26f73a2dc4918f337a2
   - path: src/evallab/interpretation/trajectory_readiness.py
     digest: sha256:d013ac11f144e8abeef2e69586fa11b83710275f2df314d6a467f06737329a38
   - path: src/evallab/interpretation/trajectory_recipe_run.py
@@ -247,7 +247,7 @@ inputs:
   - path: src/evallab/recovery/wrapper.py
     digest: sha256:83a3882cf0c364b61a7865912e10c17a1b0275e86677b2279846b8ceb845f972
   - path: src/evallab/registry.py
-    digest: sha256:d70d06d1011b9c7ec410ea2f26cd09efb0fcf2a43bbe1953cf8e4c6abe75b995
+    digest: sha256:d6778e78db133f1b38393257778df769a4a5ebdf04ca2a05fd3844875f092b48
   - path: src/evallab/regrade.py
     digest: sha256:12dee31474405f70883efcab2db02d4fb62f932848920465109b7a5697a80c51
   - path: src/evallab/repomap.py
@@ -263,9 +263,9 @@ inputs:
   - path: src/evallab/run_preflight.py
     digest: sha256:c6f34f15c3d8fc8a30ee5b09abda23195d983340d77ea7af2b05bc27c6d37624
   - path: src/evallab/runner.py
-    digest: sha256:85ad95585499b3be0319a04feffc39024aec84f16e2207828e938ab3f74d4966
+    digest: sha256:c5ba4d85d3070e04740297be603b5312e64042ccb868d2cbf9321692e4f45d62
   - path: src/evallab/schemas/__init__.py
-    digest: sha256:ddf864a0e924afad6f1ca345a75a431cf4252f46e8c99ee0da254a7646081bed
+    digest: sha256:f1a290e03d8a162c55f71fbe531dafd6ed4fc611f4b2cec0154331bf7aa44734
   - path: src/evallab/screen.py
     digest: sha256:2b73a0dabcdc25ee596d9068a23935b2d9f7deaad60cca6322cd8be1061620ef
   - path: src/evallab/semantic_facts.py

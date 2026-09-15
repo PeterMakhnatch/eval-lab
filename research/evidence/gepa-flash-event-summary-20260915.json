@@ -1,0 +1,670 @@
+{
+  "schema_version": 1,
+  "experiment_id": "gepa-flash-event-summary-calibrated-20260915",
+  "record_origin": "native_harbor_trials_and_released_gepa_model_proposal",
+  "status": "completed_no_candidate_adopted",
+  "task": {
+    "id": "event-summary",
+    "version": "1.0.0",
+    "source_package_digest": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d",
+    "staged_task_digest": "sha256:0efc1c8c6cae8e54fba151134c97bcfc2eb1d0c2a21776d63ee64ef39365adac",
+    "changed": false
+  },
+  "models": {
+    "target": "zai-coding-plan/glm-5.3-flash",
+    "verified_target_response_model": "glm-5.3-flash",
+    "proposer": {
+      "configured_model": "zai/glm-5.3-flash",
+      "unique_api_requests": 1,
+      "completed_response_replays": 2,
+      "reported_cost_estimate_usd": 0.00120315,
+      "actual_billing_cost_usd": null,
+      "actual_usage": null,
+      "response_identity_capture": "not retained by GEPA LM wrapper",
+      "candidate_path": "research/experiments/harness-gepa/glm-flash-event-summary-20260915-candidate.txt",
+      "candidate_sha256": "sha256:0a7b9f5bf31a4b2fbf36862aa64cc8180cea15826ea845f2c13612847567c520"
+    }
+  },
+  "same_setup_checks": {
+    "agent": true,
+    "environment": true,
+    "verifier": true,
+    "staged_task_digest": true,
+    "source_commit": true,
+    "tools": true,
+    "provider_limits": true,
+    "source_task_package_digest": true
+  },
+  "runtime": {
+    "docker_desktop": "4.91.0",
+    "docker_engine": "29.8.0",
+    "linux_kernel": "7.0.12-linuxkit",
+    "harbor": "0.21.0",
+    "opencode": "1.18.25",
+    "gepa_release": {
+      "commit": "0632cdb5dcc052e690eab439e1b4a7e3e9cfe407",
+      "version": "0.1.4",
+      "python_source_tree_sha256": "sha256:e8bc3facf961884faca73e7a434773231b3c1ba0eb79688072bf65bc1a268dd1"
+    },
+    "source_commit": "07287ccb6841f1192ecbaf5fa07789672150c083",
+    "source_dirty_note": "Only derived/parquet/trajectory_quality_reports.parquet was modified by preceding native ingestion; executable source remained commit07287ccb. Baseline uses the declared seed supplementary instruction."
+  },
+  "arms": [
+    {
+      "job_id": "64ea13ea-7da2-4d5e-86c3-4159e863970a",
+      "job_path": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f",
+      "trial_id": "be1d3c2d-6820-4875-9247-90c84081a96d",
+      "trial_name": "gepa-zai-opencode-event-summary__jHyCUUK",
+      "reward": 1.0,
+      "exception": null,
+      "agent_result": {
+        "n_input_tokens": 22655,
+        "n_cache_tokens": 11072,
+        "n_output_tokens": 352,
+        "cost_usd": null,
+        "rollout_details": null,
+        "metadata": null
+      },
+      "provider_totals": {
+        "cost_micros": 35826,
+        "input_tokens": 23376,
+        "output_tokens": 704,
+        "requests": 4,
+        "total_tokens": 24080
+      },
+      "response_models": [
+        "glm-5.3-flash"
+      ],
+      "unresolved_requests": 0,
+      "source": {
+        "commit": "07287ccb6841f1192ecbaf5fa07789672150c083",
+        "dirty": true
+      },
+      "source_note": "Only derived/parquet/trajectory_quality_reports.parquet was modified by preceding native ingestion; executable source remained commit07287ccb. Baseline uses the declared seed supplementary instruction.",
+      "label": "seed",
+      "promoted_job_path": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f",
+      "instruction_sha256": "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8",
+      "instruction_path": "research/experiments/harness-gepa/seed.txt",
+      "output": {
+        "schema_version": 1,
+        "total_events": 8,
+        "counts": {
+          "cache_hit": 2,
+          "error": 1,
+          "request": 4,
+          "retry": 1
+        },
+        "total_duration_ms": 1617,
+        "p95_duration_ms": 900
+      },
+      "api_equivalent_cost_estimate_usd": 0.035826,
+      "actual_billing_cost_usd": null
+    },
+    {
+      "job_id": "a885f82b-24ec-4f3e-89c9-cb53318f4bd7",
+      "job_path": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462",
+      "trial_id": "1926c860-c36b-46a4-860a-56955b198280",
+      "trial_name": "gepa-zai-opencode-event-summary__Cqyxdtp",
+      "reward": 1.0,
+      "exception": null,
+      "agent_result": {
+        "n_input_tokens": 40242,
+        "n_cache_tokens": 24192,
+        "n_output_tokens": 457,
+        "cost_usd": null,
+        "rollout_details": null,
+        "metadata": null
+      },
+      "provider_totals": {
+        "cost_micros": 62506,
+        "input_tokens": 41154,
+        "output_tokens": 1111,
+        "requests": 6,
+        "total_tokens": 42265
+      },
+      "response_models": [
+        "glm-5.3-flash"
+      ],
+      "unresolved_requests": 0,
+      "source": {
+        "commit": "07287ccb6841f1192ecbaf5fa07789672150c083",
+        "dirty": true
+      },
+      "label": "gepa",
+      "promoted_job_path": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462",
+      "instruction_sha256": "sha256:0a7b9f5bf31a4b2fbf36862aa64cc8180cea15826ea845f2c13612847567c520",
+      "instruction_path": "research/experiments/harness-gepa/glm-flash-event-summary-20260915-candidate.txt",
+      "output": {
+        "schema_version": 1,
+        "total_events": 8,
+        "counts": {
+          "cache_hit": 2,
+          "error": 1,
+          "request": 4,
+          "retry": 1
+        },
+        "total_duration_ms": 1617,
+        "p95_duration_ms": 900
+      },
+      "api_equivalent_cost_estimate_usd": 0.062506,
+      "actual_billing_cost_usd": null
+    }
+  ],
+  "comparison": {
+    "spec_path": "research/experiments/harness-gepa/glm-flash-event-summary-20260915-comparison.json",
+    "analysis_path": "research/evidence/gepa-flash-event-summary-20260915-paired-analysis.json",
+    "paired_task_count": 1,
+    "score_delta": 0.0,
+    "same_json_value": true,
+    "seed_provider_requests": 4,
+    "candidate_provider_requests": 6,
+    "selected_candidate": "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8",
+    "adopted_candidate": null,
+    "confidence_interval": null,
+    "holdout_evaluations": 0,
+    "standard_cohort_report": "Rendered successfully from promoted paths; refused ranking as not distinguishable/not comparable with only one paired task."
+  },
+  "excluded_attempts": [
+    {
+      "spec_id": "01M2HEDFCJWE1R11RH6YA2ZQRB",
+      "job_id": "3a72b334-74bc-435d-bb60-e7a1529d157f",
+      "trial_id": "db1ab602-a238-47e9-ae2a-13fbefedf863",
+      "classification": "local_proxy_reservation_limited",
+      "reason": "The conservative per-request byte reservation exceeded the original48k cumulative input ceiling; this was not a Z.ai quota response. Three upstream calls completed and were reconciled before the local refusal.",
+      "score_eligible": false,
+      "raw_verifier_reward": 0.0,
+      "provider_totals": {
+        "cost_micros": 22891,
+        "input_tokens": 15244,
+        "output_tokens": 352,
+        "requests": 3,
+        "total_tokens": 15596
+      },
+      "api_equivalent_cost_estimate_usd": 0.022891,
+      "raw_job_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/harbor-standard-execution-20260914/runs/gepa-zai-opencode-zai-coding-plan-event-summary-8de74e42dbcaf095"
+    }
+  ],
+  "accounting": {
+    "target_attempts": 3,
+    "scored_target_trials": 2,
+    "target_provider_requests_including_excluded_attempt": 13,
+    "proposer_api_requests": 1,
+    "target_total_tokens_including_excluded_attempt": 81941,
+    "all_known_cost_estimates_usd": 0.12242615,
+    "cost_basis": "Target API-equivalent tariff estimate plus GEPA reported estimate; not actual Z.ai subscription billing or credits. Cached tokens use the configured conservative tariff.",
+    "actual_subscription_credits": null,
+    "automatic_trial_retries": 0
+  },
+  "storage": {
+    "comparison_schema": "CohortComparisonSpec",
+    "new_database_schema_required": false,
+    "database_name": "evallab_gepa_20260915",
+    "local_raw_store": "/Users/petermakhnatch/Developer/eval-lab/derived/evidence-cas",
+    "raw_archives": {
+      "seed": {
+        "uri": "cas://sha256/f229f5e3588d780aeb46db1b38dfc59de2d2937d438b247968d68c71171b451d",
+        "content_digest": "sha256:f229f5e3588d780aeb46db1b38dfc59de2d2937d438b247968d68c71171b451d",
+        "archive_digest": "sha256:2bd6ccf28ca02a48dd437eeddc2c65b2701df340eefc93f1b4dc7e8649db8bf6",
+        "file_count": 30,
+        "uncompressed_bytes": 2024621
+      },
+      "gepa": {
+        "uri": "cas://sha256/1d027928b6c5e0436a244743a32d077d27029486cfd22c3af562d35503664adf",
+        "content_digest": "sha256:1d027928b6c5e0436a244743a32d077d27029486cfd22c3af562d35503664adf",
+        "archive_digest": "sha256:d514081bff23297a85cba4b54722be515afa73deb8a58827b0effe636bd83395",
+        "file_count": 30,
+        "uncompressed_bytes": 2706153
+      },
+      "reservation-limited": {
+        "uri": "cas://sha256/fdb4aa207dcf188d3461b3212dadd6236befbd5dc44ca23823dbe8aa221dfeb6",
+        "content_digest": "sha256:fdb4aa207dcf188d3461b3212dadd6236befbd5dc44ca23823dbe8aa221dfeb6",
+        "archive_digest": "sha256:dc5ca72a1e4a672130ddf6ba2df732aa84fd799d38c904f644e06f40a4a04df4",
+        "file_count": 28,
+        "uncompressed_bytes": 1541783
+      },
+      "campaign": {
+        "uri": "cas://sha256/5267afa2794b197dcd2889d47a11740e14f048944d9b78f9d23bcec08b64df68",
+        "content_digest": "sha256:5267afa2794b197dcd2889d47a11740e14f048944d9b78f9d23bcec08b64df68",
+        "archive_digest": "sha256:0f7dee11124f2e0bf59141149309892878fffcff1db71e52f1815bd321c68460",
+        "file_count": 43,
+        "uncompressed_bytes": 332710
+      }
+    },
+    "native_artifact_manifest": [
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/config.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/config.json",
+        "source_sha256": "sha256:647db89b7ce25637b6f38d1b9da6d61d4a13f7bfe92adcecead2762156bc21b8",
+        "sha256": "sha256:647db89b7ce25637b6f38d1b9da6d61d4a13f7bfe92adcecead2762156bc21b8",
+        "bytes": 1196,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/agent/trajectory.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/agent/trajectory.json",
+        "source_sha256": "sha256:126ab94afdbd545437861ce803100342d9d7f814b9ea55b7522f451c2cbbc39f",
+        "sha256": "sha256:15eead1447becf3adc1d12f4a007bd9876008f6854332eb515c22307e035bb59",
+        "bytes": 5994,
+        "action": "redacted",
+        "rule": "R1"
+      },
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/artifacts/app/input/events.jsonl",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/artifacts/app/input/events.jsonl",
+        "source_sha256": "sha256:e1342580d8b19cae1c5d789466f39168d9cd53705c50831c9b2814825e6590c0",
+        "sha256": "sha256:e1342580d8b19cae1c5d789466f39168d9cd53705c50831c9b2814825e6590c0",
+        "bytes": 458,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/artifacts/app/output/summary.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/artifacts/app/output/summary.json",
+        "source_sha256": "sha256:7e2e689066832f734940f5b7d3ee5bfabcef2ca5c8acbffc35dbce82182bbaaa",
+        "sha256": "sha256:7e2e689066832f734940f5b7d3ee5bfabcef2ca5c8acbffc35dbce82182bbaaa",
+        "bytes": 158,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/artifacts/manifest.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/artifacts/manifest.json",
+        "source_sha256": "sha256:53d36aa77aa02f671b07ce7fe8f09bbf4c55a6f8667b4843585f7f7ac5197697",
+        "sha256": "sha256:53d36aa77aa02f671b07ce7fe8f09bbf4c55a6f8667b4843585f7f7ac5197697",
+        "bytes": 491,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/config.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/config.json",
+        "source_sha256": "sha256:2f4490788ac505822ff9068019616c7a7bde1dfff1161645555da1f17c4283e2",
+        "sha256": "sha256:2f4490788ac505822ff9068019616c7a7bde1dfff1161645555da1f17c4283e2",
+        "bytes": 1207,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/lock.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/lock.json",
+        "source_sha256": "sha256:f1ac79a26a553fd356273bf225e54041e6de48548072b60f009773054efc3212",
+        "sha256": "sha256:f1ac79a26a553fd356273bf225e54041e6de48548072b60f009773054efc3212",
+        "bytes": 2096,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/result.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/result.json",
+        "source_sha256": "sha256:08b70f3222e70d079a1bab79957b5dcf17297513394d37188a15fd046d635f67",
+        "sha256": "sha256:08b70f3222e70d079a1bab79957b5dcf17297513394d37188a15fd046d635f67",
+        "bytes": 4827,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/state-journal/state-after.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/state-journal/state-after.json",
+        "source_sha256": "sha256:5513738021909d26842966dc44df7b3532528c8e519468878e6c56fb8d838333",
+        "sha256": "sha256:5513738021909d26842966dc44df7b3532528c8e519468878e6c56fb8d838333",
+        "bytes": 1231,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/state-journal/state-before.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/state-journal/state-before.json",
+        "source_sha256": "sha256:f76620b89115f8d215383f954804b6398c8b2323119953d9ac8c8e4424145684",
+        "sha256": "sha256:f76620b89115f8d215383f954804b6398c8b2323119953d9ac8c8e4424145684",
+        "bytes": 945,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/state-journal/state-diff.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/state-journal/state-diff.json",
+        "source_sha256": "sha256:f5d348222eecda9fee4fc87b840b71582556b0b051605d08eff1ff4963c0dad4",
+        "sha256": "sha256:f5d348222eecda9fee4fc87b840b71582556b0b051605d08eff1ff4963c0dad4",
+        "bytes": 1343,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/state-journal/state-events.jsonl",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/state-journal/state-events.jsonl",
+        "source_sha256": "sha256:b3584b7a5a6385ac894f9460717afd90ad123063ea9c87f3e939be4e0ca925cb",
+        "sha256": "sha256:b3584b7a5a6385ac894f9460717afd90ad123063ea9c87f3e939be4e0ca925cb",
+        "bytes": 717,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/state-journal/status.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/state-journal/status.json",
+        "source_sha256": "sha256:e4ca32e29e710b4bbfeb9e4bf587659b2a68b91892aa394b5b631a1a361841cc",
+        "sha256": "sha256:e4ca32e29e710b4bbfeb9e4bf587659b2a68b91892aa394b5b631a1a361841cc",
+        "bytes": 510,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/verifier/checks.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/verifier/checks.json",
+        "source_sha256": "sha256:2045854a723ba267cd1c4bfeaad946e42040c19d996c4925c4a281e9b99a352f",
+        "sha256": "sha256:2045854a723ba267cd1c4bfeaad946e42040c19d996c4925c4a281e9b99a352f",
+        "bytes": 384,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/verifier/ctrf.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/verifier/ctrf.json",
+        "source_sha256": "sha256:169e8cecdc7b146b6e65f229b32e7444b3dc2cf1179cddbbf5f69da9b753e1e3",
+        "sha256": "sha256:169e8cecdc7b146b6e65f229b32e7444b3dc2cf1179cddbbf5f69da9b753e1e3",
+        "bytes": 892,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/verifier/reward.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/verifier/reward.json",
+        "source_sha256": "sha256:f339aa2f53e93bb73349b11f5728acbe23e1ffc6a77472956cfe41578cc70824",
+        "sha256": "sha256:f339aa2f53e93bb73349b11f5728acbe23e1ffc6a77472956cfe41578cc70824",
+        "bytes": 86,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/verifier/test-stdout.txt",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/gepa-zai-opencode-event-summary__jHyCUUK/verifier/test-stdout.txt",
+        "source_sha256": "sha256:6b30fe93f6de0e133e4c65e604eed60d01030b270c833475c1f86ef35dabfd94",
+        "sha256": "sha256:6b30fe93f6de0e133e4c65e604eed60d01030b270c833475c1f86ef35dabfd94",
+        "bytes": 354,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/lab-metadata.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/lab-metadata.json",
+        "source_sha256": "sha256:30d669c9b9fda4be97cb1059d273c3d0a45fe279e528b44078244908132ff255",
+        "sha256": "sha256:30d669c9b9fda4be97cb1059d273c3d0a45fe279e528b44078244908132ff255",
+        "bytes": 5580,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/lock.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/lock.json",
+        "source_sha256": "sha256:0b24248077eb7987d726bc98db46bc4b6a05bfba1770d84f010189810ded7add",
+        "sha256": "sha256:0b24248077eb7987d726bc98db46bc4b6a05bfba1770d84f010189810ded7add",
+        "bytes": 3234,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "seed",
+        "source": "runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/result.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/result.json",
+        "source_sha256": "sha256:b2716884fc3ffba2c4ab42af50103ea778d262b36c308c0d2294c12d523d8e52",
+        "sha256": "sha256:b2716884fc3ffba2c4ab42af50103ea778d262b36c308c0d2294c12d523d8e52",
+        "bytes": 1864,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/config.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/config.json",
+        "source_sha256": "sha256:7c30692ce28461ee730432894f0fca4a6d6437ab0613fd6ccacdf026aafd33a2",
+        "sha256": "sha256:7c30692ce28461ee730432894f0fca4a6d6437ab0613fd6ccacdf026aafd33a2",
+        "bytes": 1196,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/agent/trajectory.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/agent/trajectory.json",
+        "source_sha256": "sha256:086192491aed60cbb5c13b5570e083011dc9c5d8e716b5b82c0bebfab00584c9",
+        "sha256": "sha256:96a2eaa98f28837242d820974cf2d077e9527b5cc8e853dff8e83fff99ff39b3",
+        "bytes": 8769,
+        "action": "redacted",
+        "rule": "R1"
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/artifacts/app/input/events.jsonl",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/artifacts/app/input/events.jsonl",
+        "source_sha256": "sha256:e1342580d8b19cae1c5d789466f39168d9cd53705c50831c9b2814825e6590c0",
+        "sha256": "sha256:e1342580d8b19cae1c5d789466f39168d9cd53705c50831c9b2814825e6590c0",
+        "bytes": 458,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/artifacts/app/output/summary.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/artifacts/app/output/summary.json",
+        "source_sha256": "sha256:bf291340107612aabbeb6713f582aa936390a6a4b761a46cb56e5e6ae5817e36",
+        "sha256": "sha256:bf291340107612aabbeb6713f582aa936390a6a4b761a46cb56e5e6ae5817e36",
+        "bytes": 190,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/artifacts/manifest.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/artifacts/manifest.json",
+        "source_sha256": "sha256:53d36aa77aa02f671b07ce7fe8f09bbf4c55a6f8667b4843585f7f7ac5197697",
+        "sha256": "sha256:53d36aa77aa02f671b07ce7fe8f09bbf4c55a6f8667b4843585f7f7ac5197697",
+        "bytes": 491,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/config.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/config.json",
+        "source_sha256": "sha256:b9180531f52c973ea323574094211cfda95acc4bbc35ec076a73513f967825c7",
+        "sha256": "sha256:b9180531f52c973ea323574094211cfda95acc4bbc35ec076a73513f967825c7",
+        "bytes": 1207,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/lock.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/lock.json",
+        "source_sha256": "sha256:1cfee85873df9c06b39f748da1f55d3f38ee40e981ddf5d93debfca101d34e08",
+        "sha256": "sha256:1cfee85873df9c06b39f748da1f55d3f38ee40e981ddf5d93debfca101d34e08",
+        "bytes": 2096,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/result.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/result.json",
+        "source_sha256": "sha256:bd92f75a988b3970c1246bd91ca3dfae6960c7db41cfde6ef379f0f430a99a48",
+        "sha256": "sha256:bd92f75a988b3970c1246bd91ca3dfae6960c7db41cfde6ef379f0f430a99a48",
+        "bytes": 4827,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/state-journal/state-after.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/state-journal/state-after.json",
+        "source_sha256": "sha256:26133e604df40793d554181fdd7a4a3d09a5e017d40a1260dd7503826980a185",
+        "sha256": "sha256:26133e604df40793d554181fdd7a4a3d09a5e017d40a1260dd7503826980a185",
+        "bytes": 1231,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/state-journal/state-before.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/state-journal/state-before.json",
+        "source_sha256": "sha256:4c5d7e37309e5a3206341713f9a408c153c64030a39ccff6a036cf5e7920c46a",
+        "sha256": "sha256:4c5d7e37309e5a3206341713f9a408c153c64030a39ccff6a036cf5e7920c46a",
+        "bytes": 945,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/state-journal/state-diff.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/state-journal/state-diff.json",
+        "source_sha256": "sha256:3d2d71b8e7162768970da199afbb72606bdc15c86b475aed2e2cfde33ebf74a4",
+        "sha256": "sha256:3d2d71b8e7162768970da199afbb72606bdc15c86b475aed2e2cfde33ebf74a4",
+        "bytes": 1343,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/state-journal/state-events.jsonl",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/state-journal/state-events.jsonl",
+        "source_sha256": "sha256:e52073525da78c67c9cd874c62cef70f4fc7ae15150a095908a17e9bd69d8c62",
+        "sha256": "sha256:e52073525da78c67c9cd874c62cef70f4fc7ae15150a095908a17e9bd69d8c62",
+        "bytes": 717,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/state-journal/status.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/state-journal/status.json",
+        "source_sha256": "sha256:610042bad7c0049354b88b2de3af480c260db9e67381c03177f5f875dfb9a19f",
+        "sha256": "sha256:610042bad7c0049354b88b2de3af480c260db9e67381c03177f5f875dfb9a19f",
+        "bytes": 510,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/verifier/checks.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/verifier/checks.json",
+        "source_sha256": "sha256:2045854a723ba267cd1c4bfeaad946e42040c19d996c4925c4a281e9b99a352f",
+        "sha256": "sha256:2045854a723ba267cd1c4bfeaad946e42040c19d996c4925c4a281e9b99a352f",
+        "bytes": 384,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/verifier/ctrf.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/verifier/ctrf.json",
+        "source_sha256": "sha256:169e8cecdc7b146b6e65f229b32e7444b3dc2cf1179cddbbf5f69da9b753e1e3",
+        "sha256": "sha256:169e8cecdc7b146b6e65f229b32e7444b3dc2cf1179cddbbf5f69da9b753e1e3",
+        "bytes": 892,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/verifier/reward.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/verifier/reward.json",
+        "source_sha256": "sha256:f339aa2f53e93bb73349b11f5728acbe23e1ffc6a77472956cfe41578cc70824",
+        "sha256": "sha256:f339aa2f53e93bb73349b11f5728acbe23e1ffc6a77472956cfe41578cc70824",
+        "bytes": 86,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/verifier/test-stdout.txt",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/gepa-zai-opencode-event-summary__Cqyxdtp/verifier/test-stdout.txt",
+        "source_sha256": "sha256:6b30fe93f6de0e133e4c65e604eed60d01030b270c833475c1f86ef35dabfd94",
+        "sha256": "sha256:6b30fe93f6de0e133e4c65e604eed60d01030b270c833475c1f86ef35dabfd94",
+        "bytes": 354,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/lab-metadata.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/lab-metadata.json",
+        "source_sha256": "sha256:b45cbf42bc487359e328cf944e9d61e2846b6d407d1bb286096596aa3379ca2b",
+        "sha256": "sha256:b45cbf42bc487359e328cf944e9d61e2846b6d407d1bb286096596aa3379ca2b",
+        "bytes": 6470,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/lock.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/lock.json",
+        "source_sha256": "sha256:dbce8de534c449f89c68408b081265134a2fa816bee3567ce5615428a85af5cd",
+        "sha256": "sha256:dbce8de534c449f89c68408b081265134a2fa816bee3567ce5615428a85af5cd",
+        "bytes": 3234,
+        "action": "verbatim",
+        "rule": null
+      },
+      {
+        "arm": "gepa",
+        "source": "runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/result.json",
+        "destination": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/result.json",
+        "source_sha256": "sha256:9257de16dee22aee827954e78a9a4de24a21bebfed6f307bde30cf1f8cff0017",
+        "sha256": "sha256:9257de16dee22aee827954e78a9a4de24a21bebfed6f307bde30cf1f8cff0017",
+        "bytes": 1864,
+        "action": "verbatim",
+        "rule": null
+      }
+    ],
+    "promoted_bytes": 70831,
+    "prepromotion_secret_scan": {
+      "files": 42,
+      "known_secret_or_bearer_matches": 0,
+      "generic_redaction_flags": 0,
+      "prompt_privacy": "Canonical R1 digest-marker redaction verified through existing ATIF-to-OTel tests; R2 raw-stream/runtime omissions recorded in PROMOTION.json."
+    },
+    "comparison_membership": "Versioned CohortComparisonSpec references independently owned native jobs. compare --index is for assigning legacy/raw job ownership, not for regrouping already-owned native jobs.",
+    "catalog_ownership_verified": [
+      [
+        "64ea13ea-7da2-4d5e-86c3-4159e863970a",
+        "01M2HF03ASRCJJM9VMNQW4BG0N"
+      ],
+      [
+        "a885f82b-24ec-4f3e-89c9-cb53318f4bd7",
+        "01M2HF9YE1DSZMGMSJAKFPKKWN"
+      ]
+    ],
+    "legacy_index_attempt": "Refused by the existing ownership guard; transaction preserved both original spec associations. Correct compare invocation without --index successfully consumed the promoted evidence.",
+    "promotion_manifests": {
+      "seed": "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f/PROMOTION.json",
+      "gepa": "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462/PROMOTION.json"
+    },
+    "promotion_method": "Existing scripts/promote_codex_bundle.py: prompt digest markers (R1), raw model streams/runtime state omitted with source hashes (R2), verifier payload checks (R3), schema-v2 PROMOTION.json. Original unredacted runs stay in local CAS.",
+    "publication_correction": "Initial unpublished compact copies passed a secret scan but did not satisfy prompt-redaction and taxonomy conventions; replaced before publication by the canonical promotion process. No access key was found. Raw failed-attempt bundle was withdrawn from the public selection; its classification/usage and complete local raw archive are retained.",
+    "raw_store_scope": "Shared append-only local CAS in the primary repository, accessible from other worktrees by explicit store path; not a remote/object-store publication."
+  },
+  "interpretation": [
+    "The initial seed already passed; one successful GEPA candidate gives no success improvement on this task.",
+    "The candidate used more provider calls and tokens in this one observed pair; this does not establish a general cost effect.",
+    "The baseline includes the declared neutral supplementary seed, not a no-extra-instructions stock baseline.",
+    "One search-visible development task, one proposal and one candidate trial cannot establish generalization or statistically reliable effectiveness.",
+    "The original seed was selected on the score tie; no instructions were automatically adopted.",
+    "Raw traces and all failed attempts remain retained; repeated cached evaluator callbacks are not extra trials."
+  ]
+}

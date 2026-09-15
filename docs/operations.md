@@ -139,6 +139,43 @@ Proposer and target budgets are separate; catalog-based dollar estimates are not
 authoritative subscription billing. Broker-backed targets require all five
 `provider_ceilings` fields, while a proposer has its own request and cost limits.
 
+The Z.ai/OpenCode proxy accepts OpenCode's native bare model IDs and preserves
+streaming with final usage capture. Its input reservation is deliberately a
+conservative byte bound, not a tokenizer estimate: leave reservation headroom
+for the agent's tool definitions even when observed usage is smaller. The Flash
+example permits one proposer request and uses a 12-request, 12k-output-token,
+$0.25 API-equivalent target ceiling. Its 120k input ceiling is reservation
+headroom, not an instruction to consume that many tokens.
+
+On Apple Silicon, Docker Desktop 4.86.0 fixed the `nftables fib inet` support
+required by Harbor's allowlist. Upgrade an older Docker Desktop in an approved
+maintenance window rather than disabling Harbor's network checks or introducing
+another runtime. See [Docker's release notes](https://docs.docker.com/desktop/release-notes/#4860).
+
+Campaign grouping does not create a new task type. Keep native jobs under
+`runs/<job>/<trial>`, the frozen campaign and immutable instruction candidates
+under its `output_dir`, and link evaluations by task-package digest, candidate
+digest, model/profile and job/trial ID. Native job names are campaign-scoped:
+independent campaigns do not reuse each other's trials. Resume uses an existing
+completed receipt's recorded in-repository job path after provenance checks;
+missing retained evidence must be restored, not silently rerun.
+
+Use the existing `CohortComparisonSpec` with
+`declared_variable="preamble_content_sha256"` and `pairing_key="task_digest"` for
+seed-versus-candidate analysis. A GEPA callback that reads a cached result is not
+another trial or another unit of spend. The seed is a supplementary instruction,
+not a no-extra-instructions stock baseline. Keep failed infrastructure attempts
+outside the scored comparison while retaining their raw evidence and spend.
+Run `evallab compare <spec.json>` without `--index` for already-owned native
+jobs. That flag assigns legacy/raw job ownership; it is not a general comparison
+index and correctly refuses to replace a job's original experiment/spec ID.
+
+The [2026-09-15 Flash pilot receipt](../research/evidence/gepa-flash-event-summary-20260915.json)
+links the two scored runs, exact proposal and standard comparison. Both passed;
+GEPA retained the original seed on the score tie. The proposal also used more
+provider calls, so it was not adopted. This one search-visible task establishes
+workflow execution, not held-out improvement.
+
 Neither search selection nor candidate review changes task files, the seed, or
 the instructions used by future ordinary runs. Adoption is explicit: reference
 the retained candidate path and digest in a subsequent experiment spec. Search

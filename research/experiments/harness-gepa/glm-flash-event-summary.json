@@ -23,11 +23,12 @@
   "estimated_cost_usd": 0.12,
   "provider_ceilings": {
     "max_requests": 12,
-    "max_input_tokens": 48000,
+    "max_input_tokens": 120000,
     "max_output_tokens": 12000,
-    "max_total_tokens": 60000,
-    "cost_limit_usd": 1.0
+    "max_total_tokens": 132000,
+    "cost_limit_usd": 0.25
   },
+  "feedback_max_chars": 16000,
   "candidate_evaluation": "review",
   "objective": "Improve task completion by revising only general supplementary instructions. Inspect the actual execution feedback; do not include task-specific answers, reference solutions, or verifier source."
 }

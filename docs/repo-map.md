@@ -57,7 +57,7 @@ inputs:
   - path: src/evallab/craft.py
     digest: sha256:86c3189ab17b2f1e38f1709f86d4742732596cf5f98a52b733f28890f347949f
   - path: src/evallab/credentials.py
-    digest: sha256:651e43ce6d8085f9fa91bbe1db059b763e4ef12f928d1af77ddd11bd8ead25da
+    digest: sha256:7490f5045ede401729d1254bd3b27e511a7454e4ec13fdfff3d2fe2f10d4d6ab
   - path: src/evallab/curve.py
     digest: sha256:b9b2712aa1dfb58d7f95f7dc5eb9e2291cc8e9f7cc6d30a6d95120ad82f806cf
   - path: src/evallab/database.py
@@ -101,7 +101,7 @@ inputs:
   - path: src/evallab/gepa_optimizer/__main__.py
     digest: sha256:4d03df312f0bb371a46f2cdf9166cd6a7e9d5925e3729f6ed72293c8ccb7cc71
   - path: src/evallab/gepa_optimizer/evaluator.py
-    digest: sha256:e201ed653186921d5062201e2dbf8b203fa3427bf4ced0f58f7c4f991f11409c
+    digest: sha256:910fd5f24387a082956701ba800f70a2a6f20ece9f929d72e6b39ff7f85ab868
   - path: src/evallab/gepa_optimizer/feedback.py
     digest: sha256:ab9d2aed217d4df5b6657a7ff15305fae968fdc68e7b5ba841d4386aeec1fdec
   - path: src/evallab/gepa_optimizer/meta_engine.py

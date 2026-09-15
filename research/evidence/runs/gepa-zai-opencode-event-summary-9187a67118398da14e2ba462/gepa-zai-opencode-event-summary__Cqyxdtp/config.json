@@ -1,0 +1,23 @@
+{
+    "task": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/harbor-standard-execution-20260914/runs/.exec-stage/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462"
+    },
+    "trial_name": "gepa-zai-opencode-event-summary__Cqyxdtp",
+    "trials_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/harbor-standard-execution-20260914/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462",
+    "agent_timeout_multiplier": 2.5,
+    "agent": {
+        "name": "evallab.harbor_zai_opencode:SecretSafeZaiOpenCodeAgent",
+        "model_name": "zai-coding-plan/glm-5.3-flash",
+        "n_concurrent": 1
+    },
+    "environment": {
+        "type": "docker",
+        "extra_docker_compose": [
+            "/Users/petermakhnatch/Developer/eval-lab/.worktrees/harbor-standard-execution-20260914/containers/zai-secret.compose.yaml"
+        ]
+    },
+    "extra_instruction_paths": [
+        "/Users/petermakhnatch/Developer/eval-lab/.worktrees/harbor-standard-execution-20260914/runs/gepa-flash-event-summary-calibrated-20260915/lab/candidates/0a7b9f5bf31a4b2fbf36862aa64cc8180cea15826ea845f2c13612847567c520.txt"
+    ],
+    "job_id": "a885f82b-24ec-4f3e-89c9-cb53318f4bd7"
+}

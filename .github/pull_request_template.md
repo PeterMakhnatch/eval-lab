@@ -14,7 +14,8 @@
 ## Verification
 
 - [ ] Local checkpoint passed:
-  - Focused: `make prepush TESTS='...'` (`scripts/premerge.sh --focused TEST_FILE`) or `make check` (`scripts/premerge.sh --static`)
+  - Focused: `make prepush TESTS='...'` (`scripts/premerge.sh --focused TEST_FILE`)
+  - Static-only when no behavior changed: `make check` (`scripts/premerge.sh --static`)
   - Or explicit full local reproduction: `make premerge` (`scripts/premerge.sh`)
 - [ ] Full CI complete on GitHub Actions (`quality-required`, `typecheck-required`) for this exact head SHA
 - [ ] Independent review completed and `independent-review` status attested for this exact head SHA
@@ -23,7 +24,7 @@
 
 ## Merge
 
-- **Merge owner:** <release owner or assigned merge owner — never the PR author>
+- **Merge owner:** <release owner or assigned merge owner; never self-review>
 - Exact-head rule (`agents/CHECKS.md`): merge only after `gh pr checks <n>`
   shows every reported check successful **for this head SHA**. No local green,
   stale run, or mergeability substitute.

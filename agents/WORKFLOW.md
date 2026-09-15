@@ -61,7 +61,7 @@ The release operating loop assigns clear, disjoint responsibilities:
 
 RE - Eval Lab operates HAR-46 via explicit CLI commands (`lin get HAR-46`,
 `lin start HAR-46`) and direct owner invocation. No automated Linear lane enrollment
-or global agent wake is implied (`lin config dispatch.wake=false`); automated dispatcher
+or global agent wake is implied (`dispatch.wake=false` in the current configuration); automated dispatcher
 wiring or global routing changes require explicit authorization from Peter.
 
 ### Runtime source versus primary data separation

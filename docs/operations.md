@@ -505,9 +505,48 @@ user session where Keychain access is possible. The plist supplies a bounded
 command `PATH` including `~/.local/bin`, so launchd can find `uv` without
 depending on interactive shell startup files. It also captures the resolved,
 non-secret `EVALLAB_DERIVED_ROOT`; reinstall the schedule after changing that
-setting. Install from the primary checkout, not a temporary role worktree, and
-reinstall from primary `main` after merging any branch that supplied the active
-definitions.
+setting. Normal installation uses the intended primary workspace. If that checkout
+is dirty or pinned to old code, do not reset, stash, switch, or blindly pull it to
+make an installation succeed; use the release-owner adoption procedure below.
+
+### Adopting reviewed code without moving the data workspace
+
+The release owner may run a clean, exact merged revision from a dedicated
+worktree while keeping the original workspace's queue, task definitions, policy,
+`.env` catalog configuration, runs, and explicit `EVALLAB_DERIVED_ROOT`.
+Create a fresh locked environment in that runtime checkout; never copy the
+primary virtualenv or runtime state. The existing `run_cli(workspace=...)` entry
+point separates workspace data from imported code. For example, the following
+**read-only** command uses the reviewed interpreter and reports scheduler state:
+
+```bash
+cd /absolute/original/workspace
+/absolute/reviewed-runtime/.venv/bin/python -I -c \
+  'import sys; from pathlib import Path; from evallab.cli import run_cli; sys.exit(run_cli(workspace=Path.cwd()))' \
+  schedule status
+```
+
+`-I` prevents ambient `PYTHONPATH` or working-directory imports from selecting
+another installation. Repo-owned Harbor children and credential-support assets
+come from the imported runtime checkout, not `<workspace>/src` or
+`<workspace>/containers`; task packages and policy remain workspace inputs.
+This does not authorize new task versions, registration, experiments, or spend.
+
+Before adopting the command for the two existing LaunchAgents, record the
+runtime Git SHA, imported module path, interpreter/dependency state, original
+plist bytes and loaded state, and all workspace/data roots. Wait for active
+processes to settle. Retain labels, cadence, environment and log paths; replace
+only the interpreter/entrypoint and disable tick's `RunAtLoad` for the reload so
+bootstrap does not dispatch a queue tick. Do not kickstart either service or run
+`tick`/`nightly` as a smoke. Observe the loaded argv and non-running state after
+reload; a configured runtime is not evidence that a scheduled cycle succeeded.
+The original schedule remains subject to its existing approval policy.
+
+The release receipt records the exact before/after definitions and rollback:
+unload the idle labels, restore their saved definitions, and reload without an
+immediate `RunAtLoad` invocation. Retain the prior runtime checkout for rollback.
+Do not use ordinary `schedule install` over a split-workspace deployment: its
+default `uv run` command would select the workspace's installation again.
 
 Queue events rotate before an append would take `queue/events.jsonl` past
 10 MiB. Seven numbered archives are retained (`events.jsonl.1` is newest), and

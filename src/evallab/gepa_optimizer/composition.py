@@ -26,6 +26,7 @@ from .meta_engine import (
     compute_candidate_digest,
     make_meta_harness_engine,
 )
+from .proposer import ReplaySafeGepaEngine
 from .release import COMMIT, verify_release
 
 OMNI_RECIPE_SOURCE = "https://gepa-ai.github.io/gepa/blog/2026/07/22/optimize-anything-omni/"
@@ -171,6 +172,8 @@ class _Stage:
                 engine = (
                     make_meta_harness_engine(self.config)
                     if self.name == "meta_harness"
+                    else ReplaySafeGepaEngine(self.config)
+                    if self.name == "gepa"
                     else _build_engine(self.config)
                 )
                 try:
@@ -299,7 +302,7 @@ def run_omni(
             before_stage,
             parent,
         )
-        return replace(config, engine=wrapper)
+        return replace(config, engine=wrapper, engine_config={})
 
     configs = [stage("explore-" + name, name, seed_candidate) for name in EXPLORATION_ENGINES]
     explored = optimize_best_of(

@@ -47,6 +47,7 @@ def composed(tmp_path, monkeypatch):
 
     monkeypatch.setattr(composition, "_build_engine", ExternalEngine)
     monkeypatch.setattr(composition, "make_meta_harness_engine", ExternalEngine)
+    monkeypatch.setattr(composition, "ReplaySafeGepaEngine", ExternalEngine)
 
     def evaluator(candidate, example):
         value = scores[candidate]

@@ -23,7 +23,7 @@ from .evaluator import (
     LabEvaluator,
     ProviderCeilings,
 )
-from .proposer import JournaledReflectionLM, ProposalUnavailable
+from .proposer import JournaledReflectionLM, ProposalUnavailable, ReplaySafeGepaEngine
 from .release import verify_release
 
 
@@ -553,6 +553,9 @@ def _run_campaign(
 
                 engine = make_meta_harness_engine(upstream_config)
                 upstream_config.engine = engine
+            elif config["engine"] == "gepa":
+                upstream_config.engine = ReplaySafeGepaEngine(upstream_config)
+            upstream_config.engine_config = {}
             result = optimize_anything(
                 seed_candidate=seed,
                 evaluator=evaluate,

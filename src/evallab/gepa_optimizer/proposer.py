@@ -19,6 +19,47 @@ class ProposalUnavailable(BaseException):
     """A spent/unknown request must not become an automatic paid retry."""
 
 
+class _FeedbackOnlyServer:
+    """Keep live enforcement while excluding transient telemetry from reflection."""
+
+    def __init__(self, server: Any) -> None:
+        self.server = server
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.server, name)
+
+    def evaluate(self, *args: Any, **kwargs: Any) -> Any:
+        score, info = self.server.evaluate(*args, **kwargs)
+        info.pop("_budget", None)
+        return score, info
+
+    def evaluate_batch(self, *args: Any, **kwargs: Any) -> Any:
+        results = self.server.evaluate_batch(*args, **kwargs)
+        for _score, info in results:
+            info.pop("_budget", None)
+        return results
+
+
+class ReplaySafeGepaEngine:
+    """Delegate released GEPA without making per-process counters prompt identity."""
+
+    name = "gepa"
+
+    def __init__(self, config: Any) -> None:
+        from gepa.oa.engines.gepa import GepaEngine  # ty: ignore[unresolved-import]
+
+        self.engine: Any = GepaEngine(config)
+
+    def run(self, task: Any, server: Any) -> Any:
+        # EvalServer adds _budget after our evaluator returns. Its used/remaining
+        # counters restart on resume, otherwise changing an identical reflection
+        # request into a new paid proposal. The original server still meters it.
+        return self.engine.run(task, _FeedbackOnlyServer(server))
+
+    def process_result(self, result: Any, output_dir: Path | None) -> None:
+        self.engine.process_result(result, output_dir)
+
+
 class JournaledReflectionLM:
     def __init__(
         self,

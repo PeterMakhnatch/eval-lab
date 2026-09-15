@@ -554,12 +554,6 @@ def _evidence_lock_version_ok(task_lock: dict[str, Any], version: str, digest: s
     return locked_version == version
 
 
-def _evidence_task_name_matches(task_name: str, task_id: str) -> bool:
-    """Trial task-name match across Harbor naming forms."""
-    leaf = task_name.rsplit("/", 1)[-1]
-    return leaf == task_id or leaf.rsplit("__", 1)[-1] == task_id
-
-
 def _verify_control_result(
     data: dict[str, Any],
     lock_data: dict[str, Any],
@@ -568,6 +562,7 @@ def _verify_control_result(
     expected_reward: float,
     record: TaskRegistryRecord,
     evidence_ref: ControlEvidenceRef,
+    declared_task_name: str,
 ) -> None:
     """Validate one Harbor trial and its lock against the registered package."""
     if "stats" in data or not isinstance(data.get("trial_name"), str):
@@ -594,10 +589,12 @@ def _verify_control_result(
     task_lock = lock_data.get("task")
     if not isinstance(task_lock, dict):
         raise TaskControlEvidenceError("control evidence trial lock is missing task identity")
-    if not evidence_ref.declared_task_name:
+    if (
+        evidence_ref.declared_task_name is not None
+        and evidence_ref.declared_task_name != declared_task_name
+    ):
         raise TaskControlEvidenceError(
-            f"control evidence for {record.task_id!r} does not bind a declared task.toml "
-            "name and cannot be verified against an exact Harbor task identity"
+            f"control evidence declared name differs from task.toml for {record.task_id!r}"
         )
     lock_name = task_lock.get("name")
     lock_digest = task_lock.get("digest")
@@ -615,7 +612,11 @@ def _verify_control_result(
         )
     if (
         not identity_ok
-        or task_lock.get("version") != record.version
+        or not _evidence_lock_version_ok(
+            task_lock,
+            record.version,
+            evidence_ref.staged_harbor_digest or evidence_ref.harbor_task_digest,
+        )
         or task_lock.get("type") != "local"
     ):
         raise TaskControlEvidenceError(
@@ -637,7 +638,7 @@ def _verify_control_result(
     }
     if (
         not isinstance(task_name, str)
-        or task_name != evidence_ref.declared_task_name
+        or task_name != declared_task_name
         or not isinstance(task_path, str)
         or Path(task_path).name not in expected_path_names
         or not isinstance(config_path, str)
@@ -756,7 +757,9 @@ def discover_control_evidence(
                 staged_task_name = raw_staged_name
                 staged_harbor_digest = raw_staged_digest
             if (
-                task_lock.get("version") != task_version
+                not _evidence_lock_version_ok(
+                    task_lock, task_version, staged_harbor_digest or harbor_digest
+                )
                 or task_lock.get("type") != "local"
                 or task_lock.get("name") != (staged_task_name or task_id)
                 or task_lock.get("digest") != (staged_harbor_digest or harbor_digest)
@@ -1209,6 +1212,13 @@ def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
 
     task_dir = (root / record.task_path).resolve()
     current_harbor_digest = harbor_task_digest(task_dir)
+    task_toml = tomllib.loads((task_dir / "task.toml").read_text(encoding="utf-8"))
+    task_table = task_toml.get("task")
+    declared_task_name = task_table.get("name") if isinstance(task_table, dict) else None
+    if not isinstance(declared_task_name, str) or not declared_task_name.strip():
+        raise TaskControlEvidenceError(
+            f"task {record.task_id!r} declares no [task] name in task.toml"
+        )
     for agent_name, expected_reward, evidence_ref in (
         ("oracle", 1.0, record.control_evidence.oracle),
         ("nop", 0.0, record.control_evidence.nop),
@@ -1279,6 +1289,7 @@ def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
             expected_reward=expected_reward,
             record=record,
             evidence_ref=evidence_ref,
+            declared_task_name=declared_task_name,
         )
 
 

@@ -1165,8 +1165,12 @@ def test_promote_task_discovers_control_evidence_and_creates_candidate(
         f'schema_version = "1.4"\n[task]\nname = "evallab/{task_dir.name}"\n'
         'version = "1.0.0"\n[metadata]\nlicense = "Apache-2.0"\n'
     )
-    _make_control_job(tmp_path, task_dir, "oracle", 1.0)
-    _make_control_job(tmp_path, task_dir, "nop", 0.0)
+    _make_control_job(
+        tmp_path, task_dir, "oracle", 1.0, result_task_name=f"evallab/{task_dir.name}"
+    )
+    _make_control_job(
+        tmp_path, task_dir, "nop", 0.0, result_task_name=f"evallab/{task_dir.name}"
+    )
 
     command = checklist["pre_registration_execution_pipeline"]["step_5_candidate_record"][
         "cli_command"
@@ -1376,6 +1380,27 @@ def test_verify_control_evidence_refuses_non_declared_lock_name(tmp_path: Path) 
 
     with pytest.raises(TaskControlEvidenceError, match="task identity mismatch"):
         verify_control_evidence(tmp_path, tampered_record)
+
+
+def test_retained_reference_without_name_still_rejects_same_suffix_impostor(
+    tmp_path: Path,
+) -> None:
+    task_dir = _make_dummy_task(tmp_path)
+    raw = _make_registry_record(task_dir, tmp_path).model_dump(mode="json")
+    for ref in raw["control_evidence"].values():
+        ref.pop("declared_task_name")
+    retained = TaskRegistryRecord.model_validate(raw)
+    verify_control_evidence(tmp_path, retained)
+
+    result_path = tmp_path / raw["control_evidence"]["oracle"]["evidence_path"]
+    result = json.loads(result_path.read_text())
+    result["task_name"] = "different-author/sample-task"
+    result_path.write_text(json.dumps(result))
+    raw["control_evidence"]["oracle"]["evidence_digest"] = (
+        "sha256:" + hashlib.sha256(result_path.read_bytes()).hexdigest()
+    )
+    with pytest.raises(TaskControlEvidenceError, match="result identity mismatch"):
+        verify_control_evidence(tmp_path, TaskRegistryRecord.model_validate(raw))
 
 def test_promote_task_refuses_when_oracle_evidence_missing(tmp_path: Path) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/no-oracle-task")
@@ -1650,6 +1675,9 @@ def _rewrite_control_identity(
 def test_promote_discovers_versionless_lock_with_namespaced_task_name(tmp_path: Path) -> None:
     """Harbor 0.21.0 locks omit the version and qualify the result task_name."""
     task_dir = _make_dummy_task(tmp_path, "library/tasks/ns-task")
+    (task_dir / "task.toml").write_text(
+        'schema_version = "1.4"\n[task]\nname = "bench-ns__ns-task"\nversion = "1.0.0"\n'
+    )
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
     _make_control_job(tmp_path, task_dir, "nop", 0.0)
     _rewrite_control_identity(

@@ -30,6 +30,7 @@ from evallab.registry import (
     inventory_tasks,
     promote_task,
     register_task,
+    verify_control_evidence,
 )
 from evallab.researchers import ResearcherLoop
 from evallab.schemas import (
@@ -52,7 +53,8 @@ def _make_dummy_task(
     task_dir = root / rel_path
     task_dir.mkdir(parents=True, exist_ok=True)
     (task_dir / "task.toml").write_text(
-        'schema_version = "1.4"\n[task]\nname = "sample"\nfamily = "sample-family"\n'
+        f'schema_version = "1.4"\n[task]\nname = "{rel_path.rsplit("/", 1)[-1]}"\n'
+        'family = "sample-family"\n'
     )
     (task_dir / "instruction.md").write_text(instruction)
     env_dir = task_dir / "environment"
@@ -138,6 +140,7 @@ def _make_control_evidence(
             trial_name=trial_name,
             reward=reward,
             evidence_path=result_file.relative_to(root).as_posix(),
+            declared_task_name=task_id,
             evidence_digest=(
                 f"sha256:{hashlib.sha256(result_file.read_bytes()).hexdigest()}"
             ),
@@ -201,6 +204,7 @@ def _make_registry_record(
             "task_digests": missing_digests,
             "harbor_task_digest": harbor_digest,
             "lock_digest": "sha256:" + "0" * 64,
+            "declared_task_name": task_id,
         }
         oracle_ref = ControlEvidenceRef(
             job_name=f"{task_id}-oracle",
@@ -887,6 +891,11 @@ def _make_control_job(
     jobs_dir: str = "research/evidence/runs",
     finished_at: str = "2026-08-19T12:01:00Z",
     task_version: str = "1.0.0",
+    lock_task_name: str | None = None,
+    result_task_name: str | None = None,
+    executed_path: str | None = None,
+    lock_task_digest: str | None = None,
+    lab_metadata: dict | None = None,
 ) -> Path:
     runs_dir = root / jobs_dir
     task_id = task_dir.name
@@ -895,10 +904,10 @@ def _make_control_job(
     trial_name = f"{task_id}__{agent}"
     trial_dir = job_dir / trial_name
     trial_dir.mkdir(parents=True, exist_ok=True)
-    task_path = str(task_dir.resolve())
+    task_path = executed_path or str(task_dir.resolve())
     payload = {
         "id": f"{agent}-id-12345",
-        "task_name": task_id,
+        "task_name": result_task_name or task_id,
         "trial_name": trial_name,
         "task_id": {"path": task_path},
         "config": {
@@ -913,16 +922,18 @@ def _make_control_job(
     lock = {
         "schema_version": 2,
         "task": {
-            "name": task_id,
+            "name": lock_task_name or task_id,
             "version": task_version,
             "type": "local",
-            "digest": harbor_task_digest(task_dir),
+            "digest": lock_task_digest or harbor_task_digest(task_dir),
             "path": task_path,
         },
         "agent": {"name": agent},
     }
     (trial_dir / "result.json").write_text(json.dumps(payload, indent=2))
     (trial_dir / "lock.json").write_text(json.dumps(lock, indent=2))
+    if lab_metadata is not None:
+        (job_dir / "lab-metadata.json").write_text(json.dumps(lab_metadata, indent=2))
     return job_dir
 
 def test_registered_control_evidence_rejects_ignored_run_path(tmp_path: Path) -> None:
@@ -1203,6 +1214,168 @@ def test_promote_task_discovers_control_evidence_and_creates_candidate(
             tmp_path,
         )
 
+
+def test_discover_binds_lock_basename_and_exact_declared_result_name(
+    tmp_path: Path,
+) -> None:
+    """Harbor path tasks carry two identities and both are bound exactly.
+
+    The trial lock keeps the path basename and the source Harbor digest; the
+    trial result names the declared ``[task] name`` exactly — a lookalike whose
+    suffix merely equals the task_id must never pass.
+    """
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/syn-funcdag-medium")
+    task_toml = task_dir / "task.toml"
+    declared = "evallab/syn-funcdag-medium"
+    task_toml.write_text(
+        task_toml.read_text().replace('name = "syn-funcdag-medium"', f'name = "{declared}"')
+    )
+
+    _make_control_job(
+        tmp_path,
+        task_dir,
+        "oracle",
+        1.0,
+        result_task_name="evil-lab/syn-funcdag-medium",
+    )
+    with pytest.raises(TaskControlEvidenceError, match="missing durable trial-level oracle"):
+        discover_control_evidence(task_dir, tmp_path)
+
+    _make_control_job(
+        tmp_path,
+        task_dir,
+        "oracle",
+        1.0,
+        result_task_name=declared,
+        finished_at="2026-08-19T12:02:00Z",
+    )
+    _make_control_job(
+        tmp_path,
+        task_dir,
+        "nop",
+        0.0,
+        result_task_name=declared,
+        finished_at="2026-08-19T12:03:00Z",
+    )
+    evidence = discover_control_evidence(task_dir, tmp_path)
+    assert evidence.oracle.declared_task_name == declared
+    assert evidence.oracle.task_id == "syn-funcdag-medium"
+    assert evidence.oracle.staged_task_name is None
+    assert evidence.oracle.reward == 1.0
+    assert evidence.nop.reward == 0.0
+
+
+def test_discover_accepts_host_staged_evidence_only_when_metadata_binds_the_source(
+    tmp_path: Path,
+) -> None:
+    """``evallab run`` stages into .exec-stage/<job>; discovery binds via provenance.
+
+    The staged lock carries the staging directory name and the adapted digest,
+    which cannot be compared to the source package directly. Acceptance
+    requires sibling lab-metadata ``task_staging`` provenance whose source
+    digests match the current package bytes and whose staged identity equals
+    the trial lock exactly.
+    """
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/syn-funcdag-medium")
+    task_toml = task_dir / "task.toml"
+    declared = "evallab/syn-funcdag-medium"
+    task_toml.write_text(
+        task_toml.read_text().replace('name = "syn-funcdag-medium"', f'name = "{declared}"')
+    )
+    from evallab.registry import compute_task_digests
+
+    staging_name = "medium-oracle-run"
+    staged_digest = "sha256:" + "b" * 64
+    provenance = {
+        "schema_version": 1,
+        "source_task_basename": "syn-funcdag-medium",
+        "declared_task_name": declared,
+        "task_version": "1.0.0",
+        "source_package_digest": compute_task_digests(task_dir).package,
+        "source_harbor_digest": harbor_task_digest(task_dir),
+        "staged_task_name": staging_name,
+        "staged_harbor_digest": staged_digest,
+        "network_adaptation": None,
+    }
+
+    _make_control_job(
+        tmp_path,
+        task_dir,
+        "oracle",
+        1.0,
+        job_name=f"gymv0-{staging_name}",
+        lock_task_name=staging_name,
+        lock_task_digest=staged_digest,
+        result_task_name=declared,
+        executed_path=f"/tmp/exec-stage/{staging_name}",
+        lab_metadata={"task_staging": provenance},
+    )
+    _make_control_job(
+        tmp_path,
+        task_dir,
+        "nop",
+        0.0,
+        job_name=f"gymv0-{staging_name}-nop",
+        lock_task_name=staging_name,
+        lock_task_digest=staged_digest,
+        result_task_name=declared,
+        executed_path=f"/tmp/exec-stage/{staging_name}",
+        lab_metadata={"task_staging": {**provenance, "source_harbor_digest": "sha256:" + "c" * 64}},
+    )
+    with pytest.raises(TaskControlEvidenceError, match="missing durable trial-level nop"):
+        discover_control_evidence(task_dir, tmp_path)
+
+    _make_control_job(
+        tmp_path,
+        task_dir,
+        "nop",
+        0.0,
+        job_name=f"gymv0-{staging_name}-nop",
+        lock_task_name=staging_name,
+        lock_task_digest=staged_digest,
+        result_task_name=declared,
+        executed_path=f"/tmp/exec-stage/{staging_name}",
+        lab_metadata={"task_staging": provenance},
+        finished_at="2026-08-19T12:03:00Z",
+    )
+    evidence = discover_control_evidence(task_dir, tmp_path)
+    assert evidence.oracle.staged_task_name == staging_name
+    assert evidence.oracle.staged_harbor_digest == staged_digest
+    assert evidence.oracle.task_id == "syn-funcdag-medium"
+    assert evidence.oracle.reward == 1.0
+    assert evidence.nop.staged_task_name == staging_name
+    assert evidence.nop.reward == 0.0
+
+
+def test_verify_control_evidence_refuses_non_declared_lock_name(tmp_path: Path) -> None:
+    """A retained lock naming another task fails identity verification exactly.
+
+    The lock digest is re-pinned after tampering so only the declared-name
+    binding can catch the substitution; no suffix or alias match may pass.
+    """
+    task_dir = _make_dummy_task(tmp_path, "library/tasks/lock-name-task")
+    record = _make_registry_record(task_dir, tmp_path, task_id="lock-name-task")
+    oracle_ref = record.control_evidence.oracle
+    lock_path = tmp_path / oracle_ref.evidence_path.replace("result.json", "lock.json")
+    lock = json.loads(lock_path.read_text())
+    lock["task"]["name"] = "evallab/other-task"
+    lock_path.write_text(json.dumps(lock, indent=2))
+    tampered_record = record.model_copy(
+        update={
+            "control_evidence": TaskControlEvidence(
+                oracle=oracle_ref.model_copy(
+                    update={
+                        "lock_digest": "sha256:"
+                        + hashlib.sha256(lock_path.read_bytes()).hexdigest()
+                    }
+                ),
+                nop=record.control_evidence.nop,
+            )
+        }
+    )
+
+    with pytest.raises(TaskControlEvidenceError, match="task identity mismatch"):
+        verify_control_evidence(tmp_path, tampered_record)
 
 def test_promote_task_refuses_when_oracle_evidence_missing(tmp_path: Path) -> None:
     task_dir = _make_dummy_task(tmp_path, "library/tasks/no-oracle-task")

@@ -1383,6 +1383,19 @@ class ControlEvidenceRef(ContractModel):
     task_version: str = Field(min_length=1)
     task_digests: TaskDigests
     harbor_task_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    #: The exact task.toml ``[task] name`` the trial result must carry. Refs
+    #: minted before this field existed are ``None`` and fail verification
+    #: rather than falling back to the registry task_id.
+    declared_task_name: str | None = Field(default=None, min_length=1)
+    #: Host-staged runs (``evallab run``) lock the staging directory name with
+    #: the adapted package digest. Both fields are set together from the
+    #: job's lab-metadata ``task_staging`` provenance, whose source digests
+    #: discovery has already bound to this exact source package; refs minted
+    #: from direct source runs leave them None and bind the registry task_id.
+    staged_task_name: str | None = Field(default=None, min_length=1)
+    staged_harbor_digest: str | None = Field(
+        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
+    )
 
     @field_validator("evidence_path")
     @classmethod

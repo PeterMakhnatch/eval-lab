@@ -594,11 +594,29 @@ def _verify_control_result(
     task_lock = lock_data.get("task")
     if not isinstance(task_lock, dict):
         raise TaskControlEvidenceError("control evidence trial lock is missing task identity")
+    if not evidence_ref.declared_task_name:
+        raise TaskControlEvidenceError(
+            f"control evidence for {record.task_id!r} does not bind a declared task.toml "
+            "name and cannot be verified against an exact Harbor task identity"
+        )
+    lock_name = task_lock.get("name")
+    lock_digest = task_lock.get("digest")
+    if evidence_ref.staged_task_name is not None or evidence_ref.staged_harbor_digest is not None:
+        identity_ok = (
+            isinstance(evidence_ref.staged_task_name, str)
+            and isinstance(evidence_ref.staged_harbor_digest, str)
+            and lock_name == evidence_ref.staged_task_name
+            and lock_digest == evidence_ref.staged_harbor_digest
+        )
+    else:
+        identity_ok = (
+            lock_name == record.task_id
+            and lock_digest == evidence_ref.harbor_task_digest
+        )
     if (
-        task_lock.get("name") != record.task_id
-        or not _evidence_lock_version_ok(task_lock, record.version, evidence_ref.harbor_task_digest)
+        not identity_ok
+        or task_lock.get("version") != record.version
         or task_lock.get("type") != "local"
-        or task_lock.get("digest") != evidence_ref.harbor_task_digest
     ):
         raise TaskControlEvidenceError(
             f"control evidence task identity mismatch for {record.task_id!r}"
@@ -613,17 +631,25 @@ def _verify_control_result(
     result_task = result_config.get("task") if isinstance(result_config, dict) else None
     task_path = result_task_id.get("path") if isinstance(result_task_id, dict) else None
     config_path = result_task.get("path") if isinstance(result_task, dict) else None
+    expected_path_names = {
+        record.task_id,
+        *(name for name in (evidence_ref.staged_task_name,) if name is not None),
+    }
     if (
         not isinstance(task_name, str)
-        or not _evidence_task_name_matches(task_name, record.task_id)
+        or task_name != evidence_ref.declared_task_name
         or not isinstance(task_path, str)
-        or Path(task_path).name != record.task_id
+        or Path(task_path).name not in expected_path_names
         or not isinstance(config_path, str)
-        or Path(config_path).name != record.task_id
+        or Path(config_path).name not in expected_path_names
     ):
         raise TaskControlEvidenceError(
             f"control evidence result identity mismatch for {record.task_id!r}"
         )
+
+#: Schema of the ``task_staging`` provenance block ``evallab run`` persists in
+#: each job's ``lab-metadata.json``. Discovery refuses any other value.
+TASK_STAGING_SCHEMA_VERSION = 1
 
 
 def discover_control_evidence(
@@ -642,6 +668,12 @@ def discover_control_evidence(
     task_id = task_dir.name
     task_toml = tomllib.loads((task_dir / "task.toml").read_text(encoding="utf-8"))
     task_table = task_toml.get("task")
+    declared_task_name = task_table.get("name") if isinstance(task_table, dict) else None
+    if not isinstance(declared_task_name, str) or not declared_task_name.strip():
+        raise TaskControlEvidenceError(
+            f"task {task_id!r} declares no [task] name in task.toml; control evidence "
+            "cannot be bound to an exact Harbor task identity"
+        )
     task_version = task_version or str(
         (task_table.get("version") if isinstance(task_table, dict) else None)
         or task_toml.get("version")
@@ -685,13 +717,49 @@ def discover_control_evidence(
                 continue
             task_lock = lock_data.get("task")
             agent_lock = lock_data.get("agent")
+            if not isinstance(task_lock, dict) or not isinstance(agent_lock, dict):
+                continue
+            # Two legitimate identities exist. Source-path runs lock the path
+            # basename with the source Harbor digest; host-staged runs
+            # (``evallab run``) lock the staging directory name with the
+            # adapted digest, and only sibling lab-metadata provenance can
+            # bind them back to this exact source package.
+            metadata_path = result_path.parent.parent / "lab-metadata.json"
+            metadata: dict[str, Any] | None = None
+            if metadata_path.is_file():
+                try:
+                    raw_metadata = json.loads(metadata_path.read_text())
+                except (OSError, json.JSONDecodeError):
+                    continue
+                if not isinstance(raw_metadata, dict):
+                    continue
+                raw_staging = raw_metadata.get("task_staging")
+                metadata = raw_staging if isinstance(raw_staging, dict) else None
+            staged_task_name: str | None = None
+            staged_harbor_digest: str | None = None
+            if metadata is not None:
+                raw_staged_name = metadata.get("staged_task_name")
+                raw_staged_digest = metadata.get("staged_harbor_digest")
+                if not isinstance(raw_staged_name, str) or not raw_staged_name:
+                    continue
+                if not isinstance(raw_staged_digest, str):
+                    continue
+                if (
+                    metadata.get("schema_version") != TASK_STAGING_SCHEMA_VERSION
+                    or metadata.get("source_task_basename") != task_id
+                    or metadata.get("declared_task_name") != declared_task_name
+                    or metadata.get("task_version") != task_version
+                    or metadata.get("source_package_digest") != task_digests.package
+                    or metadata.get("source_harbor_digest") != harbor_digest
+                ):
+                    continue
+                staged_task_name = raw_staged_name
+                staged_harbor_digest = raw_staged_digest
             if (
-                not isinstance(task_lock, dict)
-                or task_lock.get("name") != task_id
-                or not _evidence_lock_version_ok(task_lock, task_version, harbor_digest)
+                task_lock.get("version") != task_version
                 or task_lock.get("type") != "local"
-                or task_lock.get("digest") != harbor_digest
-                or not isinstance(agent_lock, dict)
+                or task_lock.get("name") != (staged_task_name or task_id)
+                or task_lock.get("digest") != (staged_harbor_digest or harbor_digest)
             ):
                 continue
             agent_name = agent_lock.get("name")
@@ -712,13 +780,18 @@ def discover_control_evidence(
                 result_task_id.get("path") if isinstance(result_task_id, dict) else None,
                 result_task.get("path") if isinstance(result_task, dict) else None,
             )
-            if (
-                not isinstance(data.get("task_name"), str)
-                or not _evidence_task_name_matches(data["task_name"], task_id)
-                or any(
-                    not isinstance(path, str) or Path(path).name != task_id
-                    for path in identity_paths
-                )
+            if not isinstance(data.get("task_name"), str):
+                continue
+            # result.task_name is the declared [task] name, matched exactly —
+            # never by suffix. Identity paths carry the executed directory
+            # basename: the task directory for source runs, the staging
+            # directory name for host-staged runs.
+            if data["task_name"] != declared_task_name:
+                continue
+            expected_path_name = staged_task_name or task_id
+            if any(
+                not isinstance(path, str) or Path(path).name != expected_path_name
+                for path in identity_paths
             ):
                 continue
             observed_at_str = data.get("finished_at") or data.get("started_at")
@@ -740,6 +813,9 @@ def discover_control_evidence(
                 task_version=task_version,
                 task_digests=task_digests,
                 harbor_task_digest=harbor_digest,
+                declared_task_name=declared_task_name,
+                staged_task_name=staged_task_name,
+                staged_harbor_digest=staged_harbor_digest,
             )
             matches[agent_name].append((observed_at, ref))
 

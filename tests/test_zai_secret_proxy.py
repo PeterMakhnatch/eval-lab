@@ -487,7 +487,12 @@ def test_proxy_forwards_allowed_flash_and_full_models(
     capability = "valid-cap"
     proxy, upstream, base_url = _setup_proxy(tmp_path, monkeypatch, capability=capability)
     try:
-        for model in ("zai-coding-plan/glm-5.3-flash", "zai-coding-plan/glm-5.3"):
+        for model in (
+            "glm-5.3-flash",
+            "glm-5.3",
+            "zai-coding-plan/glm-5.3-flash",
+            "zai-coding-plan/glm-5.3",
+        ):
             req = urllib.request.Request(
                 f"{base_url}/api/paas/v4/chat/completions",
                 data=json.dumps(
@@ -505,7 +510,7 @@ def test_proxy_forwards_allowed_flash_and_full_models(
             assert b'"ok"' in body
 
         proxy_module = _load_proxy_module()
-        assert len(_MockZaiUpstream.seen) == 2
+        assert len(_MockZaiUpstream.seen) == 4
         for path, auth, fwd_body in _MockZaiUpstream.seen:
             assert path == proxy_module.UPSTREAM_PATH
             assert auth == f"Bearer {SECRET_SENTINEL}"
@@ -527,6 +532,8 @@ def test_proxy_rejects_disallowed_models_and_providers_fail_closed(
         "openai/gpt-5.2",
         "zai/glm-5.3",
         "deepseek/deepseek-v4-flash",
+        "glm-unknown",
+        "zai-coding-plan/unknown",
         "zai-coding-plan/",
         "",
     ]

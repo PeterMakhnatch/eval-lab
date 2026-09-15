@@ -1012,6 +1012,35 @@ def _cleanup_failure(
         return f"cleanup_failed:{type(exc).__name__}"
     return None
 
+def _task_staging_provenance(
+    source: Path, staged: Path, adaptation: NetworkAdaptation | None
+) -> dict[str, Any]:
+    """Deterministic source-to-stage binding for one executed job.
+
+    Registry evidence discovery recomputes the source digests from the current
+    package bytes and matches them against this block, so a staged trial can
+    only be accepted when its lock carries exactly the staged name and digest
+    proven here for exactly this source package.
+    """
+    from evallab.registry import compute_task_digests, harbor_task_digest
+
+    resolved = source.resolve()
+    task_toml = tomllib.loads((resolved / "task.toml").read_text(encoding="utf-8"))
+    task_table = task_toml.get("task")
+    declared = task_table.get("name") if isinstance(task_table, dict) else None
+    version = task_table.get("version") if isinstance(task_table, dict) else None
+    return {
+        "schema_version": 1,
+        "source_task_basename": resolved.name,
+        "declared_task_name": declared,
+        "task_version": str(version) if version is not None else None,
+        "source_package_digest": compute_task_digests(resolved).package,
+        "source_harbor_digest": harbor_task_digest(resolved),
+        "staged_task_name": staged.name,
+        "staged_harbor_digest": harbor_task_digest(staged),
+        "network_adaptation": asdict(adaptation) if adaptation is not None else None,
+    }
+
 
 def _write_run_metadata(
     request: RunRequest,
@@ -1022,6 +1051,7 @@ def _write_run_metadata(
     finished: datetime,
     process: HarborProcessResult,
     network_adaptation: NetworkAdaptation | None = None,
+    task_staging: dict[str, Any] | None = None,
 ) -> None:
     job_dir = request.jobs_dir / request.name
     if not job_dir.exists():
@@ -1054,6 +1084,8 @@ def _write_run_metadata(
         metadata["provider_usage"] = process.proxy_usage
     if network_adaptation is not None:
         metadata["network_adaptation"] = asdict(network_adaptation)
+    if task_staging is not None:
+        metadata["task_staging"] = task_staging
     persist_private_bytes(
         job_dir / "lab-metadata.json",
         (json.dumps(metadata, indent=2, sort_keys=True) + "\n").encode(),
@@ -1289,6 +1321,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             finished=finished,
             process=process,
             network_adaptation=adaptation,
+            task_staging=_task_staging_provenance(request.task, staged_task, adaptation),
         )
         if cancelled:
             cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)

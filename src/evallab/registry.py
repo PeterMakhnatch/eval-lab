@@ -562,7 +562,7 @@ def _verify_control_result(
     expected_reward: float,
     record: TaskRegistryRecord,
     evidence_ref: ControlEvidenceRef,
-    declared_task_name: str,
+    declared_task_name: str | None,
 ) -> None:
     """Validate one Harbor trial and its lock against the registered package."""
     if "stats" in data or not isinstance(data.get("trial_name"), str):
@@ -632,17 +632,14 @@ def _verify_control_result(
     result_task = result_config.get("task") if isinstance(result_config, dict) else None
     task_path = result_task_id.get("path") if isinstance(result_task_id, dict) else None
     config_path = result_task.get("path") if isinstance(result_task, dict) else None
-    expected_path_names = {
-        record.task_id,
-        *(name for name in (evidence_ref.staged_task_name,) if name is not None),
-    }
+    expected_path_name = evidence_ref.staged_task_name or record.task_id
     if (
         not isinstance(task_name, str)
-        or task_name != declared_task_name
+        or task_name != (declared_task_name or evidence_ref.staged_task_name or record.task_id)
         or not isinstance(task_path, str)
-        or Path(task_path).name not in expected_path_names
+        or Path(task_path).name != expected_path_name
         or not isinstance(config_path, str)
-        or Path(config_path).name not in expected_path_names
+        or Path(config_path).name != expected_path_name
     ):
         raise TaskControlEvidenceError(
             f"control evidence result identity mismatch for {record.task_id!r}"
@@ -670,7 +667,9 @@ def discover_control_evidence(
     task_toml = tomllib.loads((task_dir / "task.toml").read_text(encoding="utf-8"))
     task_table = task_toml.get("task")
     declared_task_name = task_table.get("name") if isinstance(task_table, dict) else None
-    if not isinstance(declared_task_name, str) or not declared_task_name.strip():
+    if task_table is not None and (
+        not isinstance(declared_task_name, str) or not declared_task_name.strip()
+    ):
         raise TaskControlEvidenceError(
             f"task {task_id!r} declares no [task] name in task.toml; control evidence "
             "cannot be bound to an exact Harbor task identity"
@@ -749,7 +748,7 @@ def discover_control_evidence(
                     metadata.get("schema_version") != TASK_STAGING_SCHEMA_VERSION
                     or metadata.get("source_task_basename") != task_id
                     or metadata.get("declared_task_name") != declared_task_name
-                    or metadata.get("task_version") != task_version
+                    or metadata.get("task_version") not in (None, task_version)
                     or metadata.get("source_package_digest") != task_digests.package
                     or metadata.get("source_harbor_digest") != harbor_digest
                 ):
@@ -785,11 +784,10 @@ def discover_control_evidence(
             )
             if not isinstance(data.get("task_name"), str):
                 continue
-            # result.task_name is the declared [task] name, matched exactly —
-            # never by suffix. Identity paths carry the executed directory
-            # basename: the task directory for source runs, the staging
-            # directory name for host-staged runs.
-            if data["task_name"] != declared_task_name:
+            # Harbor uses the declared [task] name when present; otherwise
+            # Task.name is the executed directory basename. Match exactly,
+            # never by suffix, including for host-staged source packages.
+            if data["task_name"] != (declared_task_name or staged_task_name or task_id):
                 continue
             expected_path_name = staged_task_name or task_id
             if any(
@@ -1215,7 +1213,9 @@ def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
     task_toml = tomllib.loads((task_dir / "task.toml").read_text(encoding="utf-8"))
     task_table = task_toml.get("task")
     declared_task_name = task_table.get("name") if isinstance(task_table, dict) else None
-    if not isinstance(declared_task_name, str) or not declared_task_name.strip():
+    if task_table is not None and (
+        not isinstance(declared_task_name, str) or not declared_task_name.strip()
+    ):
         raise TaskControlEvidenceError(
             f"task {record.task_id!r} declares no [task] name in task.toml"
         )

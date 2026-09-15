@@ -8,6 +8,7 @@ import socket
 import subprocess
 import sys
 import time
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -561,7 +562,7 @@ def test_retained_evidence_archive_allows_canonical_reconstruction(tmp_path):
         (trial / "lock.json").write_text(json.dumps({"task": {"digest": digest, "name": task.name, "version": "1.0.0", "type": "local"}, "agent": {"name": agent_name}}), encoding="utf-8")
         (trial / "config.json").write_text("{}", encoding="utf-8")
         res_data = {
-            "task_name": f"local-lab/{task.name}",
+            "task_name": tomllib.loads((task / "task.toml").read_text())["task"]["name"],
             "trial_name": trial.name,
             "task_id": {"path": str(task)},
             "config": {"task": {"path": str(task)}},

@@ -247,7 +247,7 @@ inputs:
   - path: src/evallab/recovery/wrapper.py
     digest: sha256:83a3882cf0c364b61a7865912e10c17a1b0275e86677b2279846b8ceb845f972
   - path: src/evallab/registry.py
-    digest: sha256:66c2cfbb2f38b34bf90dc2662d87500c50947c51e2cb98f4a8ac40928885313d
+    digest: sha256:f5904793caf15dded28986f77f4385fde7ae01ca64883b9c67c6cc5916259343
   - path: src/evallab/regrade.py
     digest: sha256:12dee31474405f70883efcab2db02d4fb62f932848920465109b7a5697a80c51
   - path: src/evallab/repomap.py

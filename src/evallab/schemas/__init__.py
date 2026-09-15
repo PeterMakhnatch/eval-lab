@@ -1383,9 +1383,9 @@ class ControlEvidenceRef(ContractModel):
     task_version: str = Field(min_length=1)
     task_digests: TaskDigests
     harbor_task_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-    #: Optional recorded declaration. Verification always compares the trial to
-    #: the exact name in the digest-bound source task.toml, including for older
-    #: references without this metadata; a conflicting declaration is rejected.
+    #: Optional recorded declaration, checked against digest-bound task.toml.
+    #: An absent [task] section uses Harbor's exact executed directory name;
+    #: missing reference metadata never enables a namespace/suffix alias.
     declared_task_name: str | None = Field(default=None, min_length=1)
     #: Host-staged runs (``evallab run``) lock the staging directory name with
     #: the adapted package digest. Both fields are set together from the

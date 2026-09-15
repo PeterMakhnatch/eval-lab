@@ -1269,8 +1269,9 @@ def test_discover_binds_lock_basename_and_exact_declared_result_name(
     assert evidence.nop.reward == 0.0
 
 
+@pytest.mark.parametrize("native_metadata", [False, True])
 def test_discover_accepts_host_staged_evidence_only_when_metadata_binds_the_source(
-    tmp_path: Path,
+    tmp_path: Path, native_metadata: bool,
 ) -> None:
     """``evallab run`` stages into .exec-stage/<job>; discovery binds via provenance.
 
@@ -1282,10 +1283,13 @@ def test_discover_accepts_host_staged_evidence_only_when_metadata_binds_the_sour
     """
     task_dir = _make_dummy_task(tmp_path, "library/tasks/syn-funcdag-medium")
     task_toml = task_dir / "task.toml"
-    declared = "evallab/syn-funcdag-medium"
-    task_toml.write_text(
-        task_toml.read_text().replace('name = "syn-funcdag-medium"', f'name = "{declared}"')
-    )
+    declared = None if native_metadata else "evallab/syn-funcdag-medium"
+    if native_metadata:
+        task_toml.write_text('schema_version = "1.4"\n')
+    else:
+        task_toml.write_text(
+            task_toml.read_text().replace('name = "syn-funcdag-medium"', f'name = "{declared}"')
+        )
     from evallab.registry import compute_task_digests
 
     staging_name = "medium-oracle-run"
@@ -1294,7 +1298,7 @@ def test_discover_accepts_host_staged_evidence_only_when_metadata_binds_the_sour
         "schema_version": 1,
         "source_task_basename": "syn-funcdag-medium",
         "declared_task_name": declared,
-        "task_version": "1.0.0",
+        "task_version": None if native_metadata else "1.0.0",
         "source_package_digest": compute_task_digests(task_dir).package,
         "source_harbor_digest": harbor_task_digest(task_dir),
         "staged_task_name": staging_name,
@@ -1310,7 +1314,7 @@ def test_discover_accepts_host_staged_evidence_only_when_metadata_binds_the_sour
         job_name=f"gymv0-{staging_name}",
         lock_task_name=staging_name,
         lock_task_digest=staged_digest,
-        result_task_name=declared,
+        result_task_name=declared or staging_name,
         executed_path=f"/tmp/exec-stage/{staging_name}",
         lab_metadata={"task_staging": provenance},
     )
@@ -1322,7 +1326,7 @@ def test_discover_accepts_host_staged_evidence_only_when_metadata_binds_the_sour
         job_name=f"gymv0-{staging_name}-nop",
         lock_task_name=staging_name,
         lock_task_digest=staged_digest,
-        result_task_name=declared,
+        result_task_name=declared or staging_name,
         executed_path=f"/tmp/exec-stage/{staging_name}",
         lab_metadata={"task_staging": {**provenance, "source_harbor_digest": "sha256:" + "c" * 64}},
     )
@@ -1337,7 +1341,7 @@ def test_discover_accepts_host_staged_evidence_only_when_metadata_binds_the_sour
         job_name=f"gymv0-{staging_name}-nop",
         lock_task_name=staging_name,
         lock_task_digest=staged_digest,
-        result_task_name=declared,
+        result_task_name=declared or staging_name,
         executed_path=f"/tmp/exec-stage/{staging_name}",
         lab_metadata={"task_staging": provenance},
         finished_at="2026-08-19T12:03:00Z",
@@ -1349,6 +1353,26 @@ def test_discover_accepts_host_staged_evidence_only_when_metadata_binds_the_sour
     assert evidence.oracle.reward == 1.0
     assert evidence.nop.staged_task_name == staging_name
     assert evidence.nop.reward == 0.0
+    record = _make_registry_record(
+        task_dir, tmp_path, task_id=task_dir.name, create_control_evidence=False
+    ).model_copy(update={"control_evidence": evidence})
+    verify_control_evidence(tmp_path, record)
+
+    result_path = tmp_path / evidence.oracle.evidence_path
+    raw_result = json.loads(result_path.read_text())
+    raw_result["task_id"]["path"] = str(task_dir)
+    result_path.write_text(json.dumps(raw_result))
+    changed_evidence = evidence.model_copy(
+        update={
+            "oracle": evidence.oracle.model_copy(
+                update={"evidence_digest": "sha256:" + hashlib.sha256(result_path.read_bytes()).hexdigest()}
+            )
+        }
+    )
+    with pytest.raises(TaskControlEvidenceError, match="result identity mismatch"):
+        verify_control_evidence(
+            tmp_path, record.model_copy(update={"control_evidence": changed_evidence})
+        )
 
 
 def test_verify_control_evidence_refuses_non_declared_lock_name(tmp_path: Path) -> None:

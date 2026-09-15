@@ -1,0 +1,7 @@
+# HAR-50 opt-in context policy for mini-swe-agent==2.4.6 (Chat Completions).
+# Load after built-in mini config. Both evallab policy modules must be importable
+# inside the agent's Python environment; a host-only file does not activate it.
+# No model route, budget, task, or default harness configuration is changed here.
+model:
+  model_class: evallab.mini_observation_masking.LastNObservationModel
+  observation_masking_keep_last: 10

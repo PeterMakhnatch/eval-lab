@@ -527,7 +527,6 @@ def test_proxy_rejects_disallowed_models_and_providers_fail_closed(
         "openai/gpt-5.2",
         "zai/glm-5.3",
         "deepseek/deepseek-v4-flash",
-        "glm-5.3-flash",
         "zai-coding-plan/",
         "",
     ]
@@ -1213,7 +1212,18 @@ class _FakeSSEUpstream(BaseHTTPRequestHandler):
         auth = self.headers.get("Authorization", "")
         type(self).seen.append((self.path, auth, body))
 
-        if type(self).mode == "normal":
+        if type(self).mode == "requires_stream":
+            payload = json.loads(body)
+            if payload.get("stream") is not True or payload.get("stream_options") != {
+                "include_usage": True
+            }:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error":"streaming with usage is required"}')
+                return
+
+        if type(self).mode in {"normal", "requires_stream"}:
             events = (
                 b'data: {"id":"chatcmpl-sse-1","object":"chat.completion.chunk","created":1710000000,'
                 b'"model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"hello"}}]}\n\n'
@@ -1257,6 +1267,39 @@ class _FakeSSEUpstream(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(events)))
         self.end_headers()
         self.wfile.write(events)
+
+
+def test_proxy_accepts_opencode_native_streaming_request(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """OpenCode sends a bare model ID and expects SSE with reconciled usage."""
+    _FakeSSEUpstream.mode = "requires_stream"
+    _FakeSSEUpstream.seen = []
+    usage_file = tmp_path / "zai-proxy-usage.json"
+    proxy, upstream, base_url = _setup_proxy(
+        tmp_path,
+        monkeypatch,
+        upstream_handler=_FakeSSEUpstream,
+        capability="valid-cap",
+        usage_file=usage_file,
+    )
+    try:
+        request = urllib.request.Request(
+            f"{base_url}/api/paas/v4/chat/completions",
+            data=b'{"model":"glm-5.3-flash","messages":[],"stream":true}',
+            headers={"Authorization": "Bearer valid-cap", "Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            assert response.headers.get_content_type() == "text/event-stream"
+            assert b"data: [DONE]" in response.read()
+        call = json.loads(usage_file.read_text())["calls"][0]
+        assert call["state"] == "reconciled"
+        assert call["returned_model"] == "glm-5.3-flash"
+        assert (call["input_tokens"], call["output_tokens"]) == (8, 4)
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
 
 
 def test_proxy_sse_provider_identity_and_missing_stays_unknown(

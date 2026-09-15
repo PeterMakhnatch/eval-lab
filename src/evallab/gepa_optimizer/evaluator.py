@@ -242,17 +242,18 @@ def sanitize_cohort_label(full_digest: str) -> str:
 
 def deterministic_job_name(
     *,
+    campaign_path: str,
     agent: str,
     model: str | None,
     task_id: str,
     candidate_sha256: str,
 ) -> str:
-    """Compute deterministic job directory name conforming to ^[a-z0-9][a-z0-9-]+$."""
-    cand_tag = candidate_sha256.split(":", 1)[-1][:16]
+    """Bind a native job to its campaign and complete candidate identity."""
+    identity = json.dumps([campaign_path, agent, model, task_id, candidate_sha256])
+    identity_tag = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24]
     clean_agent = re.sub(r"[^a-z0-9]+", "-", agent.lower()).strip("-")[:16]
     clean_task = re.sub(r"[^a-z0-9]+", "-", task_id.lower()).strip("-")[:20]
-    clean_model = re.sub(r"[^a-z0-9]+", "-", model.lower()).strip("-")[:16] if model else "nomodel"
-    raw = f"gepa-{clean_agent}-{clean_model}-{clean_task}-{cand_tag}"[:80]
+    raw = f"gepa-{clean_agent}-{clean_task}-{identity_tag}"
     return re.sub(r"-+", "-", raw).strip("-")
 
 
@@ -448,6 +449,7 @@ class LabEvaluator:
     ) -> None:
         self.repo_root = Path(repo_root).resolve()
         self.output_dir = _validate_in_repo_dir(self.repo_root, Path(output_dir), "output_dir")
+        self._campaign_path = self.output_dir.relative_to(self.repo_root).as_posix()
         self.jobs_dir = _validate_in_repo_dir(
             self.repo_root,
             Path(jobs_dir) if jobs_dir else (self.repo_root / "runs"),
@@ -811,14 +813,31 @@ class LabEvaluator:
             raise CandidateReviewRequired(candidate_sha256, local_candidate_file)
 
         job_name = deterministic_job_name(
+            campaign_path=self._campaign_path,
             agent=self.agent,
             model=self.model,
             task_id=task_id,
             candidate_sha256=candidate_sha256,
         )
         exact_job_dir = self.jobs_dir / job_name
+        receipt_path = (
+            self.output_dir / "evaluations"
+            / f"{candidate_sha256.split(':', 1)[-1]}_{_artifact_task_tag(task_id)}.json"
+        )
+        if receipt_path.is_file():
+            retained = json.loads(receipt_path.read_text(encoding="utf-8"))
+            if retained.get("status") == "completed":
+                if not retained.get("job_path"):
+                    raise EvaluationUnavailable("Completed evaluation receipt has no retained job")
+                exact_job_dir = _validate_in_repo_dir(
+                    self.repo_root, Path(retained["job_path"]), "retained job"
+                )
+                if not exact_job_dir.is_dir() or not (exact_job_dir / "result.json").is_file():
+                    raise EvaluationUnavailable(
+                        "Retained completed job is unavailable; restore its evidence, not a new run"
+                    )
 
-        # Check ONLY exact deterministic job path (no broad scanning)
+        # Check the exact retained or campaign-scoped path, never scan other campaigns.
         if exact_job_dir.is_dir() and (exact_job_dir / "result.json").is_file():
             job_record = load_job(exact_job_dir)
             if not _check_job_provenance(
@@ -954,6 +973,7 @@ class LabEvaluator:
 
         # Submit new ExperimentSpec to queue with required name pattern, hypothesis, and elicitation purpose
         clean_spec_name = deterministic_job_name(
+            campaign_path=self._campaign_path,
             agent=self.agent,
             model=self.model,
             task_id=task_id,

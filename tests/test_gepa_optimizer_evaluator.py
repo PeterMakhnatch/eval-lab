@@ -260,6 +260,41 @@ class MockExecutor:
         return spec_path, MockPolicyDecision()
 
 
+def test_campaigns_keep_independent_trials_and_resume_retained_paths(tmp_path: Path) -> None:
+    task = create_task_fixture(tmp_path, "tasks/task_1")
+    executor = MockExecutor(tmp_path)
+    candidate = "Preserve the inputs and verify the output."
+
+    def evaluator(output: str) -> LabEvaluator:
+        return LabEvaluator(
+            repo_root=tmp_path,
+            output_dir=tmp_path / output,
+            examples=[task],
+            agent="oracle",
+            executor=executor,
+        )
+
+    first = evaluator("first")
+    _, first_info = first(candidate, task)
+    recorded_job = Path(first_info["job_path"]).with_name("retained-earlier-job")
+    Path(first_info["job_path"]).rename(recorded_job)
+    receipt_path = next((tmp_path / "first/evaluations").glob("*.json"))
+    receipt = json.loads(receipt_path.read_text())
+    receipt["job_path"] = str(recorded_job)
+    write_json(receipt_path, receipt)
+
+    _, resumed = evaluator("first")(candidate, task)
+    _, independent = evaluator("second")(candidate, task)
+    assert resumed["job_path"] == str(recorded_job)
+    assert independent["job_path"] != resumed["job_path"]
+    assert len(executor.direct_requests) == 2
+
+    recorded_job.rename(recorded_job.with_name("temporarily-unavailable"))
+    with pytest.raises(EvaluationUnavailable):
+        evaluator("first")(candidate, task)
+    assert len(executor.direct_requests) == 2
+
+
 # --- Test Cases ---
 
 
@@ -610,6 +645,7 @@ def test_absent_reward_raises_evaluation_unavailable(tmp_path: Path, reward: flo
     cand_hash = f"sha256:{hashlib.sha256(candidate_text.encode('utf-8')).hexdigest()}"
 
     job_name = deterministic_job_name(
+        campaign_path="out",
         agent="oracle",
         model=None,
         task_id="task_1",
@@ -657,6 +693,7 @@ def test_infra_error_raises_evaluation_unavailable(tmp_path: Path) -> None:
     cand_hash = f"sha256:{hashlib.sha256(candidate_text.encode('utf-8')).hexdigest()}"
 
     job_name = deterministic_job_name(
+        campaign_path="out",
         agent="oracle",
         model=None,
         task_id="task_1",
@@ -705,6 +742,7 @@ def test_resumption_from_matching_completed_job(tmp_path: Path) -> None:
     cand_hash = f"sha256:{hashlib.sha256(candidate_text.encode('utf-8')).hexdigest()}"
 
     job_name = deterministic_job_name(
+        campaign_path="out",
         agent="oracle",
         model=None,
         task_id="task_1",
@@ -750,6 +788,7 @@ def test_provenance_mismatch_raises_error(tmp_path: Path) -> None:
     cand_hash = f"sha256:{hashlib.sha256(candidate_text.encode('utf-8')).hexdigest()}"
 
     job_name = deterministic_job_name(
+        campaign_path="out",
         agent="oracle",
         model=None,
         task_id="task_1",
@@ -1144,6 +1183,7 @@ def _resume_deepseek_job(
     task = create_task_fixture(repo_root, "tasks/task_1")
     cand_hash = f"sha256:{hashlib.sha256(candidate_text.encode('utf-8')).hexdigest()}"
     job_name = deterministic_job_name(
+        campaign_path="out",
         agent=DEEPSEEK_TARGET_AGENT,
         model=DEEPSEEK_MODEL_SELECTOR,
         task_id="task_1",

@@ -380,17 +380,13 @@ def _cost_micros(input_tokens: int, output_tokens: int) -> int:
 
 
 def _validate_model(model: Any) -> str | None:
-    """Validate model selector and return the allowed model identifier."""
+    """Normalize OpenCode's bare wire ID or its provider-qualified CLI selector."""
     if not isinstance(model, str) or not model:
         return None
-    if "/" not in model:
+    native_model = model.removeprefix(REQUIRED_MODEL_PREFIX)
+    if native_model not in ALLOWED_MODEL_IDS:
         return None
-    provider, _, suffix = model.partition("/")
-    if f"{provider}/" != REQUIRED_MODEL_PREFIX:
-        return None
-    if suffix not in ALLOWED_MODEL_IDS:
-        return None
-    return suffix
+    return native_model
 
 
 class TrialBudget:
@@ -829,6 +825,10 @@ class Handler(BaseHTTPRequestHandler):
             self._reject(403, b"model not allowed\n")
             return
         full_model = f"{REQUIRED_MODEL_PREFIX}{model}"
+        requested_stream = payload.get("stream", False)
+        if not isinstance(requested_stream, bool):
+            self._reject(400, b"invalid stream field\n")
+            return
 
         try:
             input_tokens = _estimate_tokens(payload)
@@ -892,7 +892,9 @@ class Handler(BaseHTTPRequestHandler):
         else:
             forwarded["max_tokens"] = output_tokens
         forwarded["n"] = 1
-        forwarded["stream"] = False
+        forwarded["stream"] = requested_stream
+        if requested_stream:
+            forwarded["stream_options"] = {"include_usage": True}
 
         forwarded_body = json.dumps(forwarded, ensure_ascii=False, separators=(",", ":")).encode(
             "utf-8"

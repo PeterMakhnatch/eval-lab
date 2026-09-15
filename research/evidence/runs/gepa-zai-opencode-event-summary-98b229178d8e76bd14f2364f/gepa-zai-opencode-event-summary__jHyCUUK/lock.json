@@ -1,0 +1,52 @@
+{
+    "schema_version": 2,
+    "task": {
+        "name": "gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f",
+        "version": "1.0.0",
+        "type": "local",
+        "digest": "sha256:0efc1c8c6cae8e54fba151134c97bcfc2eb1d0c2a21776d63ee64ef39365adac",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/harbor-standard-execution-20260914/runs/.exec-stage/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f"
+    },
+    "install_only": false,
+    "timeout_multiplier": 1.0,
+    "agent_timeout_multiplier": 2.5,
+    "extra_instructions": [
+        {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/harbor-standard-execution-20260914/runs/gepa-flash-event-summary-calibrated-20260915/lab/candidates/8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8.txt",
+            "digest": "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8"
+        }
+    ],
+    "agent": {
+        "name": "evallab.harbor_zai_opencode:SecretSafeZaiOpenCodeAgent",
+        "model_name": "zai-coding-plan/glm-5.3-flash",
+        "n_concurrent": 1,
+        "skills": [],
+        "resume_trajectory": false,
+        "extra_allowed_hosts": [],
+        "kwargs": {},
+        "mcp_servers": []
+    },
+    "skills": [],
+    "environment": {
+        "type": "docker",
+        "force_build": false,
+        "delete": true,
+        "cpu_enforcement_policy": "auto",
+        "memory_enforcement_policy": "auto",
+        "extra_docker_compose": [
+            "/Users/petermakhnatch/Developer/eval-lab/.worktrees/harbor-standard-execution-20260914/containers/zai-secret.compose.yaml"
+        ],
+        "kwargs": {},
+        "extra_allowed_hosts": []
+    },
+    "extra_docker_compose": [
+        {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/harbor-standard-execution-20260914/containers/zai-secret.compose.yaml",
+            "digest": "sha256:3b476a08816a135d13b6956338d0a75ccfe598acddfb07a7af4ae90ce779c401"
+        }
+    ],
+    "verifier": {
+        "disable": false,
+        "environment_mode": "separate"
+    }
+}

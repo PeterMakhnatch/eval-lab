@@ -634,6 +634,11 @@ def test_resume_reuses_pending_spec_without_duplicate_submit(tmp_path: Path) -> 
     with pytest.raises(EvaluationPending):
         evaluator(candidate_text, task)
     assert len(executor.submitted_specs) == 1
+    in_flight = repo_root / "runs" / executor.submitted_specs[0].name
+    in_flight.mkdir(parents=True)
+    (in_flight / "result.json").write_text(
+        json.dumps({"n_total_trials": 1, "stats": {}, "finished_at": None})
+    )
 
     # Second call: reuses pending spec, does NOT submit a second spec
     with pytest.raises(EvaluationPending):
@@ -642,6 +647,10 @@ def test_resume_reuses_pending_spec_without_duplicate_submit(tmp_path: Path) -> 
     assert budget.summary()["target"]["reserved"] == 1
     with pytest.raises(BudgetExhausted):
         evaluator("Different candidate instruction.", task)
+    assert len(executor.submitted_specs) == 1
+    Path(evaluator.records[-1].receipt_paths["evaluation_artifact"]).unlink()
+    with pytest.raises(EvaluationUnavailable):
+        evaluator(candidate_text, task)
     assert len(executor.submitted_specs) == 1
 
 

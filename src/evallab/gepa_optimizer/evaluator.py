@@ -843,6 +843,7 @@ class LabEvaluator:
             / "evaluations"
             / f"{candidate_sha256.split(':', 1)[-1]}_{_artifact_task_tag(task_id)}.json"
         )
+        retained: dict[str, Any] = {}
         if receipt_path.is_file():
             retained = json.loads(receipt_path.read_text(encoding="utf-8"))
             if retained.get("status") == "completed":
@@ -856,8 +857,17 @@ class LabEvaluator:
                         "Retained completed job is unavailable; restore its evidence, not a new run"
                     )
 
-        # Check the exact retained or campaign-scoped path, never scan other campaigns.
-        if exact_job_dir.is_dir() and (exact_job_dir / "result.json").is_file():
+        # Harbor writes result.json while the job is still running. Only a
+        # finished result is consumable; otherwise reuse the exact queued spec.
+        result_path = exact_job_dir / "result.json"
+        finished = False
+        if result_path.is_file():
+            finished = bool(json.loads(result_path.read_text()).get("finished_at"))
+            if not finished and retained.get("status") != "pending":
+                raise EvaluationUnavailable(
+                    "Unfinished native job has no retained pending receipt; inspect the queue, not a new run"
+                )
+        if finished:
             job_record = load_job(exact_job_dir)
             if not _check_job_provenance(
                 job_record,

@@ -1677,6 +1677,7 @@ def test_promote_discovers_versionless_lock_with_namespaced_task_name(tmp_path: 
     task_dir = _make_dummy_task(tmp_path, "library/tasks/ns-task")
     (task_dir / "task.toml").write_text(
         'schema_version = "1.4"\n[task]\nname = "bench-ns__ns-task"\nversion = "1.0.0"\n'
+        'family = "sample-family"\n'
     )
     _make_control_job(tmp_path, task_dir, "oracle", 1.0)
     _make_control_job(tmp_path, task_dir, "nop", 0.0)

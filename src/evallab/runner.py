@@ -143,6 +143,8 @@ __all__ = [
 HARBOR_COMPOSE_CONFIG_LABEL = "com.docker.compose.project.config_files"
 HARBOR_COMPOSE_PROJECT_LABEL = "com.docker.compose.project"
 HARBOR_COMPOSE_WORKDIR_LABEL = "com.docker.compose.project.working_dir"
+# Code and supporting assets belong to the imported release, not its data workspace.
+_RUNTIME_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _run_text_command(
@@ -707,7 +709,7 @@ def run_harbor_process(
                 materialize_deepseek_secret_file(owned_secret_path)
                 runtime_environment[DEEPSEEK_SECRET_FILE_ENV] = str(owned_secret_path)
             runtime_environment[DEEPSEEK_PROXY_SCRIPT_ENV] = str(
-                (cwd / DEEPSEEK_PROXY_SCRIPT).resolve()
+                (_RUNTIME_ROOT / DEEPSEEK_PROXY_SCRIPT).resolve()
             )
             proxy_uid, proxy_gid = proxy_runtime_identity(
                 Path(runtime_environment[DEEPSEEK_SECRET_FILE_ENV])
@@ -758,7 +760,9 @@ def run_harbor_process(
             owned_secret_path = owned_secret_dir / "key"
             materialize_zai_secret_file(owned_secret_path)
             runtime_environment[ZAI_SECRET_FILE_ENV] = str(owned_secret_path)
-            runtime_environment[ZAI_PROXY_SCRIPT_ENV] = str((cwd / ZAI_PROXY_SCRIPT).resolve())
+            runtime_environment[ZAI_PROXY_SCRIPT_ENV] = str(
+                (_RUNTIME_ROOT / ZAI_PROXY_SCRIPT).resolve()
+            )
             proxy_uid, proxy_gid = proxy_runtime_identity(owned_secret_path)
             runtime_environment[ZAI_PROXY_UID_ENV] = str(proxy_uid)
             runtime_environment[ZAI_PROXY_GID_ENV] = str(proxy_gid)
@@ -770,7 +774,7 @@ def run_harbor_process(
             runtime_environment["ZAI_API_KEY"] = capability
             secret_values = collected_secret_values({**os.environ, **runtime_environment})
         if any(import_path in command for import_path in repo_imports):
-            source_root = cwd / "src"
+            source_root = _RUNTIME_ROOT / "src"
             if source_root.is_dir():
                 inherited_pythonpath = os.environ.get("PYTHONPATH")
                 runtime_environment["PYTHONPATH"] = os.pathsep.join(
@@ -1232,7 +1236,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
         _write_network_adaptation(request, adaptation)
 
         harbor_command = build_command(staged_request)
-        command = subscription_command(staged_request, harbor_command, repo_root=repo_root)
+        command = subscription_command(staged_request, harbor_command, repo_root=_RUNTIME_ROOT)
         containers_before = harbor_container_ids(staged_request.task)
         _write_executor_state(
             request,

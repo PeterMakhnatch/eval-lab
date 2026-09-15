@@ -158,3 +158,67 @@ root/worker/retained-total/unpartitioned usage, and exception category/phase.
 Markdown exposes the same diagnostics; SVG plots reward and retained-compute
 deltas, including unavailable/unqualified rows. Actual inputs remain required
 for any next harness intervention; fixture results cannot justify one.
+
+## Opt-in observation masking — HAR-50
+
+`evallab.observation_masking.LastNObservations(keep_last=N)` provides a
+deterministic model-visible context view. It preserves every instruction,
+assistant/reasoning item, call ID, recent observation and non-text content block.
+Only text bodies of older explicitly linked tool results are replaced. It never
+classifies an ordinary user message as an observation or rewrites retained runs.
+Positive integer `N` is required; `keep_output` tags protect additional old results.
+
+This deliberately adapts the MIT-licensed
+[Complexity Trap / SWE-agent implementation](https://github.com/JetBrains-Research/the-complexity-trap/blob/bf15b5fb7d279679035a007ac9a81084d6b9a89a/sweagent/agent/history_processors.py):
+polling is fixed at one; instructions are identified by native role rather than
+counted as the first observation; always-remove tags cannot override preservation
+of recent results. Attribution and the upstream license are retained in the module.
+
+### Offline retained-history demonstration
+
+```bash
+mkdir -p derived/observation-masking
+uv run python -m evallab.observation_masking \
+  --input /path/to/retained/rollout.jsonl --input-format codex-rollout \
+  --keep-last 10 --output derived/observation-masking/context.json
+```
+
+The default `--input-format messages` accepts a native message list or JSON object
+containing `messages`. `codex-rollout` takes original `response_item.payload`
+objects without renaming calls or reconstructing messages from ATIF. Original
+`session_meta.payload` objects, including base instructions, are retained separately.
+This is an offline context view, not an exact historical provider request or replay.
+Chat Completions tool messages and flattened Responses function/custom-tool items
+are supported; ambiguous legacy user-role observations and unresolved tool calls
+are rejected or left untouched rather than guessed.
+
+Output is a new mode-0600 JSON artifact; existing paths, including the source, are
+refused. The console receipt excludes message contents and contains input,
+implementation, policy and before/after context hashes. Footprints are canonical
+UTF-8 JSON bytes (including retained session metadata), **not tokens or costs**.
+Fewer bytes need not mean lower billed cost because caching and provider encoding
+differ. Short observations can even grow when replaced by a marker.
+
+### Existing manageable-harness boundary
+
+`evallab.mini_observation_masking.LastNObservationModel` is an explicit subclass
+of mini-swe-agent **2.4.6**'s Chat Completions `LitellmModel`. It applies the policy
+inside `_prepare_messages_for_api`, after upstream preparation, without changing
+the default class, loop, tool execution or stored native history. Serialized model
+metadata records the policy identity. The offline CLI needs only the standard
+library; this optional consumer requires mini-swe-agent in its runtime environment.
+
+The opt-in configuration is [`observation-masking.yaml`](observation-masking.yaml).
+Load it after mini's built-in configuration. **Harbor's stock package installation
+does not install a host-side policy file.** Before activation, the integration owner
+must deliver the two `evallab` modules into the agent's actual Python environment
+(a pinned Lab wheel, or an explicitly staged package on its Python import path),
+pin mini-swe-agent to 2.4.6, and pass the YAML through the existing mini configuration
+surface. Verify class resolution in that environment. No runner/adoption changes
+or live model trials are included here; HAR-46 owns that integration.
+
+The native Codex evidence validates the deterministic transformation on real
+retained histories. The separate no-network Mini-SWE preparation smoke validates
+the actual consumer boundary using linked synthetic chat messages. Neither is a
+model-backed success comparison, a live Codex modification, or verified support
+for mini's Responses-API model class.

@@ -8,8 +8,16 @@ binding constraint is the plan's rate window, not dollars.
 
 from __future__ import annotations
 
+# isort: off
+# DSPy installs a lazy proxy for numpy on import. If pyarrow (pulled in by
+# evallab.calibrate) then imports numpy through that proxy, numpy's own import
+# fails with "data type 'bool' not understood". Import the real numpy first;
+# the order is load-bearing, so import sorting is disabled for this block.
+import numpy  # noqa: F401
 import dspy
 from dspy.clients._litellm import get_litellm
+
+# isort: on
 
 from evallab.execution_contracts import (
     ZAI_OPENCODE_MODEL_SELECTORS,

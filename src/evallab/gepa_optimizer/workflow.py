@@ -20,6 +20,7 @@ from .evaluator import (
     PROVIDER_CEILING_FIELDS,
     CandidateReviewRequired,
     EvaluationPending,
+    EvaluationRecord,
     LabEvaluator,
     ProviderCeilings,
 )
@@ -145,6 +146,221 @@ def _write(path: Path, payload: Any) -> None:
         stream.write("\n")
 
 
+def _compute_request_efficiency_utility(
+    source: Any,
+    *,
+    raw_score: float | None = None,
+) -> tuple[float, int]:
+    """Extract provider_usage from evaluator info or record and compute utility.
+
+    score = 1 / (1 + n_physical_requests) iff native task reward is exactly 1.0 else 0.
+    Incomplete, missing, or unreconciled provider accounting raises ValueError to halt.
+    """
+    usage: dict[str, Any]
+    if isinstance(source, EvaluationRecord):
+        usage = source.usage if isinstance(source.usage, dict) else {}
+        extracted_score = source.score
+    elif isinstance(source, dict):
+        if "usage" in source and isinstance(source["usage"], dict):
+            usage = source["usage"]
+        else:
+            usage = source
+        extracted_score = source.get("score")
+    else:
+        raise ValueError(f"Invalid evaluation source type: {type(source).__name__}")
+
+    effective_score = raw_score if raw_score is not None else extracted_score
+    if (
+        effective_score is None
+        or isinstance(effective_score, bool)
+        or not isinstance(effective_score, (int, float))
+        or not math.isfinite(effective_score)
+    ):
+        raise ValueError(f"Native task reward must be a finite number: {effective_score!r}")
+
+    if usage.get("native_request_accounting") == "missing":
+        raise ValueError("Native request accounting is missing")
+    if usage.get("remote_outcomes_pending"):
+        raise ValueError("Remote outcomes pending in request accounting")
+
+    identity = usage.get("identity")
+    if isinstance(identity, dict):
+        identity_status = identity.get("status")
+        if identity_status != "matched":
+            raise ValueError(f"Provider model identity status is not matched: {identity_status!r}")
+
+    provider_usage = usage.get("provider_usage")
+    if not isinstance(provider_usage, dict):
+        raise ValueError("Missing or invalid provider_usage accounting")
+
+    unresolved = provider_usage.get("unresolved_requests")
+    if isinstance(unresolved, bool) or not isinstance(unresolved, int) or unresolved != 0:
+        raise ValueError(f"Provider usage has unresolved requests: {unresolved!r}")
+
+    calls = provider_usage.get("calls")
+    if not isinstance(calls, list):
+        raise ValueError("Provider usage calls must be a list")
+
+    for idx, call in enumerate(calls, start=1):
+        if not isinstance(call, dict):
+            raise ValueError(f"Provider call at index {idx} is not a dictionary")
+        if call.get("state") != "reconciled":
+            raise ValueError(
+                f"Provider call at index {idx} has unreconciled state: {call.get('state')!r}"
+            )
+        call_id = call.get("call_id")
+        if call_id is not None:
+            if isinstance(call_id, bool) or not isinstance(call_id, int) or call_id != idx:
+                raise ValueError(
+                    f"Provider call at index {idx} has invalid call_id: {call_id!r}"
+                )
+
+    totals = provider_usage.get("totals")
+    if totals is not None:
+        if not isinstance(totals, dict):
+            raise ValueError("Provider usage totals must be a dictionary")
+        total_requests = totals.get("requests")
+        if total_requests is not None:
+            if (
+                isinstance(total_requests, bool)
+                or not isinstance(total_requests, int)
+                or total_requests < 0
+            ):
+                raise ValueError(f"Invalid requests count in totals: {total_requests!r}")
+            if total_requests != len(calls):
+                raise ValueError(
+                    f"Provider totals.requests ({total_requests}) does not match calls length ({len(calls)})"
+                )
+
+    n_physical_requests = len(calls)
+    if float(effective_score) == 1.0:
+        utility = 1.0 / (1.0 + n_physical_requests)
+    else:
+        utility = 0.0
+
+    return utility, n_physical_requests
+
+
+def _compute_selection(
+    *,
+    result: Any,
+    records: list[dict[str, Any]],
+    binding: dict[str, Any],
+    seed: str,
+    required_task_ids: set[str],
+    score_mode: str = "native_reward",
+) -> tuple[dict[str, Any] | None, str | None]:
+    best = result.best_candidate
+    if not isinstance(best, str):
+        raise ValueError("Released optimizer returned a non-text candidate")
+    candidate_id = "sha256:" + hashlib.sha256(best.encode()).hexdigest()
+    selected_records = [row for row in records if row["candidate_id"] == candidate_id]
+
+    if not (
+        required_task_ids <= {row["task_id"] for row in selected_records}
+        and math.isfinite(result.best_score)
+    ):
+        return None, "incomplete_selection_coverage"
+
+    seed_records = {
+        row["task_id"]: row
+        for row in records
+        if row["candidate_id"] == binding["seed_sha256"] and row["task_id"] in required_task_ids
+    }
+    cand_records = {
+        row["task_id"]: row
+        for row in selected_records
+        if row["task_id"] in required_task_ids
+    }
+    if set(seed_records) != required_task_ids or set(cand_records) != required_task_ids:
+        return None, "incomplete_selection_coverage"
+
+    seed_native_scores = {t: float(seed_records[t]["score"]) for t in required_task_ids}
+    cand_native_scores = {t: float(cand_records[t]["score"]) for t in required_task_ids}
+    seed_mean_native = sum(seed_native_scores.values()) / len(required_task_ids)
+    cand_mean_native = sum(cand_native_scores.values()) / len(required_task_ids)
+
+    if score_mode == "quality_gated_request_efficiency":
+        seed_utilities = {}
+        seed_calls_map = {}
+        cand_utilities = {}
+        cand_calls_map = {}
+        for t in required_task_ids:
+            s_util, s_calls = _compute_request_efficiency_utility(
+                seed_records[t], raw_score=seed_native_scores[t]
+            )
+            seed_utilities[t] = s_util
+            seed_calls_map[t] = s_calls
+            c_util, c_calls = _compute_request_efficiency_utility(
+                cand_records[t], raw_score=cand_native_scores[t]
+            )
+            cand_utilities[t] = c_util
+            cand_calls_map[t] = c_calls
+
+        seed_mean_utility = sum(seed_utilities.values()) / len(required_task_ids)
+        cand_mean_utility = sum(cand_utilities.values()) / len(required_task_ids)
+        seed_total_calls = sum(seed_calls_map.values())
+        cand_total_calls = sum(cand_calls_map.values())
+
+        has_per_task_native_regression = any(
+            cand_native_scores[t] < seed_native_scores[t] for t in required_task_ids
+        )
+        if cand_mean_utility <= seed_mean_utility or has_per_task_native_regression:
+            chosen_id = binding["seed_sha256"]
+            chosen_text = seed
+            final_score = seed_mean_utility
+            final_utility = seed_mean_utility
+            final_native = seed_mean_native
+            final_calls = seed_total_calls
+        else:
+            chosen_id = candidate_id
+            chosen_text = best
+            final_score = cand_mean_utility
+            final_utility = cand_mean_utility
+            final_native = cand_mean_native
+            final_calls = cand_total_calls
+
+        selection = {
+            "candidate_id": chosen_id,
+            "text": chosen_text,
+            "score": final_score,
+            "score_mode": score_mode,
+            "utility": final_utility,
+            "native_quality": final_native,
+            "calls": final_calls,
+            "selection_rule": "common_pool_utility_seed_retained_on_tie_or_native_regression",
+            "search_visible_task_ids": sorted(required_task_ids),
+            "final_holdout_claim": False,
+        }
+    else:
+        if cand_mean_native <= seed_mean_native:
+            chosen_id, chosen_text, selected_score = (
+                binding["seed_sha256"],
+                seed,
+                seed_mean_native,
+            )
+        else:
+            chosen_id, chosen_text, selected_score = (
+                candidate_id,
+                best,
+                cand_mean_native,
+            )
+        selection = {
+            "candidate_id": chosen_id,
+            "text": chosen_text,
+            "score": selected_score,
+            "score_mode": score_mode,
+            "utility": selected_score,
+            "native_quality": selected_score,
+            "calls": None,
+            "selection_rule": "common_pool_mean_seed_retained_on_tie_or_regression",
+            "search_visible_task_ids": sorted(required_task_ids),
+            "final_holdout_claim": False,
+        }
+
+    return selection, None
+
+
 def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
     raw = json.loads(path.read_text())
     allowed = {
@@ -171,6 +387,7 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         "feedback_max_chars",
         "max_target_attempts",
         "shared_budget",
+        "score_mode",
     }
     if not isinstance(raw, dict) or set(raw) - allowed:
         raise ValueError("Unknown campaign fields; arbitrary engine configuration is not supported")
@@ -193,6 +410,14 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         raise ValueError("enabled must be a boolean")
     if raw.get("candidate_evaluation", "review") not in {"review", "automatic"}:
         raise ValueError("candidate_evaluation must be review or automatic")
+    score_mode = raw.get("score_mode", "native_reward")
+    if not isinstance(score_mode, str) or score_mode not in {
+        "native_reward",
+        "quality_gated_request_efficiency",
+    }:
+        raise ValueError(
+            "score_mode must be 'native_reward' or 'quality_gated_request_efficiency'"
+        )
     for key in (
         "max_evals",
         "max_iterations",
@@ -365,6 +590,7 @@ def _run_campaign(
             )
         authorization_bytes = proposer_approval_ref.read_bytes()
     output = _path(repo_root, config["output_dir"])
+    score_mode = config.get("score_mode", "native_reward")
     output.mkdir(parents=True, exist_ok=True)
     seed = _path(repo_root, config["seed_candidate_path"]).read_text(encoding="utf-8")
     if not seed.strip():
@@ -457,10 +683,25 @@ def _run_campaign(
     def evaluate(candidate, example):
         try:
             _check_running(output)
-            return evaluator(candidate, example)
+            raw_score, info = evaluator(candidate, example)
+            if score_mode == "quality_gated_request_efficiency":
+                utility, calls = _compute_request_efficiency_utility(info, raw_score=raw_score)
+                info["score_mode"] = score_mode
+                info["native_quality"] = raw_score
+                info["calls"] = calls
+                info["utility"] = utility
+                feedback_addition = (
+                    f"\n\n[Evaluation metric: score_mode={score_mode} "
+                    f"native_quality={raw_score} calls={calls} utility={utility}]"
+                )
+                if isinstance(info.get("feedback"), str):
+                    info["feedback"] += feedback_addition
+                else:
+                    info["feedback"] = feedback_addition.strip()
+                return utility, info
+            return raw_score, info
         except Exception as exc:
             raise _EvaluationHalt(exc) from exc
-
     try:
         if config["engine"] == "omni":
             from .composition import EngineUnavailable, engine_availability, run_omni
@@ -622,33 +863,16 @@ def _run_campaign(
         candidate_id = "sha256:" + hashlib.sha256(best.encode()).hexdigest()
         selected_records = [row for row in records if row["candidate_id"] == candidate_id]
         required = {row["task_id"] for row in (validation or train)}
-        if required <= {row["task_id"] for row in selected_records} and math.isfinite(
-            result.best_score
-        ):
-            seed_scores = {
-                row["task_id"]: row["score"]
-                for row in records
-                if row["candidate_id"] == binding["seed_sha256"] and row["task_id"] in required
-            }
-            selected_scores = {
-                row["task_id"]: row["score"]
-                for row in selected_records
-                if row["task_id"] in required
-            }
-            selected_score = sum(selected_scores.values()) / len(required)
-            seed_score = sum(seed_scores.values()) / len(required)
-            if selected_score <= seed_score:
-                candidate_id, best, selected_score = binding["seed_sha256"], seed, seed_score
-            selection = {
-                "candidate_id": candidate_id,
-                "text": best,
-                "score": selected_score,
-                "selection_rule": "common_pool_mean_seed_retained_on_tie_or_regression",
-                "search_visible_task_ids": sorted(required),
-                "final_holdout_claim": False,
-            }
-        else:
-            status = "incomplete_selection_coverage"
+        selection, coverage_status = _compute_selection(
+            result=result,
+            records=records,
+            binding=binding,
+            seed=seed,
+            required_task_ids=required,
+            score_mode=score_mode,
+        )
+        if coverage_status:
+            status = coverage_status
         candidates = list(dict.fromkeys(row["candidate_id"] for row in records))
         if len(candidates) >= 2:
             spec = evaluator.write_comparison_spec(candidates)
@@ -672,6 +896,7 @@ def _run_campaign(
         "release": pin,
         "engine": config["engine"],
         "engine_availability": availability,
+        "score_mode": score_mode,
         "budget_accounting": [
             {"directory": str(budget.directory), **budget.summary()} for budget in budgets
         ],

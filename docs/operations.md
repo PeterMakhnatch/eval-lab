@@ -183,6 +183,15 @@ scores use development tasks; freeze the artifact before a separate held-out
 comparison. Missing traces remain missing, and infrastructure failures never
 become reward zero.
 
+Campaigns default to `"score_mode": "native_reward"`, evaluating candidates by
+raw primary verifier reward. Setting `"score_mode": "quality_gated_request_efficiency"`
+optimizes physical provider request efficiency while preserving exact task
+correctness: utility is `1 / (1 + requests)` when native task reward is exactly
+1.0, and 0 otherwise. Raw rewards and evaluation receipts remain unchanged;
+unresolved or missing provider accounting halts the run rather than reporting a
+free zero score. Selection evaluates common-pool utility but vetoes any per-task
+native reward regression and retains the seed on utility ties.
+
 ### Bounded GEPA and genuine Omni composition
 
 `research/experiments/harness-gepa/har53-gepa.json` and `har53-omni.json`

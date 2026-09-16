@@ -17,10 +17,11 @@ from evallab.explorer import redact_text
 from evallab.registry import task_directory_digest
 from evallab.trajectory_ir import build_trajectory_ir
 
-__all__ = ["build_feedback"]
+__all__ = ["build_feedback", "validate_oracle_reference"]
 
 _FORBIDDEN_TASK_PARTS = frozenset({"tests", "solution"})
 _MAX_OBSERVATION_CHARS = 1000
+_ERROR_PATTERNS = ("Traceback", "command not found", "No such file", "Permission denied", "SyntaxError", "NameError", "TypeError", "ValueError", "AttributeError", "ImportError", "ModuleNotFoundError", "FileNotFoundError", "KeyError", "IndexError", "AssertionError", "FATAL:", "ERROR:", "FAILED")
 
 
 def _collect_secrets() -> frozenset[str]:
@@ -67,43 +68,13 @@ def _extract_command(args: Any) -> str | None:
             return None
     return None
 
-_ERROR_PATTERNS = (
-    "Traceback (most recent call last)",
-    "command not found",
-    "No such file or directory",
-    "Permission denied",
-    "SyntaxError:",
-    "ModuleNotFoundError:",
-    "ImportError:",
-    "FileNotFoundError:",
-    "PermissionError:",
-    "ZeroDivisionError:",
-    "TypeError:",
-    "ValueError:",
-    "KeyError:",
-    "AttributeError:",
-    "IndexError:",
-    "Error:",
-    "ERROR:",
-    "fatal:",
-)
-
 
 def _find_error_indicator(obs_text: str) -> str | None:
-    """Extract a concise one-line error indicator from observation text if present."""
     if not obs_text:
         return None
     for line in obs_text.splitlines():
         s = line.strip()
-        if not s:
-            continue
-        for pat in _ERROR_PATTERNS:
-            if pat in s:
-                return s[:160]
-        s_lower = s.lower()
-        if "exit code " in s_lower and "exit code 0" not in s_lower:
-            return s[:160]
-        if "returncode: " in s_lower and "returncode: 0" not in s_lower:
+        if any(pat in s for pat in _ERROR_PATTERNS):
             return s[:160]
     return None
 
@@ -151,6 +122,162 @@ def _check_task_path_safety(task_path: Path) -> None:
             )
 
 
+def validate_oracle_reference(repo_root: Path, task_path: Path, reference: dict) -> Path:
+    """Preflight validate an oracle reference against safety, digest, execution, and metadata rules."""
+    if not isinstance(reference, dict):
+        raise ValueError("oracle_reference must be a dictionary")
+    if set(reference.keys()) != {"trial_path", "result_sha256", "task_package_digest"}:
+        raise ValueError("oracle_reference must contain exact keys ['result_sha256', 'task_package_digest', 'trial_path']")
+    for k, v in reference.items():
+        if not isinstance(v, (str, Path)) or not str(v).strip():
+            raise ValueError(f"oracle_reference key '{k}' must be a non-empty string or Path")
+
+    if not repo_root.is_dir():
+        raise FileNotFoundError(f"repo_root '{repo_root}' does not exist or is not a directory")
+    repo = repo_root.resolve()
+    _check_task_path_safety(Path(task_path))
+    task = _validate_path_jail(repo, task_path, label="task_path")
+    _check_task_path_safety(task)
+    if not task.is_dir():
+        raise FileNotFoundError(f"task_path '{task_path}' does not exist or is not a directory")
+
+    raw_trial = Path(reference["trial_path"])
+    _check_task_path_safety(raw_trial)
+    trial = _validate_path_jail(repo, raw_trial, label="oracle_reference trial_path")
+    if any(p.lower() in _FORBIDDEN_TASK_PARTS for p in trial.relative_to(repo).parts):
+        raise ValueError("oracle_reference trial_path accesses forbidden hidden directory")
+    if (raw_trial if raw_trial.is_absolute() else (repo / raw_trial)).is_symlink():
+        raise ValueError(f"oracle_reference trial_path '{raw_trial}' must be a regular directory, not a symlink")
+    if not trial.is_dir():
+        raise FileNotFoundError(f"oracle_reference trial_path '{raw_trial}' does not exist or is not a directory")
+
+    res_file = _safe_child_file(trial, "result.json", label="oracle trial result")
+    if res_file is None or not res_file.is_file():
+        raise FileNotFoundError(f"oracle result.json not found under '{trial}'")
+    res_bytes = res_file.read_bytes()
+    actual_sha, exp_sha = hashlib.sha256(res_bytes).hexdigest(), str(reference["result_sha256"]).strip()
+    exp_hex = exp_sha[7:] if exp_sha.startswith("sha256:") else exp_sha
+    if actual_sha.lower() != exp_hex.lower():
+        raise ValueError(f"oracle_reference result_sha256 mismatch: expected {exp_sha}, computed {actual_sha}")
+
+    try:
+        res_data = json.loads(res_bytes.decode("utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"oracle trial result.json is unparseable: {exc}") from exc
+    if not isinstance(res_data, dict):
+        raise ValueError("oracle trial result.json is not a valid JSON object")
+    if not res_data.get("finished_at"):
+        raise ValueError("oracle trial did not finish successfully (missing finished_at)")
+    if res_data.get("status") and str(res_data["status"]) != "completed":
+        raise ValueError(f"oracle trial status is {res_data['status']!r}, expected 'completed'")
+    if res_data.get("exception_info") or res_data.get("error"):
+        raise ValueError(f"oracle trial encountered error: {res_data.get('exception_info') or res_data.get('error')}")
+
+    cfg_agent = (res_data.get("config") or {}).get("agent") if isinstance(res_data.get("config"), dict) else {}
+    agent_info = res_data.get("agent_info") if isinstance(res_data.get("agent_info"), dict) else {}
+    name = agent_info.get("name") or (cfg_agent.get("name") if isinstance(cfg_agent, dict) else None)
+    if not name or not str(name).startswith("oracle"):
+        raise ValueError(f"oracle trial agent is {name!r}, expected 'oracle'")
+    model = (cfg_agent.get("model_name") if isinstance(cfg_agent, dict) else None) or agent_info.get("model_info") or res_data.get("model")
+    if model is not None:
+        raise ValueError(f"oracle trial has model {model!r}, expected control agent with no model")
+
+    v_res = res_data.get("verifier_result")
+    reward = (v_res.get("rewards") or {}).get("reward") if isinstance(v_res, dict) else None
+    if reward is None:
+        raise ValueError("oracle trial verifier_result has no primary reward")
+    try:
+        if float(reward) != 1.0:
+            raise ValueError(f"oracle trial primary reward is {reward!r}, expected 1.0")
+    except (ValueError, TypeError) as exc:
+        raise ValueError(f"oracle trial primary reward is not 1.0: {reward!r}") from exc
+
+    exp_pkg, comp_pkg = str(reference["task_package_digest"]).strip(), task_directory_digest(task)
+    if comp_pkg != exp_pkg:
+        raise ValueError(f"oracle_reference task_package_digest mismatch: expected {exp_pkg}, task directory computed {comp_pkg}")
+
+    meta_file = _safe_child_file(trial.parent, "lab-metadata.json", label="oracle lab-metadata") or _safe_child_file(trial, "lab-metadata.json", label="oracle lab-metadata")
+    if meta_file is None or not meta_file.is_file():
+        raise FileNotFoundError(f"oracle lab-metadata.json not found under '{trial.parent}' or '{trial}'")
+    try:
+        meta_json = json.loads(meta_file.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"oracle lab-metadata.json is unparseable: {exc}") from exc
+    if not isinstance(meta_json, dict) or not isinstance(meta_json.get("experiment"), dict):
+        raise ValueError("oracle lab-metadata.json missing 'experiment' section")
+    meta_pkg = meta_json["experiment"].get("package_digest")
+    if not meta_pkg or meta_pkg != exp_pkg:
+        raise ValueError(f"oracle lab-metadata experiment.package_digest {meta_pkg!r} does not match expected {exp_pkg!r}")
+
+    return trial
+
+
+def _extract_state_transitions(trial: Path, repo: Path, sources: dict[str, str], prefix: str) -> tuple[list[str], set[str]]:
+    """Extract observable filesystem transitions from state-diff.json or state-events.jsonl."""
+    diff = _safe_child_file(trial, "state-journal/state-diff.json", label=f"{prefix} state diff")
+    if diff and diff.is_file():
+        sources[f"{prefix}_state_diff"] = diff.relative_to(repo).as_posix()
+        try:
+            data = json.loads(diff.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            data = {}
+        trans, paths = [], set()
+        for ch in (data.get("changes") or []) if isinstance(data, dict) else []:
+            p = ch.get("path") if isinstance(ch, dict) else None
+            if p and not any(part.lower() in _FORBIDDEN_TASK_PARTS for part in Path(p).parts):
+                paths.add(p)
+                node = ch.get("after") or ch.get("before") or {}
+                size = f", {node['size_bytes']} bytes" if "size_bytes" in node else ""
+                trans.append(f"- [{ch.get('change_type', 'modified')}] {p} ({node.get('type', 'file')}{size})")
+        return trans, paths
+
+    events = _safe_child_file(trial, "state-journal/state-events.jsonl", label=f"{prefix} state events")
+    if events and events.is_file():
+        sources[f"{prefix}_state_events"] = events.relative_to(repo).as_posix()
+        trans, paths = [], set()
+        for line in events.read_text(encoding="utf-8").splitlines():
+            try:
+                ev = json.loads(line) if line.strip() else {}
+            except json.JSONDecodeError:
+                continue
+            p = ev.get("path") if isinstance(ev, dict) else None
+            if p and not any(part.lower() in _FORBIDDEN_TASK_PARTS for part in Path(p).parts):
+                paths.add(p)
+                trans.append(f"- [{','.join(ev.get('operations', ['modified']))}] {p}")
+        return trans, paths
+    return [], set()
+
+
+def _extract_oracle_actions(trial: Path, repo: Path, sources: dict[str, str]) -> tuple[list[str], list[str], bool, bool]:
+    """Extract observable oracle actions without answer payloads, plus raw log command status."""
+    actions, log_cmds = [], []
+    traj = _safe_child_file(trial, "agent/trajectory.json", label="oracle trajectory") or _safe_child_file(trial, "trajectory.json", label="oracle trajectory")
+    if traj and traj.is_file():
+        sources["oracle_trajectory"] = traj.relative_to(repo).as_posix()
+        try:
+            raw = json.loads(traj.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            raw = {}
+        if isinstance(raw, dict) and raw.get("steps"):
+            ir = build_trajectory_ir(raw, source_path=sources["oracle_trajectory"])
+            for step in ir.steps:
+                if step.source == "agent" and step.tool_calls:
+                    for tc in step.tool_calls:
+                        cmd = _extract_command(tc.arguments) or json.dumps(tc.arguments, sort_keys=True)
+                        actions.append(f"- Step {step.step_id} Action [{tc.function_name}]: {cmd}")
+
+    log_file = _safe_child_file(trial, "agent/oracle.txt", label="oracle log") or _safe_child_file(trial, "oracle.txt", label="oracle log")
+    log_present, log_empty = False, True
+    if log_file and log_file.is_file():
+        sources["oracle_log"] = log_file.relative_to(repo).as_posix()
+        log_present = True
+        content = log_file.read_text(encoding="utf-8").strip()
+        log_empty = not content
+        if content and not actions:
+            log_cmds = [f"- {l.strip().lstrip('$> ')}" for l in content.splitlines() if l.strip().startswith(("$", ">"))]
+    return actions, log_cmds, log_present, log_empty
+
+
 def build_feedback(
     *,
     repo_root: Path,
@@ -178,9 +305,8 @@ def build_feedback(
         truncated flag, char_count, and max_chars.
 
     Raises:
-        ValueError: If paths escape the repo root, target forbidden directories,
-            symlink out, or if oracle_reference violates validation rules.
-        FileNotFoundError: If task_path, trial_path, or oracle trial directory does not exist.
+        ValueError: If paths escape the repo root, target forbidden directories, or symlink out.
+        FileNotFoundError: If task_path or trial_path directory does not exist.
     """
     if max_chars <= 0:
         raise ValueError("max_chars must be a positive integer")
@@ -205,275 +331,25 @@ def build_feedback(
     coverage_notices: list[str] = []
     secrets = _collect_secrets()
 
-    # Optional Oracle Reference Validation and Extraction
     oracle_data: dict[str, Any] | None = None
     if oracle_reference is not None:
-        if not isinstance(oracle_reference, dict):
-            raise ValueError("oracle_reference must be a dictionary")
-        expected_keys = {"trial_path", "result_sha256", "task_package_digest"}
-        if set(oracle_reference.keys()) != expected_keys:
-            raise ValueError(
-                f"oracle_reference must contain exact keys {sorted(expected_keys)}, got {sorted(oracle_reference.keys())}"
-            )
-        for k in expected_keys:
-            v = oracle_reference[k]
-            if not isinstance(v, (str, Path)) or not str(v).strip():
-                raise ValueError(f"oracle_reference key '{k}' must be a non-empty string or Path")
-
-        raw_oracle_trial = Path(oracle_reference["trial_path"])
-        _check_task_path_safety(raw_oracle_trial)
-        resolved_oracle_trial = _validate_path_jail(
-            resolved_repo_root, raw_oracle_trial, label="oracle_reference trial_path"
-        )
-        for part in resolved_oracle_trial.relative_to(resolved_repo_root).parts:
-            if part.lower() in _FORBIDDEN_TASK_PARTS:
-                raise ValueError(
-                    f"oracle_reference trial_path accesses forbidden hidden directory: '{part}'"
-                )
-        if not resolved_oracle_trial.exists() or not resolved_oracle_trial.is_dir():
-            raise FileNotFoundError(
-                f"oracle_reference trial_path '{raw_oracle_trial}' does not exist or is not a directory"
-            )
-
-        # 1. Oracle Result & Result SHA256
-        oracle_res_file = _safe_child_file(
-            resolved_oracle_trial, "result.json", label="oracle trial result"
-        )
-        if oracle_res_file is None or not oracle_res_file.is_file():
-            raise FileNotFoundError(
-                f"oracle result.json not found under '{resolved_oracle_trial}'"
-            )
-        oracle_res_bytes = oracle_res_file.read_bytes()
-        actual_res_sha = hashlib.sha256(oracle_res_bytes).hexdigest()
-        expected_res_sha = str(oracle_reference["result_sha256"]).strip()
-        expected_res_hex = (
-            expected_res_sha[7:] if expected_res_sha.startswith("sha256:") else expected_res_sha
-        )
-        if actual_res_sha.lower() != expected_res_hex.lower():
-            raise ValueError(
-                f"oracle_reference result_sha256 mismatch: expected {expected_res_sha}, "
-                f"computed {actual_res_sha}"
-            )
-        sources["oracle_trial_result"] = oracle_res_file.relative_to(resolved_repo_root).as_posix()
-
-        try:
-            oracle_res_data = json.loads(oracle_res_bytes.decode("utf-8"))
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"oracle trial result.json is unparseable: {exc}") from exc
-        if not isinstance(oracle_res_data, dict):
-            raise ValueError("oracle trial result.json is not a valid JSON object")
-
-        # 2. Oracle completion, errors, agent identity, no-model, and reward 1.0
-        if not oracle_res_data.get("finished_at"):
-            raise ValueError("oracle trial did not finish successfully (missing finished_at)")
-        if oracle_res_data.get("status") and str(oracle_res_data["status"]) != "completed":
-            raise ValueError(
-                f"oracle trial status is {oracle_res_data['status']!r}, expected 'completed'"
-            )
-        raw_oracle_err = oracle_res_data.get("exception_info") or oracle_res_data.get("error")
-        if raw_oracle_err:
-            raise ValueError(f"oracle trial encountered error: {raw_oracle_err}")
-
-        oracle_agent_info = oracle_res_data.get("agent_info")
-        if not isinstance(oracle_agent_info, dict):
-            oracle_agent_info = {}
-        oracle_cfg = oracle_res_data.get("config")
-        oracle_cfg_agent = (
-            oracle_cfg.get("agent")
-            if isinstance(oracle_cfg, dict) and isinstance(oracle_cfg.get("agent"), dict)
-            else {}
-        )
-        oracle_agent_name = oracle_agent_info.get("name") or oracle_cfg_agent.get("name")
-        if not oracle_agent_name or not str(oracle_agent_name).startswith("oracle"):
-            raise ValueError(
-                f"oracle trial agent is {oracle_agent_name!r}, expected 'oracle'"
-            )
-
-        oracle_model = (
-            oracle_cfg_agent.get("model_name")
-            or oracle_agent_info.get("model_info")
-            or oracle_res_data.get("model")
-        )
-        if oracle_model is not None:
-            raise ValueError(
-                f"oracle trial has model {oracle_model!r}, expected control agent with no model"
-            )
-
-        oracle_v_res = oracle_res_data.get("verifier_result")
-        if not isinstance(oracle_v_res, dict):
-            oracle_v_res = {}
-        oracle_rewards = oracle_v_res.get("rewards")
-        if not isinstance(oracle_rewards, dict):
-            oracle_rewards = {}
-        oracle_reward = oracle_rewards.get("reward")
-        if oracle_reward is None:
-            raise ValueError("oracle trial verifier_result has no primary reward")
-        try:
-            if float(oracle_reward) != 1.0:
-                raise ValueError(
-                    f"oracle trial primary reward is {oracle_reward!r}, expected 1.0"
-                )
-        except (ValueError, TypeError) as exc:
-            raise ValueError(
-                f"oracle trial primary reward is not 1.0: {oracle_reward!r}"
-            ) from exc
-
-        # 3. Task package binding and native parent lab-metadata.json
-        expected_pkg_digest = str(oracle_reference["task_package_digest"]).strip()
-        computed_task_pkg_digest = task_directory_digest(resolved_task_path)
-        if computed_task_pkg_digest != expected_pkg_digest:
-            raise ValueError(
-                f"oracle_reference task_package_digest mismatch: expected {expected_pkg_digest}, "
-                f"task directory computed {computed_task_pkg_digest}"
-            )
-
-        oracle_parent = resolved_oracle_trial.parent
-        _validate_path_jail(resolved_repo_root, oracle_parent, label="oracle job parent")
-        oracle_meta_file = _safe_child_file(
-            oracle_parent, "lab-metadata.json", label="oracle lab-metadata"
-        )
-        if oracle_meta_file is None or not oracle_meta_file.is_file():
-            oracle_meta_file = _safe_child_file(
-                resolved_oracle_trial, "lab-metadata.json", label="oracle lab-metadata"
-            )
-        if oracle_meta_file is None or not oracle_meta_file.is_file():
-            raise FileNotFoundError(
-                f"oracle lab-metadata.json not found under '{oracle_parent}' or '{resolved_oracle_trial}'"
-            )
-        sources["oracle_lab_metadata"] = oracle_meta_file.relative_to(resolved_repo_root).as_posix()
-
-        try:
-            oracle_meta_json = json.loads(oracle_meta_file.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"oracle lab-metadata.json is unparseable: {exc}") from exc
-        if not isinstance(oracle_meta_json, dict):
-            raise ValueError("oracle lab-metadata.json is not a valid JSON object")
-
-        meta_exp = oracle_meta_json.get("experiment")
-        if not isinstance(meta_exp, dict):
-            raise ValueError("oracle lab-metadata.json missing 'experiment' section")
-        meta_pkg_digest = meta_exp.get("package_digest")
-        if not meta_pkg_digest or meta_pkg_digest != expected_pkg_digest:
-            raise ValueError(
-                f"oracle lab-metadata experiment.package_digest {meta_pkg_digest!r} "
-                f"does not match expected {expected_pkg_digest!r}"
-            )
-
-        # 4. Oracle Trajectory / Command Log
-        oracle_actions: list[str] = []
-        oracle_traj_file = _safe_child_file(
-            resolved_oracle_trial, "agent/trajectory.json", label="oracle trajectory"
-        )
-        if oracle_traj_file is None:
-            oracle_traj_file = _safe_child_file(
-                resolved_oracle_trial, "trajectory.json", label="oracle trajectory"
-            )
-        if oracle_traj_file is not None and oracle_traj_file.is_file():
-            sources["oracle_trajectory"] = oracle_traj_file.relative_to(resolved_repo_root).as_posix()
-            try:
-                raw_oracle_traj = json.loads(oracle_traj_file.read_text(encoding="utf-8"))
-            except json.JSONDecodeError:
-                raw_oracle_traj = {}
-            if isinstance(raw_oracle_traj, dict) and raw_oracle_traj.get("steps"):
-                for step_dict in raw_oracle_traj.get("steps", []):
-                    if (
-                        isinstance(step_dict, dict)
-                        and "observation_results" not in step_dict
-                        and isinstance(step_dict.get("observation"), dict)
-                    ):
-                        res = step_dict["observation"].get("results")
-                        if isinstance(res, list):
-                            step_dict["observation_results"] = res
-                oracle_ir = build_trajectory_ir(
-                    raw_oracle_traj, source_path=sources["oracle_trajectory"]
-                )
-                for step in oracle_ir.steps:
-                    if step.source == "agent" and step.tool_calls:
-                        for tc in step.tool_calls:
-                            cmd = _extract_command(tc.arguments) or json.dumps(
-                                tc.arguments, sort_keys=True
-                            )
-                            oracle_actions.append(
-                                f"- Step {step.step_id} Action [{tc.function_name}]: {cmd}"
-                            )
-
-        oracle_txt_file = _safe_child_file(
-            resolved_oracle_trial, "agent/oracle.txt", label="oracle log"
-        )
-        if oracle_txt_file is None:
-            oracle_txt_file = _safe_child_file(
-                resolved_oracle_trial, "oracle.txt", label="oracle log"
-            )
-        oracle_txt_content = ""
-        if oracle_txt_file is not None and oracle_txt_file.is_file():
-            sources["oracle_log"] = oracle_txt_file.relative_to(resolved_repo_root).as_posix()
-            oracle_txt_content = oracle_txt_file.read_text(encoding="utf-8").strip()
-
-        if not oracle_actions and not oracle_txt_content:
-            coverage_notices.append(
-                "oracle_trace: absent (oracle agent recorded 0 command steps; agent/oracle.txt is empty)"
-            )
-
-        # 5. Oracle File Transitions from State-Journal
-        oracle_transitions: list[str] = []
-        oracle_transition_paths: set[str] = set()
-        oracle_diff_file = _safe_child_file(
-            resolved_oracle_trial, "state-journal/state-diff.json", label="oracle state diff"
-        )
-        if oracle_diff_file is not None and oracle_diff_file.is_file():
-            sources["oracle_state_diff"] = oracle_diff_file.relative_to(resolved_repo_root).as_posix()
-            try:
-                diff_data = json.loads(oracle_diff_file.read_text(encoding="utf-8"))
-            except json.JSONDecodeError:
-                diff_data = {}
-            if isinstance(diff_data, dict):
-                for change in diff_data.get("changes", []):
-                    if isinstance(change, dict) and change.get("path"):
-                        ch_path = change["path"]
-                        if any(part.lower() in _FORBIDDEN_TASK_PARTS for part in Path(ch_path).parts):
-                            continue
-                        oracle_transition_paths.add(ch_path)
-                        ch_type = change.get("change_type", "modified")
-                        node_info = change.get("after") or change.get("before") or {}
-                        entry_type = node_info.get("type", "file")
-                        size_bytes = node_info.get("size_bytes")
-                        size_str = f", {size_bytes} bytes" if size_bytes is not None else ""
-                        oracle_transitions.append(f"- [{ch_type}] {ch_path} ({entry_type}{size_str})")
-        else:
-            oracle_events_file = _safe_child_file(
-                resolved_oracle_trial, "state-journal/state-events.jsonl", label="oracle state events"
-            )
-            if oracle_events_file is not None and oracle_events_file.is_file():
-                sources["oracle_state_events"] = oracle_events_file.relative_to(resolved_repo_root).as_posix()
-                for line in oracle_events_file.read_text(encoding="utf-8").splitlines():
-                    if not line.strip():
-                        continue
-                    try:
-                        ev = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    if isinstance(ev, dict) and ev.get("path"):
-                        ev_path = ev["path"]
-                        if any(part.lower() in _FORBIDDEN_TASK_PARTS for part in Path(ev_path).parts):
-                            continue
-                        oracle_transition_paths.add(ev_path)
-                        ops = ",".join(ev.get("operations", ["modified"]))
-                        oracle_transitions.append(f"- [{ops}] {ev_path}")
-            else:
-                coverage_notices.append(
-                    "oracle_state_journal: absent (no state-journal captured for oracle trial)"
-                )
-
+        resolved_oracle = validate_oracle_reference(resolved_repo_root, resolved_task_path, oracle_reference)
+        sources["oracle_trial_result"] = (resolved_oracle / "result.json").relative_to(resolved_repo_root).as_posix()
+        meta = _safe_child_file(resolved_oracle.parent, "lab-metadata.json", label="oracle lab-metadata") or _safe_child_file(resolved_oracle, "lab-metadata.json", label="oracle lab-metadata")
+        if meta and meta.is_file():
+            sources["oracle_lab_metadata"] = meta.relative_to(resolved_repo_root).as_posix()
+        o_acts, o_cmds, o_pres, o_empty = _extract_oracle_actions(resolved_oracle, resolved_repo_root, sources)
+        if not o_acts and (not o_pres or o_empty):
+            coverage_notices.append("oracle_trace: absent (oracle agent recorded 0 command steps; agent/oracle.txt is empty)")
+        o_trans, o_paths = _extract_state_transitions(resolved_oracle, resolved_repo_root, sources, "oracle")
+        if not o_trans:
+            coverage_notices.append("oracle_state_journal: absent (no state-journal captured for oracle trial)")
         oracle_data = {
-            "task_package_digest": expected_pkg_digest,
-            "result_sha256": expected_res_sha,
-            "primary_reward": 1.0,
-            "actions": oracle_actions,
-            "log_content": oracle_txt_content,
-            "transitions": oracle_transitions,
-            "transition_paths": oracle_transition_paths,
+            "task_package_digest": str(oracle_reference["task_package_digest"]).strip(),
+            "result_sha256": str(oracle_reference["result_sha256"]).strip(),
+            "actions": o_acts, "log_cmds": o_cmds, "log_present": o_pres, "log_empty": o_empty,
+            "transitions": o_trans, "transition_paths": o_paths,
         }
-
 
     # 1. Declared Task Instruction (instruction.md only)
     task_instruction: str | None = None
@@ -578,6 +454,7 @@ def build_feedback(
     agent_redundant_actions: list[str] = []
     seen_actions: dict[tuple[str, str], list[int]] = {}
     final_response: str | None = None
+
     if traj_file is None or not traj_file.is_file():
         trace_status = "absent"
         if agent_name in ("nop", "oracle"):
@@ -649,6 +526,7 @@ def build_feedback(
                                         + f"\n... [observation truncated to {_MAX_OBSERVATION_CHARS} chars]"
                                     )
                                 actions_summary.append(f"  Observation: {obs_text}")
+                if step.reasoning_content:
                     actions_summary.append(f"  Reasoning: {step.reasoning_content}")
 
             for step in reversed(ir.steps):
@@ -658,42 +536,10 @@ def build_feedback(
                         final_response = msg
                         break
 
-
-    # Agent state-journal file transitions (when oracle_reference provided)
     agent_transition_paths: set[str] = set()
     if oracle_data is not None:
-        agent_diff_file = _safe_child_file(
-            resolved_trial_path, "state-journal/state-diff.json", label="agent state diff"
-        )
-        if agent_diff_file is not None and agent_diff_file.is_file():
-            sources["trial_state_diff"] = agent_diff_file.relative_to(resolved_repo_root).as_posix()
-            try:
-                agent_diff_data = json.loads(agent_diff_file.read_text(encoding="utf-8"))
-            except json.JSONDecodeError:
-                agent_diff_data = {}
-            if isinstance(agent_diff_data, dict):
-                for change in agent_diff_data.get("changes", []):
-                    if isinstance(change, dict) and change.get("path"):
-                        p = change["path"]
-                        if not any(part.lower() in _FORBIDDEN_TASK_PARTS for part in Path(p).parts):
-                            agent_transition_paths.add(p)
-        else:
-            agent_events_file = _safe_child_file(
-                resolved_trial_path, "state-journal/state-events.jsonl", label="agent state events"
-            )
-            if agent_events_file is not None and agent_events_file.is_file():
-                sources["trial_state_events"] = agent_events_file.relative_to(resolved_repo_root).as_posix()
-                for line in agent_events_file.read_text(encoding="utf-8").splitlines():
-                    if not line.strip():
-                        continue
-                    try:
-                        ev = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    if isinstance(ev, dict) and ev.get("path"):
-                        ev_path = ev["path"]
-                        if not any(part.lower() in _FORBIDDEN_TASK_PARTS for part in Path(ev_path).parts):
-                            agent_transition_paths.add(ev_path)
+        _, agent_transition_paths = _extract_state_transitions(resolved_trial_path, resolved_repo_root, sources, "trial")
+
     # 4. Format Single Full Text
     lines: list[str] = []
     lines.append(f"# Evaluation Feedback: {task_id}")
@@ -739,70 +585,39 @@ def build_feedback(
             lines.append("")
             lines.append(f"Final Response:\n{final_response}")
     lines.append("")
+
     if oracle_data is not None:
-        lines.append("## Oracle Reference Contrast")
-        lines.append(f"- Reference Package Digest: {oracle_data['task_package_digest']}")
-        lines.append(f"- Reference Result Digest: {oracle_data['result_sha256']}")
-        lines.append("- Reference Outcome: completed (Reward: 1.0000, Errors: none)")
-        agent_rew = (
-            f"{primary_reward:.4f}"
-            if isinstance(primary_reward, float)
-            else (str(primary_reward) if primary_reward is not None else "none")
-        )
-        lines.append(
-            f"- Agent Outcome: {outcome_status} (Reward: {agent_rew}, Errors: {error_str or 'none'})"
-        )
-        lines.append("")
-
-        lines.append("### Oracle Observed Action Trace")
+        agent_rew = f"{primary_reward:.4f}" if isinstance(primary_reward, (int, float)) else (str(primary_reward) if primary_reward is not None else "none")
+        lines.extend([
+            "## Oracle Reference Contrast",
+            f"- Reference Package Digest: {oracle_data['task_package_digest']}",
+            f"- Reference Result Digest: {oracle_data['result_sha256']}",
+            "- Reference Outcome: completed (Reward: 1.0000, Errors: none)",
+            f"- Agent Outcome: {outcome_status} (Reward: {agent_rew}, Errors: {error_str or 'none'})",
+            "",
+            "### Oracle Observed Action Trace",
+        ])
         if oracle_data["actions"]:
-            for act in oracle_data["actions"]:
-                lines.append(act)
-        elif oracle_data["log_content"]:
-            for log_ln in oracle_data["log_content"].splitlines()[:10]:
-                lines.append(f"- {log_ln}")
+            lines.extend(oracle_data["actions"])
+        elif oracle_data["log_cmds"]:
+            lines.extend(oracle_data["log_cmds"][:10])
+        elif oracle_data["log_present"] and not oracle_data["log_empty"]:
+            lines.append("Trace Status: unobservable (oracle log contains execution output without command structure; raw payload omitted to prevent solution leakage)")
         else:
-            lines.append(
-                "Trace Status: absent (agent/oracle.txt is empty; registered oracle has no command trace)"
-            )
-        lines.append("")
-
-        lines.append("### Oracle Observed File Transitions")
-        if oracle_data["transitions"]:
-            for tr in oracle_data["transitions"]:
-                lines.append(tr)
-        else:
-            lines.append("File Transitions: absent (no state-journal recorded for oracle trial)")
-        lines.append("")
-
-        lines.append("### Agent Contrast & Trace Diagnostics")
-        lines.append(f"- Total Agent Actions: {len(actions_summary)}")
-        if agent_trace_errors:
-            lines.append(f"- Agent Observed Errors ({len(agent_trace_errors)}):")
-            for err_ln in agent_trace_errors:
-                lines.append(f"  * {err_ln}")
-        else:
-            lines.append("- Agent Observed Errors: none observed in tool outputs")
-
-        if agent_redundant_actions:
-            lines.append(f"- Redundant / Repeated Agent Actions ({len(agent_redundant_actions)}):")
-            for red_ln in agent_redundant_actions:
-                lines.append(f"  * {red_ln}")
-        else:
-            lines.append("- Redundant / Repeated Agent Actions: none observed")
-
-        missing_from_agent = sorted(oracle_data["transition_paths"] - agent_transition_paths)
-        matched_transitions = sorted(oracle_data["transition_paths"] & agent_transition_paths)
-        if missing_from_agent:
-            lines.append(f"- Missing Expected Outputs ({len(missing_from_agent)}):")
-            for mp in missing_from_agent:
-                lines.append(f"  * {mp} (produced by Oracle reference, missing in agent output)")
+            lines.append("Trace Status: absent (agent/oracle.txt is empty; registered oracle has no command trace)")
+        lines.extend(["", "### Oracle Observed File Transitions"])
+        lines.extend(oracle_data["transitions"] if oracle_data["transitions"] else ["File Transitions: absent (no state-journal recorded for oracle trial)"])
+        lines.extend(["", "### Agent Contrast & Trace Diagnostics", f"- Total Agent Actions: {len(actions_summary)}"])
+        lines.extend([f"- Agent Observed Errors ({len(agent_trace_errors)}):"] + [f"  * {e}" for e in agent_trace_errors] if agent_trace_errors else ["- Agent Observed Errors: none observed in tool outputs"])
+        lines.extend([f"- Redundant / Repeated Agent Actions ({len(agent_redundant_actions)}):"] + [f"  * {r}" for r in agent_redundant_actions] if agent_redundant_actions else ["- Redundant / Repeated Agent Actions: none observed"])
+        missing = sorted(oracle_data["transition_paths"] - agent_transition_paths)
+        matched = sorted(oracle_data["transition_paths"] & agent_transition_paths)
+        if missing:
+            lines.extend([f"- Missing Expected Outputs ({len(missing)}):"] + [f"  * {m} (produced by Oracle reference, missing in agent output)" for m in missing])
         elif oracle_data["transition_paths"]:
             lines.append("- Output File Transitions: all Oracle-produced files observed in agent output")
-        if matched_transitions:
-            lines.append(f"- Matched Output Transitions ({len(matched_transitions)}):")
-            for mp in matched_transitions:
-                lines.append(f"  * {mp}")
+        if matched:
+            lines.extend([f"- Matched Output Transitions ({len(matched)}):"] + [f"  * {m}" for m in matched])
         lines.append("")
 
     lines.append("## Sources & Coverage")

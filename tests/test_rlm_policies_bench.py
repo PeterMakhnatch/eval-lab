@@ -113,7 +113,7 @@ def test_answers_are_reproducible_from_the_rendered_context_and_ground_truth() -
                     if r["account"] == account and r["month"] == month and r["amount"] > 0
                 )
                 assert score(task, f"{total:.2f}") == 1.0
-        else:
+        elif task.family == "chain-lookup":
             people = {p["emp_id"]: p for p in truth["people"]}
             invoices = {i["invoice"]: i for i in truth["invoices"]}
             invoice = re.search(r"invoice (INV-\d+)", task.query).group(1)
@@ -126,6 +126,29 @@ def test_answers_are_reproducible_from_the_rendered_context_and_ground_truth() -
                 assert score(task, f"The {office} office.") == 1.0
             else:
                 assert score(task, people[manager["manager"]]["dept"].upper()) == 1.0
+
+
+def test_memo_family_hides_category_words_and_reproduces_answers() -> None:
+    from evallab.rlm.bench.memo_family import CATEGORIES
+
+    tasks = [t for t in generate_suite(9, 4, 60_000) if t.family == "memo-classify"]
+    assert len(tasks) == 4
+    for task in tasks:
+        body = "\n".join(task.context.splitlines()[1:]).lower()
+        assert not any(re.search(rf"\b{category}\b", body) for category in CATEGORIES), task.task_id
+        records = task.meta["ground_truth"]["records"]
+        assert len({r["memo"] for r in records}) > 0.5 * len(records)  # no dedupe shortcut
+        if task.meta["kind"] == "category-count":
+            expected = sum(1 for r in records if r["category"] == task.meta["category"])
+            assert score(task, str(expected)) == 1.0
+        else:
+            account = re.search(r"account (ACC-\d+)", task.query).group(1)
+            expected = sum(
+                r["amount"]
+                for r in records
+                if r["account"] == account and r["category"] == task.meta["category"]
+            )
+            assert score(task, f"{expected:.2f}") == 1.0
 
 
 @pytest.mark.parametrize(

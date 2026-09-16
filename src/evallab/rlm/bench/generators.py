@@ -24,7 +24,7 @@ import random
 from dataclasses import dataclass, field
 from typing import Any
 
-FAMILIES = ("ledger-agg", "chain-lookup", "state-tracking")
+FAMILIES = ("ledger-agg", "chain-lookup", "state-tracking", "memo-classify")
 
 MERCHANTS: dict[str, tuple[str, ...]] = {
     "groceries": ("Trader Joe's", "Whole Foods Market", "Kroger", "Aldi", "Safeway"),
@@ -229,6 +229,9 @@ def make_ledger_task(seed: int, index: int, context_chars: int) -> BenchTask:
             lines.append(
                 f"{record['txn_id']} | {record['account']} | {record['merchant']} | ERR | {record['date']} | memo:corrupt"
             )
+    # NOTE: this shuffles a copy, so ledger lines stay in generation order. Kept
+    # as-is deliberately: the 2026-09-16 stock/lenient rows were produced with
+    # this rendering and later arms must pair against identical contexts.
     rng.shuffle(lines[1:])
     context = "\n".join(lines) + "\n"
     kind = index % 4
@@ -438,7 +441,9 @@ def make_state_task(seed: int, index: int, context_chars: int) -> BenchTask:
 
 def generate_suite(seed: int, n_per_family: int, context_chars: int = 200_000) -> list[BenchTask]:
     tasks: list[BenchTask] = []
-    for maker in (make_ledger_task, make_chain_task, make_state_task):
+    from evallab.rlm.bench.memo_family import make_memo_task
+
+    for maker in (make_ledger_task, make_chain_task, make_state_task, make_memo_task):
         for index in range(n_per_family):
             tasks.append(maker(seed, index, context_chars))
     return tasks

@@ -227,12 +227,34 @@ def cmd_baseline(args: argparse.Namespace) -> int:
     return 0
 
 
+FAMILIES = ("checkout-pool-exhaustion", "retry-storm-backlog")
+
+
+def training_sets(train_family: str) -> FamilySets:
+    """One family's frozen split, or ``both``: the two families' train/val/heldout concatenated.
+
+    Joint training lets the optimizer see two rubrics, so an instruction that
+    hardcodes one family's facts is penalised on the other family's validation docs.
+    Held-out documents of both families remain unseen.
+    """
+    if train_family != "both":
+        return family_sets(REPO_ROOT, train_family)
+    parts = [family_sets(REPO_ROOT, family) for family in FAMILIES]
+    return FamilySets(
+        family="both",
+        all=[e for p in parts for e in p.all],
+        train=[e for p in parts for e in p.train],
+        val=[e for p in parts for e in p.val],
+        heldout=[e for p in parts for e in p.heldout],
+    )
+
+
 def cmd_optimize(args: argparse.Namespace) -> int:
     lm = configure(args.model)
     reflection = zai_lm(args.reflection_model, max_tokens=16000, temperature=1.0)
     out_dir = ARTIFACTS / args.run_id
     out_dir.mkdir(parents=True, exist_ok=True)
-    sets: FamilySets = family_sets(REPO_ROOT, args.train_family)
+    sets = training_sets(args.train_family)
     student = load_program(args.seed_program)
     optimizer = build_optimizer(
         args.optimizer,
@@ -320,6 +342,67 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_export_sft(args: argparse.Namespace) -> int:
+    """Bootstrap teacher traces and write them in the chat-messages shape a trainer consumes.
+
+    This is the data half of DSPy's ``BootstrapFinetune`` (BetterTogether, arXiv
+    2407.10930): run the (prompt-optimized) program as teacher, keep traces whose
+    metric clears a threshold, format each predictor call as messages. No training
+    happens here and no trainer is named; the file shows what the SFT input would be.
+    """
+    from dspy.adapters import ChatAdapter
+    from dspy.teleprompt.bootstrap_finetune import bootstrap_trace_data, build_call_data_from_trace
+
+    lm = configure(args.model)
+    out_dir = ARTIFACTS / args.run_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    program = load_program(Path(args.program) if args.program else None)
+    sets = family_sets(REPO_ROOT, args.family)
+    examples = getattr(sets, args.split)
+    since = len(lm.history)
+    traces = bootstrap_trace_data(
+        program, examples, metric=agreement, num_threads=args.threads, raise_on_error=False
+    )
+    adapter = ChatAdapter()
+    kept, dropped = [], []
+    for item in traces:
+        score = float(item["score"] or 0.0)
+        doc = item["example"].document_id
+        if score < args.min_score:
+            dropped.append({"document_id": doc, "score": round(score, 4)})
+            continue
+        for index in range(len(item["trace"])):
+            call = build_call_data_from_trace(item["trace"], index, adapter, exclude_demos=True)
+            kept.append({"document_id": doc, "score": round(score, 4), **call})
+    path = out_dir / f"sft-{args.family}-{args.split}.jsonl"
+    with path.open("w", encoding="utf-8") as handle:
+        for row in kept:
+            handle.write(json.dumps(row) + "\n")
+    provenance = {
+        "teacher_program": args.program or "unoptimized",
+        "family": args.family,
+        "split": args.split,
+        "min_score": args.min_score,
+        "examples": len(examples),
+        "kept_calls": len(kept),
+        "dropped_examples": dropped,
+        "format": "chat messages per predictor call (dspy ChatAdapter.format_finetune_data), demos excluded",
+        "trainer": None,
+        "usage": _usage(lm, since),
+        "note": "data-shape demonstration only; nothing was trained",
+    }
+    (out_dir / f"sft-{args.family}-{args.split}.provenance.json").write_text(
+        json.dumps(provenance, indent=2) + "\n", encoding="utf-8"
+    )
+    print(json.dumps(provenance, indent=2))
+    if kept:
+        sample = kept[0]["messages"]
+        print("--- first kept call: roles/lengths ---")
+        for message in sample:
+            print(f"  {message['role']:9} {len(message['content'])} chars")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -354,6 +437,14 @@ def main(argv: list[str] | None = None) -> int:
     evaluate.add_argument("--judge-backend", default=None)
     evaluate.add_argument("--run-id", required=True)
     evaluate.set_defaults(func=cmd_evaluate)
+
+    export = sub.add_parser("export-sft")
+    export.add_argument("--program", default=None)
+    export.add_argument("--family", required=True)
+    export.add_argument("--split", default="train", choices=("all", "train", "val", "heldout"))
+    export.add_argument("--min-score", type=float, default=0.9)
+    export.add_argument("--run-id", required=True)
+    export.set_defaults(func=cmd_export_sft)
 
     args = parser.parse_args(argv)
     if args.command == "evaluate" and not args.split:

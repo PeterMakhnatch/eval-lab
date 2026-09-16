@@ -1,0 +1,123 @@
+{
+  "family": "retry-storm-backlog",
+  "split": "all",
+  "documents": 22,
+  "mean_agreement": 0.9119318181818182,
+  "per_document": {
+    "01-empty": 1.0,
+    "02-style-only-fluent-generic": 1.0,
+    "03-copied-evidence-logs": 0.6875,
+    "04-subtly-wrong-cause-deploy": 0.75,
+    "05-right-cause-useless-actions-tbd": 1.0,
+    "06-correct-oracle": 1.0,
+    "07-correct-retry-math": 1.0,
+    "08-correct-config-led": 0.9375,
+    "09-correct-compact": 1.0,
+    "10-correct-slot-focus": 0.9375,
+    "11-subtly-wrong-cause-db-cpu": 0.8125,
+    "12-subtly-wrong-cause-schema-index": 0.9375,
+    "13-subtly-wrong-cause-capacity": 0.875,
+    "14-subtly-wrong-cause-gateway-only": 0.75,
+    "15-right-cause-useless-actions-generic": 0.9375,
+    "16-right-cause-useless-actions-drain-only": 0.8125,
+    "17-right-cause-useless-actions-process": 0.875,
+    "18-fabricated-evidence-warroom": 1.0,
+    "19-fabricated-evidence-vendor-rca": 0.875,
+    "20-fabricated-evidence-metrics": 0.9375,
+    "21-style-only-fluent-executive": 0.9375,
+    "22-style-only-fluent-runbook": 1.0
+  },
+  "per_criterion": {
+    "action_quality.actions_are_actionable": {
+      "agreements": 21,
+      "total": 22,
+      "missing": 0
+    },
+    "action_quality.actions_trace_to_findings": {
+      "agreements": 20,
+      "total": 22,
+      "missing": 0
+    },
+    "action_quality.bounds_the_amplification": {
+      "agreements": 22,
+      "total": 22,
+      "missing": 0
+    },
+    "action_quality.closes_the_detection_gap": {
+      "agreements": 20,
+      "total": 22,
+      "missing": 0
+    },
+    "action_quality.proposes_unsupported_work": {
+      "agreements": 21,
+      "total": 22,
+      "missing": 0
+    },
+    "causal_reasoning.grounded_in_evidence": {
+      "agreements": 21,
+      "total": 22,
+      "missing": 0
+    },
+    "causal_reasoning.identifies_the_mechanism": {
+      "agreements": 21,
+      "total": 22,
+      "missing": 0
+    },
+    "causal_reasoning.rules_out_the_decoys": {
+      "agreements": 15,
+      "total": 22,
+      "missing": 0
+    },
+    "causal_reasoning.separates_contributing_factors": {
+      "agreements": 17,
+      "total": 22,
+      "missing": 0
+    },
+    "causal_reasoning.separates_trigger_from_cause": {
+      "agreements": 20,
+      "total": 22,
+      "missing": 0
+    },
+    "causal_reasoning.uncertainty_is_genuine": {
+      "agreements": 22,
+      "total": 22,
+      "missing": 0
+    },
+    "evidence_fidelity.asserts_unsupported_cause": {
+      "agreements": 20,
+      "total": 22,
+      "missing": 0
+    },
+    "evidence_fidelity.blames_the_deploy": {
+      "agreements": 22,
+      "total": 22,
+      "missing": 0
+    },
+    "evidence_fidelity.invents_evidence": {
+      "agreements": 17,
+      "total": 22,
+      "missing": 0
+    },
+    "evidence_fidelity.misstates_a_fact": {
+      "agreements": 20,
+      "total": 22,
+      "missing": 0
+    },
+    "evidence_fidelity.treats_db_cpu_as_cause": {
+      "agreements": 22,
+      "total": 22,
+      "missing": 0
+    }
+  },
+  "judge_backend": "dspy-gepa-checkout",
+  "judge_model": "glm-5.3-flash",
+  "elapsed_s": 223.0,
+  "usage": {
+    "calls": 24,
+    "prompt_tokens": 59356,
+    "completion_tokens": 26825,
+    "litellm_estimated_cost_usd": 0.025157
+  },
+  "bundle": "research/experiments/dspy/judge/artifacts/gepa-checkout/bundle-retry-storm-backlog.json",
+  "omitted_cells_filled_no": 0
+}

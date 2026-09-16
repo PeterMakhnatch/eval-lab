@@ -1,0 +1,95 @@
+{
+  "family": "checkout-pool-exhaustion",
+  "split": "heldout",
+  "documents": 6,
+  "mean_agreement": 0.9880952380952381,
+  "per_document": {
+    "01-empty": 1.0,
+    "06-correct-oracle": 1.0,
+    "11-subtly-wrong-cause-tls": 0.9286,
+    "15-right-cause-useless-actions-generic": 1.0,
+    "18-fabricated-evidence-warroom": 1.0,
+    "21-style-only-fluent-executive": 1.0
+  },
+  "per_criterion": {
+    "action_quality.actions_are_actionable": {
+      "agreements": 6,
+      "total": 6,
+      "missing": 0
+    },
+    "action_quality.actions_trace_to_findings": {
+      "agreements": 6,
+      "total": 6,
+      "missing": 0
+    },
+    "action_quality.closes_the_detection_gap": {
+      "agreements": 6,
+      "total": 6,
+      "missing": 0
+    },
+    "action_quality.fixes_the_capacity_coupling": {
+      "agreements": 6,
+      "total": 6,
+      "missing": 0
+    },
+    "action_quality.proposes_unsupported_work": {
+      "agreements": 6,
+      "total": 6,
+      "missing": 0
+    },
+    "causal_reasoning.grounded_in_evidence": {
+      "agreements": 6,
+      "total": 6,
+      "missing": 0
+    },
+    "causal_reasoning.identifies_the_mechanism": {
+      "agreements": 6,
+      "total": 6,
+      "missing": 0
+    },
+    "causal_reasoning.rules_out_the_decoy": {
+      "agreements": 6,
+      "total": 6,
+      "missing": 0
+    },
+    "causal_reasoning.separates_contributing_factors": {
+      "agreements": 6,
+      "total": 6,
+      "missing": 0
+    },
+    "causal_reasoning.uncertainty_is_genuine": {
+      "agreements": 5,
+      "total": 6,
+      "missing": 0
+    },
+    "evidence_fidelity.asserts_unsupported_cause": {
+      "agreements": 6,
+      "total": 6,
+      "missing": 0
+    },
+    "evidence_fidelity.blames_payments_vendor": {
+      "agreements": 6,
+      "total": 6,
+      "missing": 0
+    },
+    "evidence_fidelity.invents_evidence": {
+      "agreements": 6,
+      "total": 6,
+      "missing": 0
+    },
+    "evidence_fidelity.misstates_a_fact": {
+      "agreements": 6,
+      "total": 6,
+      "missing": 0
+    }
+  },
+  "judge_backend": "dspy-gepa-checkout",
+  "judge_model": "glm-5.3-flash",
+  "elapsed_s": 76.5,
+  "usage": {
+    "calls": 8,
+    "prompt_tokens": 26514,
+    "completion_tokens": 9298,
+    "litellm_estimated_cost_usd": 0.008273
+  }
+}

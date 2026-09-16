@@ -19,7 +19,7 @@ for completeness only, never written as a record.
 | DSPy CoT, unoptimized | — | 0.881 (subset of all) | **0.851** clean | — | **0.818** clean |
 | GEPA light (120 metric calls) | checkout train 12 / val 4 | **0.988** clean | 0.971 *contaminated* | 0.948 clean | **0.912** clean — meets 0.90 |
 | GEPA light | retry-storm train 12 / val 4 | 0.940 clean | **0.948** clean — meets 0.90 | 0.969 clean | *contaminated*, not scored |
-| GEPA light | both families, train 24 / val 8 | pending (`after-reset.sh`) | *contaminated* | pending | *contaminated* |
+| GEPA light | both families, train 24 / val 8 | 0.964 clean | *contaminated*, not scored | 0.969 clean | *contaminated*, not scored |
 
 Records written (all `status: measured`, `--skip-catalog`; catalog rows can be
 added with `evallab calibrate ... --predictions` against the shared database):
@@ -64,6 +64,32 @@ validation aggregate 0.797 (seed) → best 0.953 at index 9; task LM ≈149 call
 segment, two iterations killed by the quota stop, wrote no summary and is
 uncounted); 52 min wall at 2 threads. GEPA resumed from `optimizer-log/` after
 the quota reset without repeating finished iterations.
+
+## Joint-family GEPA: one instruction for both rubrics
+
+Held-out only (6 + 6 documents; the remaining 32 were optimizer-visible, so no
+full-family record is clean): checkout 0.964 (81/84 cells) and retry-storm
+0.969 (93/96). Against the single-family programs on the same slices —
+checkout heldout: checkout-trained 83/84, retry-trained 79/84; retry heldout:
+retry-trained 93/96, checkout-trained 91/96 — the joint program is within two
+cells of the best in-family program on each slice with a single instruction.
+
+What changed in the text (`artifacts/gepa-both/inspect.json`): 7,627 chars,
+39 lines, 0 demos; family-specific fact tokens fell to 12 (checkout) + 22
+(retry-storm) from 39 and 44 in the single-family instructions, and the
+"do not flag these files" list was replaced by a rubric-level rule — *"the
+document is graded against an actual evidence directory (/app/evidence) …
+reference_facts summarize these files but are NOT exhaustive"* — with one
+`misstates_a_fact` example from each family. Checkout fixture names still
+appear (`metrics.csv`, `deploys.csv`, `alerts.log`, `service-config.yaml`) as
+illustrations, so seeing two rubrics generalised the rule but did not remove
+the evidence-contract confound; only vendoring the evidence pack into
+`rubric_json` does that.
+
+Run facts (`artifacts/gepa-both/optimize-summary.json`): 9 candidates,
+validation aggregate (8 documents) 0.827 (seed) → best 0.930 at index 7; task
+LM 142 calls / ≈$0.13, reflection LM 9 calls / ≈$0.02; 53 min wall at
+2 threads, single segment.
 
 ## Per-criterion movement on the unseen family (retry-storm, all 22)
 
@@ -129,7 +155,5 @@ requests trip the per-request limit; three are tolerated.
 
 - MIPROv2 light on checkout (instructions + 2 bootstrapped demos) for an
   optimizer comparison at equal budget.
-- `--train-family both` GEPA: does seeing two rubrics remove the family-specific
-  shortcut from the instruction, and what does it score on both held-out sets?
 - `--thinking` ablation of the unoptimized baseline (hidden reasoning on, 16k
   budget) as the one-variable check that turning thinking off did not cost accuracy.

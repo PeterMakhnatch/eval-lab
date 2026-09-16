@@ -950,7 +950,7 @@ def build_dspy_program(dspy_module: Any | None = None) -> Any:
     silently scoring zero. The wrapper module keeps the predictor name
     ``judge.predict`` stable for saved/compiled program state.
     """
-    dspy = dspy_module or importlib.import_module("dspy")
+    dspy: Any = dspy_module or importlib.import_module("dspy")
     signature = dspy.Signature(
         "family: str, rubric_json: str, document: str -> judgments: dict[str, dict[str, JudgeCriterionVerdict]]",
         instructions=DSPY_JUDGE_INSTRUCTIONS,

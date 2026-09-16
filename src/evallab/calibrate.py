@@ -365,15 +365,18 @@ def load_prediction_bundle(path: Path) -> JudgePredictionBundle:
         raise ValueError(f"invalid judge prediction bundle {path}: {exc}") from exc
 
 
+def _slug(text: str, width: int) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:width]
+
+
 def _record_id(bundle: JudgePredictionBundle, evaluated_on: date) -> str:
-    slug = lambda text, width: re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:width]  # noqa: E731
     suffix = bundle.corpus_digest.removeprefix("sha256:")[:10]
     # Backend is part of the id: two judge programs on the same model and day
     # (an unoptimized DSPy program and a compiled one) are distinct measurements
     # and must not collide on the append-only record path.
     return (
-        f"{bundle.family}-{evaluated_on:%Y%m%d}-{slug(bundle.judge_backend, 24)}-"
-        f"{slug(bundle.judge_model, 28)}-{suffix}"
+        f"{bundle.family}-{evaluated_on:%Y%m%d}-{_slug(bundle.judge_backend, 24)}-"
+        f"{_slug(bundle.judge_model, 28)}-{suffix}"
     )
 
 
@@ -1027,10 +1030,8 @@ def dspy_prediction_bundle(
     by_id = dict(predictions)
     omitted = 0
     documents = []
-    for document_id, prediction in (
-        (d.document_id, by_id.get(d.document_id)) for d in load_corpus(repo_root, family)
-    ):
-        observed = dspy_verdicts(prediction) if prediction is not None else {}
+    for document in load_corpus(repo_root, family):
+        observed = dspy_verdicts(by_id.get(document.document_id))
         criteria: dict[str, dict[str, JudgeCriterionVerdict]] = {}
         for dimension, block in RUBRICS[family]["criteria"].items():
             for name in block:
@@ -1039,7 +1040,9 @@ def dspy_prediction_bundle(
                     omitted += 1
                     cell = JudgeCriterionVerdict(verdict="no", rationale=DSPY_OMITTED_RATIONALE)
                 criteria.setdefault(dimension, {})[name] = cell
-        documents.append(JudgeDocumentPrediction(document_id=document_id, criteria=criteria))
+        documents.append(
+            JudgeDocumentPrediction(document_id=document.document_id, criteria=criteria)
+        )
     bundle = JudgePredictionBundle(
         family=family,
         judge_backend=judge_backend,

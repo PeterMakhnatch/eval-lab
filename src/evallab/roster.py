@@ -47,7 +47,7 @@ def load_roster(path: Path = ROSTER_PATH) -> Roster:
     try:
         raw = yaml.safe_load(path.read_text())
     except (OSError, yaml.YAMLError) as exc:  # pragma: no cover
-        raise SystemExit(f"roster: cannot load {path}: {exc}")
+        raise SystemExit(f"roster: cannot load {path}: {exc}") from exc
     return Roster(
         agent=raw["trial"]["agent"],
         model=raw["trial"]["model"],

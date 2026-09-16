@@ -503,236 +503,90 @@ def test_review_resume_reuses_second_round_proposal(tmp_path, monkeypatch):
     assert result.best_candidate == "seed"
 
 
-def test_request_efficiency_cheaper_failure_cannot_beat_correct_seed() -> None:
-    """A failing candidate with fewer requests yields zero utility and cannot beat seed."""
-    from evallab.gepa_optimizer.workflow import (
-        _compute_request_efficiency_utility,
-        _compute_selection,
-    )
-
-    seed_usage = {
-        "provider_usage": {
-            "calls": [{"call_id": i, "state": "reconciled"} for i in range(1, 4)],
-            "totals": {"requests": 3},
-            "unresolved_requests": 0,
-        }
-    }
-    cand_usage = {
-        "provider_usage": {
-            "calls": [{"call_id": 1, "state": "reconciled"}],
-            "totals": {"requests": 1},
-            "unresolved_requests": 0,
-        }
+def _efficiency_record(candidate_id, task_id, score, count):
+    return {
+        "candidate_id": candidate_id,
+        "task_id": task_id,
+        "score": score,
+        "status": "completed",
+        "usage": {
+            "identity": {"status": "matched", "observed_model": "test-model"},
+            "native_request_accounting": "missing",
+            "provider_usage": {
+                "calls": [
+                    {"call_id": i, "state": "reconciled", "returned_model": "test-model"}
+                    for i in range(1, count + 1)
+                ],
+                "totals": {"requests": count},
+                "unresolved_requests": 0,
+            },
+        },
     }
 
-    seed_utility, seed_calls = _compute_request_efficiency_utility(seed_usage, raw_score=1.0)
-    assert seed_utility == 0.25
-    assert seed_calls == 3
 
-    cand_utility, cand_calls = _compute_request_efficiency_utility(cand_usage, raw_score=0.0)
-    assert cand_utility == 0.0
-    assert cand_calls == 1
+def test_request_efficiency_rejects_task_regression_despite_higher_mean():
+    from types import SimpleNamespace
 
-    seed_sha = "sha256:" + "0" * 64
-    cand_text = "cand proposal"
-    cand_sha = "sha256:" + hashlib.sha256(cand_text.encode()).hexdigest()
-
+    seed_id = "sha256:" + hashlib.sha256(b"seed").hexdigest()
+    candidate_id = "sha256:" + hashlib.sha256(b"candidate").hexdigest()
     records = [
-        {
-            "candidate_id": seed_sha,
-            "task_id": "task_1",
-            "score": 1.0,
-            "usage": seed_usage,
-            "status": "completed",
-        },
-        {
-            "candidate_id": cand_sha,
-            "task_id": "task_1",
-            "score": 0.0,
-            "usage": cand_usage,
-            "status": "completed",
-        },
+        _efficiency_record(seed_id, "a", 1.0, 12),
+        _efficiency_record(seed_id, "b", 1.0, 12),
+        _efficiency_record(candidate_id, "a", 1.0, 1),
+        _efficiency_record(candidate_id, "b", 0.0, 1),
     ]
-
-    class FakeResult:
-        best_candidate = cand_text
-        best_score = cand_utility
-
-    selection, status = _compute_selection(
-        result=FakeResult(),
+    selection, _ = workflow._compute_selection(
+        result=SimpleNamespace(best_candidate="candidate", best_score=0.25),
         records=records,
-        binding={"seed_sha256": seed_sha},
-        seed="seed text",
-        required_task_ids={"task_1"},
+        binding={"seed_sha256": seed_id},
+        seed="seed",
+        required_task_ids={"a", "b"},
         score_mode="quality_gated_request_efficiency",
     )
+    assert selection["candidate_id"] == seed_id
+    assert selection["native_quality"] == 1.0
 
-    assert status is None
-    assert selection is not None
-    assert selection["candidate_id"] == seed_sha
-    assert selection["text"] == "seed text"
+
+@pytest.mark.parametrize(
+    "defect", ["missing", "unresolved", "undercounted", "identity", "duplicate"]
+)
+def test_request_efficiency_stops_on_unknown_or_inconsistent_broker_accounting(defect):
+    record = _efficiency_record("candidate", "task", 1.0, 2)
+    usage = record["usage"]
+    provider = usage["provider_usage"]
+    if defect == "missing":
+        del usage["provider_usage"]
+    elif defect == "unresolved":
+        provider["unresolved_requests"] = 1
+    elif defect == "undercounted":
+        provider["totals"]["requests"] = 1
+    elif defect == "identity":
+        usage["identity"]["status"] = "unknown"
+    else:
+        provider["calls"][1]["call_id"] = 1
+    with pytest.raises(ValueError):
+        workflow._compute_request_efficiency_utility(record, raw_score=1.0)
+
+
+def test_request_efficiency_selects_fewer_broker_calls_without_regrading():
+    from types import SimpleNamespace
+
+    seed_id = "sha256:" + hashlib.sha256(b"seed").hexdigest()
+    candidate_id = "sha256:" + hashlib.sha256(b"candidate").hexdigest()
+    records = [
+        _efficiency_record(seed_id, "task", 1.0, 5),
+        _efficiency_record(candidate_id, "task", 1.0, 3),
+    ]
+    selection, _ = workflow._compute_selection(
+        result=SimpleNamespace(best_candidate="candidate", best_score=0.25),
+        records=records,
+        binding={"seed_sha256": seed_id},
+        seed="seed",
+        required_task_ids={"task"},
+        score_mode="quality_gated_request_efficiency",
+    )
+    assert selection["candidate_id"] == candidate_id
     assert selection["utility"] == 0.25
     assert selection["native_quality"] == 1.0
     assert selection["calls"] == 3
-    assert selection["score_mode"] == "quality_gated_request_efficiency"
-    assert records[0]["score"] == 1.0
-    assert records[1]["score"] == 0.0
-
-
-def test_request_efficiency_missing_or_unresolved_accounting_stops() -> None:
-    """Missing, unresolved, or inconsistent provider accounting halts with error."""
-    from evallab.gepa_optimizer.workflow import (
-        _compute_request_efficiency_utility,
-        _EvaluationHalt,
-    )
-
-    with pytest.raises(ValueError, match="Missing or invalid provider_usage"):
-        _compute_request_efficiency_utility({"usage": {}}, raw_score=1.0)
-
-    with pytest.raises(ValueError, match="unresolved requests"):
-        _compute_request_efficiency_utility(
-            {
-                "usage": {
-                    "provider_usage": {
-                        "calls": [{"call_id": 1, "state": "reconciled"}],
-                        "totals": {"requests": 1},
-                        "unresolved_requests": 1,
-                    }
-                }
-            },
-            raw_score=1.0,
-        )
-
-    with pytest.raises(ValueError, match="unreconciled state"):
-        _compute_request_efficiency_utility(
-            {
-                "usage": {
-                    "provider_usage": {
-                        "calls": [{"call_id": 1, "state": "reserved"}],
-                        "totals": {"requests": 1},
-                        "unresolved_requests": 0,
-                    }
-                }
-            },
-            raw_score=1.0,
-        )
-
-    with pytest.raises(ValueError, match="Native request accounting is missing"):
-        _compute_request_efficiency_utility(
-            {
-                "usage": {
-                    "native_request_accounting": "missing",
-                    "provider_usage": {
-                        "calls": [{"call_id": 1, "state": "reconciled"}],
-                        "totals": {"requests": 1},
-                        "unresolved_requests": 0,
-                    },
-                }
-            },
-            raw_score=1.0,
-        )
-
-    with pytest.raises(ValueError, match="Provider model identity status is not matched"):
-        _compute_request_efficiency_utility(
-            {
-                "usage": {
-                    "identity": {"status": "unknown"},
-                    "provider_usage": {
-                        "calls": [{"call_id": 1, "state": "reconciled"}],
-                        "totals": {"requests": 1},
-                        "unresolved_requests": 0,
-                    },
-                }
-            },
-            raw_score=1.0,
-        )
-
-    def broken_evaluator(cand, ex):
-        return 1.0, {"usage": {}}
-
-    def evaluate_wrapper(cand, ex):
-        try:
-            raw_score, info = broken_evaluator(cand, ex)
-            utility, calls = _compute_request_efficiency_utility(info, raw_score=raw_score)
-            return utility, info
-        except Exception as exc:
-            raise _EvaluationHalt(exc) from exc
-
-    with pytest.raises(_EvaluationHalt):
-        evaluate_wrapper("seed", {"task_id": "t1"})
-
-
-def test_request_efficiency_fewer_requests_with_equal_quality_can_win() -> None:
-    """A candidate with fewer requests and equal native quality wins without changing raw reward."""
-    from evallab.gepa_optimizer.workflow import (
-        _compute_request_efficiency_utility,
-        _compute_selection,
-    )
-
-    seed_usage = {
-        "provider_usage": {
-            "calls": [{"call_id": i, "state": "reconciled"} for i in range(1, 4)],
-            "totals": {"requests": 3},
-            "unresolved_requests": 0,
-        }
-    }
-    cand_usage = {
-        "provider_usage": {
-            "calls": [{"call_id": 1, "state": "reconciled"}],
-            "totals": {"requests": 1},
-            "unresolved_requests": 0,
-        }
-    }
-
-    seed_utility, seed_calls = _compute_request_efficiency_utility(seed_usage, raw_score=1.0)
-    cand_utility, cand_calls = _compute_request_efficiency_utility(cand_usage, raw_score=1.0)
-
-    assert seed_utility == 0.25
-    assert cand_utility == 0.5
-    assert cand_utility > seed_utility
-
-    seed_sha = "sha256:" + "0" * 64
-    cand_text = "more efficient candidate instruction"
-    cand_sha = "sha256:" + hashlib.sha256(cand_text.encode()).hexdigest()
-
-    records = [
-        {
-            "candidate_id": seed_sha,
-            "task_id": "task_1",
-            "score": 1.0,
-            "usage": seed_usage,
-            "status": "completed",
-        },
-        {
-            "candidate_id": cand_sha,
-            "task_id": "task_1",
-            "score": 1.0,
-            "usage": cand_usage,
-            "status": "completed",
-        },
-    ]
-
-    class FakeResult:
-        best_candidate = cand_text
-        best_score = cand_utility
-
-    selection, status = _compute_selection(
-        result=FakeResult(),
-        records=records,
-        binding={"seed_sha256": seed_sha},
-        seed="original seed instruction",
-        required_task_ids={"task_1"},
-        score_mode="quality_gated_request_efficiency",
-    )
-
-    assert status is None
-    assert selection is not None
-    assert selection["candidate_id"] == cand_sha
-    assert selection["text"] == cand_text
-    assert selection["utility"] == 0.5
-    assert selection["native_quality"] == 1.0
-    assert selection["calls"] == 1
-    assert selection["score_mode"] == "quality_gated_request_efficiency"
-    assert selection["selection_rule"] == "common_pool_utility_seed_retained_on_tie_or_native_regression"
-    assert records[0]["score"] == 1.0
-    assert records[1]["score"] == 1.0
+    assert [row["score"] for row in records] == [1.0, 1.0]

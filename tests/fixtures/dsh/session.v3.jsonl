@@ -1,0 +1,25 @@
+{"type":"session","id":"session-0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0","createdAt":"2026-01-01T00:00:00.000Z","cwd":"/workspace","agentPreset":"headless","delegationDepth":0,"version":1}
+{"type":"permission/preset","seq":0,"time":"2026-01-01T00:00:00.001Z","data":{"preset":"danger-full-access"}}
+{"type":"sandbox/mode","seq":1,"time":"2026-01-01T00:00:00.002Z","data":{"mode":"danger-full-access"}}
+{"type":"turn/start","seq":2,"time":"2026-01-01T00:00:01.000Z","data":{"turn":1}}
+{"type":"step/start","seq":3,"time":"2026-01-01T00:00:01.001Z","data":{"turn":1,"step":1}}
+{"type":"user/message","seq":4,"time":"2026-01-01T00:00:01.002Z","data":{"role":"user","id":"msg-user-1","source":{"kind":"user"},"content":[{"type":"text","text":"Summarise the events in data/events.jsonl."}]}}
+{"type":"step/end","seq":5,"time":"2026-01-01T00:00:01.003Z","data":{"turn":1,"step":1}}
+{"type":"step/start","seq":6,"time":"2026-01-01T00:00:02.000Z","data":{"turn":1,"step":2}}
+{"type":"assistant/message","seq":7,"time":"2026-01-01T00:00:03.000Z","data":{"turn":1,"step":2,"message":{"role":"assistant","id":"msg-assistant-1","source":{"kind":"model","provider":"deepseek-official","model":"deepseek-v4-flash"},"content":[{"type":"reasoning","text":"Need to inspect the file first."},{"type":"text","text":"Let me read the input file."}]},"usage":{"inputTokens":1200,"outputTokens":80,"totalTokens":1280,"cacheReadTokens":0,"reasoningTokens":12},"stream":[]}}
+{"type":"tool/call","seq":8,"time":"2026-01-01T00:00:03.100Z","data":{"turn":1,"step":2,"callId":"call-0001","name":"bash","arguments":"{\"command\":\"wc -l data/events.jsonl\"}"}}
+{"type":"tool/result","seq":9,"time":"2026-01-01T00:00:03.500Z","data":{"turn":1,"step":2,"message":{"role":"tool","id":"msg-tool-1","source":{"kind":"tool","callId":"call-0001"},"content":[{"type":"text","text":"42 data/events.jsonl"}]},"meta":{"shape":"text","truncated":false,"total":19}}}
+{"type":"step/end","seq":10,"time":"2026-01-01T00:00:03.600Z","data":{"turn":1,"step":2}}
+{"type":"step/start","seq":11,"time":"2026-01-01T00:00:04.000Z","data":{"turn":1,"step":3}}
+{"type":"assistant/message","seq":12,"time":"2026-01-01T00:00:05.000Z","data":{"turn":1,"step":3,"message":{"role":"assistant","id":"msg-assistant-2","source":{"kind":"model","provider":"deepseek-official","model":"deepseek-v4-flash"},"content":[{"type":"text","text":"The file has 42 events."}]},"usage":{"inputTokens":1350,"outputTokens":40,"totalTokens":1390,"cacheReadTokens":1100,"reasoningTokens":5},"stream":[]}}
+{"type":"step/end","seq":13,"time":"2026-01-01T00:00:05.100Z","data":{"turn":1,"step":3}}
+{"type":"turn/end","seq":14,"time":"2026-01-01T00:00:05.200Z","data":{"turn":1,"reason":{"kind":"completed"}}}
+{"type":"turn/start","seq":15,"time":"2026-01-01T00:00:06.000Z","data":{"turn":2}}
+{"type":"step/start","seq":16,"time":"2026-01-01T00:00:06.001Z","data":{"turn":2,"step":1}}
+{"type":"assistant/message","seq":17,"time":"2026-01-01T00:00:07.000Z","data":{"turn":2,"step":1,"message":{"role":"assistant","id":"msg-assistant-3","source":{"kind":"model","provider":"deepseek-official","model":"deepseek-v4-flash"},"content":[{"type":"text","text":"Now I will summarise them."}]},"usage":{"inputTokens":1500,"outputTokens":60,"totalTokens":1560,"cacheReadTokens":1300,"reasoningTokens":0},"stream":[]}}
+{"type":"tool/call","seq":18,"time":"2026-01-01T00:00:07.100Z","data":{"turn":2,"step":1,"callId":"call-0002","name":"bash","arguments":"{\"command\":\"cat /nonexistent/events.jsonl\"}"}}
+{"type":"tool/result","seq":19,"time":"2026-01-01T00:00:07.400Z","data":{"turn":2,"step":1,"message":{"role":"tool","id":"msg-tool-2","source":{"kind":"tool","callId":"call-0002"},"content":[{"type":"text","text":""}]},"error":{"name":"NonZeroExit","code":"cat: /nonexistent/events.jsonl: No such file or directory"}}}
+{"type":"step/end","seq":20,"time":"2026-01-01T00:00:07.500Z","data":{"turn":2,"step":1}}
+{"type":"turn/end","seq":21,"time":"2026-01-01T00:00:07.600Z","data":{"turn":2,"reason":{"kind":"completed"}}}
+{"type":"session/title","seq":22,"time":"2026-01-01T00:00:08.000Z","data":{"title":"Summarise events"}}
+{"type":"some/future/event","seq":23,"time":"2026-01-01T00:00:09.000Z","data":{"unknown":true}}

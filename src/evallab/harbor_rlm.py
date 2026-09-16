@@ -120,7 +120,9 @@ class LabRlmAgent(BaseAgent):
         context: AgentContext,
     ) -> None:
         loop = asyncio.get_running_loop()
-        bridge_cls = ContainerPythonBridge if self._policy.container_python_tool else EnvironmentToolBridge
+        bridge_cls = (
+            ContainerPythonBridge if self._policy.container_python_tool else EnvironmentToolBridge
+        )
         bridge = bridge_cls(
             environment=environment,
             loop=loop,

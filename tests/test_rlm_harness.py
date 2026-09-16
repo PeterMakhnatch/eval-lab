@@ -19,7 +19,9 @@ from evallab.rlm.policies import resolve_policy  # noqa: E402
 def _history(n: int) -> REPLHistory:
     history = REPLHistory()
     for index in range(n):
-        history = history.append(reasoning=f"r{index}", code=f"print({index})", output=f"out-{index}-" + "x" * 50)
+        history = history.append(
+            reasoning=f"r{index}", code=f"print({index})", output=f"out-{index}-" + "x" * 50
+        )
     return history
 
 
@@ -31,7 +33,9 @@ def test_history_window_masks_only_older_outputs_and_keeps_code() -> None:
     for index, entry in enumerate(view.entries):
         assert entry.code == f"print({index})"
         if index < 3:
-            assert entry.output == MASKED_OUTPUT_MARKER.format(chars=len(full.entries[index].output))
+            assert entry.output == MASKED_OUTPUT_MARKER.format(
+                chars=len(full.entries[index].output)
+            )
         else:
             assert entry.output == full.entries[index].output
     assert rlm._history_view(_history(4)).entries == _history(4).entries  # nothing to mask
@@ -46,43 +50,82 @@ def test_iteration_label_reports_remaining_budget_only_when_enabled() -> None:
     assert "LAST iteration" in remind._iteration_label(19)
 
 
+def test_marker_history_renders_field_markers_and_composes_with_masking() -> None:
+    from evallab.rlm.harness import MarkerHistory
+
+    stock = LabRlm("context, query -> answer", resolve_policy("stock"))
+    markers = LabRlm("context, query -> answer", resolve_policy("stock-markers"))
+    full = _history(3)
+    assert "Reasoning: r0" in stock._history_view(full).format()
+    rendered = markers._history_view(full).format()
+    assert "Reasoning:" not in rendered and "Code:\n" not in rendered
+    assert rendered.count("[[ ## code ## ]]") == 3 and "[[ ## reasoning ## ]]\nr2" in rendered
+    assert isinstance(markers._history_view(full), MarkerHistory)
+    masked = resolve_policy("stock-markers").derive("m", "masked markers", history_window=1)
+    view = LabRlm("context, query -> answer", masked)._history_view(full).format()
+    assert view.count("masked by harness policy") == 2 and "out-2-" in view
+
+
 def test_policy_addenda_compose_into_action_instructions() -> None:
     def tool(x: str) -> str:
         """A tool."""
         return x
 
     bench = LabRlm("context, query -> answer", resolve_policy("orchestrator-bridge"))
-    harbor = LabRlm("instruction, file_tree -> solution", resolve_policy("orchestrator-bridge"), tools=[tool])
+    harbor = LabRlm(
+        "instruction, file_tree -> solution", resolve_policy("orchestrator-bridge"), tools=[tool]
+    )
     assert "isolated sandbox" not in bench.generate_action.signature.instructions
     assert "isolated sandbox" in harbor.generate_action.signature.instructions
     assert harbor.generate_action.signature.instructions.startswith("As a Recursive Language Model")
-    override = resolve_policy("orchestrator").derive("g", "gepa", action_instructions_override="NEW INSTRUCTIONS")
-    assert LabRlm("context, query -> answer", override).generate_action.signature.instructions == "NEW INSTRUCTIONS"
+    override = resolve_policy("orchestrator").derive(
+        "g", "gepa", action_instructions_override="NEW INSTRUCTIONS"
+    )
+    assert (
+        LabRlm("context, query -> answer", override).generate_action.signature.instructions
+        == "NEW INSTRUCTIONS"
+    )
 
 
-def test_unparseable_action_becomes_a_recoverable_observation(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_unparseable_action_becomes_a_recoverable_observation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     rlm = LabRlm("context, query -> answer", resolve_policy("stock"))
     signature = rlm.generate_action.signature
 
     def explode(self, **_: object):
-        raise AdapterParseError(adapter_name="ChatAdapter", signature=signature, lm_response="garbled {{")
+        raise AdapterParseError(
+            adapter_name="ChatAdapter", signature=signature, lm_response="garbled {{"
+        )
 
     monkeypatch.setattr(type(rlm.generate_action), "__call__", explode)
-    outcome = rlm._execute_iteration(repl=None, variables=[], history=REPLHistory(), iteration=0, input_args={}, output_field_names=["answer"])
+    outcome = rlm._execute_iteration(
+        repl=None,
+        variables=[],
+        history=REPLHistory(),
+        iteration=0,
+        input_args={},
+        output_field_names=["answer"],
+    )
     assert isinstance(outcome, REPLHistory) and len(outcome) == 1
-    assert outcome.entries[0].output.startswith("[Error] Your previous response could not be parsed")
+    assert outcome.entries[0].output.startswith(
+        "[Error] Your previous response could not be parsed"
+    )
     assert "garbled {{" in outcome.entries[0].output
     assert rlm.parse_failures == 1
 
 
-def test_lenient_policy_salvages_history_mirroring_responses(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_lenient_policy_salvages_history_mirroring_responses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from evallab.rlm.harness import salvage_action
 
-    drifted = (
-        "Reasoning: parsed 1,428 rows; verifying.\n\nCode:\n```python\nimport re\nprint(len(context))\n```\n"
+    drifted = "Reasoning: parsed 1,428 rows; verifying.\n\nCode:\n```python\nimport re\nprint(len(context))\n```\n"
+    assert salvage_action(drifted) == (
+        "parsed 1,428 rows; verifying.",
+        "import re\nprint(len(context))",
     )
-    assert salvage_action(drifted) == ("parsed 1,428 rows; verifying.", "import re\nprint(len(context))")
-    marked = "[[ ## reasoning ## ]]\nBoth agree: 4.\nCode:\n```python\nSUBMIT(\"4\")\n```\n[[ ## completed ## ]]"
+    marked = '[[ ## reasoning ## ]]\nBoth agree: 4.\nCode:\n```python\nSUBMIT("4")\n```\n[[ ## completed ## ]]'
     assert salvage_action(marked) == ("Both agree: 4.", 'SUBMIT("4")')
     assert salvage_action("no code here") is None
     assert salvage_action("```python\n\n```") is None
@@ -91,12 +134,23 @@ def test_lenient_policy_salvages_history_mirroring_responses(monkeypatch: pytest
     signature = rlm.generate_action.signature
 
     def explode(self, **_: object):
-        raise AdapterParseError(adapter_name="ChatAdapter", signature=signature, lm_response=drifted)
+        raise AdapterParseError(
+            adapter_name="ChatAdapter", signature=signature, lm_response=drifted
+        )
 
     executed: list[str] = []
     monkeypatch.setattr(type(rlm.generate_action), "__call__", explode)
-    monkeypatch.setattr(rlm, "_execute_code", lambda repl, code, input_args: executed.append(code) or "ok")
-    outcome = rlm._execute_iteration(repl=None, variables=[], history=REPLHistory(), iteration=0, input_args={}, output_field_names=["answer"])
+    monkeypatch.setattr(
+        rlm, "_execute_code", lambda repl, code, input_args: executed.append(code) or "ok"
+    )
+    outcome = rlm._execute_iteration(
+        repl=None,
+        variables=[],
+        history=REPLHistory(),
+        iteration=0,
+        input_args={},
+        output_field_names=["answer"],
+    )
     assert executed == ["import re\nprint(len(context))"]
     assert isinstance(outcome, REPLHistory) and outcome.entries[0].output == "ok"
     assert (rlm.salvaged_actions, rlm.parse_failures) == (1, 0)
@@ -106,12 +160,23 @@ def test_lm_usage_sums_history_and_prices_api_equivalent() -> None:
     class FakeLm:
         history = [
             {"usage": {"prompt_tokens": 1_000_000, "completion_tokens": 0}},
-            {"usage": {"prompt_tokens": 0, "completion_tokens": 1_000_000, "completion_tokens_details": {"reasoning_tokens": 400}}},
+            {
+                "usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 1_000_000,
+                    "completion_tokens_details": {"reasoning_tokens": 400},
+                }
+            },
             "not-a-dict",
         ]
 
     usage = lm_usage(FakeLm())  # type: ignore[arg-type]
-    assert (usage.calls, usage.input_tokens, usage.output_tokens, usage.reasoning_tokens) == (2, 1_000_000, 1_000_000, 400)
+    assert (usage.calls, usage.input_tokens, usage.output_tokens, usage.reasoning_tokens) == (
+        2,
+        1_000_000,
+        1_000_000,
+        400,
+    )
     assert usage.cost_usd == pytest.approx(1.40 + 4.40)
     assert lm_usage(None).calls == 0
 
@@ -122,7 +187,9 @@ def test_container_python_tool_quotes_arbitrary_source() -> None:
     from evallab.harbor_rlm import ContainerPythonBridge
 
     class FakeEnv:
-        async def exec(self, command: str, cwd: str | None = None, timeout_sec: int = 30) -> ExecResult:
+        async def exec(
+            self, command: str, cwd: str | None = None, timeout_sec: int = 30
+        ) -> ExecResult:
             done = subprocess.run(["bash", "-c", command], capture_output=True, text=True)
             return ExecResult(stdout=done.stdout, stderr=done.stderr, return_code=done.returncode)
 

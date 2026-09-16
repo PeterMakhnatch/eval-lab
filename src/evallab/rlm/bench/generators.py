@@ -32,7 +32,13 @@ MERCHANTS: dict[str, tuple[str, ...]] = {
     "travel": ("Delta Air Lines", "United Airlines", "Marriott", "Hilton Hotels", "Amtrak"),
     "dining": ("Chipotle", "Olive Garden", "Starbucks", "Panera Bread", "Domino's Pizza"),
     "utilities": ("Con Edison", "PG&E", "Comcast Xfinity", "Verizon Wireless", "Duke Energy"),
-    "software": ("Adobe Creative Cloud", "GitHub", "Notion Labs", "Slack Technologies", "Atlassian"),
+    "software": (
+        "Adobe Creative Cloud",
+        "GitHub",
+        "Notion Labs",
+        "Slack Technologies",
+        "Atlassian",
+    ),
 }
 MERCHANT_CATEGORY = {name: category for category, names in MERCHANTS.items() for name in names}
 MONTHS = ("2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06")
@@ -52,8 +58,38 @@ NOISE_LINES = (
     "txn_id,account,merchant,amount,currency,date,memo",
     "[ERROR] malformed row skipped",
 )
-FIRST_NAMES = ("Ava", "Liam", "Noah", "Mia", "Ethan", "Zoe", "Lucas", "Isla", "Omar", "Priya", "Kenji", "Sofia", "Mateo", "Nora", "Ivan", "Leila")
-LAST_NAMES = ("Patel", "Nguyen", "Okafor", "Silva", "Kowalski", "Haddad", "Fischer", "Tanaka", "Moreau", "Ivanova", "Castillo", "Banerjee")
+FIRST_NAMES = (
+    "Ava",
+    "Liam",
+    "Noah",
+    "Mia",
+    "Ethan",
+    "Zoe",
+    "Lucas",
+    "Isla",
+    "Omar",
+    "Priya",
+    "Kenji",
+    "Sofia",
+    "Mateo",
+    "Nora",
+    "Ivan",
+    "Leila",
+)
+LAST_NAMES = (
+    "Patel",
+    "Nguyen",
+    "Okafor",
+    "Silva",
+    "Kowalski",
+    "Haddad",
+    "Fischer",
+    "Tanaka",
+    "Moreau",
+    "Ivanova",
+    "Castillo",
+    "Banerjee",
+)
 OFFICES = ("Lisbon", "Austin", "Toronto", "Singapore", "Berlin", "Nairobi", "Denver", "Osaka")
 DEPARTMENTS = ("Finance", "Platform", "Design", "Legal", "Growth", "Security", "Data")
 PROJECTS = ("Aurora", "Beacon", "Cinder", "Delta-9", "Ember", "Fathom", "Granite", "Helix")
@@ -99,7 +135,16 @@ def _ledger_records(rng: random.Random, n: int) -> list[dict[str, Any]]:
                 "amount": amount,
                 "month": month,
                 "date": _fmt_date(rng, month, day),
-                "memo": rng.choice(("pos purchase", "online order", "recurring", "refund", "auth hold released", "card-present")),
+                "memo": rng.choice(
+                    (
+                        "pos purchase",
+                        "online order",
+                        "recurring",
+                        "refund",
+                        "auth hold released",
+                        "card-present",
+                    )
+                ),
             }
         )
     return records
@@ -112,12 +157,18 @@ def _ledger_line(record: dict[str, Any]) -> str:
     )
 
 
-def _ledger_query(rng: random.Random, records: list[dict[str, Any]], kind: int) -> tuple[str, str, dict[str, Any]]:
+def _ledger_query(
+    rng: random.Random, records: list[dict[str, Any]], kind: int
+) -> tuple[str, str, dict[str, Any]]:
     accounts = sorted({r["account"] for r in records})
     if kind == 0:
         account = rng.choice(accounts)
         month = rng.choice(MONTHS)
-        total = sum(r["amount"] for r in records if r["account"] == account and r["month"] == month and r["amount"] > 0)
+        total = sum(
+            r["amount"]
+            for r in records
+            if r["account"] == account and r["month"] == month and r["amount"] > 0
+        )
         return (
             f"What is the total spend (sum of positive amounts, USD, 2 decimals) for account {account} in {MONTH_NAMES[month]}? "
             "Dates appear as YYYY-MM-DD or M/D/YYYY.",
@@ -138,7 +189,9 @@ def _ledger_query(rng: random.Random, records: list[dict[str, Any]], kind: int) 
         total = sum(
             r["amount"]
             for r in records
-            if r["account"] == account and r["amount"] > 0 and MERCHANT_CATEGORY[r["merchant"]] == category
+            if r["account"] == account
+            and r["amount"] > 0
+            and MERCHANT_CATEGORY[r["merchant"]] == category
         )
         return (
             f"What is the total spend (sum of positive amounts, USD, 2 decimals) for account {account} at merchants in the "
@@ -165,13 +218,17 @@ def make_ledger_task(seed: int, index: int, context_chars: int) -> BenchTask:
     line_len = 84  # observed mean rendered line length incl. noise and newline
     n_records = max(50, int(context_chars / line_len))
     records = _ledger_records(rng, n_records)
-    lines = ["# ledger export v3; columns: txn_id | account | merchant | amount | date | memo; dates are YYYY-MM-DD or M/D/YYYY"]
+    lines = [
+        "# ledger export v3; columns: txn_id | account | merchant | amount | date | memo; dates are YYYY-MM-DD or M/D/YYYY"
+    ]
     for record in records:
         lines.append(_ledger_line(record))
         if rng.random() < 0.06:
             lines.append(rng.choice(NOISE_LINES))
         if rng.random() < 0.02:
-            lines.append(f"{record['txn_id']} | {record['account']} | {record['merchant']} | ERR | {record['date']} | memo:corrupt")
+            lines.append(
+                f"{record['txn_id']} | {record['account']} | {record['merchant']} | ERR | {record['date']} | memo:corrupt"
+            )
     rng.shuffle(lines[1:])
     context = "\n".join(lines) + "\n"
     kind = index % 4
@@ -194,7 +251,14 @@ def _people(rng: random.Random, n: int) -> list[dict[str, Any]]:
         if emp in used:
             continue
         used.add(emp)
-        people.append({"emp_id": emp, "name": name, "dept": rng.choice(DEPARTMENTS), "office": rng.choice(OFFICES)})
+        people.append(
+            {
+                "emp_id": emp,
+                "name": name,
+                "dept": rng.choice(DEPARTMENTS),
+                "office": rng.choice(OFFICES),
+            }
+        )
     for person in people:
         person["manager"] = rng.choice([p["emp_id"] for p in people if p is not person])
     return people
@@ -208,7 +272,14 @@ def make_chain_task(seed: int, index: int, context_chars: int) -> BenchTask:
     invoices = []
     for i in range(n_people * 3):
         approver = rng.choice(people)
-        invoices.append({"invoice": f"INV-{4000 + i}", "approver": approver["emp_id"], "amount": round(rng.uniform(100, 9000), 2), "project": rng.choice(PROJECTS)})
+        invoices.append(
+            {
+                "invoice": f"INV-{4000 + i}",
+                "approver": approver["emp_id"],
+                "amount": round(rng.uniform(100, 9000), 2),
+                "project": rng.choice(PROJECTS),
+            }
+        )
     relocations: dict[str, list[tuple[str, str]]] = {}
     for person in people:
         if rng.random() < 0.35:
@@ -219,18 +290,30 @@ def make_chain_task(seed: int, index: int, context_chars: int) -> BenchTask:
             relocations[person["emp_id"]] = moves
     lines: list[str] = []
     for p in people:
-        lines.append(f"DIRECTORY: {p['name']} ({p['emp_id']}), department {p['dept']}, reports to {by_id[p['manager']]['name']} ({p['manager']}), home office {p['office']}.")
+        lines.append(
+            f"DIRECTORY: {p['name']} ({p['emp_id']}), department {p['dept']}, reports to {by_id[p['manager']]['name']} ({p['manager']}), home office {p['office']}."
+        )
     for inv in invoices:
-        lines.append(f"APPROVAL LOG: invoice {inv['invoice']} for project {inv['project']} (USD {inv['amount']:.2f}) approved by {by_id[inv['approver']]['name']} ({inv['approver']}).")
+        lines.append(
+            f"APPROVAL LOG: invoice {inv['invoice']} for project {inv['project']} (USD {inv['amount']:.2f}) approved by {by_id[inv['approver']]['name']} ({inv['approver']})."
+        )
     for emp, moves in relocations.items():
         for date, office in moves:
-            lines.append(f"RELOCATION MEMO dated {date}: {by_id[emp]['name']} ({emp}) is relocated to the {office} office effective immediately; earlier memos for {emp} are superseded.")
+            lines.append(
+                f"RELOCATION MEMO dated {date}: {by_id[emp]['name']} ({emp}) is relocated to the {office} office effective immediately; earlier memos for {emp} are superseded."
+            )
     # distractors: same names, different ids
     for _ in range(max(5, n_people // 4)):
         p = rng.choice(people)
         fake_id = f"E{rng.randint(10000, 99999)}"
-        lines.append(f"DIRECTORY (archived, inactive): {p['name']} ({fake_id}), department {rng.choice(DEPARTMENTS)}, home office {rng.choice(OFFICES)}.")
-    filler = ("PROJECT NOTE: {proj} sprint review moved to Thursday.", "FACILITIES: {off} office badge readers updated.", "PROJECT NOTE: {proj} budget line pending sign-off.")
+        lines.append(
+            f"DIRECTORY (archived, inactive): {p['name']} ({fake_id}), department {rng.choice(DEPARTMENTS)}, home office {rng.choice(OFFICES)}."
+        )
+    filler = (
+        "PROJECT NOTE: {proj} sprint review moved to Thursday.",
+        "FACILITIES: {off} office badge readers updated.",
+        "PROJECT NOTE: {proj} budget line pending sign-off.",
+    )
     while sum(len(line) + 1 for line in lines) < context_chars:
         lines.append(rng.choice(filler).format(proj=rng.choice(PROJECTS), off=rng.choice(OFFICES)))
     rng.shuffle(lines)
@@ -265,7 +348,9 @@ def make_chain_task(seed: int, index: int, context_chars: int) -> BenchTask:
         "difficulty": hops,
         "kind": ("office-of-manager", "manager-id", "grand-manager-dept")[kind],
     }
-    return BenchTask(f"chain-lookup-s{seed}-{index:02d}", "chain-lookup", context, query, answer, meta)
+    return BenchTask(
+        f"chain-lookup-s{seed}-{index:02d}", "chain-lookup", context, query, answer, meta
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -278,7 +363,9 @@ def make_state_task(seed: int, index: int, context_chars: int) -> BenchTask:
     keys = [f"sku-{rng.randint(100, 999)}-{rng.choice('ABCDEFGH')}" for _ in range(60)]
     keys = sorted(set(keys))
     state: dict[str, int] = {}
-    lines: list[str] = ["# inventory event stream; ops: SET k v | INC k d | DEL k | RENAME a b | BEGIN | COMMIT | ROLLBACK"]
+    lines: list[str] = [
+        "# inventory event stream; ops: SET k v | INC k d | DEL k | RENAME a b | BEGIN | COMMIT | ROLLBACK"
+    ]
     ops = 0
     in_txn = False
     snapshot: dict[str, int] | None = None
@@ -321,7 +408,9 @@ def make_state_task(seed: int, index: int, context_chars: int) -> BenchTask:
                 state[b] = state.pop(a)
             lines.append(f"RENAME {a} {b}")
         if rng.random() < 0.03:
-            lines.append(rng.choice(("[INFO] compaction ok", "# checkpoint", "[WARN] replica lag 2s")))
+            lines.append(
+                rng.choice(("[INFO] compaction ok", "# checkpoint", "[WARN] replica lag 2s"))
+            )
     if in_txn:
         lines.append("ROLLBACK")
         assert snapshot is not None
@@ -336,13 +425,20 @@ def make_state_task(seed: int, index: int, context_chars: int) -> BenchTask:
         threshold = rng.randint(100, 400)
         query = f"After applying the entire event stream (ROLLBACK discards every op since the matching BEGIN; INC on a missing key starts from 0; RENAME moves the value if the source exists), how many keys have a final value strictly greater than {threshold}? Answer with an integer."
         answer = str(sum(1 for v in state.values() if v > threshold))
-    meta = {"ground_truth": {"final_state": state}, "ops": ops, "difficulty": 2 if kind == 0 else 3, "kind": ("final-value", "count-over-threshold")[kind]}
-    return BenchTask(f"state-tracking-s{seed}-{index:02d}", "state-tracking", context, query, answer, meta)
+    meta = {
+        "ground_truth": {"final_state": state},
+        "ops": ops,
+        "difficulty": 2 if kind == 0 else 3,
+        "kind": ("final-value", "count-over-threshold")[kind],
+    }
+    return BenchTask(
+        f"state-tracking-s{seed}-{index:02d}", "state-tracking", context, query, answer, meta
+    )
 
 
 def generate_suite(seed: int, n_per_family: int, context_chars: int = 200_000) -> list[BenchTask]:
     tasks: list[BenchTask] = []
-    for family, maker in (("ledger-agg", make_ledger_task), ("chain-lookup", make_chain_task), ("state-tracking", make_state_task)):
+    for maker in (make_ledger_task, make_chain_task, make_state_task):
         for index in range(n_per_family):
             tasks.append(maker(seed, index, context_chars))
     return tasks

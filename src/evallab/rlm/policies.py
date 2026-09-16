@@ -146,6 +146,9 @@ class RlmPolicy:
     #: Complete replacement for the action predictor's instructions (e.g. a
     #: GEPA candidate). When set, ``instruction_addendum`` is not prepended.
     action_instructions_override: str | None = None
+    #: How past REPL turns are rendered for the action predictor: dspy's stock
+    #: "Reasoning:/Code:" text or dspy field markers (``[[ ## code ## ]]``).
+    history_style: str = "stock"
     #: Keep the most recent N REPL outputs verbatim in the action prompt; older
     #: outputs are replaced by a deterministic marker. ``None`` disables masking.
     history_window: int | None = None
@@ -208,6 +211,18 @@ POLICIES: dict[str, RlmPolicy] = {
         _ORCHESTRATOR.derive(
             "orchestrator-lenient",
             "orchestrator + salvage of format-drifted actions",
+            lenient_parse=True,
+        ),
+        _STOCK.derive(
+            "stock-markers",
+            "stock + REPL history rendered with dspy field markers so mirrored turns stay parseable",
+            history_style="markers",
+            source="observed format drift on stock rendering (2026-09-16); dspy demos use the same markers",
+        ),
+        _STOCK.derive(
+            "stock-markers-lenient",
+            "stock-markers + salvage of any remaining drifted actions",
+            history_style="markers",
             lenient_parse=True,
         ),
         _ORCHESTRATOR,

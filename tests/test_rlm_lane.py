@@ -44,9 +44,7 @@ RLM_IMPORT_PATH = "evallab.harbor_rlm:LabRlmAgent"
 def _task(tmp_path: Path) -> Path:
     task_dir = tmp_path / "task"
     task_dir.mkdir(exist_ok=True)
-    (task_dir / "task.toml").write_text(
-        'schema_version = "1.4"\n[agent]\ntimeout_sec = 60.0\n'
-    )
+    (task_dir / "task.toml").write_text('schema_version = "1.4"\n[agent]\ntimeout_sec = 60.0\n')
     return task_dir
 
 
@@ -81,9 +79,7 @@ def test_rlm_build_command_carries_exact_harness_flags(tmp_path: Path) -> None:
     assert command[command.index("--n-tasks") + 1] == "1"
     assert command[command.index("--max-retries") + 1] == "0"
     kwargs = [
-        command[index + 1]
-        for index, arg in enumerate(command[:-1])
-        if arg == "--agent-kwarg"
+        command[index + 1] for index, arg in enumerate(command[:-1]) if arg == "--agent-kwarg"
     ]
     assert "policy=stock" in kwargs
     assert "cost_limit_usd=2.0" in kwargs
@@ -92,9 +88,7 @@ def test_rlm_build_command_carries_exact_harness_flags(tmp_path: Path) -> None:
 def test_rlm_build_command_defaults_policy_and_cost(tmp_path: Path) -> None:
     command = build_command(_rlm_request(tmp_path))
     kwargs = [
-        command[index + 1]
-        for index, arg in enumerate(command[:-1])
-        if arg == "--agent-kwarg"
+        command[index + 1] for index, arg in enumerate(command[:-1]) if arg == "--agent-kwarg"
     ]
     assert "policy=stock" in kwargs
     assert "cost_limit_usd=1.0" in kwargs
@@ -166,9 +160,7 @@ def test_rlm_model_selectors_match_zai_opencode() -> None:
     )
 
 
-def test_rlm_secret_file_transport_redacts_and_cleans_up(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_rlm_secret_file_transport_redacts_and_cleans_up(tmp_path: Path, monkeypatch) -> None:
     secret = "rlm-lane-secret-never-in-log"
     fake_home = tmp_path / "home"
     auth_path = fake_home / ".local/share/opencode/auth.json"
@@ -232,14 +224,17 @@ def test_experiment_spec_round_trips_harness_policy() -> None:
     )
     assert spec.harness_policy == "stock"
     assert ExperimentSpec.model_validate(spec.model_dump()) == spec
-    assert ExperimentSpec(
-        name="rlm-harness-default-test",
-        hypothesis="absence is the default",
-        purpose="practice",
-        task="library/tasks/event-summary",
-        agent="rlm",
-        submitted_by="test-agent",
-    ).harness_policy is None
+    assert (
+        ExperimentSpec(
+            name="rlm-harness-default-test",
+            hypothesis="absence is the default",
+            purpose="practice",
+            task="library/tasks/event-summary",
+            agent="rlm",
+            submitted_by="test-agent",
+        ).harness_policy
+        is None
+    )
 
 
 def test_experiment_spec_golden_freeze_covers_harness_policy() -> None:
@@ -268,9 +263,7 @@ def test_rlm_profile_and_preflight_wiring(tmp_path: Path) -> None:
     )
     assert isinstance(probe, OpenCodeProviderAuthProbe)
 
-    decision = preflight_request(
-        request, probe=lambda _profile: ProbeResult(ok=True)
-    )
+    decision = preflight_request(request, probe=lambda _profile: ProbeResult(ok=True))
     assert decision.proceed
     assert decision.profile_digest == profile.digest
 

@@ -82,8 +82,14 @@ def make_metric(task_index: dict[str, BenchTask]):
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--base", default="orchestrator", help="policy whose configuration (budgets, masking) the candidate keeps")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--base",
+        default="orchestrator",
+        help="policy whose configuration (budgets, masking) the candidate keeps",
+    )
     parser.add_argument("--train-seed", type=int, default=7)
     parser.add_argument("--val-seed", type=int, default=8)
     parser.add_argument("--n-per-family", type=int, default=3)
@@ -99,7 +105,11 @@ def main(argv: list[str] | None = None) -> int:
     model_id = zai_model_id("zai-coding-plan/glm-5.3-flash")
     root_lm, sub_lm = build_lms(base, model_id=model_id, api_key=api_key)
     reflection_lm = build_lm(
-        model_id=args.reflection_model, api_key=api_key, max_tokens=16_000, thinking=True, temperature=1.0
+        model_id=args.reflection_model,
+        api_key=api_key,
+        max_tokens=16_000,
+        thinking=True,
+        temperature=1.0,
     )
 
     train_tasks = generate_suite(args.train_seed, args.n_per_family, args.context_chars)
@@ -165,7 +175,16 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as exc:  # noqa: BLE001 - diagnostics only
             record["gepa_results_error"] = str(exc)
     (args.out / f"{candidate.policy_id}.json").write_text(json.dumps(record, indent=2))
-    print(json.dumps({k: v for k, v in record.items() if k not in ("original_instructions", "optimized_instructions", "policy")}, indent=1))
+    print(
+        json.dumps(
+            {
+                k: v
+                for k, v in record.items()
+                if k not in ("original_instructions", "optimized_instructions", "policy")
+            },
+            indent=1,
+        )
+    )
     print(f"policy json: {args.out / (candidate.policy_id + '.json')}")
     return 0
 

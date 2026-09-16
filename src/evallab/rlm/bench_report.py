@@ -80,27 +80,32 @@ def policy_blocks(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
 
 
 def paired(rows: list[dict[str, Any]], baseline: str, candidate: str) -> dict[str, Any]:
-    """Pair on (task_id, repeat-rank) so repeats compare like with like."""
+    """Pair on (task_id, repeat-rank) so repeats compare like with like.
 
-    def keyed(policy: str) -> dict[tuple[str, int], float]:
+    Accuracy is compared as wins/losses; cost and iterations are compared on
+    the same pairs (lower is a win) because the suite saturates accuracy for
+    capable models and efficiency is then the measurable harness effect.
+    """
+
+    def keyed(policy: str, field: str) -> dict[tuple[str, int], float]:
         per_task: dict[str, list[float]] = defaultdict(list)
         for row in rows:
             if row["policy"] == policy:
-                per_task[row["task_id"]].append(row["score"])
+                per_task[row["task_id"]].append(float(row[field]))
         out: dict[tuple[str, int], float] = {}
-        for task_id, scores in per_task.items():
-            for rank, value in enumerate(scores):
+        for task_id, values in per_task.items():
+            for rank, value in enumerate(values):
                 out[(task_id, rank)] = value
         return out
 
-    base = keyed(baseline)
-    cand = keyed(candidate)
+    base = keyed(baseline, "score")
+    cand = keyed(candidate, "score")
     shared = sorted(set(base) & set(cand))
     wins = sum(1 for key in shared if cand[key] > base[key])
     losses = sum(1 for key in shared if cand[key] < base[key])
     ties = len(shared) - wins - losses
     delta = _mean([cand[k] for k in shared]) - _mean([base[k] for k in shared]) if shared else 0.0
-    return {
+    result = {
         "candidate": candidate,
         "baseline": baseline,
         "paired_n": len(shared),
@@ -110,12 +115,32 @@ def paired(rows: list[dict[str, Any]], baseline: str, candidate: str) -> dict[st
         "accuracy_delta": delta,
         "sign_test_p": sign_test_p(wins, losses),
     }
+    for field in ("cost_usd", "iterations", "wall_seconds"):
+        base_f = keyed(baseline, field)
+        cand_f = keyed(candidate, field)
+        lower = sum(1 for key in shared if cand_f[key] < base_f[key])
+        higher = sum(1 for key in shared if cand_f[key] > base_f[key])
+        base_mean = _mean([base_f[k] for k in shared])
+        cand_mean = _mean([cand_f[k] for k in shared])
+        result[field] = {
+            "baseline_mean": base_mean,
+            "candidate_mean": cand_mean,
+            "ratio": (cand_mean / base_mean) if base_mean else None,
+            "lower": lower,
+            "higher": higher,
+            "sign_test_p": sign_test_p(lower, higher),
+        }
+    return result
 
 
 def render(blocks: dict[str, dict[str, Any]], pairs: list[dict[str, Any]], baseline: str) -> str:
     families = sorted({family for block in blocks.values() for family in block["by_family"]})
-    lines = ["| policy | n | acc | " + " | ".join(families) + " | err | budget | iters | sub | in tok | out tok | reason tok | $/task | wall s |",
-             "|---|" + "---|" * (10 + len(families))]
+    lines = [
+        "| policy | n | acc | "
+        + " | ".join(families)
+        + " | err | budget | iters | sub | in tok | out tok | reason tok | $/task | wall s |",
+        "|---|" + "---|" * (10 + len(families)),
+    ]
     for policy, block in sorted(blocks.items(), key=lambda kv: -kv[1]["accuracy"]):
         fam = " | ".join(f"{block['by_family'].get(f, float('nan')):.2f}" for f in families)
         lines.append(
@@ -126,18 +151,25 @@ def render(blocks: dict[str, dict[str, Any]], pairs: list[dict[str, Any]], basel
     lines.append("")
     lines.append(f"Paired against `{baseline}` (same task ids; exact two-sided sign test):")
     lines.append("")
-    lines.append("| candidate | paired n | wins | losses | ties | acc delta | p |")
-    lines.append("|---|---|---|---|---|---|---|")
+    lines.append(
+        "| candidate | paired n | acc wins | acc losses | ties | acc delta | p(acc) | cost ratio | cheaper/dearer | p(cost) | iters ratio | wall ratio |"
+    )
+    lines.append("|---|---|---|---|---|---|---|---|---|---|---|---|")
     for pair in pairs:
+        cost, iters, wall = pair["cost_usd"], pair["iterations"], pair["wall_seconds"]
+        ratio = lambda block: "n/a" if block["ratio"] is None else f"{block['ratio']:.2f}"  # noqa: E731
         lines.append(
             f"| {pair['candidate']} | {pair['paired_n']} | {pair['wins']} | {pair['losses']} | {pair['ties']} | "
-            f"{pair['accuracy_delta']:+.3f} | {pair['sign_test_p']:.3f} |"
+            f"{pair['accuracy_delta']:+.3f} | {pair['sign_test_p']:.3f} | {ratio(cost)} | {cost['lower']}/{cost['higher']} | "
+            f"{cost['sign_test_p']:.3f} | {ratio(iters)} | {ratio(wall)} |"
         )
     return "\n".join(lines)
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--dir", required=True, type=Path)
     parser.add_argument("--baseline", default="stock")
     parser.add_argument("--markdown", type=Path)
@@ -147,7 +179,9 @@ def main(argv: list[str] | None = None) -> int:
     if not rows:
         raise SystemExit(f"no result rows under {args.dir}")
     blocks = policy_blocks(rows)
-    pairs = [paired(rows, args.baseline, policy) for policy in sorted(blocks) if policy != args.baseline]
+    pairs = [
+        paired(rows, args.baseline, policy) for policy in sorted(blocks) if policy != args.baseline
+    ]
     text = render(blocks, pairs, args.baseline)
     print(text)
     if args.markdown:

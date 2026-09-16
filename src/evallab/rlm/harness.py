@@ -66,6 +66,7 @@ def salvage_action(raw: str) -> tuple[str, str] | None:
     head = _LABEL_PREFIX.sub("", head)
     return head.strip(), code
 
+
 #: Z.ai coding-plan OpenAI-compatible endpoint; the same upstream path the
 #: container-side broker (``containers/zai_secret_proxy.py``) forwards to.
 ZAI_CODING_API_BASE = "https://api.z.ai/api/coding/paas/v4"
@@ -116,7 +117,9 @@ def build_lm(
     )
 
 
-def build_lms(policy: RlmPolicy, *, model_id: str, api_key: str, api_base: str = ZAI_CODING_API_BASE) -> tuple[dspy.LM, dspy.LM | None]:
+def build_lms(
+    policy: RlmPolicy, *, model_id: str, api_key: str, api_base: str = ZAI_CODING_API_BASE
+) -> tuple[dspy.LM, dspy.LM | None]:
     root = build_lm(
         model_id=model_id,
         api_key=api_key,
@@ -165,10 +168,7 @@ class LmUsage:
 def _usage_field(usage: Any, key: str) -> int:
     if usage is None:
         return 0
-    if isinstance(usage, dict):
-        value = usage.get(key, 0)
-    else:
-        value = getattr(usage, key, 0)
+    value = usage.get(key, 0) if isinstance(usage, dict) else getattr(usage, key, 0)
     return int(value or 0)
 
 
@@ -184,13 +184,39 @@ def lm_usage(lm: dspy.LM | None) -> LmUsage:
         usage = entry.get("usage")
         input_tokens += _usage_field(usage, "prompt_tokens")
         output_tokens += _usage_field(usage, "completion_tokens")
-        details = usage.get("completion_tokens_details") if isinstance(usage, dict) else getattr(usage, "completion_tokens_details", None)
+        details = (
+            usage.get("completion_tokens_details")
+            if isinstance(usage, dict)
+            else getattr(usage, "completion_tokens_details", None)
+        )
         reasoning_tokens += _usage_field(details, "reasoning_tokens")
     return LmUsage(calls, input_tokens, output_tokens, reasoning_tokens)
 
 
 class RlmBudgetExceeded(RuntimeError):
     """Raised when the API-equivalent cost ceiling is crossed mid-trajectory."""
+
+
+class MarkerHistory(REPLHistory):
+    """REPL history rendered with dspy's own field markers.
+
+    dspy's stock rendering ("Reasoning: ...\\nCode:\\n```python") is what
+    GLM-5.3-Flash mirrors when it drifts off the ``[[ ## field ## ]]`` markers
+    the ChatAdapter parses. Rendering past turns the way dspy renders few-shot
+    demos makes mirroring produce a parseable response.
+    """
+
+    def format(self) -> str:
+        if not self.entries:
+            return "You have not interacted with the REPL environment yet."
+        blocks = []
+        for index, entry in enumerate(self.entries):
+            reasoning = f"[[ ## reasoning ## ]]\n{entry.reasoning}\n" if entry.reasoning else ""
+            blocks.append(
+                f"=== Step {index + 1} ===\n{reasoning}[[ ## code ## ]]\n```python\n{entry.code}\n```\n"
+                f"[[ ## output ## ]]\n{REPLEntry.format_output(entry.output, self.max_output_chars)}"
+            )
+        return "\n".join(blocks)
 
 
 class LabRlm(dspy.RLM):
@@ -227,7 +253,9 @@ class LabRlm(dspy.RLM):
             override = policy.action_instructions_override
             if tools and policy.environment_addendum:
                 override = override + "\n\n" + policy.environment_addendum
-            self.generate_action.signature = self.generate_action.signature.with_instructions(override)
+            self.generate_action.signature = self.generate_action.signature.with_instructions(
+                override
+            )
         self.policy = policy
         self._root_lm = root_lm
         self._cost_limit_usd = cost_limit_usd
@@ -240,21 +268,27 @@ class LabRlm(dspy.RLM):
 
     def _history_view(self, history: REPLHistory) -> REPLHistory:
         window = self.policy.history_window
+        entries: list[REPLEntry]
+        if window is None or len(history) <= window:
+            entries = list(history.entries)
+        else:
+            cutoff = len(history) - window
+            entries = []
+            for index, entry in enumerate(history.entries):
+                if index < cutoff:
+                    entries.append(
+                        REPLEntry(
+                            reasoning=entry.reasoning,
+                            code=entry.code,
+                            output=MASKED_OUTPUT_MARKER.format(chars=len(entry.output)),
+                        )
+                    )
+                else:
+                    entries.append(entry)
+        if self.policy.history_style == "markers":
+            return MarkerHistory(entries=entries, max_output_chars=history.max_output_chars)
         if window is None or len(history) <= window:
             return history
-        cutoff = len(history) - window
-        entries: list[REPLEntry] = []
-        for index, entry in enumerate(history.entries):
-            if index < cutoff:
-                entries.append(
-                    REPLEntry(
-                        reasoning=entry.reasoning,
-                        code=entry.code,
-                        output=MASKED_OUTPUT_MARKER.format(chars=len(entry.output)),
-                    )
-                )
-            else:
-                entries.append(entry)
         return REPLHistory(entries=entries, max_output_chars=history.max_output_chars)
 
     def _iteration_label(self, iteration: int) -> str:
@@ -347,10 +381,14 @@ class LabRlm(dspy.RLM):
         except SyntaxError as exc:
             code = action.code
             result: Any = f"[Error] {format_error_for_lm(exc)}"
-            outcome = self._process_execution_result(action, code, result, history, output_field_names)
+            outcome = self._process_execution_result(
+                action, code, result, history, output_field_names
+            )
         else:
             result = self._execute_code(repl, code, input_args)
-            outcome = self._process_execution_result(action, code, result, history, output_field_names)
+            outcome = self._process_execution_result(
+                action, code, result, history, output_field_names
+            )
         self.iteration_wall_seconds.append(time.monotonic() - started)
         return outcome
 

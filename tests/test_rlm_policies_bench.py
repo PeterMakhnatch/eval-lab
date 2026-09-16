@@ -45,7 +45,9 @@ def test_suite_is_deterministic_per_seed_and_sized() -> None:
         (t.task_id, t.context, t.query, t.answer) for t in second
     ]
     assert generate_suite(4, 2, 50_000)[0].context != first[0].context
-    assert [t.family for t in first] == ["ledger-agg"] * 2 + ["chain-lookup"] * 2 + ["state-tracking"] * 2
+    assert [t.family for t in first] == ["ledger-agg"] * 2 + ["chain-lookup"] * 2 + [
+        "state-tracking"
+    ] * 2
     for task in first:
         assert 0.8 * 50_000 <= len(task.context) <= 1.2 * 50_000, (task.task_id, len(task.context))
         assert "ground_truth" in task.meta and "difficulty" in task.meta
@@ -96,14 +98,20 @@ def test_answers_are_reproducible_from_the_rendered_context_and_ground_truth() -
                 total = sum(
                     r["amount"]
                     for r in records
-                    if r["account"] == account and r["amount"] > 0 and MERCHANT_CATEGORY[r["merchant"]] == task.meta["category"]
+                    if r["account"] == account
+                    and r["amount"] > 0
+                    and MERCHANT_CATEGORY[r["merchant"]] == task.meta["category"]
                 )
                 assert score(task, f"${total:,.2f}") == 1.0
             elif task.meta["kind"] == "account-month-total":
                 account = re.search(r"account (ACC-\d+)", task.query).group(1)
                 month_name = re.search(r"in (\w+ 2026)", task.query).group(1)
                 month = next(m for m, n in MONTH_NAMES.items() if n == month_name)
-                total = sum(r["amount"] for r in records if r["account"] == account and r["month"] == month and r["amount"] > 0)
+                total = sum(
+                    r["amount"]
+                    for r in records
+                    if r["account"] == account and r["month"] == month and r["amount"] > 0
+                )
                 assert score(task, f"{total:.2f}") == 1.0
         else:
             people = {p["emp_id"]: p for p in truth["people"]}
@@ -134,7 +142,9 @@ def test_answers_are_reproducible_from_the_rendered_context_and_ground_truth() -
         ("14", "", 0.0),
     ],
 )
-def test_scoring_normalises_formats_without_accepting_wrong_values(answer: str, prediction: str, expected: float) -> None:
+def test_scoring_normalises_formats_without_accepting_wrong_values(
+    answer: str, prediction: str, expected: float
+) -> None:
     task = generate_suite(1, 1, 20_000)[0]
     task = type(task)(task.task_id, task.family, task.context, task.query, answer, task.meta)
     assert score(task, prediction) == expected

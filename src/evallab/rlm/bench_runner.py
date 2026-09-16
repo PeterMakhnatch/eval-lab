@@ -108,7 +108,9 @@ def run_task(
         "answer": task.answer,
         "iterations": result.iterations,
         "root_calls": result.root_usage.calls,
-        "sub_calls": result.sub_usage.calls if sub_lm is not None else max(0, result.root_usage.calls - result.iterations),
+        "sub_calls": result.sub_usage.calls
+        if sub_lm is not None
+        else max(0, result.root_usage.calls - result.iterations),
         "input_tokens": result.root_usage.input_tokens + result.sub_usage.input_tokens,
         "output_tokens": result.root_usage.output_tokens + result.sub_usage.output_tokens,
         "reasoning_tokens": result.root_usage.reasoning_tokens + result.sub_usage.reasoning_tokens,
@@ -154,7 +156,9 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--policy", required=True, help="catalog id or policy JSON path")
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--n-per-family", type=int, default=6)
@@ -164,7 +168,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--cost-limit-usd", type=float, default=0.6)
     parser.add_argument("--model", default=DEFAULT_MODEL)
-    parser.add_argument("--repeat", type=int, default=1, help="repeat index recorded in the file name")
+    parser.add_argument(
+        "--repeat", type=int, default=1, help="repeat index recorded in the file name"
+    )
     parser.add_argument("--out", required=True, type=Path)
     args = parser.parse_args(argv)
 
@@ -259,7 +265,9 @@ def main(argv: list[str] | None = None) -> int:
     summary_path.write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary["overall"], indent=1))
     for family, block in summary["by_family"].items():
-        print(f"{family:<16} acc={block['accuracy']:.3f} n={block['n']} cost=${block['mean_cost_usd']:.3f} iters={block['mean_iterations']}")
+        print(
+            f"{family:<16} acc={block['accuracy']:.3f} n={block['n']} cost=${block['mean_cost_usd']:.3f} iters={block['mean_iterations']}"
+        )
     print(f"rows: {rows_path}\nsummary: {summary_path}")
     return 0
 

@@ -1,0 +1,44 @@
+{
+    "schema_version": 2,
+    "task": {
+        "name": "har54-toolbox-fixed-control",
+        "version": "0.0.0",
+        "type": "local",
+        "digest": "sha256:617ea2561fb3e240c13dc554b44312416614e6a742c98d77a8d9ae7dab189312",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-overnight-20260916/runs/.exec-stage/har54-toolbox-fixed-control"
+    },
+    "install_only": false,
+    "timeout_multiplier": 1.0,
+    "agent_timeout_multiplier": 2.0,
+    "agent": {
+        "name": "oracle",
+        "skills": [
+            "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-overnight-20260916/runs/.toolbox-staging/har54-toolbox-fixed-control/dc3e4589f8b8ff84e5ce81fd9f82fad3441af45afb618f47a49153f09a22ed70/repl-tools"
+        ],
+        "resume_trajectory": false,
+        "extra_allowed_hosts": [],
+        "kwargs": {},
+        "mcp_servers": []
+    },
+    "skills": [
+        {
+            "name": "repl-tools",
+            "source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-overnight-20260916/runs/.toolbox-staging/har54-toolbox-fixed-control/dc3e4589f8b8ff84e5ce81fd9f82fad3441af45afb618f47a49153f09a22ed70/repl-tools",
+            "digest": "sha256:3ac812b4e7bde4e5efbbce4dabfcb0f3fa773864e078fc27af4bcddbe21f8959"
+        }
+    ],
+    "environment": {
+        "type": "docker",
+        "force_build": false,
+        "delete": true,
+        "cpu_enforcement_policy": "auto",
+        "memory_enforcement_policy": "auto",
+        "extra_docker_compose": [],
+        "kwargs": {},
+        "extra_allowed_hosts": []
+    },
+    "verifier": {
+        "disable": false,
+        "environment_mode": "separate"
+    }
+}

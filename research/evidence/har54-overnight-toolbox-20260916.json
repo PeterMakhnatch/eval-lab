@@ -1,0 +1,528 @@
+{
+  "schema_version": 1,
+  "issue": "HAR-54",
+  "created_at": "2026-09-16T08:24:16.296615+00:00",
+  "status": "Python toolbox integration qualified; paid code optimization and live Omni blocked; no reliable GEPA gain established",
+  "window": {
+    "requested_start": "2026-09-16T01:30:00-04:00",
+    "requested_end": "2026-09-16T07:30:00-04:00",
+    "first_clock_check": "2026-09-16T01:35:24-04:00",
+    "actual_model_start": "2026-09-16T05:46:18.954684+00:00",
+    "actual_model_end": "2026-09-16T06:23:56.041694+00:00",
+    "full_six_hours_of_inference": false,
+    "reason_inference_stopped": "Unknown proposer outcome, followed by two independent native provider-response/accounting failures. Continued isolated implementation, free controls and analysis rather than repeating paid failures."
+  },
+  "direction": {
+    "source": "Peter direct overnight request, REPORT.md constraint, then explicit correction to Python helper evolution and Oracle contrast",
+    "report": "/Users/petermakhnatch/Developer/research-context/harbor/gepa/REPORT.md",
+    "target": "One reusable repl_tools.py module; not another prompt-prose sweep, judge, task generator or scheduler",
+    "changed_artifact": "research/experiments/harness-gepa/repl_tools.py",
+    "fixed": "Native task/verifier bytes, model route, fixed skill descriptor, budgets and ordinary Lab execution",
+    "automatic_adoption": false
+  },
+  "implementation": {
+    "candidate_kind": "python_toolbox",
+    "native_injection": "Existing Harbor --skill; docker copy into /harbor/skills/repl-tools/repl_tools.py, not a host bind mount",
+    "host_execution": "AST validation and hashing only; no candidate import/exec on host",
+    "identity": "Queue pins Python bytes; job retains Python+SKILL.md, verifies native top-level lock.skills digest; comparison uses toolset_digest rather than model settings or prompt identity",
+    "oracle_reference": "Exact trial_path/result_sha256/task_package_digest; preflight same-package successful no-model Oracle. Arguments/stdout withheld; actual state transitions and missing command traces remain explicit.",
+    "static_failures": "Invalid Python produces tagged static validation feedback, not a fabricated Harbor trial or unknown-cost zero",
+    "efficiency": "Opt-in native-grade-gated inverse physical-request utility. Native grade remains unchanged; unknown broker accounting halts. No verifier-validity claim.",
+    "operator_config": "research/experiments/harness-gepa/python-toolbox.json",
+    "config_enabled": false
+  },
+  "model_experiment": {
+    "attempted": 5,
+    "clean_completed": 3,
+    "infrastructure_failed": 2,
+    "completed_scored_pairs": 0,
+    "unstarted_rejected": 9,
+    "candidate": "Archived genuine HAR53 proposal e6ca24a27ad8; not a newly learned code artifact",
+    "seed_requests": [
+      5,
+      6,
+      6
+    ],
+    "known_target_physical_requests": 17,
+    "unresolved_target_physical_requests": 2,
+    "known_target_tokens": 112238,
+    "known_target_api_estimate_usd": 0.164576,
+    "actual_billing_or_subscription_credits": null,
+    "unknown_usage_warning": "Failed target totals are reserved ceilings, not observed tokens/cost; never summed into known usage.",
+    "jobs": [
+      {
+        "job_path": "runs/gepa-zai-opencode-event-summary-f20cafc3acf6b82d0fdb0b84",
+        "job_id": "e0d1829e-0c2c-461f-bcf0-28908d96ec44",
+        "trial_id": "e531d287-92f2-4d6d-bad8-f689568908f1",
+        "trial_name": "gepa-zai-opencode-event-summary__P3qYC3o",
+        "raw_reward": 1.0,
+        "capability_score": 1.0,
+        "classification": "completed",
+        "requested_model": "zai-coding-plan/glm-5.3-flash",
+        "observed_model": "glm-5.3-flash",
+        "physical_requests": 5,
+        "unresolved_requests": 0,
+        "observed_usage": {
+          "cost_micros": 47314,
+          "input_tokens": 31525,
+          "output_tokens": 722,
+          "requests": 5,
+          "total_tokens": 32247
+        },
+        "reserved_ceiling_not_observed_usage": null,
+        "failure_reason": null,
+        "native_exception_class": null,
+        "raw_archive_uri": "cas://sha256/41af2b4c76257eb464a71815edaa6561c8cf0593f1fb9268920216d40cc8fc12",
+        "public_path": "research/evidence/runs/gepa-zai-opencode-event-summary-f20cafc3acf6b82d0fdb0b84",
+        "runtime_source": {
+          "commit": "bac8bc54c77a6fc50c908abbb491f27495c4d112",
+          "dirty": false
+        },
+        "started_at": "2026-09-16T05:46:18.954684+00:00",
+        "finished_at": "2026-09-16T05:47:40.129768+00:00"
+      },
+      {
+        "job_path": "runs/gepa-zai-opencode-event-summary-0d6d972ff45c7bc3f0c289b7",
+        "job_id": "c00048d3-8cc1-467f-9fb3-177a2a7e1146",
+        "trial_id": "8b5ad3b4-73ab-4f92-9c16-f03cf2f02a2f",
+        "trial_name": "gepa-zai-opencode-event-summary__p2Rfygi",
+        "raw_reward": 1.0,
+        "capability_score": 1.0,
+        "classification": "completed",
+        "requested_model": "zai-coding-plan/glm-5.3-flash",
+        "observed_model": "glm-5.3-flash",
+        "physical_requests": 6,
+        "unresolved_requests": 0,
+        "observed_usage": {
+          "cost_micros": 58231,
+          "input_tokens": 39031,
+          "output_tokens": 815,
+          "requests": 6,
+          "total_tokens": 39846
+        },
+        "reserved_ceiling_not_observed_usage": null,
+        "failure_reason": null,
+        "native_exception_class": null,
+        "raw_archive_uri": "cas://sha256/da8ad5de2b4333855053c58d15a1c52bf0384e877b7f9b1412503a821df650b9",
+        "public_path": "research/evidence/runs/gepa-zai-opencode-event-summary-0d6d972ff45c7bc3f0c289b7",
+        "runtime_source": {
+          "commit": "52a5f8af60e870f7d8d9b7bd6475c8ac72e8674c",
+          "dirty": false
+        },
+        "started_at": "2026-09-16T06:00:32.133243+00:00",
+        "finished_at": "2026-09-16T06:01:52.195010+00:00"
+      },
+      {
+        "job_path": "runs/gepa-zai-opencode-event-summary-295e0ddc4a0d91d5e7f10ee4",
+        "job_id": "0a5efad6-42e4-49f9-a112-83a4bc8b4e2c",
+        "trial_id": "6f59d570-2bba-414b-acf8-cbaa46bab052",
+        "trial_name": "gepa-zai-opencode-event-summary__5kpeSTk",
+        "raw_reward": 1.0,
+        "capability_score": 1.0,
+        "classification": "completed",
+        "requested_model": "zai-coding-plan/glm-5.3-flash",
+        "observed_model": "glm-5.3-flash",
+        "physical_requests": 6,
+        "unresolved_requests": 0,
+        "observed_usage": {
+          "cost_micros": 59031,
+          "input_tokens": 39203,
+          "output_tokens": 942,
+          "requests": 6,
+          "total_tokens": 40145
+        },
+        "reserved_ceiling_not_observed_usage": null,
+        "failure_reason": null,
+        "native_exception_class": null,
+        "raw_archive_uri": "cas://sha256/0b973ad21ee2b2728b353bd76e4fd783ca3c35601e81b7fdec7697f99e836d5e",
+        "public_path": "research/evidence/runs/gepa-zai-opencode-event-summary-295e0ddc4a0d91d5e7f10ee4",
+        "runtime_source": {
+          "commit": "52a5f8af60e870f7d8d9b7bd6475c8ac72e8674c",
+          "dirty": false
+        },
+        "started_at": "2026-09-16T06:10:53.888710+00:00",
+        "finished_at": "2026-09-16T06:12:38.612421+00:00"
+      },
+      {
+        "job_path": "runs/gepa-zai-opencode-event-summary-51fbc30dc31eddc6021adecc",
+        "job_id": "c626d1aa-b7a1-4304-b2ee-5aa3dc22842d",
+        "trial_id": "46ab4ded-9ad4-49e9-a0c1-0544fd8d81c1",
+        "trial_name": "gepa-zai-opencode-event-summary__fcA9ZuR",
+        "raw_reward": 0.0,
+        "capability_score": null,
+        "classification": "infrastructure_error",
+        "requested_model": "zai-coding-plan/glm-5.3-flash",
+        "observed_model": null,
+        "physical_requests": 1,
+        "unresolved_requests": 1,
+        "observed_usage": null,
+        "reserved_ceiling_not_observed_usage": {
+          "cost_micros": 58724,
+          "input_tokens": 4231,
+          "output_tokens": 12000,
+          "requests": 1,
+          "total_tokens": 16231
+        },
+        "failure_reason": "unsupported_upstream_encoding",
+        "native_exception_class": "ApiRateLimitError",
+        "raw_archive_uri": "cas://sha256/24d4879389c02fe11e798ee481cc2378f41b073945e453f0967289aae6f4a843",
+        "public_path": null,
+        "runtime_source": {
+          "commit": "52a5f8af60e870f7d8d9b7bd6475c8ac72e8674c",
+          "dirty": false
+        },
+        "started_at": "2026-09-16T06:15:52.298256+00:00",
+        "finished_at": "2026-09-16T06:17:55.386792+00:00"
+      },
+      {
+        "job_path": "runs/gepa-zai-opencode-syn-funcdag-easy-09a77bf4e4310c761c3249b7",
+        "job_id": "dc6add71-8ba3-4a64-8486-f8d4054e6f20",
+        "trial_id": "d0805bfc-59e7-4115-980c-a05e42ef9204",
+        "trial_name": "gepa-zai-opencode-syn-funcdag-ea__u6iK3Ki",
+        "raw_reward": 0.0,
+        "capability_score": null,
+        "classification": "infrastructure_error",
+        "requested_model": "zai-coding-plan/glm-5.3-flash",
+        "observed_model": null,
+        "physical_requests": 1,
+        "unresolved_requests": 1,
+        "observed_usage": null,
+        "reserved_ceiling_not_observed_usage": {
+          "cost_micros": 60041,
+          "input_tokens": 5172,
+          "output_tokens": 12000,
+          "requests": 1,
+          "total_tokens": 17172
+        },
+        "failure_reason": "unsupported_upstream_encoding",
+        "native_exception_class": "ApiRateLimitError",
+        "raw_archive_uri": "cas://sha256/7f6c8db24c7637ee2744871c356d59bb19eaea01a7952c33926fce9fa1d11c6d",
+        "public_path": null,
+        "runtime_source": {
+          "commit": "52a5f8af60e870f7d8d9b7bd6475c8ac72e8674c",
+          "dirty": false
+        },
+        "started_at": "2026-09-16T06:22:01.325064+00:00",
+        "finished_at": "2026-09-16T06:23:56.041694+00:00"
+      }
+    ]
+  },
+  "proposer": {
+    "new_model_responses": 0,
+    "charged_reservations": 2,
+    "local_dependency_failure": {
+      "physical_requests": 0,
+      "status": "not_dispatched_dependency_failure",
+      "reservation_refunded": false,
+      "cause": "Missing optional litellm import at pinned gepa/lm.py:97 before completion at104; fixed by installing existing requirements.txt",
+      "estimated_provider_cost_usd": 0
+    },
+    "interrupted_invocation": {
+      "status": "remote_outcome_unknown",
+      "physical_request_count": null,
+      "actual_cost_usd": null,
+      "actual_tokens": null,
+      "parent_timeout_seconds": 180,
+      "journal_retained": true,
+      "reservation_refunded": false,
+      "automatic_retry": false
+    },
+    "new_code_search_completed": false
+  },
+  "limits": {
+    "prior_HAR53_model_attempts": 16,
+    "new_executed_model_attempts": 5,
+    "combined_executed_model_attempts": 21,
+    "prior_reserved_targets": 16,
+    "new_reserved_targets": 14,
+    "combined_reserved_targets": 30,
+    "original_conservative_target_ceiling": 32,
+    "prior_proposer_requests": 4,
+    "new_charged_proposer_reservations": 2,
+    "combined_charged_proposer_units": 6,
+    "original_conservative_proposer_ceiling": 12,
+    "nine_unstarted_target_reservations_not_refunded": true,
+    "new_paid_runs_queued": 0,
+    "engineering_subagents_excluded_from_experiment_ledger": true
+  },
+  "toolbox_protocol": {
+    "executed_source": "7f825d81c09f15de8648aec4326b46a7403c4073",
+    "candidate_source_sha256": "sha256:dc3e4589f8b8ff84e5ce81fd9f82fad3441af45afb618f47a49153f09a22ed70",
+    "native_control_jobs": 6,
+    "clean_native_controls": 5,
+    "native_control_harness_errors": 1,
+    "additional_setup_rejection_before_native_job": 1,
+    "manual_before_after": {
+      "same_package": "sha256:343018b35ab8a72e7ac57c03f7267961177dbdfbae9494971bea5d644ee6701e",
+      "rewards": [
+        0,
+        1
+      ],
+      "fixed_checks": {
+        "numbered_window": true,
+        "grep_line": true,
+        "invalid_regex_error": true,
+        "valid_json": true,
+        "invalid_json": true,
+        "nonfinite_json": true,
+        "invalid_utf8": true,
+        "symlink_rejected": true,
+        "bounded_long_line": true,
+        "bounded_empty_tree": true,
+        "cli_execution": true,
+        "no_input_writes": true
+      },
+      "change": "Manually added re.error handling after actual in-container traceback. The negative setup also exposed a missing verifier COPY, fixed in the unregistered interface fixture before the matched pair."
+    },
+    "gepa_protocol": {
+      "status": "completed",
+      "upstream_commit": "0632cdb5dcc052e690eab439e1b4a7e3e9cfe407",
+      "proposer": "Explicit deterministic fixture supplies the manual fix; no LLM proposal",
+      "model_calls": 0,
+      "native_evaluation_jobs": [
+        "runs/gepa-oracle-har54-toolbox-protoc-23a0b01043ea81b2417c82cb",
+        "runs/gepa-oracle-har54-toolbox-protoc-918c51a83c66da9a8635ccdc"
+      ],
+      "selected_candidate_id": "sha256:dc3e4589f8b8ff84e5ce81fd9f82fad3441af45afb618f47a49153f09a22ed70",
+      "oracle_reference_reached_reflection": true,
+      "learned_improvement": false,
+      "admitted_benchmark_or_task": false
+    },
+    "comparison_spec": "research/experiments/harness-gepa/har54-toolbox-protocol-comparison.json",
+    "comparison_rankable": false,
+    "comparison_limit": "One intentionally constructed protocol case. The bootstrap [1,1] is degenerate and not statistical evidence of agent improvement.",
+    "jobs": [
+      {
+        "job_path": "runs/har54-oracle-event-reference",
+        "job_id": "92cab176-706d-453a-ac61-fdfc87f66a5e",
+        "task": "local-lab/event-summary",
+        "trial_id": "a07ad7e2-16e3-4a22-956f-516e80f42053",
+        "trial_name": "har54-oracle-event-reference__ux3uWpe",
+        "reward": 1.0,
+        "error_type": null,
+        "totals": null,
+        "returned_models": [],
+        "source": {
+          "commit": "81dd4f91fb14257646d5d31ddcb6259faecd1878",
+          "dirty": false
+        },
+        "raw_archive_uri": "cas://sha256/c2da3de0c76a56fbc047ee2718e096d11d6371b428b15309b66fdafbdc33b169",
+        "public_path": "research/evidence/runs/har54-oracle-event-reference"
+      },
+      {
+        "job_path": "runs/har54-toolbox-probe-negative",
+        "job_id": "c3be59de-7b92-4894-ab39-2a439229d2dc",
+        "task": "local-smoke/har54-toolbox-protocol",
+        "trial_id": "e493d42d-dcb8-4091-847c-e734e9108aae",
+        "trial_name": "har54-toolbox-probe-negative__fene7E4",
+        "reward": null,
+        "error_type": "RewardFileNotFoundError",
+        "totals": null,
+        "returned_models": [],
+        "source": {
+          "commit": "81dd4f91fb14257646d5d31ddcb6259faecd1878",
+          "dirty": false
+        },
+        "raw_archive_uri": "cas://sha256/ace083bb071c7e4929b9fd6dcb3d68aa11095a4dd62a6a7495c8910f7f42af02",
+        "public_path": "research/evidence/runs/har54-toolbox-probe-negative"
+      },
+      {
+        "job_path": "runs/har54-toolbox-broken-control",
+        "job_id": "67a0a718-fc2f-4aa0-91ac-30707e71a338",
+        "task": "local-smoke/har54-toolbox-protocol",
+        "trial_id": "575bff2a-229b-49b4-97a8-64e9b3237179",
+        "trial_name": "har54-toolbox-broken-control__3b9Xqp3",
+        "reward": 0.0,
+        "error_type": null,
+        "totals": null,
+        "returned_models": [],
+        "source": {
+          "commit": "7f825d81c09f15de8648aec4326b46a7403c4073",
+          "dirty": false
+        },
+        "raw_archive_uri": "cas://sha256/db3e72fb3b72705997f2a8803b7a5f91332ccc22c17cce31423423a004b59050",
+        "public_path": "research/evidence/runs/har54-toolbox-broken-control"
+      },
+      {
+        "job_path": "runs/har54-toolbox-fixed-control",
+        "job_id": "f4de431a-be1b-47f7-bc22-6a8322d8b207",
+        "task": "local-smoke/har54-toolbox-protocol",
+        "trial_id": "2de1b26b-115d-414c-85ed-307deb207112",
+        "trial_name": "har54-toolbox-fixed-control__vJqPewS",
+        "reward": 1.0,
+        "error_type": null,
+        "totals": null,
+        "returned_models": [],
+        "source": {
+          "commit": "7f825d81c09f15de8648aec4326b46a7403c4073",
+          "dirty": false
+        },
+        "raw_archive_uri": "cas://sha256/7a07e56049f10965657aa1c9f921fbc733d8a15db217f59442f982e81a44a172",
+        "public_path": "research/evidence/runs/har54-toolbox-fixed-control"
+      },
+      {
+        "job_path": "runs/gepa-oracle-har54-toolbox-protoc-23a0b01043ea81b2417c82cb",
+        "job_id": "bc000f38-13d8-420c-9882-f7520b31ffe2",
+        "task": "local-smoke/har54-toolbox-protocol",
+        "trial_id": "fadd6b92-8817-4a87-a520-aa4102980f39",
+        "trial_name": "gepa-oracle-har54-toolbox-protoc__8bpSU2i",
+        "reward": 1.0,
+        "error_type": null,
+        "totals": null,
+        "returned_models": [],
+        "source": {
+          "commit": "7f825d81c09f15de8648aec4326b46a7403c4073",
+          "dirty": false
+        },
+        "raw_archive_uri": "cas://sha256/3459afe0ac747da391321dd415af6cde36c50a0fce3558803fedd9ceed929cf3",
+        "public_path": "research/evidence/runs/gepa-oracle-har54-toolbox-protoc-23a0b01043ea81b2417c82cb"
+      },
+      {
+        "job_path": "runs/gepa-oracle-har54-toolbox-protoc-918c51a83c66da9a8635ccdc",
+        "job_id": "ec4690be-19e2-4410-b516-0bff7ef88ee4",
+        "task": "local-smoke/har54-toolbox-protocol",
+        "trial_id": "0a83c07f-14bf-4943-8963-43b224c6d535",
+        "trial_name": "gepa-oracle-har54-toolbox-protoc__iTdwF99",
+        "reward": 0.0,
+        "error_type": null,
+        "totals": null,
+        "returned_models": [],
+        "source": {
+          "commit": "7f825d81c09f15de8648aec4326b46a7403c4073",
+          "dirty": false
+        },
+        "raw_archive_uri": "cas://sha256/7abc83e1d891f834df84f5cba8c6758e39f47d58fae8b2e70b9ce8bff6e64b55",
+        "public_path": "research/evidence/runs/gepa-oracle-har54-toolbox-protoc-918c51a83c66da9a8635ccdc"
+      }
+    ]
+  },
+  "gates": {
+    "live_omni": "Not run. Requires qualified fail-closed subprocess isolation, genuine supported Flash transport and physical-request metering; no GEPA-only relabeling.",
+    "coding_plan_proposer": {
+      "state": "New direct GEPA/LiteLLM Coding Plan requests disabled before target evaluation",
+      "basis": "Official docs restrict Coding Plan to listed tools. OpenCode is listed; bare GEPA/LiteLLM is not. Eligibility is distinct from protocol compatibility.",
+      "sources": [
+        "https://docs.z.ai/devpack/tool/others",
+        "https://docs.z.ai/devpack/faq",
+        "https://docs.z.ai/devpack/tool/claude"
+      ],
+      "provider_failure_cause_proven_by_this_rule": false,
+      "no_client_spoofing_or_provider_substitution": true,
+      "observed_at": "2026-09-16T08:38:36.022037+00:00"
+    },
+    "native_provider_response": "Two calls failed the combined content-encoding/transfer/content-type/charset gate. Exact upstream status/encoding was not retained; cannot assert gzip, quota exhaustion or policy enforcement. Later 429 was local trial-budget refusal.",
+    "task_pool": "Two usable registered development identities; Lisbon exposed with a contract defect. No fresh eligible holdout or new admission."
+  },
+  "analysis": {
+    "receipt": "research/evidence/har54-gepa-trace-analysis-20260916.json",
+    "solid_quality_or_efficiency_gain": false,
+    "new_model_learned_toolbox": false,
+    "hypothesis": "Portable helper checks might remove missing-utility detours; the current traces do not establish huge dumps or loop crashes as the dominant failure. Test actual helper use and correctness under qualified execution.",
+    "decision": "Keep the competent seed. No automatic harness adoption, task admission, model change or merge."
+  },
+  "evidence": {
+    "all_raw_native_jobs_archived": 11,
+    "published_native_bundles": 9,
+    "published_native_files_excluding_manifests": 175,
+    "published_native_bytes_excluding_manifests": 904136,
+    "private_failure_reason": "Failed model exceptions embed verbatim task/preamble text. Raw failures retained in CAS; public receipt retains failure facts/hashes without publishing raw model prompts.",
+    "raw_store": "/Users/petermakhnatch/Developer/eval-lab/derived/evidence-cas",
+    "runtime_source_bundle": "runs/har54-toolbox-20260916/runtime-source.bundle",
+    "runtime_source_bundle_base": "bac8bc54c77a6fc50c908abbb491f27495c4d112",
+    "runtime_source_bundle_head": "7f825d81c09f15de8648aec4326b46a7403c4073",
+    "campaign_archives": [
+      {
+        "source_path": "runs/har54-overnight-20260916",
+        "record_id": "har54-final-har54-campaign",
+        "kind": "har54-campaign",
+        "content_digest": "sha256:e5b42d6b8f32625de5b1f92c630515af97029a1d557f39398011cbc09a98a119",
+        "archive_digest": "sha256:5146cd84abb796309147b3b80b48f6e7f6d618aa6121c5b683791867e69aca15",
+        "uri": "cas://sha256/e5b42d6b8f32625de5b1f92c630515af97029a1d557f39398011cbc09a98a119",
+        "blob_path": "/Users/petermakhnatch/Developer/eval-lab/derived/evidence-cas/blobs/sha256/e5/e5b42d6b8f32625de5b1f92c630515af97029a1d557f39398011cbc09a98a119.tar.gz",
+        "manifest_path": "/Users/petermakhnatch/Developer/eval-lab/derived/evidence-cas/records/har54-campaign/har54-final-har54-campaign.json",
+        "file_count": 88,
+        "uncompressed_bytes": 293804
+      },
+      {
+        "source_path": "runs/har54-toolbox-20260916",
+        "record_id": "har54-final-har54-toolbox",
+        "kind": "har54-toolbox",
+        "content_digest": "sha256:05b59804c28e4b31ac84eb02279cee9c04a482cc919a4e51615d2247c4b5a7fa",
+        "archive_digest": "sha256:a5bc411a34380d54289529c6398d82f625392949388982c136d39488a0dab466",
+        "uri": "cas://sha256/05b59804c28e4b31ac84eb02279cee9c04a482cc919a4e51615d2247c4b5a7fa",
+        "blob_path": "/Users/petermakhnatch/Developer/eval-lab/derived/evidence-cas/blobs/sha256/05/05b59804c28e4b31ac84eb02279cee9c04a482cc919a4e51615d2247c4b5a7fa.tar.gz",
+        "manifest_path": "/Users/petermakhnatch/Developer/eval-lab/derived/evidence-cas/records/har54-toolbox/har54-final-har54-toolbox.json",
+        "file_count": 64,
+        "uncompressed_bytes": 495013
+      },
+      {
+        "source_path": "queue",
+        "record_id": "har54-final-har54-queue",
+        "kind": "har54-queue",
+        "content_digest": "sha256:9ef3959e5e9739e425cf8ace47929598c3a4c92904a3b2e32bc750bea9c95d02",
+        "archive_digest": "sha256:5237550f33c54b6613242a7b0698f5172531feaa9ae4bfa96e34a3cdb532b4eb",
+        "uri": "cas://sha256/9ef3959e5e9739e425cf8ace47929598c3a4c92904a3b2e32bc750bea9c95d02",
+        "blob_path": "/Users/petermakhnatch/Developer/eval-lab/derived/evidence-cas/blobs/sha256/9e/9ef3959e5e9739e425cf8ace47929598c3a4c92904a3b2e32bc750bea9c95d02.tar.gz",
+        "manifest_path": "/Users/petermakhnatch/Developer/eval-lab/derived/evidence-cas/records/har54-queue/har54-final-har54-queue.json",
+        "file_count": 58,
+        "uncompressed_bytes": 72527
+      }
+    ],
+    "restore_proof": {
+      "native_archive_uri": "cas://sha256/7a07e56049f10965657aa1c9f921fbc733d8a15db217f59442f982e81a44a172",
+      "restored_job_id": "f4de431a-be1b-47f7-bc22-6a8322d8b207",
+      "reward": 1.0,
+      "toolbox_group_archive_uri": "cas://sha256/05b59804c28e4b31ac84eb02279cee9c04a482cc919a4e51615d2247c4b5a7fa",
+      "runtime_bundle_verified": true,
+      "bundle_verification": "The bundle contains this ref:\n7f825d81c09f15de8648aec4326b46a7403c4073 HEAD\nThe bundle requires this ref:\nbac8bc54c77a6fc50c908abbb491f27495c4d112 \nThe bundle uses this hash algorithm: sha1\n/private/tmp/har54-restore-zg5k8alv/toolbox/runtime-source.bundle is okay\n"
+    },
+    "draft_taxonomy_labels": 9,
+    "draft_labels_are_not_human_gold": true
+  },
+  "release": {
+    "base_main": "19b654b4b9e3d8f7308df3527d2de24e2353c67d",
+    "prior_PR431_merged_independently": true,
+    "rebased_source_head": "c25878a7d29329c7cb3ef28063831d72b8a6d643",
+    "runtime_files_byte_identical_after_rebase": 13,
+    "owner_of_merge_and_runtime_adoption": "RE / HAR-46",
+    "primary_checkout_and_shared_services_changed": false,
+    "proposer_eligibility_guard_added_after_inference": true
+  },
+  "verification": {
+    "focused_tests": {
+      "passed": 281,
+      "scope": "Optimizer workflow/evaluator/feedback/composition/budget; toolbox; runner; queue; public contracts",
+      "optional_gepa_installed": true
+    },
+    "native_control_proof": "Actual container import and CLI execution; all12 fixed-seed helper checks passed",
+    "proposer_route_gate": {
+      "actual_cli_exit": 2,
+      "status": "proposer_unavailable",
+      "evidence_level": "proposer_preflight_only",
+      "proposer_calls": 0,
+      "target_evaluations": 0
+    },
+    "disabled_config_cli": "status=disabled; no execution",
+    "public_only_comparison": {
+      "verified": true,
+      "private_runtime_inputs_required": false,
+      "rankable": false,
+      "reason": "One protocol task, not a statistical improvement study"
+    },
+    "privacy": {
+      "scanned_files": 198,
+      "flags": 0,
+      "method": "Known-key and encoded-key matching plus generic credential redaction; failed model prompt-bearing bundles retained privately."
+    },
+    "exact_runtime_code_reviews": [
+      "ToolboxMethodReview at7f825d81: no outstanding findings after actual lock/regex corrections",
+      "ToolboxSecurityReview at7f825d81: no outstanding findings; unsupported bind-mount claim withdrawn after primary Docker-copy source check"
+    ],
+    "publication_gate_repair": {
+      "cause": "Hosted full matrix required nine draft trajectory labels and rejected a provider-key-shaped synthetic test value.",
+      "changes": "Added evidence-linked draft labels; replaced the redaction-test sentinel without relaxing scanner or calibration gates.",
+      "focused_repair_checks_passed": 3,
+      "production_code_changed": false
+    }
+  }
+}

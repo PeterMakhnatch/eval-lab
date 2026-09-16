@@ -659,6 +659,35 @@ def test_extra_instruction_path_cannot_escape_the_repository(escape):
         _s03_spec(extra_instruction_path=escape)
 
 
+def test_toolbox_path_and_sha256_must_be_paired():
+    """toolbox_path and toolbox_sha256 must be provided together."""
+    assert _s03_spec().toolbox_path is None
+    assert _s03_spec().toolbox_sha256 is None
+
+    with pytest.raises(ValidationError, match="must be provided together"):
+        _s03_spec(toolbox_path="tools/repl_tools.py")
+
+    with pytest.raises(ValidationError, match="must be provided together"):
+        _s03_spec(toolbox_sha256="sha256:" + "a" * 64)
+
+    valid = _s03_spec(
+        toolbox_path="tools/repl_tools.py",
+        toolbox_sha256="sha256:" + "a" * 64,
+    )
+    assert valid.toolbox_path == "tools/repl_tools.py"
+    assert valid.toolbox_sha256 == "sha256:" + "a" * 64
+
+
+@pytest.mark.parametrize("escape", ["/etc/passwd", "../../etc/passwd", "tools/../../x"])
+def test_toolbox_path_cannot_escape_the_repository(escape):
+    """toolbox_path must stay repo-relative."""
+    with pytest.raises(ValidationError, match="relative to the repository"):
+        _s03_spec(
+            toolbox_path=escape,
+            toolbox_sha256="sha256:" + "a" * 64,
+        )
+
+
 def test_factor_provenance_schema_migrates_preexisting_fact_table_additively() -> None:
     schema = (Path(__file__).parents[1] / "sql" / "schema.sql").read_text()
     columns = (

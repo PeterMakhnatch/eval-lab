@@ -1012,6 +1012,7 @@ def _cleanup_failure(
         return f"cleanup_failed:{type(exc).__name__}"
     return None
 
+
 def _task_staging_provenance(
     source: Path, staged: Path, adaptation: NetworkAdaptation | None
 ) -> dict[str, Any]:
@@ -1052,6 +1053,7 @@ def _write_run_metadata(
     process: HarborProcessResult,
     network_adaptation: NetworkAdaptation | None = None,
     task_staging: dict[str, Any] | None = None,
+    toolbox: dict[str, Any] | None = None,
 ) -> None:
     job_dir = request.jobs_dir / request.name
     if not job_dir.exists():
@@ -1086,6 +1088,8 @@ def _write_run_metadata(
         metadata["network_adaptation"] = asdict(network_adaptation)
     if task_staging is not None:
         metadata["task_staging"] = task_staging
+    if toolbox is not None:
+        metadata["toolbox"] = toolbox
     persist_private_bytes(
         job_dir / "lab-metadata.json",
         (json.dumps(metadata, indent=2, sort_keys=True) + "\n").encode(),
@@ -1264,6 +1268,18 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             ),
         )
         staged_request: RunRequest = replace(request, task=staged_task)
+        staged_toolbox: Path | None = None
+        toolbox_meta: dict[str, Any] | None = None
+        if request.toolbox_path is not None:
+            from evallab.toolbox import stage_toolbox
+
+            staged_toolbox, toolbox_meta = stage_toolbox(
+                request.toolbox_path,
+                request.toolbox_sha256,
+                staging_root=request.jobs_dir / ".toolbox-staging" / request.name,
+                repo_root=repo_root,
+            )
+            staged_request = replace(staged_request, skill=staged_toolbox)
 
         _write_network_adaptation(request, adaptation)
 
@@ -1322,7 +1338,12 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             process=process,
             network_adaptation=adaptation,
             task_staging=_task_staging_provenance(request.task, staged_task, adaptation),
+            toolbox=toolbox_meta,
         )
+        if staged_toolbox is not None and toolbox_meta is not None and job_dir.exists():
+            from evallab.toolbox import retain_toolbox_evidence
+
+            retain_toolbox_evidence(job_dir, staged_toolbox, toolbox_meta)
         if cancelled:
             cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
             cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
@@ -1475,10 +1496,13 @@ def staged_matrix_request(
         solve.parent.mkdir(parents=True, exist_ok=True)
         solve.write_bytes(script)
         solve.chmod(0o755)
-        yield replace(request, task=staged), {
-            "solution_sha256": hashlib.sha256(script).hexdigest(),
-            "staged_task_digest": compute_task_digests(staged).package,
-        }
+        yield (
+            replace(request, task=staged),
+            {
+                "solution_sha256": hashlib.sha256(script).hexdigest(),
+                "staged_task_digest": compute_task_digests(staged).package,
+            },
+        )
 
 
 def matrix_run_outcome(job: JobRecord, run: MatrixRun) -> dict[str, Any]:
@@ -1506,14 +1530,11 @@ def matrix_run_outcome(job: JobRecord, run: MatrixRun) -> dict[str, Any]:
                     "error": f"trial {trial.path.name} oracle script exited {exit_code}",
                 }
             phases = trial.result.get("step_results") or [trial.result]
-            if (
-                not (trial.path / "agent" / "oracle.txt").is_file()
-                or any(
-                    phase.get("exception_info")
-                    or not (phase.get("agent_execution") or {}).get("started_at")
-                    or not (phase.get("agent_execution") or {}).get("finished_at")
-                    for phase in phases
-                )
+            if not (trial.path / "agent" / "oracle.txt").is_file() or any(
+                phase.get("exception_info")
+                or not (phase.get("agent_execution") or {}).get("started_at")
+                or not (phase.get("agent_execution") or {}).get("finished_at")
+                for phase in phases
             ):
                 return {
                     "status": "infra",

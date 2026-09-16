@@ -1,0 +1,57 @@
+{
+    "id": "92cab176-706d-453a-ac61-fdfc87f66a5e",
+    "started_at": "2026-09-16T03:08:49.898181",
+    "updated_at": "2026-09-16T03:09:04.850189",
+    "finished_at": "2026-09-16T03:09:04.850189",
+    "n_total_trials": 1,
+    "stats": {
+        "n_completed_trials": 1,
+        "n_errored_trials": 0,
+        "n_running_trials": 0,
+        "n_pending_trials": 0,
+        "n_cancelled_trials": 0,
+        "n_retries": 0,
+        "evals": {
+            "oracle__adhoc": {
+                "n_trials": 1,
+                "n_errors": 0,
+                "metrics": [
+                    {
+                        "correctness": 1.0,
+                        "input_preservation": 1.0,
+                        "output_hygiene": 1.0,
+                        "reward": 1.0
+                    }
+                ],
+                "pass_at_k": {},
+                "reward_stats": {
+                    "correctness": {
+                        "1.0": [
+                            "har54-oracle-event-reference__ux3uWpe"
+                        ]
+                    },
+                    "input_preservation": {
+                        "1.0": [
+                            "har54-oracle-event-reference__ux3uWpe"
+                        ]
+                    },
+                    "output_hygiene": {
+                        "1.0": [
+                            "har54-oracle-event-reference__ux3uWpe"
+                        ]
+                    },
+                    "reward": {
+                        "1.0": [
+                            "har54-oracle-event-reference__ux3uWpe"
+                        ]
+                    }
+                },
+                "exception_stats": {}
+            }
+        },
+        "n_input_tokens": null,
+        "n_cache_tokens": null,
+        "n_output_tokens": null,
+        "cost_usd": null
+    }
+}

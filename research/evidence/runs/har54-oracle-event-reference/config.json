@@ -1,0 +1,11 @@
+{
+    "job_name": "har54-oracle-event-reference",
+    "jobs_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-overnight-20260916/runs",
+    "agent_timeout_multiplier": 1.5,
+    "n_concurrent_trials": 1,
+    "tasks": [
+        {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-overnight-20260916/runs/.exec-stage/har54-oracle-event-reference"
+        }
+    ]
+}

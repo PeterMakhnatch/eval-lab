@@ -26,7 +26,7 @@ from .meta_engine import (
     compute_candidate_digest,
     make_meta_harness_engine,
 )
-from .proposer import ReplaySafeGepaEngine
+from .proposer import ReplaySafeGepaEngine, direct_proposer_blocker
 from .release import COMMIT, verify_release
 
 OMNI_RECIPE_SOURCE = "https://gepa-ai.github.io/gepa/blog/2026/07/22/optimize-anything-omni/"
@@ -41,10 +41,13 @@ class EngineUnavailable(Exception):
 
 def engine_availability(proposer_model: str) -> dict[str, Any]:
     facts = check_prerequisite_facts(sandbox=True)
+    gepa_blocker = (
+        direct_proposer_blocker(proposer_model) if proposer_model else "Missing proposer model"
+    )
     engines = {
         "gepa": {
-            "available": bool(proposer_model),
-            "blockers": [] if proposer_model else ["Missing proposer model"],
+            "available": gepa_blocker is None,
+            "blockers": [gepa_blocker] if gepa_blocker else [],
         }
     }
     for name in EXPLORATION_ENGINES[1:]:

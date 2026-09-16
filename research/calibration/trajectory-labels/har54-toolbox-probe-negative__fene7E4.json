@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "trial_name": "har54-toolbox-probe-negative__fene7E4",
+  "source": "research/evidence/runs/har54-toolbox-probe-negative/har54-toolbox-probe-negative__fene7E4",
+  "primary_category": "environment_failure",
+  "summary": "The local interface fixture omitted the verifier entrypoint from its image, so no valid reward was produced. The Oracle log also contains a helper regex exception; this is not a model-capability result.",
+  "evidence": [
+    {
+      "path": "verifier/test-stdout.txt",
+      "step": null,
+      "supports": "Reports /tests/test.sh was missing in the verifier environment."
+    },
+    {
+      "path": "result.json",
+      "step": null,
+      "supports": "Records the original native outcome, agent identity and exception state without regrading."
+    }
+  ],
+  "agent": "oracle",
+  "reward": null,
+  "review_status": "draft_pending_research_review",
+  "review_note": "Evidence-linked operator triage, not a human gold label, task certificate or model-improvement claim.",
+  "labelled_by": "GEPA HAR-54, 2026-09-16",
+  "parent_trajectory_sha256": null,
+  "parent_result_sha256": "sha256:7f23bae241f4fc5881b1512faa84cf3c78a1759388611b31ab6b46c4519347c9"
+}

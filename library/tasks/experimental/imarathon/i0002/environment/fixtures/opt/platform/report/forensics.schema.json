@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "required": [
+    "q1_oom_job_ids", "q2_first_502_after_deploy", "q3_retried_ok_batches",
+    "q4_drift_keys", "q5_bytes_before_crash", "q6_error_signature_sequence"
+  ],
+  "properties": {
+    "q1_oom_job_ids": {"type": "array", "items": {"type": "string"}},
+    "q2_first_502_after_deploy": {"type": "string"},
+    "q3_retried_ok_batches": {"type": "integer"},
+    "q4_drift_keys": {"type": "array", "items": {"type": "string"}},
+    "q5_bytes_before_crash": {"type": "integer"},
+    "q6_error_signature_sequence": {"type": "array", "items": {"type": "string"}}
+  }
+}
+

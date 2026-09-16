@@ -1,6 +1,6 @@
 {
-  "total_packages": 524,
-  "runnable_packages": 504,
+  "total_packages": 530,
+  "runnable_packages": 510,
   "curated_cards_only": 19,
   "template_packages": 1,
   "canary_tasks": 3,
@@ -5166,6 +5166,66 @@
       "has_verifier": true,
       "is_canary": false,
       "registration_state": "registered"
+    },
+    {
+      "task_id": "i0000",
+      "path": "library/tasks/experimental/imarathon/i0000",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "i0001",
+      "path": "library/tasks/experimental/imarathon/i0001",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "i0002",
+      "path": "library/tasks/experimental/imarathon/i0002",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "i0003",
+      "path": "library/tasks/experimental/imarathon/i0003",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "i0004",
+      "path": "library/tasks/experimental/imarathon/i0004",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "i0005",
+      "path": "library/tasks/experimental/imarathon/i0005",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
     },
     {
       "task_id": "syn-funcdag-easy",

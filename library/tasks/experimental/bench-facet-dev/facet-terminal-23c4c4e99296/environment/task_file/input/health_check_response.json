@@ -1,0 +1,95 @@
+{
+  "request_id": "hc-3f4e5d6c-7b8a-9c0d-1e2f-3a4b5c6d7e8f",
+  "captured_at": "2025-09-15T14:22:00Z",
+  "source": "platform-health-aggregator",
+  "api_version": "2.0.1",
+  "status_code": 200,
+  "summary": {
+    "overall_status": "healthy",
+    "checked_at": "2025-09-15T14:21:55Z",
+    "total_checks": 8,
+    "passed": 8,
+    "failed": 0,
+    "degraded": 0
+  },
+  "probe_config": {
+    "timeout_ms": 5000,
+    "concurrency": 4,
+    "retries": 2
+  },
+  "checks": [
+    {
+      "name": "flight-search-api",
+      "status": "pass",
+      "latency_ms": 145,
+      "version": "2.4.1",
+      "last_success_at": "2025-09-15T14:21:54Z",
+      "dependencies": ["redis-cache", "amadeus-gateway"],
+      "stderr_tail": null
+    },
+    {
+      "name": "llm-routing-proxy",
+      "status": "pass",
+      "latency_ms": 89,
+      "version": "3.1.0",
+      "last_success_at": "2025-09-15T14:21:55Z",
+      "dependencies": ["openai-compatible-backend"],
+      "stderr_tail": null
+    },
+    {
+      "name": "cross-chain-swap-engine",
+      "status": "pass",
+      "latency_ms": 210,
+      "version": "4.2.0-beta",
+      "last_success_at": "2025-09-15T14:21:53Z",
+      "dependencies": ["wormhole-rpc", "solana-rpc", "ethereum-rpc"],
+      "stderr_tail": null
+    },
+    {
+      "name": "prompt-optimizer",
+      "status": "pass",
+      "latency_ms": 320,
+      "version": "1.9.3",
+      "last_success_at": "2025-09-15T14:21:52Z",
+      "dependencies": ["model-gateway"],
+      "stderr_tail": null
+    },
+    {
+      "name": "database-primary",
+      "status": "pass",
+      "latency_ms": 12,
+      "version": "PostgreSQL 15.4",
+      "last_success_at": "2025-09-15T14:21:55Z",
+      "dependencies": [],
+      "stderr_tail": null
+    },
+    {
+      "name": "redis-cache",
+      "status": "pass",
+      "latency_ms": 3,
+      "version": "7.2.1",
+      "last_success_at": "2025-09-15T14:21:55Z",
+      "dependencies": [],
+      "stderr_tail": null
+    },
+    {
+      "name": "legacy-bridge-monitor",
+      "status": "disabled",
+      "latency_ms": null,
+      "version": "1.2.0",
+      "last_success_at": "2025-08-01T00:00:00Z",
+      "dependencies": ["deprecated-bridge-api"],
+      "disabled_reason": "Service deprecated; replaced by cross-chain-swap-engine",
+      "stderr_tail": null
+    },
+    {
+      "name": "email-notification-worker",
+      "status": "pass",
+      "latency_ms": 45,
+      "version": "5.0.0",
+      "last_success_at": "2025-09-15T14:21:54Z",
+      "dependencies": ["ses-gateway", "database-primary"],
+      "stderr_tail": null
+    }
+  ]
+}

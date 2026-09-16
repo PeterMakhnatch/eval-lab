@@ -1,6 +1,6 @@
 {
-  "total_packages": 525,
-  "runnable_packages": 505,
+  "total_packages": 536,
+  "runnable_packages": 516,
   "curated_cards_only": 19,
   "template_packages": 1,
   "canary_tasks": 3,
@@ -5156,6 +5156,116 @@
       "has_verifier": true,
       "is_canary": true,
       "registration_state": "registered"
+    },
+    {
+      "task_id": "facet-terminal-23c4c4e99296",
+      "path": "library/tasks/experimental/bench-facet-dev/facet-terminal-23c4c4e99296",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "facet-terminal-f56650aac757",
+      "path": "library/tasks/experimental/bench-facet-dev/facet-terminal-f56650aac757",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "chess-best-move-ccf409c1a853",
+      "path": "library/tasks/experimental/bench-tb2-dev/chess-best-move-ccf409c1a853",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "constraints-scheduling-d94ca4850b63",
+      "path": "library/tasks/experimental/bench-tb2-dev/constraints-scheduling-d94ca4850b63",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "count-dataset-tokens-9900f27927c3",
+      "path": "library/tasks/experimental/bench-tb2-dev/count-dataset-tokens-9900f27927c3",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "db-wal-recovery-f443b9e082b3",
+      "path": "library/tasks/experimental/bench-tb2-dev/db-wal-recovery-f443b9e082b3",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "filter-js-from-html-2c9d94c1a89d",
+      "path": "library/tasks/experimental/bench-tb2-dev/filter-js-from-html-2c9d94c1a89d",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "fix-git-1ea2bb0f6d4a",
+      "path": "library/tasks/experimental/bench-tb2-dev/fix-git-1ea2bb0f6d4a",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "cancel-async-tasks-b45af75bcc92",
+      "path": "library/tasks/experimental/bench-tb2-val/cancel-async-tasks-b45af75bcc92",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "configure-git-webserver-e7c1d7f3942e",
+      "path": "library/tasks/experimental/bench-tb2-val/configure-git-webserver-e7c1d7f3942e",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "dna-insert-69a2b9412ef7",
+      "path": "library/tasks/experimental/bench-tb2-val/dna-insert-69a2b9412ef7",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
     },
     {
       "task_id": "travel-lisbon-002",

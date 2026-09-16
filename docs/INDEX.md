@@ -84,6 +84,8 @@ inputs:
     digest: sha256:15920beae543ae241d6c2f77dd43019d5d60b57d49fff6792a116e70029a6ae5
   - path: docs/research/evaluation-factory-2026-08.md
     digest: sha256:f453a2f026c5b9240e90706d78030db1747af489df79a46b172ec85932a0dde8
+  - path: docs/research/existing-benchmarks-on-harbor.md
+    digest: sha256:c2a83c2b008568e6feef549b9041470733f202998574c47cd55585fd872ad1dd
   - path: docs/research/external-datasets.md
     digest: sha256:58d428f613cf5cab9258c4e5ce2f057b79d16d803251b62c556b3d18f24a88a3
   - path: docs/research/harbor-ecosystem-architecture-perspective.md
@@ -156,6 +158,7 @@ an operator can see what is archived.
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
 | `docs/research-questions.md` | What this lab studies | `living` | `builder, analyst` |
 | `docs/research/antigravity-lane.md` | Antigravity (AGY) Agent Lane Research & Architecture | `living` | `builder, runner` |
+| `docs/research/existing-benchmarks-on-harbor.md` | Existing agentic benchmarks on Harbor: shortlist and dev cohort (HAR-61) | `living` | `builder, analyst, operator` |
 | `docs/research/external-datasets.md` | External trajectory datasets: catalog and ingestion specification | `living` | `builder, analyst` |
 | `docs/research/harbor-ecosystem-architecture-perspective.md` | Where eval-lab sits in the Harbor ecosystem, and what it is missing | `living` | `builder, analyst` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
@@ -205,6 +208,7 @@ an operator can see what is archived.
 | `docs/parquet-compaction.md` | Parquet Compaction Engine | `living` | `operator, analyst` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
 | `docs/research-questions.md` | What this lab studies | `living` | `builder, analyst` |
+| `docs/research/existing-benchmarks-on-harbor.md` | Existing agentic benchmarks on Harbor: shortlist and dev cohort (HAR-61) | `living` | `builder, analyst, operator` |
 | `docs/research/external-datasets.md` | External trajectory datasets: catalog and ingestion specification | `living` | `builder, analyst` |
 | `docs/research/harbor-ecosystem-architecture-perspective.md` | Where eval-lab sits in the Harbor ecosystem, and what it is missing | `living` | `builder, analyst` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
@@ -296,6 +300,7 @@ an operator can see what is archived.
 | `docs/quality.md` | DirectoryQueue property-based fuzzing | `living` | `builder, operator` |
 | `docs/quota-accounting.md` | Subscription quota accounting | `living` | `runner, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
+| `docs/research/existing-benchmarks-on-harbor.md` | Existing agentic benchmarks on Harbor: shortlist and dev cohort (HAR-61) | `living` | `builder, analyst, operator` |
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
 | `docs/scaling.md` | Scaling gates | `living` | `runner, operator` |
 | `docs/storm-alarms.md` | Storm Alarms & STATUS.md Generator | `living` | `operator, runner` |

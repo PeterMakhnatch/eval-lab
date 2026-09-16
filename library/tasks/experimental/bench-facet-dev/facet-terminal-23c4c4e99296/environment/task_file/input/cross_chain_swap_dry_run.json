@@ -1,0 +1,65 @@
+{
+  "request_id": "dr-1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+  "phase": "dry_run",
+  "source": "cross-chain-swap-engine",
+  "api_version": "4.2.0-beta",
+  "captured_at": "2025-09-15T14:23:18Z",
+  "status_code": 200,
+  "requestPreview": {
+    "source_chain": "ethereum",
+    "destination_chain": "solana",
+    "asset": "USDC",
+    "amount": "1000.00",
+    "slippage_tolerance_bps": 50,
+    "recipient_address": "redacted_solana_wallet_address",
+    "preferred_bridge": "wormhole"
+  },
+  "validation": {
+    "source_balance_sufficient": true,
+    "destination_wallet_valid": true,
+    "bridge_liquidity_check": "pass",
+    "gas_estimate_source": "0.015 ETH",
+    "gas_estimate_destination": "0.008 SOL",
+    "rate_lock_expiry_seconds": 30
+  },
+  "estimated_cost": {
+    "source_gas_usd": "30.00",
+    "destination_gas_usd": "0.40",
+    "bridge_fee_usd": "5.00",
+    "total_estimated_usd": "35.40"
+  },
+  "policy_warnings": [
+    "Recipient address is a new wallet with no prior transaction history.",
+    "Slippage tolerance of 50 bps may be insufficient during high volatility."
+  ],
+  "asset_probe": {
+    "source_asset": {
+      "chain": "ethereum",
+      "contract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "decimals": 6,
+      "symbol": "USDC"
+    },
+    "destination_asset": {
+      "chain": "solana",
+      "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "decimals": 6,
+      "symbol": "USDC"
+    }
+  },
+  "normalized_body": {
+    "source_chain": "ethereum",
+    "dest_chain": "solana",
+    "token": "USDC",
+    "amount_wei": "1000000000",
+    "bridge": "wormhole",
+    "deadline": 1694782998
+  },
+  "ignored_fields": [
+    "requestPreview.recipient_address",
+    "normalized_body.amount_wei"
+  ],
+  "redacted_headers": [
+    "X-Api-Key",
+    "Authorization"
+  ]
+}

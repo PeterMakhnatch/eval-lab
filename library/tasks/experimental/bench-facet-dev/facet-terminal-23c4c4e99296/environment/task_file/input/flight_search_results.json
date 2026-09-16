@@ -1,0 +1,677 @@
+{
+  "request_id": "fsr-8a3b2c1d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+  "captured_at": "2025-09-15T14:22:31Z",
+  "source": "amadeus-flight-search-v2",
+  "api_version": "2.4.1",
+  "status_code": 200,
+  "request_params": {
+    "origin": "SFO",
+    "destination": "CUN",
+    "departure_date": "2025-12-18",
+    "adults": 1,
+    "currency": "USD",
+    "max_results": 20
+  },
+  "warnings": [
+    "Low fare inventory for requested date; consider +/- 1 day flexibility",
+    "Some carriers may not include baggage in base fare"
+  ],
+  "pagination": {
+    "page": 1,
+    "total_pages": 2,
+    "results_this_page": 12
+  },
+  "response_metadata": {
+    "provider": "Amadeus Self-Service",
+    "response_time_ms": 847,
+    "cache_hit": false
+  },
+  "results": [
+    {
+      "id": "flt-001",
+      "itineraries": [
+        {
+          "segments": [
+            {
+              "departure": {
+                "airport": "SFO",
+                "terminal": "1",
+                "time": "2025-12-18T06:15:00"
+              },
+              "arrival": {
+                "airport": "CUN",
+                "terminal": "3",
+                "time": "2025-12-18T13:45:00"
+              },
+              "carrier_code": "UA",
+              "flight_number": "1234",
+              "aircraft": "Boeing 737 MAX 9",
+              "duration_minutes": 270,
+              "cabin_class": "ECONOMY"
+            }
+          ],
+          "total_duration_minutes": 270,
+          "stops": 0
+        }
+      ],
+      "price": {
+        "total": "389.50",
+        "currency": "USD",
+        "base": "320.00",
+        "taxes": "69.50",
+        "last_ticketing_date_time": "2025-12-11T23:59:00"
+      },
+      "fare_rules": [
+        {
+          "category": "CANCELLATION",
+          "description": "Non-refundable; credit valid for 12 months"
+        },
+        {
+          "category": "BAGGAGE",
+          "description": "Carry-on included; 1st checked bag $35"
+        }
+      ],
+      "detail_url": "https://api.example.com/v2/flights/flt-001/detail",
+      "sold_out": false,
+      "expired": false
+    },
+    {
+      "id": "flt-002",
+      "itineraries": [
+        {
+          "segments": [
+            {
+              "departure": {
+                "airport": "SFO",
+                "terminal": "2",
+                "time": "2025-12-18T10:30:00"
+              },
+              "arrival": {
+                "airport": "MIA",
+                "terminal": "D",
+                "time": "2025-12-18T17:00:00"
+              },
+              "carrier_code": "AA",
+              "flight_number": "5678",
+              "aircraft": "Airbus A321neo",
+              "duration_minutes": 270,
+              "cabin_class": "ECONOMY"
+            },
+            {
+              "departure": {
+                "airport": "MIA",
+                "terminal": "D",
+                "time": "2025-12-18T19:15:00"
+              },
+              "arrival": {
+                "airport": "CUN",
+                "terminal": "4",
+                "time": "2025-12-18T21:00:00"
+              },
+              "carrier_code": "AA",
+              "flight_number": "5679",
+              "aircraft": "Boeing 737-800",
+              "duration_minutes": 105,
+              "cabin_class": "ECONOMY"
+            }
+          ],
+          "total_duration_minutes": 510,
+          "stops": 1
+        }
+      ],
+      "price": {
+        "total": "412.80",
+        "currency": "USD",
+        "base": "350.00",
+        "taxes": "62.80",
+        "last_ticketing_date_time": "2025-12-10T23:59:00"
+      },
+      "fare_rules": [
+        {
+          "category": "CANCELLATION",
+          "description": "Refundable with $150 fee"
+        },
+        {
+          "category": "BAGGAGE",
+          "description": "Carry-on included; 1st checked bag $30"
+        }
+      ],
+      "detail_url": "https://api.example.com/v2/flights/flt-002/detail",
+      "sold_out": false,
+      "expired": false
+    },
+    {
+      "id": "flt-003",
+      "itineraries": [
+        {
+          "segments": [
+            {
+              "departure": {
+                "airport": "SFO",
+                "terminal": "3",
+                "time": "2025-12-18T08:00:00"
+              },
+              "arrival": {
+                "airport": "CUN",
+                "terminal": "2",
+                "time": "2025-12-18T15:30:00"
+              },
+              "carrier_code": "DL",
+              "flight_number": "9012",
+              "aircraft": "Boeing 757-200",
+              "duration_minutes": 270,
+              "cabin_class": "ECONOMY"
+            }
+          ],
+          "total_duration_minutes": 270,
+          "stops": 0
+        }
+      ],
+      "price": {
+        "total": "478.00",
+        "currency": "USD",
+        "base": "400.00",
+        "taxes": "78.00",
+        "last_ticketing_date_time": "2025-12-12T23:59:00"
+      },
+      "fare_rules": [
+        {
+          "category": "CANCELLATION",
+          "description": "Non-refundable"
+        },
+        {
+          "category": "BAGGAGE",
+          "description": "Carry-on included; 1st checked bag $40"
+        }
+      ],
+      "detail_url": "https://api.example.com/v2/flights/flt-003/detail",
+      "sold_out": false,
+      "expired": false
+    },
+    {
+      "id": "flt-004",
+      "itineraries": [
+        {
+          "segments": [
+            {
+              "departure": {
+                "airport": "SFO",
+                "terminal": "1",
+                "time": "2025-12-18T14:00:00"
+              },
+              "arrival": {
+                "airport": "CUN",
+                "terminal": "3",
+                "time": "2025-12-18T21:30:00"
+              },
+              "carrier_code": "UA",
+              "flight_number": "3456",
+              "aircraft": "Boeing 737-900ER",
+              "duration_minutes": 270,
+              "cabin_class": "BUSINESS"
+            }
+          ],
+          "total_duration_minutes": 270,
+          "stops": 0
+        }
+      ],
+      "price": {
+        "total": "1245.00",
+        "currency": "USD",
+        "base": "1100.00",
+        "taxes": "145.00",
+        "last_ticketing_date_time": "2025-12-11T23:59:00"
+      },
+      "fare_rules": [
+        {
+          "category": "CANCELLATION",
+          "description": "Fully refundable"
+        },
+        {
+          "category": "BAGGAGE",
+          "description": "2 checked bags included"
+        }
+      ],
+      "detail_url": "https://api.example.com/v2/flights/flt-004/detail",
+      "sold_out": false,
+      "expired": false
+    },
+    {
+      "id": "flt-005",
+      "itineraries": [
+        {
+          "segments": [
+            {
+              "departure": {
+                "airport": "SFO",
+                "terminal": "2",
+                "time": "2025-12-18T07:00:00"
+              },
+              "arrival": {
+                "airport": "DFW",
+                "terminal": "C",
+                "time": "2025-12-18T12:15:00"
+              },
+              "carrier_code": "AA",
+              "flight_number": "7890",
+              "aircraft": "Airbus A320",
+              "duration_minutes": 195,
+              "cabin_class": "ECONOMY"
+            },
+            {
+              "departure": {
+                "airport": "DFW",
+                "terminal": "D",
+                "time": "2025-12-18T14:30:00"
+              },
+              "arrival": {
+                "airport": "CUN",
+                "terminal": "4",
+                "time": "2025-12-18T17:15:00"
+              },
+              "carrier_code": "AA",
+              "flight_number": "7891",
+              "aircraft": "Boeing 737-800",
+              "duration_minutes": 165,
+              "cabin_class": "ECONOMY"
+            }
+          ],
+          "total_duration_minutes": 495,
+          "stops": 1
+        }
+      ],
+      "price": {
+        "total": "355.00",
+        "currency": "USD",
+        "base": "290.00",
+        "taxes": "65.00",
+        "last_ticketing_date_time": null
+      },
+      "fare_rules": [
+        {
+          "category": "CANCELLATION",
+          "description": "Non-refundable"
+        },
+        {
+          "category": "BAGGAGE",
+          "description": "Carry-on only; checked bags $35 each"
+        }
+      ],
+      "detail_url": "https://api.example.com/v2/flights/flt-005/detail",
+      "sold_out": false,
+      "expired": true
+    },
+    {
+      "id": "flt-006",
+      "itineraries": [
+        {
+          "segments": [
+            {
+              "departure": {
+                "airport": "SFO",
+                "terminal": "3",
+                "time": "2025-12-18T22:00:00"
+              },
+              "arrival": {
+                "airport": "IAH",
+                "terminal": "B",
+                "time": "2025-12-19T03:30:00"
+              },
+              "carrier_code": "UA",
+              "flight_number": "6543",
+              "aircraft": "Boeing 737-700",
+              "duration_minutes": 210,
+              "cabin_class": "ECONOMY"
+            },
+            {
+              "departure": {
+                "airport": "IAH",
+                "terminal": "E",
+                "time": "2025-12-19T06:00:00"
+              },
+              "arrival": {
+                "airport": "CUN",
+                "terminal": "3",
+                "time": "2025-12-19T08:30:00"
+              },
+              "carrier_code": "UA",
+              "flight_number": "6544",
+              "aircraft": "Airbus A319",
+              "duration_minutes": 150,
+              "cabin_class": "ECONOMY"
+            }
+          ],
+          "total_duration_minutes": 510,
+          "stops": 1
+        }
+      ],
+      "price": {
+        "total": "0.00",
+        "currency": "USD",
+        "base": "0.00",
+        "taxes": "0.00",
+        "last_ticketing_date_time": null
+      },
+      "fare_rules": [],
+      "detail_url": "https://api.example.com/v2/flights/flt-006/detail",
+      "sold_out": true,
+      "expired": false
+    },
+    {
+      "id": "flt-007",
+      "itineraries": [
+        {
+          "segments": [
+            {
+              "departure": {
+                "airport": "SJC",
+                "terminal": "A",
+                "time": "2025-12-18T09:00:00"
+              },
+              "arrival": {
+                "airport": "CUN",
+                "terminal": "4",
+                "time": "2025-12-18T16:30:00"
+              },
+              "carrier_code": "WN",
+              "flight_number": "4321",
+              "aircraft": "Boeing 737-800",
+              "duration_minutes": 270,
+              "cabin_class": "ECONOMY"
+            }
+          ],
+          "total_duration_minutes": 270,
+          "stops": 0
+        }
+      ],
+      "price": {
+        "total": "299.00",
+        "currency": "USD",
+        "base": "250.00",
+        "taxes": "49.00",
+        "last_ticketing_date_time": "2025-12-14T23:59:00"
+      },
+      "fare_rules": [
+        {
+          "category": "CANCELLATION",
+          "description": "Non-refundable; reusable funds"
+        },
+        {
+          "category": "BAGGAGE",
+          "description": "2 checked bags free"
+        }
+      ],
+      "detail_url": "https://api.example.com/v2/flights/flt-007/detail",
+      "sold_out": false,
+      "expired": false
+    },
+    {
+      "id": "flt-008",
+      "itineraries": [
+        {
+          "segments": [
+            {
+              "departure": {
+                "airport": "SFO",
+                "terminal": "1",
+                "time": "2025-12-18T16:45:00"
+              },
+              "arrival": {
+                "airport": "CUN",
+                "terminal": "2",
+                "time": "2025-12-19T00:15:00"
+              },
+              "carrier_code": "F9",
+              "flight_number": "2468",
+              "aircraft": "Airbus A320neo",
+              "duration_minutes": 270,
+              "cabin_class": "ECONOMY"
+            }
+          ],
+          "total_duration_minutes": 270,
+          "stops": 0
+        }
+      ],
+      "price": null,
+      "fare_rules": [
+        {
+          "category": "CANCELLATION",
+          "description": "Non-refundable"
+        },
+        {
+          "category": "BAGGAGE",
+          "description": "Fees apply for all bags"
+        }
+      ],
+      "detail_url": "https://api.example.com/v2/flights/flt-008/detail",
+      "sold_out": false,
+      "expired": false
+    },
+    {
+      "id": "flt-009",
+      "itineraries": [
+        {
+          "segments": [
+            {
+              "departure": {
+                "airport": "OAK",
+                "terminal": "1",
+                "time": "2025-12-18T11:30:00"
+              },
+              "arrival": {
+                "airport": "LAX",
+                "terminal": "5",
+                "time": "2025-12-18T13:00:00"
+              },
+              "carrier_code": "WN",
+              "flight_number": "1357",
+              "aircraft": "Boeing 737-700",
+              "duration_minutes": 90,
+              "cabin_class": "ECONOMY"
+            },
+            {
+              "departure": {
+                "airport": "LAX",
+                "terminal": "B",
+                "time": "2025-12-18T15:30:00"
+              },
+              "arrival": {
+                "airport": "CUN",
+                "terminal": "4",
+                "time": "2025-12-18T22:00:00"
+              },
+              "carrier_code": "AM",
+              "flight_number": "642",
+              "aircraft": "Boeing 737 MAX 8",
+              "duration_minutes": 210,
+              "cabin_class": "ECONOMY"
+            }
+          ],
+          "total_duration_minutes": 510,
+          "stops": 1
+        }
+      ],
+      "price": {
+        "total": "520.00",
+        "currency": "USD",
+        "base": "450.00",
+        "taxes": "70.00",
+        "last_ticketing_date_time": "2025-12-13T23:59:00"
+      },
+      "fare_rules": [
+        {
+          "category": "CANCELLATION",
+          "description": "Refundable with $200 fee"
+        },
+        {
+          "category": "BAGGAGE",
+          "description": "1st checked bag $25"
+        }
+      ],
+      "detail_url": "https://api.example.com/v2/flights/flt-009/detail",
+      "sold_out": false,
+      "expired": false
+    },
+    {
+      "id": "flt-010",
+      "itineraries": [
+        {
+          "segments": [
+            {
+              "departure": {
+                "airport": "SFO",
+                "terminal": "1",
+                "time": "2025-12-18T05:45:00"
+              },
+              "arrival": {
+                "airport": "CUN",
+                "terminal": "3",
+                "time": "2025-12-18T13:15:00"
+              },
+              "carrier_code": "UA",
+              "flight_number": "1111",
+              "aircraft": "Boeing 777-200",
+              "duration_minutes": 270,
+              "cabin_class": "PREMIUM_ECONOMY"
+            }
+          ],
+          "total_duration_minutes": 270,
+          "stops": 0
+        }
+      ],
+      "price": {
+        "total": "720.00",
+        "currency": "USD",
+        "base": "620.00",
+        "taxes": "100.00",
+        "last_ticketing_date_time": "2025-12-11T23:59:00"
+      },
+      "fare_rules": [
+        {
+          "category": "CANCELLATION",
+          "description": "Refundable with $100 fee"
+        },
+        {
+          "category": "BAGGAGE",
+          "description": "2 checked bags included"
+        }
+      ],
+      "detail_url": "https://api.example.com/v2/flights/flt-010/detail",
+      "sold_out": false,
+      "expired": false
+    },
+    {
+      "id": "flt-011",
+      "itineraries": [
+        {
+          "segments": [
+            {
+              "departure": {
+                "airport": "SFO",
+                "terminal": "2",
+                "time": "2025-12-18T12:00:00"
+              },
+              "arrival": {
+                "airport": "ATL",
+                "terminal": "S",
+                "time": "2025-12-18T19:30:00"
+              },
+              "carrier_code": "DL",
+              "flight_number": "3333",
+              "aircraft": "Boeing 767-300ER",
+              "duration_minutes": 270,
+              "cabin_class": "ECONOMY"
+            },
+            {
+              "departure": {
+                "airport": "ATL",
+                "terminal": "I",
+                "time": "2025-12-18T22:00:00"
+              },
+              "arrival": {
+                "airport": "CUN",
+                "terminal": "3",
+                "time": "2025-12-19T00:30:00"
+              },
+              "carrier_code": "DL",
+              "flight_number": "3334",
+              "aircraft": "Boeing 737-900ER",
+              "duration_minutes": 150,
+              "cabin_class": "ECONOMY"
+            }
+          ],
+          "total_duration_minutes": 630,
+          "stops": 1
+        }
+      ],
+      "price": {
+        "total": "560.00",
+        "currency": "USD",
+        "base": "480.00",
+        "taxes": "80.00",
+        "last_ticketing_date_time": "2025-12-09T23:59:00"
+      },
+      "fare_rules": [
+        {
+          "category": "CANCELLATION",
+          "description": "Non-refundable; credit only"
+        },
+        {
+          "category": "BAGGAGE",
+          "description": "1st checked bag $30"
+        }
+      ],
+      "detail_url": "https://api.example.com/v2/flights/flt-011/detail",
+      "sold_out": false,
+      "expired": false
+    },
+    {
+      "id": "flt-012",
+      "itineraries": [
+        {
+          "segments": [
+            {
+              "departure": {
+                "airport": "SFO",
+                "terminal": "3",
+                "time": "2025-12-18T15:00:00"
+              },
+              "arrival": {
+                "airport": "CUN",
+                "terminal": "2",
+                "time": "2025-12-18T22:30:00"
+              },
+              "carrier_code": "B6",
+              "flight_number": "5555",
+              "aircraft": "Airbus A321",
+              "duration_minutes": 270,
+              "cabin_class": "ECONOMY"
+            }
+          ],
+          "total_duration_minutes": 270,
+          "stops": 0
+        }
+      ],
+      "price": {
+        "total": "410.00",
+        "currency": "USD",
+        "base": "340.00",
+        "taxes": "70.00",
+        "last_ticketing_date_time": "2025-12-10T23:59:00"
+      },
+      "fare_rules": [
+        {
+          "category": "CANCELLATION",
+          "description": "Non-refundable"
+        },
+        {
+          "category": "BAGGAGE",
+          "description": "1st checked bag $35"
+        }
+      ],
+      "detail_url": "https://api.example.com/v2/flights/flt-012/detail",
+      "sold_out": false,
+      "expired": false
+    }
+  ]
+}

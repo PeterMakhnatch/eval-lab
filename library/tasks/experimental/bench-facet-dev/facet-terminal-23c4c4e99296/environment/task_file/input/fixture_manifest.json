@@ -1,0 +1,128 @@
+{
+  "generated_by": "env_build",
+  "fixtures": [
+    {
+      "path": "code/__init__.py",
+      "kind": "py",
+      "role": "visible starting fixture",
+      "source_strategy": "synthesized",
+      "generation_method": "inline_build_context",
+      "reason": "representative local fixture inferred from instruction_ref"
+    },
+    {
+      "path": "code/app.py",
+      "kind": "py",
+      "role": "visible starting fixture",
+      "source_strategy": "synthesized",
+      "generation_method": "inline_build_context",
+      "reason": "representative local fixture inferred from instruction_ref"
+    },
+    {
+      "path": "code/blueprints/__init__.py",
+      "kind": "py",
+      "role": "visible starting fixture",
+      "source_strategy": "synthesized",
+      "generation_method": "inline_build_context",
+      "reason": "representative local fixture inferred from instruction_ref"
+    },
+    {
+      "path": "code/blueprints/health.py",
+      "kind": "py",
+      "role": "visible starting fixture",
+      "source_strategy": "synthesized",
+      "generation_method": "inline_build_context",
+      "reason": "representative local fixture inferred from instruction_ref"
+    },
+    {
+      "path": "code/blueprints/roadmap.py",
+      "kind": "py",
+      "role": "visible starting fixture",
+      "source_strategy": "synthesized",
+      "generation_method": "inline_build_context",
+      "reason": "representative local fixture inferred from instruction_ref"
+    },
+    {
+      "path": "code/config.py",
+      "kind": "py",
+      "role": "visible starting fixture",
+      "source_strategy": "synthesized",
+      "generation_method": "inline_build_context",
+      "reason": "representative local fixture inferred from instruction_ref"
+    },
+    {
+      "path": "code/utils/__init__.py",
+      "kind": "py",
+      "role": "visible starting fixture",
+      "source_strategy": "synthesized",
+      "generation_method": "inline_build_context",
+      "reason": "representative local fixture inferred from instruction_ref"
+    },
+    {
+      "path": "code/utils/validators.py",
+      "kind": "py",
+      "role": "visible starting fixture",
+      "source_strategy": "synthesized",
+      "generation_method": "inline_build_context",
+      "reason": "representative local fixture inferred from instruction_ref"
+    },
+    {
+      "path": "input/cross_chain_swap_dry_run.json",
+      "kind": "json",
+      "role": "visible starting fixture",
+      "source_strategy": "synthesized",
+      "generation_method": "inline_build_context",
+      "reason": "representative local fixture inferred from instruction_ref"
+    },
+    {
+      "path": "input/flight_search_results.json",
+      "kind": "json",
+      "role": "visible starting fixture",
+      "source_strategy": "synthesized",
+      "generation_method": "inline_build_context",
+      "reason": "representative local fixture inferred from instruction_ref"
+    },
+    {
+      "path": "input/health_check_response.json",
+      "kind": "json",
+      "role": "visible starting fixture",
+      "source_strategy": "synthesized",
+      "generation_method": "inline_build_context",
+      "reason": "representative local fixture inferred from instruction_ref"
+    },
+    {
+      "path": "input/llm_routing_response.json",
+      "kind": "json",
+      "role": "visible starting fixture",
+      "source_strategy": "synthesized",
+      "generation_method": "inline_build_context",
+      "reason": "representative local fixture inferred from instruction_ref"
+    },
+    {
+      "path": "input/manifest.yaml",
+      "kind": "yaml",
+      "role": "visible starting fixture",
+      "source_strategy": "synthesized",
+      "generation_method": "inline_build_context",
+      "reason": "representative local fixture inferred from instruction_ref"
+    },
+    {
+      "path": "input/optimization_output.json",
+      "kind": "json",
+      "role": "visible starting fixture",
+      "source_strategy": "synthesized",
+      "generation_method": "inline_build_context",
+      "reason": "representative local fixture inferred from instruction_ref"
+    },
+    {
+      "path": "output/.gitkeep",
+      "kind": "text",
+      "role": "empty workspace directory marker",
+      "source_strategy": "empty_directory",
+      "generation_method": "inline_build_context",
+      "reason": "prepared directory for task outputs"
+    }
+  ],
+  "empty_directories": [
+    "output"
+  ]
+}

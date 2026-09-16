@@ -48,11 +48,11 @@ inbox is append-friendly by design), `tests/test_inbox_conformance.py`
 (new, small: front-matter conformance check).
 
 **What already sits in the inbox at program start.** Two deposits made by
-the operator session on 2026-08-18/19: `drive-salvage-2026-08-18.md`
+the operator session on 2026-08-18/19: `research/archive/2026-W36/drive-salvage-2026-08-18.md`
 (links extracted from Drive before the archive sweep — scaffold-effect
 paper 2607.22585, deepswe.datacurve.ai, reward-hacking thread, Lilian
 Weng's harness post, Anthropic's demystifying-evals post, and more) and
-`drive-evals-benchmarks.md` (Peter's own distillation of TB craft:
+`research/archive/2026-W36/drive-evals-benchmarks.md` (Peter's own distillation of TB craft:
 bad-task taxonomy, hidden-knowledge doctrine, verifier debugging
 heuristics, the 9-step TB3 construction sequence, benchmark links). Treat
 both as cycle-1 RECHECK material: they are already harvested; verify
@@ -150,7 +150,7 @@ changelog must say why.
    missions will quote.
 2. **EX-TB** — review-patterns from CONTRIBUTING + rubrics + 5–10 real PR
    threads; each pattern cites its PR. Merge Peter's taxonomy-of-bad-tasks
-   phrasing (inbox: drive-evals-benchmarks) where it names the same
+   phrasing (archive: research/archive/2026-W36/drive-evals-benchmarks.md) where it names the same
    pattern better.
 3. **EX-METR** — task-standard digest: spec fields, QA checklist,
    human-baseline method.

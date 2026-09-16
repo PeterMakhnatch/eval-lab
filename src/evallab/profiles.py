@@ -28,11 +28,17 @@ import subprocess
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from enum import StrEnum
 from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from evallab.execution_contracts import (
+    OPENCODE_AUTH_RELATIVE_PATH,
+    ZAI_AUTH_PROVIDER,
+    ZAI_OPENCODE_AGENT,
+    read_owner_secret_file,
+)
 
 # Substrings that identify API-key style environment variables. They remain
 # forbidden everywhere except the exact DeepSeek environment source below.
@@ -179,16 +185,6 @@ class AgentProfile(BaseModel):
         return "sha256:" + hashlib.sha256(self.canonical_json().encode()).hexdigest()
 
 
-class ProfileState(StrEnum):
-    """Qualification ladder. Each state is earned separately, never implied."""
-
-    DECLARED = "declared"
-    INSTALLED = "installed"
-    CREDENTIAL_READY = "credential-ready"
-    SMOKE_PASSED = "smoke-passed"
-    CANARY_QUALIFIED = "canary-qualified"
-
-
 @dataclass(frozen=True)
 class ProbeResult:
     """Outcome of a credential probe: availability, expiry, reason. Nothing else.
@@ -280,6 +276,40 @@ class AuthFileProbe:
             elif isinstance(node, list):
                 stack.extend(node)
         return None
+
+
+@dataclass(frozen=True)
+class OpenCodeProviderAuthProbe:
+    """Check one provider entry in OpenCode's owner-only auth store.
+
+    Only provider identity and credential presence influence the result. Secret
+    values are never returned, logged, or attached to the readiness record.
+    """
+
+    home: Path
+    relative_path: str
+    provider: str
+
+    def __call__(self, profile: AgentProfile) -> ProbeResult:
+        del profile
+        path = self.home / self.relative_path
+        try:
+            payload = json.loads(read_owner_secret_file(path))
+        except OSError:
+            return ProbeResult(
+                ok=False,
+                reason=f"OpenCode auth file missing or not owner-only: ~/{self.relative_path}",
+            )
+        except json.JSONDecodeError:
+            return ProbeResult(ok=False, reason="OpenCode auth file is not valid JSON")
+        entry = payload.get(self.provider) if isinstance(payload, dict) else None
+        key = entry.get("key") if isinstance(entry, dict) else None
+        if not isinstance(key, str) or not key:
+            return ProbeResult(
+                ok=False,
+                reason=f"OpenCode auth has no credential for provider '{self.provider}'",
+            )
+        return ProbeResult(ok=True)
 
 
 @dataclass(frozen=True)
@@ -502,6 +532,52 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 verified_facts=(),  # declared only; no observed run in this lab
             ),
             AgentProfile(
+                profile_id="zai-opencode-glm-5.3-flash",
+                adapter=ZAI_OPENCODE_AGENT,
+                adapter_version="1.0.0+opencode-1.18.25",
+                model="zai-coding-plan/glm-5.3-flash",
+                auth_mode="subscription-auth-file",
+                secret_source=f"file:{OPENCODE_AUTH_RELATIVE_PATH.as_posix()}",
+                required_files=(OPENCODE_AUTH_RELATIVE_PATH.as_posix(),),
+                capabilities=(
+                    "credential-transport:proxy-isolated",
+                    "structured-trajectory:ATIF-v1.7",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=600,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-08-31: Harbor 0.21 OpenCode declares SUPPORTS_ATIF and emits ATIF-v1.7",
+                    "2026-08-31: host OpenCode auth contains the zai-coding-plan "
+                    "provider entry without exposing its value",
+                ),
+            ),
+            AgentProfile(
+                profile_id="zai-opencode-glm-5.3",
+                adapter=ZAI_OPENCODE_AGENT,
+                adapter_version="1.0.0+opencode-1.18.25",
+                model="zai-coding-plan/glm-5.3",
+                auth_mode="subscription-auth-file",
+                secret_source=f"file:{OPENCODE_AUTH_RELATIVE_PATH.as_posix()}",
+                required_files=(OPENCODE_AUTH_RELATIVE_PATH.as_posix(),),
+                capabilities=(
+                    "credential-transport:proxy-isolated",
+                    "structured-trajectory:ATIF-v1.7",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=600,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-08-31: Harbor 0.21 OpenCode declares SUPPORTS_ATIF and emits ATIF-v1.7",
+                    "2026-08-31: host OpenCode auth contains the zai-coding-plan "
+                    "provider entry without exposing its value",
+                ),
+            ),
+            AgentProfile(
                 profile_id="mini-swe-agent-deepseek-v4-flash",
                 adapter="mini-swe-agent",
                 model="deepseek/deepseek-flash",
@@ -679,5 +755,12 @@ def default_probe_for(
             )
         expect = "gemini" if command[0] == "agy" else "logged in"
         return CliSessionProbe(argv=tuple(command), expect=expect)
+    if profile.adapter == ZAI_OPENCODE_AGENT:
+        relative = (profile.secret_source or "file:")[len("file:") :]
+        return OpenCodeProviderAuthProbe(
+            home=home,
+            relative_path=relative,
+            provider=ZAI_AUTH_PROVIDER,
+        )
     relative = (profile.secret_source or "file:")[len("file:") :]
     return AuthFileProbe(home=home, relative_path=relative, clock=clock)

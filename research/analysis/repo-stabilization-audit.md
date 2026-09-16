@@ -369,7 +369,7 @@ archive, worktree cleanup, facade, or refactor beyond Packages 1 and 2.
 Peter's P0 directive replaced per-fix worktree churn with long-lived builder
 lanes and ordered Packages 1 and 2 into execution once Platform wrapped PR #218
 (merged `ecdceff`). The normative lane protocol lives in
-`research/analysis/automated-trajectory-overnight-ledger.md` under "Builder lanes
+`research/archive/2026-W36/automated-trajectory-overnight-ledger.md` under "Builder lanes
 and ceremony cut - 2026-08-27".
 
 ### Package 1 - storage consolidation (`lane/storage`, Platform `wH:p1`)

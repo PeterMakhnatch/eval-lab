@@ -31,13 +31,6 @@ class PerturbationFamily(StrEnum):
     FUNCTION_DAG = "function_dag"
 
 
-PerturbationFamilyName = Literal[
-    "tool_unreliability",
-    "epistemic_restraint",
-    "context_pressure",
-    "function_dag",
-]
-
 SyntheticPartition = Literal["train", "dev", "test"]
 SyntheticCertificateStatus = Literal["experimental", "rejected"]
 BehaviorEpisodeStatus = Literal["candidate", "reviewed", "rejected", "gold"]

@@ -60,6 +60,8 @@ jobs:
           echo "Documentation and governance remain required in the quality workflow." >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         if: needs.scope.outputs.profile == 'true'
+        with:
+          fetch-depth: 0
       - name: Install uv 0.9.24 from PyPI
         if: needs.scope.outputs.profile == 'true'
         run: |

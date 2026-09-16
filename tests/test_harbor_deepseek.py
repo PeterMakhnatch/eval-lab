@@ -35,6 +35,7 @@ from evallab.execution_contracts import (
     persist_private_bytes,
     redact_secret_material,
 )
+from evallab.harbor_common import sanitize_native_trajectory
 
 SECRET_SENTINEL = "secret-must-not-reach-exec"
 
@@ -253,12 +254,10 @@ def test_native_and_atif_trajectories_are_redacted_before_write(
     assert native.stat().st_mode & 0o777 == PRIVATE_PERSIST_MODE
 
 
-def test_unparseable_native_trajectory_is_replaced(
-    wrapper_module: ModuleType, tmp_path: Path
-) -> None:
+def test_unparseable_native_trajectory_is_replaced(tmp_path: Path) -> None:
     path = tmp_path / "mini-swe-agent.trajectory.json"
     path.write_text("not-json " + SECRET_SENTINEL)
-    wrapper_module.sanitize_native_trajectory(path, frozenset({SECRET_SENTINEL}))
+    sanitize_native_trajectory(path, frozenset({SECRET_SENTINEL}))
     assert SECRET_SENTINEL not in path.read_text()
     assert json.loads(path.read_text())["redacted"] == "unparseable native trajectory removed"
 

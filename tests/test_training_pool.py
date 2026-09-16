@@ -280,6 +280,7 @@ def test_repeat_is_order_invariant_and_nonidentical_output_is_preserved(tmp_path
     output = tmp_path / "pool"
     export_training_pool(tmp_path, output, train=selections)
     original = {path.name: path.read_bytes() for path in output.iterdir()}
+    assert set(original) == {"train.parquet", "validation.parquet", "manifest.json"}
     export_training_pool(tmp_path, output, train=list(reversed(selections)))
     assert {path.name: path.read_bytes() for path in output.iterdir()} == original
     with pytest.raises(TrainingPoolError, match="not an identical bundle"):

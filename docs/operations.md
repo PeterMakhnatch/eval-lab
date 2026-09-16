@@ -81,6 +81,110 @@ prior day's budget across midnight.
 The legacy `run` and `matrix` commands are restricted to Oracle/no-op controls.
 All real-model work must pass through the queue and standing policy.
 
+## Optional GEPA experiments
+
+Normal `run`, `submit`, and `tick` operations do **not** start an optimizer.
+GEPA is an explicit outer experiment over unchanged Harbor task packages:
+candidate supplementary instructions → normal Lab execution → score and bounded
+task/trajectory feedback → another proposed candidate. The evaluator uses the
+same registered agent/model profiles and native extra-instruction path as the
+runner. Unregistered model/harness combinations fail before submission.
+
+Install the optional pinned engine in the working checkout:
+
+```bash
+uv sync --locked
+uv pip install -r research/experiments/harness-gepa/requirements.txt
+```
+
+Campaign JSON accepts `"enabled": false` to disable optimization before loading
+GEPA or creating execution state. Calling the dedicated `run` command explicitly
+opts in when that field is omitted or true. The committed
+`research/experiments/harness-gepa/glm-flash-event-summary.json` example is disabled;
+its task and model pins are configuration, not permission to spend.
+
+```bash
+uv run --no-sync python -m evallab.gepa_optimizer run campaign.json \
+  --proposer-approval-ref proposer-approval.json
+uv run --no-sync python -m evallab.gepa_optimizer status campaign.json
+uv run --no-sync python -m evallab.gepa_optimizer stop campaign.json
+uv run --no-sync python -m evallab.gepa_optimizer resume campaign.json
+```
+
+`stop` prevents the next optimizer evaluation or reflection request. It does not
+cancel a provider request already in flight or revoke a separately approved
+queue spec. Use the normal Lab queue lifecycle for those jobs. `resume` only
+clears the campaign stop marker; it does not launch a run. Concurrent invocations
+of the same campaign are refused.
+
+Candidate evaluation defaults to `"candidate_evaluation": "review"`. A proposed
+instruction is retained by its full content digest and reported as
+`candidate_review_required` **without submitting it**. Inspect it with `status`,
+then permit that exact artifact to reach the normal evaluation gate:
+
+```bash
+uv run --no-sync python -m evallab.gepa_optimizer approve-candidate campaign.json \
+  --candidate FULL_SHA256
+```
+
+Run the campaign again to continue. Candidate review is **not** paid-run approval:
+target specs still need the normal per-spec authorization. Set
+`"candidate_evaluation": "automatic"` only when automatic proposal submission is
+intended; it still does not approve or dispatch billable jobs.
+
+The proposer authorization binds the exact campaign configuration, seed digest,
+qualified GEPA release and qualification mode. Its request journal prevents
+automatic retries of ambiguous requests and reuses completed responses on resume.
+Proposer and target budgets are separate; catalog-based dollar estimates are not
+authoritative subscription billing. Broker-backed targets require all five
+`provider_ceilings` fields, while a proposer has its own request and cost limits.
+
+The Z.ai/OpenCode proxy accepts OpenCode's native bare model IDs and preserves
+streaming with final usage capture. Its input reservation is deliberately a
+conservative byte bound, not a tokenizer estimate: leave reservation headroom
+for the agent's tool definitions even when observed usage is smaller. The Flash
+example permits one proposer request and uses a 12-request, 12k-output-token,
+$0.25 API-equivalent target ceiling. Its 120k input ceiling is reservation
+headroom, not an instruction to consume that many tokens.
+
+On Apple Silicon, Docker Desktop 4.86.0 fixed the `nftables fib inet` support
+required by Harbor's allowlist. Upgrade an older Docker Desktop in an approved
+maintenance window rather than disabling Harbor's network checks or introducing
+another runtime. See [Docker's release notes](https://docs.docker.com/desktop/release-notes/#4860).
+
+Campaign grouping does not create a new task type. Keep native jobs under
+`runs/<job>/<trial>`, the frozen campaign and immutable instruction candidates
+under its `output_dir`, and link evaluations by task-package digest, candidate
+digest, model/profile and job/trial ID. Native job names are campaign-scoped:
+independent campaigns do not reuse each other's trials. Resume uses an existing
+completed receipt's recorded in-repository job path after provenance checks;
+missing retained evidence must be restored, not silently rerun.
+
+Use the existing `CohortComparisonSpec` with
+`declared_variable="preamble_content_sha256"` and `pairing_key="task_digest"` for
+seed-versus-candidate analysis. A GEPA callback that reads a cached result is not
+another trial or another unit of spend. The seed is a supplementary instruction,
+not a no-extra-instructions stock baseline. Keep failed infrastructure attempts
+outside the scored comparison while retaining their raw evidence and spend.
+Run `evallab compare <spec.json>` without `--index` for already-owned native
+jobs. That flag assigns legacy/raw job ownership; it is not a general comparison
+index and correctly refuses to replace a job's original experiment/spec ID.
+
+The [2026-09-15 Flash pilot receipt](../research/evidence/gepa-flash-event-summary-20260915.json)
+links the two scored runs, exact proposal and standard comparison. Both passed;
+GEPA retained the original seed on the score tie. The proposal also used more
+provider calls, so it was not adopted. This one search-visible task establishes
+workflow execution, not held-out improvement.
+
+Neither search selection nor candidate review changes task files, the seed, or
+the instructions used by future ordinary runs. Adoption is explicit: reference
+the retained candidate path and digest in a subsequent experiment spec. Search
+scores use development tasks; freeze the artifact before a separate held-out
+comparison. Missing traces remain missing, and infrastructure failures never
+become reward zero.
+
+For Cartesian evaluation grid expansion and budget-bounded experiment generation, see [`docs/ladder.md`](ladder.md).
+
 ## Paid execution requires a recorded authorisation
 
 **Nothing billable runs unless Peter authorises that specific spec.** A spec is
@@ -96,6 +200,8 @@ Which classes need authorisation:
 |---|---|---|
 | `local-controls` | `oracle`, `nop` | yes — no authorisation, no ceremony |
 | everything else | `codex`, `claude-code`, any future paid adapter | no — one recorded authorisation per spec |
+
+For the credential contract and runner configuration for DeepSeek models, see [`docs/deepseek-v4-flash-lane.md`](deepseek-v4-flash-lane.md).
 
 How it is enforced, in order:
 
@@ -399,9 +505,48 @@ user session where Keychain access is possible. The plist supplies a bounded
 command `PATH` including `~/.local/bin`, so launchd can find `uv` without
 depending on interactive shell startup files. It also captures the resolved,
 non-secret `EVALLAB_DERIVED_ROOT`; reinstall the schedule after changing that
-setting. Install from the primary checkout, not a temporary role worktree, and
-reinstall from primary `main` after merging any branch that supplied the active
-definitions.
+setting. Normal installation uses the intended primary workspace. If that checkout
+is dirty or pinned to old code, do not reset, stash, switch, or blindly pull it to
+make an installation succeed; use the release-owner adoption procedure below.
+
+### Adopting reviewed code without moving the data workspace
+
+The release owner may run a clean, exact merged revision from a dedicated
+worktree while keeping the original workspace's queue, task definitions, policy,
+`.env` catalog configuration, runs, and explicit `EVALLAB_DERIVED_ROOT`.
+Create a fresh locked environment in that runtime checkout; never copy the
+primary virtualenv or runtime state. The existing `run_cli(workspace=...)` entry
+point separates workspace data from imported code. For example, the following
+**read-only** command uses the reviewed interpreter and reports scheduler state:
+
+```bash
+cd /absolute/original/workspace
+/absolute/reviewed-runtime/.venv/bin/python -I -c \
+  'import sys; from pathlib import Path; from evallab.cli import run_cli; sys.exit(run_cli(workspace=Path.cwd()))' \
+  schedule status
+```
+
+`-I` prevents ambient `PYTHONPATH` or working-directory imports from selecting
+another installation. Repo-owned Harbor children and credential-support assets
+come from the imported runtime checkout, not `<workspace>/src` or
+`<workspace>/containers`; task packages and policy remain workspace inputs.
+This does not authorize new task versions, registration, experiments, or spend.
+
+Before adopting the command for the two existing LaunchAgents, record the
+runtime Git SHA, imported module path, interpreter/dependency state, original
+plist bytes and loaded state, and all workspace/data roots. Wait for active
+processes to settle. Retain labels, cadence, environment and log paths; replace
+only the interpreter/entrypoint and disable tick's `RunAtLoad` for the reload so
+bootstrap does not dispatch a queue tick. Do not kickstart either service or run
+`tick`/`nightly` as a smoke. Observe the loaded argv and non-running state after
+reload; a configured runtime is not evidence that a scheduled cycle succeeded.
+The original schedule remains subject to its existing approval policy.
+
+The release receipt records the exact before/after definitions and rollback:
+unload the idle labels, restore their saved definitions, and reload without an
+immediate `RunAtLoad` invocation. Retain the prior runtime checkout for rollback.
+Do not use ordinary `schedule install` over a split-workspace deployment: its
+default `uv run` command would select the workspace's installation again.
 
 Queue events rotate before an append would take `queue/events.jsonl` past
 10 MiB. Seven numbered archives are retained (`events.jsonl.1` is newest), and
@@ -454,6 +599,10 @@ Steps run in the exact order below:
 - **`continue`**: If the step fails, its failure is captured in its `StepOutcome` and logged as a
   queue error event (e.g. `parquet_compaction_failed`, `lessons_generation_failed`). The cycle is
   **not** quarantined, and subsequent pipeline steps continue executing.
+
+For queue event burst detection and alarm generation rules, see [`docs/storm-alarms.md`](storm-alarms.md).
+For the section ordering and formatting contracts of nightly digests and status projections, see [`docs/surfaces.md`](surfaces.md).
+For telemetry surfaces, span tracing with Phoenix, and diagnostic entry points, see [`docs/observability.md`](observability.md).
 
 ### Idempotence
 
@@ -788,13 +937,14 @@ a resolution nobody named: a `--derived-dir` argument and an absolute
 `evallab status` inside a worktree reported the primary checkout's
 `derived/parquet` with nothing to distinguish it from the worktree's own.
 
-Analysis sidecars follow the same "the catalog is derived" rule. `analyze stub`
-and `analyze review` write the durable artifact under
-`derived/analyses/<analysis_id>/` and index it only when given `--index`; both
-state which of the two happened and, when they did not index, print the exact
-`analyze ingest-sidecar` command that does. `analyze review --index` is the
-single command that populates `analysis_reviews`. `analyze ingest-sidecar`
-also indexes every review sitting beside the sidecar and reports how many.
+Analysis sidecars follow the same "the catalog is derived" rule. `analyze review`
+appends a durable human decision under `derived/analyses/<analysis_id>/reviews/`
+and indexes it only when given `--index`. Without that flag, it prints an
+`analyze ingest-sidecar <analysis.json> --database-url <url>` command.
+That index-only command ingests the sidecar and every existing review beside it,
+reports the review count and catalog identity, and never appends another review.
+Use it to index an existing decision; use `analyze review --index` only when
+intending to append a new decision as well.
 
 A Parquet failure cannot roll back catalog ingest or turn a completed agent run
 into an execution failure. It appends a

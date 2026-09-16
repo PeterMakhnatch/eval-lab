@@ -67,14 +67,18 @@ def sample_trial_dir(tmp_path: Path) -> Path:
             {
                 "step_id": 0,
                 "timestamp": "2026-08-25T12:00:00Z",
-                "tool_calls": [{"name": "bash", "arguments": {"cmd": "ls"}}],
-                "observations": [{"output": "file.txt", "exit_code": 0}],
+                "tool_calls": [
+                    {"tool_call_id": "call-1", "function_name": "bash", "arguments": {"cmd": "ls"}}
+                ],
+                "observation": {"results": [{"source_call_id": "call-1", "content": "file.txt"}]},
             },
             {
                 "step_id": 1,
                 "timestamp": "2026-08-25T12:00:05Z",
-                "tool_calls": [{"name": "finish", "arguments": {}}],
-                "observations": [{"output": "done", "exit_code": 0}],
+                "tool_calls": [
+                    {"tool_call_id": "call-2", "function_name": "finish", "arguments": {}}
+                ],
+                "observation": {"results": [{"source_call_id": "call-2", "content": "done"}]},
             },
         ],
     }
@@ -127,7 +131,7 @@ def test_warning_atif_remains_ingestable_and_analysis_ready(sample_trial_dir: Pa
             {
                 "step_id": 1,
                 "tool_calls": [{"name": "read", "arguments": {}}],
-                "observations": [],  # unpaired observation generates warning
+                "observation": {"results": []},  # unpaired observation generates warning
             }
         ],
     }
@@ -187,6 +191,8 @@ def test_control_run_without_atif_is_valid_but_not_analysis_ready(
     res = {
         "id": "oracle-trial",
         "agent_name": "oracle",
+        "agent_result": None,
+        "agent_info": None,
         "verifier_result": {"rewards": {"reward": 1.0}},
     }
     (ctrl_dir / "result.json").write_text(json.dumps(res), encoding="utf-8")

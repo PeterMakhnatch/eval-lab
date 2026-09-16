@@ -16,11 +16,17 @@ import subprocess
 from collections.abc import Mapping
 from pathlib import Path
 
+from evallab.execution_contracts import (
+    OPENCODE_AUTH_RELATIVE_PATH,
+    ZAI_AUTH_PROVIDER,
+    ZAI_OPENCODE_AGENT,
+)
 from evallab.profiles import (
     AuthFileProbe,
     CliSessionProbe,
     EnvironmentPresenceProbe,
     KeychainProbe,
+    OpenCodeProviderAuthProbe,
     ProbeResult,
     builtin_profiles,
 )
@@ -33,6 +39,7 @@ CODEX_AUTH = "codex_auth"
 CURSOR_SESSION = "cursor_session"
 ANTIGRAVITY_SESSION = "antigravity_session"
 DEEPSEEK_API_CREDENTIAL = "deepseek_api_environment"
+ZAI_OPENCODE_AUTH = "zai_opencode_auth"
 
 # Agents whose runs require a credential. Control agents (oracle, nop) are
 # deliberately absent: they must run with no credential at all.
@@ -42,6 +49,7 @@ AGENT_CREDENTIAL_REQUIREMENTS: dict[str, str] = {
     "cursor-cli": CURSOR_SESSION,
     "antigravity-cli": ANTIGRAVITY_SESSION,
     "mini-swe-agent": DEEPSEEK_API_CREDENTIAL,
+    ZAI_OPENCODE_AGENT: ZAI_OPENCODE_AUTH,
 }
 
 _PROFILES = builtin_profiles()
@@ -50,6 +58,7 @@ _CODEX_PROFILE = _PROFILES["codex-gpt-5.6-terra"]
 _CURSOR_PROFILE = _PROFILES["cursor-grok-4.6-high"]
 _ANTIGRAVITY_PROFILE = _PROFILES["antigravity-gemini-3.7-flash-high"]
 _DEEPSEEK_PROFILE = _PROFILES["mini-swe-agent-deepseek-v4-flash"]
+_ZAI_PROFILE = _PROFILES["zai-opencode-glm-5.3-flash"]
 
 
 def _security_exit_status(args: list[str]) -> int:
@@ -142,6 +151,15 @@ def probe_deepseek_api_result(
     return probe(_DEEPSEEK_PROFILE)
 
 
+def probe_zai_opencode_auth_result(home: Path | None = None) -> ProbeResult:
+    probe = OpenCodeProviderAuthProbe(
+        home=home or Path.home(),
+        relative_path=OPENCODE_AUTH_RELATIVE_PATH.as_posix(),
+        provider=ZAI_AUTH_PROVIDER,
+    )
+    return probe(_ZAI_PROFILE)
+
+
 def available_credentials(home: Path | None = None) -> frozenset[str]:
     found: set[str] = set()
     if probe_claude_keychain():
@@ -154,6 +172,8 @@ def available_credentials(home: Path | None = None) -> frozenset[str]:
         found.add(ANTIGRAVITY_SESSION)
     if probe_deepseek_api():
         found.add(DEEPSEEK_API_CREDENTIAL)
+    if probe_zai_opencode_auth_result(home).ok:
+        found.add(ZAI_OPENCODE_AUTH)
     return frozenset(found)
 
 
@@ -179,6 +199,7 @@ DEFAULT_PROFILE_FOR_ADAPTER: dict[str, str] = {
     "cursor-cli": "cursor-grok-4.6-high",
     "antigravity-cli": "antigravity-gemini-3.7-flash-high",
     "mini-swe-agent": "mini-swe-agent-deepseek-v4-flash",
+    ZAI_OPENCODE_AGENT: "zai-opencode-glm-5.3-flash",
 }
 
 DEFAULT_AGENT_MODELS: dict[str, str] = {

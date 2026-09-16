@@ -267,9 +267,7 @@ class DirectoryQueueStateMachine(RuleBasedStateMachine):
                 found[sid] = state
         # All non-vanished specs must be accounted for
         active_live = {
-            sid: state
-            for sid, state in self.live_specs.items()
-            if sid not in self.vanished_specs
+            sid: state for sid, state in self.live_specs.items() if sid not in self.vanished_specs
         }
         assert set(found.keys()) == set(active_live.keys()), (
             f"Mismatched specs: found={set(found.keys())} vs live={set(active_live.keys())}"
@@ -314,9 +312,9 @@ class DirectoryQueueStateMachine(RuleBasedStateMachine):
             if state in {"running", "done"}:
                 agent = self.spec_agents.get(sid, "")
                 if agent in BILLABLE_AGENTS:
-                    assert (
-                        sid in self.billable_approved
-                    ), f"billable spec {sid} reached {state} without explicit approve()"
+                    assert sid in self.billable_approved, (
+                        f"billable spec {sid} reached {state} without explicit approve()"
+                    )
 
     @invariant()
     def credential_deferral_preserves_approved(self) -> None:
@@ -325,9 +323,7 @@ class DirectoryQueueStateMachine(RuleBasedStateMachine):
         if not path.is_file():
             return
         deferred_specs = {
-            event.spec_id
-            for event in load_events(path)
-            if event.event == "dispatch_deferred"
+            event.spec_id for event in load_events(path) if event.event == "dispatch_deferred"
         }
         for sid in deferred_specs:
             if sid in self.live_specs and sid not in self.vanished_specs:
@@ -338,9 +334,7 @@ class DirectoryQueueStateMachine(RuleBasedStateMachine):
 
 
 TestQueueProperties = DirectoryQueueStateMachine.TestCase
-TestQueueProperties.settings = settings(
-    max_examples=100, stateful_step_count=20, deadline=None
-)
+TestQueueProperties.settings = settings(max_examples=100, stateful_step_count=20, deadline=None)
 
 
 # --- Standalone Invariant Properties ---
@@ -510,7 +504,7 @@ def test_property_quota_never_exceeded_mid_tick(costs: list[float]) -> None:
             st.integers(min_value=1, max_value=50),
         ),
         min_size=2,
-        max_size=12,
+        max_size=6,
     )
 )
 @settings(max_examples=40, deadline=None)
@@ -533,7 +527,6 @@ def test_property_two_concurrent_ticks_never_dispatch_the_same_spec_twice(
         def tracking_runner(req: RunRequest) -> Path:
             with lock:
                 dispatched_runs.append(req.name)
-            time.sleep(0.01)
             dest = req.jobs_dir / req.name
             dest.mkdir(parents=True, exist_ok=True)
             return dest

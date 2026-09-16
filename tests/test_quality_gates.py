@@ -12,6 +12,8 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+
+pytestmark = pytest.mark.docs_consumer
 BASH = shutil.which("bash")
 GIT = shutil.which("git")
 
@@ -79,7 +81,6 @@ def test_clean_checker_passes_and_diagnostics_fail(tmp_path: Path, surface: str)
 def test_missing_checker_is_not_a_clean_result(tmp_path: Path, surface: str) -> None:
     assert _gate(tmp_path, _environment(tmp_path, None), surface).returncode == 127
 
-
 @pytest.mark.parametrize(
     ("workflow_file", "job", "result_names"),
     [
@@ -108,6 +109,7 @@ def test_required_gate_rejects_every_non_success_prerequisite(
         for result in ("failure", "cancelled", "skipped", "neutral", "", "unknown"):
             assert run({**successful, name: result}) != 0, (name, result)
         assert run({key: value for key, value in successful.items() if key != name}) != 0
+
 
 
 def _git(root: Path, *args: str) -> str:
@@ -235,3 +237,221 @@ def test_profile_scope_skips_only_proven_documentation_changes(tmp_path: Path) -
         subprocess.check_output([*command, "unavailable", "HEAD"], cwd=tmp_path, text=True).strip()
         == "profile=true"
     )
+
+
+def test_premerge_ty_failure_stops_before_running_pytest(tmp_path: Path) -> None:
+    env = _environment(tmp_path, 'echo "type mismatch" >&2\nexit 1\n')
+    bin_dir = tmp_path / "bin"
+    sentinel = tmp_path / "pytest_invoked"
+    uv_stub = f"""if [ "$1" = "--version" ]; then
+    echo "uv 0.9.24"
+    exit 0
+fi
+if [ "$1" = "run" ] && [ "$2" = "pytest" ]; then
+    touch "{sentinel}"
+    exit 0
+fi
+exit 0
+"""
+    _executable(bin_dir / "uv", uv_stub)
+    result = _gate(tmp_path, env, surface="local")
+    assert result.returncode == 1
+    assert "type mismatch" in result.stdout or "type mismatch" in result.stderr
+    assert not sentinel.exists(), "premerge must not invoke pytest when ty check fails"
+
+
+def test_ci_workflow_lane_gating_and_wheelhouse_triggers() -> None:
+    """Integrated CI: always-full sharded suite (scope lane superseded) plus wheelhouse triggers.
+
+    The maintenance scope/docs_consumer conditional lane is superseded by 420
+    always-running semantics: every required test runs on every PR/push and the
+    quality-required gate aggregates fail-closed. Sharding and lance coverage are
+    preserved; the conditional skip is not.
+    """
+    ci_path = ROOT / ".github/workflows/ci.yml"
+    wheelhouse_path = ROOT / ".github/workflows/mcp-wheelhouse-platform.yml"
+
+    ci = yaml.safe_load(ci_path.read_text(encoding="utf-8"))
+    wheelhouse = yaml.safe_load(wheelhouse_path.read_text(encoding="utf-8"))
+
+    # Scope lane superseded: no scope job, no scope-gated conditional.
+    assert "scope" not in ci["jobs"]
+    assert "scope" not in str(ci["jobs"]["test"].get("needs", ""))
+
+    test_steps = ci["jobs"]["test"]["steps"]
+    full_suite_steps = [
+        s
+        for s in test_steps
+        if "uv run --no-sync pytest" in s.get("run", "")
+        and "-m docs_consumer" not in s.get("run", "")
+    ]
+    docs_lane_steps = [
+        s for s in test_steps if "uv run --no-sync pytest -m docs_consumer" in s.get("run", "")
+    ]
+
+    assert len(full_suite_steps) == 1, "expected exactly one full test suite step"
+    assert len(docs_lane_steps) == 0, "docs_consumer conditional lane is superseded; full suite always runs"
+
+    # Full suite always runs (no scope-based skip) with sharding.
+    assert "needs.scope" not in str(full_suite_steps[0].get("if", ""))
+
+    test_matrix = ci["jobs"]["test"].get("strategy", {}).get("matrix", {})
+    assert test_matrix.get("shard") == ["1/2", "2/2"]
+    assert "--shard ${{ matrix.shard }}" in full_suite_steps[0].get("run", "")
+    smoke_steps = [s for s in test_steps if "evallab.smoke" in s.get("run", "")]
+    assert len(smoke_steps) == 1, "expected exactly one smoke step"
+    assert "matrix.shard == '1/2'" in smoke_steps[0].get("if", "")
+
+    # 420 triggers and fail-closed gate preserved.
+    on_triggers = ci.get("on") or ci.get(True) or {}
+    pr_types = (on_triggers.get("pull_request") or {}).get("types", [])
+    assert "edited" in pr_types
+    assert "merge_group" in on_triggers
+    assert ci["jobs"]["quality-required"]["if"] == "${{ always() }}"
+
+    on_triggers = wheelhouse.get("on") or wheelhouse.get(True) or {}
+    push_branches = on_triggers.get("push", {}).get("branches", [])
+    assert push_branches == ["main", "integrate/**"]
+
+    concurrency = wheelhouse.get("concurrency", {})
+    assert concurrency.get("cancel-in-progress") is True
+    assert "github.workflow" in concurrency.get("group", "")
+
+
+
+WORKFLOW_FILES = sorted((ROOT / ".github/workflows").glob("*.yml"))
+# Intentional exemptions mapped to documented reasons.
+# No dispatch-only manual workflows remain: the dose-ladder dispatch-only reduction
+# is superseded; its push/pull triggers are preserved for automatic coverage.
+# Workflows exempt from PR/push triggers (dispatch-only manual workflows) are explicitly tracked.
+DISPATCH_ONLY_WORKFLOW_EXEMPTIONS: dict[str, str] = {}
+WORKFLOW_CONCURRENCY_EXEMPTIONS: dict[str, str] = {}
+
+
+def test_dispatch_only_workflows_exemption_list() -> None:
+    """Validate that no workflow is dispatch-only without an explicit exemption.
+
+    Workflows without pull_request or push triggers must belong to the explicit
+    dispatch-only exemption list, and every exempted workflow must actually exist
+    and be dispatch-only. The maintenance dose-ladder dispatch-only exemption is
+    superseded: dose-ladder retains automatic push/pull triggers.
+    """
+    dispatch_only: list[str] = []
+    for workflow_path in WORKFLOW_FILES:
+        workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+        triggers = workflow.get("on") or workflow.get(True) or {}
+        if isinstance(triggers, str):
+            triggers = [triggers]
+        if isinstance(triggers, list):
+            trigger_names = set(triggers)
+        elif isinstance(triggers, dict):
+            trigger_names = set(triggers.keys())
+        else:
+            trigger_names = set()
+
+        if not (trigger_names & {"pull_request", "push"}):
+            # Workflow has no PR or push trigger; must be dispatch-only
+            assert trigger_names == {"workflow_dispatch"}, (
+                f"Workflow '{workflow_path.name}' has no PR/push triggers but triggers are {trigger_names}."
+            )
+            dispatch_only.append(workflow_path.stem)
+
+    assert sorted(dispatch_only) == sorted(DISPATCH_ONLY_WORKFLOW_EXEMPTIONS.keys()) == []
+    assert list(DISPATCH_ONLY_WORKFLOW_EXEMPTIONS.keys()) == []
+
+
+
+@pytest.mark.parametrize("workflow_path", WORKFLOW_FILES, ids=lambda p: p.name)
+def test_workflows_with_pr_or_push_declare_cancel_in_progress_concurrency(
+    workflow_path: Path,
+) -> None:
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    triggers = workflow.get("on") or workflow.get(True) or {}
+    if isinstance(triggers, str):
+        triggers = [triggers]
+    if isinstance(triggers, list):
+        trigger_names = set(triggers)
+    elif isinstance(triggers, dict):
+        trigger_names = set(triggers.keys())
+    else:
+        trigger_names = set()
+
+    if not (trigger_names & {"pull_request", "push"}):
+        return
+
+    if workflow_path.name in WORKFLOW_CONCURRENCY_EXEMPTIONS:
+        pytest.skip(
+            f"Workflow {workflow_path.name} is intentionally exempt from concurrency check: "
+            f"{WORKFLOW_CONCURRENCY_EXEMPTIONS[workflow_path.name]}"
+        )
+
+    concurrency = workflow.get("concurrency")
+    assert concurrency is not None, (
+        f"Workflow '{workflow_path.name}' triggers on pull_request/push but lacks a concurrency block."
+    )
+    assert isinstance(concurrency, dict), (
+        f"Workflow '{workflow_path.name}' concurrency block must be a mapping."
+    )
+    group = concurrency.get("group")
+    assert group and isinstance(group, str), (
+        f"Workflow '{workflow_path.name}' must declare a non-empty concurrency group."
+    )
+    assert concurrency.get("cancel-in-progress") is True, (
+        f"Workflow '{workflow_path.name}' concurrency must set cancel-in-progress: true."
+    )
+
+def test_workbench_certification_workflows_cadence_and_path_isolation() -> None:
+    """Preserved automatic triggers: no weekly schedule, task_workbench paths retained.
+
+    The maintenance weekly schedule and task_workbench path removal are superseded.
+    Certification still runs automatically on workbench changes; no new schedule is
+    added as implied authorization for paid/old research experiments.
+    """
+    cert_workflows = ["tau-knowledge.yml", "funcdag-workbench-certification.yml"]
+    for filename in cert_workflows:
+        workflow_path = ROOT / ".github/workflows" / filename
+        workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+        triggers = workflow.get("on") or workflow.get(True) or {}
+        assert isinstance(triggers, dict), f"{filename} triggers must be a mapping"
+
+        # No schedule trigger is declared (no new schedules as implied authorization).
+        assert triggers.get("schedule") is None, (
+            f"{filename} must not declare a schedule trigger"
+        )
+
+        # task_workbench paths are preserved for automatic coverage.
+        found_task_workbench = False
+        for trigger_config in triggers.values():
+            if isinstance(trigger_config, dict):
+                paths = trigger_config.get("paths", [])
+                for path in paths:
+                    if "task_workbench" in path:
+                        found_task_workbench = True
+        assert found_task_workbench, (
+            f"{filename} must list task_workbench paths for automatic coverage"
+        )
+
+
+
+def test_ci_workflow_test_matrix_shards_and_smoke_gating() -> None:
+    ci_path = ROOT / ".github/workflows/ci.yml"
+    ci = yaml.safe_load(ci_path.read_text(encoding="utf-8"))
+
+    test_job = ci["jobs"]["test"]
+    matrix = test_job.get("strategy", {}).get("matrix", {})
+    assert matrix.get("python-version") == ["3.12", "3.14"]
+    assert matrix.get("shard") == ["1/2", "2/2"]
+
+    test_steps = test_job["steps"]
+    full_suite_steps = [
+        s
+        for s in test_steps
+        if "uv run --no-sync pytest" in s.get("run", "")
+        and "-m docs_consumer" not in s.get("run", "")
+    ]
+    assert len(full_suite_steps) == 1
+    assert "--shard ${{ matrix.shard }}" in full_suite_steps[0].get("run", "")
+
+    smoke_steps = [s for s in test_steps if "evallab.smoke" in s.get("run", "")]
+    assert len(smoke_steps) == 1
+    assert "matrix.shard == '1/2'" in smoke_steps[0].get("if", "")

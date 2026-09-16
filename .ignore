@@ -1,0 +1,5 @@
+# Archive directories excluded from default search. They remain readable
+# by direct path and searchable with ripgrep via --no-ignore.
+agents/archive/
+docs/archive/
+research/archive/

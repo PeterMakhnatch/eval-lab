@@ -16,8 +16,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-PLUGIN_IMPORT_PATH = "evallab.harbor_state_journal:StateJournalPlugin"
-
 
 @dataclass(frozen=True)
 class Monitor:

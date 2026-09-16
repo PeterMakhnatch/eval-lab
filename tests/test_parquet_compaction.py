@@ -14,7 +14,9 @@ Tests cover:
 from __future__ import annotations
 
 import json
+import threading
 from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -24,12 +26,13 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
+from evallab.storage import parquet_compaction as compaction
 from evallab.storage.parquet_compaction import (
     COMPACT_DIRNAME,
     PROJECTED_TABLE_NAMES,
     TABLE_SCHEMAS,
     CompactionValidationError,
-    _read_table_or_empty,
+    _read_input_table,
     compact,
     count_table_rows,
     deduplicate_and_sort,
@@ -621,7 +624,7 @@ def test_historical_request_metadata_columns_are_defaulted_before_compaction(
     legacy_path = tmp_path / f"{table_name}.parquet"
     pq.write_table(pa.Table.from_pylist([row], schema=legacy_schema), legacy_path)
 
-    migrated = _read_table_or_empty(legacy_path, table_name)
+    migrated = _read_input_table(legacy_path, table_name)
 
     assert migrated.schema.equals(current_schema)
     migrated_row = migrated.to_pylist()[0]
@@ -1041,3 +1044,286 @@ def test_retrieval_facts_not_compacted_without_immutable_identity() -> None:
             "line_id",
         )
     )
+
+
+def _cold_and_hot_day(root: Path) -> tuple[Path, Path]:
+    hot = create_uncompacted_job(root, job_id="hot-job", trial_ids=["hot-trial"])
+    cold = root / COMPACT_DIRNAME / "dt=2026-08-10"
+    cold.mkdir(parents=True)
+    for table_name in ("jobs", "reward_facts"):
+        pq.write_table(
+            pa.Table.from_pylist(
+                [_make_table_row(table_name, "cold-job", "cold-trial")],
+                schema=TABLE_SCHEMAS[table_name],
+            ),
+            cold / f"{table_name}.parquet",
+        )
+    return hot, cold
+
+
+def _parquet_bytes(root: Path) -> dict[Path, bytes]:
+    return {path: path.read_bytes() for path in root.rglob("*.parquet")}
+
+
+@pytest.mark.parametrize("location", ["hot", "cold"])
+def test_compaction_metadata_failure_preserves_every_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, location: str
+) -> None:
+    hot, cold = _cold_and_hot_day(tmp_path)
+    source = (
+        hot / "trial_id=hot-trial" / "reward_facts.parquet"
+        if location == "hot"
+        else cold / "reward_facts.parquet"
+    )
+    before = _parquet_bytes(tmp_path)
+    real_parquet_file = pq.ParquetFile
+
+    def fail_once(path: Any, *args: Any, **kwargs: Any) -> Any:
+        if Path(path) == source:
+            monkeypatch.setattr(pq, "ParquetFile", real_parquet_file)
+            raise OSError("transient metadata read failure")
+        return real_parquet_file(path, *args, **kwargs)
+
+    monkeypatch.setattr(pq, "ParquetFile", fail_once)
+    result = compact(tmp_path, clock_today=date(2026, 8, 20))
+    assert not result.ok
+    assert result.pruned_jobs == ()
+    assert hot.is_dir()
+    assert _parquet_bytes(tmp_path) == before
+
+    # A later readable attempt must recover both generations, not reuse zero.
+    recovered = compact(tmp_path, clock_today=date(2026, 8, 20))
+    assert recovered.ok
+    assert recovered.pruned_jobs == ("hot-job",)
+    assert set(pq.ParquetFile(cold / "reward_facts.parquet").read()["trial_id"].to_pylist()) == {
+        "cold-trial",
+        "hot-trial",
+    }
+
+
+@pytest.mark.parametrize("empty_hot_input", [False, True])
+def test_execution_reads_inputs_even_when_planning_counts_are_cached(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, empty_hot_input: bool
+) -> None:
+    hot, _ = _cold_and_hot_day(tmp_path)
+    source = hot / "trial_id=hot-trial" / "reward_facts.parquet"
+    if empty_hot_input:
+        pq.write_table(pa.Table.from_pylist([], schema=TABLE_SCHEMAS["reward_facts"]), source)
+    plan = plan_compaction(tmp_path, clock_today=date(2026, 8, 20))
+    before = _parquet_bytes(tmp_path)
+    real_parquet_file = pq.ParquetFile
+
+    def unreadable(path: Any, *args: Any, **kwargs: Any) -> Any:
+        if Path(path) == source:
+            raise OSError("input became unreadable after planning")
+        return real_parquet_file(path, *args, **kwargs)
+
+    monkeypatch.setattr(pq, "ParquetFile", unreadable)
+    with pytest.raises(CompactionValidationError, match="Cannot read Parquet input"):
+        compaction.compact_day(tmp_path, plan.days[0])
+    assert hot.is_dir()
+    assert _parquet_bytes(tmp_path) == before
+
+
+def test_compaction_rejects_actual_rows_disagreeing_with_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hot, _ = _cold_and_hot_day(tmp_path)
+    plan = plan_compaction(tmp_path, clock_today=date(2026, 8, 20))
+    before = _parquet_bytes(tmp_path)
+    real_read = pq.ParquetFile.read
+
+    def short_read(self: Any, *args: Any, **kwargs: Any) -> pa.Table:
+        return real_read(self, *args, **kwargs).slice(0, 0)
+
+    monkeypatch.setattr(pq.ParquetFile, "read", short_read)
+    with pytest.raises(CompactionValidationError, match="Input row count mismatch"):
+        compaction.compact_day(tmp_path, plan.days[0])
+    assert hot.is_dir()
+    assert _parquet_bytes(tmp_path) == before
+
+
+def test_compaction_includes_trial_published_after_planning(tmp_path: Path) -> None:
+    from evallab.evidence.facts import _write_fact_table
+
+    hot, cold = _cold_and_hot_day(tmp_path)
+    source = hot / "trial_id=hot-trial" / "reward_facts.parquet"
+    pq.write_table(pa.Table.from_pylist([], schema=TABLE_SCHEMAS["reward_facts"]), source)
+    plan = plan_compaction(tmp_path, clock_today=date(2026, 8, 20))
+    late = hot / "trial_id=late-trial" / "reward_facts.parquet"
+    _write_fact_table(
+        late, "reward_facts", [_make_table_row("reward_facts", "hot-job", "late-trial")]
+    )
+    result = compaction.compact_day(tmp_path, plan.days[0])
+    assert result.pruned_job_ids == ("hot-job",)
+    assert not hot.exists()
+    assert set(pq.ParquetFile(cold / "reward_facts.parquet").read()["trial_id"].to_pylist()) == {
+        "cold-trial",
+        "late-trial",
+    }
+
+
+@pytest.mark.parametrize("change", ["hot-replacement", "cold-replacement", "new-trial"])
+def test_compaction_rejects_input_changes_after_collection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: str
+) -> None:
+    hot, cold = _cold_and_hot_day(tmp_path)
+    before = _parquet_bytes(tmp_path)
+    real_write = compaction._write_compact_table_locked
+
+    def mutate_after_staging(table: pa.Table, path: Path, table_name: str) -> int:
+        rows = real_write(table, path, table_name)
+        if table_name == PROJECTED_TABLE_NAMES[-1]:
+            source = {
+                "hot-replacement": hot / "trial_id=hot-trial" / "reward_facts.parquet",
+                "cold-replacement": cold / "reward_facts.parquet",
+                "new-trial": hot / "trial_id=late-trial" / "reward_facts.parquet",
+            }[change]
+            source.parent.mkdir(parents=True, exist_ok=True)
+            replacement = source.with_suffix(".replacement")
+            pq.write_table(
+                pa.Table.from_pylist(
+                    [_make_table_row("reward_facts", "hot-job", "changed-trial")],
+                    schema=TABLE_SCHEMAS["reward_facts"],
+                ),
+                replacement,
+            )
+            replacement.replace(source)
+            before[source] = source.read_bytes()
+        return rows
+
+    monkeypatch.setattr(compaction, "_write_compact_table_locked", mutate_after_staging)
+    result = compact(tmp_path, clock_today=date(2026, 8, 20))
+    assert not result.ok
+    assert result.pruned_jobs == ()
+    assert result.retained_jobs == ("hot-job",)
+    assert hot.is_dir()
+    assert _parquet_bytes(tmp_path) == before
+
+
+def test_compaction_rejects_missing_planned_input(tmp_path: Path) -> None:
+    hot, _ = _cold_and_hot_day(tmp_path)
+    plan = plan_compaction(tmp_path, clock_today=date(2026, 8, 20))
+    (hot / "trial_id=hot-trial" / "reward_facts.parquet").unlink()
+    remaining = _parquet_bytes(tmp_path)
+    with pytest.raises(CompactionValidationError, match="Planned inputs disappeared"):
+        compaction.compact_day(tmp_path, plan.days[0])
+    assert hot.is_dir()
+    assert _parquet_bytes(tmp_path) == remaining
+
+
+def test_compaction_retains_partitions_with_uncompacted_files(tmp_path: Path) -> None:
+    hot, cold = _cold_and_hot_day(tmp_path)
+    excluded = hot / "trial_id=hot-trial" / "retrieval_facts.parquet"
+    pq.write_table(pa.table({"evidence": ["must survive"]}), excluded)
+    before = _parquet_bytes(hot)
+    result = compact(tmp_path, clock_today=date(2026, 8, 20))
+    assert result.ok
+    assert result.pruned_jobs == ()
+    assert result.retained_jobs == ("hot-job",)
+    assert _parquet_bytes(hot) == before
+    assert set(pq.ParquetFile(cold / "reward_facts.parquet").read()["trial_id"].to_pylist()) == {
+        "cold-trial",
+        "hot-trial",
+    }
+
+
+@pytest.mark.parametrize("writer", ["atif", "facts", "event-mart", "semantic-action"])
+def test_projection_writer_waits_until_compaction_has_finished_pruning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, writer: str
+) -> None:
+    from evallab.evidence import parquet_io
+    from evallab.evidence.atif import _write_parquet
+    from evallab.evidence.event_mart import _write_table
+    from evallab.evidence.facts import _write_fact_table
+    from evallab.interpretation.trajectory_semantics import project_semantic_actions_parquet
+
+    hot, cold = _cold_and_hot_day(tmp_path)
+    table_name, publish = {
+        "atif": ("steps", _write_parquet),
+        "facts": ("reward_facts", _write_fact_table),
+        "event-mart": ("agent_actions", _write_table),
+        "semantic-action": ("semantic_action_facts", None),
+    }[writer]
+    source = hot / "trial_id=late-trial" / f"{table_name}.parquet"
+    attempted_lock = threading.Event()
+    published = threading.Event()
+    real_flock = parquet_io.fcntl.flock
+    real_write = compaction._write_compact_table_locked
+    writer_future: Any = None
+
+    def observe_flock(fd: int, operation: int) -> None:
+        if (
+            threading.current_thread().name.startswith("projection-writer")
+            and operation == parquet_io.fcntl.LOCK_EX
+        ):
+            attempted_lock.set()
+        real_flock(fd, operation)
+
+    def publish_late() -> None:
+        if publish is None:
+            project_semantic_actions_parquet([], source)
+        else:
+            publish(source, table_name, [_make_table_row(table_name, "hot-job", "late-trial")])
+        published.set()
+
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="projection-writer") as executor:
+
+        def write_while_writer_waits(table: pa.Table, path: Path, name: str) -> int:
+            nonlocal writer_future
+            if writer_future is None:
+                writer_future = executor.submit(publish_late)
+                assert attempted_lock.wait(timeout=10)
+                assert not published.is_set()
+            return real_write(table, path, name)
+
+        monkeypatch.setattr(parquet_io.fcntl, "flock", observe_flock)
+        monkeypatch.setattr(compaction, "_write_compact_table_locked", write_while_writer_waits)
+        result = compact(tmp_path, clock_today=date(2026, 8, 20))
+        assert writer_future is not None
+        writer_future.result(timeout=10)
+
+    assert result.ok
+    assert result.pruned_jobs == ("hot-job",)
+    if writer == "semantic-action":
+        assert pq.ParquetFile(source).metadata.num_rows == 0
+    else:
+        assert pq.ParquetFile(source).read()["trial_id"].to_pylist() == ["late-trial"]
+    assert set(pq.ParquetFile(cold / "reward_facts.parquet").read()["trial_id"].to_pylist()) == {
+        "cold-trial",
+        "hot-trial",
+    }
+
+
+def test_compaction_rejects_missing_planned_empty_cold_input(tmp_path: Path) -> None:
+    hot, cold = _cold_and_hot_day(tmp_path)
+    source = cold / "reward_facts.parquet"
+    pq.write_table(pa.Table.from_pylist([], schema=TABLE_SCHEMAS["reward_facts"]), source)
+    plan = plan_compaction(tmp_path, clock_today=date(2026, 8, 20))
+    source.unlink()
+    remaining = _parquet_bytes(tmp_path)
+    with pytest.raises(CompactionValidationError, match="Planned cold inputs disappeared"):
+        compaction.compact_day(tmp_path, plan.days[0])
+    assert hot.is_dir()
+    assert _parquet_bytes(tmp_path) == remaining
+
+
+def test_compaction_refuses_an_unreadable_partition_inventory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hot, _ = _cold_and_hot_day(tmp_path)
+    plan = plan_compaction(tmp_path, clock_today=date(2026, 8, 20))
+    before = _parquet_bytes(tmp_path)
+    real_scandir = compaction.os.scandir
+
+    def unreadable_directory(path: Any) -> Any:
+        if Path(path) == hot / "trial_id=hot-trial":
+            raise PermissionError("cannot enumerate the complete input partition")
+        return real_scandir(path)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(compaction.os, "scandir", unreadable_directory)
+        with pytest.raises(PermissionError, match="complete input partition"):
+            compaction.compact_day(tmp_path, plan.days[0])
+    assert hot.is_dir()
+    assert _parquet_bytes(tmp_path) == before

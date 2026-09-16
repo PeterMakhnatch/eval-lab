@@ -120,8 +120,8 @@ behavior-policy probabilities.
 ## Running a paid agent locally (authorised per spec, since 2026-08-16)
 
 Local Docker execution is free only for `oracle` and `nop`. Any other agent —
-`codex`, `claude-code`, any future paid adapter — spends Peter's ChatGPT
-subscription quota, which no dollar ceiling in this repository measures. Such
+`codex`, `claude-code`, and `zai-opencode` — consumes the selected provider's
+subscription or API quota, which a local dollar ceiling does not itself measure. Such
 a spec is refused by the policy gate with `paid_run_unauthorized` and parked in
 `queue/waiting/` until a human records an authorisation for that exact spec:
 
@@ -135,6 +135,17 @@ uv run evallab tick
 for a billable spec at all, so listing a paid agent there changes nothing. Full
 semantics, including the fail-closed cases, are in `docs/operations.md`,
 "Paid execution requires a recorded authorisation".
+
+### Z.ai OpenCode on Docker Desktop
+
+The default `zai-opencode` profile selects `zai-coding-plan/glm-5.3-flash`.
+The queue checks the owner-only OpenCode auth store for its `zai-coding-plan`
+entry; a missing credential defers dispatch rather than becoming a task failure.
+Credential presence is not proof of a successful provider request.
+
+Execution requires Docker Desktop on Apple Silicon with a kernel that supports
+Harbor's broker network allowlist; on unsupported kernels, the run fails
+closed during container network configuration before model requests can issue.
 
 ## Running on Modal (binding rules)
 

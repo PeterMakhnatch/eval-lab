@@ -129,8 +129,8 @@ def canonical_grid_point_id(
 #: Why a spec exists. Required on every ``ExperimentSpec``, because until now
 #: nothing recorded *intent*: the queue could be listed but never grouped,
 #: budgeted, or reasoned about by what the lab was trying to learn
-#: (``docs/architecture-review-2026-08-16.md`` §4, "every spec declares WHY";
-#: ``docs/build-plan.md`` WS-E item 1, which fixes this exact value set).
+#: (``docs/archive/architecture-review-2026-08-16.md`` §4, "every spec declares WHY";
+#: ``docs/archive/build-plan.md`` WS-E item 1, which fixes this exact value set).
 #:
 #: The taxonomy is Peter's. Do not add a member to make a call site fit — an
 #: ill-fitting call site is a finding to report, because a purpose is read as
@@ -658,19 +658,6 @@ class DigestJob(ContractModel):
     exception_type: str | None = None
     cost_usd: float | None = None
     policy_rule: str | None = None
-
-
-class DailyDigestData(ContractModel):
-    schema_version: Literal[1] = 1
-    date: str
-    quarantined: bool
-    quarantine_reasons: list[str] = Field(default_factory=list)
-    jobs: list[DigestJob] = Field(default_factory=list)
-    spend_usd: float = Field(default=0.0, ge=0)
-    daily_cost_ceiling_usd: float = Field(ge=0)
-    disk_bytes: int = Field(default=0, ge=0)
-    queue_depths: dict[str, int] = Field(default_factory=dict)
-    waiting_proposals: list[str] = Field(default_factory=list)
 
 
 class RunProvenance(ContractModel):
@@ -1396,6 +1383,19 @@ class ControlEvidenceRef(ContractModel):
     task_version: str = Field(min_length=1)
     task_digests: TaskDigests
     harbor_task_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    #: Optional recorded declaration, checked against digest-bound task.toml.
+    #: An absent [task] section uses Harbor's exact executed directory name;
+    #: missing reference metadata never enables a namespace/suffix alias.
+    declared_task_name: str | None = Field(default=None, min_length=1)
+    #: Host-staged runs (``evallab run``) lock the staging directory name with
+    #: the adapted package digest. Both fields are set together from the
+    #: job's lab-metadata ``task_staging`` provenance, whose source digests
+    #: discovery has already bound to this exact source package; refs minted
+    #: from direct source runs leave them None and bind the registry task_id.
+    staged_task_name: str | None = Field(default=None, min_length=1)
+    staged_harbor_digest: str | None = Field(
+        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
+    )
 
     @field_validator("evidence_path")
     @classmethod
@@ -1544,7 +1544,6 @@ TaskAllowedUse = Literal[
 
 
 PretrainStatus = Literal["y", "n", "unknown"]
-PRETRAIN_STATUSES: tuple[PretrainStatus, ...] = get_args(PretrainStatus)
 
 
 class TaskContamination(ContractModel):
@@ -1566,9 +1565,6 @@ class TaskContamination(ContractModel):
         default="",
         description="evidentiary basis or rationale for contamination assessment",
     )
-
-
-ContaminationRecord = TaskContamination
 
 
 class TaskRegistryRecord(ContractModel):
@@ -2335,7 +2331,6 @@ LadderGridSpec = GridSpec
 # --------------------------------------------------------------------------- #
 
 AuthoringSeedClass = Literal["mutation", "scenario", "craft-gap", "inversion"]
-AUTHORING_SEED_CLASSES: tuple[AuthoringSeedClass, ...] = get_args(AuthoringSeedClass)
 
 
 class ProposalAxes(ContractModel):

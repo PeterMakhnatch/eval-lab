@@ -6,7 +6,7 @@ audience:
   - operator
   - platform
 sources:
-  - research/inbox/feature-analysis-meta-analyst-reply.md
+  - research/archive/2026-W36/feature-analysis-meta-analyst-reply.md
   - research/evidence/rsi-bbo-codex56-calibration-2026-08-31.json
   - research/evidence/rsi-game2048-codex56-calibration-2026-08-31.json
 ---

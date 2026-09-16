@@ -74,6 +74,14 @@ LanceDB (lexical similarity):
 Example DuckDB questions belong in `evallab.storage.attach` or direct SQL.
 Example LanceDB questions use `python -m evallab.lance search "..."`.
 
+## Dependencies
+
+LanceDB is an opt-in dependency group (`lance` in `pyproject.toml`). Install via:
+
+```sh
+uv sync --group lance
+```
+
 ## Rebuild and search
 
 ```sh

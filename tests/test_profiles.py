@@ -484,3 +484,45 @@ def test_default_probe_for_antigravity_is_a_cli_session_probe(tmp_path: Path) ->
     assert isinstance(probe, CliSessionProbe)
     assert probe.argv == ("agy", "models")
     assert probe.expect == "gemini"
+
+
+def test_zai_opencode_probe_requires_private_matching_provider_credentials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab import credentials
+
+    for name in (
+        "probe_claude_keychain",
+        "probe_codex_auth",
+        "probe_cursor_session",
+        "probe_antigravity_session",
+        "probe_deepseek_api",
+    ):
+        monkeypatch.setattr(credentials, name, lambda *args: False)
+    assert credentials.missing_credential_for(
+        "zai-opencode", credentials.available_credentials(tmp_path)
+    ) == credentials.ZAI_OPENCODE_AUTH
+    profile = builtin_profiles()["zai-opencode-glm-5.3-flash"]
+    probe = default_probe_for(
+        profile,
+        home=tmp_path,
+        security_runner=lambda _: 1,
+        keychain_account="",
+    )
+    assert probe is not None
+    assert not probe(profile).ok
+    auth_path = tmp_path / ".local/share/opencode/auth.json"
+    auth_path.parent.mkdir(parents=True)
+    auth_path.write_text(json.dumps({"other-provider": {"key": "fixture-provider-key"}}))
+    auth_path.chmod(0o600)
+    assert not probe(profile).ok
+    auth_path.write_text(json.dumps({"zai-coding-plan": {"key": "fixture-provider-key"}}))
+    auth_path.chmod(0o644)
+    assert not probe(profile).ok
+    auth_path.chmod(0o600)
+    result = probe(profile)
+    assert result.ok
+    assert "fixture-provider-key" not in repr(result)
+    assert credentials.missing_credential_for(
+        "zai-opencode", credentials.available_credentials(tmp_path)
+    ) is None

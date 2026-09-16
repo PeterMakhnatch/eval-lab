@@ -1,7 +1,7 @@
 # Explorations
 
 RECON owns this directory. Notes are one-pagers with a runnable demo and an
-adopt / skip verdict against `docs/design-additions.md` briefs 05–11.
+adopt / skip verdict against `docs/archive/design-additions.md` briefs 05–11.
 
 Source of Harbor APIs: Harbor **0.21.0** on PATH and
 `~/Developer/agent-evals/harbor` (`packages/harbor-langsmith`,

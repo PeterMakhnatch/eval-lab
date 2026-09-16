@@ -39,7 +39,8 @@
         "verifier": "sha256:c706665f958f15b45f4e29deef871410622627849c6333d7a9e66972a0f2413e",
         "package": "sha256:a0523d926254bb7025eed41ece31f66cf8974c20839ad1f9647e0224c35568f5"
       },
-      "harbor_task_digest": "sha256:ea2c8d4be4a9f3cd72a0be5731669f79a34064ef95dbddbf312f86577af2f1bc"
+      "harbor_task_digest": "sha256:ea2c8d4be4a9f3cd72a0be5731669f79a34064ef95dbddbf312f86577af2f1bc",
+      "declared_task_name": "evallab/syn-funcdag-easy"
     },
     "nop": {
       "job_name": "syn-funcdag-easy-registry-nop-33133765977",
@@ -58,7 +59,8 @@
         "verifier": "sha256:c706665f958f15b45f4e29deef871410622627849c6333d7a9e66972a0f2413e",
         "package": "sha256:a0523d926254bb7025eed41ece31f66cf8974c20839ad1f9647e0224c35568f5"
       },
-      "harbor_task_digest": "sha256:ea2c8d4be4a9f3cd72a0be5731669f79a34064ef95dbddbf312f86577af2f1bc"
+      "harbor_task_digest": "sha256:ea2c8d4be4a9f3cd72a0be5731669f79a34064ef95dbddbf312f86577af2f1bc",
+      "declared_task_name": "evallab/syn-funcdag-easy"
     }
   },
   "certification": {

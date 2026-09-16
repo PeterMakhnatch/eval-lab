@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "comparison_id": "gepa-flash-event-summary-20260915",
+  "experiment_id": "gepa-flash-event-summary-calibrated-20260915",
+  "declared_variable": "preamble_content_sha256",
+  "mode": "exploratory",
+  "reward_name": "reward",
+  "pass_threshold": 1.0,
+  "pass_k": [
+    1
+  ],
+  "budget_exhaustion_is_failure": false,
+  "pairing_key": "task_digest",
+  "constraints": {},
+  "cohorts": [
+    {
+      "label": "seed",
+      "paths": [
+        "research/evidence/runs/gepa-zai-opencode-event-summary-98b229178d8e76bd14f2364f"
+      ]
+    },
+    {
+      "label": "gepa",
+      "paths": [
+        "research/evidence/runs/gepa-zai-opencode-event-summary-9187a67118398da14e2ba462"
+      ]
+    }
+  ]
+}

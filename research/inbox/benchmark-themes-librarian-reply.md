@@ -363,7 +363,7 @@ No change to the keep/defer decisions in §3.
 
 ## 9. Correction — 2026-09-02, ToolSandbox and LoCoMo licence status
 
-`research/analysis/memory-tool-evals-source-matrix-2026-08-31.md` supersedes this
+`research/archive/2026-W36/memory-tool-evals-source-matrix-2026-08-31.md` supersedes this
 reply wherever §2–§6 treat ToolSandbox as an adoption target. The earlier prose is
 preserved above as historical context; the corrections are recorded here rather
 than rewritten into it.

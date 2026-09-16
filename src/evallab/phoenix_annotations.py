@@ -41,7 +41,7 @@ def _official_client(client: Any) -> Any:
     if client is not None:
         return client
     try:
-        from phoenix.client import Client
+        from phoenix.client import Client  # ty: ignore[unresolved-import]
     except ImportError as exc:  # pragma: no cover - depends on optional installation
         raise PhoenixAnnotationError(
             "Phoenix annotations require the official arize-phoenix-client package; "

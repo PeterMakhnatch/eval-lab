@@ -1280,6 +1280,3 @@ def build_durable_trajectory_context(
         output_format=output_format,
         citation_index=index,
     )
-
-
-compile_durable_context_pack = build_durable_trajectory_context

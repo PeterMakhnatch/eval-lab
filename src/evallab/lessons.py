@@ -78,13 +78,6 @@ TRIAL_FACTS_LEDGER_SCHEMA = pa.schema(
     ]
 )
 
-QUALITY_STATUS_COLUMNS = (
-    "quality_pass_n",
-    "quality_warn_n",
-    "quality_fail_n",
-    "quality_quarantine_n",
-)
-
 
 @dataclass(frozen=True)
 class LessonRow:
@@ -241,7 +234,6 @@ def collect_lessons_inputs(
                 }
             )
 
-
     # 6. Evidence Quality Ledger (shared derived store). When a bound read is
     # supplied, its digest — taken from the same bytes the rows were parsed
     # from — is recorded verbatim, closing the read/digest TOCTOU window.
@@ -302,7 +294,7 @@ def parse_observation_markdown(path: Path) -> dict[str, Any] | None:
     first_failure_step: int | None = None
     if first_failure_str not in {"none", "", "null"}:
         try:
-                        first_failure_step = int(first_failure_str)
+            first_failure_step = int(first_failure_str)
         except ValueError:
             first_failure_step = None
 
@@ -478,12 +470,9 @@ def load_trial_facts(root: Path) -> list[dict[str, Any]]:
     if trial_parquet_files:
         try:
             with duckdb.connect(":memory:") as con:
-                glob_path = str(
-                    root / "derived/parquet/compact/dt=*/trial_facts.parquet"
-                )
+                glob_path = str(root / "derived/parquet/compact/dt=*/trial_facts.parquet")
                 rows = con.execute(
-                    "SELECT * FROM read_parquet(?, union_by_name = true) "
-                    "ORDER BY job_id, trial_id",
+                    "SELECT * FROM read_parquet(?, union_by_name = true) ORDER BY job_id, trial_id",
                     [glob_path],
                 ).fetchall()
                 cols = [desc[0] for desc in con.description]
@@ -521,9 +510,7 @@ def load_quality_ledger_bound(
     byte-for-byte. Updating the projection means refreshing the snapshot and
     regenerating in the same change.
     """
-    resolved = (
-        derived_root if derived_root is not None else root / "derived/parquet"
-    )
+    resolved = derived_root if derived_root is not None else root / "derived/parquet"
     reports_path = resolved / f"{QUALITY_REPORT_TABLE}.parquet"
     if not reports_path.is_file():
         return QualityLedgerRead(rows=(), digest=None, path=None)
@@ -535,15 +522,6 @@ def load_quality_ledger_bound(
     except Exception:
         return QualityLedgerRead(rows=(), digest=digest, path=relative)
     return QualityLedgerRead(rows=rows, digest=digest, path=relative)
-
-
-def load_quality_ledger(
-    root: Path,
-    *,
-    derived_root: Path | None = None,
-) -> list[dict[str, Any]]:
-    """Load Evidence Quality Ledger report rows from the shared derived store."""
-    return list(load_quality_ledger_bound(root, derived_root=derived_root).rows)
 
 
 TRAJECTORY_QUALITY_REPORTS_SCHEMA = pa.schema(
@@ -671,8 +649,7 @@ def execute_lessons_views(
 
     for view_name in views:
         cursor = con.execute(
-            f"SELECT * FROM {view_name} "
-            f"ORDER BY {_VIEW_ORDER_BY[view_name].replace('v.', '')}"
+            f"SELECT * FROM {view_name} ORDER BY {_VIEW_ORDER_BY[view_name].replace('v.', '')}"
         )
         cols = [desc[0] for desc in con.description]
         rows = cursor.fetchall()
@@ -708,8 +685,7 @@ def apply_statistical_gating(
         mechanical_category = str(row.get("mechanical_failure_category", "unknown"))
         model_label = "none" if model_category is None else str(model_category)
         dimension = (
-            f"{facet_name}={facet_value} "
-            f"(model={model_label}; mechanical={mechanical_category})"
+            f"{facet_name}={facet_value} (model={model_label}; mechanical={mechanical_category})"
         )
 
         if powered and interval is not None:
@@ -972,9 +948,7 @@ def build_lessons(
     powered = sum(1 for item in all_lessons if item.powered)
     underpowered = sum(1 for item in all_lessons if not item.powered)
 
-    quality_status_counts = Counter(
-        str(report.get("status") or "") for report in quality_reports
-    )
+    quality_status_counts = Counter(str(report.get("status") or "") for report in quality_reports)
     records_summary = {
         "craft_records": len(craft_records),
         "trial_facts": len(facts),
@@ -988,8 +962,7 @@ def build_lessons(
     }
 
     rankings_by_view = {
-        view_name: rank_lesson_rows(rows)
-        for view_name, rows in lessons_by_view.items()
+        view_name: rank_lesson_rows(rows) for view_name, rows in lessons_by_view.items()
     }
 
     inputs = collect_lessons_inputs(root, sql_path=sql_path, quality_ledger=ledger)
@@ -1168,9 +1141,7 @@ def render_lessons_markdown(result: LessonsResult) -> str:
         for row in loop_lessons:
             det = row.details
             repo = str(det.get("source_repo", "-"))
-            annotation_source = str(
-                det.get("observation_source", "observation_markdown")
-            )
+            annotation_source = str(det.get("observation_source", "observation_markdown"))
             services = det.get("env_services_n", 1)
             multi = "multi" if det.get("env_multi_container") else "single"
             files_b = str(det.get("env_files_bucket", "unknown"))
@@ -1231,9 +1202,7 @@ def render_lessons_markdown(result: LessonsResult) -> str:
             model_source = det.get("model_diagnosis_source") or "none"
             mechanical_cat = str(det.get("mechanical_failure_category", "none"))
             mechanical_val = str(det.get("mechanical_validity", "none"))
-            mechanical_source = str(
-                det.get("mechanical_diagnosis_source", "trial_facts")
-            )
+            mechanical_source = str(det.get("mechanical_diagnosis_source", "trial_facts"))
             total = int(det.get("total_trials_n", row.n))
             exceptions = int(det.get("exceptions_n", 0))
             never_measured = int(det.get("never_measured_n", 0))
@@ -1320,12 +1289,10 @@ def check_lessons_freshness(root: Path, target: Path | None = None) -> bool:
     )
     if timestamp_match is None:
         return False
-    generated_at = datetime.strptime(
-        timestamp_match.group(1), "%Y-%m-%d %H:%M:%SZ"
-    ).replace(tzinfo=UTC)
-    expected = render_lessons_markdown(
-        build_lessons(root, generated_at=generated_at)
+    generated_at = datetime.strptime(timestamp_match.group(1), "%Y-%m-%d %H:%M:%SZ").replace(
+        tzinfo=UTC
     )
+    expected = render_lessons_markdown(build_lessons(root, generated_at=generated_at))
     return committed == expected
 
 

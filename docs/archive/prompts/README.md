@@ -25,7 +25,7 @@ Original filenames and contents are preserved 1:1 via Git history (`git log --fo
 | [`07-canary-suite-drift.md`](07-canary-suite-drift.md) | BUILDER: Canary test suite & drift detection | Merged canary runner | `docs/canaries.md` |
 | [`08-phoenix-trace-shipping.md`](08-phoenix-trace-shipping.md) | OBSERVER: Arize Phoenix OTEL span export | Merged trace collector | `docs/observability.md` |
 | [`09-judge-calibration-dspy.md`](09-judge-calibration-dspy.md) | JUDGE: LLM-as-judge calibration & DSPy optimizer | Merged calibration pipeline | `docs/verifier-calibration.md` |
-| [`12-bounded-researcher-loop.md`](12-bounded-researcher-loop.md) | OPERATOR/AUTOPILOT: Bounded research execution | Merged fleet automation | `docs/fleet-tracking.md`, `docs/surfaces.md` |
+| [`12-bounded-researcher-loop.md`](12-bounded-researcher-loop.md) | OPERATOR/AUTOPILOT: Bounded research execution | Merged fleet automation | `docs/archive/fleet-tracking.md`, `docs/surfaces.md` |
 | [`overnight-missions.md`](overnight-missions.md) | Legacy overnight role work orders | Retired by M001 | `agents/missions/ACTIVE.md`, `agents/OWNERS.md`, `agents/WORKFLOW.md` |
 | [`wave3-missions.md`](wave3-missions.md) | Legacy wave 3 role work orders | Retired by M001 | `agents/missions/ACTIVE.md`, `agents/OWNERS.md`, `agents/WORKFLOW.md` |
 | [`system-cartographer-2026-08-15.md`](system-cartographer-2026-08-15.md) | System cartographer dispatch | Merged in PR #52 | `docs/checkpoints/2026-08-15-system-cartography.md` |

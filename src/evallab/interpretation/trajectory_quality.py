@@ -29,8 +29,8 @@ import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-QUALITY_CHECK_VERSION = "v1.0.0"
-CHECK_CODE_DIGEST = "sha256:7e91a0b3f8c2e4d56719a8b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3a5b7c9d1"
+QUALITY_CHECK_VERSION = "v1.0.1"
+CHECK_CODE_DIGEST = "sha256:" + hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
 QUALITY_REPORT_TABLE = "trajectory_quality_reports"
 QUALITY_FINDINGS_TABLE = "trajectory_quality_findings"
@@ -249,7 +249,7 @@ def evaluate_trial_quality(
         is_analysis_ready = False
 
     # Check result.json error/exception status
-    res_exc = result_data.get("agent_result", {}).get("exception") or result_data.get("exception")
+    res_exc = (result_data.get("agent_result") or {}).get("exception") or result_data.get("exception")
     if res_exc and status != QualityStatus.QUARANTINE:
         quarantine_reason = f"runner_exception:{str(res_exc)[:80]}"
         findings.append(
@@ -271,7 +271,7 @@ def evaluate_trial_quality(
     if not traj_json_path.is_file():
         # Check if it's an oracle or nop control run
         agent_name = (
-            result_data.get("agent_info", {}).get("name") or result_data.get("agent_name") or ""
+            (result_data.get("agent_info") or {}).get("name") or result_data.get("agent_name") or ""
         )
         is_control = any(c in agent_name.lower() for c in ("oracle", "nop", "control"))
         if is_control:
@@ -394,8 +394,9 @@ def evaluate_trial_quality(
                     last_step_id = step_id
 
                     # Check tool call / observation pairing
-                    tool_calls = step.get("tool_calls", [])
-                    observations = step.get("observations", [])
+                    tool_calls = step.get("tool_calls") or []
+                    observation = step.get("observation") or {}
+                    observations = observation.get("results") or []
                     if len(tool_calls) > 0 and len(observations) == 0:
                         findings.append(
                             TrajectoryQualityFinding(

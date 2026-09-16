@@ -397,7 +397,13 @@ def test_direct_execution_cannot_bypass_policy_for_billable_agent(tmp_path: Path
         raise AssertionError("billable direct execution unexpectedly bypassed policy")
 
 
-def test_missing_credential_defers_spec_without_moving_it(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("agent", "credential"),
+    [("codex", "codex_auth"), ("zai-opencode", "zai_opencode_auth")],
+)
+def test_missing_credential_defers_spec_without_moving_it(
+    tmp_path: Path, agent: str, credential: str
+) -> None:
     requests = []
 
     def run(request):
@@ -408,7 +414,7 @@ def test_missing_credential_defers_spec_without_moving_it(tmp_path: Path) -> Non
 
     service = executor(tmp_path, runner=run, credentials=frozenset())
     approved = submit_authorized(
-        service, spec("codex-blocked", agent="codex", task="canary/event-summary")
+        service, spec("credential-blocked", agent=agent, task="canary/event-summary")
     )
     assert approved.parent.name == "approved"
     service.submit(spec("oracle-proceeds"))
@@ -419,10 +425,10 @@ def test_missing_credential_defers_spec_without_moving_it(tmp_path: Path) -> Non
     assert dispatched == 1
     assert [request.name for request in requests] == ["oracle-proceeds"]
     remaining = [item.name for _, item in service.queue.list_specs("approved")]
-    assert remaining == ["codex-blocked"]
+    assert remaining == ["credential-blocked"]
     events = load_events(tmp_path / "queue/events.jsonl")
     deferrals = [e for e in events if e.event == "dispatch_deferred"]
-    assert deferrals and deferrals[-1].reason_code == "missing_credential:codex_auth"
+    assert deferrals and deferrals[-1].reason_code == f"missing_credential:{credential}"
 
 
 @pytest.mark.parametrize(

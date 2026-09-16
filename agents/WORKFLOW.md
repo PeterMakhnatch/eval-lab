@@ -2,9 +2,11 @@
 
 `AGENTS.md` owns safety boundaries, `agents/OWNERS.md` owns permanent path lanes,
 `agents/STRUCTURE.md` owns placement, and `agents/CHECKS.md` owns verification.
-The single backlog and pull protocol is `research/inbox/board.md`; its
-`claims/` directory is the pickup counter. `agents/missions/ACTIVE.md` is navigation,
-not a second roster. This workflow supersedes `docs/parallel-work.md`.
+The historical backlog and pull protocol is `research/inbox/board.md`; its
+`claims/` directory is the pickup counter, preserved for existing owner claims and
+archival lineage. For the active release delivery path, Linear issue **HAR-46** is
+the explicit release queue (see below). `agents/missions/ACTIVE.md` is navigation,
+not a second roster.
 
 ## Worktree isolation and repository boundaries
 
@@ -31,13 +33,57 @@ for focused checks, bind `PYTHONPATH` to the target worktree's `src/` and verify
 module origins; do not assume an editable installation follows the current directory.
 Harbor jobs belong in that worktree's `runs/`, never in another worker's runtime.
 
+## Release operating path (HAR-46)
+
+For repository release management, sitting-PR delivery, and runtime adoption,
+Linear issue **HAR-46** is the single explicit release queue. This resolves the
+obsolete pickup-board claim for release work while preserving existing historical
+owner claims and boundaries in `claims/`.
+
+The release operating loop assigns clear, disjoint responsibilities:
+1. **Release owner (RE - Eval Lab)**: Owns release orchestration, integration worktrees
+   and branches, PR disposition, CI/devloop repairs, guarded auto-merge opt-in, and
+   safe local/runtime adoption.
+2. **Code authors**: Original code authors own fixes and repairs within their assigned
+   paths and domains.
+3. **Independent reviewers**: Native OMP workers in separate worktrees perform independent
+   reviews of exact-head PR diffs and produce structured review receipts.
+4. **GitHub checks and guarded auto-merge**: GitHub Actions enforces the required gates
+   (`quality-required`, `typecheck-required`). Auto-merge is opted-in only after the
+   integration owner attests to a completed independent review on that exact head SHA
+   via the `independent-review` commit status.
+5. **Safe local and runtime adoption**: RE - Eval Lab adopts merged code into the active
+   runtime environment preserving all user and owner state.
+6. **Acceptance**: Research - Harbor verifies scientific alignment and accepts delivered
+   work in Linear.
+
+### Queue dispatch and lane boundaries
+
+RE - Eval Lab operates HAR-46 via explicit CLI commands (`lin get HAR-46`,
+`lin start HAR-46`) and direct owner invocation. No automated Linear lane enrollment
+or global agent wake is implied (`dispatch.wake=false` in the current configuration); automated dispatcher
+wiring or global routing changes require explicit authorization from Peter.
+
+### Runtime source versus primary data separation
+
+Runtime adoption strictly separates executable code from primary research data:
+- The primary checkout (`/Users/petermakhnatch/Developer/eval-lab`) contains uncommitted
+  user and research state (dirty working tree, raw evidence, local databases, and
+  active experiment branches) and MUST remain untouched—never perform a git reset,
+  stash, checkout switch, or blind pull in the primary directory.
+- Runtime services (e.g. launchctl nightly/tick entrypoints) execute from a reviewed,
+  clean runtime checkout or isolated installation rather than mutating the primary working tree.
+- No queue-dispatch smoke testing is run against adoption entrypoints; do not trigger
+  live model execution, billable inferences, or batch queue drains merely to smoke-test
+  adoption. The parent delivery lead provides final verified runtime paths and receipts.
+
 ## One integration owner, disjoint paths per worker
 
-Claim work through the existing board protocol. Follow its no-peer-assignment and
-one-open-claim rules; direct instructions from Peter take precedence. Native
-subagents within an assigned task may own disjoint files under one integration
-owner. They must not run competing Git mutations, generation, or full validation
-against a shared worktree.
+Claim work through the existing board protocol or assigned Linear issue. Follow
+no-peer-assignment and one-open-claim rules; direct instructions from Peter take
+precedence. Native subagents within an assigned task may own disjoint files under
+one integration owner. They must not run competing Git mutations, generation, or
+full validation against a shared worktree.
 
 A claim signs pane/session identity and model and states the item, turn-specific
 role, and reason for taking it. Do not create another mandatory decision log,
@@ -83,6 +129,8 @@ it does not grant ownership or authorize deletion.
    `main`.
 5. Leave the primary checkout and other workers' uncommitted files untouched during
    reconciliation. Never force-push `main` or silently resolve an ownership conflict.
+6. Update canonical topic documents in place instead of adding a new dated brief,
+   result, or handoff file for each iteration. Dated files are for closure records only.
 
 ### Independent review and native auto-merge
 

@@ -33,6 +33,7 @@ import pyarrow.parquet as pq
 from pydantic import Field, field_validator, model_validator
 
 from evallab.evidence.atif import TrajectoryFact, project_trial
+from evallab.evidence.parquet_io import parquet_publication_lock
 from evallab.results import JobRecord, TrialRecord
 from evallab.schemas import ContractModel
 
@@ -990,10 +991,6 @@ SEMANTIC_ACTION_COVERAGE_SCHEMA = pa.schema(
         pa.field("status", pa.string(), nullable=False),
     ]
 )
-TRAJECTORY_SEMANTIC_SCHEMAS: dict[str, pa.Schema] = {
-    "semantic_action_facts": SEMANTIC_ACTION_FACT_SCHEMA,
-    "semantic_action_coverage": SEMANTIC_ACTION_COVERAGE_SCHEMA,
-}
 
 
 def extract_semantic_actions(
@@ -1226,19 +1223,20 @@ def extract_semantic_actions(
 
 @contextmanager
 def _table_lock(target_file: Path, exclusive: bool = True):
-    """File lock ensuring atomic concurrency control during Parquet writes."""
-    target_file.parent.mkdir(parents=True, exist_ok=True)
-    lock_file = target_file.with_suffix(f"{target_file.suffix}.lock")
-    fd = os.open(lock_file, os.O_RDWR | os.O_CREAT, 0o666)
-    try:
-        flags = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
-        fcntl.flock(fd, flags)
+    """Take lake exclusion before creating the stable per-table lock or output."""
+    with parquet_publication_lock(target_file, exclusive=exclusive):
+        target_file.parent.mkdir(parents=True, exist_ok=True)
+        lock_file = target_file.with_suffix(f"{target_file.suffix}.lock")
+        fd = os.open(lock_file, os.O_RDWR | os.O_CREAT, 0o666)
         try:
-            yield
+            flags = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
+            fcntl.flock(fd, flags)
+            try:
+                yield
+            finally:
+                fcntl.flock(fd, fcntl.LOCK_UN)
         finally:
-            fcntl.flock(fd, fcntl.LOCK_UN)
-    finally:
-        os.close(fd)
+            os.close(fd)
 
 
 def _write_parquet_atomic(target_path: Path, table: pa.Table) -> None:

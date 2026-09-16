@@ -702,22 +702,3 @@ def hydrate_error_observations(
         )
 
     return error_evidences
-
-
-def hydrate_step_details(
-    outline: TrajectoryOutline,
-    step_id: int,
-    *,
-    redaction_policy: RedactionPolicy | None = None,
-    repo_root: Path | None = None,
-) -> HydratedEvidence | None:
-    """Hydrate detailed content for a specific step ID."""
-    citation = create_citation_handle(
-        source_path=outline.source_path,
-        step_id=step_id,
-        target_type="step",
-    )
-    try:
-        return hydrate_citation(citation, policy=redaction_policy, repo_root=repo_root)
-    except Exception:
-        return None

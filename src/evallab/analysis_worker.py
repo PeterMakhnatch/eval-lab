@@ -57,11 +57,19 @@ from evallab.schemas import (
     StandingApprovalsPolicy,
     TrialAnalysisSidecar,
 )
+from evallab.storage.fs import (
+    durable_mkdir as _durable_mkdir,
+)
+from evallab.storage.fs import (
+    durable_replace as _durable_replace,
+)
+from evallab.storage.fs import (
+    fsync_directory as _fsync_directory,
+)
 
 State = Literal["pending", "admitted", "running", "completed", "deferred", "quarantined"]
 
 RESEARCHER_RULE = "researcher-followups"
-WORKER_DIRNAME = "worker"
 
 
 def _utc_now() -> datetime:
@@ -73,40 +81,6 @@ def _sha256_file(path: Path) -> str | None:
         return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
     except OSError:
         return None
-
-
-def _fsync_directory(directory: Path) -> None:
-    """Fsync a directory so dirents created inside it survive a host crash."""
-    directory_fd = os.open(directory, os.O_RDONLY)
-    try:
-        os.fsync(directory_fd)
-    finally:
-        os.close(directory_fd)
-
-
-def _durable_mkdir(directory: Path) -> None:
-    """Create ``directory``, fsyncing the dirent of every level this adds.
-
-    ``mkdir`` leaves the new directory entries in their parents' dirty cache.
-    A crash can therefore lose a whole request subtree — including the
-    invocation journal that proves a possibly-paid call already happened.
-    """
-    created: list[Path] = []
-    probe = directory
-    while not probe.exists():
-        created.append(probe)
-        probe = probe.parent
-    directory.mkdir(parents=True, exist_ok=True)
-    for path in reversed(created):
-        _fsync_directory(path.parent)
-
-
-def _durable_replace(source: Path, destination: Path) -> None:
-    """Fsync file bytes before atomically publishing the stable sidecar path."""
-    with source.open("rb") as handle:
-        os.fsync(handle.fileno())
-    source.replace(destination)
-    _fsync_directory(destination.parent)
 
 
 class AnalysisRequest(BaseModel):

@@ -5,6 +5,7 @@ This adapter manages offline deterministic cases, strictly separating agent-visi
 environment inputs from the verifier golden checks and providing an executable oracle
 that derives solutions directly from source data and constraints.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -18,10 +19,8 @@ from typing import Any, Literal
 ATIF_SCHEMA_VERSION = "ATIF-v1.7"
 BENCHMARK = "deepplanning"
 BENCHMARK_VERSION = "deepplanning-upstream-2026-01-27-offline-v1"
-UPSTREAM_URL = "https://github.com/QwenLM/Qwen-Agent"
 UPSTREAM_REVISION = "31a4d36d123688581a9e9744427272b33ce940e0"
 DATASET_REVISION = "213876cce679f993a476d01042e13d111c0e3648"
-DATASET_URL = "https://huggingface.co/datasets/Qwen/DeepPlanning"
 LICENSE = "Apache-2.0"
 
 
@@ -215,7 +214,9 @@ def verify_plan(task: dict[str, Any], answer: dict[str, Any]) -> Verification:
             verdict = "unknown"
         elif constraint["type"] == "source_contains":
             text = " ".join(str(sources[x].get("content", "")) for x in evidence)
-            verdict = "satisfied" if str(constraint["value"]).lower() in text.lower() else "violated"
+            verdict = (
+                "satisfied" if str(constraint["value"]).lower() in text.lower() else "violated"
+            )
         elif constraint["type"] == "budget_lte":
             if answer.get("status") == "infeasible" and not raw_steps:
                 total = 0.0
@@ -227,7 +228,9 @@ def verify_plan(task: dict[str, Any], answer: dict[str, Any]) -> Verification:
                             r"(?:price|subtract)\s+(\d+(?:\.\d+)?)", content, re.IGNORECASE
                         )
                     ]
-                    total += sum((-value if "subtract" in content.lower() else value) for value in prices)
+                    total += sum(
+                        (-value if "subtract" in content.lower() else value) for value in prices
+                    )
             else:
                 total = sum(
                     float(item.get("price", 0)) for item in raw_steps if isinstance(item, dict)
@@ -294,10 +297,18 @@ def to_atif(
         )
         source = _index_sources(task)[source_id]
         observations.append(
-            {"source_call_id": call_id, "content": source.get("content", ""), "source_id": source_id}
+            {
+                "source_call_id": call_id,
+                "content": source.get("content", ""),
+                "source_id": source_id,
+            }
         )
     steps = [
-        {"step_id": 1, "source": "system", "message": "DeepPlanning offline deterministic environment."},
+        {
+            "step_id": 1,
+            "source": "system",
+            "message": "DeepPlanning offline deterministic environment.",
+        },
         {"step_id": 2, "source": "user", "message": task["prompt"]},
     ]
     if calls:

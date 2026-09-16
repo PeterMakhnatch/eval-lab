@@ -1,9 +1,10 @@
-.PHONY: help sync check premerge docs smoke smoke-ci db-up db-down db-init doctor controls ingest summarize
+.PHONY: help sync check prepush premerge docs smoke smoke-ci db-up db-down db-init doctor controls ingest summarize loop
 
 help:
 	@echo "sync       Install locked Python dependencies"
-	@echo "check      Run lint, generated-index checks, and tests"
-	@echo "premerge   Mirror the complete CI gate on Python 3.12"
+	@echo "check      Run static gates only (no tests; not CI green)"
+	@echo "prepush    Run static gates and selected tests: make prepush TESTS='tests/test_foo.py'"
+	@echo "premerge   Explicit full Python 3.12 CI reproduction"
 	@echo "docs       Regenerate committed documentation build products (docs/INDEX.md, docs/repo-map.md)"
 	@echo "smoke      Run the full local doctor/Harbor/Postgres/Parquet/digest smoke"
 	@echo "smoke-ci   Run the Docker-free smoke subset with real queue and Parquet"
@@ -13,15 +14,16 @@ help:
 	@echo "controls   Run Oracle and no-op controls"
 	@echo "ingest     Ingest raw and curated Harbor jobs"
 	@echo "summarize  Print a Markdown result table"
+	@echo "loop       Run targeted tests for changed modules in the working tree"
 
 sync:
 	uv sync --frozen
 
 check:
-	uv run ruff check .
-	uv run python -m evallab.docindex check
-	uv run python -m evallab.repomap check
-	uv run pytest
+	scripts/premerge.sh --static
+
+prepush:
+	scripts/premerge.sh --focused $(TESTS)
 
 premerge:
 	scripts/premerge.sh
@@ -57,3 +59,6 @@ ingest:
 
 summarize:
 	uv run evallab summarize runs research/evidence/runs
+
+loop:
+	uv run evallab registry devloop --run

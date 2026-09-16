@@ -12,13 +12,17 @@ Deterministic per-trial mechanical facts over ATIF trajectories, with:
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from typing import Any
 
 import pyarrow as pa
 
-from evallab.traj import StepOutline, TrajectoryOutline, extract_features
+from evallab.traj import (
+    TrajectoryOutline,
+    _compute_cbv_slope,
+    _compute_exit_code_cascade,
+    extract_features,
+)
 
 
 @dataclass(frozen=True)
@@ -862,50 +866,6 @@ class TraceBaselineRecord:
         return asdict(self)
 
 
-def _compute_cbv_slope(steps: Sequence[StepOutline]) -> float | None:
-    """Compute regression slope of prompt_tokens over step_ordinal.
-
-    Returns None if fewer than 2 steps have prompt_tokens or if step indices have 0 variance.
-    """
-    points: list[tuple[int, int]] = []
-    for step in steps:
-        if step.prompt_tokens is not None:
-            points.append((step.step_id, step.prompt_tokens))
-
-    if len(points) < 2:
-        return None
-
-    n = len(points)
-    sum_x = sum(x for x, _ in points)
-    sum_y = sum(y for _, y in points)
-    sum_xy = sum(x * y for x, y in points)
-    sum_x2 = sum(x * x for x, _ in points)
-
-    denom = (n * sum_x2) - (sum_x * sum_x)
-    if denom == 0:
-        return None
-
-    slope = ((n * sum_xy) - (sum_x * sum_y)) / denom
-    return round(slope, 4)
-
-
-def _compute_exit_code_cascade(steps: Sequence[StepOutline]) -> int:
-    """Compute the maximum streak of consecutive steps with non-zero exit codes."""
-    max_streak = 0
-    current_streak = 0
-
-    for step in steps:
-        is_failing = (step.exit_code is not None and step.exit_code != 0) or step.is_error
-        if is_failing:
-            current_streak += 1
-            if current_streak > max_streak:
-                max_streak = current_streak
-        else:
-            current_streak = 0
-
-    return max_streak
-
-
 def _compute_subagent_overhead(outline: TrajectoryOutline) -> float | None:
     """Compute ratio of subagent steps to total steps.
 
@@ -1131,17 +1091,3 @@ TRACE_BASELINE_PARQUET_SCHEMA = pa.schema(
 # Public function aliases
 compute_cbv_slope = _compute_cbv_slope
 compute_exit_code_cascade = _compute_exit_code_cascade
-compute_subagent_overhead = _compute_subagent_overhead
-
-
-def get_column_provenance(column_name: str) -> BaselineProvenance | None:
-    """Get column-level provenance record for a trace baseline column."""
-    return TRACE_BASELINE_PROVENANCE.get(column_name)
-
-
-def create_trace_baseline_table(records: Sequence[TraceBaselineRecord]) -> pa.Table:
-    """Create a PyArrow table from a sequence of TraceBaselineRecord objects."""
-    dicts = [asdict(r) for r in records]
-    if not dicts:
-        return pa.Table.from_batches([], schema=TRACE_BASELINE_PARQUET_SCHEMA)
-    return pa.Table.from_pylist(dicts, schema=TRACE_BASELINE_PARQUET_SCHEMA)

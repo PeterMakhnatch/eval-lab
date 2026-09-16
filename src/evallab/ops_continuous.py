@@ -72,7 +72,6 @@ TERMINAL_LEASE_STATUSES = frozenset({"settled", "terminal", "complete", "cancell
 TERMINAL_QUEUE_STATES = TERMINAL_LEASE_STATUSES
 JOURNAL_DIRNAME = "journal"
 JOURNAL_CURRENT = "current.json"
-JOURNAL_PENDING = "pending.json"
 MACOS_STATE_REL = Path("Library/Application Support/EvalLab")
 MACOS_LOG_REL = Path("Library/Logs/EvalLab")
 LAUNCHD_STATE_TOKEN = "__EVAL_LAB_STATE_DIR__"
@@ -88,27 +87,11 @@ FORBIDDEN_KEY_ENVS = frozenset(
     )
 )
 
-CLOSED_REASONS = frozenset(
-    {
-        REASON_MISSING_ENABLE_TOKEN,
-        REASON_MISSING_STANDING_APPROVAL,
-        REASON_MISSING_BUDGET,
-        REASON_MISSING_SECRET,
-        REASON_STALE_HEARTBEAT,
-        REASON_DRAIN_INCOMPLETE,
-        REASON_DEFAULT_DISABLED,
-        REASON_SAME_IDENTITY,
-        REASON_BILLABLE_REFUSED,
-        REASON_RECOVERY_SPENT,
-    }
-)
 
 SECRET_REF_GRAMMAR = re.compile(r"^keychain:[A-Za-z0-9._-]{1,64}/[A-Za-z0-9._-]{1,64}$")
-FILE_SECRET_NAME = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 NONCE_GRAMMAR = re.compile(r"^[A-Za-z0-9._-]{16,128}$")
 SAFETY_PAYLOAD_KEYS = frozenset({"ok", "reason", "mode", "detail", "running", "authorized"})
 AUTH_FIELDS = frozenset({"spec_id", "actor", "authorized_at", "quota_override"})
-BUDGET_FIELDS = AUTH_FIELDS | frozenset({"scope", "expires_at", "ceiling_usd"})
 
 
 class TrustStore(Protocol):
@@ -148,11 +131,19 @@ class DeploymentTrustStore:
         allowed = loaded.get("allowed_key_ids")
         ids: set[str] = set()
         for cand in (active, previous):
-            if isinstance(cand, str) and len(cand) == SHA256_HEX and all(c in "0123456789abcdef" for c in cand.lower()):
+            if (
+                isinstance(cand, str)
+                and len(cand) == SHA256_HEX
+                and all(c in "0123456789abcdef" for c in cand.lower())
+            ):
                 ids.add(cand.lower())
         if isinstance(allowed, list):
             for cand in allowed:
-                if isinstance(cand, str) and len(cand) == SHA256_HEX and all(c in "0123456789abcdef" for c in cand.lower()):
+                if (
+                    isinstance(cand, str)
+                    and len(cand) == SHA256_HEX
+                    and all(c in "0123456789abcdef" for c in cand.lower())
+                ):
                     ids.add(cand.lower())
         if not ids:
             return frozenset(), ""
@@ -458,7 +449,9 @@ def load_file_key(
     return data
 
 
-def load_macos_keychain_secret(ref: str, *, allowed_key_ids: frozenset[str] | None = None) -> bytes | None:
+def load_macos_keychain_secret(
+    ref: str, *, allowed_key_ids: frozenset[str] | None = None
+) -> bytes | None:
     allowed = {PINNED_KEYCHAIN_REF, PINNED_KEYCHAIN_REF + ".previous"}
     if ref not in allowed:
         return None
@@ -469,7 +462,15 @@ def load_macos_keychain_secret(ref: str, *, allowed_key_ids: frozenset[str] | No
         account = f"{PINNED_KEYCHAIN_ACCOUNT}.previous"
     try:
         completed = subprocess.run(
-            ["/usr/bin/security", "find-generic-password", "-s", PINNED_KEYCHAIN_SERVICE, "-a", account, "-w"],
+            [
+                "/usr/bin/security",
+                "find-generic-password",
+                "-s",
+                PINNED_KEYCHAIN_SERVICE,
+                "-a",
+                account,
+                "-w",
+            ],
             check=False,
             stdin=subprocess.DEVNULL,
             capture_output=True,
@@ -482,7 +483,9 @@ def load_macos_keychain_secret(ref: str, *, allowed_key_ids: frozenset[str] | No
     key = completed.stdout.strip()
     if len(key) < 32:
         return None
-    if allowed_key_ids is not None and (not allowed_key_ids or key_id_for(key) not in allowed_key_ids):
+    if allowed_key_ids is not None and (
+        not allowed_key_ids or key_id_for(key) not in allowed_key_ids
+    ):
         return None
     return key
 
@@ -549,18 +552,31 @@ def load_keyring(
             seen.add(resolved)
             root = resolved.parent
             if env.get("CREDENTIALS_DIRECTORY") and str(root) == env.get("CREDENTIALS_DIRECTORY"):
-                if resolved.name != PINNED_LINUX_SECRET_NAME and resolved.name != f"{PINNED_LINUX_SECRET_NAME}.previous":
+                if (
+                    resolved.name != PINNED_LINUX_SECRET_NAME
+                    and resolved.name != f"{PINNED_LINUX_SECRET_NAME}.previous"
+                ):
                     continue
                 if resolved.is_symlink() or root.is_symlink():
                     continue
                 if not _is_readonly_mount(root):
                     continue
-            loaded = load_file_key(resolved, state_dir=state_dir, secrets_root=root, allowed_key_ids=allowed_ids)
+            loaded = load_file_key(
+                resolved, state_dir=state_dir, secrets_root=root, allowed_key_ids=allowed_ids
+            )
             if loaded:
                 keys.append(loaded)
     elif ref == PINNED_KEYCHAIN_REF:
-        keys.append(load_keychain_key(PINNED_KEYCHAIN_REF, secret_store=secret_store, allowed_key_ids=allowed_ids))
-        loaded = load_keychain_key(PINNED_KEYCHAIN_REF + ".previous", secret_store=secret_store, allowed_key_ids=allowed_ids)
+        keys.append(
+            load_keychain_key(
+                PINNED_KEYCHAIN_REF, secret_store=secret_store, allowed_key_ids=allowed_ids
+            )
+        )
+        loaded = load_keychain_key(
+            PINNED_KEYCHAIN_REF + ".previous",
+            secret_store=secret_store,
+            allowed_key_ids=allowed_ids,
+        )
         if loaded:
             keys.append(loaded)
     ring: dict[str, bytes] = {}
@@ -633,7 +649,6 @@ def parse_paid_authorization(
     )
 
 
-
 def _aware(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
@@ -689,7 +704,9 @@ def put_trusted_record(
     signed = dict(record)
     signed.setdefault("key_id", key_id_for(store_key))
     signed.setdefault("issued_at", signed.get("authorized_at"))
-    if not isinstance(signed.get("nonce"), str) or not NONCE_GRAMMAR.fullmatch(str(signed.get("nonce"))):
+    if not isinstance(signed.get("nonce"), str) or not NONCE_GRAMMAR.fullmatch(
+        str(signed.get("nonce"))
+    ):
         raise ValueError("trusted record requires nonce")
     extra = None
     if kind == "recovery":
@@ -700,11 +717,14 @@ def put_trusted_record(
             "fenced_ids": list(signed.get("fenced_ids") or []),
             "settlement_digests": list(signed.get("settlement_digests") or []),
         }
-    bind_budget = dict(budget or {
-        "ceiling_usd": signed.get("ceiling_usd"),
-        "expires_at": signed.get("expires_at"),
-        "scope": list(signed.get("scope") or []),
-    })
+    bind_budget = dict(
+        budget
+        or {
+            "ceiling_usd": signed.get("ceiling_usd"),
+            "expires_at": signed.get("expires_at"),
+            "scope": list(signed.get("scope") or []),
+        }
+    )
     signed["binding_budget"] = {
         "ceiling_usd": bind_budget.get("ceiling_usd"),
         "expires_at": bind_budget.get("expires_at"),
@@ -1153,6 +1173,7 @@ def commit_operator_snapshot(state_dir: Path, snapshot: Mapping[str, Any]) -> di
         snap_dict["generation"] = prev_gen + 1
     payload = json.dumps(snap_dict, indent=2, sort_keys=True).encode("utf-8") + b"\n"
     import time
+
     txn_name = f"txn_{os.getpid()}_{time.time_ns()}.tmp"
     txn_path = journal / txn_name
     current = journal / JOURNAL_CURRENT
@@ -1176,6 +1197,7 @@ def recover_journal_views(state_dir: Path) -> None:
 def _atomic_write_json(path: Path, payload: Any) -> None:
     encoded = json.dumps(payload, indent=2, sort_keys=True).encode("utf-8") + b"\n"
     import time
+
     tmp = path.with_name(f"{path.name}.{os.getpid()}_{time.time_ns()}.tmp")
     _fsync_write(tmp, encoded)
     os.replace(tmp, path)
@@ -1456,8 +1478,6 @@ def admission_reason(ctx: OperatorContext) -> str | None:
     return None
 
 
-
-
 def _load_inflight(state_dir: Path) -> tuple[list[Any] | None, str | None]:
     snapshot = load_operator_snapshot(state_dir)
     if snapshot is not None and "inflight" in snapshot:
@@ -1510,8 +1530,6 @@ def _load_leases(state_dir: Path) -> tuple[list[dict[str, Any]] | None, str | No
     return leases, None
 
 
-
-
 def _lease_evidence(item: Mapping[str, Any]) -> bool:
     evidence = item.get("evidence")
     if isinstance(evidence, str):
@@ -1523,7 +1541,9 @@ def _lease_evidence(item: Mapping[str, Any]) -> bool:
 
 def lease_settlement_digest(item: Mapping[str, Any]) -> str:
     """Local hash of operator-held JSON. Not a recovery MAC input."""
-    payload = json.dumps(dict(item), sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    payload = json.dumps(dict(item), sort_keys=True, separators=(",", ":"), default=str).encode(
+        "utf-8"
+    )
     return hashlib.sha256(payload).hexdigest()
 
 
@@ -1639,9 +1659,14 @@ def observe_fenced_leases(
     observed: list[dict[str, Any]] = []
     blockers: list[str] = []
     import time
+
     start_time = time.monotonic()
     overall_limit = timeout_seconds if timeout_seconds is not None else 30.0
-    per_lease_limit = per_lease_timeout_seconds if per_lease_timeout_seconds is not None else min(5.0, overall_limit)
+    per_lease_limit = (
+        per_lease_timeout_seconds
+        if per_lease_timeout_seconds is not None
+        else min(5.0, overall_limit)
+    )
 
     for lease_id in lease_ids:
         remaining = overall_limit - (time.monotonic() - start_time)
@@ -1649,7 +1674,9 @@ def observe_fenced_leases(
             blockers.append(f"timeout:{lease_id}")
             break
         call_timeout = min(per_lease_limit, remaining)
-        obs, timed_out = _call_with_deadline(lambda lid=lease_id: owner.observe_lease(lid), call_timeout)
+        obs, timed_out = _call_with_deadline(
+            lambda lid=lease_id: owner.observe_lease(lid), call_timeout
+        )
         if timed_out:
             blockers.append(f"timeout:{lease_id}")
             continue
@@ -1769,7 +1796,9 @@ def cmd_start(ctx: OperatorContext) -> OperatorVerdict:
 def cmd_dry_run(ctx: OperatorContext) -> OperatorVerdict:
     agent = ctx.agent or "oracle"
     if agent not in CONTROL_AGENTS:
-        return _verdict(ctx, ok=False, reason=REASON_BILLABLE_REFUSED, detail=f"agent {agent} is billable")
+        return _verdict(
+            ctx, ok=False, reason=REASON_BILLABLE_REFUSED, detail=f"agent {agent} is billable"
+        )
     plan = {
         "would_run": agent,
         "harbor": False,
@@ -1784,7 +1813,9 @@ def cmd_status(ctx: OperatorContext) -> OperatorVerdict:
     heartbeat = ctx.state_dir / "heartbeat"
     health_path = ctx.state_dir / "health.json"
     if _heartbeat_stale(ctx):
-        return _verdict(ctx, ok=False, reason=REASON_STALE_HEARTBEAT, detail="heartbeat older than policy")
+        return _verdict(
+            ctx, ok=False, reason=REASON_STALE_HEARTBEAT, detail="heartbeat older than policy"
+        )
     health: dict[str, Any] = {"docker": "unknown", "catalog": "unknown", "disk": "unknown"}
     if health_path.is_file():
         loaded = json.loads(health_path.read_text(encoding="utf-8"))
@@ -1829,18 +1860,24 @@ def cmd_restart(ctx: OperatorContext) -> OperatorVerdict:
     blocked = _refuse_if_latched(ctx, "restart")
     if blocked:
         return blocked
-    _write_text(ctx.state_dir / "restart.json", json.dumps({"intended": "restart", "executed": False}))
+    _write_text(
+        ctx.state_dir / "restart.json", json.dumps({"intended": "restart", "executed": False})
+    )
     illegal = apply_mode_transition(ctx.state_dir, DEFAULT_MODE, command="restart")
     if illegal:
         return _verdict(ctx, ok=False, reason=REASON_DEFAULT_DISABLED, detail="restart refused")
-    return _verdict(ctx, ok=True, reason=None, detail="recorded restart intent; unit stays disabled")
+    return _verdict(
+        ctx, ok=True, reason=None, detail="recorded restart intent; unit stays disabled"
+    )
 
 
 def cmd_upgrade(ctx: OperatorContext) -> OperatorVerdict:
     blocked = _refuse_if_latched(ctx, "upgrade")
     if blocked:
         return blocked
-    _write_text(ctx.state_dir / "upgrade.json", json.dumps({"intended": "upgrade", "executed": False}))
+    _write_text(
+        ctx.state_dir / "upgrade.json", json.dumps({"intended": "upgrade", "executed": False})
+    )
     return _verdict(ctx, ok=True, reason=None, detail="recorded upgrade intent; no image pull")
 
 
@@ -1848,14 +1885,21 @@ def cmd_rollback(ctx: OperatorContext) -> OperatorVerdict:
     blocked = _refuse_if_latched(ctx, "rollback")
     if blocked:
         return blocked
-    _write_text(ctx.state_dir / "rollback.json", json.dumps({"intended": "rollback", "executed": False}))
+    _write_text(
+        ctx.state_dir / "rollback.json", json.dumps({"intended": "rollback", "executed": False})
+    )
     return _verdict(ctx, ok=True, reason=None, detail="recorded rollback intent; no unit swapped")
 
 
 def cmd_recover(ctx: OperatorContext) -> OperatorVerdict:
     with state_lock(ctx.state_dir):
         if not _latched_kill(ctx.state_dir):
-            return _verdict(ctx, ok=False, reason=REASON_DEFAULT_DISABLED, detail="recover requires KILLED latch")
+            return _verdict(
+                ctx,
+                ok=False,
+                reason=REASON_DEFAULT_DISABLED,
+                detail="recover requires KILLED latch",
+            )
         unsettled = _recovery_settled(ctx.state_dir)
         if unsettled is not None:
             return _verdict(
@@ -1870,21 +1914,60 @@ def cmd_recover(ctx: OperatorContext) -> OperatorVerdict:
             return _verdict(ctx, ok=False, reason=reason, detail="recover refused")
         nonce = ctx.recovery_nonce or ctx.recovery_jti
         if ctx.recovery is None or not nonce:
-            return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery authorization missing")
-        identities = {ctx.enable_token, ctx.enable_identity, ctx.approval.actor if ctx.approval else "", ctx.budget.actor if ctx.budget else ""}
-        if ctx.recovery.actor in identities or (ctx.policy is not None and ctx.recovery.spec_id != ctx.policy.spec_id):
-            return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery authorization must be distinct")
+            return _verdict(
+                ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery authorization missing"
+            )
+        identities = {
+            ctx.enable_token,
+            ctx.enable_identity,
+            ctx.approval.actor if ctx.approval else "",
+            ctx.budget.actor if ctx.budget else "",
+        }
+        if ctx.recovery.actor in identities or (
+            ctx.policy is not None and ctx.recovery.spec_id != ctx.policy.spec_id
+        ):
+            return _verdict(
+                ctx,
+                ok=False,
+                reason=REASON_SAME_IDENTITY,
+                detail="recovery authorization must be distinct",
+            )
         expected_digest = digest_kill_record(ctx.state_dir)
-        if not expected_digest or not hmac.compare_digest(ctx.recovery_kill_digest, expected_digest):
-            return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery is not bound to kill digest")
+        if not expected_digest or not hmac.compare_digest(
+            ctx.recovery_kill_digest, expected_digest
+        ):
+            return _verdict(
+                ctx,
+                ok=False,
+                reason=REASON_SAME_IDENTITY,
+                detail="recovery is not bound to kill digest",
+            )
         bound = recovery_settlement_binding(ctx.state_dir)
         if bound is None:
-            return _verdict(ctx, ok=False, reason=REASON_DRAIN_INCOMPLETE, detail="fenced leases missing settlement evidence")
+            return _verdict(
+                ctx,
+                ok=False,
+                reason=REASON_DRAIN_INCOMPLETE,
+                detail="fenced leases missing settlement evidence",
+            )
         fenced_ids, settlement_digests = bound
-        if list(ctx.recovery_fenced_ids) != fenced_ids or list(ctx.recovery_settlement_digests) != settlement_digests:
-            return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery is not bound to fenced settlement")
+        if (
+            list(ctx.recovery_fenced_ids) != fenced_ids
+            or list(ctx.recovery_settlement_digests) != settlement_digests
+        ):
+            return _verdict(
+                ctx,
+                ok=False,
+                reason=REASON_SAME_IDENTITY,
+                detail="recovery is not bound to fenced settlement",
+            )
         if nonce in recovery_spent(ctx.state_dir):
-            return _verdict(ctx, ok=False, reason=REASON_RECOVERY_SPENT, detail="recovery nonce already consumed")
+            return _verdict(
+                ctx,
+                ok=False,
+                reason=REASON_RECOVERY_SPENT,
+                detail="recovery nonce already consumed",
+            )
         audit = {
             "event": "recovery",
             "at": ctx.now.isoformat(),
@@ -1898,7 +1981,12 @@ def cmd_recover(ctx: OperatorContext) -> OperatorVerdict:
         }
         _append_event(ctx.state_dir, audit)
         if not consume_nonce_atomic(ctx.state_dir, nonce):
-            return _verdict(ctx, ok=False, reason=REASON_RECOVERY_SPENT, detail="recovery nonce already consumed")
+            return _verdict(
+                ctx,
+                ok=False,
+                reason=REASON_RECOVERY_SPENT,
+                detail="recovery nonce already consumed",
+            )
         consumed = consume_trusted_record(
             trust_root_for(ctx.state_dir, {}),
             ctx.keyring or ctx.mac_key,
@@ -1906,10 +1994,20 @@ def cmd_recover(ctx: OperatorContext) -> OperatorVerdict:
             spec_id=ctx.recovery.spec_id,
         )
         if not consumed:
-            return _verdict(ctx, ok=False, reason=REASON_SAME_IDENTITY, detail="recovery record could not be consumed")
+            return _verdict(
+                ctx,
+                ok=False,
+                reason=REASON_SAME_IDENTITY,
+                detail="recovery record could not be consumed",
+            )
         spent_path = ctx.state_dir / "recovery-spent.jsonl"
         with spent_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps({"nonce": nonce, "jti": nonce, "at": ctx.now.isoformat()}, sort_keys=True) + "\n")
+            handle.write(
+                json.dumps(
+                    {"nonce": nonce, "jti": nonce, "at": ctx.now.isoformat()}, sort_keys=True
+                )
+                + "\n"
+            )
         os.chmod(spent_path, STATE_FILE_MODE)
         snapshot = load_operator_snapshot(ctx.state_dir) or {}
         commit_operator_snapshot(
@@ -1939,13 +2037,17 @@ def cmd_drain(ctx: OperatorContext) -> OperatorVerdict:
             kill_record = snapshot["kill"]
         fenced: list[str] = []
         if isinstance(kill_record, dict) and isinstance(kill_record.get("fenced"), list):
-            fenced = [item for item in kill_record["fenced"] if isinstance(item, str) and item.strip()]
+            fenced = [
+                item for item in kill_record["fenced"] if isinstance(item, str) and item.strip()
+            ]
         elif inflight:
             fenced = list(inflight)
         if current != "KILLED":
             pending: dict[str, Any] = {
                 "mode": "DRAINING",
-                "leases": (load_operator_snapshot(ctx.state_dir) or {}).get("leases", _load_leases(ctx.state_dir)[0] or []),
+                "leases": (load_operator_snapshot(ctx.state_dir) or {}).get(
+                    "leases", _load_leases(ctx.state_dir)[0] or []
+                ),
                 "kill": kill_record,
                 "drain": {"complete": False, "observed": False},
             }
@@ -1958,8 +2060,18 @@ def cmd_drain(ctx: OperatorContext) -> OperatorVerdict:
         if not started_raw:
             _write_text(ctx.state_dir / "drain_started", ctx.now.isoformat())
         if inflight_error is not None or inflight is None:
-            drain = {"inflight": inflight if inflight is not None else [], "complete": False, "malformed": inflight_error}
-            return _verdict(ctx, ok=False, reason=REASON_DRAIN_INCOMPLETE, detail="in-flight leases remain until observed settlement", extra=drain)
+            drain = {
+                "inflight": inflight if inflight is not None else [],
+                "complete": False,
+                "malformed": inflight_error,
+            }
+            return _verdict(
+                ctx,
+                ok=False,
+                reason=REASON_DRAIN_INCOMPLETE,
+                detail="in-flight leases remain until observed settlement",
+                extra=drain,
+            )
 
     # Phase 2: External IO completely OUTSIDE state lock with hard timeout
     timeout = ctx.drain_timeout_seconds if ctx.drain_timeout_seconds is not None else 30.0
@@ -1978,7 +2090,9 @@ def cmd_drain(ctx: OperatorContext) -> OperatorVerdict:
         # Recompute fenced under lock
         curr_fenced: list[str] = []
         if isinstance(curr_kill, dict) and isinstance(curr_kill.get("fenced"), list):
-            curr_fenced = [item for item in curr_kill["fenced"] if isinstance(item, str) and item.strip()]
+            curr_fenced = [
+                item for item in curr_kill["fenced"] if isinstance(item, str) and item.strip()
+            ]
         elif curr_inflight:
             curr_fenced = list(curr_inflight)
 
@@ -2043,8 +2157,16 @@ def cmd_drain(ctx: OperatorContext) -> OperatorVerdict:
             },
         )
         if next_mode == "KILLED":
-            return _verdict(ctx, ok=True, reason=None, detail="observed drain settlement; KILLED latch held until recovery", extra=drain)
-        return _verdict(ctx, ok=True, reason=None, detail="observed drain complete; mode DISABLED", extra=drain)
+            return _verdict(
+                ctx,
+                ok=True,
+                reason=None,
+                detail="observed drain settlement; KILLED latch held until recovery",
+                extra=drain,
+            )
+        return _verdict(
+            ctx, ok=True, reason=None, detail="observed drain complete; mode DISABLED", extra=drain
+        )
 
 
 def cmd_kill(ctx: OperatorContext) -> OperatorVerdict:
@@ -2086,7 +2208,9 @@ def cmd_kill(ctx: OperatorContext) -> OperatorVerdict:
         # Phase 3: Optional CAS update of owner_ack if same generation under lock
         with state_lock(ctx.state_dir):
             curr_snap = load_operator_snapshot(ctx.state_dir) or {}
-            if curr_snap.get("generation") == kill_generation and isinstance(curr_snap.get("kill"), dict):
+            if curr_snap.get("generation") == kill_generation and isinstance(
+                curr_snap.get("kill"), dict
+            ):
                 curr_kill = dict(curr_snap["kill"])
                 curr_kill["owner_ack"] = cancel_res
                 curr_kill["owner"] = cancel_res.get("owner", "campaign-queue")
@@ -2098,7 +2222,12 @@ def cmd_kill(ctx: OperatorContext) -> OperatorVerdict:
 
 
 def cmd_rotate(ctx: OperatorContext, kind: Literal["logs", "cas"]) -> OperatorVerdict:
-    record: dict[str, Any] = {"kind": kind, "intended": True, "deleted": False, "root": "state-dir-only"}
+    record: dict[str, Any] = {
+        "kind": kind,
+        "intended": True,
+        "deleted": False,
+        "root": "state-dir-only",
+    }
     if kind == "logs":
         _secure_state_dir(ctx.log_dir)
         os.chmod(ctx.log_dir, STATE_DIR_MODE)
@@ -2117,7 +2246,9 @@ def cmd_rotate(ctx: OperatorContext, kind: Literal["logs", "cas"]) -> OperatorVe
         record["log_dir"] = str(ctx.log_dir)
         record["mode"] = oct(STATE_DIR_MODE)
     _write_text(ctx.state_dir / f"rotate-{kind}.json", json.dumps(record, indent=2))
-    return _verdict(ctx, ok=True, reason=None, detail=f"recorded {kind} rotation; no production delete")
+    return _verdict(
+        ctx, ok=True, reason=None, detail=f"recorded {kind} rotation; no production delete"
+    )
 
 
 COMMANDS = {
@@ -2197,7 +2328,15 @@ def main(
     if mode == "KILLED" and args.command not in KILLED_ALLOWED_COMMANDS:
         blocked = _refuse_if_killed(ctx, args.command)
         verdict = blocked if blocked is not None else COMMANDS[args.command](ctx)
-    elif mode == "DRAINING" and args.command in {"pause", "restart", "maintenance", "start", "validate", "upgrade", "rollback"}:
+    elif mode == "DRAINING" and args.command in {
+        "pause",
+        "restart",
+        "maintenance",
+        "start",
+        "validate",
+        "upgrade",
+        "rollback",
+    }:
         blocked = _refuse_if_latched(ctx, args.command)
         verdict = blocked if blocked is not None else COMMANDS[args.command](ctx)
     else:

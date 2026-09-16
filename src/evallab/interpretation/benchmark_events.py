@@ -41,10 +41,6 @@ class BenchmarkEventSchemaError(BenchmarkIngestionError):
     """Raised when an event does not conform to the expected schema."""
 
 
-class BenchmarkContractDriftError(BenchmarkIngestionError):
-    """Raised when runtime evidence contradicts the verifier truth digest or contract."""
-
-
 class BenchmarkMissingArtifactError(BenchmarkIngestionError):
     """Raised when required evidence artifacts (events, final state, contract) are missing."""
 
@@ -117,8 +113,6 @@ def is_application_error(payload: Any) -> bool:
         if isinstance(nested, dict) and _error_value(nested.get("error")):
             return True
     return False
-
-
 
 
 @dataclass(frozen=True)
@@ -444,9 +438,7 @@ def project_c0_screening(
 
     # Explicit opportunity denominator: the number of tool-call opportunities
     # (NULL-preserving). Rates are never fabricated with a 0 denominator.
-    opportunity_denominator: str | None = (
-        "tool_call_count" if tool_call_count is not None else None
-    )
+    opportunity_denominator: str | None = "tool_call_count" if tool_call_count is not None else None
     opportunity_count = tool_call_count
 
     # Harness exception from the top-level harness result.
@@ -596,11 +588,7 @@ def refuse_causal_promotion(
 def _projection_body(proj: C0ScreeningProjection) -> dict[str, Any]:
     """Canonical projection body: every field except the projection digest and raw evidence digests."""
     data = asdict(proj)
-    return {
-        k: v
-        for k, v in data.items()
-        if k != "projection_digest" and not k.endswith("_sha256")
-    }
+    return {k: v for k, v in data.items() if k != "projection_digest" and not k.endswith("_sha256")}
 
 
 def _compute_projection_digest(proj: C0ScreeningProjection) -> str:

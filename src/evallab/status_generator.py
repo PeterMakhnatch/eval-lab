@@ -414,7 +414,7 @@ def render_status_markdown(data: StatusReportData) -> str:
     """Render deterministic Markdown representing research status."""
     lines: list[str] = [
         "---",
-        "status: living",
+        "status: historical",
         "audience:",
         "  - operator",
         "  - builder",
@@ -425,6 +425,7 @@ def render_status_markdown(data: StatusReportData) -> str:
         "",
         "Projection of live catalog, queue state, and `PROGRAM.json`.",
         "Answers what happened yesterday and what is running now deterministically.",
+        "Generated catalog snapshot; historical record, not a living contract.",
         "",
     ]
 

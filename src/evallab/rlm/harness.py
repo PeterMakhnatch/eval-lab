@@ -363,7 +363,7 @@ class LabRlm(dspy.RLM):
                 action = Prediction(reasoning=salvaged[0], code=salvaged[1])
             else:
                 self.parse_failures += 1
-                raw = raw_full[:600]
+                raw = raw_full[:1500]
                 self.iteration_wall_seconds.append(time.monotonic() - started)
                 return history.append(
                     reasoning="",

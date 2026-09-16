@@ -31,6 +31,8 @@ from evallab.eventlog import event_log_lock, read_event_log_lines
 from evallab.evidence.atif import IngestProjectionResult, ingest_and_project
 from evallab.evidence_store import EvidenceArchive, archive_evidence
 from evallab.execution_contracts import (
+    ZAI_OPENCODE_AGENT,
+    ZAI_OPENCODE_MODEL_SELECTORS,
     DispatchCapacity,
     PaidRunAuthorization,
     is_lease_generation,
@@ -2007,9 +2009,56 @@ class Executor:
                 f"preamble {spec.extra_instruction_path!r} no longer matches "
                 f"declared digest {declared_preamble_hash}",
             )
+        toolbox_path = self.repo_root / spec.toolbox_path if spec.toolbox_path else None
+        if bool(toolbox_path) != bool(spec.toolbox_sha256):
+            raise ExecutionFailure(
+                "toolbox_pair_required",
+                "toolbox_path and toolbox_sha256 must be provided together",
+            )
+        if toolbox_path is not None:
+            if toolbox_path.is_symlink():
+                raise ExecutionFailure(
+                    "toolbox_symlink_rejected",
+                    f"toolbox path cannot be a symlink: {spec.toolbox_path!r}",
+                )
+            if not toolbox_path.is_file():
+                raise ExecutionFailure(
+                    "toolbox_missing",
+                    f"toolbox file does not exist: {spec.toolbox_path!r}",
+                )
+            from evallab.toolbox import (
+                TOOLBOX_SUPPORTED_AGENTS,
+                validate_toolbox_source,
+            )
+
+            if spec.agent not in TOOLBOX_SUPPORTED_AGENTS:
+                raise ExecutionFailure(
+                    "unsupported_toolbox_target",
+                    f"agent {spec.agent!r} does not support python toolbox; "
+                    f"supported agents are {sorted(TOOLBOX_SUPPORTED_AGENTS)}",
+                )
+            if spec.agent == ZAI_OPENCODE_AGENT:
+                model = spec.model or DEFAULT_AGENT_MODELS.get(spec.agent)
+                if model not in ZAI_OPENCODE_MODEL_SELECTORS:
+                    raise ExecutionFailure(
+                        "unsupported_toolbox_profile",
+                        f"zai-opencode requires one of the exact models {sorted(ZAI_OPENCODE_MODEL_SELECTORS)}",
+                    )
+            if spec.environment != "docker":
+                raise ExecutionFailure(
+                    "unsupported_toolbox_environment",
+                    "toolbox execution requires environment='docker'",
+                )
+            try:
+                validate_toolbox_source(toolbox_path, spec.toolbox_sha256, repo_root=self.repo_root)
+            except ValueError as exc:
+                raise ExecutionFailure("toolbox_validation_failed", str(exc)) from exc
+
         request = RunRequest(
             task=task_path,
             extra_instruction_path=extra_instruction_path,
+            toolbox_path=toolbox_path,
+            toolbox_sha256=spec.toolbox_sha256,
             agent=spec.agent,
             name=spec.name,
             jobs_dir=jobs_dir,
@@ -2046,6 +2095,8 @@ class Executor:
                 bound_execution_values=bound_values or None,
                 preamble_path=spec.extra_instruction_path,
                 preamble_sha256=actual_preamble_hash,
+                toolbox_path=spec.toolbox_path,
+                toolbox_sha256=spec.toolbox_sha256,
                 task_family=spec.task_family,
                 task_id=task_id,
                 task_instance_id=spec.task_instance_id,

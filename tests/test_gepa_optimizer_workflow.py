@@ -501,3 +501,158 @@ def test_review_resume_reuses_second_round_proposal(tmp_path, monkeypatch):
     result = run()
     assert generated == ["proposal-1", "proposal-2"]
     assert result.best_candidate == "seed"
+
+
+def _efficiency_record(candidate_id, task_id, score, count):
+    return {
+        "candidate_id": candidate_id,
+        "task_id": task_id,
+        "score": score,
+        "status": "completed",
+        "usage": {
+            "identity": {"status": "matched", "observed_model": "test-model"},
+            "native_request_accounting": "missing",
+            "provider_usage": {
+                "calls": [
+                    {"call_id": i, "state": "reconciled", "returned_model": "test-model"}
+                    for i in range(1, count + 1)
+                ],
+                "totals": {"requests": count},
+                "unresolved_requests": 0,
+            },
+        },
+    }
+
+
+def test_request_efficiency_rejects_task_regression_despite_higher_mean():
+    from types import SimpleNamespace
+
+    seed_id = "sha256:" + hashlib.sha256(b"seed").hexdigest()
+    candidate_id = "sha256:" + hashlib.sha256(b"candidate").hexdigest()
+    records = [
+        _efficiency_record(seed_id, "a", 1.0, 12),
+        _efficiency_record(seed_id, "b", 1.0, 12),
+        _efficiency_record(candidate_id, "a", 1.0, 1),
+        _efficiency_record(candidate_id, "b", 0.0, 1),
+    ]
+    selection, _ = workflow._compute_selection(
+        result=SimpleNamespace(best_candidate="candidate", best_score=0.25),
+        records=records,
+        binding={"seed_sha256": seed_id},
+        seed="seed",
+        required_task_ids={"a", "b"},
+        score_mode="quality_gated_request_efficiency",
+    )
+    assert selection["candidate_id"] == seed_id
+    assert selection["native_quality"] == 1.0
+
+
+@pytest.mark.parametrize(
+    "defect", ["missing", "unresolved", "undercounted", "identity", "duplicate"]
+)
+def test_request_efficiency_stops_on_unknown_or_inconsistent_broker_accounting(defect):
+    record = _efficiency_record("candidate", "task", 1.0, 2)
+    usage = record["usage"]
+    provider = usage["provider_usage"]
+    if defect == "missing":
+        del usage["provider_usage"]
+    elif defect == "unresolved":
+        provider["unresolved_requests"] = 1
+    elif defect == "undercounted":
+        provider["totals"]["requests"] = 1
+    elif defect == "identity":
+        usage["identity"]["status"] = "unknown"
+    else:
+        provider["calls"][1]["call_id"] = 1
+    with pytest.raises(ValueError):
+        workflow._compute_request_efficiency_utility(record, raw_score=1.0)
+
+
+def test_request_efficiency_selects_fewer_broker_calls_without_regrading():
+    from types import SimpleNamespace
+
+    seed_id = "sha256:" + hashlib.sha256(b"seed").hexdigest()
+    candidate_id = "sha256:" + hashlib.sha256(b"candidate").hexdigest()
+    records = [
+        _efficiency_record(seed_id, "task", 1.0, 5),
+        _efficiency_record(candidate_id, "task", 1.0, 3),
+    ]
+    selection, _ = workflow._compute_selection(
+        result=SimpleNamespace(best_candidate="candidate", best_score=0.25),
+        records=records,
+        binding={"seed_sha256": seed_id},
+        seed="seed",
+        required_task_ids={"task"},
+        score_mode="quality_gated_request_efficiency",
+    )
+    assert selection["candidate_id"] == candidate_id
+    assert selection["utility"] == 0.25
+    assert selection["native_quality"] == 1.0
+    assert selection["calls"] == 3
+    assert [row["score"] for row in records] == [1.0, 1.0]
+
+
+def test_unqualified_coding_plan_proposer_never_issues_or_reserves_request(tmp_path):
+    from evallab.gepa_optimizer.budget import AggregateBudget
+
+    budget = AggregateBudget(
+        tmp_path / "budget",
+        max_target_attempts=1,
+        max_proposer_requests=1,
+        max_proposer_cost_usd=0.1,
+    )
+    proposer = JournaledReflectionLM(
+        model="zai/glm-5.3-flash",
+        directory=tmp_path / "proposer",
+        max_requests=1,
+        budgets=(budget,),
+    )
+    with pytest.raises(ProposalUnavailable):
+        proposer("Revise the Python helper.")
+    assert proposer.new_requests == 0
+    assert budget.summary()["proposer"]["reserved"] == 0
+
+
+def test_unqualified_proposer_stops_campaign_before_baseline(tmp_path, monkeypatch):
+    task = _write_task(tmp_path)
+    (tmp_path / "seed.txt").write_text("Competent seed.")
+    config_path = _write_campaign(tmp_path, task, agent="oracle", model=None, ceilings="omit")
+    config = json.loads(config_path.read_text())
+    config["proposer_model"] = "zai/glm-5.3-flash"
+    config_path.write_text(json.dumps(config))
+    pin = {"commit": "test-pin"}
+    monkeypatch.setattr(workflow, "verify_release", lambda: pin)
+
+    class NoBaseline:
+        records = []
+
+        def __init__(self, **kwargs):
+            pass
+
+        def __call__(self, *args):
+            raise AssertionError("Unqualified proposer must not start a target")
+
+    monkeypatch.setattr(workflow, "LabEvaluator", NoBaseline)
+    binding = {
+        "config": config,
+        "seed_sha256": "sha256:" + hashlib.sha256(b"Competent seed.").hexdigest(),
+        "release": pin,
+        "qualification": False,
+    }
+    approval = tmp_path / "approval.json"
+    approval.write_text(
+        json.dumps(
+            {
+                "binding_sha256": hashlib.sha256(
+                    json.dumps(binding, sort_keys=True).encode()
+                ).hexdigest(),
+                "approved_by": "test operator",
+                "approved_at": "2026-09-16T00:00:00Z",
+            }
+        )
+    )
+    report = workflow.run_campaign(config_path, repo_root=tmp_path, proposer_approval_ref=approval)
+    assert report["status"] == "proposer_unavailable"
+    assert report["evidence_level"] == "proposer_preflight_only"
+    assert report["target_evaluations"] == []
+    assert report["proposer"]["calls"] == 0

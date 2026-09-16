@@ -1,0 +1,72 @@
+{
+    "schema_version": 3,
+    "created_at": "2026-09-16T07:18:59.647000Z",
+    "harbor": {
+        "version": "0.21.0",
+        "is_editable": false
+    },
+    "n_concurrent_trials": 1,
+    "retry": {
+        "max_retries": 0,
+        "exclude_exceptions": [
+            "RewardFileNotFoundError",
+            "AgentAuthenticationError",
+            "ModelNotFoundError",
+            "RewardFileEmptyError",
+            "AgentSafetyRefusalError",
+            "ApiUsageLimitError",
+            "AgentTimeoutError",
+            "VerifierTimeoutError",
+            "VerifierOutputParseError"
+        ],
+        "wait_multiplier": 1.0,
+        "min_wait_sec": 1.0,
+        "max_wait_sec": 60.0
+    },
+    "trials": [
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "har54-toolbox-probe-negative",
+                "version": "0.0.0",
+                "type": "local",
+                "digest": "sha256:a951d8f241b0f4026b21b8412e7160002974e29079a3fc73be63f9c1b34ecda8",
+                "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-overnight-20260916/runs/.exec-stage/har54-toolbox-probe-negative"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent_timeout_multiplier": 2.0,
+            "agent": {
+                "name": "oracle",
+                "skills": [
+                    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-overnight-20260916/runs/.toolbox-staging/61173d9df9656174bbfa7cf3f543e299831ca22221342f218255c70674929117/repl-tools"
+                ],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [
+                {
+                    "name": "repl-tools",
+                    "source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-overnight-20260916/runs/.toolbox-staging/61173d9df9656174bbfa7cf3f543e299831ca22221342f218255c70674929117/repl-tools",
+                    "digest": "sha256:3530ed0a8b9fc6d9e630da855a3510aebcc31404fe1ad11b1a0f19e232c6f648"
+                }
+            ],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        }
+    ]
+}

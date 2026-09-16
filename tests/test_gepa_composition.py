@@ -183,4 +183,4 @@ def test_unavailable_engines_halt_before_factory_or_evaluator(tmp_path, monkeypa
             background="Instructions",
             proposer_model="zai/glm-5.3-flash",
         )
-    assert set(error.value.report["blocked_engines"]) == {"autoresearch", "meta_harness"}
+    assert set(error.value.report["blocked_engines"]) == {"gepa", "autoresearch", "meta_harness"}

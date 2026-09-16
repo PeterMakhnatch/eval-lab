@@ -23,7 +23,12 @@ from .evaluator import (
     LabEvaluator,
     ProviderCeilings,
 )
-from .proposer import JournaledReflectionLM, ProposalUnavailable, ReplaySafeGepaEngine
+from .proposer import (
+    JournaledReflectionLM,
+    ProposalUnavailable,
+    ReplaySafeGepaEngine,
+    direct_proposer_blocker,
+)
 from .release import verify_release
 
 
@@ -62,7 +67,10 @@ def approve_candidate(config_path: Path, *, repo_root: Path, candidate_id: str) 
     digest = candidate_id.removeprefix("sha256:")
     if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
         raise ValueError("candidate must be a complete SHA-256 digest")
-    candidate = _path(root, str((output / "lab/candidates" / f"{digest}.txt").relative_to(root)))
+    suffix = ".py" if config.get("candidate_kind") == "python_toolbox" else ".txt"
+    candidate = _path(
+        root, str((output / "lab/candidates" / f"{digest}{suffix}").relative_to(root))
+    )
     if hashlib.sha256(candidate.read_bytes()).hexdigest() != digest:
         raise ValueError("Retained candidate bytes do not match the requested digest")
     approvals = _path(root, str((output / "reviewed-candidates").relative_to(root)))
@@ -145,6 +153,107 @@ def _write(path: Path, payload: Any) -> None:
         stream.write("\n")
 
 
+def _compute_request_efficiency_utility(
+    source: dict[str, Any], *, raw_score: float
+) -> tuple[float, int]:
+    """Use complete broker counts; preserve the separate native task reward."""
+    usage = source["usage"]
+    provider = usage.get("provider_usage", {})
+    calls = provider.get("calls")
+    count = provider.get("totals", {}).get("requests")
+    identity = usage.get("identity", {})
+    if (
+        isinstance(raw_score, bool)
+        or not math.isfinite(raw_score)
+        or type(count) is not int
+        or count <= 0
+        or not isinstance(calls, list)
+        or len(calls) != count
+        or type(provider.get("unresolved_requests")) is not int
+        or provider["unresolved_requests"] != 0
+        or identity.get("status") != "matched"
+        or not identity.get("observed_model")
+        or any(
+            not isinstance(call, dict)
+            or call.get("state") != "reconciled"
+            or type(call.get("call_id")) is not int
+            or call["call_id"] != index
+            or call.get("returned_model") != identity.get("observed_model")
+            for index, call in enumerate(calls, 1)
+        )
+    ):
+        raise ValueError("Request efficiency requires complete, identity-matched broker accounting")
+    # Client-side request-accounting may be absent on OpenCode. The broker is
+    # authoritative for physical calls; neither ATIF counts nor missingness is
+    # substituted for its complete ledger.
+    return (1.0 / (1 + count) if raw_score == 1.0 else 0.0), count
+
+
+def _compute_selection(
+    *,
+    result: Any,
+    records: list[dict[str, Any]],
+    binding: dict[str, Any],
+    seed: str,
+    required_task_ids: set[str],
+    score_mode: str = "native_reward",
+) -> tuple[dict[str, Any] | None, str | None]:
+    best = result.best_candidate
+    if not isinstance(best, str):
+        raise ValueError("Released optimizer returned a non-text candidate")
+    candidate_id = "sha256:" + hashlib.sha256(best.encode()).hexdigest()
+    by_candidate = {
+        cid: {
+            row["task_id"]: row
+            for row in records
+            if row["candidate_id"] == cid and row["task_id"] in required_task_ids
+        }
+        for cid in (binding["seed_sha256"], candidate_id)
+    }
+    if not math.isfinite(result.best_score) or any(
+        set(rows) != required_task_ids for rows in by_candidate.values()
+    ):
+        return None, "incomplete_selection_coverage"
+    efficiency = score_mode == "quality_gated_request_efficiency"
+    metrics = {}
+    for cid, rows in by_candidate.items():
+        scores = [
+            _compute_request_efficiency_utility(row, raw_score=row["score"])[0]
+            if efficiency
+            else row["score"]
+            for row in rows.values()
+        ]
+        metrics[cid] = sum(scores) / len(scores)
+    seed_id = binding["seed_sha256"]
+    regression = efficiency and any(
+        by_candidate[candidate_id][task]["score"] < by_candidate[seed_id][task]["score"]
+        for task in required_task_ids
+    )
+    if metrics[candidate_id] <= metrics[seed_id] or regression:
+        candidate_id, best = seed_id, seed
+    selected = by_candidate[candidate_id]
+    return {
+        "candidate_id": candidate_id,
+        "text": best,
+        "score": metrics[candidate_id],
+        "score_mode": score_mode,
+        "utility": metrics[candidate_id],
+        "native_quality": sum(row["score"] for row in selected.values()) / len(selected),
+        "calls": sum(
+            row["usage"]["provider_usage"]["totals"]["requests"] for row in selected.values()
+        )
+        if efficiency
+        else None,
+        "selection_rule": (
+            "common_pool_utility_seed_retained_on_tie_or_native_regression"
+            if efficiency
+            else "common_pool_mean_seed_retained_on_tie_or_regression"
+        ),
+        "search_visible_task_ids": sorted(required_task_ids),
+        "final_holdout_claim": False,
+    }, None
+
+
 def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
     raw = json.loads(path.read_text())
     allowed = {
@@ -171,6 +280,8 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         "feedback_max_chars",
         "max_target_attempts",
         "shared_budget",
+        "score_mode",
+        "candidate_kind",
     }
     if not isinstance(raw, dict) or set(raw) - allowed:
         raise ValueError("Unknown campaign fields; arbitrary engine configuration is not supported")
@@ -193,6 +304,18 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         raise ValueError("enabled must be a boolean")
     if raw.get("candidate_evaluation", "review") not in {"review", "automatic"}:
         raise ValueError("candidate_evaluation must be review or automatic")
+    score_mode = raw.get("score_mode", "native_reward")
+    if not isinstance(score_mode, str) or score_mode not in {
+        "native_reward",
+        "quality_gated_request_efficiency",
+    }:
+        raise ValueError("score_mode must be 'native_reward' or 'quality_gated_request_efficiency'")
+    candidate_kind = raw.get("candidate_kind", "instructions")
+    if not isinstance(candidate_kind, str) or candidate_kind not in {
+        "instructions",
+        "python_toolbox",
+    }:
+        raise ValueError("candidate_kind must be instructions or python_toolbox")
     for key in (
         "max_evals",
         "max_iterations",
@@ -220,11 +343,13 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         raise ValueError("An explicit nonempty development task list is required")
     example_fields = {"task_id", "task_path", "task_package_digest", "split"}
     if any(
-        not isinstance(example, dict) or set(example) != example_fields
+        not isinstance(example, dict)
+        or not example_fields <= set(example)
+        or set(example) - (example_fields | {"oracle_reference"})
         for example in raw["examples"]
     ):
         raise ValueError(
-            "Search examples may contain only declared task identity, path, digest and development split"
+            "Search examples require task identity, path, digest, development split and optional Oracle reference"
         )
     if any(example.get("split") != "development" for example in raw["examples"]):
         raise ValueError("Only development examples may enter search; no final/test split")
@@ -298,16 +423,18 @@ class QualificationProposer:
 
     total_cost = 0.0
 
-    def __init__(self) -> None:
+    def __init__(self, candidate_kind: str = "instructions") -> None:
         self.calls = 0
+        self.candidate_kind = candidate_kind
 
     def __call__(self, candidate, reflective_dataset, components_to_update, **kwargs):
         self.calls += 1
-        return {
-            key: candidate[key]
-            + "\nInspect the final task outputs against the stated requirements.\n"
-            for key in components_to_update
-        }
+        suffix = (
+            "\n# Interface qualification only: this is not a learned code improvement.\n"
+            if self.candidate_kind == "python_toolbox"
+            else "\nInspect the final task outputs against the stated requirements.\n"
+        )
+        return {key: candidate[key] + suffix for key in components_to_update}
 
 
 def run_campaign(
@@ -365,10 +492,12 @@ def _run_campaign(
             )
         authorization_bytes = proposer_approval_ref.read_bytes()
     output = _path(repo_root, config["output_dir"])
+    score_mode = config.get("score_mode", "native_reward")
+    candidate_kind = config.get("candidate_kind", "instructions")
     output.mkdir(parents=True, exist_ok=True)
     seed = _path(repo_root, config["seed_candidate_path"]).read_text(encoding="utf-8")
     if not seed.strip():
-        raise ValueError("An explicit nonempty seed instruction is required")
+        raise ValueError("An explicit nonempty seed artifact is required")
     binding = {
         "config": config,
         "seed_sha256": "sha256:" + hashlib.sha256(seed.encode()).hexdigest(),
@@ -439,25 +568,41 @@ def _run_campaign(
         else frozenset(reviewed),
         feedback_max_chars=config.get("feedback_max_chars", 24000),
         budgets=budgets,
+        candidate_kind=candidate_kind,
     )
     validation_ids = set(config.get("validation_task_ids", []))
     train = [row for row in config["examples"] if row["task_id"] not in validation_ids]
     validation = [row for row in config["examples"] if row["task_id"] in validation_ids]
     engine = None
     result = None
-    fixture = QualificationProposer() if qualification else None
+    fixture = QualificationProposer(candidate_kind) if qualification else None
     reflection_lm = None
     status = "running"
     error_type = None
     error = None
     pending_candidate = None
     availability = None
+    route_blocker = None
     stage_lms: dict[str, JournaledReflectionLM] = {}
+    invalid_candidates: dict[str, dict[str, Any]] = {}
 
     def evaluate(candidate, example):
         try:
             _check_running(output)
-            return evaluator(candidate, example)
+            raw_score, info = evaluator(candidate, example)
+            if info.get("status") == "invalid_candidate":
+                invalid_candidates[info["candidate_id"]] = info
+                return raw_score, info
+            if score_mode == "quality_gated_request_efficiency":
+                utility, calls = _compute_request_efficiency_utility(info, raw_score=raw_score)
+                info["optimization"] = {
+                    "score_mode": score_mode,
+                    "native_quality": raw_score,
+                    "physical_requests": calls,
+                    "utility": utility,
+                }
+                return utility, info
+            return raw_score, info
         except Exception as exc:
             raise _EvaluationHalt(exc) from exc
 
@@ -468,6 +613,10 @@ def _run_campaign(
             availability = engine_availability(config["proposer_model"])
             if not availability["all_available"]:
                 raise EngineUnavailable(availability)
+        elif not qualification and config["engine"] == "gepa":
+            route_blocker = direct_proposer_blocker(config["proposer_model"])
+            if route_blocker:
+                raise ProposalUnavailable(route_blocker)
         # Resolve the baseline target gate before any paid proposer can start.
         for example in config["examples"]:
             evaluate(seed, example)
@@ -477,12 +626,25 @@ def _run_campaign(
         )
 
         objective = config.get(
-            "objective", "Improve task success with general supplementary instructions"
+            "objective",
+            "Improve task success by evolving reusable Python helpers"
+            if candidate_kind == "python_toolbox"
+            else "Improve task success with general supplementary instructions",
+        )
+        editable = (
+            "Candidates are complete UTF-8 Python modules providing smart_grep, read_window, "
+            "check_output and the seed's command-line interface. Preserve these interfaces. "
+            "Only this helper code changes; skill instructions and task/verifier bytes stay fixed. "
+            "Code executes exclusively inside the existing Harbor task sandbox, never on the host. "
+            "Use standard-library helpers with bounded output, not hardcoded task solutions. "
+            if candidate_kind == "python_toolbox"
+            else "Candidates are supplementary instruction text, not executable host code. "
         )
         background = (
-            "Candidates are supplementary instruction text, not executable host code. "
-            "All supplied train and validation examples are search-visible development tasks. "
-            "No task-specific answers, verifier content or final evaluation tasks are permitted."
+            editable
+            + "All supplied train and validation examples are search-visible development tasks. "
+            "No task-specific answers, verifier content or final evaluation tasks are permitted. "
+            "Oracle contrasts describe only captured reference behavior; missing traces are not clean steps."
         )
 
         def make_config(stage_id: str, engine_name: str):
@@ -616,39 +778,17 @@ def _run_campaign(
         row["status"] == "completed" and row["score"] is not None for row in records
     )
     if result is not None and complete and status == "completed":
-        best = result.best_candidate
-        if not isinstance(best, str):
-            raise ValueError("Released optimizer returned a non-text candidate")
-        candidate_id = "sha256:" + hashlib.sha256(best.encode()).hexdigest()
-        selected_records = [row for row in records if row["candidate_id"] == candidate_id]
         required = {row["task_id"] for row in (validation or train)}
-        if required <= {row["task_id"] for row in selected_records} and math.isfinite(
-            result.best_score
-        ):
-            seed_scores = {
-                row["task_id"]: row["score"]
-                for row in records
-                if row["candidate_id"] == binding["seed_sha256"] and row["task_id"] in required
-            }
-            selected_scores = {
-                row["task_id"]: row["score"]
-                for row in selected_records
-                if row["task_id"] in required
-            }
-            selected_score = sum(selected_scores.values()) / len(required)
-            seed_score = sum(seed_scores.values()) / len(required)
-            if selected_score <= seed_score:
-                candidate_id, best, selected_score = binding["seed_sha256"], seed, seed_score
-            selection = {
-                "candidate_id": candidate_id,
-                "text": best,
-                "score": selected_score,
-                "selection_rule": "common_pool_mean_seed_retained_on_tie_or_regression",
-                "search_visible_task_ids": sorted(required),
-                "final_holdout_claim": False,
-            }
-        else:
-            status = "incomplete_selection_coverage"
+        selection, coverage_status = _compute_selection(
+            result=result,
+            records=records,
+            binding=binding,
+            seed=seed,
+            required_task_ids=required,
+            score_mode=score_mode,
+        )
+        if coverage_status:
+            status = coverage_status
         candidates = list(dict.fromkeys(row["candidate_id"] for row in records))
         if len(candidates) >= 2:
             spec = evaluator.write_comparison_spec(candidates)
@@ -672,6 +812,10 @@ def _run_campaign(
         "release": pin,
         "engine": config["engine"],
         "engine_availability": availability,
+        "proposer_route_blocker": route_blocker,
+        "score_mode": score_mode,
+        "candidate_kind": candidate_kind,
+        "candidate_validation_failures": list(invalid_candidates.values()),
         "budget_accounting": [
             {"directory": str(budget.directory), **budget.summary()} for budget in budgets
         ],
@@ -679,7 +823,9 @@ def _run_campaign(
         if result is not None and config["engine"] == "omni"
         else None,
         "evidence_level": (
-            "engine_preflight_only"
+            "proposer_preflight_only"
+            if route_blocker
+            else "engine_preflight_only"
             if status == "engine_unavailable"
             else "real_gepa_with_local_controls_and_deterministic_proposer"
             if qualification
@@ -697,7 +843,7 @@ def _run_campaign(
             if fixture
             else (
                 0
-                if status == "engine_unavailable"
+                if route_blocker or status == "engine_unavailable"
                 else sum(lm.new_requests for lm in stage_lms.values())
                 if stage_lms
                 else None

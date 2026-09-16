@@ -1478,3 +1478,72 @@ def test_campaign_proposal_budget_returns_selection_without_requesting_again(tmp
     assert report["proposer"]["calls"] == 1
     assert report["selection"]["text"] == "Original instruction."
     assert len(report["target_trial_jobs"]) == 2
+
+
+def test_python_toolbox_provenance_uses_frozen_skill_lock_and_retained_bytes(tmp_path):
+    from types import SimpleNamespace
+
+    from evallab.gepa_optimizer.evaluator import _check_job_provenance
+    from evallab.toolbox import retain_toolbox_evidence, stage_toolbox
+
+    script = tmp_path / "repl_tools.py"
+    script.write_text(
+        "def read_window(*args): pass\ndef smart_grep(*args): pass\ndef check_output(*args): pass\n"
+    )
+    bundle, metadata = stage_toolbox(script, staging_root=tmp_path / "staging")
+    job_path = tmp_path / "job"
+    retained = retain_toolbox_evidence(job_path, bundle, metadata)
+    lock = {
+        "agent": {"name": "oracle", "skills": [str(bundle)]},
+        "skills": [
+            {"name": "repl-tools", "source": str(bundle), "digest": metadata["skill_digest"]}
+        ],
+    }
+    package_digest = "sha256:" + "a" * 64
+    job = SimpleNamespace(
+        path=job_path,
+        lock={"trials": [lock]},
+        trials=[SimpleNamespace(lock=lock)],
+        metadata={
+            "toolbox": metadata,
+            "experiment": {
+                "task_id": "task",
+                "package_digest": package_digest,
+                "toolbox_sha256": metadata["sha256"],
+            },
+        },
+    )
+    expected = {
+        "expected_agent": "oracle",
+        "expected_model": None,
+        "expected_task_id": "task",
+        "expected_package_digest": package_digest,
+        "expected_candidate_sha256": metadata["sha256"],
+        "candidate_kind": "python_toolbox",
+    }
+    assert _check_job_provenance(job, **expected)
+    lock["skills"][0]["digest"] = "sha256:" + "b" * 64
+    assert not _check_job_provenance(job, **expected)
+    lock["skills"][0]["digest"] = metadata["skill_digest"]
+    (retained / "repl_tools.py").chmod(0o644)
+    (retained / "repl_tools.py").write_text(script.read_text() + "# changed after execution\n")
+    assert not _check_job_provenance(job, **expected)
+
+
+def test_invalid_python_candidate_returns_static_feedback_without_native_trial(tmp_path):
+    task = create_task_fixture(tmp_path)
+    executor = MockExecutor(tmp_path)
+    evaluator = LabEvaluator(
+        repo_root=tmp_path,
+        output_dir=tmp_path / "candidate-eval",
+        examples=[task],
+        agent="oracle",
+        executor=executor,
+        candidate_kind="python_toolbox",
+    )
+    score, info = evaluator("def smart_grep(:", task)
+    assert score == 0
+    assert info["status"] == "invalid_candidate"
+    assert info["native_trial_executed"] is False
+    assert evaluator.records == []
+    assert executor.submitted_specs == []

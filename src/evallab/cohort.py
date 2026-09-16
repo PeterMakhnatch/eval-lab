@@ -226,6 +226,7 @@ def _configured_toolset(
     }
     return toolset, digest_json(toolset)
 
+
 _CONTENT_DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
@@ -394,9 +395,7 @@ def _retained_preamble_hash(trial: TrialRecord, fact: TrialFact) -> str | None:
         file_digests = [provenance_digest] if provenance_digest is not None else []
     else:
         file_digests = []
-        provenance_path = (
-            _path_key(fact.preamble_path) if fact.preamble_path is not None else None
-        )
+        provenance_path = _path_key(fact.preamble_path) if fact.preamble_path is not None else None
         for key in file_order:
             retained = retained_digests.get(key)
             if retained is None:
@@ -421,9 +420,7 @@ def _retained_preamble_hash(trial: TrialRecord, fact: TrialFact) -> str | None:
         return digest_json({"preamble": "none"})
     return digest_json(
         {
-            "inline": [
-                {"kind": kind, "sha256": digest_json(text)} for kind, text in inline
-            ],
+            "inline": [{"kind": kind, "sha256": digest_json(text)} for kind, text in inline],
             "files": file_digests,
         }
     )
@@ -454,6 +451,51 @@ def _member(
     if model_name is None and agent_name in {"oracle", "nop"}:
         model_name = "not-applicable"
     toolset, toolset_digest = _configured_toolset(agent_name, agent_lock, trial.lock)
+    experiment = _json_object(job.metadata.get("experiment"))
+    if experiment.get("toolbox_path") is not None or "toolbox" in job.metadata:
+        # Skill content is a toolset intervention, not a model sampling setting.
+        model_settings.pop("skills", None)
+        toolbox = _json_object(job.metadata.get("toolbox"))
+        skills = trial.lock.get("skills")
+        artifact_path = toolbox.get("artifact_path")
+        known = (
+            toolset is not None
+            and _valid_content_digest(toolbox.get("sha256"))
+            and toolbox.get("sha256") == experiment.get("toolbox_sha256")
+            and _valid_content_digest(toolbox.get("skill_digest"))
+            and isinstance(skills, list)
+            and len(skills) == 1
+            and isinstance(skills[0], dict)
+            and skills[0].get("name") == "repl-tools"
+            and skills[0].get("digest") == toolbox.get("skill_digest")
+            and isinstance(artifact_path, str)
+            and not Path(artifact_path).is_absolute()
+        )
+        if known:
+            artifact = job.path / artifact_path
+            known = (
+                not artifact.is_symlink()
+                and artifact.resolve().is_relative_to(job.path.resolve())
+                and artifact.is_file()
+                and "sha256:" + hashlib.sha256(artifact.read_bytes()).hexdigest()
+                == toolbox["sha256"]
+            )
+        if known:
+            from evallab.toolbox import compute_skill_digest
+
+            try:
+                known = compute_skill_digest(artifact.parent) == toolbox["skill_digest"]
+            except (OSError, ValueError):
+                known = False
+        if known and toolset is not None:
+            toolset = {
+                **toolset,
+                "skills": [{"name": "repl-tools", "digest": toolbox["skill_digest"]}],
+                "python_toolbox_sha256": toolbox["sha256"],
+            }
+            toolset_digest = digest_json(toolset)
+        else:
+            toolset, toolset_digest = None, None
     try:
         source_path = trial.path.resolve().relative_to(root.resolve()).as_posix()
     except ValueError:
@@ -576,6 +618,12 @@ def _validate_comparability(spec: CohortComparisonSpec, members: list[CohortMemb
         for member in members
     ):
         warnings.append("controlled preamble provenance is missing content sha256")
+    if spec.declared_variable == "toolset_digest" and any(
+        member.toolset_digest is None for member in members
+    ):
+        warnings.append(
+            "controlled toolset identity is unknown (missing or conflicting retained evidence)"
+        )
     if spec.declared_variable in {"preamble_hash", "preamble_content_sha256"} and any(
         member.preamble_hash is None for member in members
     ):

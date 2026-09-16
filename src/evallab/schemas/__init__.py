@@ -273,6 +273,18 @@ class ExperimentSpec(ContractModel):
         pattern=r"^sha256:[0-9a-f]{64}$",
         description="content digest of extra_instruction_path at spec generation",
     )
+    toolbox_path: str | None = Field(
+        default=None,
+        description=(
+            "repo-relative path to a python toolbox candidate file deployed as "
+            "Harbor's repl-tools skill"
+        ),
+    )
+    toolbox_sha256: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+        description="content digest of toolbox_path at spec generation",
+    )
     agent: str = Field(min_length=1)
     model: str | None = None
     provider_routes: list[ProviderRoute] = Field(
@@ -370,6 +382,7 @@ class ExperimentSpec(ContractModel):
         "jobs_dir",
         "extra_instruction_path",
         "campaign_evidence_store",
+        "toolbox_path",
     )
     @classmethod
     def paths_are_repo_relative(cls, value: str | None) -> str | None:
@@ -390,6 +403,8 @@ class ExperimentSpec(ContractModel):
             raise ValueError(f"the {self.agent} control does not accept a model")
         if self.extra_instruction_sha256 and not self.extra_instruction_path:
             raise ValueError("extra_instruction_sha256 requires extra_instruction_path")
+        if bool(self.toolbox_path) != bool(self.toolbox_sha256):
+            raise ValueError("toolbox_path and toolbox_sha256 must be provided together")
         if self.provider_routes:
             if not self.billable:
                 raise ValueError("control specs cannot declare provider routes")
@@ -682,6 +697,8 @@ class RunProvenance(ContractModel):
     bound_execution_values: dict[Literal["concurrency", "timeout_seconds"], int] | None = None
     preamble_path: str | None = None
     preamble_sha256: str | None = None
+    toolbox_path: str | None = None
+    toolbox_sha256: str | None = None
     task_family: str | None = None
     task_id: str | None = None
     task_instance_id: str | None = None

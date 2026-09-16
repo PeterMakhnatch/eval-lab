@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "record_id": "checkout-pool-exhaustion-20260916-dspy-gepa-retry-glm-5-3-flash-bbfcdacbd3",
+  "family": "checkout-pool-exhaustion",
+  "status": "measured",
+  "judge_backend": "dspy-gepa-retry",
+  "judge_model": "glm-5.3-flash",
+  "judge_engine_version": "dspy 3.3.1",
+  "rubric_digest": "sha256:86890290c3f2b615b474911f95d73d2bc2ff1bbbc0f7e9659191e916b6b1dc83",
+  "corpus_digest": "sha256:bbfcdacbd3746a5ec1554a7e8481777bebfc37b749da6a8f69901d3559991224",
+  "per_criterion_agreement": {
+    "action_quality.actions_are_actionable": {
+      "agreements": 21,
+      "total": 22,
+      "rate": 0.9545454545454546
+    },
+    "action_quality.actions_trace_to_findings": {
+      "agreements": 21,
+      "total": 22,
+      "rate": 0.9545454545454546
+    },
+    "action_quality.closes_the_detection_gap": {
+      "agreements": 21,
+      "total": 22,
+      "rate": 0.9545454545454546
+    },
+    "action_quality.fixes_the_capacity_coupling": {
+      "agreements": 22,
+      "total": 22,
+      "rate": 1.0
+    },
+    "action_quality.proposes_unsupported_work": {
+      "agreements": 21,
+      "total": 22,
+      "rate": 0.9545454545454546
+    },
+    "causal_reasoning.grounded_in_evidence": {
+      "agreements": 20,
+      "total": 22,
+      "rate": 0.9090909090909091
+    },
+    "causal_reasoning.identifies_the_mechanism": {
+      "agreements": 22,
+      "total": 22,
+      "rate": 1.0
+    },
+    "causal_reasoning.rules_out_the_decoy": {
+      "agreements": 22,
+      "total": 22,
+      "rate": 1.0
+    },
+    "causal_reasoning.separates_contributing_factors": {
+      "agreements": 21,
+      "total": 22,
+      "rate": 0.9545454545454546
+    },
+    "causal_reasoning.uncertainty_is_genuine": {
+      "agreements": 18,
+      "total": 22,
+      "rate": 0.8181818181818182
+    },
+    "evidence_fidelity.asserts_unsupported_cause": {
+      "agreements": 22,
+      "total": 22,
+      "rate": 1.0
+    },
+    "evidence_fidelity.blames_payments_vendor": {
+      "agreements": 22,
+      "total": 22,
+      "rate": 1.0
+    },
+    "evidence_fidelity.invents_evidence": {
+      "agreements": 20,
+      "total": 22,
+      "rate": 0.9090909090909091
+    },
+    "evidence_fidelity.misstates_a_fact": {
+      "agreements": 19,
+      "total": 22,
+      "rate": 0.8636363636363636
+    }
+  },
+  "mean_agreement": 0.948051948051948,
+  "agreement_floor": 0.9,
+  "meets_floor": true,
+  "reportable": true,
+  "document_count": 22,
+  "evaluated_on": "2026-09-16",
+  "prediction_artifact": "research/experiments/dspy/judge/artifacts/gepa-retry/bundle-checkout-pool-exhaustion.json",
+  "pending_backends": []
+}

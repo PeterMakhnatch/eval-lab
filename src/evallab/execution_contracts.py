@@ -270,6 +270,8 @@ class RunRequest:
     lease_path: Path | None = None
     lease_generation: str | None = None
     extra_instruction_path: Path | None = None
+    toolbox_path: Path | None = None
+    toolbox_sha256: str | None = None
     skill: Path | str | Sequence[Path | str] | None = None
     skills: Sequence[Path | str] | None = None
     load_trajectory: Path | str | None = None
@@ -775,6 +777,29 @@ def validate_request(request: RunRequest) -> None:
         raise ValueError(f"The {request.agent} control does not accept a model")
     if request.model and not request.allow_billable:
         raise ValueError("A model requires --allow-billable")
+    if request.toolbox_path is not None or request.toolbox_sha256 is not None:
+        if bool(request.toolbox_path) != bool(request.toolbox_sha256):
+            raise ValueError("toolbox_path and toolbox_sha256 must be provided together")
+        if request.agent not in {"oracle", "nop", ZAI_OPENCODE_AGENT}:
+            raise ValueError(
+                f"Agent {request.agent!r} does not support toolbox skills; "
+                f"supported agents are 'oracle', 'nop', and {ZAI_OPENCODE_AGENT!r}"
+            )
+        if request.agent == ZAI_OPENCODE_AGENT:
+            model = request.model or "zai-coding-plan/glm-5.3-flash"
+            if model not in ZAI_OPENCODE_MODEL_SELECTORS:
+                raise ValueError(
+                    f"zai-opencode requires one of the exact models {sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
+                )
+        if request.environment != "docker":
+            raise ValueError("toolbox execution requires environment='docker'")
+        repl_tools_skills = [
+            s for s in request.resolved_skills if Path(s).name == "repl-tools"
+        ]
+        if len(repl_tools_skills) > 1:
+            raise ValueError("Conflicting multiple repl-tools skill bundles in resolved_skills")
+        from evallab.toolbox import validate_toolbox_source
+        validate_toolbox_source(request.toolbox_path, request.toolbox_sha256)
 
 
 def resolve_harbor_agent(agent: str) -> str:

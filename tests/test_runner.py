@@ -1510,3 +1510,130 @@ def test_staging_cleaned_up_after_network_adaptation_write_failure(
     source_toml = (request.task / "task.toml").read_text()
     assert 'network_mode = "no-network"' in source_toml
     assert 'network_mode = "public"' not in source_toml
+def test_validate_request_toolbox_invariants(tmp_path: Path) -> None:
+    """validate_request enforces pairing, agent compatibility, and source validation for toolbox."""
+    task_dir = task(tmp_path)
+    toolbox_code = (
+        "def read_window(file, start=1, end=None): return {}\n"
+        "def smart_grep(pattern, path='.', max_matches=20, context=2): return {}\n"
+        "def check_output(file): return {}\n"
+    )
+    toolbox_file = tmp_path / "repl_tools.py"
+    toolbox_file.write_text(toolbox_code, encoding="utf-8")
+    toolbox_sha = f"sha256:{hashlib.sha256(toolbox_code.encode('utf-8')).hexdigest()}"
+
+    # Missing sha256
+    with pytest.raises(ValueError, match="must be provided together"):
+        validate_request(
+            RunRequest(
+                task=task_dir,
+                agent="oracle",
+                name="toolbox-missing-sha",
+                jobs_dir=tmp_path / "runs",
+                toolbox_path=toolbox_file,
+            )
+        )
+
+    # Missing path
+    with pytest.raises(ValueError, match="must be provided together"):
+        validate_request(
+            RunRequest(
+                task=task_dir,
+                agent="oracle",
+                name="toolbox-missing-path",
+                jobs_dir=tmp_path / "runs",
+                toolbox_sha256=toolbox_sha,
+            )
+        )
+
+    # Unsupported agent
+    with pytest.raises(ValueError, match="does not support toolbox skills"):
+        validate_request(
+            RunRequest(
+                task=task_dir,
+                agent="claude-code",
+                name="toolbox-unsupported-agent",
+                jobs_dir=tmp_path / "runs",
+                toolbox_path=toolbox_file,
+                toolbox_sha256=toolbox_sha,
+                allow_billable=True,
+            )
+        )
+
+    # Valid request with oracle
+    valid_req = RunRequest(
+        task=task_dir,
+        agent="oracle",
+        name="toolbox-valid",
+        jobs_dir=tmp_path / "runs",
+        toolbox_path=toolbox_file,
+        toolbox_sha256=toolbox_sha,
+    )
+    validate_request(valid_req)
+
+
+def test_write_run_metadata_retains_toolbox_provenance_and_artifact_bytes(tmp_path: Path) -> None:
+    """_write_run_metadata writes root toolbox object and experiment provenance."""
+    job_dir = tmp_path / "runs" / "meta-test"
+    job_dir.mkdir(parents=True)
+    req = RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name="meta-test",
+        jobs_dir=tmp_path / "runs",
+        toolbox_path=tmp_path / "repl_tools.py",
+        toolbox_sha256="sha256:" + "a" * 64,
+        provenance=RunProvenance(
+            spec_id="01SPEC",
+            task="canary/event-summary",
+            toolbox_path="repl_tools.py",
+            toolbox_sha256="sha256:" + "a" * 64,
+        ),
+    )
+    process = HarborProcessResult(
+        returncode=0,
+        timed_out=False,
+        log_path=tmp_path / "exec.log",
+    )
+    toolbox_meta = {
+        "schema_version": 1,
+        "skill_name": "repl-tools",
+        "script_name": "repl_tools.py",
+        "artifact_path": "toolbox/repl-tools/repl_tools.py",
+        "container_path": "/harbor/skills/repl-tools/repl_tools.py",
+        "toolbox_path": str(req.toolbox_path),
+        "toolbox_sha256": req.toolbox_sha256,
+        "sha256": req.toolbox_sha256,
+        "content_digest": req.toolbox_sha256,
+        "skill_digest": "sha256:" + "b" * 64,
+        "byte_count": 123,
+        "artifact_bytes": "def read_window(): ...",
+        "skill_descriptor": "# descriptor",
+    }
+    started = datetime.now(UTC)
+    runner_module._write_run_metadata(
+        req,
+        repo_root=tmp_path,
+        command=["harbor", "run"],
+        started=started,
+        finished=started,
+        process=process,
+        toolbox=toolbox_meta,
+    )
+
+    meta_file = job_dir / "lab-metadata.json"
+    assert meta_file.is_file()
+    loaded = json.loads(meta_file.read_text())
+
+    assert "toolbox" in loaded
+    tb = loaded["toolbox"]
+    assert tb["skill_name"] == "repl-tools"
+    assert tb["artifact_path"] == "toolbox/repl-tools/repl_tools.py"
+    assert tb["sha256"] == "sha256:" + "a" * 64
+    assert tb["skill_digest"] == "sha256:" + "b" * 64
+    assert tb["artifact_bytes"] == "def read_window(): ..."
+
+    assert "experiment" in loaded
+    exp = loaded["experiment"]
+    assert exp["toolbox_path"] == "repl_tools.py"
+    assert exp["toolbox_sha256"] == "sha256:" + "a" * 64

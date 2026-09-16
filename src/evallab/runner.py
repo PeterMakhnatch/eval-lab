@@ -1052,6 +1052,7 @@ def _write_run_metadata(
     process: HarborProcessResult,
     network_adaptation: NetworkAdaptation | None = None,
     task_staging: dict[str, Any] | None = None,
+    toolbox: dict[str, Any] | None = None,
 ) -> None:
     job_dir = request.jobs_dir / request.name
     if not job_dir.exists():
@@ -1086,6 +1087,8 @@ def _write_run_metadata(
         metadata["network_adaptation"] = asdict(network_adaptation)
     if task_staging is not None:
         metadata["task_staging"] = task_staging
+    if toolbox is not None:
+        metadata["toolbox"] = toolbox
     persist_private_bytes(
         job_dir / "lab-metadata.json",
         (json.dumps(metadata, indent=2, sort_keys=True) + "\n").encode(),
@@ -1264,6 +1267,58 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             ),
         )
         staged_request: RunRequest = replace(request, task=staged_task)
+        staged_toolbox: Path | None = None
+        toolbox_meta: dict[str, Any] | None = None
+        if request.toolbox_path is not None:
+            existing_repl_tools = [
+                Path(s) for s in request.resolved_skills if Path(s).name == "repl-tools"
+            ]
+            if existing_repl_tools:
+                staged_toolbox = existing_repl_tools[0]
+                from evallab.toolbox import (
+                    TOOLBOX_SKILL_NAME,
+                    TOOLBOX_SCRIPT_NAME,
+                    TOOLBOX_DESCRIPTOR_NAME,
+                    TOOLBOX_CONTAINER_PATH,
+                    TOOLBOX_JOB_RELATIVE_PATH,
+                    TOOLBOX_SKILL_MD,
+                    compute_skill_digest,
+                    validate_toolbox_source,
+                )
+                raw_bytes, actual_sha256 = validate_toolbox_source(
+                    request.toolbox_path, request.toolbox_sha256, repo_root=repo_root
+                )
+                skill_digest = compute_skill_digest(staged_toolbox)
+                toolbox_meta = {
+                    "schema_version": 1,
+                    "skill_name": TOOLBOX_SKILL_NAME,
+                    "script_name": TOOLBOX_SCRIPT_NAME,
+                    "descriptor_name": TOOLBOX_DESCRIPTOR_NAME,
+                    "container_path": TOOLBOX_CONTAINER_PATH,
+                    "artifact_path": TOOLBOX_JOB_RELATIVE_PATH,
+                    "toolbox_path": str(request.toolbox_path),
+                    "toolbox_sha256": actual_sha256,
+                    "sha256": actual_sha256,
+                    "content_digest": actual_sha256,
+                    "skill_digest": skill_digest,
+                    "byte_count": len(raw_bytes),
+                    "artifact_bytes": raw_bytes.decode("utf-8"),
+                    "skill_descriptor": TOOLBOX_SKILL_MD,
+                    "staged_bundle_path": str(staged_toolbox),
+                }
+            else:
+                from evallab.toolbox import stage_toolbox
+                staging_root = request.jobs_dir / ".toolbox-staging"
+                staged_toolbox, toolbox_meta = stage_toolbox(
+                    request.toolbox_path,
+                    request.toolbox_sha256,
+                    staging_root=staging_root,
+                    repo_root=repo_root,
+                )
+                staged_request = replace(
+                    staged_request,
+                    skill=(*staged_request.resolved_skills, staged_toolbox),
+                )
 
         _write_network_adaptation(request, adaptation)
 
@@ -1322,7 +1377,11 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             process=process,
             network_adaptation=adaptation,
             task_staging=_task_staging_provenance(request.task, staged_task, adaptation),
+            toolbox=toolbox_meta,
         )
+        if staged_toolbox is not None and toolbox_meta is not None and job_dir.exists():
+            from evallab.toolbox import retain_toolbox_evidence
+            retain_toolbox_evidence(job_dir, staged_toolbox, toolbox_meta)
         if cancelled:
             cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
             cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""

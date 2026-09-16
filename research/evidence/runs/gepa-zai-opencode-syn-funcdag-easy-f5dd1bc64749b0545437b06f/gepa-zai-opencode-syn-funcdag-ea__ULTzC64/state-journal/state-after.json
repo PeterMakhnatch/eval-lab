@@ -1,0 +1,84 @@
+{
+  "captured_at": "2026-09-15T23:44:16.117957Z",
+  "entries": [
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1787880804000000000,
+      "path": ".",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789515842207650005,
+      "path": "output",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789515842194331922,
+      "path": "src",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "hash_status": "complete",
+      "mode": "-rw-r--r--",
+      "mtime_ns": 1789515842208696422,
+      "path": "output/result.json",
+      "sha256": "sha256:e1a48c5b474030ac286a1169f224e2cabab76085cb8694ba5c79e65528bbd39a",
+      "size_bytes": 210,
+      "type": "file"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789515842194680964,
+      "path": "src/__pycache__",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "hash_status": "complete",
+      "mode": "-rw-r--r--",
+      "mtime_ns": 1787880708000000000,
+      "path": "src/dag_code.py",
+      "sha256": "sha256:57740959cae301906e863267caaa06f9e0503728fdde9fb395789cc1c39f8c49",
+      "size_bytes": 713,
+      "type": "file"
+    },
+    {
+      "hash_status": "complete",
+      "mode": "-rw-r--r--",
+      "mtime_ns": 1787880708000000000,
+      "path": "src/dag_spec.json",
+      "sha256": "sha256:28be296c28a778081fa9e64c90dfa9b7e7b22b92e24877608932706b22e8293f",
+      "size_bytes": 2164,
+      "type": "file"
+    },
+    {
+      "hash_status": "complete",
+      "mode": "-rw-r--r--",
+      "mtime_ns": 1787880708000000000,
+      "path": "src/inputs.json",
+      "sha256": "sha256:9cbf45d74e6bd90a939797a036996573e3394e077338ac78a91cb590e2259566",
+      "size_bytes": 29,
+      "type": "file"
+    },
+    {
+      "hash_status": "complete",
+      "mode": "-rw-r--r--",
+      "mtime_ns": 1789515842194680964,
+      "path": "src/__pycache__/dag_code.cpython-313.pyc",
+      "sha256": "sha256:b3bdf4268da97a71f8ddfdf6fa395326fd7dce7184d1f4e5b625e564303146cd",
+      "size_bytes": 1109,
+      "type": "file"
+    }
+  ],
+  "entry_count": 9,
+  "label": "after",
+  "root": "/app",
+  "schema_version": 1,
+  "target_pid": 2407,
+  "truncated": false
+}

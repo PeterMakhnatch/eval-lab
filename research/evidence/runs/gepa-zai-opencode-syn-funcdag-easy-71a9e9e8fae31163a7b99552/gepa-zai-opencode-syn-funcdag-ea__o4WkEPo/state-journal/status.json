@@ -1,0 +1,20 @@
+{
+  "change_count": 5,
+  "dropped_event_count": 0,
+  "event_count": 4,
+  "finished_at": "2026-09-15T23:30:40.881796Z",
+  "observer": {
+    "image": "evallab-state-journal:46bf038216ffe7ab",
+    "mode": "external-sidecar",
+    "model_visible_output": false,
+    "target_container": "a6ca9d0229da",
+    "target_mutated": false,
+    "target_pid": 66043
+  },
+  "reason": null,
+  "root": "/app",
+  "schema_version": 1,
+  "started_at": "2026-09-15T23:29:48.057702Z",
+  "status": "available",
+  "target_pid": 66043
+}

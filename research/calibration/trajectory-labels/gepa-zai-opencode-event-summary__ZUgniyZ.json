@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "trial_name": "gepa-zai-opencode-event-summary__ZUgniyZ",
+  "source": "research/evidence/runs/gepa-zai-opencode-event-summary-70261b59610d4d30c9933962/gepa-zai-opencode-event-summary__ZUgniyZ",
+  "primary_category": "unknown",
+  "summary": "Verifier reward1.0 under the frozen admitted task; no observed failure mechanism assigned.",
+  "evidence": [
+    {
+      "path": "agent/trajectory.json",
+      "step": 5,
+      "supports": "Final agent message records the submitted result; preserved in the canonical ATIF trajectory."
+    },
+    {
+      "path": "result.json",
+      "step": null,
+      "supports": "Records the observed verifier outcome without regrading."
+    }
+  ],
+  "agent": "opencode1.18.25 / zai-coding-plan/glm-5.3-flash",
+  "reward": 1.0,
+  "review_status": "draft_pending_research_review",
+  "review_note": "Deterministic outcome triage, not a human gold label. Existing task verifier limits remain.",
+  "labelled_by": "GEPA HAR-53,2026-09-15",
+  "parent_trajectory_sha256": "sha256:3e9bcd7a032e691e4bf0771e8ec5dcda9d0d335a99249c34e033efe4bd4c0cfc"
+}

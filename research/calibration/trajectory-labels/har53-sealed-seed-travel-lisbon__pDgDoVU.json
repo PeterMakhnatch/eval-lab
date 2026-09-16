@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "trial_name": "har53-sealed-seed-travel-lisbon__pDgDoVU",
+  "source": "research/evidence/runs/har53-sealed-seed-travel-lisbon-b25fd19650d8/har53-sealed-seed-travel-lisbon__pDgDoVU",
+  "primary_category": "task_invalid",
+  "summary": "Raw reward0: answer correctly refuses1130>900; verifier rejects an undeclared acquired_sources key. Output-contract defect, not a clean planning-capability verdict.",
+  "evidence": [
+    {
+      "path": "agent/trajectory.json",
+      "step": 6,
+      "supports": "Final agent message records the submitted result; preserved in the canonical ATIF trajectory."
+    },
+    {
+      "path": "verifier/result.json",
+      "step": null,
+      "supports": "Records the observed verifier outcome without regrading."
+    }
+  ],
+  "agent": "opencode1.18.25 / zai-coding-plan/glm-5.3-flash",
+  "reward": 0.0,
+  "review_status": "draft_pending_research_review",
+  "review_note": "Provisional task-output-contract classification; see HAR-53 heldout qualification receipt. Native zero remains unchanged.",
+  "labelled_by": "GEPA HAR-53,2026-09-15",
+  "parent_trajectory_sha256": "sha256:6cb55f3046ef6450fd1a3982ea758f14b87faa71f19ccfdfa0c3a471ddfd9085"
+}

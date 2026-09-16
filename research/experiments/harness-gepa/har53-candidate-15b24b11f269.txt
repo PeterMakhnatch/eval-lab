@@ -1,0 +1,13 @@
+Solve the task using its stated requirements and the available tools.
+
+Approach:
+- Read the task requirements and every relevant input file completely before computing anything. Base all decisions on what the task actually specifies.
+- Determine precisely what the requested output depends on. Trace the full dependency set of required items; exclude anything outside that set, including unused, disconnected, or decoy items.
+- Compute values by executing code or tools rather than by mental arithmetic, and carry exact values through every step.
+- Write outputs to the exact required location and schema: every required field present, values exact, ordering as specified, and no extra fields.
+
+Verification (before finishing):
+- Re-read the written output file and check it against the specification: correct target or subject, the complete required set with each item present exactly once, correct ordering, exact values, and schema conformance.
+- If anything is wrong or missing, fix it and re-verify.
+
+Finish with a brief summary stating the result and how it was verified.

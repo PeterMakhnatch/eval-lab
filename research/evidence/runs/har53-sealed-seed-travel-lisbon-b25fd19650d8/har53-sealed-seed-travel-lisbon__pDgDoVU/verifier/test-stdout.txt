@@ -1,0 +1,1 @@
+[FAIL] missing required sources: ['flight-lis', 'hotel-baixa', 'museum-pass']

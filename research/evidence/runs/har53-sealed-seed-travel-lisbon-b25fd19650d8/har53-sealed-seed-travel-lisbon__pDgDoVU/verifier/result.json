@@ -1,0 +1,5 @@
+{
+  "status": "failed",
+  "reason": "missing required sources: ['flight-lis', 'hotel-baixa', 'museum-pass']",
+  "reward": 0.0
+}

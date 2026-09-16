@@ -1,0 +1,4 @@
+{"cookie": null, "is_directory": true, "operations": ["create"], "path": "src/__pycache__", "sequence": 1, "timestamp": "2026-09-15T23:56:13.508877Z"}
+{"cookie": null, "is_directory": false, "operations": ["create"], "path": "output/result.json", "sequence": 2, "timestamp": "2026-09-15T23:56:16.593130Z"}
+{"cookie": null, "is_directory": false, "operations": ["modify"], "path": "output/result.json", "sequence": 3, "timestamp": "2026-09-15T23:56:16.594133Z"}
+{"cookie": null, "is_directory": false, "operations": ["close_write"], "path": "output/result.json", "sequence": 4, "state": {"hash_status": "complete", "mode": "-rw-r--r--", "mtime_ns": 1789516576592002012, "path": "output/result.json", "sha256": "sha256:2b3f9d1362daf50faf9110274b80e7523affbdf2684c88196e9c4999f4c46c9f", "size_bytes": 181, "type": "file"}, "timestamp": "2026-09-15T23:56:16.594569Z"}

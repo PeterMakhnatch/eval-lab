@@ -1,0 +1,24 @@
+{
+  "task_id": "travel-lisbon-002",
+  "answer": "refuse",
+  "reason": "budget_exceeded: flight-lis (450) + hotel-baixa (600) + museum-pass (80) = 1130 exceeds the required budget of 900 (constraint t2-budget), so no valid Lisbon weekend itinerary exists; refusing per benchmark refusal rule.",
+  "sources_used": [
+    "flight-lis",
+    "hotel-baixa",
+    "museum-pass"
+  ],
+  "checks": {
+    "t2-local-city": {
+      "satisfied": true,
+      "detail": "hotel-baixa content contains 'city Lisbon'"
+    },
+    "t2-budget": {
+      "satisfied": false,
+      "detail": "450 + 600 + 80 = 1130 > 900"
+    },
+    "t2-time": {
+      "satisfied": true,
+      "detail": "180 + 90 = 270 <= 300"
+    }
+  }
+}

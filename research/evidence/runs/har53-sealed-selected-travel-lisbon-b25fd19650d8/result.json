@@ -1,0 +1,39 @@
+{
+    "id": "7fa18b28-57a4-4caa-ba6b-347599e67728",
+    "started_at": "2026-09-15T20:02:32.026049",
+    "updated_at": "2026-09-15T20:04:31.243034",
+    "finished_at": "2026-09-15T20:04:31.243034",
+    "n_total_trials": 1,
+    "stats": {
+        "n_completed_trials": 1,
+        "n_errored_trials": 0,
+        "n_running_trials": 0,
+        "n_pending_trials": 0,
+        "n_cancelled_trials": 0,
+        "n_retries": 0,
+        "evals": {
+            "opencode__glm-5.3-flash__adhoc": {
+                "n_trials": 1,
+                "n_errors": 0,
+                "metrics": [
+                    {
+                        "mean": 0.0
+                    }
+                ],
+                "pass_at_k": {},
+                "reward_stats": {
+                    "reward": {
+                        "0.0": [
+                            "har53-sealed-selected-travel-lis__BZdS4Pa"
+                        ]
+                    }
+                },
+                "exception_stats": {}
+            }
+        },
+        "n_input_tokens": 40798,
+        "n_cache_tokens": 39232,
+        "n_output_tokens": 547,
+        "cost_usd": null
+    }
+}

@@ -1,0 +1,16 @@
+{
+  "target": "n_2_0",
+  "value": 3,
+  "dependency_trace": [
+    {
+      "node": "n_2_0",
+      "inputs": [
+        {
+          "id": "in_1",
+          "value": 3
+        }
+      ],
+      "value": 3
+    }
+  ]
+}

@@ -183,6 +183,52 @@ scores use development tasks; freeze the artifact before a separate held-out
 comparison. Missing traces remain missing, and infrastructure failures never
 become reward zero.
 
+### Bounded GEPA and genuine Omni composition
+
+`research/experiments/harness-gepa/har53-gepa.json` and `har53-omni.json`
+are disabled examples for the frozen multi-task study. Use the same
+`run` / `status` / `approve-candidate` / `stop` / `resume` interface above;
+configuration and a release pin are never spending permission.
+
+`"engine": "omni"` uses the pinned upstream `optimize_best_of` primitive
+with **GEPA, AutoResearch, and Meta-Harness**, all starting from the same seed,
+then a fresh GEPA continuation from the common-pool winner. Exploration is
+serial for the single native target slot. Stage directories, seeds, candidate
+digests, measured common-pool scores and native receipt links are retained.
+Ties or regressions retain the stage's input seed. Completed-stage resumption
+revalidates retained native evidence rather than proposing again.
+
+`max_evals` bounds upstream evaluator calls, including cached lookups; it is
+not a count of paid native trials. `max_target_attempts` reserves a native
+attempt before a new queue submission. An optional `shared_budget` binds an
+output directory and aggregate target-attempt, proposer-request and reported
+proposer-cost limits across campaigns/stages and independent repetitions.
+Failed or ambiguous reservations remain charged; missing state is not a
+counter reset, and cached replay does not reserve a new request. Existing
+target proxy ceilings and per-spec queue approval still apply. The estimated
+proposer-cost stop is **not** a hard provider billing guarantee.
+
+The released subprocess engines need a qualified OS sandbox, provider
+transport and physical-request meter. On the current macOS/Flash route,
+`run` returns `engine_unavailable` with per-engine reasons **before inference**.
+It does not replace those engines or call a GEPA-only result Omni. Unavailable
+engines do not prevent a separately authorized ordinary GEPA campaign.
+
+Reflection receives task feedback, not the eval server's transient `_budget`
+counters, so the same second-round request keeps its identity across review
+interruptions. Harbor's in-flight `result.json` is also not a completed result:
+resumption retains the exact pending queue specification until `finished_at`.
+No automatic retry or adoption follows from either repair.
+
+The [HAR-53 receipt](../research/evidence/har53-gepa-omni-20260915.json)
+records 16 native trials and four proposer requests, the exact instruction
+artifacts, standard portable comparisons, and shared local CAS/source-history
+restoration. All development and confirmation rewards were one, so the seed
+was retained. Confirmation groups consequently share one policy. The two
+sealed Lisbon grades remain zero, but their rejection exposes an undeclared
+output-schema/exact-text contract; they are not clean planning-capability
+failures. The report claims neither held-out improvement nor a live Omni result.
+
 For Cartesian evaluation grid expansion and budget-bounded experiment generation, see [`docs/ladder.md`](ladder.md).
 
 ## Paid execution requires a recorded authorisation

@@ -1,0 +1,1141 @@
+{
+  "schema_version": 1,
+  "issue": "HAR-53",
+  "created_at": "2026-09-16T00:24:10.377577+00:00",
+  "status": "native_tranche_complete; full_omni_live_gated; awaiting_RE_integration",
+  "study": "research/experiments/harness-gepa/har53-omni-study.json",
+  "operator_configs": {
+    "gepa": "research/experiments/harness-gepa/har53-gepa.json",
+    "omni": "research/experiments/harness-gepa/har53-omni.json"
+  },
+  "upstream": {
+    "commit": "0632cdb5dcc052e690eab439e1b4a7e3e9cfe407",
+    "version": "0.1.4",
+    "python_source_tree_sha256": "sha256:e8bc3facf961884faca73e7a434773231b3c1ba0eb79688072bf65bc1a268dd1"
+  },
+  "method_status": {
+    "baseline": "executed_on_two_development_tasks",
+    "gepa": "four_physical_proposer_requests; interrupted/recovered search; every retained candidate evaluated on the fixed common pool",
+    "omni": "genuine released composition implemented; live autoresearch/meta_harness blocked before inference",
+    "omni_availability": {
+      "release_commit": "0632cdb5dcc052e690eab439e1b4a7e3e9cfe407",
+      "recipe": "https://gepa-ai.github.io/gepa/blog/2026/07/22/optimize-anything-omni/",
+      "prerequisites": {
+        "platform": "darwin",
+        "is_macos": true,
+        "sandbox_configured": true,
+        "sandbox_backend": "seatbelt",
+        "claude_cli_found": true,
+        "claude_cli_path": "/Users/petermakhnatch/.local/bin/claude",
+        "bwrap_found": false,
+        "bwrap_path": null,
+        "runtime_isolation_tested": false,
+        "isolation_status": "untested",
+        "fail_closed_os_launch_supported": false,
+        "live_launch_blocker": "Pinned GEPA macOS settings set sandbox.failIfUnavailable=False; live launch is refused until a fail-closed OS route is qualified",
+        "deny_web_tools": "--disallowedTools=WebFetch,WebSearch",
+        "file_tools_whitelisted": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Edit",
+          "Write",
+          "NotebookEdit"
+        ],
+        "permission_mode": "default (seatbelt whitelist)"
+      },
+      "proposer_model": "zai/glm-5.3-flash",
+      "engines": {
+        "gepa": {
+          "available": true,
+          "blockers": []
+        },
+        "autoresearch": {
+          "available": false,
+          "blockers": [
+            "Pinned GEPA macOS settings set sandbox.failIfUnavailable=False; live launch is refused until a fail-closed OS route is qualified",
+            "Existing Flash Coding Plan transport is not wired or qualified for this Claude Code engine; no provider substitution",
+            "Released subprocess engine has no qualified physical-request meter enforcing the shared proposer-request ceiling"
+          ]
+        },
+        "meta_harness": {
+          "available": false,
+          "blockers": [
+            "Pinned GEPA macOS settings set sandbox.failIfUnavailable=False; live launch is refused until a fail-closed OS route is qualified",
+            "Existing Flash Coding Plan transport is not wired or qualified for this Claude Code engine; no provider substitution",
+            "Released subprocess engine has no qualified physical-request meter enforcing the shared proposer-request ceiling"
+          ]
+        }
+      },
+      "blocked_engines": [
+        "autoresearch",
+        "meta_harness"
+      ],
+      "all_available": false
+    },
+    "matched_budget_design": true,
+    "matched_live_gepa_vs_omni_comparison_performed": false
+  },
+  "selection": {
+    "schema_version": 1,
+    "frozen_at": "2026-09-15T23:48:49.919628+00:00",
+    "selector": "complete_fixed_development_pool_mean; seed first on ties/regressions",
+    "seed_candidate_id": "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8",
+    "selected_candidate_id": "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8",
+    "selected_candidate_path": "research/experiments/harness-gepa/seed.txt",
+    "scores": {
+      "sha256:15b24b11f269fbb84880b3330e91c7990502dd626e07a103dd247d1b6e48137f": {
+        "event-summary": 1.0,
+        "syn-funcdag-easy": 1.0
+      },
+      "sha256:7d56ffec7c5bbad899522beeaa06b0b7914491f145cd85d674bdb41d78472869": {
+        "event-summary": 1.0,
+        "syn-funcdag-easy": 1.0
+      },
+      "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8": {
+        "event-summary": 1.0,
+        "syn-funcdag-easy": 1.0
+      },
+      "sha256:98f12bec4f9435a09846c51b4bb571ad41e38dc264d71ab681ee9377a24263c2": {
+        "event-summary": 1.0,
+        "syn-funcdag-easy": 1.0
+      },
+      "sha256:e6ca24a27ad8a7271c6dd8ad8668574e9c214ca33755e84e4c7db39a1a8fb8d9": {
+        "event-summary": 1.0,
+        "syn-funcdag-easy": 1.0
+      }
+    },
+    "means": {
+      "sha256:15b24b11f269fbb84880b3330e91c7990502dd626e07a103dd247d1b6e48137f": 1.0,
+      "sha256:7d56ffec7c5bbad899522beeaa06b0b7914491f145cd85d674bdb41d78472869": 1.0,
+      "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8": 1.0,
+      "sha256:98f12bec4f9435a09846c51b4bb571ad41e38dc264d71ab681ee9377a24263c2": 1.0,
+      "sha256:e6ca24a27ad8a7271c6dd8ad8668574e9c214ca33755e84e4c7db39a1a8fb8d9": 1.0
+    },
+    "optimizer_terminal_status": "proposer_unavailable",
+    "optimizer_stop_reason": "Campaign proposer request ceiling reached",
+    "physical_proposer_requests": 4,
+    "upstream_search_completed_normally": false,
+    "recovery_note": "Two fully evaluated reflective iterations; transient per-process _budget metadata caused two extra pre-fix responses. All four responses/artifacts retained and systematically evaluated on both development identities within unchanged bounds.",
+    "confirmation_interpretation": "Seed and selected are identical instructions. New jobs are independent replicate groups, not distinct treatments.",
+    "sealed_task_exposed_to_optimizer": false,
+    "instructions_automatically_adopted": false,
+    "improvement_claimed": false,
+    "runtime_selected_candidate_path": "runs/har53-gepa-omni-20260915/gepa/lab/candidates/8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8.txt"
+  },
+  "counts": {
+    "native_attempted": 16,
+    "native_completed": 16,
+    "native_errors": 0,
+    "native_aborted": 0,
+    "raw_reward_one": 14,
+    "raw_reward_zero": 2,
+    "final_trials_excluded_from_clean_capability_claim": 2,
+    "physical_proposer_requests": 4,
+    "omni_physical_requests": 0,
+    "automatic_trial_retries": 0,
+    "proposer_sdk_retries": 0
+  },
+  "phases": {
+    "development": {
+      "attempted": 10,
+      "completed": 10,
+      "reward_one": 10,
+      "reward_zero": 0,
+      "trial_errors": 0,
+      "provider_requests": 55,
+      "provider_tokens": 400916,
+      "target_api_equivalent_estimate_usd": 0.591302
+    },
+    "confirmation": {
+      "attempted": 4,
+      "completed": 4,
+      "reward_one": 4,
+      "reward_zero": 0,
+      "trial_errors": 0,
+      "provider_requests": 21,
+      "provider_tokens": 145635,
+      "target_api_equivalent_estimate_usd": 0.215364
+    },
+    "final": {
+      "attempted": 2,
+      "completed": 2,
+      "reward_one": 0,
+      "reward_zero": 2,
+      "trial_errors": 0,
+      "provider_requests": 15,
+      "provider_tokens": 111777,
+      "target_api_equivalent_estimate_usd": 0.169673
+    }
+  },
+  "candidates": {
+    "sha256:15b24b11f269fbb84880b3330e91c7990502dd626e07a103dd247d1b6e48137f": {
+      "path": "research/experiments/harness-gepa/har53-candidate-15b24b11f269.txt",
+      "bytes": 1077,
+      "role": "proposed",
+      "development_scores": {
+        "event-summary": 1.0,
+        "syn-funcdag-easy": 1.0
+      }
+    },
+    "sha256:7d56ffec7c5bbad899522beeaa06b0b7914491f145cd85d674bdb41d78472869": {
+      "path": "research/experiments/harness-gepa/har53-candidate-7d56ffec7c5b.txt",
+      "bytes": 1065,
+      "role": "proposed",
+      "development_scores": {
+        "event-summary": 1.0,
+        "syn-funcdag-easy": 1.0
+      }
+    },
+    "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8": {
+      "path": "research/experiments/harness-gepa/seed.txt",
+      "bytes": 146,
+      "role": "seed",
+      "development_scores": {
+        "event-summary": 1.0,
+        "syn-funcdag-easy": 1.0
+      }
+    },
+    "sha256:98f12bec4f9435a09846c51b4bb571ad41e38dc264d71ab681ee9377a24263c2": {
+      "path": "research/experiments/harness-gepa/har53-candidate-98f12bec4f94.txt",
+      "bytes": 1067,
+      "role": "proposed",
+      "development_scores": {
+        "event-summary": 1.0,
+        "syn-funcdag-easy": 1.0
+      }
+    },
+    "sha256:e6ca24a27ad8a7271c6dd8ad8668574e9c214ca33755e84e4c7db39a1a8fb8d9": {
+      "path": "research/experiments/harness-gepa/har53-candidate-e6ca24a27ad8.txt",
+      "bytes": 1109,
+      "role": "proposed",
+      "development_scores": {
+        "event-summary": 1.0,
+        "syn-funcdag-easy": 1.0
+      }
+    }
+  },
+  "comparisons": {
+    "development": "research/experiments/harness-gepa/har53-development-comparison.json",
+    "paired_analysis": "research/evidence/har53-paired-development-20260915.json",
+    "heldout_qualification": "research/evidence/har53-heldout-qualification-20260915.json",
+    "confirmation": "research/experiments/harness-gepa/har53-confirmation-comparison.json",
+    "final-raw": "research/experiments/harness-gepa/har53-final-raw-comparison.json",
+    "interpretation": "Confirmation/final specifications deliberately share one instruction digest; standard compare flags no declared-variable difference. Final raw grades also require the linked task-validity caveat."
+  },
+  "accounting": {
+    "target_provider_requests": 91,
+    "target_provider_tokens": 658328,
+    "target_api_equivalent_estimate_usd": 0.976339,
+    "proposer_reported_estimate_usd": 0.00625315,
+    "combined_known_estimates_usd": 0.98259215,
+    "proposer_token_usage": null,
+    "combined_token_usage": null,
+    "actual_billing_usd": null,
+    "actual_subscription_credits": null,
+    "cost_basis": "Target proxy conservative tariff (including cached input at full configured tariff) plus GEPA/LiteLLM catalog estimate; not actual subscription billing.",
+    "request_scope": "Experimental target provider calls plus optimizer proposer calls; coding/review worker use is outside this experiment ledger.",
+    "proposer_response_model_identity": null,
+    "proposer_identity_limit": "Requested Flash Coding Plan route; text-only upstream LM did not retain provider model/usage response fields."
+  },
+  "uncertainty": {
+    "development_task_clusters": 2,
+    "bootstrap_seed": 17,
+    "bootstrap_resamples": 2000,
+    "observed_paired_reward_deltas": [
+      0,
+      0
+    ],
+    "bootstrap_interval": [
+      0,
+      0
+    ],
+    "interpretation": "Degenerate empirical interval at a saturated binary ceiling, NOT equivalence or adequate statistical power.",
+    "confirmation_effective_instruction_policies": 1,
+    "final_task_identities": 1,
+    "qualified_final_task_identities_for_capability_claim": 0,
+    "heldout_effect_claim": false,
+    "model_sampling_seed": "not explicitly controlled; bootstrap seed is not an inference seed"
+  },
+  "exposure": {
+    "selection_frozen_before_final": true,
+    "optimizer_STOP_before_final": true,
+    "final_traces_never_sent_to_proposer": true,
+    "task_and_verifier_bytes_changed": false,
+    "task_admission_changed": false,
+    "provider_weight_revision": null,
+    "model_weights_trained_or_modified": false,
+    "final_identity_now_exposed": true
+  },
+  "runtime_repairs": {
+    "transient_feedback_counter_replay": {
+      "before": "4f04b75cde0839a3923b754bbc3ecaa23df9b8cd",
+      "fixed": "c264bdd3694f15e04d6fa926c11f55d7460efe4f",
+      "proof": "Actual second-round prompts differed only _budget.used5->3 and remaining59->61; zero-model released-engine regression fails before, passes after."
+    },
+    "inflight_result_reuse": {
+      "fixed": "7d87c57958f85cca19456d2f56e134b0616aa037",
+      "proof": "Existing pending-spec regression fails with an unfinished Harbor result.json before fix; now reuses same spec/charge and fails closed if pending evidence is absent."
+    },
+    "source_history_preserved": "runtime-source.bundle inside original campaign CAS, requiring public base9601aacf6dd90ff28d21d86bd2f03588413f79e6",
+    "target_runtime_source_manifest": {
+      "src/evallab/runner.py": "sha256:1eabd485bc20f2011417a9ea3a2612c1711a29142875408937f4f319da4436d4",
+      "src/evallab/harbor_zai_opencode.py": "sha256:235267b1778342860def14ae530c229fa249399d475431953a996107a1090374",
+      "src/evallab/execution_contracts.py": "sha256:bddbc6789adc62fa7d116801fe75c495ee422c7c727a3a64aaf68242b1c9e2b1",
+      "src/evallab/profiles.py": "sha256:cfc323d62cfd625f8c0a82a008489787ff8fac45d86470f53c2e12fd8cae06b4",
+      "src/evallab/queue.py": "sha256:35eb4be5c590cef49cdba97200a940511b1cd256edbf24bee9df600115b3d19a",
+      "containers/zai_secret_proxy.py": "sha256:9bb56876b85539cd5f63699c1759b3d78c9434f60ba18d7f4204759fb801b252"
+    }
+  },
+  "storage": {
+    "raw_store": "/Users/petermakhnatch/Developer/eval-lab/derived/evidence-cas",
+    "scope": "Shared local content-addressed store, not remote publication",
+    "native_archives": {
+      "runs/gepa-zai-opencode-event-summary-e41a67fdd138b615317db74e": {
+        "uri": "cas://sha256/c11b1ab84cc4c0ffab4cef8fe0baf26c944f05ae0d2cc87fa30391d0167c4338",
+        "content_digest": "sha256:c11b1ab84cc4c0ffab4cef8fe0baf26c944f05ae0d2cc87fa30391d0167c4338",
+        "archive_digest": "sha256:513ff0543a4b453d3d209610d5b4a0ed952920f95f0f61be456cc6f14e6ce53c",
+        "file_count": 30,
+        "uncompressed_bytes": 2708002
+      },
+      "runs/gepa-zai-opencode-syn-funcdag-easy-99651598990a0bd1db080718": {
+        "uri": "cas://sha256/2d5a5fe63827927186f2ae7ff523afdac7eefb335c6ba2e1d889ba37603f3bde",
+        "content_digest": "sha256:2d5a5fe63827927186f2ae7ff523afdac7eefb335c6ba2e1d889ba37603f3bde",
+        "archive_digest": "sha256:40fd118b94aa5fe8ac47bf66bc561c922678cd2d3c7584ed09ee2ea77e24351e",
+        "file_count": 28,
+        "uncompressed_bytes": 2455681
+      },
+      "runs/gepa-zai-opencode-event-summary-022c925c5324f95ce93ab434": {
+        "uri": "cas://sha256/33f3ddbb8c645ed060ab2483a4ee7c371283e175e433b22e35988bf54dd078e1",
+        "content_digest": "sha256:33f3ddbb8c645ed060ab2483a4ee7c371283e175e433b22e35988bf54dd078e1",
+        "archive_digest": "sha256:e27c96809fae2df62035c61e2da4bffd77df7cb446848228d10bbe4243379412",
+        "file_count": 30,
+        "uncompressed_bytes": 3009711
+      },
+      "runs/gepa-zai-opencode-syn-funcdag-easy-71a9e9e8fae31163a7b99552": {
+        "uri": "cas://sha256/496a8c815dd3fcc7c7db198f515f09fe4bc68f408e546de7d923af8522f54ee0",
+        "content_digest": "sha256:496a8c815dd3fcc7c7db198f515f09fe4bc68f408e546de7d923af8522f54ee0",
+        "archive_digest": "sha256:109b9387230a8ea526e611047a8571bccdedabf8f8c03b90714c98cc33f1f5f5",
+        "file_count": 28,
+        "uncompressed_bytes": 2986899
+      },
+      "runs/gepa-zai-opencode-event-summary-70261b59610d4d30c9933962": {
+        "uri": "cas://sha256/408c84ce931f7d8da87f3d9d6cb9d16f67be8b85e4ae8debd36bb03bcac5ea88",
+        "content_digest": "sha256:408c84ce931f7d8da87f3d9d6cb9d16f67be8b85e4ae8debd36bb03bcac5ea88",
+        "archive_digest": "sha256:90c1e39fc985eb269817c18bd76a130734420063fa5cdf4522638bf015671512",
+        "file_count": 30,
+        "uncompressed_bytes": 2346688
+      },
+      "runs/gepa-zai-opencode-syn-funcdag-easy-1335d7d84ebb4a1a1ff2fac0": {
+        "uri": "cas://sha256/c25d2f548a6933c1b2d0795467a16bd9d043cd87378b01c7c04a88f24097a61f",
+        "content_digest": "sha256:c25d2f548a6933c1b2d0795467a16bd9d043cd87378b01c7c04a88f24097a61f",
+        "archive_digest": "sha256:da561655c959c1d1d2580f3c02b27a3f38d5de1d12833802df2e953401237a16",
+        "file_count": 28,
+        "uncompressed_bytes": 2495454
+      },
+      "runs/gepa-zai-opencode-syn-funcdag-easy-94884cabf8c54a757e56f73c": {
+        "uri": "cas://sha256/1f4d44ab44a747cff2713ac5e85dffa2d3b6fe602aaf4e1323f97b2ee51a250d",
+        "content_digest": "sha256:1f4d44ab44a747cff2713ac5e85dffa2d3b6fe602aaf4e1323f97b2ee51a250d",
+        "archive_digest": "sha256:bb9e6c2fb8af68bcafa87f1c531879d6d5fbf6b08d62500fa50134b0ddb7623f",
+        "file_count": 28,
+        "uncompressed_bytes": 2976143
+      },
+      "runs/gepa-zai-opencode-event-summary-5acac886e7eb7e17b62982db": {
+        "uri": "cas://sha256/60a79c120e77aa63b20c5ac44ba8b41982ff419a70578930f1fa55fc689661f3",
+        "content_digest": "sha256:60a79c120e77aa63b20c5ac44ba8b41982ff419a70578930f1fa55fc689661f3",
+        "archive_digest": "sha256:9c4f429fefc6d03f0b6e1095738852a0cf6626d5290e0b4092052cb0f5a3ec04",
+        "file_count": 30,
+        "uncompressed_bytes": 2337546
+      },
+      "runs/gepa-zai-opencode-syn-funcdag-easy-f5dd1bc64749b0545437b06f": {
+        "uri": "cas://sha256/8cd080c197860635502f2d2a2429225d6d5bae58df894c407bf777a3f3b73ec6",
+        "content_digest": "sha256:8cd080c197860635502f2d2a2429225d6d5bae58df894c407bf777a3f3b73ec6",
+        "archive_digest": "sha256:29af0546b5a7411c756369395e61c808dd29bb40adb5ba4536c2279cdddc10a2",
+        "file_count": 28,
+        "uncompressed_bytes": 2508499
+      },
+      "runs/gepa-zai-opencode-event-summary-d084300f47d6bc04df514904": {
+        "uri": "cas://sha256/d02820dcb4e3167abe3f560837bf57eb208f796bc36fd9dfd4a6cbe6d4bdfb95",
+        "content_digest": "sha256:d02820dcb4e3167abe3f560837bf57eb208f796bc36fd9dfd4a6cbe6d4bdfb95",
+        "archive_digest": "sha256:b531e5f4e18cd9256ac1d8020469abf38c04ffe3f286323e8cd1309d9484db76",
+        "file_count": 30,
+        "uncompressed_bytes": 1965979
+      },
+      "runs/gepa-zai-opencode-event-summary-8f6d211486a72f024483869d": {
+        "uri": "cas://sha256/62486e16fd4e91474c876bfc7089464f779b77ab590d5b08071df21b9e7cec19",
+        "content_digest": "sha256:62486e16fd4e91474c876bfc7089464f779b77ab590d5b08071df21b9e7cec19",
+        "archive_digest": "sha256:46bd91746d8220f896c62bf11127924a56964cf901fce2fd11afcdbe17e7dce4",
+        "file_count": 28,
+        "uncompressed_bytes": 1974148
+      },
+      "runs/gepa-zai-opencode-syn-funcdag-easy-4a4e41ccd285e11d9109bd8f": {
+        "uri": "cas://sha256/7991e1914bcfa4dec7eed54766c2cfa3506e2021761da7b3e851e4c682a0993a",
+        "content_digest": "sha256:7991e1914bcfa4dec7eed54766c2cfa3506e2021761da7b3e851e4c682a0993a",
+        "archive_digest": "sha256:f3bae7f69a219852e049338863d53a3c3cffa013a67f6e7b2a9812ab4f54d983",
+        "file_count": 28,
+        "uncompressed_bytes": 2182218
+      },
+      "runs/gepa-zai-opencode-event-summary-c29fd211521aa25c1095287c": {
+        "uri": "cas://sha256/c45cd17c5b6e3ac43e2828262819e816ed91c83525d8183516c52183196f8764",
+        "content_digest": "sha256:c45cd17c5b6e3ac43e2828262819e816ed91c83525d8183516c52183196f8764",
+        "archive_digest": "sha256:93a436108ffb792f8a8755f410b694240e84691b829376b84cad35a544c01501",
+        "file_count": 30,
+        "uncompressed_bytes": 2785933
+      },
+      "runs/gepa-zai-opencode-syn-funcdag-easy-51e81d84722a302daf64dddc": {
+        "uri": "cas://sha256/7d328725a55326137df688e000be94818ec03ba54c319de282205a1f5d9cd06b",
+        "content_digest": "sha256:7d328725a55326137df688e000be94818ec03ba54c319de282205a1f5d9cd06b",
+        "archive_digest": "sha256:50a4d40ed0a588406952261453b1d75d355e58599b406b98bc32b140e8c444a6",
+        "file_count": 28,
+        "uncompressed_bytes": 2827291
+      },
+      "runs/har53-sealed-seed-travel-lisbon-b25fd19650d8": {
+        "uri": "cas://sha256/93943ec0460624552b2771592a4675a86743241e6f1754e3b62e56dd71097221",
+        "content_digest": "sha256:93943ec0460624552b2771592a4675a86743241e6f1754e3b62e56dd71097221",
+        "archive_digest": "sha256:815ee69d65f6ebc1c74e3e237e8d754647abdb7be01417b963cee73759bd3a22",
+        "file_count": 26,
+        "uncompressed_bytes": 2630081
+      },
+      "runs/har53-sealed-selected-travel-lisbon-b25fd19650d8": {
+        "uri": "cas://sha256/db29ff82e9d2a61f8c1363fa4fac052482327a505c21dbbed396663227cf1332",
+        "content_digest": "sha256:db29ff82e9d2a61f8c1363fa4fac052482327a505c21dbbed396663227cf1332",
+        "archive_digest": "sha256:1e61c046923eec00271abdf1f7aeb517aa2893a127412d5696939fb68d7bf274",
+        "file_count": 26,
+        "uncompressed_bytes": 2689676
+      }
+    },
+    "promoted_native_files": 302,
+    "promoted_native_bytes": 605112,
+    "promotion": "Existing scripts/promote_codex_bundle.py R1/R2/R3 and schema-v2 PROMOTION manifests; no raw OpenCode streams/runtime/auth data published",
+    "restore_proof": {
+      "status": "pass",
+      "source_uri": "cas://sha256/c11b1ab84cc4c0ffab4cef8fe0baf26c944f05ae0d2cc87fa30391d0167c4338",
+      "restored_job_id": "3f4a961b-96a7-44fd-bc22-36d4e5dd18a2",
+      "source_store": "/Users/petermakhnatch/Developer/eval-lab/derived/evidence-cas",
+      "restore_via": "evallab evidence restore",
+      "temporary_restore_removed": true
+    },
+    "campaign_archives": {
+      "campaign": {
+        "uri": "cas://sha256/255edd78f5aad1558d817bb3ac32ee06a7833c55469a3a269d77652bf2bf1f44",
+        "content_digest": "sha256:255edd78f5aad1558d817bb3ac32ee06a7833c55469a3a269d77652bf2bf1f44",
+        "archive_digest": "sha256:27faf609852249e8ccf614d8ee6b81bc547d7ed82cc2f93c80ca14e46a2b538e",
+        "file_count": 121,
+        "uncompressed_bytes": 1191060
+      },
+      "queue": {
+        "uri": "cas://sha256/97c2066d8df0bf60f1fe3a9e6ca282b67e7d910f1a9484061c34b6973e448c49",
+        "content_digest": "sha256:97c2066d8df0bf60f1fe3a9e6ca282b67e7d910f1a9484061c34b6973e448c49",
+        "archive_digest": "sha256:12d00c4e0aee472a94150f8abab108335c43fa3bfe9d1caba2ee7203b6c8adc1",
+        "file_count": 51,
+        "uncompressed_bytes": 71991
+      }
+    },
+    "runtime_source_bundle": {
+      "path_inside_campaign_archive": "runtime-source.bundle",
+      "sha256": "sha256:411acb3247c33ca213dbf77519c0c4e0797e168b49df666e552558a6f3028161",
+      "head": "7d87c57958f85cca19456d2f56e134b0616aa037",
+      "required_base": "9601aacf6dd90ff28d21d86bd2f03588413f79e6",
+      "verified_by": "git bundle verify",
+      "restored_from_campaign_CAS_and_verified": true
+    },
+    "portable_comparison_proof": {
+      "status": "pass",
+      "native_runtime_directories_supplied": false,
+      "private_candidate_files_supplied": false,
+      "comparisons": [
+        {
+          "phase": "development",
+          "cohorts": 5
+        },
+        {
+          "phase": "confirmation",
+          "cohorts": 2
+        },
+        {
+          "phase": "final-raw",
+          "cohorts": 2
+        }
+      ],
+      "temporary_copy_removed": true
+    },
+    "publication_scan": {
+      "files": 347,
+      "bytes": 925629,
+      "flags": [],
+      "mechanism": "Existing encoded-secret needles, known-key/bearer redactor and explorer generic redactor; canonical R1 prompt privacy separately verified by trace tests."
+    }
+  },
+  "runs": [
+    {
+      "phase": "development",
+      "candidate_id": "sha256:15b24b11f269fbb84880b3330e91c7990502dd626e07a103dd247d1b6e48137f",
+      "task_id": "event-summary",
+      "reward": 1.0,
+      "job_id": "5d3e5372-ad96-4030-8134-9921458a9395",
+      "trial_id": "f3e587c2-4d0d-407b-9f8e-de73880da57e",
+      "trial_name": "gepa-zai-opencode-event-summary__ZUgniyZ",
+      "source": {
+        "commit": "7d87c57958f85cca19456d2f56e134b0616aa037",
+        "dirty": false
+      },
+      "tools": {
+        "docker": "Docker version 29.8.0, build 88096ef",
+        "harbor": "0.21.0",
+        "uv": "uv 0.9.24 (0fda1525e 2026-01-09)"
+      },
+      "agent": {
+        "name": "opencode",
+        "version": "1.18.25",
+        "model_name": "zai-coding-plan/glm-5.3-flash"
+      },
+      "provider_totals": {
+        "cost_micros": 49889,
+        "input_tokens": 32556,
+        "output_tokens": 979,
+        "requests": 5,
+        "total_tokens": 33535
+      },
+      "provider_model_ids": [
+        "glm-5.3-flash"
+      ],
+      "unresolved_provider_requests": 0,
+      "exception_type": null,
+      "elapsed_job_seconds": 86.214943,
+      "raw_archive_uri": "cas://sha256/408c84ce931f7d8da87f3d9d6cb9d16f67be8b85e4ae8debd36bb03bcac5ea88",
+      "native_runtime_path": "runs/gepa-zai-opencode-event-summary-70261b59610d4d30c9933962",
+      "promoted_job_path": "research/evidence/runs/gepa-zai-opencode-event-summary-70261b59610d4d30c9933962",
+      "promotion_manifest": "research/evidence/runs/gepa-zai-opencode-event-summary-70261b59610d4d30c9933962/PROMOTION.json",
+      "scientific_qualification": "exploratory_admitted_task_reward; existing verifier limits apply"
+    },
+    {
+      "phase": "development",
+      "candidate_id": "sha256:15b24b11f269fbb84880b3330e91c7990502dd626e07a103dd247d1b6e48137f",
+      "task_id": "syn-funcdag-easy",
+      "reward": 1.0,
+      "job_id": "ee0a92ac-5770-44ce-95ce-187a9d7a5bea",
+      "trial_id": "8a88093b-bf08-4c52-92be-e05ebb61991b",
+      "trial_name": "gepa-zai-opencode-syn-funcdag-ea__Pkd9nrm",
+      "source": {
+        "commit": "7d87c57958f85cca19456d2f56e134b0616aa037",
+        "dirty": false
+      },
+      "tools": {
+        "docker": "Docker version 29.8.0, build 88096ef",
+        "harbor": "0.21.0",
+        "uv": "uv 0.9.24 (0fda1525e 2026-01-09)"
+      },
+      "agent": {
+        "name": "opencode",
+        "version": "1.18.25",
+        "model_name": "zai-coding-plan/glm-5.3-flash"
+      },
+      "provider_totals": {
+        "cost_micros": 55680,
+        "input_tokens": 36727,
+        "output_tokens": 968,
+        "requests": 5,
+        "total_tokens": 37695
+      },
+      "provider_model_ids": [
+        "glm-5.3-flash"
+      ],
+      "unresolved_provider_requests": 0,
+      "exception_type": null,
+      "elapsed_job_seconds": 88.733683,
+      "raw_archive_uri": "cas://sha256/c25d2f548a6933c1b2d0795467a16bd9d043cd87378b01c7c04a88f24097a61f",
+      "native_runtime_path": "runs/gepa-zai-opencode-syn-funcdag-easy-1335d7d84ebb4a1a1ff2fac0",
+      "promoted_job_path": "research/evidence/runs/gepa-zai-opencode-syn-funcdag-easy-1335d7d84ebb4a1a1ff2fac0",
+      "promotion_manifest": "research/evidence/runs/gepa-zai-opencode-syn-funcdag-easy-1335d7d84ebb4a1a1ff2fac0/PROMOTION.json",
+      "scientific_qualification": "exploratory_admitted_task_reward; existing verifier limits apply"
+    },
+    {
+      "phase": "development",
+      "candidate_id": "sha256:7d56ffec7c5bbad899522beeaa06b0b7914491f145cd85d674bdb41d78472869",
+      "task_id": "event-summary",
+      "reward": 1.0,
+      "job_id": "23a2cfb6-32e3-4d15-a094-41745ef0f079",
+      "trial_id": "2e750ce7-17e6-4d7b-af0e-462b0324e176",
+      "trial_name": "gepa-zai-opencode-event-summary__pQzeT4t",
+      "source": {
+        "commit": "4f04b75cde0839a3923b754bbc3ecaa23df9b8cd",
+        "dirty": false
+      },
+      "tools": {
+        "docker": "Docker version 29.8.0, build 88096ef",
+        "harbor": "0.21.0",
+        "uv": "uv 0.9.24 (0fda1525e 2026-01-09)"
+      },
+      "agent": {
+        "name": "opencode",
+        "version": "1.18.25",
+        "model_name": "zai-coding-plan/glm-5.3-flash"
+      },
+      "provider_totals": {
+        "cost_micros": 73880,
+        "input_tokens": 49143,
+        "output_tokens": 1154,
+        "requests": 7,
+        "total_tokens": 50297
+      },
+      "provider_model_ids": [
+        "glm-5.3-flash"
+      ],
+      "unresolved_provider_requests": 0,
+      "exception_type": null,
+      "elapsed_job_seconds": 101.377236,
+      "raw_archive_uri": "cas://sha256/33f3ddbb8c645ed060ab2483a4ee7c371283e175e433b22e35988bf54dd078e1",
+      "native_runtime_path": "runs/gepa-zai-opencode-event-summary-022c925c5324f95ce93ab434",
+      "promoted_job_path": "research/evidence/runs/gepa-zai-opencode-event-summary-022c925c5324f95ce93ab434",
+      "promotion_manifest": "research/evidence/runs/gepa-zai-opencode-event-summary-022c925c5324f95ce93ab434/PROMOTION.json",
+      "scientific_qualification": "exploratory_admitted_task_reward; existing verifier limits apply"
+    },
+    {
+      "phase": "development",
+      "candidate_id": "sha256:7d56ffec7c5bbad899522beeaa06b0b7914491f145cd85d674bdb41d78472869",
+      "task_id": "syn-funcdag-easy",
+      "reward": 1.0,
+      "job_id": "1536f720-cdf1-4de8-b6f6-7fb047655900",
+      "trial_id": "61bd5f7d-12dc-4330-864a-7a81d469b39b",
+      "trial_name": "gepa-zai-opencode-syn-funcdag-ea__4teyf23",
+      "source": {
+        "commit": "7d87c57958f85cca19456d2f56e134b0616aa037",
+        "dirty": false
+      },
+      "tools": {
+        "docker": "Docker version 29.8.0, build 88096ef",
+        "harbor": "0.21.0",
+        "uv": "uv 0.9.24 (0fda1525e 2026-01-09)"
+      },
+      "agent": {
+        "name": "opencode",
+        "version": "1.18.25",
+        "model_name": "zai-coding-plan/glm-5.3-flash"
+      },
+      "provider_totals": {
+        "cost_micros": 84594,
+        "input_tokens": 57216,
+        "output_tokens": 1020,
+        "requests": 7,
+        "total_tokens": 58236
+      },
+      "provider_model_ids": [
+        "glm-5.3-flash"
+      ],
+      "unresolved_provider_requests": 0,
+      "exception_type": null,
+      "elapsed_job_seconds": 99.518896,
+      "raw_archive_uri": "cas://sha256/1f4d44ab44a747cff2713ac5e85dffa2d3b6fe602aaf4e1323f97b2ee51a250d",
+      "native_runtime_path": "runs/gepa-zai-opencode-syn-funcdag-easy-94884cabf8c54a757e56f73c",
+      "promoted_job_path": "research/evidence/runs/gepa-zai-opencode-syn-funcdag-easy-94884cabf8c54a757e56f73c",
+      "promotion_manifest": "research/evidence/runs/gepa-zai-opencode-syn-funcdag-easy-94884cabf8c54a757e56f73c/PROMOTION.json",
+      "scientific_qualification": "exploratory_admitted_task_reward; existing verifier limits apply"
+    },
+    {
+      "phase": "development",
+      "candidate_id": "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8",
+      "task_id": "event-summary",
+      "reward": 1.0,
+      "job_id": "3f4a961b-96a7-44fd-bc22-36d4e5dd18a2",
+      "trial_id": "9f0a619e-2d97-4295-94c0-4c134bb2f7ca",
+      "trial_name": "gepa-zai-opencode-event-summary__u6EdsRJ",
+      "source": {
+        "commit": "4f04b75cde0839a3923b754bbc3ecaa23df9b8cd",
+        "dirty": false
+      },
+      "tools": {
+        "docker": "Docker version 29.8.0, build 88096ef",
+        "harbor": "0.21.0",
+        "uv": "uv 0.9.24 (0fda1525e 2026-01-09)"
+      },
+      "agent": {
+        "name": "opencode",
+        "version": "1.18.25",
+        "model_name": "zai-coding-plan/glm-5.3-flash"
+      },
+      "provider_totals": {
+        "cost_micros": 58364,
+        "input_tokens": 38881,
+        "output_tokens": 893,
+        "requests": 6,
+        "total_tokens": 39774
+      },
+      "provider_model_ids": [
+        "glm-5.3-flash"
+      ],
+      "unresolved_provider_requests": 0,
+      "exception_type": null,
+      "elapsed_job_seconds": 79.218662,
+      "raw_archive_uri": "cas://sha256/c11b1ab84cc4c0ffab4cef8fe0baf26c944f05ae0d2cc87fa30391d0167c4338",
+      "native_runtime_path": "runs/gepa-zai-opencode-event-summary-e41a67fdd138b615317db74e",
+      "promoted_job_path": "research/evidence/runs/gepa-zai-opencode-event-summary-e41a67fdd138b615317db74e",
+      "promotion_manifest": "research/evidence/runs/gepa-zai-opencode-event-summary-e41a67fdd138b615317db74e/PROMOTION.json",
+      "scientific_qualification": "exploratory_admitted_task_reward; existing verifier limits apply"
+    },
+    {
+      "phase": "development",
+      "candidate_id": "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8",
+      "task_id": "syn-funcdag-easy",
+      "reward": 1.0,
+      "job_id": "c98f849c-c09c-450a-899d-9c8d39326a97",
+      "trial_id": "797542f5-6b9b-4eb5-aeb1-abc12da81fa3",
+      "trial_name": "gepa-zai-opencode-syn-funcdag-ea__WrindeW",
+      "source": {
+        "commit": "4f04b75cde0839a3923b754bbc3ecaa23df9b8cd",
+        "dirty": false
+      },
+      "tools": {
+        "docker": "Docker version 29.8.0, build 88096ef",
+        "harbor": "0.21.0",
+        "uv": "uv 0.9.24 (0fda1525e 2026-01-09)"
+      },
+      "agent": {
+        "name": "opencode",
+        "version": "1.18.25",
+        "model_name": "zai-coding-plan/glm-5.3-flash"
+      },
+      "provider_totals": {
+        "cost_micros": 54637,
+        "input_tokens": 36033,
+        "output_tokens": 952,
+        "requests": 5,
+        "total_tokens": 36985
+      },
+      "provider_model_ids": [
+        "glm-5.3-flash"
+      ],
+      "unresolved_provider_requests": 0,
+      "exception_type": null,
+      "elapsed_job_seconds": 84.211854,
+      "raw_archive_uri": "cas://sha256/2d5a5fe63827927186f2ae7ff523afdac7eefb335c6ba2e1d889ba37603f3bde",
+      "native_runtime_path": "runs/gepa-zai-opencode-syn-funcdag-easy-99651598990a0bd1db080718",
+      "promoted_job_path": "research/evidence/runs/gepa-zai-opencode-syn-funcdag-easy-99651598990a0bd1db080718",
+      "promotion_manifest": "research/evidence/runs/gepa-zai-opencode-syn-funcdag-easy-99651598990a0bd1db080718/PROMOTION.json",
+      "scientific_qualification": "exploratory_admitted_task_reward; existing verifier limits apply"
+    },
+    {
+      "phase": "development",
+      "candidate_id": "sha256:98f12bec4f9435a09846c51b4bb571ad41e38dc264d71ab681ee9377a24263c2",
+      "task_id": "event-summary",
+      "reward": 1.0,
+      "job_id": "5d18d096-9eb1-4295-9578-43e521d4d04f",
+      "trial_id": "e6d3a7e6-32ed-48eb-b101-afe335939c7b",
+      "trial_name": "gepa-zai-opencode-event-summary__MnQouF6",
+      "source": {
+        "commit": "7d87c57958f85cca19456d2f56e134b0616aa037",
+        "dirty": false
+      },
+      "tools": {
+        "docker": "Docker version 29.8.0, build 88096ef",
+        "harbor": "0.21.0",
+        "uv": "uv 0.9.24 (0fda1525e 2026-01-09)"
+      },
+      "agent": {
+        "name": "opencode",
+        "version": "1.18.25",
+        "model_name": "zai-coding-plan/glm-5.3-flash"
+      },
+      "provider_totals": {
+        "cost_micros": 49843,
+        "input_tokens": 32382,
+        "output_tokens": 1024,
+        "requests": 5,
+        "total_tokens": 33406
+      },
+      "provider_model_ids": [
+        "glm-5.3-flash"
+      ],
+      "unresolved_provider_requests": 0,
+      "exception_type": null,
+      "elapsed_job_seconds": 91.609318,
+      "raw_archive_uri": "cas://sha256/60a79c120e77aa63b20c5ac44ba8b41982ff419a70578930f1fa55fc689661f3",
+      "native_runtime_path": "runs/gepa-zai-opencode-event-summary-5acac886e7eb7e17b62982db",
+      "promoted_job_path": "research/evidence/runs/gepa-zai-opencode-event-summary-5acac886e7eb7e17b62982db",
+      "promotion_manifest": "research/evidence/runs/gepa-zai-opencode-event-summary-5acac886e7eb7e17b62982db/PROMOTION.json",
+      "scientific_qualification": "exploratory_admitted_task_reward; existing verifier limits apply"
+    },
+    {
+      "phase": "development",
+      "candidate_id": "sha256:98f12bec4f9435a09846c51b4bb571ad41e38dc264d71ab681ee9377a24263c2",
+      "task_id": "syn-funcdag-easy",
+      "reward": 1.0,
+      "job_id": "e1b45f35-5514-427f-bdac-a789d244910b",
+      "trial_id": "5be4677b-af4a-4c54-bbfc-6e03f984589d",
+      "trial_name": "gepa-zai-opencode-syn-funcdag-ea__ULTzC64",
+      "source": {
+        "commit": "7d87c57958f85cca19456d2f56e134b0616aa037",
+        "dirty": false
+      },
+      "tools": {
+        "docker": "Docker version 29.8.0, build 88096ef",
+        "harbor": "0.21.0",
+        "uv": "uv 0.9.24 (0fda1525e 2026-01-09)"
+      },
+      "agent": {
+        "name": "opencode",
+        "version": "1.18.25",
+        "model_name": "zai-coding-plan/glm-5.3-flash"
+      },
+      "provider_totals": {
+        "cost_micros": 56082,
+        "input_tokens": 36962,
+        "output_tokens": 985,
+        "requests": 5,
+        "total_tokens": 37947
+      },
+      "provider_model_ids": [
+        "glm-5.3-flash"
+      ],
+      "unresolved_provider_requests": 0,
+      "exception_type": null,
+      "elapsed_job_seconds": 91.34134,
+      "raw_archive_uri": "cas://sha256/8cd080c197860635502f2d2a2429225d6d5bae58df894c407bf777a3f3b73ec6",
+      "native_runtime_path": "runs/gepa-zai-opencode-syn-funcdag-easy-f5dd1bc64749b0545437b06f",
+      "promoted_job_path": "research/evidence/runs/gepa-zai-opencode-syn-funcdag-easy-f5dd1bc64749b0545437b06f",
+      "promotion_manifest": "research/evidence/runs/gepa-zai-opencode-syn-funcdag-easy-f5dd1bc64749b0545437b06f/PROMOTION.json",
+      "scientific_qualification": "exploratory_admitted_task_reward; existing verifier limits apply"
+    },
+    {
+      "phase": "development",
+      "candidate_id": "sha256:e6ca24a27ad8a7271c6dd8ad8668574e9c214ca33755e84e4c7db39a1a8fb8d9",
+      "task_id": "event-summary",
+      "reward": 1.0,
+      "job_id": "d685e6fe-2240-4dd9-b627-bbd5b67c772e",
+      "trial_id": "bb44d070-f532-4a39-b3cc-a493dd9f301a",
+      "trial_name": "gepa-zai-opencode-event-summary__tCtHyVf",
+      "source": {
+        "commit": "7d87c57958f85cca19456d2f56e134b0616aa037",
+        "dirty": false
+      },
+      "tools": {
+        "docker": "Docker version 29.8.0, build 88096ef",
+        "harbor": "0.21.0",
+        "uv": "uv 0.9.24 (0fda1525e 2026-01-09)"
+      },
+      "agent": {
+        "name": "opencode",
+        "version": "1.18.25",
+        "model_name": "zai-coding-plan/glm-5.3-flash"
+      },
+      "provider_totals": {
+        "cost_micros": 37236,
+        "input_tokens": 24239,
+        "output_tokens": 750,
+        "requests": 4,
+        "total_tokens": 24989
+      },
+      "provider_model_ids": [
+        "glm-5.3-flash"
+      ],
+      "unresolved_provider_requests": 0,
+      "exception_type": null,
+      "elapsed_job_seconds": 79.316796,
+      "raw_archive_uri": "cas://sha256/d02820dcb4e3167abe3f560837bf57eb208f796bc36fd9dfd4a6cbe6d4bdfb95",
+      "native_runtime_path": "runs/gepa-zai-opencode-event-summary-d084300f47d6bc04df514904",
+      "promoted_job_path": "research/evidence/runs/gepa-zai-opencode-event-summary-d084300f47d6bc04df514904",
+      "promotion_manifest": "research/evidence/runs/gepa-zai-opencode-event-summary-d084300f47d6bc04df514904/PROMOTION.json",
+      "scientific_qualification": "exploratory_admitted_task_reward; existing verifier limits apply"
+    },
+    {
+      "phase": "development",
+      "candidate_id": "sha256:e6ca24a27ad8a7271c6dd8ad8668574e9c214ca33755e84e4c7db39a1a8fb8d9",
+      "task_id": "syn-funcdag-easy",
+      "reward": 1.0,
+      "job_id": "078dfc02-81fe-411a-9279-ae59b12ee091",
+      "trial_id": "4f881edb-c04a-4612-9363-cba0da508fb1",
+      "trial_name": "gepa-zai-opencode-syn-funcdag-ea__o4WkEPo",
+      "source": {
+        "commit": "c264bdd3694f15e04d6fa926c11f55d7460efe4f",
+        "dirty": false
+      },
+      "tools": {
+        "docker": "Docker version 29.8.0, build 88096ef",
+        "harbor": "0.21.0",
+        "uv": "uv 0.9.24 (0fda1525e 2026-01-09)"
+      },
+      "agent": {
+        "name": "opencode",
+        "version": "1.18.25",
+        "model_name": "zai-coding-plan/glm-5.3-flash"
+      },
+      "provider_totals": {
+        "cost_micros": 71097,
+        "input_tokens": 46778,
+        "output_tokens": 1274,
+        "requests": 6,
+        "total_tokens": 48052
+      },
+      "provider_model_ids": [
+        "glm-5.3-flash"
+      ],
+      "unresolved_provider_requests": 0,
+      "exception_type": null,
+      "elapsed_job_seconds": 100.297738,
+      "raw_archive_uri": "cas://sha256/496a8c815dd3fcc7c7db198f515f09fe4bc68f408e546de7d923af8522f54ee0",
+      "native_runtime_path": "runs/gepa-zai-opencode-syn-funcdag-easy-71a9e9e8fae31163a7b99552",
+      "promoted_job_path": "research/evidence/runs/gepa-zai-opencode-syn-funcdag-easy-71a9e9e8fae31163a7b99552",
+      "promotion_manifest": "research/evidence/runs/gepa-zai-opencode-syn-funcdag-easy-71a9e9e8fae31163a7b99552/PROMOTION.json",
+      "scientific_qualification": "exploratory_admitted_task_reward; existing verifier limits apply"
+    },
+    {
+      "phase": "confirmation",
+      "label": "seed",
+      "candidate_id": "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8",
+      "task_id": "event-summary",
+      "reward": 1.0,
+      "job_id": "77070156-9db8-4aac-bd46-ef2dd95427a2",
+      "trial_id": "bf13d9a1-750e-4e40-861d-27a20fe3ec1c",
+      "trial_name": "gepa-zai-opencode-event-summary__2m3fA6N",
+      "source": {
+        "commit": "7d87c57958f85cca19456d2f56e134b0616aa037",
+        "dirty": false
+      },
+      "tools": {
+        "docker": "Docker version 29.8.0, build 88096ef",
+        "harbor": "0.21.0",
+        "uv": "uv 0.9.24 (0fda1525e 2026-01-09)"
+      },
+      "agent": {
+        "name": "opencode",
+        "version": "1.18.25",
+        "model_name": "zai-coding-plan/glm-5.3-flash"
+      },
+      "provider_totals": {
+        "cost_micros": 47039,
+        "input_tokens": 30713,
+        "output_tokens": 918,
+        "requests": 5,
+        "total_tokens": 31631
+      },
+      "provider_model_ids": [
+        "glm-5.3-flash"
+      ],
+      "unresolved_provider_requests": 0,
+      "exception_type": null,
+      "elapsed_job_seconds": 118.702745,
+      "raw_archive_uri": "cas://sha256/62486e16fd4e91474c876bfc7089464f779b77ab590d5b08071df21b9e7cec19",
+      "native_runtime_path": "runs/gepa-zai-opencode-event-summary-8f6d211486a72f024483869d",
+      "promoted_job_path": "research/evidence/runs/gepa-zai-opencode-event-summary-8f6d211486a72f024483869d",
+      "promotion_manifest": "research/evidence/runs/gepa-zai-opencode-event-summary-8f6d211486a72f024483869d/PROMOTION.json",
+      "scientific_qualification": "exploratory_admitted_task_reward; existing verifier limits apply"
+    },
+    {
+      "phase": "confirmation",
+      "label": "seed",
+      "candidate_id": "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8",
+      "task_id": "syn-funcdag-easy",
+      "reward": 1.0,
+      "job_id": "8c080c48-d48f-406d-bc8a-79cdae4a053c",
+      "trial_id": "41941747-49c0-4cc5-8e8b-384063a48b11",
+      "trial_name": "gepa-zai-opencode-syn-funcdag-ea__ES4LRHu",
+      "source": {
+        "commit": "7d87c57958f85cca19456d2f56e134b0616aa037",
+        "dirty": false
+      },
+      "tools": {
+        "docker": "Docker version 29.8.0, build 88096ef",
+        "harbor": "0.21.0",
+        "uv": "uv 0.9.24 (0fda1525e 2026-01-09)"
+      },
+      "agent": {
+        "name": "opencode",
+        "version": "1.18.25",
+        "model_name": "zai-coding-plan/glm-5.3-flash"
+      },
+      "provider_totals": {
+        "cost_micros": 40535,
+        "input_tokens": 26609,
+        "output_tokens": 746,
+        "requests": 4,
+        "total_tokens": 27355
+      },
+      "provider_model_ids": [
+        "glm-5.3-flash"
+      ],
+      "unresolved_provider_requests": 0,
+      "exception_type": null,
+      "elapsed_job_seconds": 73.402691,
+      "raw_archive_uri": "cas://sha256/7991e1914bcfa4dec7eed54766c2cfa3506e2021761da7b3e851e4c682a0993a",
+      "native_runtime_path": "runs/gepa-zai-opencode-syn-funcdag-easy-4a4e41ccd285e11d9109bd8f",
+      "promoted_job_path": "research/evidence/runs/gepa-zai-opencode-syn-funcdag-easy-4a4e41ccd285e11d9109bd8f",
+      "promotion_manifest": "research/evidence/runs/gepa-zai-opencode-syn-funcdag-easy-4a4e41ccd285e11d9109bd8f/PROMOTION.json",
+      "scientific_qualification": "exploratory_admitted_task_reward; existing verifier limits apply"
+    },
+    {
+      "phase": "confirmation",
+      "label": "selected",
+      "candidate_id": "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8",
+      "task_id": "event-summary",
+      "reward": 1.0,
+      "job_id": "a81630f9-c64a-4243-8f7e-290c95161843",
+      "trial_id": "720c61de-f93e-4cde-85d1-f085f31f8719",
+      "trial_name": "gepa-zai-opencode-event-summary__dzaPvcL",
+      "source": {
+        "commit": "7d87c57958f85cca19456d2f56e134b0616aa037",
+        "dirty": false
+      },
+      "tools": {
+        "docker": "Docker version 29.8.0, build 88096ef",
+        "harbor": "0.21.0",
+        "uv": "uv 0.9.24 (0fda1525e 2026-01-09)"
+      },
+      "agent": {
+        "name": "opencode",
+        "version": "1.18.25",
+        "model_name": "zai-coding-plan/glm-5.3-flash"
+      },
+      "provider_totals": {
+        "cost_micros": 59295,
+        "input_tokens": 39046,
+        "output_tokens": 1052,
+        "requests": 6,
+        "total_tokens": 40098
+      },
+      "provider_model_ids": [
+        "glm-5.3-flash"
+      ],
+      "unresolved_provider_requests": 0,
+      "exception_type": null,
+      "elapsed_job_seconds": 105.330461,
+      "raw_archive_uri": "cas://sha256/c45cd17c5b6e3ac43e2828262819e816ed91c83525d8183516c52183196f8764",
+      "native_runtime_path": "runs/gepa-zai-opencode-event-summary-c29fd211521aa25c1095287c",
+      "promoted_job_path": "research/evidence/runs/gepa-zai-opencode-event-summary-c29fd211521aa25c1095287c",
+      "promotion_manifest": "research/evidence/runs/gepa-zai-opencode-event-summary-c29fd211521aa25c1095287c/PROMOTION.json",
+      "scientific_qualification": "exploratory_admitted_task_reward; existing verifier limits apply"
+    },
+    {
+      "phase": "confirmation",
+      "label": "selected",
+      "candidate_id": "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8",
+      "task_id": "syn-funcdag-easy",
+      "reward": 1.0,
+      "job_id": "7c3b71aa-64cd-4156-8cbb-b0c61b40c3d0",
+      "trial_id": "ea2af1f0-9399-4e52-953c-ca249aa476ed",
+      "trial_name": "gepa-zai-opencode-syn-funcdag-ea__89gbp8W",
+      "source": {
+        "commit": "7d87c57958f85cca19456d2f56e134b0616aa037",
+        "dirty": false
+      },
+      "tools": {
+        "docker": "Docker version 29.8.0, build 88096ef",
+        "harbor": "0.21.0",
+        "uv": "uv 0.9.24 (0fda1525e 2026-01-09)"
+      },
+      "agent": {
+        "name": "opencode",
+        "version": "1.18.25",
+        "model_name": "zai-coding-plan/glm-5.3-flash"
+      },
+      "provider_totals": {
+        "cost_micros": 68495,
+        "input_tokens": 45444,
+        "output_tokens": 1107,
+        "requests": 6,
+        "total_tokens": 46551
+      },
+      "provider_model_ids": [
+        "glm-5.3-flash"
+      ],
+      "unresolved_provider_requests": 0,
+      "exception_type": null,
+      "elapsed_job_seconds": 91.818867,
+      "raw_archive_uri": "cas://sha256/7d328725a55326137df688e000be94818ec03ba54c319de282205a1f5d9cd06b",
+      "native_runtime_path": "runs/gepa-zai-opencode-syn-funcdag-easy-51e81d84722a302daf64dddc",
+      "promoted_job_path": "research/evidence/runs/gepa-zai-opencode-syn-funcdag-easy-51e81d84722a302daf64dddc",
+      "promotion_manifest": "research/evidence/runs/gepa-zai-opencode-syn-funcdag-easy-51e81d84722a302daf64dddc/PROMOTION.json",
+      "scientific_qualification": "exploratory_admitted_task_reward; existing verifier limits apply"
+    },
+    {
+      "phase": "final",
+      "label": "seed",
+      "candidate_id": "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8",
+      "task_id": "travel-lisbon-002",
+      "reward": 0.0,
+      "job_id": "b90d4374-bc27-432b-a6c2-aba7548f9e0c",
+      "trial_id": "9178a90f-3b40-4330-93f0-c280ac6f1806",
+      "trial_name": "har53-sealed-seed-travel-lisbon__pDgDoVU",
+      "source": {
+        "commit": "7d87c57958f85cca19456d2f56e134b0616aa037",
+        "dirty": false
+      },
+      "tools": {
+        "docker": "Docker version 29.8.0, build 88096ef",
+        "harbor": "0.21.0",
+        "uv": "uv 0.9.24 (0fda1525e 2026-01-09)"
+      },
+      "agent": {
+        "name": "opencode",
+        "version": "1.18.25",
+        "model_name": "zai-coding-plan/glm-5.3-flash"
+      },
+      "provider_totals": {
+        "cost_micros": 91066,
+        "input_tokens": 57788,
+        "output_tokens": 2309,
+        "requests": 8,
+        "total_tokens": 60097
+      },
+      "provider_model_ids": [
+        "glm-5.3-flash"
+      ],
+      "unresolved_provider_requests": 0,
+      "exception_type": null,
+      "elapsed_job_seconds": 163.478063,
+      "raw_archive_uri": "cas://sha256/93943ec0460624552b2771592a4675a86743241e6f1754e3b62e56dd71097221",
+      "native_runtime_path": "runs/har53-sealed-seed-travel-lisbon-b25fd19650d8",
+      "promoted_job_path": "research/evidence/runs/har53-sealed-seed-travel-lisbon-b25fd19650d8",
+      "promotion_manifest": "research/evidence/runs/har53-sealed-seed-travel-lisbon-b25fd19650d8/PROMOTION.json",
+      "scientific_qualification": "output_contract_defect_pending_quality_review"
+    },
+    {
+      "phase": "final",
+      "label": "selected",
+      "candidate_id": "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8",
+      "task_id": "travel-lisbon-002",
+      "reward": 0.0,
+      "job_id": "7fa18b28-57a4-4caa-ba6b-347599e67728",
+      "trial_id": "6e9abded-eba4-4b8d-a2b3-6c5c05335046",
+      "trial_name": "har53-sealed-selected-travel-lis__BZdS4Pa",
+      "source": {
+        "commit": "7d87c57958f85cca19456d2f56e134b0616aa037",
+        "dirty": false
+      },
+      "tools": {
+        "docker": "Docker version 29.8.0, build 88096ef",
+        "harbor": "0.21.0",
+        "uv": "uv 0.9.24 (0fda1525e 2026-01-09)"
+      },
+      "agent": {
+        "name": "opencode",
+        "version": "1.18.25",
+        "model_name": "zai-coding-plan/glm-5.3-flash"
+      },
+      "provider_totals": {
+        "cost_micros": 78607,
+        "input_tokens": 49596,
+        "output_tokens": 2084,
+        "requests": 7,
+        "total_tokens": 51680
+      },
+      "provider_model_ids": [
+        "glm-5.3-flash"
+      ],
+      "unresolved_provider_requests": 0,
+      "exception_type": null,
+      "elapsed_job_seconds": 121.14575,
+      "raw_archive_uri": "cas://sha256/db29ff82e9d2a61f8c1363fa4fac052482327a505c21dbbed396663227cf1332",
+      "native_runtime_path": "runs/har53-sealed-selected-travel-lisbon-b25fd19650d8",
+      "promoted_job_path": "research/evidence/runs/har53-sealed-selected-travel-lisbon-b25fd19650d8",
+      "promotion_manifest": "research/evidence/runs/har53-sealed-selected-travel-lisbon-b25fd19650d8/PROMOTION.json",
+      "scientific_qualification": "output_contract_defect_pending_quality_review"
+    }
+  ],
+  "limits": [
+    "No held-out improvement established.",
+    "Same seed retained; confirmation/final labels are same-policy replicates, not distinct treatments.",
+    "Registered old event-summary verifier has known representation/transfer blind spots; retained development output formatting checked without claiming full validity.",
+    "Old Lisbon output schema and exact refusal text are not declared to the agent; raw0/0 are preserved but not clean reasoning-capability failures.",
+    "No live Omni result, provider substitution, OS isolation bypass, task repair/admission, new training or masking treatment.",
+    "Original campaign exhausted its four-request method limit after a recorded integration defect; no counter reset or budget expansion."
+  ]
+}

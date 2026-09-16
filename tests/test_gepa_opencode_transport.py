@@ -1,0 +1,39 @@
+"""Incomplete or tool-using proposer output must not become an accepted candidate."""
+
+import json
+
+import pytest
+
+from evallab.gepa_optimizer.opencode_transport import OpenCodeTransportError, parse_response
+
+
+def test_incomplete_or_tool_turn_cannot_supply_candidate(tmp_path):
+    path = tmp_path / "events.jsonl"
+    text = {"type": "text", "part": {"text": "def example():\n    return 1\n"}}
+    path.write_text(json.dumps(text) + "\n")
+    with pytest.raises(OpenCodeTransportError):
+        parse_response(path)
+    stop = {"type": "step_finish", "part": {"reason": "stop"}}
+    path.write_text("\n".join(map(json.dumps, [text, stop])))
+    assert parse_response(path) == text["part"]["text"]
+    tool = {"type": "tool_use", "part": {"tool": "bash", "state": {"status": "error"}}}
+    path.write_text("\n".join(map(json.dumps, [text, tool, stop])))
+    with pytest.raises(OpenCodeTransportError):
+        parse_response(path)
+
+
+def test_truncated_proposal_is_not_a_completed_module(tmp_path):
+    path = tmp_path / "events.jsonl"
+    path.write_text(
+        "\n".join(
+            map(
+                json.dumps,
+                [
+                    {"type": "text", "part": {"text": "def example():"}},
+                    {"type": "step_finish", "part": {"reason": "length"}},
+                ],
+            )
+        )
+    )
+    with pytest.raises(OpenCodeTransportError):
+        parse_response(path)

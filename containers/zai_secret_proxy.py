@@ -349,9 +349,7 @@ def _classify_response_encoding(
         else ("none" if not raw_transfer else "other")
     )
     media_type_class = (
-        raw_media
-        if raw_media in _ALLOWED_MEDIA_TYPES
-        else ("none" if not raw_media else "other")
+        raw_media if raw_media in _ALLOWED_MEDIA_TYPES else ("none" if not raw_media else "other")
     )
     charset_class = (
         raw_charset
@@ -381,11 +379,6 @@ def _classify_response_encoding(
         return "unsupported_charset", response_facts
 
     return None, response_facts
-
-
-def _response_encoding_ok(headers: http.client.HTTPMessage, *, stream: bool = False) -> bool:
-    reason, _ = _classify_response_encoding(headers, stream=stream)
-    return reason is None
 
 
 def _capability_ok(presented: str) -> bool:

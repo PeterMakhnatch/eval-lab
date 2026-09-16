@@ -68,6 +68,8 @@ def test_ambiguous_model_failure_is_not_automatically_retried(tmp_path, monkeypa
     resumed = JournaledReflectionLM(model="test/model", directory=tmp_path, max_requests=2)
     with pytest.raises(ProposalUnavailable):
         resumed("development feedback")
+    with pytest.raises(ProposalUnavailable):
+        resumed("new feedback must not bypass the unresolved request")
     assert len(calls) == 1
 
 

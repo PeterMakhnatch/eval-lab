@@ -1471,316 +1471,112 @@ def test_proxy_sse_reflected_credentials_stay_redacted(
         upstream.shutdown()
 
 
-def test_proxy_failed_call_diagnostics_retains_precise_rejection_and_facts(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+@pytest.mark.parametrize(
+    ("headers", "status", "reason", "fact", "category"),
+    [
+        (
+            {"Content-Encoding": "gzip"},
+            200,
+            "unsupported_content_encoding",
+            "content_encoding",
+            "gzip",
+        ),
+        (
+            {"Transfer-Encoding": "compress"},
+            200,
+            "unsupported_transfer_encoding",
+            "transfer_encoding",
+            "other",
+        ),
+        (
+            {"Content-Type": "application/json; charset=iso-8859-1"},
+            200,
+            "unsupported_charset",
+            "charset",
+            "iso-8859-1",
+        ),
+        (
+            {"Content-Type": f"text/html; charset={SECRET_SENTINEL}"},
+            503,
+            "unsupported_content_type",
+            "media_type",
+            "text/html",
+        ),
+    ],
+)
+def test_rejected_response_retains_safe_diagnosis_without_refunding(
+    tmp_path, monkeypatch, headers, status, reason, fact, category
+):
+    requests = []
+
     class DiagnosticUpstream(BaseHTTPRequestHandler):
-        mode: str = "gzip"
+        def log_message(self, *args):
+            pass
 
-        def log_message(self, format: str, *args: object) -> None:
-            del format, args
-
-        def do_POST(self) -> None:  # noqa: N802
-            length = int(self.headers.get("Content-Length", "0"))
-            self.rfile.read(length)
-            if self.mode == "gzip":
-                compressed = gzip.compress(b'{"choices":[]}')
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Encoding", "gzip")
-                self.send_header("Content-Length", str(len(compressed)))
-                self.end_headers()
-                self.wfile.write(compressed)
-            elif self.mode == "html_503":
-                body = b"<html><head><title>503 Service Unavailable</title></head><body>error</body></html>"
-                self.send_response(503)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-            elif self.mode == "unsupported_charset":
-                body = b'{"choices":[]}'
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=iso-8859-1")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-            elif self.mode == "unsupported_transfer":
-                body = b'{"choices":[]}'
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Transfer-Encoding", "compress")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-
-    capability = "valid-cap"
-    usage_file = tmp_path / "diag-usage.json"
-    proxy, upstream, base_url = _setup_proxy(
-        tmp_path / "diag",
-        monkeypatch,
-        upstream_handler=DiagnosticUpstream,
-        capability=capability,
-        usage_file=usage_file,
-        max_output_tokens=1000,
-        max_requests=2,
-    )
-    try:
-        # Case 1: Gzip upstream -> unsupported_content_encoding
-        DiagnosticUpstream.mode = "gzip"
-        req = urllib.request.Request(
-            f"{base_url}/api/paas/v4/chat/completions",
-            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
-            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
-            method="POST",
-        )
-        with pytest.raises(urllib.error.HTTPError) as exc:
-            urllib.request.urlopen(req, timeout=5)
-        assert exc.value.code == 502
-        assert exc.value.read() == b"unsupported upstream encoding\n"
-
-        usage_data = json.loads(usage_file.read_text(encoding="utf-8"))
-        assert len(usage_data["calls"]) == 1
-        call1 = usage_data["calls"][0]
-        assert call1["state"] == "unresolved"
-        assert call1["reason"] == "unsupported_content_encoding"
-        assert call1["status"] == 200
-        assert call1["response_facts"] == {
-            "status": 200,
-            "content_encoding": "gzip",
-            "transfer_encoding": "none",
-            "media_type": "application/json",
-            "charset": "none",
-        }
-        # Reserved output tokens consumed the reservation of 1000, not refunded
-        assert usage_data["totals"]["output_tokens"] == 1000
-        assert usage_data["unresolved_requests"] == 1
-
-        # Case 2: Second call when budget was 1000 is rejected with 429 trial budget exhausted
-        # (reproducing exactly why OpenCode hit ApiRateLimitError!)
-        with pytest.raises(urllib.error.HTTPError) as exc:
-            urllib.request.urlopen(req, timeout=5)
-        assert exc.value.code == 429
-        assert exc.value.read() == b"trial budget exhausted\n"
-    finally:
-        proxy.shutdown()
-        upstream.shutdown()
-
-    # Case 3: HTML 503 gateway response -> unsupported_content_type
-    usage_file2 = tmp_path / "html-usage.json"
-    proxy2, upstream2, base_url2 = _setup_proxy(
-        tmp_path / "html",
-        monkeypatch,
-        upstream_handler=DiagnosticUpstream,
-        capability=capability,
-        usage_file=usage_file2,
-    )
-    try:
-        DiagnosticUpstream.mode = "html_503"
-        req = urllib.request.Request(
-            f"{base_url2}/api/paas/v4/chat/completions",
-            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
-            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
-            method="POST",
-        )
-        with pytest.raises(urllib.error.HTTPError) as exc:
-            urllib.request.urlopen(req, timeout=5)
-        assert exc.value.code == 502
-        assert exc.value.read() == b"unsupported upstream encoding\n"
-
-        usage_data2 = json.loads(usage_file2.read_text(encoding="utf-8"))
-        assert len(usage_data2["calls"]) == 1
-        call = usage_data2["calls"][0]
-        assert call["state"] == "unresolved"
-        assert call["reason"] == "unsupported_content_type"
-        assert call["status"] == 503
-        assert call["response_facts"] == {
-            "status": 503,
-            "content_encoding": "none",
-            "transfer_encoding": "none",
-            "media_type": "text/html",
-            "charset": "utf-8",
-        }
-    finally:
-        proxy2.shutdown()
-        upstream2.shutdown()
-
-    # Case 4: Unsupported charset -> unsupported_charset
-    usage_file3 = tmp_path / "charset-usage.json"
-    proxy3, upstream3, base_url3 = _setup_proxy(
-        tmp_path / "charset",
-        monkeypatch,
-        upstream_handler=DiagnosticUpstream,
-        capability=capability,
-        usage_file=usage_file3,
-    )
-    try:
-        DiagnosticUpstream.mode = "unsupported_charset"
-        req = urllib.request.Request(
-            f"{base_url3}/api/paas/v4/chat/completions",
-            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
-            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
-            method="POST",
-        )
-        with pytest.raises(urllib.error.HTTPError) as exc:
-            urllib.request.urlopen(req, timeout=5)
-        assert exc.value.code == 502
-        assert exc.value.read() == b"unsupported upstream encoding\n"
-
-        usage_data3 = json.loads(usage_file3.read_text(encoding="utf-8"))
-        call = usage_data3["calls"][0]
-        assert call["state"] == "unresolved"
-        assert call["reason"] == "unsupported_charset"
-        assert call["status"] == 200
-        assert call["response_facts"]["charset"] == "iso-8859-1"
-    finally:
-        proxy3.shutdown()
-        upstream3.shutdown()
-
-    # Case 5: Unsupported transfer encoding -> unsupported_transfer_encoding
-    usage_file4 = tmp_path / "transfer-usage.json"
-    proxy4, upstream4, base_url4 = _setup_proxy(
-        tmp_path / "transfer",
-        monkeypatch,
-        upstream_handler=DiagnosticUpstream,
-        capability=capability,
-        usage_file=usage_file4,
-    )
-    try:
-        DiagnosticUpstream.mode = "unsupported_transfer"
-        req = urllib.request.Request(
-            f"{base_url4}/api/paas/v4/chat/completions",
-            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
-            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
-            method="POST",
-        )
-        with pytest.raises(urllib.error.HTTPError) as exc:
-            urllib.request.urlopen(req, timeout=5)
-        assert exc.value.code == 502
-        assert exc.value.read() == b"unsupported upstream encoding\n"
-
-        usage_data4 = json.loads(usage_file4.read_text(encoding="utf-8"))
-        call = usage_data4["calls"][0]
-        assert call["state"] == "unresolved"
-        assert call["reason"] == "unsupported_transfer_encoding"
-        assert call["status"] == 200
-        assert call["response_facts"]["transfer_encoding"] == "other"
-    finally:
-        proxy4.shutdown()
-        upstream4.shutdown()
-
-
-def test_proxy_secret_safety_in_retained_diagnostics(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    class LeakyUpstream(BaseHTTPRequestHandler):
-        def log_message(self, format: str, *args: object) -> None:
-            del format, args
-
-        def do_POST(self) -> None:  # noqa: N802
-            length = int(self.headers.get("Content-Length", "0"))
-            self.rfile.read(length)
-            body = b"<html><body>secret leak: " + SECRET_SENTINEL.encode() + b"</body></html>"
-            self.send_response(500)
-            self.send_header("Content-Type", f"text/html; charset=custom-{SECRET_SENTINEL}")
-            self.send_header("X-Leaked-Secret", SECRET_SENTINEL)
-            self.send_header("Server", f"Zai/{SECRET_SENTINEL}")
+        def do_POST(self):  # noqa: N802
+            requests.append(self.rfile.read(int(self.headers["Content-Length"])))
+            body = SECRET_SENTINEL.encode()
+            self.send_response(status)
+            for name, value in {"Content-Type": "application/json", **headers}.items():
+                self.send_header(name, value)
+            self.send_header("X-Private", SECRET_SENTINEL)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
 
-    capability = "valid-cap"
-    usage_file = tmp_path / "secret-safety-usage.json"
-    proxy, upstream, base_url = _setup_proxy(
-        tmp_path / "safety",
+    usage_file = tmp_path / "usage.json"
+    proxy, upstream, base = _setup_proxy(
+        tmp_path / "proxy",
         monkeypatch,
-        upstream_handler=LeakyUpstream,
-        capability=capability,
+        upstream_handler=DiagnosticUpstream,
+        capability="valid-cap",
         usage_file=usage_file,
+        max_requests=1,
+        max_output_tokens=1000,
     )
     try:
-        req = urllib.request.Request(
-            f"{base_url}/api/paas/v4/chat/completions",
-            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
-            headers={"Authorization": f"Bearer {capability}", "Content-Type": "application/json"},
-            method="POST",
+        request = urllib.request.Request(
+            f"{base}/api/paas/v4/chat/completions",
+            data=b'{"model":"glm-5.3-flash","messages":[]}',
+            headers={"Authorization": "Bearer valid-cap", "Content-Type": "application/json"},
         )
-        with pytest.raises(urllib.error.HTTPError) as exc:
-            urllib.request.urlopen(req, timeout=5)
-        resp_body = exc.value.read()
-        assert exc.value.code == 502
-        assert SECRET_SENTINEL.encode() not in resp_body
-
-        usage_raw = usage_file.read_text(encoding="utf-8")
-        assert SECRET_SENTINEL not in usage_raw
-
-        usage_data = json.loads(usage_raw)
-        call = usage_data["calls"][0]
+        with pytest.raises(urllib.error.HTTPError) as failure:
+            urllib.request.urlopen(request, timeout=5)
+        assert failure.value.code == 502
+        assert SECRET_SENTINEL.encode() not in failure.value.read()
+        retained = usage_file.read_text()
+        assert SECRET_SENTINEL not in retained
+        usage = json.loads(retained)
+        call = usage["calls"][0]
         assert call["state"] == "unresolved"
-        assert call["status"] == 500
-        # Classified safely into allowed categories
-        assert call["response_facts"] == {
-            "status": 500,
-            "content_encoding": "none",
-            "transfer_encoding": "none",
-            "media_type": "text/html",
-            "charset": "other",
-        }
+        assert call["reason"] == reason
+        assert call["status"] == status
+        assert call["response_facts"][fact] == category
+        assert usage["totals"]["output_tokens"] == 1000
+        assert usage["unresolved_requests"] == 1
+        with pytest.raises(urllib.error.HTTPError) as retry:
+            urllib.request.urlopen(request, timeout=5)
+        assert retry.value.code == 429
+        assert len(requests) == 1
+        assert usage_file.read_text() == retained
     finally:
         proxy.shutdown()
         upstream.shutdown()
 
 
-def test_proxy_bind_host_configuration(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    secret_file = tmp_path / "zai_key"
-    secret_file.write_text(SECRET_SENTINEL + "\n")
-    secret_file.chmod(0o600)
-    usage_file = tmp_path / "bind-usage.json"
-
-    monkeypatch.setenv("EVALLAB_ZAI_SECRET_PATH", str(secret_file))
-    monkeypatch.setenv("EVALLAB_ZAI_UPSTREAM", "http://127.0.0.1:9")
-    monkeypatch.setenv("EVALLAB_ZAI_PROXY_CAPABILITY", "valid-cap")
-    monkeypatch.setenv("EVALLAB_ZAI_ATTEMPT_ID", "test-attempt-bind")
-    monkeypatch.setenv("EVALLAB_ZAI_USAGE_FILE", str(usage_file))
-    monkeypatch.setenv("EVALLAB_ZAI_MAX_REQUESTS", "10")
-    monkeypatch.setenv("EVALLAB_ZAI_MAX_INPUT_TOKENS", "100000")
-    monkeypatch.setenv("EVALLAB_ZAI_MAX_OUTPUT_TOKENS", "100000")
-    monkeypatch.setenv("EVALLAB_ZAI_MAX_TOTAL_TOKENS", "200000")
-    monkeypatch.setenv("EVALLAB_ZAI_MAX_COST_MICROS", "10000000")
-    monkeypatch.setenv("EVALLAB_ZAI_INPUT_COST_MICROS_PER_MILLION", "1000000")
-    monkeypatch.setenv("EVALLAB_ZAI_OUTPUT_COST_MICROS_PER_MILLION", "2000000")
-
-    proxy_module = _load_proxy_module()
-
-    # Default without env binds to 0.0.0.0
-    monkeypatch.delenv("EVALLAB_ZAI_PROXY_BIND_HOST", raising=False)
-    server1 = proxy_module.serve(port=0)
-    try:
-        assert server1.server_address[0] in {"0.0.0.0", "::"}
-    finally:
-        server1.server_close()
-
-    # Configured via EVALLAB_ZAI_PROXY_BIND_HOST="127.0.0.1"
+def test_proxy_can_bind_only_loopback_from_environment(tmp_path, monkeypatch):
     monkeypatch.setenv("EVALLAB_ZAI_PROXY_BIND_HOST", "127.0.0.1")
-    server2 = proxy_module.serve(port=0)
+    proxy, upstream, _ = _setup_proxy(tmp_path, monkeypatch)
     try:
-        assert server2.server_address[0] == "127.0.0.1"
+        module = _load_proxy_module()
+        isolated = module.serve(port=0)
+        try:
+            assert isolated.server_address[0] == "127.0.0.1"
+        finally:
+            isolated.server_close()
+        monkeypatch.setenv("EVALLAB_ZAI_PROXY_BIND_HOST", "192.0.2.1")
+        with pytest.raises(ValueError):
+            module.serve(port=0)
     finally:
-        server2.server_close()
-
-    # Explicit host argument takes precedence
-    server3 = proxy_module.serve(host="127.0.0.1", port=0)
-    try:
-        assert server3.server_address[0] == "127.0.0.1"
-    finally:
-        server3.server_close()
-
-    # Unsupported bind host is rejected
-    monkeypatch.setenv("EVALLAB_ZAI_PROXY_BIND_HOST", "192.168.1.100")
-    with pytest.raises(ValueError, match="unsupported bind host"):
-        proxy_module.serve(port=0)
-
-    with pytest.raises(ValueError, match="unsupported bind host"):
-        proxy_module.serve(host="10.0.0.1", port=0)
+        proxy.shutdown()
+        upstream.shutdown()

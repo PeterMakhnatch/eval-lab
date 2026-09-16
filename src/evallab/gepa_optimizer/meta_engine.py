@@ -48,7 +48,9 @@ def check_prerequisite_facts(*, sandbox: bool = True) -> dict[str, Any]:
     bwrap_path = shutil.which("bwrap")
     fail_closed_supported = bool(not _IS_MACOS and bwrap_path is not None and sandbox)
     if not sandbox:
-        live_blocker = "SafeMetaHarnessEngine requires sandbox=True; unsandboxed execution is prohibited"
+        live_blocker = (
+            "SafeMetaHarnessEngine requires sandbox=True; unsandboxed execution is prohibited"
+        )
     elif _IS_MACOS:
         live_blocker = (
             "Pinned GEPA macOS settings set sandbox.failIfUnavailable=False; "
@@ -59,9 +61,7 @@ def check_prerequisite_facts(*, sandbox: bool = True) -> dict[str, Any]:
             "Live MetaHarnessEngine requires a working bwrap route (bwrap not found on PATH)"
         )
     elif claude_path is None:
-        live_blocker = (
-            "Live MetaHarnessEngine requires Claude Code CLI (claude not found on PATH)"
-        )
+        live_blocker = "Live MetaHarnessEngine requires Claude Code CLI (claude not found on PATH)"
     else:
         live_blocker = None
 
@@ -81,43 +81,8 @@ def check_prerequisite_facts(*, sandbox: bool = True) -> dict[str, Any]:
         "deny_web_tools": DENY_WEB_TOOLS,
         "file_tools_whitelisted": list(_FILE_TOOLS),
         "permission_mode": (
-            "default (seatbelt whitelist)"
-            if _IS_MACOS
-            else "bypassPermissions (inside bwrap)"
+            "default (seatbelt whitelist)" if _IS_MACOS else "bypassPermissions (inside bwrap)"
         ),
-        "startup_environment_boundary": {
-            "ambient_env_inherited": True,
-            "secrets_sanitized": False,
-            "work_dir_env_var": "GEPA_OMNI_WORK_DIR",
-            "max_output_tokens_default": "64000",
-        },
-        "filesystem_boundary": {
-            "backend": "seatbelt" if _IS_MACOS else "bwrap",
-            "fail_if_unavailable": False if _IS_MACOS else True,
-            "fail_closed": fail_closed_supported,
-            "workspace_tempdir_isolated": True,
-            "deny_read": ["~/"] if _IS_MACOS else ["/home/* except user config bind mounts"],
-            "allow_write": (
-                ["work_dir", "/tmp", "/private/tmp"]
-                if _IS_MACOS
-                else ["work_dir", "~/.claude", "~/.claude.json", "~/.cache", "/tmp"]
-            ),
-            "file_tools_whitelisted": list(_FILE_TOOLS),
-            "symlinks_dereferenced_upstream": True,
-            "symlinks_hardened_in_retain": True,
-        },
-        "network_boundary": {
-            "network_namespace_isolated": False,
-            "local_binding_allowed": True,
-            "os_level_egress_enforced": False,
-            "tool_level_web_tools_denied": DENY_WEB_TOOLS,
-        },
-        "upstream_customization_available": {
-            "custom_runner_hook": False,
-            "custom_sandbox_hook": False,
-            "fail_closed_configurable": False,
-            "safe_hook_available": False,
-        },
     }
 
 

@@ -111,25 +111,30 @@
       ]
     },
     "bench:stock-markers": {
-      "runs": 13,
+      "runs": 18,
       "mean_score": 1.0,
-      "mean_iterations": 4.3076923076923075,
-      "mean_cost_usd": 0.03514746153846154,
-      "runs_with_drift": 3,
-      "drift_total": 3,
+      "mean_iterations": 4.166666666666667,
+      "mean_cost_usd": 0.038227,
+      "runs_with_drift": 4,
+      "drift_total": 4,
       "drift_by_kind": {
-        "preamble-plus-fenced-code": 2,
+        "preamble-plus-fenced-code": 3,
         "code-marker-without-reasoning-marker": 1
       },
       "salvaged_total": 0,
       "repl_errors": 1,
       "tool_steps": {
-        "regex": 21,
-        "SUBMIT": 13,
+        "regex": 22,
+        "SUBMIT": 18,
         "llm_query": 1
       },
       "errors": 0,
       "most_expensive": [
+        {
+          "run": "state-tracking-s1-01",
+          "cost_usd": 0.077621,
+          "iterations": 6
+        },
         {
           "run": "ledger-agg-s1-03",
           "cost_usd": 0.066068,
@@ -139,11 +144,6 @@
           "run": "chain-lookup-s1-00",
           "cost_usd": 0.057881,
           "iterations": 7
-        },
-        {
-          "run": "state-tracking-s1-00",
-          "cost_usd": 0.050382,
-          "iterations": 3
         }
       ]
     },
@@ -1682,6 +1682,94 @@
       "score": 1.0,
       "iterations": 3,
       "cost_usd": 0.050382,
+      "parse_failures": 0,
+      "salvaged_actions": 0,
+      "error": null,
+      "drift": {},
+      "repl_errors": 0,
+      "tools_steps": {
+        "SUBMIT": 1
+      }
+    },
+    {
+      "source": "bench",
+      "run": "state-tracking-s1-02",
+      "policy": "stock-markers",
+      "family": "state-tracking",
+      "score": 1.0,
+      "iterations": 3,
+      "cost_usd": 0.043534,
+      "parse_failures": 0,
+      "salvaged_actions": 0,
+      "error": null,
+      "drift": {},
+      "repl_errors": 0,
+      "tools_steps": {
+        "SUBMIT": 1
+      }
+    },
+    {
+      "source": "bench",
+      "run": "state-tracking-s1-03",
+      "policy": "stock-markers",
+      "family": "state-tracking",
+      "score": 1.0,
+      "iterations": 4,
+      "cost_usd": 0.033885,
+      "parse_failures": 0,
+      "salvaged_actions": 0,
+      "error": null,
+      "drift": {},
+      "repl_errors": 0,
+      "tools_steps": {
+        "regex": 1,
+        "SUBMIT": 1
+      }
+    },
+    {
+      "source": "bench",
+      "run": "state-tracking-s1-01",
+      "policy": "stock-markers",
+      "family": "state-tracking",
+      "score": 1.0,
+      "iterations": 6,
+      "cost_usd": 0.077621,
+      "parse_failures": 1,
+      "salvaged_actions": 0,
+      "error": null,
+      "drift": {
+        "preamble-plus-fenced-code": 1
+      },
+      "repl_errors": 0,
+      "tools_steps": {
+        "SUBMIT": 1
+      }
+    },
+    {
+      "source": "bench",
+      "run": "state-tracking-s1-04",
+      "policy": "stock-markers",
+      "family": "state-tracking",
+      "score": 1.0,
+      "iterations": 3,
+      "cost_usd": 0.044499,
+      "parse_failures": 0,
+      "salvaged_actions": 0,
+      "error": null,
+      "drift": {},
+      "repl_errors": 0,
+      "tools_steps": {
+        "SUBMIT": 1
+      }
+    },
+    {
+      "source": "bench",
+      "run": "state-tracking-s1-05",
+      "policy": "stock-markers",
+      "family": "state-tracking",
+      "score": 1.0,
+      "iterations": 3,
+      "cost_usd": 0.03163,
       "parse_failures": 0,
       "salvaged_actions": 0,
       "error": null,

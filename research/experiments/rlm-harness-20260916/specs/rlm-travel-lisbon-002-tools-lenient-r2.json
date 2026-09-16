@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "rlm-travel-lisbon-002-tools-lenient-r2",
+  "hypothesis": "Under policy tools-lenient (bridge guidance plus salvage of format-drifted actions), travel-lisbon-002 is attempted with GLM-5.3-Flash; reward, steps, salvaged actions and cost are recorded for pairing against stock and bridge on the same task.",
+  "purpose": "elicitation",
+  "task": "library/tasks/experimental/deepplanning-v1/travel-lisbon-002",
+  "task_path": "library/tasks/experimental/deepplanning-v1/travel-lisbon-002",
+  "task_id": "travel-lisbon-002",
+  "agent": "rlm",
+  "model": "zai-coding-plan/glm-5.3-flash",
+  "harness_policy": "tools-lenient",
+  "cost_limit_usd": 0.6,
+  "environment": "docker",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "concurrency": 1,
+  "timeout_seconds": 900,
+  "submitted_by": "harness",
+  "priority": 90,
+  "est_cost_usd": 0.3,
+  "policy_rule": "human-approval",
+  "task_package_digest": "sha256:8dec991845b4f20619581d6160440328f0ad9684dcfc6cdbebd103e83ba7e7aa"
+}

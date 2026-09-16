@@ -83,18 +83,18 @@
       ]
     },
     "stock-markers": {
-      "n": 13,
+      "n": 18,
       "accuracy": 1.0,
       "errors": 0,
       "budget_stopped": 0,
-      "mean_iterations": 4.3076923076923075,
-      "mean_sub_calls": 0.07692307692307693,
-      "mean_input_tokens": 11877.23076923077,
-      "mean_output_tokens": 4208.923076923077,
-      "mean_reasoning_tokens": 2459.6923076923076,
-      "mean_cost_usd": 0.03514746153846154,
-      "total_cost_usd": 0.456917,
-      "mean_wall_seconds": 148.04,
+      "mean_iterations": 4.166666666666667,
+      "mean_sub_calls": 0.05555555555555555,
+      "mean_input_tokens": 11943.888888888889,
+      "mean_output_tokens": 4887.611111111111,
+      "mean_reasoning_tokens": 3016.3888888888887,
+      "mean_cost_usd": 0.038227,
+      "total_cost_usd": 0.688086,
+      "mean_wall_seconds": 157.405,
       "by_family": {
         "chain-lookup": 1.0,
         "ledger-agg": 1.0,
@@ -103,7 +103,7 @@
       "family_n": {
         "chain-lookup": 6,
         "ledger-agg": 6,
-        "state-tracking": 1
+        "state-tracking": 6
       },
       "files": [
         "stock-markers-s1-r1.jsonl"
@@ -210,35 +210,35 @@
     {
       "candidate": "stock-markers",
       "baseline": "stock",
-      "paired_n": 13,
+      "paired_n": 18,
       "wins": 0,
       "losses": 0,
-      "ties": 13,
+      "ties": 18,
       "accuracy_delta": 0.0,
       "sign_test_p": 1.0,
       "cost_usd": {
-        "baseline_mean": 0.051745769230769234,
-        "candidate_mean": 0.03514746153846154,
-        "ratio": 0.6792335307977612,
-        "lower": 7,
-        "higher": 6,
-        "sign_test_p": 1.0
+        "baseline_mean": 0.060186166666666666,
+        "candidate_mean": 0.038227,
+        "ratio": 0.6351459499275858,
+        "lower": 10,
+        "higher": 8,
+        "sign_test_p": 0.8145294189453125
       },
       "iterations": {
-        "baseline_mean": 5.3076923076923075,
-        "candidate_mean": 4.3076923076923075,
-        "ratio": 0.8115942028985507,
-        "lower": 6,
-        "higher": 3,
-        "sign_test_p": 0.5078125
+        "baseline_mean": 5.388888888888889,
+        "candidate_mean": 4.166666666666667,
+        "ratio": 0.7731958762886598,
+        "lower": 10,
+        "higher": 4,
+        "sign_test_p": 0.1795654296875
       },
       "wall_seconds": {
-        "baseline_mean": 154.27153846153846,
-        "candidate_mean": 148.04,
-        "ratio": 0.9596066875090375,
-        "lower": 7,
-        "higher": 6,
-        "sign_test_p": 1.0
+        "baseline_mean": 197.48666666666668,
+        "candidate_mean": 157.405,
+        "ratio": 0.7970411504574147,
+        "lower": 10,
+        "higher": 8,
+        "sign_test_p": 0.8145294189453125
       }
     },
     {

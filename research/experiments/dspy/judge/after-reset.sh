@@ -19,6 +19,18 @@ uv run python -m judge.run --threads 2 evaluate --program research/experiments/d
   --run-id gepa-retry --family retry-storm-backlog --split heldout --family checkout-pool-exhaustion
 uv run evallab calibrate checkout-pool-exhaustion \
   --predictions research/experiments/dspy/judge/artifacts/gepa-retry/bundle-checkout-pool-exhaustion.json --skip-catalog
+uv run python -m judge.inspect_program research/experiments/dspy/judge/artifacts/gepa-retry/program.json \
+  > research/experiments/dspy/judge/artifacts/gepa-retry/inspect.json
 git add research/experiments/dspy/judge/artifacts/gepa-retry research/calibration/records
 git commit -q -m "research(dspy): reverse transfer — GEPA trained on retry-storm scored on unseen checkout family" || true
+echo "reverse transfer finished; starting joint-family GEPA"
+# Second question: does seeing both rubrics remove the family-specific shortcut?
+# Held-out documents of both families stay unseen; no full-family record is clean here.
+uv run python -m judge.run --threads 2 optimize --train-family both --optimizer gepa --budget light --run-id gepa-both
+uv run python -m judge.run --threads 2 evaluate --program research/experiments/dspy/judge/artifacts/gepa-both/program.json \
+  --run-id gepa-both --split heldout --family checkout-pool-exhaustion --family retry-storm-backlog
+uv run python -m judge.inspect_program research/experiments/dspy/judge/artifacts/gepa-both/program.json \
+  > research/experiments/dspy/judge/artifacts/gepa-both/inspect.json
+git add research/experiments/dspy/judge/artifacts/gepa-both
+git commit -q -m "research(dspy): joint-family GEPA — held-out scores on both families and instruction inspection" || true
 echo "after-reset chain finished"

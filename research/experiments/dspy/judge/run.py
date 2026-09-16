@@ -58,6 +58,28 @@ def _usage(lm: dspy.LM, since: int) -> dict:
     }
 
 
+def _accumulate(summary: dict, previous_path: Path) -> dict:
+    """Fold a resumed segment's usage into the previous summary of the same run.
+
+    GEPA resumes from ``log_dir`` after a crash or quota stop; each segment only
+    sees its own LM history, so without this the last (often tiny) segment would
+    overwrite the cost of the whole optimisation.
+    """
+    if not previous_path.exists():
+        summary["segments"] = 1
+        return summary
+    previous = json.loads(previous_path.read_text(encoding="utf-8"))
+    for key in ("task_lm_usage", "reflection_lm_usage"):
+        for field in summary[key]:
+            summary[key][field] = summary[key][field] + previous.get(key, {}).get(field, 0)
+        summary[key]["litellm_estimated_cost_usd"] = round(
+            summary[key]["litellm_estimated_cost_usd"], 6
+        )
+    summary["elapsed_s"] = round(summary["elapsed_s"] + previous.get("elapsed_s", 0.0), 1)
+    summary["segments"] = previous.get("segments", 1) + 1
+    return summary
+
+
 def _bundle(
     family: str,
     results: list[tuple[dspy.Example, dspy.Prediction, float]],
@@ -315,9 +337,9 @@ def cmd_optimize(args: argparse.Namespace) -> int:
             summary["gepa_num_candidates"] = len(getattr(detailed, "candidates", []))
         except Exception as exc:  # noqa: BLE001
             summary["gepa_detail_error"] = repr(exc)
-    (out_dir / "optimize-summary.json").write_text(
-        json.dumps(summary, indent=2) + "\n", encoding="utf-8"
-    )
+    summary_path = out_dir / "optimize-summary.json"
+    summary = _accumulate(summary, summary_path)
+    summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({k: v for k, v in summary.items() if k != "compiled_instructions"}, indent=2))
     print("--- compiled instructions ---")
     for name, text in instructions.items():

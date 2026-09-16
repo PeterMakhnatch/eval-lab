@@ -18,7 +18,8 @@ for completeness only, never written as a record.
 | Prior record: Codex gpt-5.6-sol, plain prompt (2026-08-14) | — | — | 0.763 | — | — |
 | DSPy CoT, unoptimized | — | 0.881 (subset of all) | **0.851** clean | — | **0.818** clean |
 | GEPA light (120 metric calls) | checkout train 12 / val 4 | **0.988** clean | 0.971 *contaminated* | 0.948 clean | **0.912** clean — meets 0.90 |
-| GEPA light | retry-storm train 12 / val 4 | pending (`after-reset.sh`) | pending | pending | *contaminated* |
+| GEPA light | retry-storm train 12 / val 4 | 0.940 clean | **0.948** clean — meets 0.90 | 0.969 clean | *contaminated*, not scored |
+| GEPA light | both families, train 24 / val 8 | pending (`after-reset.sh`) | *contaminated* | pending | *contaminated* |
 
 Records written (all `status: measured`, `--skip-catalog`; catalog rows can be
 added with `evallab calibrate ... --predictions` against the shared database):
@@ -26,10 +27,43 @@ added with `evallab calibrate ... --predictions` against the shared database):
 - `checkout-pool-exhaustion-20260916-glm-5-3-flash-bbfcdacbd3.json` — unoptimized, 0.8506, below floor
 - `retry-storm-backlog-20260916-glm-5-3-flash-e05b4fda9f.json` — unoptimized, 0.8182, below floor
 - `retry-storm-backlog-20260916-dspy-gepa-checkout-glm-5-3-flash-e05b4fda9f.json` — GEPA (checkout), **0.9119, meets floor** (321/352 cells; four-cell margin)
+- `checkout-pool-exhaustion-20260916-dspy-gepa-retry-glm-5-3-flash-bbfcdacbd3.json` — GEPA (retry-storm), **0.9481, meets floor** (292/308 cells; fifteen-cell margin)
 
-The daily digest line is now: "1 of 4 measured record(s) reach their agreement
-floor; best retry-storm-backlog / dspy-gepa-checkout glm-5.3-flash, mean
-agreement 0.912 against a 0.90 floor over 22 documents (2026-09-16)."
+Both families now hold a record at or above the 0.90 floor, each produced by a
+program that never saw a document of the family it was scored on. The daily
+digest line is now: "2 of 5 measured record(s) reach their agreement floor".
+
+## Reverse transfer: per-criterion movement on unseen checkout (all 22)
+
+| Criterion | unoptimized | GEPA (retry-storm) | Δ |
+|---|---|---|---|
+| `evidence_fidelity.invents_evidence` | 7/22 | 20/22 | +13 |
+| `causal_reasoning.grounded_in_evidence` | 16/22 | 20/22 | +4 |
+| `causal_reasoning.uncertainty_is_genuine` | 14/22 | 18/22 | +4 |
+| `causal_reasoning.separates_contributing_factors` | 18/22 | 21/22 | +3 |
+| `action_quality.actions_are_actionable` | 19/22 | 21/22 | +2 |
+| `causal_reasoning.rules_out_the_decoy` | 20/22 | 22/22 | +2 |
+| `action_quality.proposes_unsupported_work` | 20/22 | 21/22 | +1 |
+| `causal_reasoning.identifies_the_mechanism` | 21/22 | 22/22 | +1 |
+| six criteria unchanged (`misstates_a_fact` stays 19/22) | | | 0 |
+
+The same picture in the other direction: `invents_evidence` carries most of the
+gain (+13 of +30 cells), and the compiled instruction again names the training
+family's fixtures (`worker-config.yaml`, `notify-worker.log`, `oncall-chat.txt`,
+`ticket.md`, plus `/app/evidence`) as "not invented". On the unseen checkout
+documents the rule generalised anyway because the rubric-level reasoning in the
+instruction ("citing real evidence-pack artifacts is not invention even if not
+enumerated in reference_facts") is what transfers, not the file list. The
+weakest unseen documents are `11-subtly-wrong-cause-tls` (0.71) and
+`19-fabricated-evidence-dashboards` (0.79); `uncertainty_is_genuine` (18/22) and
+`misstates_a_fact` (19/22) are the criteria left below 0.9.
+
+Run facts (`artifacts/gepa-retry/optimize-summary.json`): 11 candidates,
+validation aggregate 0.797 (seed) → best 0.953 at index 9; task LM ≈149 calls /
+≈$0.15 and reflection LM 12 calls / ≈$0.03 over the resumed segment (the first
+segment, two iterations killed by the quota stop, wrote no summary and is
+uncounted); 52 min wall at 2 threads. GEPA resumed from `optimizer-log/` after
+the quota reset without repeating finished iterations.
 
 ## Per-criterion movement on the unseen family (retry-storm, all 22)
 

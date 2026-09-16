@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "trial_name": "har54-toolbox-broken-control__3b9Xqp3",
+  "source": "research/evidence/runs/har54-toolbox-broken-control/har54-toolbox-broken-control__3b9Xqp3",
+  "primary_category": "implementation",
+  "summary": "Intentional regression-control condition: the pre-fix helper raises on an invalid regex and fails one interface check. No model is involved and this is not a learned optimization failure.",
+  "evidence": [
+    {
+      "path": "artifacts/app/output/probe.json",
+      "step": null,
+      "supports": "Retains the failed invalid_regex_error check and captured helper exception on the frozen control task."
+    },
+    {
+      "path": "result.json",
+      "step": null,
+      "supports": "Records the original native outcome, agent identity and exception state without regrading."
+    }
+  ],
+  "agent": "oracle",
+  "reward": 0.0,
+  "review_status": "draft_pending_research_review",
+  "review_note": "Evidence-linked operator triage, not a human gold label, task certificate or model-improvement claim.",
+  "labelled_by": "GEPA HAR-54, 2026-09-16",
+  "parent_trajectory_sha256": null,
+  "parent_result_sha256": "sha256:0b66674bcec378d571059062ec389816eb4fc514b682955e671509dee37d4398"
+}

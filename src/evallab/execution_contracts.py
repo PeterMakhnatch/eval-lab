@@ -270,6 +270,8 @@ class RunRequest:
     lease_path: Path | None = None
     lease_generation: str | None = None
     extra_instruction_path: Path | None = None
+    toolbox_path: Path | None = None
+    toolbox_sha256: str | None = None
     skill: Path | str | Sequence[Path | str] | None = None
     skills: Sequence[Path | str] | None = None
     load_trajectory: Path | str | None = None
@@ -775,6 +777,30 @@ def validate_request(request: RunRequest) -> None:
         raise ValueError(f"The {request.agent} control does not accept a model")
     if request.model and not request.allow_billable:
         raise ValueError("A model requires --allow-billable")
+    if request.toolbox_path is not None or request.toolbox_sha256 is not None:
+        if request.toolbox_path is None or request.toolbox_sha256 is None:
+            raise ValueError("toolbox_path and toolbox_sha256 must be provided together")
+        if request.agent not in {"oracle", "nop", ZAI_OPENCODE_AGENT}:
+            raise ValueError(
+                f"Agent {request.agent!r} does not support toolbox skills; "
+                f"supported agents are 'oracle', 'nop', and {ZAI_OPENCODE_AGENT!r}"
+            )
+        if request.agent == ZAI_OPENCODE_AGENT:
+            model = request.model or "zai-coding-plan/glm-5.3-flash"
+            if model not in ZAI_OPENCODE_MODEL_SELECTORS:
+                raise ValueError(
+                    f"zai-opencode requires one of the exact models {sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
+                )
+        if request.environment != "docker":
+            raise ValueError("toolbox execution requires environment='docker'")
+        environment = tomllib.loads((request.task / "task.toml").read_text()).get("environment", {})
+        if environment.get("skills_dir") not in {None, "/harbor/skills"}:
+            raise ValueError("toolbox descriptor requires the native /harbor/skills directory")
+        if request.resolved_skills:
+            raise ValueError("toolbox artifact cannot be combined with other skill sources")
+        from evallab.toolbox import validate_toolbox_source
+
+        validate_toolbox_source(request.toolbox_path, request.toolbox_sha256)
 
 
 def resolve_harbor_agent(agent: str) -> str:

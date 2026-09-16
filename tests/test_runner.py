@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import subprocess
@@ -249,9 +250,10 @@ def test_repo_owned_agent_uses_reviewed_code_not_workspace_source(tmp_path: Path
     )
 
     assert result.returncode == 0
-    assert Path(log_path.read_text().strip()).resolve() == (
-        Path(runner_module.__file__).parent / "__init__.py"
-    ).resolve()
+    assert (
+        Path(log_path.read_text().strip()).resolve()
+        == (Path(runner_module.__file__).parent / "__init__.py").resolve()
+    )
 
 
 def test_deepseek_credentials_reach_only_the_repo_owned_adapter(
@@ -1510,3 +1512,68 @@ def test_staging_cleaned_up_after_network_adaptation_write_failure(
     source_toml = (request.task / "task.toml").read_text()
     assert 'network_mode = "no-network"' in source_toml
     assert 'network_mode = "public"' not in source_toml
+
+
+def test_validate_request_toolbox_invariants(tmp_path: Path) -> None:
+    """validate_request enforces pairing, agent compatibility, and source validation for toolbox."""
+    task_dir = task(tmp_path)
+    toolbox_code = (
+        "def read_window(file, start=1, end=None): return {}\n"
+        "def smart_grep(pattern, path='.', max_matches=20, context=2): return {}\n"
+        "def check_output(file): return {}\n"
+    )
+    toolbox_file = tmp_path / "repl_tools.py"
+    toolbox_file.write_text(toolbox_code, encoding="utf-8")
+    toolbox_sha = f"sha256:{hashlib.sha256(toolbox_code.encode('utf-8')).hexdigest()}"
+
+    # Missing sha256
+    with pytest.raises(ValueError, match="must be provided together"):
+        validate_request(
+            RunRequest(
+                task=task_dir,
+                agent="oracle",
+                name="toolbox-missing-sha",
+                jobs_dir=tmp_path / "runs",
+                toolbox_path=toolbox_file,
+            )
+        )
+
+    # Missing path
+    with pytest.raises(ValueError, match="must be provided together"):
+        validate_request(
+            RunRequest(
+                task=task_dir,
+                agent="oracle",
+                name="toolbox-missing-path",
+                jobs_dir=tmp_path / "runs",
+                toolbox_sha256=toolbox_sha,
+            )
+        )
+
+    # Unsupported agent
+    with pytest.raises(ValueError, match="does not support toolbox skills"):
+        validate_request(
+            RunRequest(
+                task=task_dir,
+                agent="claude-code",
+                name="toolbox-unsupported-agent",
+                jobs_dir=tmp_path / "runs",
+                toolbox_path=toolbox_file,
+                toolbox_sha256=toolbox_sha,
+                allow_billable=True,
+            )
+        )
+
+    # Valid request with oracle
+    valid_req = RunRequest(
+        task=task_dir,
+        agent="oracle",
+        name="toolbox-valid",
+        jobs_dir=tmp_path / "runs",
+        toolbox_path=toolbox_file,
+        toolbox_sha256=toolbox_sha,
+    )
+    validate_request(valid_req)
+    (task_dir / "task.toml").write_text('[environment]\nskills_dir = "/different-location"\n')
+    with pytest.raises(ValueError):
+        validate_request(valid_req)

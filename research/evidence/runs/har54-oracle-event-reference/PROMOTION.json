@@ -1,0 +1,242 @@
+{
+  "schema_version": 2,
+  "bundle": "har54-oracle-event-reference",
+  "source_job_runtime_path": "runs/har54-oracle-event-reference",
+  "source_job_result_sha256": "sha256:352cf922d112fb93ae49a91336fa271cbafd89b588f1fd4c3236d1fff1b028a6",
+  "promoted_by": "scripts/promote_codex_bundle.py",
+  "redaction_rules": {
+    "R1": "system/user ATIF step message text removed; sha256 and length kept",
+    "R2": "agent/sessions/**, agent/codex.txt, agent/opencode.txt, agent/opencode/**, job.log and trial.log raw prompt/model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
+    "R3a": "verifier/* JSON string values over 1024 bytes replaced by digest markers",
+    "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body",
+    "R4": "each omitted rollout leaves a quota sidecar under <trial>/agent/quota/ holding only the event timestamp and a whitelist of payload.rate_limits scalars, with the parent rollout's sha256; account-scope point-in-time readings, no message, prompt, reasoning, session title or token"
+  },
+  "totals": {
+    "source_files": 22,
+    "promoted_files": 20,
+    "omitted_files": 2,
+    "quota_sidecars": 0,
+    "promoted_bytes": 20330,
+    "source_bytes": 20786
+  },
+  "files": [
+    {
+      "source_path": "config.json",
+      "promoted_path": "config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 403,
+      "source_sha256": "sha256:b2985bb9ed4664f51630632e4fff81d6d51ba49088f44ed50ef244d199a55713",
+      "promoted_bytes": 403,
+      "promoted_sha256": "sha256:b2985bb9ed4664f51630632e4fff81d6d51ba49088f44ed50ef244d199a55713"
+    },
+    {
+      "source_path": "har54-oracle-event-reference__ux3uWpe/agent/oracle.txt",
+      "promoted_path": "har54-oracle-event-reference__ux3uWpe/agent/oracle.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 0,
+      "source_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "promoted_bytes": 0,
+      "promoted_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source_path": "har54-oracle-event-reference__ux3uWpe/artifacts/app/input/events.jsonl",
+      "promoted_path": "har54-oracle-event-reference__ux3uWpe/artifacts/app/input/events.jsonl",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 458,
+      "source_sha256": "sha256:e1342580d8b19cae1c5d789466f39168d9cd53705c50831c9b2814825e6590c0",
+      "promoted_bytes": 458,
+      "promoted_sha256": "sha256:e1342580d8b19cae1c5d789466f39168d9cd53705c50831c9b2814825e6590c0"
+    },
+    {
+      "source_path": "har54-oracle-event-reference__ux3uWpe/artifacts/app/output/summary.json",
+      "promoted_path": "har54-oracle-event-reference__ux3uWpe/artifacts/app/output/summary.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 142,
+      "source_sha256": "sha256:9f2b05e8b2e32186c4a3a996bc5810ac3de2833f902b8cd23b860351c88a58de",
+      "promoted_bytes": 142,
+      "promoted_sha256": "sha256:9f2b05e8b2e32186c4a3a996bc5810ac3de2833f902b8cd23b860351c88a58de"
+    },
+    {
+      "source_path": "har54-oracle-event-reference__ux3uWpe/artifacts/manifest.json",
+      "promoted_path": "har54-oracle-event-reference__ux3uWpe/artifacts/manifest.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 491,
+      "source_sha256": "sha256:53d36aa77aa02f671b07ce7fe8f09bbf4c55a6f8667b4843585f7f7ac5197697",
+      "promoted_bytes": 491,
+      "promoted_sha256": "sha256:53d36aa77aa02f671b07ce7fe8f09bbf4c55a6f8667b4843585f7f7ac5197697"
+    },
+    {
+      "source_path": "har54-oracle-event-reference__ux3uWpe/config.json",
+      "promoted_path": "har54-oracle-event-reference__ux3uWpe/config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 444,
+      "source_sha256": "sha256:8002b6f27096819d61d03592f08729697aad6e3addd998427ad7d943dc06bddb",
+      "promoted_bytes": 444,
+      "promoted_sha256": "sha256:8002b6f27096819d61d03592f08729697aad6e3addd998427ad7d943dc06bddb"
+    },
+    {
+      "source_path": "har54-oracle-event-reference__ux3uWpe/lock.json",
+      "promoted_path": "har54-oracle-event-reference__ux3uWpe/lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1061,
+      "source_sha256": "sha256:2a340e642fc8a0d5a26527c8ad1bf2d30029efc778b5824f123433b692806b91",
+      "promoted_bytes": 1061,
+      "promoted_sha256": "sha256:2a340e642fc8a0d5a26527c8ad1bf2d30029efc778b5824f123433b692806b91"
+    },
+    {
+      "source_path": "har54-oracle-event-reference__ux3uWpe/result.json",
+      "promoted_path": "har54-oracle-event-reference__ux3uWpe/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 4102,
+      "source_sha256": "sha256:dde38e9f99a2a8972c902444696ca253ff8db889b0a51e8ee8c3719393f166f1",
+      "promoted_bytes": 4102,
+      "promoted_sha256": "sha256:dde38e9f99a2a8972c902444696ca253ff8db889b0a51e8ee8c3719393f166f1"
+    },
+    {
+      "source_path": "har54-oracle-event-reference__ux3uWpe/state-journal/state-after.json",
+      "promoted_path": "har54-oracle-event-reference__ux3uWpe/state-journal/state-after.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1231,
+      "source_sha256": "sha256:6be44b3dfbe0a2f010e70339ef4f130acd79ae39aec77d9f6de1d59e7581ace4",
+      "promoted_bytes": 1231,
+      "promoted_sha256": "sha256:6be44b3dfbe0a2f010e70339ef4f130acd79ae39aec77d9f6de1d59e7581ace4"
+    },
+    {
+      "source_path": "har54-oracle-event-reference__ux3uWpe/state-journal/state-before.json",
+      "promoted_path": "har54-oracle-event-reference__ux3uWpe/state-journal/state-before.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 945,
+      "source_sha256": "sha256:a7f091cf80de3f43b790f522e39f5c45d1ecd5246c687a4fa7a2847eef5b1978",
+      "promoted_bytes": 945,
+      "promoted_sha256": "sha256:a7f091cf80de3f43b790f522e39f5c45d1ecd5246c687a4fa7a2847eef5b1978"
+    },
+    {
+      "source_path": "har54-oracle-event-reference__ux3uWpe/state-journal/state-diff.json",
+      "promoted_path": "har54-oracle-event-reference__ux3uWpe/state-journal/state-diff.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1343,
+      "source_sha256": "sha256:a36584534229c693a49e0174d6632b400f16b0229cc36b9273d685d24d0ae75a",
+      "promoted_bytes": 1343,
+      "promoted_sha256": "sha256:a36584534229c693a49e0174d6632b400f16b0229cc36b9273d685d24d0ae75a"
+    },
+    {
+      "source_path": "har54-oracle-event-reference__ux3uWpe/state-journal/state-events.jsonl",
+      "promoted_path": "har54-oracle-event-reference__ux3uWpe/state-journal/state-events.jsonl",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 717,
+      "source_sha256": "sha256:0910ea5b74549aded911efe60aa1c0ea8fc692cd7e749148e056126e767abe2a",
+      "promoted_bytes": 717,
+      "promoted_sha256": "sha256:0910ea5b74549aded911efe60aa1c0ea8fc692cd7e749148e056126e767abe2a"
+    },
+    {
+      "source_path": "har54-oracle-event-reference__ux3uWpe/state-journal/status.json",
+      "promoted_path": "har54-oracle-event-reference__ux3uWpe/state-journal/status.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 510,
+      "source_sha256": "sha256:54bf276f1ec44cb1c4024488888c212e2ea7abbe563738b413f05403aa1006ef",
+      "promoted_bytes": 510,
+      "promoted_sha256": "sha256:54bf276f1ec44cb1c4024488888c212e2ea7abbe563738b413f05403aa1006ef"
+    },
+    {
+      "source_path": "har54-oracle-event-reference__ux3uWpe/trial.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 228,
+      "source_sha256": "sha256:61c9c12213e89688cf38ffe0d15e1634ec753dcbb9da635564a01e2e90959a1a"
+    },
+    {
+      "source_path": "har54-oracle-event-reference__ux3uWpe/verifier/checks.json",
+      "promoted_path": "har54-oracle-event-reference__ux3uWpe/verifier/checks.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 384,
+      "source_sha256": "sha256:2045854a723ba267cd1c4bfeaad946e42040c19d996c4925c4a281e9b99a352f",
+      "promoted_bytes": 384,
+      "promoted_sha256": "sha256:2045854a723ba267cd1c4bfeaad946e42040c19d996c4925c4a281e9b99a352f"
+    },
+    {
+      "source_path": "har54-oracle-event-reference__ux3uWpe/verifier/ctrf.json",
+      "promoted_path": "har54-oracle-event-reference__ux3uWpe/verifier/ctrf.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 892,
+      "source_sha256": "sha256:169e8cecdc7b146b6e65f229b32e7444b3dc2cf1179cddbbf5f69da9b753e1e3",
+      "promoted_bytes": 892,
+      "promoted_sha256": "sha256:169e8cecdc7b146b6e65f229b32e7444b3dc2cf1179cddbbf5f69da9b753e1e3"
+    },
+    {
+      "source_path": "har54-oracle-event-reference__ux3uWpe/verifier/reward.json",
+      "promoted_path": "har54-oracle-event-reference__ux3uWpe/verifier/reward.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 86,
+      "source_sha256": "sha256:f339aa2f53e93bb73349b11f5728acbe23e1ffc6a77472956cfe41578cc70824",
+      "promoted_bytes": 86,
+      "promoted_sha256": "sha256:f339aa2f53e93bb73349b11f5728acbe23e1ffc6a77472956cfe41578cc70824"
+    },
+    {
+      "source_path": "har54-oracle-event-reference__ux3uWpe/verifier/test-stdout.txt",
+      "promoted_path": "har54-oracle-event-reference__ux3uWpe/verifier/test-stdout.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 354,
+      "source_sha256": "sha256:6b30fe93f6de0e133e4c65e604eed60d01030b270c833475c1f86ef35dabfd94",
+      "promoted_bytes": 354,
+      "promoted_sha256": "sha256:6b30fe93f6de0e133e4c65e604eed60d01030b270c833475c1f86ef35dabfd94"
+    },
+    {
+      "source_path": "job.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 228,
+      "source_sha256": "sha256:61c9c12213e89688cf38ffe0d15e1634ec753dcbb9da635564a01e2e90959a1a"
+    },
+    {
+      "source_path": "lab-metadata.json",
+      "promoted_path": "lab-metadata.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2862,
+      "source_sha256": "sha256:98ee9f4becc01216d08ddb1e1f52b94c233698fb7598fb520641f23f85765137",
+      "promoted_bytes": 2862,
+      "promoted_sha256": "sha256:98ee9f4becc01216d08ddb1e1f52b94c233698fb7598fb520641f23f85765137"
+    },
+    {
+      "source_path": "lock.json",
+      "promoted_path": "lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2071,
+      "source_sha256": "sha256:260202ff4a323af3d728ad0dd3f5672d7552f4320af99a22a4511c1e72b8f4cd",
+      "promoted_bytes": 2071,
+      "promoted_sha256": "sha256:260202ff4a323af3d728ad0dd3f5672d7552f4320af99a22a4511c1e72b8f4cd"
+    },
+    {
+      "source_path": "result.json",
+      "promoted_path": "result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1834,
+      "source_sha256": "sha256:352cf922d112fb93ae49a91336fa271cbafd89b588f1fd4c3236d1fff1b028a6",
+      "promoted_bytes": 1834,
+      "promoted_sha256": "sha256:352cf922d112fb93ae49a91336fa271cbafd89b588f1fd4c3236d1fff1b028a6"
+    }
+  ]
+}

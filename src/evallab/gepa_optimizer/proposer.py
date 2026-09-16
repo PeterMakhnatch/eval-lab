@@ -19,6 +19,18 @@ class ProposalUnavailable(BaseException):
     """A spent/unknown request must not become an automatic paid retry."""
 
 
+def direct_proposer_blocker(model: str) -> str | None:
+    """The existing Z.ai binding is a Coding Plan credential, not a general API grant."""
+    if model.startswith(("zai/", "zai-coding-plan/")):
+        return (
+            "Direct GEPA/LiteLLM use of the Z.ai Coding Plan is not a qualified proposer route. "
+            "The plan is restricted to supported tools: https://docs.z.ai/devpack/tool/others . "
+            "Use a separately approved API route or qualify an actual supported-tool transport; "
+            "do not spoof a tool identity or substitute a provider."
+        )
+    return None
+
+
 class _FeedbackOnlyServer:
     """Keep live enforcement while excluding transient telemetry from reflection."""
 
@@ -117,25 +129,13 @@ class JournaledReflectionLM:
             return receipt["response"]
         if len(self._receipts()) >= self.max_requests:
             raise ProposalUnavailable("Campaign proposer request ceiling reached")
+        blocker = direct_proposer_blocker(self.model)
+        if blocker:
+            raise ProposalUnavailable(blocker)
         from gepa.lm import LM  # ty: ignore[unresolved-import]
 
         if self._lm is None:
-            options: dict[str, Any] = {}
-            if self.model.startswith("zai/"):
-                from evallab.execution_contracts import (
-                    ZAI_OPENCODE_MODEL_SELECTORS,
-                    opencode_auth_path,
-                    read_zai_opencode_key,
-                )
-
-                target = "zai-coding-plan/" + self.model.removeprefix("zai/")
-                if target not in ZAI_OPENCODE_MODEL_SELECTORS:
-                    raise ValueError("Proposer model is not an admitted Z.ai Coding Plan model")
-                options = {
-                    "api_base": "https://api.z.ai/api/coding/paas/v4",
-                    "api_key": read_zai_opencode_key(opencode_auth_path()),
-                }
-            self._lm = LM(self.model, max_tokens=4096, num_retries=0, timeout=60, **options)
+            self._lm = LM(self.model, max_tokens=4096, num_retries=0, timeout=60)
         receipt = {
             "identity": identity,
             "status": "sent_remote_outcome_unknown",

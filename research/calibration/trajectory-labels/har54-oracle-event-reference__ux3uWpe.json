@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "trial_name": "har54-oracle-event-reference__ux3uWpe",
+  "source": "research/evidence/runs/har54-oracle-event-reference/har54-oracle-event-reference__ux3uWpe",
+  "primary_category": "unknown",
+  "summary": "Successful no-model Oracle/interface control. This does not demonstrate learned agent improvement.",
+  "evidence": [
+    {
+      "path": "result.json",
+      "step": null,
+      "supports": "Records the original native outcome, agent identity and exception state without regrading."
+    }
+  ],
+  "agent": "oracle",
+  "reward": 1.0,
+  "review_status": "draft_pending_research_review",
+  "review_note": "Evidence-linked operator triage, not a human gold label, task certificate or model-improvement claim.",
+  "labelled_by": "GEPA HAR-54, 2026-09-16",
+  "parent_trajectory_sha256": null,
+  "parent_result_sha256": "sha256:dde38e9f99a2a8972c902444696ca253ff8db889b0a51e8ee8c3719393f166f1"
+}

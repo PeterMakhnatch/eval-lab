@@ -183,6 +183,56 @@ scores use development tasks; freeze the artifact before a separate held-out
 comparison. Missing traces remain missing, and infrastructure failures never
 become reward zero.
 
+Campaigns default to `"score_mode": "native_reward"`, evaluating candidates by
+raw primary verifier reward. Setting `"score_mode": "quality_gated_request_efficiency"`
+conditions request-efficiency utility on the existing native grade:
+`1 / (1 + requests)` when that grade is exactly 1.0, and 0 otherwise.
+This does not certify the verifier or replace independent output checks.
+Raw rewards and evaluation receipts remain unchanged;
+unresolved or missing provider accounting halts the run rather than reporting a
+free zero score. Selection evaluates common-pool utility but vetoes any per-task
+native reward regression and retains the seed on utility ties.
+
+### Python toolbox candidates and Oracle contrast
+
+`research/experiments/harness-gepa/python-toolbox.json` is a disabled example
+using `"candidate_kind": "python_toolbox"` and the competent stdlib seed
+`repl_tools.py`. GEPA revises that Python module, not the fixed skill descriptor.
+The module exposes `read_window`, `smart_grep`, `check_output`, and the seed's
+`read` / `grep` / `check` CLI. Output validation checks format, **not task
+correctness**. Input/output bounds are explicit; arbitrary regex execution time
+is still limited by the containing trial, not guaranteed by Python's regex engine.
+
+The normal queue binds `toolbox_path` and `toolbox_sha256`. The runner stages a
+job-private two-file `repl-tools` bundle and uses Harbor's existing `--skill`
+upload, placing code at `/harbor/skills/repl-tools/repl_tools.py`. No candidate is
+imported or executed on the host. Syntax/API rejection is labeled static
+validation without fabricating a native trial. The job retains the Python file
+and descriptor; consumption checks their bytes against the native top-level
+`lock.skills` digest. Comparisons declare `toolset_digest`, not a changed prompt
+or model setting. Injection alone does not prove the model used the helper;
+inspect the actual invocation/edit trace before attributing a benefit.
+
+A development example may include `oracle_reference` with exactly
+`trial_path`, `result_sha256`, and `task_package_digest`. Before evaluation, the
+reference must identify a finished, successful, no-model Oracle run on that
+same package, with matching native result and job provenance. Reflection gets
+bounded, redacted reference actions/file transitions versus agent evidence.
+Oracle arguments and raw stdout are withheld because they may contain answers.
+Missing command traces remain missing; observed file transitions are not
+automatically task requirements. Final/held-out examples remain forbidden.
+
+Current live-proposer gate: [Z.ai's Coding Plan tool rules](https://docs.z.ai/devpack/tool/others)
+list supported products, including OpenCode, but not bare GEPA/LiteLLM. The
+former direct Coding Plan proposer binding now refuses new requests before
+target evaluation. Do not spoof client identity or silently change providers;
+qualify a genuine supported-tool transport or obtain a separately approved API
+route. This is distinct from unresolved upstream response-format failures.
+
+`--qualification` uses free local controls and a deterministic proposer fixture.
+It can demonstrate real code injection, feedback, selection and comparison, but
+is **not model-learned improvement**, held-out benefit, or task admission.
+
 ### Bounded GEPA and genuine Omni composition
 
 `research/experiments/harness-gepa/har53-gepa.json` and `har53-omni.json`

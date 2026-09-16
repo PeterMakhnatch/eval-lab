@@ -297,3 +297,83 @@ def test_macos_fail_open_source_cannot_launch_proposer(monkeypatch):
     engine = meta_engine.make_meta_harness_engine(gepa_config.OptimizeAnythingConfig(sandbox=True))
     with pytest.raises(RuntimeError):
         engine.run(None, None)
+
+
+def test_safe_meta_harness_engine_rejects_unsandboxed_run():
+    """Verify SafeMetaHarnessEngine.run rejects execution when sandbox is disabled."""
+    engine = meta_engine.SafeMetaHarnessEngine(
+        gepa_config.OptimizeAnythingConfig(sandbox=False)
+    )
+    with pytest.raises(RuntimeError, match="SafeMetaHarnessEngine requires sandbox=True"):
+        engine.run(None, None)
+
+
+def test_safe_meta_harness_engine_linux_missing_prerequisites(monkeypatch):
+    """Verify SafeMetaHarnessEngine.run rejects execution on Linux when bwrap or claude is missing."""
+    monkeypatch.setattr(meta_engine, "_IS_MACOS", False)
+
+    # Missing bwrap
+    monkeypatch.setattr(
+        meta_engine.shutil,
+        "which",
+        lambda cmd: "/usr/bin/claude" if cmd == "claude" else None,
+    )
+    engine = meta_engine.SafeMetaHarnessEngine(
+        gepa_config.OptimizeAnythingConfig(sandbox=True)
+    )
+    with pytest.raises(RuntimeError, match="requires both Claude Code and a working bwrap route"):
+        engine.run(None, None)
+
+    # Missing claude
+    monkeypatch.setattr(
+        meta_engine.shutil,
+        "which",
+        lambda cmd: "/usr/bin/bwrap" if cmd == "bwrap" else None,
+    )
+    with pytest.raises(RuntimeError, match="requires both Claude Code and a working bwrap route"):
+        engine.run(None, None)
+
+
+def test_check_prerequisite_facts_boundaries_and_fail_closed_truth(monkeypatch):
+    """Verify check_prerequisite_facts reflects genuine OS boundaries, blockers, and fail-closed truth."""
+    # 1. macOS: fail-closed unsupported due to failIfUnavailable=False
+    monkeypatch.setattr(meta_engine, "_IS_MACOS", True)
+    monkeypatch.setattr(meta_engine.shutil, "which", lambda cmd: f"/mock/bin/{cmd}")
+    facts_macos = meta_engine.check_prerequisite_facts(sandbox=True)
+    assert facts_macos["is_macos"] is True
+    assert facts_macos["fail_closed_os_launch_supported"] is False
+    assert "failIfUnavailable=False" in str(facts_macos["live_launch_blocker"])
+    assert facts_macos["filesystem_boundary"]["fail_if_unavailable"] is False
+    assert facts_macos["filesystem_boundary"]["fail_closed"] is False
+    assert facts_macos["network_boundary"]["network_namespace_isolated"] is False
+    assert facts_macos["startup_environment_boundary"]["ambient_env_inherited"] is True
+    assert facts_macos["upstream_customization_available"]["custom_runner_hook"] is False
+    assert facts_macos["upstream_customization_available"]["custom_sandbox_hook"] is False
+
+    # 2. Linux missing bwrap: fail_closed_os_launch_supported is False
+    monkeypatch.setattr(meta_engine, "_IS_MACOS", False)
+    monkeypatch.setattr(
+        meta_engine.shutil,
+        "which",
+        lambda cmd: "/mock/bin/claude" if cmd == "claude" else None,
+    )
+    facts_linux_nobwrap = meta_engine.check_prerequisite_facts(sandbox=True)
+    assert facts_linux_nobwrap["is_macos"] is False
+    assert facts_linux_nobwrap["bwrap_found"] is False
+    assert facts_linux_nobwrap["fail_closed_os_launch_supported"] is False
+    assert "bwrap not found" in str(facts_linux_nobwrap["live_launch_blocker"])
+    assert facts_linux_nobwrap["filesystem_boundary"]["fail_closed"] is False
+
+    # 3. Sandbox disabled: fail_closed_os_launch_supported is False even on Linux with bwrap
+    monkeypatch.setattr(meta_engine.shutil, "which", lambda cmd: f"/mock/bin/{cmd}")
+    facts_unsandboxed = meta_engine.check_prerequisite_facts(sandbox=False)
+    assert facts_unsandboxed["sandbox_configured"] is False
+    assert facts_unsandboxed["fail_closed_os_launch_supported"] is False
+    assert "sandbox=True" in str(facts_unsandboxed["live_launch_blocker"])
+    assert facts_unsandboxed["filesystem_boundary"]["fail_closed"] is False
+
+    # 4. Linux with bwrap and sandbox=True: fail_closed_os_launch_supported is True
+    facts_linux_ready = meta_engine.check_prerequisite_facts(sandbox=True)
+    assert facts_linux_ready["fail_closed_os_launch_supported"] is True
+    assert facts_linux_ready["live_launch_blocker"] is None
+    assert facts_linux_ready["filesystem_boundary"]["fail_closed"] is True

@@ -1,0 +1,31 @@
+# notify-worker runtime configuration.
+# This snapshot was taken at 2026-07-22T03:00:00Z, i.e. before the incident and
+# before the configuration change made at 07:01.
+
+service: notify-worker
+release: v2.8.1
+
+queue:
+  name: notifications.outbound
+  dead_letter_queue: null      # not configured
+  visibility_timeout_ms: 30000
+
+workers:
+  # One slot serves one delivery attempt at a time. First attempts and retries
+  # are drawn from the same slot pool; there is no separate retry lane and no
+  # per-class concurrency budget.
+  slots: 64
+  instances: 8
+
+retry:
+  # Unchanged since the service was introduced in 2024.
+  max_attempts: unlimited
+  delay_ms: 1000
+  backoff: none
+  jitter: none
+
+gateway:
+  sms:
+    base_url: https://api.sms-gateway.example
+    timeout_ms: 4000
+    idempotency_key: message_id

@@ -1,0 +1,18 @@
+# Alert manager history, 2026-07-22 (all services).
+# PAGE = woke someone. WARN = dashboard + email only. INFO = dashboard only.
+
+2026-07-22T01:15:00Z INFO  backup-lag: nightly notifications-db backup finished on time
+2026-07-22T03:20:00Z WARN  notifications-db-cpu: notifications-db CPU 86% > 80% for 10m (page threshold is 95%)
+2026-07-22T04:10:00Z INFO  billing-api-deploy: billing-api v6.1.2 rollout completed
+2026-07-22T06:00:00Z WARN  notify-queue-depth: notifications.outbound depth 812400 > 500000 for 10m
+2026-07-22T07:12:00Z INFO  notify-queue-depth: resolved
+2026-07-22T07:14:00Z INFO  notifications-db-cpu: resolved
+
+# Configured alerts for notify-worker, for reference:
+#   notify-worker-instance-down   PAGE   healthy workers < 2
+#   notify-worker-error-rate      PAGE   worker crash rate > 1/min for 5m
+#   notify-queue-depth            WARN   notifications.outbound depth > 500000 for 10m
+#                                        (routed to email, not to the pager)
+# No alert is configured on delivery lag, on retry volume, or on worker slot
+# saturation. The queue-depth alert has not changed since the queue was
+# introduced in 2024.

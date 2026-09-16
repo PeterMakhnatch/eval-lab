@@ -1,0 +1,31 @@
+# checkout-api runtime configuration.
+# This is the configuration currently in effect, i.e. v4.18.3 after the
+# rollback at 2026-07-14T15:31:00Z.
+
+service: checkout-api
+release: v4.18.3
+
+server:
+  # v4.19.0 changed this value to 32. The rollback restored it to 8.
+  workers: 8
+  request_timeout_ms: 8000
+
+database:
+  host: ledger-db.internal
+  pool:
+    # Per-instance connection pool. Last changed 2025-11-04, when the service
+    # ran 8 workers. Not touched by v4.19.0.
+    max_connections: 10
+    acquire_timeout_ms: 5000
+    idle_timeout_ms: 30000
+
+vendor:
+  payments:
+    base_url: https://api.payments-vendor.example
+    timeout_ms: 3000
+    retries: 2
+
+deployment:
+  strategy: rolling
+  canary: false
+  instances: 6

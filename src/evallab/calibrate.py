@@ -39,6 +39,10 @@ _VARIANT_COMMENT = re.compile(
     r"\A\s*<!--\s*calibration-variant:\s*[a-z0-9-]+\s*-->\s*", re.IGNORECASE
 )
 
+# "Supplied evidence" below means the family's evidence directory (the files the
+# postmortem author had under /app/evidence, shown to the judge verbatim) plus
+# the reference facts in the rubric. The sealed keys were decided against those
+# files; a judge that only sees the reference facts cannot decide them.
 _COMMON = {
     "actions_are_actionable": (
         "Does the corrective-action section name concrete changes with owners, targets, "
@@ -50,19 +54,19 @@ _COMMON = {
     ),
     "proposes_unsupported_work": (
         "Does the document propose material work based on a cause or risk that the supplied "
-        "reference facts do not support?"
+        "evidence files and reference facts do not support?"
     ),
     "asserts_unsupported_cause": (
         "Does the document state a causal mechanism contradicted by, or absent from, the "
-        "supplied reference facts?"
+        "supplied evidence files and reference facts?"
     ),
     "misstates_a_fact": (
         "Does the document materially misstate a time, count, version, configuration value, "
-        "or other supplied reference fact?"
+        "or other fact established by the supplied evidence files or reference facts?"
     ),
     "invents_evidence": (
-        "Does the document cite a dashboard, ticket, log, metric, meeting, or observation not "
-        "present in the supplied reference facts?"
+        "Does the document cite a dashboard, ticket, log line, metric, meeting, or observation "
+        "that appears in neither the supplied evidence files nor the reference facts?"
     ),
 }
 
@@ -85,8 +89,8 @@ RUBRICS: dict[str, dict[str, Any]] = {
                     "pool, leading to 5000ms acquire timeouts and checkout 500s?"
                 ),
                 "grounded_in_evidence": (
-                    "Does it ground that mechanism in multiple specific supplied facts rather "
-                    "than assertion or fluent generalities?"
+                    "Does it ground that mechanism in multiple specific items from the supplied "
+                    "evidence files or reference facts rather than assertion or fluent generalities?"
                 ),
                 "rules_out_the_decoy": (
                     "Does it explicitly reject the payments-vendor advisory using timing, flat "
@@ -97,7 +101,8 @@ RUBRICS: dict[str, dict[str, Any]] = {
                     "worker/pool causal mechanism?"
                 ),
                 "uncertainty_is_genuine": (
-                    "Are open questions limited to matters not settled by the supplied facts?"
+                    "Are open questions limited to matters not settled by the supplied evidence "
+                    "files or reference facts?"
                 ),
             },
             "action_quality": {
@@ -153,8 +158,8 @@ RUBRICS: dict[str, dict[str, Any]] = {
                     "cause of the multi-hour outage?"
                 ),
                 "grounded_in_evidence": (
-                    "Does it ground the mechanism in multiple specific supplied facts rather than "
-                    "assertion or generic retry advice?"
+                    "Does it ground the mechanism in multiple specific items from the supplied "
+                    "evidence files or reference facts rather than assertion or generic retry advice?"
                 ),
                 "rules_out_the_decoys": (
                     "Does it reject both the log-format deploy and database CPU as causes using "
@@ -165,7 +170,8 @@ RUBRICS: dict[str, dict[str, Any]] = {
                     "isolation from the primary amplification mechanism?"
                 ),
                 "uncertainty_is_genuine": (
-                    "Are open questions limited to matters not settled by the supplied facts?"
+                    "Are open questions limited to matters not settled by the supplied evidence "
+                    "files or reference facts?"
                 ),
             },
             "action_quality": {
@@ -216,10 +222,39 @@ class CorpusDocument:
 
 
 @dataclass(frozen=True)
+class EvidenceFile:
+    name: str
+    sha256: str
+    text: str
+
+
+@dataclass(frozen=True)
+class EvidencePack:
+    """The family's evidence directory, vendored byte-for-byte from its task source.
+
+    ``digest`` binds every judge input, bundle and record to these exact bytes and
+    to the upstream revision they were copied from.
+    """
+
+    family: str
+    source_repository: str
+    source_revision: str
+    source_path: str
+    mount: str
+    files: tuple[EvidenceFile, ...]
+    digest: str
+
+
+class EvidencePackError(ValueError):
+    """The vendored evidence pack is missing, incomplete, or does not match its manifest."""
+
+
+@dataclass(frozen=True)
 class DspyExample:
     document_id: str
     family: str
     rubric_json: str
+    evidence: str
     document: str
     expected_json: str
 
@@ -319,6 +354,83 @@ def corpus_digest(repo_root: Path, family: str) -> str:
     return _sha256(*chunks)
 
 
+def evidence_root(repo_root: Path) -> Path:
+    return repo_root / "research/calibration-evidence"
+
+
+def load_evidence_pack(repo_root: Path, family: str) -> EvidencePack:
+    """Load and verify the family's vendored evidence directory.
+
+    Every file named in ``manifest.json`` must exist with the recorded sha256, and
+    no extra files may sit beside them; anything else raises ``EvidencePackError``
+    naming the offending file, so a judge can never be measured against a partial
+    or edited evidence directory.
+    """
+    _validate_family(family)
+    base = evidence_root(repo_root) / family
+    manifest_path = base / "manifest.json"
+    if not manifest_path.is_file():
+        raise EvidencePackError(f"{family}: evidence manifest is missing: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    source = manifest.get("source") or {}
+    if (
+        manifest.get("family") != family
+        or not isinstance(manifest.get("files"), list)
+        or not all(
+            isinstance(source.get(k), str) for k in ("repository", "revision", "path", "mount")
+        )
+    ):
+        raise EvidencePackError(f"{family}: invalid evidence manifest: {manifest_path}")
+    files: list[EvidenceFile] = []
+    chunks = [source["repository"].encode(), source["revision"].encode(), source["path"].encode()]
+    for entry in manifest["files"]:
+        name = entry.get("name")
+        if not isinstance(name, str) or "/" in name or name in {"", ".", "..", "manifest.json"}:
+            raise EvidencePackError(f"{family}: invalid evidence file name {name!r}")
+        path = base / name
+        if not path.is_file():
+            raise EvidencePackError(f"{family}: evidence file missing: {name}")
+        data = path.read_bytes()
+        digest = "sha256:" + hashlib.sha256(data).hexdigest()
+        if digest != entry.get("sha256"):
+            raise EvidencePackError(
+                f"{family}: evidence file {name} does not match its manifest digest"
+            )
+        files.append(EvidenceFile(name=name, sha256=digest, text=data.decode("utf-8")))
+        chunks.extend([name.encode(), data])
+    expected = {file.name for file in files} | {"manifest.json"}
+    extra = sorted(p.name for p in base.iterdir() if p.name not in expected)
+    if extra:
+        raise EvidencePackError(f"{family}: unlisted files in evidence directory: {extra}")
+    return EvidencePack(
+        family=family,
+        source_repository=source["repository"],
+        source_revision=source["revision"],
+        source_path=source["path"],
+        mount=source["mount"],
+        files=tuple(files),
+        digest=_sha256(*chunks),
+    )
+
+
+def evidence_digest(repo_root: Path, family: str) -> str:
+    return load_evidence_pack(repo_root, family).digest
+
+
+def render_evidence_pack(pack: EvidencePack) -> str:
+    """The judge-facing text of the evidence directory: every file, verbatim, named."""
+    parts = [
+        f"Evidence directory {pack.mount} ({len(pack.files)} files; source "
+        f"{pack.source_repository}@{pack.source_revision[:12]} {pack.source_path}). "
+        "These are the only files the postmortem author had. A cited artifact that is "
+        "not in this directory and not in the reference facts does not exist."
+    ]
+    for file in pack.files:
+        body = file.text if file.text.endswith("\n") else file.text + "\n"
+        parts.append(f"### {pack.mount}/{file.name} ({file.sha256[:19]})\n```\n{body}```")
+    return "\n\n".join(parts) + "\n"
+
+
 def rubric_payload(family: str) -> dict[str, Any]:
     _validate_family(family)
     return {
@@ -344,6 +456,12 @@ def validate_prediction_bundle(
         raise ValueError("prediction bundle rubric digest does not match the current rubric")
     if bundle.corpus_digest != corpus_digest(repo_root, bundle.family):
         raise ValueError("prediction bundle corpus digest does not match the sealed corpus")
+    if bundle.evidence_digest is not None and bundle.evidence_digest != evidence_digest(
+        repo_root, bundle.family
+    ):
+        raise ValueError(
+            "prediction bundle evidence digest does not match the vendored evidence pack"
+        )
     expected_ids = [document.document_id for document in documents]
     observed_ids = [prediction.document_id for prediction in bundle.predictions]
     if observed_ids != expected_ids:
@@ -365,10 +483,19 @@ def load_prediction_bundle(path: Path) -> JudgePredictionBundle:
         raise ValueError(f"invalid judge prediction bundle {path}: {exc}") from exc
 
 
+def _slug(text: str, width: int) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:width]
+
+
 def _record_id(bundle: JudgePredictionBundle, evaluated_on: date) -> str:
-    model = re.sub(r"[^a-z0-9]+", "-", bundle.judge_model.lower()).strip("-")
     suffix = bundle.corpus_digest.removeprefix("sha256:")[:10]
-    return f"{bundle.family}-{evaluated_on:%Y%m%d}-{model[:28]}-{suffix}"
+    # Backend is part of the id: two judge programs on the same model and day
+    # (an unoptimized DSPy program and a compiled one) are distinct measurements
+    # and must not collide on the append-only record path.
+    return (
+        f"{bundle.family}-{evaluated_on:%Y%m%d}-{_slug(bundle.judge_backend, 24)}-"
+        f"{_slug(bundle.judge_model, 28)}-{suffix}"
+    )
 
 
 def evaluate_predictions(
@@ -410,6 +537,7 @@ def evaluate_predictions(
         judge_engine_version=bundle.judge_engine_version,
         rubric_digest=bundle.rubric_digest,
         corpus_digest=bundle.corpus_digest,
+        evidence_digest=bundle.evidence_digest,
         per_criterion_agreement=rates,
         mean_agreement=mean,
         agreement_floor=AGREEMENT_FLOOR,
@@ -553,14 +681,18 @@ def stage_agent_judge_task(
     if task_root.exists():
         raise FileExistsError(f"refusing to overwrite staged calibration task: {task_root}")
     documents = load_corpus(repo_root, family)
+    evidence = load_evidence_pack(repo_root, family)
     rubric = rubric_payload(family)
     rubric["rubric_digest"] = rubric_digest(family)
     rubric["corpus_digest"] = corpus_digest(repo_root, family)
+    rubric["evidence_digest"] = evidence.digest
     rubric["judge_backend"] = backend
     rubric["judge_model"] = judge_model
     environment = task_root / "environment"
     for document in documents:
         _write(environment / "documents" / f"{document.document_id}.md", document.text)
+    for file in evidence.files:
+        _write(environment / "evidence" / file.name, file.text)
     _write(environment / "rubric.json", json.dumps(rubric, indent=2, sort_keys=True) + "\n")
     _write(
         environment / "Dockerfile",
@@ -569,6 +701,7 @@ def stage_agent_judge_task(
 WORKDIR /app
 
 COPY documents/ /app/input/documents/
+COPY evidence/ /app/input/evidence/
 COPY rubric.json /app/input/rubric.json
 
 RUN mkdir -p /app/output
@@ -600,11 +733,13 @@ WORKDIR /app
 def _agent_instruction(family: str, backend: str, judge_model: str, count: int) -> str:
     return f"""# Sealed-corpus judge calibration
 
-Read `/app/input/rubric.json` and all {count} Markdown documents in
-`/app/input/documents/`, in filename order. Apply every named criterion to every
-document. The answer keys are intentionally absent and must not be guessed from
-filenames, document ordering, style, or presumed variants. Judge only the document
-and the reference facts in the rubric.
+Read `/app/input/rubric.json`, every file under `/app/input/evidence/` (the incident's
+evidence directory, exactly what the postmortem authors had), and all {count} Markdown
+documents in `/app/input/documents/`, in filename order. Apply every named criterion to
+every document. The answer keys are intentionally absent and must not be guessed from
+filenames, document ordering, style, or presumed variants. Judge only the document, the
+evidence files, and the reference facts in the rubric: an artifact a document cites that
+is in none of them does not exist.
 
 Write `/app/output/judgments.json` as UTF-8 JSON with this exact top-level shape:
 
@@ -617,6 +752,7 @@ Write `/app/output/judgments.json` as UTF-8 JSON with this exact top-level shape
   "judge_engine_version": null,
   "rubric_digest": "<copy from rubric.json>",
   "corpus_digest": "<copy from rubric.json>",
+  "evidence_digest": "<copy from rubric.json>",
   "generated_at": "<RFC3339 UTC timestamp>",
   "predictions": [
     {{
@@ -881,9 +1017,12 @@ def dispatch_approved_codex_calibration(
 
 
 def load_dspy_examples(repo_root: Path, family: str) -> list[DspyExample]:
+    """One example per sealed document: rubric, the family's evidence pack, the
+    document, and the sealed verdicts (never an input)."""
     documents = load_corpus(repo_root, family)
     key_root = calibration_root(repo_root) / family / "answer-keys"
     rubric_json = _canonical_json(rubric_payload(family))
+    evidence = render_evidence_pack(load_evidence_pack(repo_root, family))
     examples = []
     for document in documents:
         key = json.loads((key_root / f"{document.document_id}.json").read_text(encoding="utf-8"))
@@ -896,6 +1035,7 @@ def load_dspy_examples(repo_root: Path, family: str) -> list[DspyExample]:
                 document_id=document.document_id,
                 family=family,
                 rubric_json=rubric_json,
+                evidence=evidence,
                 document=document.text,
                 expected_json=_canonical_json(expected),
             )
@@ -922,27 +1062,120 @@ def split_dspy_examples(examples: Sequence[DspyExample]) -> DspySplit:
     return DspySplit(train=train, optimizer_validation=optimizer_validation, heldout=heldout)
 
 
+DSPY_JUDGE_INSTRUCTIONS = (
+    "Judge an incident postmortem against every criterion in the rubric.\n\n"
+    "For each dimension and criterion in rubric_json.criteria, answer the criterion's "
+    "question about the document with a raw yes/no. Negated criteria ask whether a flaw "
+    "is PRESENT; answer yes when the flaw is present and do not invert. Decide evidence "
+    "questions against the supplied evidence files and rubric_json.reference_facts: a "
+    "cited artifact, value, or event that appears in neither does not exist, and a value "
+    "that disagrees with those files is misstated. Do not assume facts that are not "
+    "supplied. Include every criterion in rubric_json.criteria exactly once."
+)
+DSPY_INPUT_FIELDS = ("family", "rubric_json", "evidence", "document")
+
+
 def build_dspy_program(dspy_module: Any | None = None) -> Any:
-    dspy = dspy_module or importlib.import_module("dspy")
+    """Typed judge program: ``family, rubric_json, evidence, document -> judgments``.
+
+    ``evidence`` is the rendered evidence pack (``render_evidence_pack``), the same
+    files the postmortem author had. ``judgments`` is
+    ``dict[dimension, dict[criterion, JudgeCriterionVerdict]]`` so a non yes/no
+    verdict or a missing rationale fails at parse time instead of silently scoring
+    zero. The wrapper module keeps the predictor name ``judge.predict`` stable for
+    saved/compiled program state.
+    """
+    dspy: Any = dspy_module or importlib.import_module("dspy")
     signature = dspy.Signature(
-        "family, rubric_json, document -> judgments_json",
-        instructions=(
-            "Apply every criterion in rubric_json to document. Return judgments_json as a JSON "
-            "object mapping dimension to criterion to the raw pre-inversion yes/no verdict."
-        ),
+        {
+            "family": (str, dspy.InputField(desc="calibration family identifier")),
+            "rubric_json": (
+                str,
+                dspy.InputField(
+                    desc="JSON with reference_facts, criteria (dimension -> criterion -> "
+                    "question), negated criteria and verdict_convention"
+                ),
+            ),
+            "evidence": (
+                str,
+                dspy.InputField(
+                    desc="every file of the incident's evidence directory, verbatim; the "
+                    "only artifacts that exist besides the reference facts"
+                ),
+            ),
+            "document": (str, dspy.InputField(desc="the postmortem under judgment")),
+            "judgments": (
+                dict[str, dict[str, JudgeCriterionVerdict]],
+                dspy.OutputField(
+                    desc="dimension -> criterion -> {verdict, rationale}; include every "
+                    "criterion from rubric_json exactly once"
+                ),
+            ),
+        },
+        instructions=DSPY_JUDGE_INSTRUCTIONS,
     )
-    return dspy.ChainOfThought(signature)
+
+    class CalibrationJudge(dspy.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.judge = dspy.ChainOfThought(signature)
+
+        def forward(self, family: str, rubric_json: str, evidence: str, document: str) -> Any:
+            return self.judge(
+                family=family, rubric_json=rubric_json, evidence=evidence, document=document
+            )
+
+    return CalibrationJudge()
+
+
+def check_dspy_program_state(program: Any, path: Path) -> None:
+    """Refuse saved program state whose fields do not match the live signature.
+
+    ``dspy.Signature.load_state`` pairs saved field prefixes with live fields
+    positionally, so state saved before the ``evidence`` input existed would load
+    without error and silently shift every description onto the wrong field.
+    """
+    state = json.loads(path.read_text(encoding="utf-8"))
+    for name, predictor in program.named_predictors():
+        saved = state.get(name)
+        if not isinstance(saved, dict) or "signature" not in saved:
+            raise ValueError(f"{path}: no saved state for predictor {name!r}")
+        live = [field.json_schema_extra["prefix"] for field in predictor.signature.fields.values()]
+        stored = [field.get("prefix") for field in saved["signature"].get("fields", [])]
+        if stored != live:
+            raise ValueError(
+                f"{path}: saved fields {stored} do not match the judge signature {live}; "
+                "this program was compiled against a different input contract"
+            )
+
+
+def dspy_verdicts(prediction: Any) -> dict[str, dict[str, JudgeCriterionVerdict]]:
+    """dimension -> criterion -> verdict cell from a typed prediction; invalid cells dropped."""
+    judgments = getattr(prediction, "judgments", None)
+    if not isinstance(judgments, dict):
+        return {}
+    flat: dict[str, dict[str, JudgeCriterionVerdict]] = {}
+    for dimension, block in judgments.items():
+        if not isinstance(block, dict):
+            continue
+        for name, cell in block.items():
+            if isinstance(cell, dict):
+                try:
+                    cell = JudgeCriterionVerdict.model_validate(cell)
+                except ValidationError:
+                    continue
+            if isinstance(cell, JudgeCriterionVerdict):
+                flat.setdefault(dimension, {})[name] = cell
+    return flat
 
 
 def dspy_metric(example: Any, prediction: Any, trace: Any | None = None) -> float:
+    """Exact per-criterion agreement with the sealed key; a missing cell is a disagreement."""
     del trace
     expected = json.loads(example.expected_json)
-    try:
-        observed = json.loads(prediction.judgments_json)
-    except (AttributeError, TypeError, json.JSONDecodeError):
-        return 0.0
+    observed = dspy_verdicts(prediction)
     cells = [
-        observed.get(dimension, {}).get(name) == verdict
+        (cell := observed.get(dimension, {}).get(name)) is not None and cell.verdict == verdict
         for dimension, block in expected.items()
         for name, verdict in block.items()
     ]
@@ -954,9 +1187,74 @@ def as_dspy_example(dspy: Any, example: DspyExample) -> Any:
         document_id=example.document_id,
         family=example.family,
         rubric_json=example.rubric_json,
+        evidence=example.evidence,
         document=example.document,
         expected_json=example.expected_json,
-    ).with_inputs("family", "rubric_json", "document")
+    ).with_inputs(*DSPY_INPUT_FIELDS)
+
+
+class IncompleteJudgeOutputError(ValueError):
+    """The judge omitted criteria; the run cannot become a bundle or a record."""
+
+    def __init__(self, missing: dict[str, list[str]]) -> None:
+        self.missing = missing
+        cells = sum(len(names) for names in missing.values())
+        detail = "; ".join(f"{doc}: {', '.join(names)}" for doc, names in missing.items())
+        super().__init__(
+            f"judge omitted {cells} criterion cell(s) across {len(missing)} document(s): {detail}"
+        )
+
+
+def dspy_prediction_bundle(
+    repo_root: Path,
+    family: str,
+    predictions: Sequence[tuple[str, Any]],
+    *,
+    evidence: EvidencePack,
+    judge_backend: str,
+    judge_model: str,
+    judge_engine_version: str | None = None,
+) -> JudgePredictionBundle:
+    """Turn ``(document_id, typed prediction)`` pairs into a scoreable bundle.
+
+    The bundle is bound to the evidence pack the judge was shown. Any criterion the
+    judge omitted or answered invalidly raises ``IncompleteJudgeOutputError`` naming
+    every missing cell: a partial judgment is never filled in and never recorded.
+    Documents must cover the sealed corpus in order (validated by the bundle check).
+    """
+    if evidence.family != family:
+        raise ValueError(f"evidence pack is for {evidence.family!r}, not {family!r}")
+    by_id = dict(predictions)
+    missing: dict[str, list[str]] = {}
+    documents = []
+    for document in load_corpus(repo_root, family):
+        observed = dspy_verdicts(by_id.get(document.document_id))
+        criteria: dict[str, dict[str, JudgeCriterionVerdict]] = {}
+        for dimension, block in RUBRICS[family]["criteria"].items():
+            for name in block:
+                cell = observed.get(dimension, {}).get(name)
+                if cell is None:
+                    missing.setdefault(document.document_id, []).append(f"{dimension}.{name}")
+                    continue
+                criteria.setdefault(dimension, {})[name] = cell
+        documents.append(
+            JudgeDocumentPrediction(document_id=document.document_id, criteria=criteria)
+        )
+    if missing:
+        raise IncompleteJudgeOutputError(missing)
+    bundle = JudgePredictionBundle(
+        family=family,
+        judge_backend=judge_backend,
+        judge_model=judge_model,
+        judge_engine_version=judge_engine_version,
+        rubric_digest=rubric_digest(family),
+        corpus_digest=corpus_digest(repo_root, family),
+        evidence_digest=evidence.digest,
+        generated_at=datetime.now(UTC),
+        predictions=documents,
+    )
+    validate_prediction_bundle(repo_root, bundle)
+    return bundle
 
 
 def dspy_split_summary(repo_root: Path, family: str) -> dict[str, Any]:

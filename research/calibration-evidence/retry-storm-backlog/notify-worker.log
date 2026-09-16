@@ -1,0 +1,22 @@
+# Filtered sample of notify-worker logs, 2026-07-22.
+# Filter: level >= WARN, plus INFO lines matching 'startup', 'drain' or 'config'.
+# Repeated identical lines are collapsed; see metrics.csv for full counts.
+
+2026-07-22T02:47:19Z INFO  startup: notify-worker v2.8.1 slots=64 retry.max_attempts=unlimited retry.delay_ms=1000 retry.jitter=none
+2026-07-22T03:11:04Z WARN  gateway: POST /v1/messages 503 upstream_unavailable attempt=1 msg=m-8841207
+2026-07-22T03:11:05Z WARN  gateway: POST /v1/messages 503 upstream_unavailable attempt=2 msg=m-8841207
+2026-07-22T03:11:41Z WARN  gateway: POST /v1/messages 503 upstream_unavailable attempt=38 msg=m-8841207
+2026-07-22T03:13:26Z WARN  retry: 12,904 messages in retry state, all consuming worker slots
+2026-07-22T03:16:58Z WARN  gateway: POST /v1/messages 503 upstream_unavailable attempt=347 msg=m-8841207
+2026-07-22T03:17:02Z INFO  gateway: POST /v1/messages 201 accepted attempt=351 msg=m-8841207
+2026-07-22T03:18:40Z WARN  scheduler: 0 free worker slots, 64/64 busy, first-attempt queue not being served
+2026-07-22T03:22:15Z WARN  retry: 61,388 messages in retry state
+2026-07-22T04:05:33Z WARN  scheduler: 0 free worker slots, 64/64 busy, first-attempt queue not being served
+2026-07-22T04:52:10Z WARN  retry: 402,911 messages in retry state
+2026-07-22T05:44:07Z WARN  scheduler: 0 free worker slots, 64/64 busy, first-attempt queue not being served
+2026-07-22T06:11:52Z WARN  retry: 771,240 messages in retry state
+2026-07-22T06:59:44Z WARN  scheduler: 0 free worker slots, 64/64 busy, first-attempt queue not being served
+2026-07-22T07:01:12Z INFO  drain: operator drained 806,114 messages from the retry set
+2026-07-22T07:01:58Z INFO  config: retry.max_attempts=6 retry.delay_ms=1000 retry.backoff=exponential retry.jitter=full applied by d.abara
+2026-07-22T07:02:31Z INFO  startup: notify-worker v2.8.1 slots=64 retry.max_attempts=6 retry.delay_ms=1000 retry.jitter=full
+2026-07-22T07:09:18Z INFO  drain: first-attempt queue back under 20,000

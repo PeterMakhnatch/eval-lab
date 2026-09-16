@@ -1574,3 +1574,6 @@ def test_validate_request_toolbox_invariants(tmp_path: Path) -> None:
         toolbox_sha256=toolbox_sha,
     )
     validate_request(valid_req)
+    (task_dir / "task.toml").write_text('[environment]\nskills_dir = "/different-location"\n')
+    with pytest.raises(ValueError):
+        validate_request(valid_req)

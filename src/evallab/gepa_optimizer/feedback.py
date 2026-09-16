@@ -239,7 +239,7 @@ def validate_oracle_reference(repo_root: Path, task_path: Path, reference: dict)
     meta_file = _safe_child_file(trial.parent, "lab-metadata.json", label="oracle lab-metadata")
     if meta_file is None or not meta_file.is_file():
         raise FileNotFoundError(
-            f"oracle lab-metadata.json not found under '{trial.parent}' or '{trial}'"
+            f"oracle lab-metadata.json not found under job directory '{trial.parent}'"
         )
     try:
         meta_json = json.loads(meta_file.read_text(encoding="utf-8"))
@@ -289,7 +289,13 @@ def _extract_state_transitions(
         status_path = _safe_child_file(
             trial, "state-journal/status.json", label=f"{prefix} observer status"
         )
-        if status_path is None or json.loads(status_path.read_text()).get("status") != "available":
+        if status_path is None:
+            return [], set()
+        try:
+            status = json.loads(status_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return ["Observer status is unreadable; no file transitions inferred."], set()
+        if not isinstance(status, dict) or status.get("status") != "available":
             return [], set()
         trans, paths = [], set()
         for line in events.read_text(encoding="utf-8").splitlines():
@@ -627,12 +633,16 @@ def build_feedback(
     lines.append("")
     oracle_truncated = False
     if oracle_data is not None:
+        error_summary = (
+            raw_error.get("exception_type") if isinstance(raw_error, dict) else raw_error
+        )
+        error_summary = _redact_full_text(str(error_summary or "none"), secrets)[:200]
         contrast = [
             "## Oracle Reference Contrast",
             f"Reference result: {oracle_data['result_sha256']}",
             f"Shared package: {oracle_data['task_package_digest']}",
             "Oracle: completed, native reward 1.0, no execution error.",
-            f"Agent: {outcome_status}, native reward {primary_reward}, error {error_str or 'none'}.",
+            f"Agent: {outcome_status}, native reward {primary_reward}, error type {error_summary}.",
             "Oracle captured actions (not a model trajectory or a claim of minimal steps):",
             *(
                 oracle_data["actions"]

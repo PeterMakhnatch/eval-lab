@@ -46,17 +46,26 @@ from repl_tools import read_window, smart_grep, check_output
 
 
 def compute_skill_digest(skill_dir: Path) -> str:
-    """Compute the deterministic skill digest identical to Harbor's compute_skill_digest.
-
-    Hashes sorted relative paths and file content sha256 digests separated by null bytes.
-    """
+    """Digest a two-file toolbox bundle using Harbor's native skill algorithm."""
+    names = {TOOLBOX_DESCRIPTOR_NAME, TOOLBOX_SCRIPT_NAME}
+    if any(path.is_symlink() for path in (skill_dir, *skill_dir.parents)):
+        raise ValueError("toolbox bundle path must not contain symlinks")
+    found = set()
+    for path in skill_dir.iterdir():
+        if path.name not in names or path.is_symlink() or not path.is_file():
+            raise ValueError("toolbox bundle contains unexpected files")
+        found.add(path.name)
+    if found != names:
+        raise ValueError("toolbox bundle is incomplete")
     hasher = hashlib.sha256()
-    for file_path in sorted(path for path in skill_dir.rglob("*") if path.is_file()):
-        relative_path = file_path.relative_to(skill_dir).as_posix()
-        content_digest = hashlib.sha256(file_path.read_bytes()).hexdigest()
-        hasher.update(relative_path.encode())
+    for name in sorted(names):
+        with (skill_dir / name).open("rb") as stream:
+            data = stream.read(TOOLBOX_MAX_BYTES + 1)
+        if len(data) > TOOLBOX_MAX_BYTES:
+            raise ValueError("toolbox bundle member exceeds size limit")
+        hasher.update(name.encode())
         hasher.update(b"\0")
-        hasher.update(content_digest.encode())
+        hasher.update(hashlib.sha256(data).hexdigest().encode())
         hasher.update(b"\0")
     return f"sha256:{hasher.hexdigest()}"
 

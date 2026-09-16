@@ -70,7 +70,7 @@ from evallab.registry import task_directory_digest
 from evallab.results import JobRecord, load_job
 from evallab.runner import CONTROL_AGENTS, RunRequest, profile_for_request, resolve_harbor_model
 from evallab.schemas import CohortComparisonSpec, CohortSelector, ExperimentSpec, RunProvenance
-from evallab.toolbox import validate_toolbox_code
+from evallab.toolbox import compute_skill_digest, validate_toolbox_code
 
 from .budget import AggregateBudget
 from .feedback import build_feedback, validate_oracle_reference
@@ -423,8 +423,13 @@ def _check_job_provenance(
             or toolbox.get("sha256") != expected_candidate_sha256
         ):
             return False
+        try:
+            if compute_skill_digest(artifact.parent) != toolbox.get("skill_digest"):
+                return False
+        except (OSError, ValueError):
+            return False
         for locked in (locked_trials[0], job.trials[0].lock):
-            skills = locked["agent"].get("skills", [])
+            skills = locked.get("skills", [])
             if len(skills) != 1 or not isinstance(skills[0], dict):
                 return False
             if skills[0].get("name") != "repl-tools" or skills[0].get("digest") != toolbox.get(

@@ -793,6 +793,9 @@ def validate_request(request: RunRequest) -> None:
                 )
         if request.environment != "docker":
             raise ValueError("toolbox execution requires environment='docker'")
+        environment = tomllib.loads((request.task / "task.toml").read_text()).get("environment", {})
+        if environment.get("skills_dir") not in {None, "/harbor/skills"}:
+            raise ValueError("toolbox descriptor requires the native /harbor/skills directory")
         if request.resolved_skills:
             raise ValueError("toolbox artifact cannot be combined with other skill sources")
         from evallab.toolbox import validate_toolbox_source

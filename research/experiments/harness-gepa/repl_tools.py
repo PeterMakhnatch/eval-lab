@@ -150,7 +150,7 @@ def smart_grep(pattern, path=".", max_matches=20, context=2):
                         "error": None,
                     }
         return {"matches": matches, "truncated": truncated, "skipped_files": skipped, "error": None}
-    except (OSError, UnicodeError, ValueError, TypeError) as exc:
+    except (OSError, UnicodeError, ValueError, TypeError, re.error) as exc:
         return {"matches": matches, "truncated": True, "skipped_files": skipped, "error": str(exc)}
 
 

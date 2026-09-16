@@ -1276,7 +1276,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             staged_toolbox, toolbox_meta = stage_toolbox(
                 request.toolbox_path,
                 request.toolbox_sha256,
-                staging_root=request.jobs_dir / ".toolbox-staging",
+                staging_root=request.jobs_dir / ".toolbox-staging" / request.name,
                 repo_root=repo_root,
             )
             staged_request = replace(staged_request, skill=staged_toolbox)

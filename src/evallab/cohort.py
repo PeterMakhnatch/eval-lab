@@ -456,7 +456,7 @@ def _member(
         # Skill content is a toolset intervention, not a model sampling setting.
         model_settings.pop("skills", None)
         toolbox = _json_object(job.metadata.get("toolbox"))
-        skills = agent_lock.get("skills")
+        skills = trial.lock.get("skills")
         artifact_path = toolbox.get("artifact_path")
         known = (
             toolset is not None
@@ -480,6 +480,13 @@ def _member(
                 and "sha256:" + hashlib.sha256(artifact.read_bytes()).hexdigest()
                 == toolbox["sha256"]
             )
+        if known:
+            from evallab.toolbox import compute_skill_digest
+
+            try:
+                known = compute_skill_digest(artifact.parent) == toolbox["skill_digest"]
+            except (OSError, ValueError):
+                known = False
         if known and toolset is not None:
             toolset = {
                 **toolset,

@@ -37,7 +37,7 @@ inputs:
   - path: src/evallab/benchmark_program_contracts.py
     digest: sha256:607787d2b6e7b9811481eabbf7e7b35eb69bd476f66e3acaec9ea34e39e16b13
   - path: src/evallab/calibrate.py
-    digest: sha256:0023638e3d54b0acd4a3844b0b3ab0748bb3afbe3db8c8ad8c18ed46ea46693f
+    digest: sha256:1b418e4d7041af87e23d8b512be47f7068a9b6c135433d24246afb8be14b6e18
   - path: src/evallab/campaigns.py
     digest: sha256:1432190cc26e14e85dd4db4b7400abeb20dfb82f2c262af7536bdbe87ed17c85
   - path: src/evallab/canary.py

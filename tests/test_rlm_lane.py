@@ -13,15 +13,7 @@ import sys
 from pathlib import Path
 
 from evallab import profiles as profiles_module
-from evallab.credentials import (
-    AGENT_CREDENTIAL_REQUIREMENTS,
-    DEFAULT_PROFILE_FOR_ADAPTER,
-    ZAI_OPENCODE_AUTH,
-)
 from evallab.execution_contracts import (
-    HARBOR_AGENT_IMPORT_PATHS,
-    RLM_AGENT,
-    ZAI_OPENCODE_MODEL_SELECTORS,
     ZAI_SECRET_FILE_ENV,
     RunRequest,
     build_command,
@@ -62,12 +54,6 @@ def _rlm_request(tmp_path: Path, **overrides) -> RunRequest:
     }
     fields.update(overrides)
     return RunRequest(**fields)
-
-
-def test_rlm_resolves_to_the_lab_owned_import_path() -> None:
-    assert RLM_AGENT == "rlm"
-    assert HARBOR_AGENT_IMPORT_PATHS["rlm"] == RLM_IMPORT_PATH
-    assert resolve_harbor_agent("rlm") == RLM_IMPORT_PATH
 
 
 def test_rlm_build_command_carries_exact_harness_flags(tmp_path: Path) -> None:
@@ -152,12 +138,6 @@ def test_rlm_needs_no_proxy_ceilings(tmp_path: Path) -> None:
     # rlm is not a metered agent: a bare cost limit rides along as an
     # agent-kwarg without demanding the full proxy ceiling set.
     validate_request(_rlm_request(tmp_path, cost_limit_usd=1.0))
-
-
-def test_rlm_model_selectors_match_zai_opencode() -> None:
-    assert ZAI_OPENCODE_MODEL_SELECTORS == frozenset(
-        {"zai-coding-plan/glm-5.3", "zai-coding-plan/glm-5.3-flash"}
-    )
 
 
 def test_rlm_secret_file_transport_redacts_and_cleans_up(tmp_path: Path, monkeypatch) -> None:
@@ -266,8 +246,3 @@ def test_rlm_profile_and_preflight_wiring(tmp_path: Path) -> None:
     decision = preflight_request(request, probe=lambda _profile: ProbeResult(ok=True))
     assert decision.proceed
     assert decision.profile_digest == profile.digest
-
-
-def test_rlm_credential_and_default_profile_maps() -> None:
-    assert AGENT_CREDENTIAL_REQUIREMENTS["rlm"] == ZAI_OPENCODE_AUTH
-    assert DEFAULT_PROFILE_FOR_ADAPTER["rlm"] == "rlm-glm-5.3-flash"

@@ -1,0 +1,43 @@
+{
+  "results": {
+    "summary": {
+      "failed": 0,
+      "other": 0,
+      "passed": 4,
+      "pending": 0,
+      "skipped": 0,
+      "start": 0,
+      "stop": 0,
+      "tests": 4
+    },
+    "tests": [
+      {
+        "duration": 0,
+        "message": "input bytes match trusted fixture",
+        "name": "input_preservation",
+        "status": "passed"
+      },
+      {
+        "duration": 0,
+        "message": "exact output keys present",
+        "name": "schema",
+        "status": "passed"
+      },
+      {
+        "duration": 0,
+        "message": "summary matches independent computation",
+        "name": "correctness",
+        "status": "passed"
+      },
+      {
+        "duration": 0,
+        "message": "summary.json is the only output",
+        "name": "output_hygiene",
+        "status": "passed"
+      }
+    ],
+    "tool": {
+      "name": "event-summary-verifier"
+    }
+  }
+}

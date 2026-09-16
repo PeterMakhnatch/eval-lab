@@ -1,0 +1,2455 @@
+{
+  "after_captured_at": "2026-09-16T07:39:05.592505Z",
+  "before_captured_at": "2026-09-16T07:39:05.028425Z",
+  "change_count": 161,
+  "changes": [
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345321195004,
+        "path": "output",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789543140000000000,
+        "path": "output",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "change_type": "modified",
+      "event_count": 0,
+      "first_event_at": null,
+      "last_event_at": null,
+      "path": "output"
+    },
+    {
+      "after": {
+        "hash_status": "complete",
+        "mode": "-rw-r--r--",
+        "mtime_ns": 1789544345322632504,
+        "path": "output/probe.json",
+        "sha256": "sha256:2eaa667eff33f1dd77905d98de810f66c58d01dd970830fb3848511933add1db",
+        "size_bytes": 1077,
+        "type": "file"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 3,
+      "first_event_at": "2026-09-16T07:39:05.322741Z",
+      "last_event_at": "2026-09-16T07:39:05.324107Z",
+      "path": "output/probe.json"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345273302587,
+        "path": "probes",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789543140000000000,
+        "path": "probes",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "change_type": "modified",
+      "event_count": 0,
+      "first_event_at": null,
+      "last_event_at": null,
+      "path": "probes"
+    },
+    {
+      "after": {
+        "hash_status": "complete",
+        "mode": "-rw-r--r--",
+        "mtime_ns": 1789544345273302587,
+        "path": "probes/bad.txt",
+        "sha256": "sha256:a8100ae6aa1940d0b663bb31cd466142ebbdbd5187131b92d93818987832eb89",
+        "size_bytes": 1,
+        "type": "file"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 3,
+      "first_event_at": "2026-09-16T07:39:05.274903Z",
+      "last_event_at": "2026-09-16T07:39:05.275087Z",
+      "path": "probes/bad.txt"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345299195004,
+        "path": "probes/empty-tree",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.275654Z",
+      "last_event_at": "2026-09-16T07:39:05.275654Z",
+      "path": "probes/empty-tree"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345273302587,
+        "path": "probes/empty-tree/0",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 0,
+      "first_event_at": null,
+      "last_event_at": null,
+      "path": "probes/empty-tree/0"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345273302587,
+        "path": "probes/empty-tree/1",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 0,
+      "first_event_at": null,
+      "last_event_at": null,
+      "path": "probes/empty-tree/1"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345275265254,
+        "path": "probes/empty-tree/10",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.275859Z",
+      "last_event_at": "2026-09-16T07:39:05.275859Z",
+      "path": "probes/empty-tree/10"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345290195004,
+        "path": "probes/empty-tree/100",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.291902Z",
+      "last_event_at": "2026-09-16T07:39:05.291902Z",
+      "path": "probes/empty-tree/100"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345290195004,
+        "path": "probes/empty-tree/101",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.292094Z",
+      "last_event_at": "2026-09-16T07:39:05.292094Z",
+      "path": "probes/empty-tree/101"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345291195004,
+        "path": "probes/empty-tree/102",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.292269Z",
+      "last_event_at": "2026-09-16T07:39:05.292269Z",
+      "path": "probes/empty-tree/102"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345291195004,
+        "path": "probes/empty-tree/103",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.292446Z",
+      "last_event_at": "2026-09-16T07:39:05.292446Z",
+      "path": "probes/empty-tree/103"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345291195004,
+        "path": "probes/empty-tree/104",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.292624Z",
+      "last_event_at": "2026-09-16T07:39:05.292624Z",
+      "path": "probes/empty-tree/104"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345291195004,
+        "path": "probes/empty-tree/105",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.292801Z",
+      "last_event_at": "2026-09-16T07:39:05.292801Z",
+      "path": "probes/empty-tree/105"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345291195004,
+        "path": "probes/empty-tree/106",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.292999Z",
+      "last_event_at": "2026-09-16T07:39:05.292999Z",
+      "path": "probes/empty-tree/106"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345291195004,
+        "path": "probes/empty-tree/107",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.293180Z",
+      "last_event_at": "2026-09-16T07:39:05.293180Z",
+      "path": "probes/empty-tree/107"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345292195004,
+        "path": "probes/empty-tree/108",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.293349Z",
+      "last_event_at": "2026-09-16T07:39:05.293349Z",
+      "path": "probes/empty-tree/108"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345292195004,
+        "path": "probes/empty-tree/109",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.293526Z",
+      "last_event_at": "2026-09-16T07:39:05.293526Z",
+      "path": "probes/empty-tree/109"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345275265254,
+        "path": "probes/empty-tree/11",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.275941Z",
+      "last_event_at": "2026-09-16T07:39:05.275941Z",
+      "path": "probes/empty-tree/11"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345292195004,
+        "path": "probes/empty-tree/110",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.293703Z",
+      "last_event_at": "2026-09-16T07:39:05.293703Z",
+      "path": "probes/empty-tree/110"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345292195004,
+        "path": "probes/empty-tree/111",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.293880Z",
+      "last_event_at": "2026-09-16T07:39:05.293880Z",
+      "path": "probes/empty-tree/111"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345292195004,
+        "path": "probes/empty-tree/112",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.294095Z",
+      "last_event_at": "2026-09-16T07:39:05.294095Z",
+      "path": "probes/empty-tree/112"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345293195004,
+        "path": "probes/empty-tree/113",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.294274Z",
+      "last_event_at": "2026-09-16T07:39:05.294274Z",
+      "path": "probes/empty-tree/113"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345293195004,
+        "path": "probes/empty-tree/114",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.294459Z",
+      "last_event_at": "2026-09-16T07:39:05.294459Z",
+      "path": "probes/empty-tree/114"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345293195004,
+        "path": "probes/empty-tree/115",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.294653Z",
+      "last_event_at": "2026-09-16T07:39:05.294653Z",
+      "path": "probes/empty-tree/115"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345293195004,
+        "path": "probes/empty-tree/116",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.294830Z",
+      "last_event_at": "2026-09-16T07:39:05.294830Z",
+      "path": "probes/empty-tree/116"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345293195004,
+        "path": "probes/empty-tree/117",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.295024Z",
+      "last_event_at": "2026-09-16T07:39:05.295024Z",
+      "path": "probes/empty-tree/117"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345294195004,
+        "path": "probes/empty-tree/118",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.295201Z",
+      "last_event_at": "2026-09-16T07:39:05.295201Z",
+      "path": "probes/empty-tree/118"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345294195004,
+        "path": "probes/empty-tree/119",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.295376Z",
+      "last_event_at": "2026-09-16T07:39:05.295376Z",
+      "path": "probes/empty-tree/119"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345275265254,
+        "path": "probes/empty-tree/12",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.276036Z",
+      "last_event_at": "2026-09-16T07:39:05.276036Z",
+      "path": "probes/empty-tree/12"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345294195004,
+        "path": "probes/empty-tree/120",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.295547Z",
+      "last_event_at": "2026-09-16T07:39:05.295547Z",
+      "path": "probes/empty-tree/120"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345294195004,
+        "path": "probes/empty-tree/121",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.295729Z",
+      "last_event_at": "2026-09-16T07:39:05.295729Z",
+      "path": "probes/empty-tree/121"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345294195004,
+        "path": "probes/empty-tree/122",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.295904Z",
+      "last_event_at": "2026-09-16T07:39:05.295904Z",
+      "path": "probes/empty-tree/122"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345294195004,
+        "path": "probes/empty-tree/123",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.296105Z",
+      "last_event_at": "2026-09-16T07:39:05.296105Z",
+      "path": "probes/empty-tree/123"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345295195004,
+        "path": "probes/empty-tree/124",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.296286Z",
+      "last_event_at": "2026-09-16T07:39:05.296286Z",
+      "path": "probes/empty-tree/124"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345295195004,
+        "path": "probes/empty-tree/125",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.296458Z",
+      "last_event_at": "2026-09-16T07:39:05.296458Z",
+      "path": "probes/empty-tree/125"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345295195004,
+        "path": "probes/empty-tree/126",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.296635Z",
+      "last_event_at": "2026-09-16T07:39:05.296635Z",
+      "path": "probes/empty-tree/126"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345295195004,
+        "path": "probes/empty-tree/127",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.296812Z",
+      "last_event_at": "2026-09-16T07:39:05.296812Z",
+      "path": "probes/empty-tree/127"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345295195004,
+        "path": "probes/empty-tree/128",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.297010Z",
+      "last_event_at": "2026-09-16T07:39:05.297010Z",
+      "path": "probes/empty-tree/128"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345295195004,
+        "path": "probes/empty-tree/129",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.297188Z",
+      "last_event_at": "2026-09-16T07:39:05.297188Z",
+      "path": "probes/empty-tree/129"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345275265254,
+        "path": "probes/empty-tree/13",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.276127Z",
+      "last_event_at": "2026-09-16T07:39:05.276127Z",
+      "path": "probes/empty-tree/13"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345296195004,
+        "path": "probes/empty-tree/130",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.297382Z",
+      "last_event_at": "2026-09-16T07:39:05.297382Z",
+      "path": "probes/empty-tree/130"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345296195004,
+        "path": "probes/empty-tree/131",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.297558Z",
+      "last_event_at": "2026-09-16T07:39:05.297558Z",
+      "path": "probes/empty-tree/131"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345296195004,
+        "path": "probes/empty-tree/132",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.297756Z",
+      "last_event_at": "2026-09-16T07:39:05.297756Z",
+      "path": "probes/empty-tree/132"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345296195004,
+        "path": "probes/empty-tree/133",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.297908Z",
+      "last_event_at": "2026-09-16T07:39:05.297908Z",
+      "path": "probes/empty-tree/133"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345296195004,
+        "path": "probes/empty-tree/134",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.298116Z",
+      "last_event_at": "2026-09-16T07:39:05.298116Z",
+      "path": "probes/empty-tree/134"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345297195004,
+        "path": "probes/empty-tree/135",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.298290Z",
+      "last_event_at": "2026-09-16T07:39:05.298290Z",
+      "path": "probes/empty-tree/135"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345297195004,
+        "path": "probes/empty-tree/136",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.298462Z",
+      "last_event_at": "2026-09-16T07:39:05.298462Z",
+      "path": "probes/empty-tree/136"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345297195004,
+        "path": "probes/empty-tree/137",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.298649Z",
+      "last_event_at": "2026-09-16T07:39:05.298649Z",
+      "path": "probes/empty-tree/137"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345297195004,
+        "path": "probes/empty-tree/138",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.298810Z",
+      "last_event_at": "2026-09-16T07:39:05.298810Z",
+      "path": "probes/empty-tree/138"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345297195004,
+        "path": "probes/empty-tree/139",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.299003Z",
+      "last_event_at": "2026-09-16T07:39:05.299003Z",
+      "path": "probes/empty-tree/139"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345275265254,
+        "path": "probes/empty-tree/14",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.276262Z",
+      "last_event_at": "2026-09-16T07:39:05.276262Z",
+      "path": "probes/empty-tree/14"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345297195004,
+        "path": "probes/empty-tree/140",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.299172Z",
+      "last_event_at": "2026-09-16T07:39:05.299172Z",
+      "path": "probes/empty-tree/140"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345298195004,
+        "path": "probes/empty-tree/141",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.299359Z",
+      "last_event_at": "2026-09-16T07:39:05.299359Z",
+      "path": "probes/empty-tree/141"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345298195004,
+        "path": "probes/empty-tree/142",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.299530Z",
+      "last_event_at": "2026-09-16T07:39:05.299530Z",
+      "path": "probes/empty-tree/142"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345298195004,
+        "path": "probes/empty-tree/143",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.299707Z",
+      "last_event_at": "2026-09-16T07:39:05.299707Z",
+      "path": "probes/empty-tree/143"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345298195004,
+        "path": "probes/empty-tree/144",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.299886Z",
+      "last_event_at": "2026-09-16T07:39:05.299886Z",
+      "path": "probes/empty-tree/144"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345298195004,
+        "path": "probes/empty-tree/145",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.300096Z",
+      "last_event_at": "2026-09-16T07:39:05.300096Z",
+      "path": "probes/empty-tree/145"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345299195004,
+        "path": "probes/empty-tree/146",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.300254Z",
+      "last_event_at": "2026-09-16T07:39:05.300254Z",
+      "path": "probes/empty-tree/146"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345299195004,
+        "path": "probes/empty-tree/147",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.300432Z",
+      "last_event_at": "2026-09-16T07:39:05.300432Z",
+      "path": "probes/empty-tree/147"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345299195004,
+        "path": "probes/empty-tree/148",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.300614Z",
+      "last_event_at": "2026-09-16T07:39:05.300614Z",
+      "path": "probes/empty-tree/148"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345299195004,
+        "path": "probes/empty-tree/149",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.300784Z",
+      "last_event_at": "2026-09-16T07:39:05.300784Z",
+      "path": "probes/empty-tree/149"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345275265254,
+        "path": "probes/empty-tree/15",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.276432Z",
+      "last_event_at": "2026-09-16T07:39:05.276432Z",
+      "path": "probes/empty-tree/15"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345275265254,
+        "path": "probes/empty-tree/16",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.276615Z",
+      "last_event_at": "2026-09-16T07:39:05.276615Z",
+      "path": "probes/empty-tree/16"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345275265254,
+        "path": "probes/empty-tree/17",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.276786Z",
+      "last_event_at": "2026-09-16T07:39:05.276786Z",
+      "path": "probes/empty-tree/17"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345275265254,
+        "path": "probes/empty-tree/18",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.276972Z",
+      "last_event_at": "2026-09-16T07:39:05.276972Z",
+      "path": "probes/empty-tree/18"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345275265254,
+        "path": "probes/empty-tree/19",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.277151Z",
+      "last_event_at": "2026-09-16T07:39:05.277151Z",
+      "path": "probes/empty-tree/19"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345273302587,
+        "path": "probes/empty-tree/2",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 0,
+      "first_event_at": null,
+      "last_event_at": null,
+      "path": "probes/empty-tree/2"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345276195004,
+        "path": "probes/empty-tree/20",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.277325Z",
+      "last_event_at": "2026-09-16T07:39:05.277325Z",
+      "path": "probes/empty-tree/20"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345276195004,
+        "path": "probes/empty-tree/21",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.277503Z",
+      "last_event_at": "2026-09-16T07:39:05.277503Z",
+      "path": "probes/empty-tree/21"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345276195004,
+        "path": "probes/empty-tree/22",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.277686Z",
+      "last_event_at": "2026-09-16T07:39:05.277686Z",
+      "path": "probes/empty-tree/22"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345276195004,
+        "path": "probes/empty-tree/23",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.277863Z",
+      "last_event_at": "2026-09-16T07:39:05.277863Z",
+      "path": "probes/empty-tree/23"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345276195004,
+        "path": "probes/empty-tree/24",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.278072Z",
+      "last_event_at": "2026-09-16T07:39:05.278072Z",
+      "path": "probes/empty-tree/24"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345277195004,
+        "path": "probes/empty-tree/25",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.278245Z",
+      "last_event_at": "2026-09-16T07:39:05.278245Z",
+      "path": "probes/empty-tree/25"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345277195004,
+        "path": "probes/empty-tree/26",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.278423Z",
+      "last_event_at": "2026-09-16T07:39:05.278423Z",
+      "path": "probes/empty-tree/26"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345277195004,
+        "path": "probes/empty-tree/27",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.278600Z",
+      "last_event_at": "2026-09-16T07:39:05.278600Z",
+      "path": "probes/empty-tree/27"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345277195004,
+        "path": "probes/empty-tree/28",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.278786Z",
+      "last_event_at": "2026-09-16T07:39:05.278786Z",
+      "path": "probes/empty-tree/28"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345277195004,
+        "path": "probes/empty-tree/29",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.278967Z",
+      "last_event_at": "2026-09-16T07:39:05.278967Z",
+      "path": "probes/empty-tree/29"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345273302587,
+        "path": "probes/empty-tree/3",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 0,
+      "first_event_at": null,
+      "last_event_at": null,
+      "path": "probes/empty-tree/3"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345277195004,
+        "path": "probes/empty-tree/30",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.279138Z",
+      "last_event_at": "2026-09-16T07:39:05.279138Z",
+      "path": "probes/empty-tree/30"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345278195004,
+        "path": "probes/empty-tree/31",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.279350Z",
+      "last_event_at": "2026-09-16T07:39:05.279350Z",
+      "path": "probes/empty-tree/31"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345278195004,
+        "path": "probes/empty-tree/32",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.279492Z",
+      "last_event_at": "2026-09-16T07:39:05.279492Z",
+      "path": "probes/empty-tree/32"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345278195004,
+        "path": "probes/empty-tree/33",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.279670Z",
+      "last_event_at": "2026-09-16T07:39:05.279670Z",
+      "path": "probes/empty-tree/33"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345278195004,
+        "path": "probes/empty-tree/34",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.279848Z",
+      "last_event_at": "2026-09-16T07:39:05.279848Z",
+      "path": "probes/empty-tree/34"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345278195004,
+        "path": "probes/empty-tree/35",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.280047Z",
+      "last_event_at": "2026-09-16T07:39:05.280047Z",
+      "path": "probes/empty-tree/35"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345279195004,
+        "path": "probes/empty-tree/36",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.280224Z",
+      "last_event_at": "2026-09-16T07:39:05.280224Z",
+      "path": "probes/empty-tree/36"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345279195004,
+        "path": "probes/empty-tree/37",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.280406Z",
+      "last_event_at": "2026-09-16T07:39:05.280406Z",
+      "path": "probes/empty-tree/37"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345279195004,
+        "path": "probes/empty-tree/38",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.280573Z",
+      "last_event_at": "2026-09-16T07:39:05.280573Z",
+      "path": "probes/empty-tree/38"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345279195004,
+        "path": "probes/empty-tree/39",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.280747Z",
+      "last_event_at": "2026-09-16T07:39:05.280747Z",
+      "path": "probes/empty-tree/39"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345273302587,
+        "path": "probes/empty-tree/4",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 0,
+      "first_event_at": null,
+      "last_event_at": null,
+      "path": "probes/empty-tree/4"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345279195004,
+        "path": "probes/empty-tree/40",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.280930Z",
+      "last_event_at": "2026-09-16T07:39:05.280930Z",
+      "path": "probes/empty-tree/40"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345279195004,
+        "path": "probes/empty-tree/41",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.281118Z",
+      "last_event_at": "2026-09-16T07:39:05.281118Z",
+      "path": "probes/empty-tree/41"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345280195004,
+        "path": "probes/empty-tree/42",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.281317Z",
+      "last_event_at": "2026-09-16T07:39:05.281317Z",
+      "path": "probes/empty-tree/42"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345280195004,
+        "path": "probes/empty-tree/43",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.281490Z",
+      "last_event_at": "2026-09-16T07:39:05.281490Z",
+      "path": "probes/empty-tree/43"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345280195004,
+        "path": "probes/empty-tree/44",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.281680Z",
+      "last_event_at": "2026-09-16T07:39:05.281680Z",
+      "path": "probes/empty-tree/44"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345280195004,
+        "path": "probes/empty-tree/45",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.281857Z",
+      "last_event_at": "2026-09-16T07:39:05.281857Z",
+      "path": "probes/empty-tree/45"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345280195004,
+        "path": "probes/empty-tree/46",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.282068Z",
+      "last_event_at": "2026-09-16T07:39:05.282068Z",
+      "path": "probes/empty-tree/46"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345281195004,
+        "path": "probes/empty-tree/47",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.282242Z",
+      "last_event_at": "2026-09-16T07:39:05.282242Z",
+      "path": "probes/empty-tree/47"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345281195004,
+        "path": "probes/empty-tree/48",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.282425Z",
+      "last_event_at": "2026-09-16T07:39:05.282425Z",
+      "path": "probes/empty-tree/48"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345281195004,
+        "path": "probes/empty-tree/49",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.282593Z",
+      "last_event_at": "2026-09-16T07:39:05.282593Z",
+      "path": "probes/empty-tree/49"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345273302587,
+        "path": "probes/empty-tree/5",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 0,
+      "first_event_at": null,
+      "last_event_at": null,
+      "path": "probes/empty-tree/5"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345281195004,
+        "path": "probes/empty-tree/50",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.282771Z",
+      "last_event_at": "2026-09-16T07:39:05.282771Z",
+      "path": "probes/empty-tree/50"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345281195004,
+        "path": "probes/empty-tree/51",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.282957Z",
+      "last_event_at": "2026-09-16T07:39:05.282957Z",
+      "path": "probes/empty-tree/51"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345281195004,
+        "path": "probes/empty-tree/52",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.283133Z",
+      "last_event_at": "2026-09-16T07:39:05.283133Z",
+      "path": "probes/empty-tree/52"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345282195004,
+        "path": "probes/empty-tree/53",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.283303Z",
+      "last_event_at": "2026-09-16T07:39:05.283303Z",
+      "path": "probes/empty-tree/53"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345282195004,
+        "path": "probes/empty-tree/54",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.283490Z",
+      "last_event_at": "2026-09-16T07:39:05.283490Z",
+      "path": "probes/empty-tree/54"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345282195004,
+        "path": "probes/empty-tree/55",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.283671Z",
+      "last_event_at": "2026-09-16T07:39:05.283671Z",
+      "path": "probes/empty-tree/55"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345282195004,
+        "path": "probes/empty-tree/56",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.283846Z",
+      "last_event_at": "2026-09-16T07:39:05.283846Z",
+      "path": "probes/empty-tree/56"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345282195004,
+        "path": "probes/empty-tree/57",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.284043Z",
+      "last_event_at": "2026-09-16T07:39:05.284043Z",
+      "path": "probes/empty-tree/57"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345283195004,
+        "path": "probes/empty-tree/58",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.284225Z",
+      "last_event_at": "2026-09-16T07:39:05.284225Z",
+      "path": "probes/empty-tree/58"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345283195004,
+        "path": "probes/empty-tree/59",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.284424Z",
+      "last_event_at": "2026-09-16T07:39:05.284424Z",
+      "path": "probes/empty-tree/59"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345273302587,
+        "path": "probes/empty-tree/6",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 0,
+      "first_event_at": null,
+      "last_event_at": null,
+      "path": "probes/empty-tree/6"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345283195004,
+        "path": "probes/empty-tree/60",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.284606Z",
+      "last_event_at": "2026-09-16T07:39:05.284606Z",
+      "path": "probes/empty-tree/60"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345283195004,
+        "path": "probes/empty-tree/61",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.284794Z",
+      "last_event_at": "2026-09-16T07:39:05.284794Z",
+      "path": "probes/empty-tree/61"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345283195004,
+        "path": "probes/empty-tree/62",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.284999Z",
+      "last_event_at": "2026-09-16T07:39:05.284999Z",
+      "path": "probes/empty-tree/62"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345283195004,
+        "path": "probes/empty-tree/63",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.285167Z",
+      "last_event_at": "2026-09-16T07:39:05.285167Z",
+      "path": "probes/empty-tree/63"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345284195004,
+        "path": "probes/empty-tree/64",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.285419Z",
+      "last_event_at": "2026-09-16T07:39:05.285419Z",
+      "path": "probes/empty-tree/64"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345284195004,
+        "path": "probes/empty-tree/65",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.285537Z",
+      "last_event_at": "2026-09-16T07:39:05.285537Z",
+      "path": "probes/empty-tree/65"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345284195004,
+        "path": "probes/empty-tree/66",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.285713Z",
+      "last_event_at": "2026-09-16T07:39:05.285713Z",
+      "path": "probes/empty-tree/66"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345284195004,
+        "path": "probes/empty-tree/67",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.285885Z",
+      "last_event_at": "2026-09-16T07:39:05.285885Z",
+      "path": "probes/empty-tree/67"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345284195004,
+        "path": "probes/empty-tree/68",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.286102Z",
+      "last_event_at": "2026-09-16T07:39:05.286102Z",
+      "path": "probes/empty-tree/68"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345285195004,
+        "path": "probes/empty-tree/69",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.286295Z",
+      "last_event_at": "2026-09-16T07:39:05.286295Z",
+      "path": "probes/empty-tree/69"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345273302587,
+        "path": "probes/empty-tree/7",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 0,
+      "first_event_at": null,
+      "last_event_at": null,
+      "path": "probes/empty-tree/7"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345285195004,
+        "path": "probes/empty-tree/70",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.286469Z",
+      "last_event_at": "2026-09-16T07:39:05.286469Z",
+      "path": "probes/empty-tree/70"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345285195004,
+        "path": "probes/empty-tree/71",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.286649Z",
+      "last_event_at": "2026-09-16T07:39:05.286649Z",
+      "path": "probes/empty-tree/71"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345285195004,
+        "path": "probes/empty-tree/72",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.286823Z",
+      "last_event_at": "2026-09-16T07:39:05.286823Z",
+      "path": "probes/empty-tree/72"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345285195004,
+        "path": "probes/empty-tree/73",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.287013Z",
+      "last_event_at": "2026-09-16T07:39:05.287013Z",
+      "path": "probes/empty-tree/73"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345286195004,
+        "path": "probes/empty-tree/74",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.287214Z",
+      "last_event_at": "2026-09-16T07:39:05.287214Z",
+      "path": "probes/empty-tree/74"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345286195004,
+        "path": "probes/empty-tree/75",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.287402Z",
+      "last_event_at": "2026-09-16T07:39:05.287402Z",
+      "path": "probes/empty-tree/75"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345286195004,
+        "path": "probes/empty-tree/76",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.287579Z",
+      "last_event_at": "2026-09-16T07:39:05.287579Z",
+      "path": "probes/empty-tree/76"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345286195004,
+        "path": "probes/empty-tree/77",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.287749Z",
+      "last_event_at": "2026-09-16T07:39:05.287749Z",
+      "path": "probes/empty-tree/77"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345286195004,
+        "path": "probes/empty-tree/78",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.287926Z",
+      "last_event_at": "2026-09-16T07:39:05.287926Z",
+      "path": "probes/empty-tree/78"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345286195004,
+        "path": "probes/empty-tree/79",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.288120Z",
+      "last_event_at": "2026-09-16T07:39:05.288120Z",
+      "path": "probes/empty-tree/79"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345273302587,
+        "path": "probes/empty-tree/8",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 0,
+      "first_event_at": null,
+      "last_event_at": null,
+      "path": "probes/empty-tree/8"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345287195004,
+        "path": "probes/empty-tree/80",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.288287Z",
+      "last_event_at": "2026-09-16T07:39:05.288287Z",
+      "path": "probes/empty-tree/80"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345287195004,
+        "path": "probes/empty-tree/81",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.288482Z",
+      "last_event_at": "2026-09-16T07:39:05.288482Z",
+      "path": "probes/empty-tree/81"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345287195004,
+        "path": "probes/empty-tree/82",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.288666Z",
+      "last_event_at": "2026-09-16T07:39:05.288666Z",
+      "path": "probes/empty-tree/82"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345287195004,
+        "path": "probes/empty-tree/83",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.288837Z",
+      "last_event_at": "2026-09-16T07:39:05.288837Z",
+      "path": "probes/empty-tree/83"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345287195004,
+        "path": "probes/empty-tree/84",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.289038Z",
+      "last_event_at": "2026-09-16T07:39:05.289038Z",
+      "path": "probes/empty-tree/84"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345288195004,
+        "path": "probes/empty-tree/85",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.289207Z",
+      "last_event_at": "2026-09-16T07:39:05.289207Z",
+      "path": "probes/empty-tree/85"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345288195004,
+        "path": "probes/empty-tree/86",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.289385Z",
+      "last_event_at": "2026-09-16T07:39:05.289385Z",
+      "path": "probes/empty-tree/86"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345288195004,
+        "path": "probes/empty-tree/87",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.289565Z",
+      "last_event_at": "2026-09-16T07:39:05.289565Z",
+      "path": "probes/empty-tree/87"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345288195004,
+        "path": "probes/empty-tree/88",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.289739Z",
+      "last_event_at": "2026-09-16T07:39:05.289739Z",
+      "path": "probes/empty-tree/88"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345288195004,
+        "path": "probes/empty-tree/89",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.289916Z",
+      "last_event_at": "2026-09-16T07:39:05.289916Z",
+      "path": "probes/empty-tree/89"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345274195004,
+        "path": "probes/empty-tree/9",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.275761Z",
+      "last_event_at": "2026-09-16T07:39:05.275761Z",
+      "path": "probes/empty-tree/9"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345288195004,
+        "path": "probes/empty-tree/90",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.290128Z",
+      "last_event_at": "2026-09-16T07:39:05.290128Z",
+      "path": "probes/empty-tree/90"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345289195004,
+        "path": "probes/empty-tree/91",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.290306Z",
+      "last_event_at": "2026-09-16T07:39:05.290306Z",
+      "path": "probes/empty-tree/91"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345289195004,
+        "path": "probes/empty-tree/92",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.290479Z",
+      "last_event_at": "2026-09-16T07:39:05.290479Z",
+      "path": "probes/empty-tree/92"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345289195004,
+        "path": "probes/empty-tree/93",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.290655Z",
+      "last_event_at": "2026-09-16T07:39:05.290655Z",
+      "path": "probes/empty-tree/93"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345289195004,
+        "path": "probes/empty-tree/94",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.290835Z",
+      "last_event_at": "2026-09-16T07:39:05.290835Z",
+      "path": "probes/empty-tree/94"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345289195004,
+        "path": "probes/empty-tree/95",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.291032Z",
+      "last_event_at": "2026-09-16T07:39:05.291032Z",
+      "path": "probes/empty-tree/95"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345290195004,
+        "path": "probes/empty-tree/96",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.291200Z",
+      "last_event_at": "2026-09-16T07:39:05.291200Z",
+      "path": "probes/empty-tree/96"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345290195004,
+        "path": "probes/empty-tree/97",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.291381Z",
+      "last_event_at": "2026-09-16T07:39:05.291381Z",
+      "path": "probes/empty-tree/97"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345290195004,
+        "path": "probes/empty-tree/98",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.291550Z",
+      "last_event_at": "2026-09-16T07:39:05.291550Z",
+      "path": "probes/empty-tree/98"
+    },
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1789544345290195004,
+        "path": "probes/empty-tree/99",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.291726Z",
+      "last_event_at": "2026-09-16T07:39:05.291726Z",
+      "path": "probes/empty-tree/99"
+    },
+    {
+      "after": {
+        "hash_status": "complete",
+        "mode": "-rw-r--r--",
+        "mtime_ns": 1789544345272749171,
+        "path": "probes/invalid.json",
+        "sha256": "sha256:be302461cda285db3ed2d45fb767b23e08ca8808b35a638009937df22b332d73",
+        "size_bytes": 7,
+        "type": "file"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 3,
+      "first_event_at": "2026-09-16T07:39:05.273691Z",
+      "last_event_at": "2026-09-16T07:39:05.273901Z",
+      "path": "probes/invalid.json"
+    },
+    {
+      "after": {
+        "mode": "lrwxrwxrwx",
+        "mtime_ns": 1789544345272767504,
+        "path": "probes/link.txt",
+        "size_bytes": 22,
+        "target": "/app/probes/sample.txt",
+        "type": "symlink"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 1,
+      "first_event_at": "2026-09-16T07:39:05.274259Z",
+      "last_event_at": "2026-09-16T07:39:05.274259Z",
+      "path": "probes/link.txt"
+    },
+    {
+      "after": {
+        "hash_status": "complete",
+        "mode": "-rw-r--r--",
+        "mtime_ns": 1789544345273191629,
+        "path": "probes/long.txt",
+        "sha256": "sha256:830b6df3b18ef78234fa0b1ffbefbe147c2d46be9a528f9765e14bdf3b704a8d",
+        "size_bytes": 600008,
+        "type": "file"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 3,
+      "first_event_at": "2026-09-16T07:39:05.274322Z",
+      "last_event_at": "2026-09-16T07:39:05.274821Z",
+      "path": "probes/long.txt"
+    },
+    {
+      "after": {
+        "hash_status": "complete",
+        "mode": "-rw-r--r--",
+        "mtime_ns": 1789544345272767504,
+        "path": "probes/nonfinite.json",
+        "sha256": "sha256:f25495433680c64f27a7a866c4e7e9708faec11fde6d27d7229655d9193db431",
+        "size_bytes": 15,
+        "type": "file"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 3,
+      "first_event_at": "2026-09-16T07:39:05.273986Z",
+      "last_event_at": "2026-09-16T07:39:05.274189Z",
+      "path": "probes/nonfinite.json"
+    },
+    {
+      "after": {
+        "hash_status": "complete",
+        "mode": "-rw-r--r--",
+        "mtime_ns": 1789544345272689796,
+        "path": "probes/sample.txt",
+        "sha256": "sha256:a13a364b17364c42511162043ce6dd89e211b0ffe4f1299086aae6abdb3a7791",
+        "size_bytes": 24,
+        "type": "file"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 3,
+      "first_event_at": "2026-09-16T07:39:05.272818Z",
+      "last_event_at": "2026-09-16T07:39:05.273218Z",
+      "path": "probes/sample.txt"
+    },
+    {
+      "after": {
+        "hash_status": "complete",
+        "mode": "-rw-r--r--",
+        "mtime_ns": 1789544345272725046,
+        "path": "probes/valid.json",
+        "sha256": "sha256:e200939d95ca03d2063c27b64eef8e2a386b152f857a0b9e75cfb601235927cd",
+        "size_bytes": 14,
+        "type": "file"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 3,
+      "first_event_at": "2026-09-16T07:39:05.273333Z",
+      "last_event_at": "2026-09-16T07:39:05.273602Z",
+      "path": "probes/valid.json"
+    }
+  ],
+  "dropped_event_count": 0,
+  "event_count": 164,
+  "reason": null,
+  "root": "/app",
+  "schema_version": 1,
+  "status": "available"
+}

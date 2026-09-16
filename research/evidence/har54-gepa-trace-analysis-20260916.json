@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "scope": "HAR53 real prompt proposals and HAR54 attempted replication; not learned Python-code improvement",
+  "prior_receipt": "research/evidence/har53-gepa-omni-20260915.json",
+  "candidates": [
+    {
+      "label": "seed",
+      "file": "seed.txt",
+      "sha256": "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8",
+      "bytes": 146,
+      "characters": 146,
+      "stripped_characters": 145,
+      "native_rewards": [
+        1.0,
+        1.0
+      ],
+      "totals": {
+        "requests": 11,
+        "input_tokens": 74914,
+        "output_tokens": 1845,
+        "total_tokens": 76759,
+        "cost_micros": 113001
+      },
+      "tasks": [
+        {
+          "task_id": "event-summary",
+          "requests": 6,
+          "job_path": "runs/gepa-zai-opencode-event-summary-e41a67fdd138b615317db74e"
+        },
+        {
+          "task_id": "syn-funcdag-easy",
+          "requests": 5,
+          "job_path": "runs/gepa-zai-opencode-syn-funcdag-easy-99651598990a0bd1db080718"
+        }
+      ]
+    },
+    {
+      "label": "proposal-1",
+      "file": "har53-candidate-7d56ffec7c5b.txt",
+      "sha256": "sha256:7d56ffec7c5bbad899522beeaa06b0b7914491f145cd85d674bdb41d78472869",
+      "bytes": 1065,
+      "characters": 1063,
+      "stripped_characters": 1063,
+      "native_rewards": [
+        1.0,
+        1.0
+      ],
+      "totals": {
+        "requests": 14,
+        "input_tokens": 106359,
+        "output_tokens": 2174,
+        "total_tokens": 108533,
+        "cost_micros": 158474
+      },
+      "tasks": [
+        {
+          "task_id": "event-summary",
+          "requests": 7,
+          "job_path": "runs/gepa-zai-opencode-event-summary-022c925c5324f95ce93ab434"
+        },
+        {
+          "task_id": "syn-funcdag-easy",
+          "requests": 7,
+          "job_path": "runs/gepa-zai-opencode-syn-funcdag-easy-94884cabf8c54a757e56f73c"
+        }
+      ]
+    },
+    {
+      "label": "proposal-2",
+      "file": "har53-candidate-98f12bec4f94.txt",
+      "sha256": "sha256:98f12bec4f9435a09846c51b4bb571ad41e38dc264d71ab681ee9377a24263c2",
+      "bytes": 1067,
+      "characters": 1065,
+      "stripped_characters": 1065,
+      "native_rewards": [
+        1.0,
+        1.0
+      ],
+      "totals": {
+        "requests": 10,
+        "input_tokens": 69344,
+        "output_tokens": 2009,
+        "total_tokens": 71353,
+        "cost_micros": 105925
+      },
+      "tasks": [
+        {
+          "task_id": "event-summary",
+          "requests": 5,
+          "job_path": "runs/gepa-zai-opencode-event-summary-5acac886e7eb7e17b62982db"
+        },
+        {
+          "task_id": "syn-funcdag-easy",
+          "requests": 5,
+          "job_path": "runs/gepa-zai-opencode-syn-funcdag-easy-f5dd1bc64749b0545437b06f"
+        }
+      ]
+    },
+    {
+      "label": "proposal-3",
+      "file": "har53-candidate-15b24b11f269.txt",
+      "sha256": "sha256:15b24b11f269fbb84880b3330e91c7990502dd626e07a103dd247d1b6e48137f",
+      "bytes": 1077,
+      "characters": 1077,
+      "stripped_characters": 1077,
+      "native_rewards": [
+        1.0,
+        1.0
+      ],
+      "totals": {
+        "requests": 10,
+        "input_tokens": 69283,
+        "output_tokens": 1947,
+        "total_tokens": 71230,
+        "cost_micros": 105569
+      },
+      "tasks": [
+        {
+          "task_id": "event-summary",
+          "requests": 5,
+          "job_path": "runs/gepa-zai-opencode-event-summary-70261b59610d4d30c9933962"
+        },
+        {
+          "task_id": "syn-funcdag-easy",
+          "requests": 5,
+          "job_path": "runs/gepa-zai-opencode-syn-funcdag-easy-1335d7d84ebb4a1a1ff2fac0"
+        }
+      ]
+    },
+    {
+      "label": "proposal-4",
+      "file": "har53-candidate-e6ca24a27ad8.txt",
+      "sha256": "sha256:e6ca24a27ad8a7271c6dd8ad8668574e9c214ca33755e84e4c7db39a1a8fb8d9",
+      "bytes": 1109,
+      "characters": 1109,
+      "stripped_characters": 1109,
+      "native_rewards": [
+        1.0,
+        1.0
+      ],
+      "totals": {
+        "requests": 10,
+        "input_tokens": 71017,
+        "output_tokens": 2024,
+        "total_tokens": 73041,
+        "cost_micros": 108333
+      },
+      "tasks": [
+        {
+          "task_id": "event-summary",
+          "requests": 4,
+          "job_path": "runs/gepa-zai-opencode-event-summary-d084300f47d6bc04df514904"
+        },
+        {
+          "task_id": "syn-funcdag-easy",
+          "requests": 6,
+          "job_path": "runs/gepa-zai-opencode-syn-funcdag-easy-71a9e9e8fae31163a7b99552"
+        }
+      ]
+    }
+  ],
+  "command_examples": [
+    {
+      "candidate_id": "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8",
+      "trace_path": "research/evidence/runs/gepa-zai-opencode-event-summary-e41a67fdd138b615317db74e/gepa-zai-opencode-event-summary__u6EdsRJ/agent/trajectory.json",
+      "step": 5,
+      "tool": "bash",
+      "command": "python3 -m json.tool /app/output/summary.json && ls /app/output && git -C /app status --porcelain -- input/"
+    },
+    {
+      "candidate_id": "sha256:7d56ffec7c5bbad899522beeaa06b0b7914491f145cd85d674bdb41d78472869",
+      "trace_path": "research/evidence/runs/gepa-zai-opencode-event-summary-022c925c5324f95ce93ab434/gepa-zai-opencode-event-summary__pQzeT4t/agent/trajectory.json",
+      "step": 5,
+      "tool": "bash",
+      "command": "ls /app/output && xxd /app/output/summary.json | tail -1 && git -C /app status --porcelain -- input/ 2>/dev/null; python3 -m json.tool /app/output/summary.json >/dev/null && echo VALID"
+    },
+    {
+      "candidate_id": "sha256:7d56ffec7c5bbad899522beeaa06b0b7914491f145cd85d674bdb41d78472869",
+      "trace_path": "research/evidence/runs/gepa-zai-opencode-event-summary-022c925c5324f95ce93ab434/gepa-zai-opencode-event-summary__pQzeT4t/agent/trajectory.json",
+      "step": 6,
+      "tool": "bash",
+      "command": "od -c /app/output/summary.json | tail -2"
+    },
+    {
+      "candidate_id": "sha256:e6ca24a27ad8a7271c6dd8ad8668574e9c214ca33755e84e4c7db39a1a8fb8d9",
+      "trace_path": "research/evidence/runs/gepa-zai-opencode-event-summary-d084300f47d6bc04df514904/gepa-zai-opencode-event-summary__tCtHyVf/agent/trajectory.json",
+      "step": 3,
+      "tool": "bash",
+      "command": "python3 -c \"\nimport json, math, collections\nevents = [json.loads(l) for l in open('/app/input/events.jsonl') if l.strip()]\ndurs = sorted(e['duration_ms'] for e in events)\ncounts = collections.Counter(e['kind'] for e in events)\nsummary = {\n    'schema_version': 1,\n    'total_events': len(events),\n    'counts': dict(sorted(counts.items())),\n    'total_duration_ms': sum(durs),\n    'p95_duration_ms': durs[math.ceil(0.95 * len(durs)) - 1],\n}\nwith open('/app/output/summary.json', 'w', encoding='utf-8') as f:\n    json.dump(summary, f)\n    f.write('\\n')\nprint(summary)\n\" && cat /app/output/summary.json && ls /app/output"
+    }
+  ],
+  "interpretation": {
+    "quality": "Every prior development candidate and seed passed both tasks. No measured quality gain; the seed was retained on a tie.",
+    "growth": "The 146-byte seed grew to 1,065\u20131,109-byte candidates (approximately 7.3\u20137.6 times), without a quality improvement.",
+    "mechanism": "Proposal 1 increased formatting and input-preservation checks. Its event trace shows an unavailable xxd call followed by od. The seed already attempted unavailable git, so this is not causal proof unique to that proposal. Proposal 4 batched computation, writing and readback into one event-task command; its FuncDAG request count regressed from 5 to 6.",
+    "fresh_seed": "Three fresh identical-seed runs used 5, 6 and 6 provider requests, all with native reward 1. The older candidate observation of 4 requests is outside that sampled range; one such observation does not establish a significant or repeatable effect.",
+    "replication": "Both fresh archived-candidate attempts failed at the provider-response boundary. There are zero complete scored pairs, so neither capability loss nor benefit is attributable to the candidate.",
+    "helper_hypothesis": "Portable Python inspection and format checks might avoid missing-utility detours. Current traces do not establish large-file dumps or loop crashes as the dominant failure. Semantic task checks must remain independent of JSON parseability.",
+    "manual_fix": "The native control shift from 0 to 1 comes from the implementation assistant manually fixing re.error handling, then supplying that fix through an explicitly deterministic proposer fixture. It is not model-learned improvement, generalization or cost reduction.",
+    "decision": "No solid GEPA improvement is established. Retain the competent seed and do not adopt an artifact automatically. A qualified proposer/target route and fresh matched code comparisons are prerequisites to a benefit claim."
+  }
+}

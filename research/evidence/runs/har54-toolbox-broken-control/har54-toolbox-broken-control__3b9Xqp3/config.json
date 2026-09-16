@@ -1,0 +1,15 @@
+{
+    "task": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-overnight-20260916/runs/.exec-stage/har54-toolbox-broken-control"
+    },
+    "trial_name": "har54-toolbox-broken-control__3b9Xqp3",
+    "trials_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-overnight-20260916/runs/har54-toolbox-broken-control",
+    "agent_timeout_multiplier": 2.0,
+    "agent": {
+        "name": "oracle",
+        "skills": [
+            "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-overnight-20260916/runs/.toolbox-staging/har54-toolbox-broken-control/61173d9df9656174bbfa7cf3f543e299831ca22221342f218255c70674929117/repl-tools"
+        ]
+    },
+    "job_id": "67a0a718-fc2f-4aa0-91ac-30707e71a338"
+}

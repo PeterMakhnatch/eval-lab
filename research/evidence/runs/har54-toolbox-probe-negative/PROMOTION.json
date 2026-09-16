@@ -1,0 +1,232 @@
+{
+  "schema_version": 2,
+  "bundle": "har54-toolbox-probe-negative",
+  "source_job_runtime_path": "runs/har54-toolbox-probe-negative",
+  "source_job_result_sha256": "sha256:20742571fe474c47efab4d1068a8cb6ed908807543bec9b75f9b9d7cbe058f14",
+  "promoted_by": "scripts/promote_codex_bundle.py",
+  "redaction_rules": {
+    "R1": "system/user ATIF step message text removed; sha256 and length kept",
+    "R2": "agent/sessions/**, agent/codex.txt, agent/opencode.txt, agent/opencode/**, job.log and trial.log raw prompt/model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
+    "R3a": "verifier/* JSON string values over 1024 bytes replaced by digest markers",
+    "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body",
+    "R4": "each omitted rollout leaves a quota sidecar under <trial>/agent/quota/ holding only the event timestamp and a whitelist of payload.rate_limits scalars, with the parent rollout's sha256; account-scope point-in-time readings, no message, prompt, reasoning, session title or token"
+  },
+  "totals": {
+    "source_files": 21,
+    "promoted_files": 19,
+    "omitted_files": 2,
+    "quota_sidecars": 0,
+    "promoted_bytes": 157308,
+    "source_bytes": 164157
+  },
+  "files": [
+    {
+      "source_path": "config.json",
+      "promoted_path": "config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 706,
+      "source_sha256": "sha256:c2995ff72e1c6f13bb0a2d36fa3d76523e845593bb068e92a8e2c14670ffc2cf",
+      "promoted_bytes": 706,
+      "promoted_sha256": "sha256:c2995ff72e1c6f13bb0a2d36fa3d76523e845593bb068e92a8e2c14670ffc2cf"
+    },
+    {
+      "source_path": "har54-toolbox-probe-negative__fene7E4/agent/exit-code.txt",
+      "promoted_path": "har54-toolbox-probe-negative__fene7E4/agent/exit-code.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1,
+      "source_sha256": "sha256:6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "promoted_bytes": 1,
+      "promoted_sha256": "sha256:6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+    },
+    {
+      "source_path": "har54-toolbox-probe-negative__fene7E4/agent/oracle.txt",
+      "promoted_path": "har54-toolbox-probe-negative__fene7E4/agent/oracle.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2234,
+      "source_sha256": "sha256:fc23f51879ee8adf44db3ec860b18fe331a63d8efe5c57e159b0241f82313fdc",
+      "promoted_bytes": 2234,
+      "promoted_sha256": "sha256:fc23f51879ee8adf44db3ec860b18fe331a63d8efe5c57e159b0241f82313fdc"
+    },
+    {
+      "source_path": "har54-toolbox-probe-negative__fene7E4/artifacts/manifest.json",
+      "promoted_path": "har54-toolbox-probe-negative__fene7E4/artifacts/manifest.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 326,
+      "source_sha256": "sha256:f85f9ae2c9616c00095722c0403301034628d15d6efdb993462268c4e7788991",
+      "promoted_bytes": 326,
+      "promoted_sha256": "sha256:f85f9ae2c9616c00095722c0403301034628d15d6efdb993462268c4e7788991"
+    },
+    {
+      "source_path": "har54-toolbox-probe-negative__fene7E4/config.json",
+      "promoted_path": "har54-toolbox-probe-negative__fene7E4/config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 710,
+      "source_sha256": "sha256:2104232f415f0f1f41c8ca4c63d15ba707bd432aa398949867355aa29620309c",
+      "promoted_bytes": 710,
+      "promoted_sha256": "sha256:2104232f415f0f1f41c8ca4c63d15ba707bd432aa398949867355aa29620309c"
+    },
+    {
+      "source_path": "har54-toolbox-probe-negative__fene7E4/exception.txt",
+      "promoted_path": "har54-toolbox-probe-negative__fene7E4/exception.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1625,
+      "source_sha256": "sha256:f6fb8cf0b347cfcfb4fe81fcd754413ab937248d204c94d6d4df0f050050375c",
+      "promoted_bytes": 1625,
+      "promoted_sha256": "sha256:f6fb8cf0b347cfcfb4fe81fcd754413ab937248d204c94d6d4df0f050050375c"
+    },
+    {
+      "source_path": "har54-toolbox-probe-negative__fene7E4/lock.json",
+      "promoted_path": "har54-toolbox-probe-negative__fene7E4/lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1612,
+      "source_sha256": "sha256:6581581b81c18ab51b168c353ef71b95175ed7b2ccbb7ba170a868ff72fc3796",
+      "promoted_bytes": 1612,
+      "promoted_sha256": "sha256:6581581b81c18ab51b168c353ef71b95175ed7b2ccbb7ba170a868ff72fc3796"
+    },
+    {
+      "source_path": "har54-toolbox-probe-negative__fene7E4/result.json",
+      "promoted_path": "har54-toolbox-probe-negative__fene7E4/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 6346,
+      "source_sha256": "sha256:7f23bae241f4fc5881b1512faa84cf3c78a1759388611b31ab6b46c4519347c9",
+      "promoted_bytes": 6346,
+      "promoted_sha256": "sha256:7f23bae241f4fc5881b1512faa84cf3c78a1759388611b31ab6b46c4519347c9"
+    },
+    {
+      "source_path": "har54-toolbox-probe-negative__fene7E4/state-journal/state-after.json",
+      "promoted_path": "har54-toolbox-probe-negative__fene7E4/state-journal/state-after.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 28277,
+      "source_sha256": "sha256:0f0b7661098b4d36a63002918e4b61919b2bf976c8f71a7f2b1bdbae8ced7e59",
+      "promoted_bytes": 28277,
+      "promoted_sha256": "sha256:0f0b7661098b4d36a63002918e4b61919b2bf976c8f71a7f2b1bdbae8ced7e59"
+    },
+    {
+      "source_path": "har54-toolbox-probe-negative__fene7E4/state-journal/state-before.json",
+      "promoted_path": "har54-toolbox-probe-negative__fene7E4/state-journal/state-before.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 659,
+      "source_sha256": "sha256:18ac27d6111b9612c523e0b11fcbbac8fabca933df775fe7c97d2208cc133b18",
+      "promoted_bytes": 659,
+      "promoted_sha256": "sha256:18ac27d6111b9612c523e0b11fcbbac8fabca933df775fe7c97d2208cc133b18"
+    },
+    {
+      "source_path": "har54-toolbox-probe-negative__fene7E4/state-journal/state-diff.json",
+      "promoted_path": "har54-toolbox-probe-negative__fene7E4/state-journal/state-diff.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 69021,
+      "source_sha256": "sha256:14640c9f5b983b07f7393fc6da8f477a8c8d3742da5461ba246d08518ed1b900",
+      "promoted_bytes": 69021,
+      "promoted_sha256": "sha256:14640c9f5b983b07f7393fc6da8f477a8c8d3742da5461ba246d08518ed1b900"
+    },
+    {
+      "source_path": "har54-toolbox-probe-negative__fene7E4/state-journal/state-events.jsonl",
+      "promoted_path": "har54-toolbox-probe-negative__fene7E4/state-journal/state-events.jsonl",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 27603,
+      "source_sha256": "sha256:3c6d77ebe150f189dd3bb5c61ae89d20263b69effc9c511f8dca457d200e0548",
+      "promoted_bytes": 27603,
+      "promoted_sha256": "sha256:3c6d77ebe150f189dd3bb5c61ae89d20263b69effc9c511f8dca457d200e0548"
+    },
+    {
+      "source_path": "har54-toolbox-probe-negative__fene7E4/state-journal/status.json",
+      "promoted_path": "har54-toolbox-probe-negative__fene7E4/state-journal/status.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 512,
+      "source_sha256": "sha256:aca0d1f22cd53930e0c7d080c2902460e768a09768c610cb7084b88a7f61f9a3",
+      "promoted_bytes": 512,
+      "promoted_sha256": "sha256:aca0d1f22cd53930e0c7d080c2902460e768a09768c610cb7084b88a7f61f9a3"
+    },
+    {
+      "source_path": "har54-toolbox-probe-negative__fene7E4/trial.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 3328,
+      "source_sha256": "sha256:a570e9ef6cef021b1661d4d241fdc25a2309a68f39696f73c0fe45a54295c90f"
+    },
+    {
+      "source_path": "har54-toolbox-probe-negative__fene7E4/verifier/test-stdout.txt",
+      "promoted_path": "har54-toolbox-probe-negative__fene7E4/verifier/test-stdout.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 56,
+      "source_sha256": "sha256:7d4a7c37dce884d484a1f3cbf74af3e51a24e5cff446920c88a414747d191da2",
+      "promoted_bytes": 56,
+      "promoted_sha256": "sha256:7d4a7c37dce884d484a1f3cbf74af3e51a24e5cff446920c88a414747d191da2"
+    },
+    {
+      "source_path": "job.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 3521,
+      "source_sha256": "sha256:605dc102429a9d426e63ec8a20b7d72b4c4e153511d54434e1129f9a7c869115"
+    },
+    {
+      "source_path": "lab-metadata.json",
+      "promoted_path": "lab-metadata.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 4613,
+      "source_sha256": "sha256:da41abd40f4d3a860640974c4c01a3577cd4e27bd920df7d5337fb5a04337dba",
+      "promoted_bytes": 4613,
+      "promoted_sha256": "sha256:da41abd40f4d3a860640974c4c01a3577cd4e27bd920df7d5337fb5a04337dba"
+    },
+    {
+      "source_path": "lock.json",
+      "promoted_path": "lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2686,
+      "source_sha256": "sha256:c70ce47555fd99b9a6720938dcf82e0614cd7a800d9b4e0dc8a4a1578fdd4229",
+      "promoted_bytes": 2686,
+      "promoted_sha256": "sha256:c70ce47555fd99b9a6720938dcf82e0614cd7a800d9b4e0dc8a4a1578fdd4229"
+    },
+    {
+      "source_path": "result.json",
+      "promoted_path": "result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1073,
+      "source_sha256": "sha256:20742571fe474c47efab4d1068a8cb6ed908807543bec9b75f9b9d7cbe058f14",
+      "promoted_bytes": 1073,
+      "promoted_sha256": "sha256:20742571fe474c47efab4d1068a8cb6ed908807543bec9b75f9b9d7cbe058f14"
+    },
+    {
+      "source_path": "toolbox/repl-tools/SKILL.md",
+      "promoted_path": "toolbox/repl-tools/SKILL.md",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 681,
+      "source_sha256": "sha256:4fa58b8769934454411de007169e81e40185acf5404e30e4136810e7ec898d30",
+      "promoted_bytes": 681,
+      "promoted_sha256": "sha256:4fa58b8769934454411de007169e81e40185acf5404e30e4136810e7ec898d30"
+    },
+    {
+      "source_path": "toolbox/repl-tools/repl_tools.py",
+      "promoted_path": "toolbox/repl-tools/repl_tools.py",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 8567,
+      "source_sha256": "sha256:61173d9df9656174bbfa7cf3f543e299831ca22221342f218255c70674929117",
+      "promoted_bytes": 8567,
+      "promoted_sha256": "sha256:61173d9df9656174bbfa7cf3f543e299831ca22221342f218255c70674929117"
+    }
+  ]
+}

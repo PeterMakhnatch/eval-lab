@@ -1,0 +1,232 @@
+{
+  "schema_version": 2,
+  "bundle": "gepa-oracle-har54-toolbox-protoc-918c51a83c66da9a8635ccdc",
+  "source_job_runtime_path": "runs/gepa-oracle-har54-toolbox-protoc-918c51a83c66da9a8635ccdc",
+  "source_job_result_sha256": "sha256:d788b33e93a8c0787129908cb81bf93347dbc401e770f58769a1eb385cb85f75",
+  "promoted_by": "scripts/promote_codex_bundle.py",
+  "redaction_rules": {
+    "R1": "system/user ATIF step message text removed; sha256 and length kept",
+    "R2": "agent/sessions/**, agent/codex.txt, agent/opencode.txt, agent/opencode/**, job.log and trial.log raw prompt/model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
+    "R3a": "verifier/* JSON string values over 1024 bytes replaced by digest markers",
+    "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body",
+    "R4": "each omitted rollout leaves a quota sidecar under <trial>/agent/quota/ holding only the event timestamp and a whitelist of payload.rate_limits scalars, with the parent rollout's sha256; account-scope point-in-time readings, no message, prompt, reasoning, session title or token"
+  },
+  "totals": {
+    "source_files": 21,
+    "promoted_files": 19,
+    "omitted_files": 2,
+    "quota_sidecars": 0,
+    "promoted_bytes": 154896,
+    "source_bytes": 155352
+  },
+  "files": [
+    {
+      "source_path": "config.json",
+      "promoted_path": "config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 822,
+      "source_sha256": "sha256:deec272f469b9d6e122ad1fde7f830b8a6be18a8e7c7bed0b6163c9f4c4d0f4e",
+      "promoted_bytes": 822,
+      "promoted_sha256": "sha256:deec272f469b9d6e122ad1fde7f830b8a6be18a8e7c7bed0b6163c9f4c4d0f4e"
+    },
+    {
+      "source_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/agent/oracle.txt",
+      "promoted_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/agent/oracle.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 403,
+      "source_sha256": "sha256:64ef034e61f3dd591cd4f0fbc856ba30333cf04ecfe5576c19ebfec5a19a1cc4",
+      "promoted_bytes": 403,
+      "promoted_sha256": "sha256:64ef034e61f3dd591cd4f0fbc856ba30333cf04ecfe5576c19ebfec5a19a1cc4"
+    },
+    {
+      "source_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/artifacts/app/output/probe.json",
+      "promoted_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/artifacts/app/output/probe.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1077,
+      "source_sha256": "sha256:2eaa667eff33f1dd77905d98de810f66c58d01dd970830fb3848511933add1db",
+      "promoted_bytes": 1077,
+      "promoted_sha256": "sha256:2eaa667eff33f1dd77905d98de810f66c58d01dd970830fb3848511933add1db"
+    },
+    {
+      "source_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/artifacts/manifest.json",
+      "promoted_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/artifacts/manifest.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 322,
+      "source_sha256": "sha256:6f107042311121693bc66d39b3bf7f96b38525b68c71281fc21002bdd0cfdabc",
+      "promoted_bytes": 322,
+      "promoted_sha256": "sha256:6f107042311121693bc66d39b3bf7f96b38525b68c71281fc21002bdd0cfdabc"
+    },
+    {
+      "source_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/config.json",
+      "promoted_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 830,
+      "source_sha256": "sha256:856f4bad02bde9a60df42370196ca659c9572aa5fcd694a74e7c14fdccd09dc0",
+      "promoted_bytes": 830,
+      "promoted_sha256": "sha256:856f4bad02bde9a60df42370196ca659c9572aa5fcd694a74e7c14fdccd09dc0"
+    },
+    {
+      "source_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/lock.json",
+      "promoted_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1786,
+      "source_sha256": "sha256:520b69ab520a2665a71f0844944bf00da4a779b56fd934b3afd664c58b6d0a75",
+      "promoted_bytes": 1786,
+      "promoted_sha256": "sha256:520b69ab520a2665a71f0844944bf00da4a779b56fd934b3afd664c58b6d0a75"
+    },
+    {
+      "source_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/result.json",
+      "promoted_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 4398,
+      "source_sha256": "sha256:c73ca8625a4486c6deecd33a7b13b8500fd5c71f3b39de399ea2e33153610ed2",
+      "promoted_bytes": 4398,
+      "promoted_sha256": "sha256:c73ca8625a4486c6deecd33a7b13b8500fd5c71f3b39de399ea2e33153610ed2"
+    },
+    {
+      "source_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/state-journal/state-after.json",
+      "promoted_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/state-journal/state-after.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 28564,
+      "source_sha256": "sha256:8b7ae14989b773b7f0e4ec39b1f205e64e9cbf96d99f7dfb3d27fd7928c8420e",
+      "promoted_bytes": 28564,
+      "promoted_sha256": "sha256:8b7ae14989b773b7f0e4ec39b1f205e64e9cbf96d99f7dfb3d27fd7928c8420e"
+    },
+    {
+      "source_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/state-journal/state-before.json",
+      "promoted_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/state-journal/state-before.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 660,
+      "source_sha256": "sha256:bb88e0c85f2d8e65a9692f62886c5cc1cc03202647d3c4bbd3ac509b30205237",
+      "promoted_bytes": 660,
+      "promoted_sha256": "sha256:bb88e0c85f2d8e65a9692f62886c5cc1cc03202647d3c4bbd3ac509b30205237"
+    },
+    {
+      "source_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/state-journal/state-diff.json",
+      "promoted_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/state-journal/state-diff.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 69827,
+      "source_sha256": "sha256:3081655046d4c7de3232fe584de2854c1a44f261dfa7c6b4bba4a37356dfbf0d",
+      "promoted_bytes": 69827,
+      "promoted_sha256": "sha256:3081655046d4c7de3232fe584de2854c1a44f261dfa7c6b4bba4a37356dfbf0d"
+    },
+    {
+      "source_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/state-journal/state-events.jsonl",
+      "promoted_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/state-journal/state-events.jsonl",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 27534,
+      "source_sha256": "sha256:32df8b251c6d0686243f6e5d79a8de293432317415f9a09f1e189e814067c76e",
+      "promoted_bytes": 27534,
+      "promoted_sha256": "sha256:32df8b251c6d0686243f6e5d79a8de293432317415f9a09f1e189e814067c76e"
+    },
+    {
+      "source_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/state-journal/status.json",
+      "promoted_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/state-journal/status.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 514,
+      "source_sha256": "sha256:4654d300707c46ad7b8a409fd3f296a1f6794af0318edb3f51b7494fa489bac1",
+      "promoted_bytes": 514,
+      "promoted_sha256": "sha256:4654d300707c46ad7b8a409fd3f296a1f6794af0318edb3f51b7494fa489bac1"
+    },
+    {
+      "source_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/trial.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 228,
+      "source_sha256": "sha256:e2f3bc7ffe4cc45dece5712be24958993a6c4e4155ecfa3f8cf98d4728736983"
+    },
+    {
+      "source_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/verifier/reward.txt",
+      "promoted_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/verifier/reward.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 3,
+      "source_sha256": "sha256:8aed642bf5118b9d3c859bd4be35ecac75b6e873cce34e7b6f554b06f75550d7",
+      "promoted_bytes": 3,
+      "promoted_sha256": "sha256:8aed642bf5118b9d3c859bd4be35ecac75b6e873cce34e7b6f554b06f75550d7"
+    },
+    {
+      "source_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/verifier/test-stdout.txt",
+      "promoted_path": "gepa-oracle-har54-toolbox-protoc__iTdwF99/verifier/test-stdout.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 68,
+      "source_sha256": "sha256:673f2650637d56036b50acaa2179406e6725898172846dce780438b77cbd01ea",
+      "promoted_bytes": 68,
+      "promoted_sha256": "sha256:673f2650637d56036b50acaa2179406e6725898172846dce780438b77cbd01ea"
+    },
+    {
+      "source_path": "job.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 228,
+      "source_sha256": "sha256:e2f3bc7ffe4cc45dece5712be24958993a6c4e4155ecfa3f8cf98d4728736983"
+    },
+    {
+      "source_path": "lab-metadata.json",
+      "promoted_path": "lab-metadata.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 4857,
+      "source_sha256": "sha256:6e808f4fcc9f07b7ddf4e7c0414f2da47e617fa04efefec133794f76d53426a8",
+      "promoted_bytes": 4857,
+      "promoted_sha256": "sha256:6e808f4fcc9f07b7ddf4e7c0414f2da47e617fa04efefec133794f76d53426a8"
+    },
+    {
+      "source_path": "lock.json",
+      "promoted_path": "lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2860,
+      "source_sha256": "sha256:2eedfcb3ef96c99320a5f7fd95ca75090a3098b54fe7327df751f7a3127deb42",
+      "promoted_bytes": 2860,
+      "promoted_sha256": "sha256:2eedfcb3ef96c99320a5f7fd95ca75090a3098b54fe7327df751f7a3127deb42"
+    },
+    {
+      "source_path": "result.json",
+      "promoted_path": "result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1123,
+      "source_sha256": "sha256:d788b33e93a8c0787129908cb81bf93347dbc401e770f58769a1eb385cb85f75",
+      "promoted_bytes": 1123,
+      "promoted_sha256": "sha256:d788b33e93a8c0787129908cb81bf93347dbc401e770f58769a1eb385cb85f75"
+    },
+    {
+      "source_path": "toolbox/repl-tools/SKILL.md",
+      "promoted_path": "toolbox/repl-tools/SKILL.md",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 681,
+      "source_sha256": "sha256:4fa58b8769934454411de007169e81e40185acf5404e30e4136810e7ec898d30",
+      "promoted_bytes": 681,
+      "promoted_sha256": "sha256:4fa58b8769934454411de007169e81e40185acf5404e30e4136810e7ec898d30"
+    },
+    {
+      "source_path": "toolbox/repl-tools/repl_tools.py",
+      "promoted_path": "toolbox/repl-tools/repl_tools.py",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 8567,
+      "source_sha256": "sha256:61173d9df9656174bbfa7cf3f543e299831ca22221342f218255c70674929117",
+      "promoted_bytes": 8567,
+      "promoted_sha256": "sha256:61173d9df9656174bbfa7cf3f543e299831ca22221342f218255c70674929117"
+    }
+  ]
+}

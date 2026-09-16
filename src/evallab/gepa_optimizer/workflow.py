@@ -23,7 +23,12 @@ from .evaluator import (
     LabEvaluator,
     ProviderCeilings,
 )
-from .proposer import JournaledReflectionLM, ProposalUnavailable, ReplaySafeGepaEngine
+from .proposer import (
+    JournaledReflectionLM,
+    ProposalUnavailable,
+    ReplaySafeGepaEngine,
+    direct_proposer_blocker,
+)
 from .release import verify_release
 
 
@@ -577,6 +582,7 @@ def _run_campaign(
     error = None
     pending_candidate = None
     availability = None
+    route_blocker = None
     stage_lms: dict[str, JournaledReflectionLM] = {}
     invalid_candidates: dict[str, dict[str, Any]] = {}
 
@@ -607,6 +613,10 @@ def _run_campaign(
             availability = engine_availability(config["proposer_model"])
             if not availability["all_available"]:
                 raise EngineUnavailable(availability)
+        elif not qualification and config["engine"] == "gepa":
+            route_blocker = direct_proposer_blocker(config["proposer_model"])
+            if route_blocker:
+                raise ProposalUnavailable(route_blocker)
         # Resolve the baseline target gate before any paid proposer can start.
         for example in config["examples"]:
             evaluate(seed, example)
@@ -802,6 +812,7 @@ def _run_campaign(
         "release": pin,
         "engine": config["engine"],
         "engine_availability": availability,
+        "proposer_route_blocker": route_blocker,
         "score_mode": score_mode,
         "candidate_kind": candidate_kind,
         "candidate_validation_failures": list(invalid_candidates.values()),
@@ -812,7 +823,9 @@ def _run_campaign(
         if result is not None and config["engine"] == "omni"
         else None,
         "evidence_level": (
-            "engine_preflight_only"
+            "proposer_preflight_only"
+            if route_blocker
+            else "engine_preflight_only"
             if status == "engine_unavailable"
             else "real_gepa_with_local_controls_and_deterministic_proposer"
             if qualification
@@ -830,7 +843,7 @@ def _run_campaign(
             if fixture
             else (
                 0
-                if status == "engine_unavailable"
+                if route_blocker or status == "engine_unavailable"
                 else sum(lm.new_requests for lm in stage_lms.values())
                 if stage_lms
                 else None

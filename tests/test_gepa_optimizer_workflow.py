@@ -590,3 +590,69 @@ def test_request_efficiency_selects_fewer_broker_calls_without_regrading():
     assert selection["native_quality"] == 1.0
     assert selection["calls"] == 3
     assert [row["score"] for row in records] == [1.0, 1.0]
+
+
+def test_unqualified_coding_plan_proposer_never_issues_or_reserves_request(tmp_path):
+    from evallab.gepa_optimizer.budget import AggregateBudget
+
+    budget = AggregateBudget(
+        tmp_path / "budget",
+        max_target_attempts=1,
+        max_proposer_requests=1,
+        max_proposer_cost_usd=0.1,
+    )
+    proposer = JournaledReflectionLM(
+        model="zai/glm-5.3-flash",
+        directory=tmp_path / "proposer",
+        max_requests=1,
+        budgets=(budget,),
+    )
+    with pytest.raises(ProposalUnavailable):
+        proposer("Revise the Python helper.")
+    assert proposer.new_requests == 0
+    assert budget.summary()["proposer"]["reserved"] == 0
+
+
+def test_unqualified_proposer_stops_campaign_before_baseline(tmp_path, monkeypatch):
+    task = _write_task(tmp_path)
+    (tmp_path / "seed.txt").write_text("Competent seed.")
+    config_path = _write_campaign(tmp_path, task, agent="oracle", model=None, ceilings="omit")
+    config = json.loads(config_path.read_text())
+    config["proposer_model"] = "zai/glm-5.3-flash"
+    config_path.write_text(json.dumps(config))
+    pin = {"commit": "test-pin"}
+    monkeypatch.setattr(workflow, "verify_release", lambda: pin)
+
+    class NoBaseline:
+        records = []
+
+        def __init__(self, **kwargs):
+            pass
+
+        def __call__(self, *args):
+            raise AssertionError("Unqualified proposer must not start a target")
+
+    monkeypatch.setattr(workflow, "LabEvaluator", NoBaseline)
+    binding = {
+        "config": config,
+        "seed_sha256": "sha256:" + hashlib.sha256(b"Competent seed.").hexdigest(),
+        "release": pin,
+        "qualification": False,
+    }
+    approval = tmp_path / "approval.json"
+    approval.write_text(
+        json.dumps(
+            {
+                "binding_sha256": hashlib.sha256(
+                    json.dumps(binding, sort_keys=True).encode()
+                ).hexdigest(),
+                "approved_by": "test operator",
+                "approved_at": "2026-09-16T00:00:00Z",
+            }
+        )
+    )
+    report = workflow.run_campaign(config_path, repo_root=tmp_path, proposer_approval_ref=approval)
+    assert report["status"] == "proposer_unavailable"
+    assert report["evidence_level"] == "proposer_preflight_only"
+    assert report["target_evaluations"] == []
+    assert report["proposer"]["calls"] == 0

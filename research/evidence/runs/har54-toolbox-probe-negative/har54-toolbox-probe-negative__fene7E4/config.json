@@ -1,0 +1,15 @@
+{
+    "task": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-overnight-20260916/runs/.exec-stage/har54-toolbox-probe-negative"
+    },
+    "trial_name": "har54-toolbox-probe-negative__fene7E4",
+    "trials_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-overnight-20260916/runs/har54-toolbox-probe-negative",
+    "agent_timeout_multiplier": 2.0,
+    "agent": {
+        "name": "oracle",
+        "skills": [
+            "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-overnight-20260916/runs/.toolbox-staging/61173d9df9656174bbfa7cf3f543e299831ca22221342f218255c70674929117/repl-tools"
+        ]
+    },
+    "job_id": "c3be59de-7b92-4894-ab39-2a439229d2dc"
+}

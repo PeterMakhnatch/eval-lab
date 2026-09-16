@@ -1,0 +1,41 @@
+{
+  "origin": "native_oracle_toolbox_interface_probe_not_model_improvement",
+  "toolbox_sha256": "sha256:dc3e4589f8b8ff84e5ce81fd9f82fad3441af45afb618f47a49153f09a22ed70",
+  "checks": {
+    "numbered_window": true,
+    "grep_line": true,
+    "invalid_regex_error": true,
+    "valid_json": true,
+    "invalid_json": true,
+    "nonfinite_json": true,
+    "invalid_utf8": true,
+    "symlink_rejected": true,
+    "bounded_long_line": true,
+    "bounded_empty_tree": true,
+    "cli_execution": true,
+    "no_input_writes": true
+  },
+  "helper_errors": {},
+  "window": {
+    "content": "2:beta target\n3:gamma\n",
+    "truncated": false,
+    "error": null
+  },
+  "grep": {
+    "matches": [
+      {
+        "file": "/app/probes/sample.txt",
+        "line": 2,
+        "context": "1:alpha\n2:beta target\n3:gamma\n"
+      }
+    ],
+    "truncated": false,
+    "skipped_files": 0,
+    "error": null
+  },
+  "limited": {
+    "content": "1:xxxxxxxxxxxxxxxxxx",
+    "truncated": true,
+    "error": null
+  }
+}

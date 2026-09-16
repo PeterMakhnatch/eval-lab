@@ -1,0 +1,92 @@
+{
+  "policies": {
+    "stock-lenient": {
+      "n": 14,
+      "accuracy": 1.0,
+      "errors": 0,
+      "budget_stopped": 0,
+      "mean_iterations": 4.0,
+      "mean_sub_calls": 0.0,
+      "mean_input_tokens": 11593.357142857143,
+      "mean_output_tokens": 4005.714285714286,
+      "mean_reasoning_tokens": 2313.9285714285716,
+      "mean_cost_usd": 0.03385592857142857,
+      "total_cost_usd": 0.473983,
+      "mean_wall_seconds": 99.38642857142858,
+      "by_family": {
+        "chain-lookup": 1.0,
+        "ledger-agg": 1.0,
+        "state-tracking": 1.0
+      },
+      "family_n": {
+        "chain-lookup": 6,
+        "ledger-agg": 6,
+        "state-tracking": 2
+      },
+      "files": [
+        "stock-lenient-s1-r1.jsonl"
+      ]
+    },
+    "stock": {
+      "n": 12,
+      "accuracy": 1.0,
+      "errors": 0,
+      "budget_stopped": 0,
+      "mean_iterations": 5.5,
+      "mean_sub_calls": 0.0,
+      "mean_input_tokens": 17910.333333333332,
+      "mean_output_tokens": 5922.083333333333,
+      "mean_reasoning_tokens": 3678.5,
+      "mean_cost_usd": 0.051131666666666666,
+      "total_cost_usd": 0.61358,
+      "mean_wall_seconds": 143.285,
+      "by_family": {
+        "chain-lookup": 1.0,
+        "ledger-agg": 1.0
+      },
+      "family_n": {
+        "chain-lookup": 6,
+        "ledger-agg": 6
+      },
+      "files": [
+        "stock-s1-r1.jsonl"
+      ]
+    }
+  },
+  "paired": [
+    {
+      "candidate": "stock-lenient",
+      "baseline": "stock",
+      "paired_n": 12,
+      "wins": 0,
+      "losses": 0,
+      "ties": 12,
+      "accuracy_delta": 0.0,
+      "sign_test_p": 1.0,
+      "cost_usd": {
+        "baseline_mean": 0.051131666666666666,
+        "candidate_mean": 0.03518775,
+        "ratio": 0.6881792105348935,
+        "lower": 7,
+        "higher": 5,
+        "sign_test_p": 0.7744140625
+      },
+      "iterations": {
+        "baseline_mean": 5.5,
+        "candidate_mean": 4.083333333333333,
+        "ratio": 0.7424242424242423,
+        "lower": 7,
+        "higher": 3,
+        "sign_test_p": 0.34375
+      },
+      "wall_seconds": {
+        "baseline_mean": 143.285,
+        "candidate_mean": 102.52333333333333,
+        "ratio": 0.7155203498854265,
+        "lower": 6,
+        "higher": 6,
+        "sign_test_p": 1.0
+      }
+    }
+  ]
+}

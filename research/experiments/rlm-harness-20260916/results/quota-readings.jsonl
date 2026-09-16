@@ -1,0 +1,7 @@
+[{"unit":3,"usage":12000,"currentValue":1756,"percentage":14},{"unit":6,"usage":60000,"currentValue":2869,"percentage":4}]
+[{"unit":3,"usage":12000,"currentValue":7056,"percentage":58},{"unit":6,"usage":60000,"currentValue":8169,"percentage":13}]
+[{"unit":3,"currentValue":7403,"percentage":61},{"unit":6,"currentValue":8515,"percentage":14}]
+[{"unit":3,"currentValue":8234,"percentage":68,"nextResetTime":1789555145884},{"unit":6,"currentValue":9347,"percentage":15,"nextResetTime":1789789082983}]
+[{"unit":3,"currentValue":9031,"percentage":75},{"unit":6,"currentValue":10144,"percentage":16}]
+2026-09-16T06:59:26Z [{"unit":3,"currentValue":9260,"percentage":77},{"unit":6,"currentValue":10373,"percentage":17}]
+2026-09-16T07:00:26Z [{"unit":3,"currentValue":9494,"percentage":79},{"unit":6,"currentValue":10607,"percentage":17}]

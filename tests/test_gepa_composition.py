@@ -5,11 +5,20 @@ from pathlib import Path
 
 import pytest
 
-pytest.importorskip("gepa", reason="Install the isolated harness-gepa requirements")
-from gepa.oa.config import OptimizeAnythingConfig
-from gepa.oa.engine import Result
+try:
+    from gepa.oa.config import OptimizeAnythingConfig
+except ImportError:
+    OptimizeAnythingConfig = None
 
-from evallab.gepa_optimizer import composition
+# Keep each test collected when the optional engine is absent, as in
+# test_gepa_meta_engine.py; module-level importorskip hides the whole module.
+pytestmark = pytest.mark.skipif(
+    OptimizeAnythingConfig is None, reason="Install the isolated harness-gepa requirements"
+)
+if OptimizeAnythingConfig is not None:
+    from gepa.oa.engine import Result
+
+    from evallab.gepa_optimizer import composition
 
 
 class Pause(BaseException):

@@ -352,6 +352,10 @@ class ExperimentSpec(ContractModel):
         gt=0,
         description="enforced per-trial agent cost ceiling",
     )
+    harness_policy: str | None = Field(
+        default=None,
+        description="harness variant selector forwarded as --agent-kwarg policy for the rlm lane",
+    )
     campaign_ledger: CampaignCalibrationLedger | CampaignMeasurementLedger | None = None
     campaign_cell_id: str | None = Field(
         default=None,

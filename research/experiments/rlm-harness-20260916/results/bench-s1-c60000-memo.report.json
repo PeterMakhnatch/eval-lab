@@ -1,0 +1,86 @@
+{
+  "policies": {
+    "orchestrator-lenient": {
+      "n": 4,
+      "accuracy": 1.0,
+      "errors": 0,
+      "budget_stopped": 0,
+      "mean_iterations": 5.0,
+      "mean_sub_calls": 3.5,
+      "mean_input_tokens": 24308.25,
+      "mean_output_tokens": 19291.0,
+      "mean_reasoning_tokens": 14531.5,
+      "mean_cost_usd": 0.118912,
+      "total_cost_usd": 0.475648,
+      "mean_wall_seconds": 413.945,
+      "by_family": {
+        "memo-classify": 1.0
+      },
+      "family_n": {
+        "memo-classify": 4
+      },
+      "files": [
+        "orchestrator-lenient-s1-r1.jsonl"
+      ]
+    },
+    "stock-lenient": {
+      "n": 4,
+      "accuracy": 1.0,
+      "errors": 0,
+      "budget_stopped": 0,
+      "mean_iterations": 4.75,
+      "mean_sub_calls": 5.25,
+      "mean_input_tokens": 25976.5,
+      "mean_output_tokens": 15264.0,
+      "mean_reasoning_tokens": 11205.0,
+      "mean_cost_usd": 0.10352875,
+      "total_cost_usd": 0.414115,
+      "mean_wall_seconds": 1448.93,
+      "by_family": {
+        "memo-classify": 1.0
+      },
+      "family_n": {
+        "memo-classify": 4
+      },
+      "files": [
+        "stock-lenient-s1-r1.jsonl"
+      ]
+    }
+  },
+  "paired": [
+    {
+      "candidate": "orchestrator-lenient",
+      "baseline": "stock-lenient",
+      "paired_n": 4,
+      "wins": 0,
+      "losses": 0,
+      "ties": 4,
+      "accuracy_delta": 0.0,
+      "sign_test_p": 1.0,
+      "cost_usd": {
+        "baseline_mean": 0.10352875,
+        "candidate_mean": 0.118912,
+        "ratio": 1.1485891600159377,
+        "lower": 1,
+        "higher": 3,
+        "sign_test_p": 0.625
+      },
+      "iterations": {
+        "baseline_mean": 4.75,
+        "candidate_mean": 5.0,
+        "ratio": 1.0526315789473684,
+        "lower": 1,
+        "higher": 2,
+        "sign_test_p": 1.0
+      },
+      "wall_seconds": {
+        "baseline_mean": 1448.93,
+        "candidate_mean": 413.945,
+        "ratio": 0.28569012995796894,
+        "lower": 3,
+        "higher": 1,
+        "sign_test_p": 0.625
+      }
+    }
+  ]
+}

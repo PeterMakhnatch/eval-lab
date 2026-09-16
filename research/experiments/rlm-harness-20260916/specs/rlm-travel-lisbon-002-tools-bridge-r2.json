@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "rlm-travel-lisbon-002-tools-bridge-r2",
+  "hypothesis": "Under the lab-owned dspy.RLM agent with policy tools-bridge (harness runtime with in-loop parse recovery and 8 LM retries), the registered task travel-lisbon-002 is attempted with GLM-5.3-Flash; reward, iterations, sub-calls, parse failures and API-equivalent cost are recorded for a paired comparison against policy stock on the same task.",
+  "purpose": "elicitation",
+  "task": "library/tasks/experimental/deepplanning-v1/travel-lisbon-002",
+  "task_path": "library/tasks/experimental/deepplanning-v1/travel-lisbon-002",
+  "task_id": "travel-lisbon-002",
+  "agent": "rlm",
+  "model": "zai-coding-plan/glm-5.3-flash",
+  "harness_policy": "tools-bridge",
+  "cost_limit_usd": 0.6,
+  "environment": "docker",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "concurrency": 1,
+  "timeout_seconds": 900,
+  "submitted_by": "harness",
+  "priority": 100,
+  "est_cost_usd": 0.3,
+  "policy_rule": "human-approval",
+  "task_package_digest": "sha256:8dec991845b4f20619581d6160440328f0ad9684dcfc6cdbebd103e83ba7e7aa"
+}

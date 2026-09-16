@@ -35,6 +35,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from evallab.execution_contracts import (
     OPENCODE_AUTH_RELATIVE_PATH,
+    RLM_AGENT,
     ZAI_AUTH_PROVIDER,
     ZAI_OPENCODE_AGENT,
     read_owner_secret_file,
@@ -578,6 +579,27 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 ),
             ),
             AgentProfile(
+                profile_id="rlm-glm-5.3-flash",
+                adapter=RLM_AGENT,
+                model="zai-coding-plan/glm-5.3-flash",
+                auth_mode="subscription-auth-file",
+                secret_source=f"file:{OPENCODE_AUTH_RELATIVE_PATH.as_posix()}",
+                required_files=(OPENCODE_AUTH_RELATIVE_PATH.as_posix(),),
+                capabilities=(
+                    "credential-transport:host-secret-file",
+                    "structured-trajectory:rlm-trajectory-json",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=1800,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-09-16: harbor 0.21.0 stock dspy-rlm rejected by dspy 3.3.1 "
+                    "(max_iterations vs max_iters); lab-owned LabRlmAgent replaces it",
+                ),
+            ),
+            AgentProfile(
                 profile_id="mini-swe-agent-deepseek-v4-flash",
                 adapter="mini-swe-agent",
                 model="deepseek/deepseek-flash",
@@ -755,7 +777,7 @@ def default_probe_for(
             )
         expect = "gemini" if command[0] == "agy" else "logged in"
         return CliSessionProbe(argv=tuple(command), expect=expect)
-    if profile.adapter == ZAI_OPENCODE_AGENT:
+    if profile.adapter in (ZAI_OPENCODE_AGENT, RLM_AGENT):
         relative = (profile.secret_source or "file:")[len("file:") :]
         return OpenCodeProviderAuthProbe(
             home=home,

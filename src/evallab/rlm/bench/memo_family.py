@@ -17,6 +17,7 @@ partial credit from ``meta['ground_truth']``.
 from __future__ import annotations
 
 import random
+from typing import Any
 
 from evallab.rlm.bench.generators import BenchTask
 
@@ -156,7 +157,7 @@ def _render(rng: random.Random, template: str) -> str:
     return out
 
 
-def _records(rng: random.Random, n: int) -> list[dict[str, object]]:
+def _records(rng: random.Random, n: int) -> list[dict[str, Any]]:
     accounts = [f"ACC-{rng.randint(1000, 9999)}" for _ in range(4)]
     records = []
     for i in range(n):

@@ -1,0 +1,1188 @@
+2026-03-14 02:00:03.091 ingest batch=b0056 stage=commit bytes=3841257 sink=warehouse result=ok
+2026-03-14 02:00:08.828 ingest batch=b0593 stage=commit bytes=3113233 sink=warehouse result=ok
+2026-03-14 02:00:18.242 ingest batch=b0640 stage=commit bytes=7540191 sink=warehouse result=ok
+2026-03-14 02:00:18.555 ingest batch=b0018 stage=commit bytes=428439 sink=warehouse result=ok
+2026-03-14 02:00:20.829 ingest batch=b0332 stage=commit bytes=3678113 sink=warehouse result=ok
+2026-03-14 02:00:29.628 ingest batch=b0412 stage=commit bytes=4612094 sink=warehouse result=ok
+2026-03-14 02:00:29.771 ingest batch=b0199 stage=commit bytes=2850895 sink=warehouse result=ok
+2026-03-14 02:00:36.491 ingest batch=b0643 stage=commit bytes=8213983 sink=warehouse result=ok
+2026-03-14 02:00:37.679 ingest batch=b0015 stage=commit bytes=2439538 sink=warehouse result=ok
+2026-03-14 02:00:39.024 ingest batch=b0815 stage=commit bytes=948040 sink=warehouse result=ok
+2026-03-14 02:00:46.774 ingest batch=b0323 stage=commit bytes=2089778 sink=warehouse result=ok
+2026-03-14 02:01:18.552 ingest batch=b0135 stage=commit bytes=1553211 sink=warehouse result=ok
+2026-03-14 02:01:18.577 ingest batch=b0513 stage=commit bytes=6312611 sink=warehouse result=ok
+2026-03-14 02:01:19.367 ingest batch=b0821 stage=commit bytes=8650435 sink=warehouse result=ok
+2026-03-14 02:01:31.293 ingest batch=b0624 stage=commit bytes=7149281 sink=warehouse result=ok
+2026-03-14 02:01:39.823 ingest batch=b0626 stage=commit bytes=389109 sink=warehouse result=ok
+2026-03-14 02:01:48.904 ingest batch=b0504 stage=commit bytes=4004754 sink=warehouse result=ok
+2026-03-14 02:02:07.115 ingest batch=b0563 stage=commit bytes=5333862 sink=warehouse result=ok
+2026-03-14 02:02:16.502 ingest batch=b0261 stage=commit bytes=4586514 sink=warehouse result=ok
+2026-03-14 02:02:31.338 ingest batch=b0430 stage=commit bytes=4719328 sink=warehouse result=ok
+2026-03-14 02:02:32.134 ingest batch=b0341 stage=commit bytes=3790790 sink=warehouse result=ok
+2026-03-14 02:02:32.277 ingest batch=b0341 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 02:02:39.761 ingest batch=b0574 stage=commit bytes=6762560 sink=warehouse result=ok
+2026-03-14 02:02:44.553 ingest batch=b0341 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:02:45.928 ingest batch=b0399 stage=commit bytes=5117692 sink=warehouse result=ok
+2026-03-14 02:02:47.138 ingest batch=b0225 stage=commit bytes=406164 sink=warehouse result=ok
+2026-03-14 02:02:50.310 ingest batch=b0123 stage=commit bytes=6362716 sink=warehouse result=ok
+2026-03-14 02:02:50.436 ingest batch=b0591 stage=commit bytes=5874656 sink=warehouse result=ok
+2026-03-14 02:02:53.592 ingest batch=b0529 stage=commit bytes=3695085 sink=warehouse result=ok
+2026-03-14 02:02:53.987 ingest batch=b0529 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 02:03:04.973 ingest batch=b0073 stage=commit bytes=3643798 sink=warehouse result=ok
+2026-03-14 02:03:05.016 ingest batch=b0843 stage=commit bytes=4928915 sink=warehouse result=ok
+2026-03-14 02:03:05.430 ingest batch=b0073 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 02:03:06.064 ingest batch=b0529 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:03:07.279 ingest batch=b0684 stage=commit bytes=304498 sink=warehouse result=ok
+2026-03-14 02:03:09.142 ingest batch=b0256 stage=commit bytes=3086793 sink=warehouse result=ok
+2026-03-14 02:03:09.369 ingest batch=b0136 stage=commit bytes=3685163 sink=warehouse result=ok
+2026-03-14 02:03:22.065 ingest batch=b0526 stage=commit bytes=8954918 sink=warehouse result=ok
+2026-03-14 02:03:28.503 ingest batch=b0116 stage=commit bytes=2088388 sink=warehouse result=ok
+2026-03-14 02:03:42.901 ingest batch=b0881 stage=commit bytes=3632582 sink=warehouse result=ok
+2026-03-14 02:03:45.053 ingest batch=b0048 stage=commit bytes=8996202 sink=warehouse result=ok
+2026-03-14 02:03:50.880 ingest batch=b0671 stage=commit bytes=4717410 sink=warehouse result=ok
+2026-03-14 02:03:51.664 ingest batch=b0201 stage=commit bytes=6178018 sink=warehouse result=ok
+2026-03-14 02:03:52.184 ingest batch=b0201 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 02:03:57.666 ingest batch=b0120 stage=commit bytes=6217288 sink=warehouse result=ok
+2026-03-14 02:03:58.347 ingest batch=b0120 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 02:04:01.316 ingest batch=b0764 stage=commit bytes=2816975 sink=warehouse result=ok
+2026-03-14 02:04:04.410 ingest batch=b0201 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:04:09.898 ingest batch=b0120 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:04:16.465 ingest batch=b0580 stage=commit bytes=6578621 sink=warehouse result=ok
+2026-03-14 02:04:19.563 ingest batch=b0209 stage=commit bytes=3421905 sink=warehouse result=ok
+2026-03-14 02:04:33.077 ingest batch=b0448 stage=commit bytes=8470203 sink=warehouse result=ok
+2026-03-14 02:04:39.010 ingest batch=b0387 stage=commit bytes=6347008 sink=warehouse result=ok
+2026-03-14 02:04:39.935 ingest batch=b0124 stage=commit bytes=4732398 sink=warehouse result=ok
+2026-03-14 02:04:46.620 ingest batch=b0633 stage=commit bytes=8001615 sink=warehouse result=ok
+2026-03-14 02:04:58.883 ingest batch=b0519 stage=commit bytes=8215895 sink=warehouse result=ok
+2026-03-14 02:04:58.964 ingest batch=b0290 stage=commit bytes=3153500 sink=warehouse result=ok
+2026-03-14 02:05:01.682 ingest batch=b0814 stage=commit bytes=508130 sink=warehouse result=ok
+2026-03-14 02:05:14.117 ingest batch=b0246 stage=commit bytes=7077298 sink=warehouse result=ok
+2026-03-14 02:05:26.735 ingest batch=b0543 stage=commit bytes=3529767 sink=warehouse result=ok
+2026-03-14 02:05:29.651 ingest batch=b0599 stage=commit bytes=2874775 sink=warehouse result=ok
+2026-03-14 02:05:30.633 ingest batch=b0725 stage=commit bytes=3781603 sink=warehouse result=ok
+2026-03-14 02:05:55.276 ingest batch=b0766 stage=commit bytes=4845556 sink=warehouse result=ok
+2026-03-14 02:06:06.016 ingest batch=b0295 stage=commit bytes=1435015 sink=warehouse result=ok
+2026-03-14 02:06:13.309 ingest batch=b0308 stage=commit bytes=2120347 sink=warehouse result=ok
+2026-03-14 02:06:17.110 ingest batch=b0845 stage=commit bytes=1377573 sink=warehouse result=ok
+2026-03-14 02:06:20.005 ingest batch=b0514 stage=commit bytes=1705830 sink=warehouse result=ok
+2026-03-14 02:06:20.321 ingest batch=b0514 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 02:06:29.184 ingest batch=b0065 stage=commit bytes=1718536 sink=warehouse result=ok
+2026-03-14 02:06:31.993 ingest batch=b0514 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:06:32.154 ingest batch=b0617 stage=commit bytes=2950849 sink=warehouse result=ok
+2026-03-14 02:06:32.960 ingest batch=b0788 stage=commit bytes=2959642 sink=warehouse result=ok
+2026-03-14 02:06:33.231 ingest batch=b0788 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:06:45.683 ingest batch=b0788 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:06:45.727 ingest batch=b0340 stage=commit bytes=6078008 sink=warehouse result=ok
+2026-03-14 02:06:46.228 ingest batch=b0340 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:06:59.146 ingest batch=b0004 stage=commit bytes=6672135 sink=warehouse result=ok
+2026-03-14 02:07:06.795 ingest batch=b0531 stage=commit bytes=700220 sink=warehouse result=ok
+2026-03-14 02:07:10.938 ingest batch=b0097 stage=commit bytes=5735501 sink=warehouse result=ok
+2026-03-14 02:07:13.765 ingest batch=b0137 stage=commit bytes=763563 sink=warehouse result=ok
+2026-03-14 02:07:18.889 ingest batch=b0724 stage=commit bytes=8994364 sink=warehouse result=ok
+2026-03-14 02:07:29.615 ingest batch=b0282 stage=commit bytes=1123036 sink=warehouse result=ok
+2026-03-14 02:07:31.906 ingest batch=b0558 stage=commit bytes=2323702 sink=warehouse result=ok
+2026-03-14 02:07:32.303 ingest batch=b0085 stage=commit bytes=5515848 sink=warehouse result=ok
+2026-03-14 02:07:39.047 ingest batch=b0568 stage=commit bytes=44477 sink=warehouse result=ok
+2026-03-14 02:07:52.794 ingest batch=b0051 stage=commit bytes=5333156 sink=warehouse result=ok
+2026-03-14 02:07:56.903 ingest batch=b0321 stage=commit bytes=1729304 sink=warehouse result=ok
+2026-03-14 02:08:02.723 ingest batch=b0267 stage=commit bytes=4015551 sink=warehouse result=ok
+2026-03-14 02:08:08.326 ingest batch=b0873 stage=commit bytes=1929800 sink=warehouse result=ok
+2026-03-14 02:08:12.144 ingest batch=b0860 stage=commit bytes=4162181 sink=warehouse result=ok
+2026-03-14 02:08:12.815 ingest batch=b0860 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:08:13.238 ingest batch=b0540 stage=commit bytes=2228150 sink=warehouse result=ok
+2026-03-14 02:08:15.802 ingest batch=b0762 stage=commit bytes=2275395 sink=warehouse result=ok
+2026-03-14 02:08:20.943 ingest batch=b0468 stage=commit bytes=1036754 sink=warehouse result=ok
+2026-03-14 02:08:24.798 ingest batch=b0860 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:08:39.076 ingest batch=b0133 stage=commit bytes=3251115 sink=warehouse result=ok
+2026-03-14 02:08:39.696 ingest batch=b0133 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:08:42.976 ingest batch=b0858 stage=commit bytes=4252708 sink=warehouse result=ok
+2026-03-14 02:08:43.117 ingest batch=b0364 stage=commit bytes=4678295 sink=warehouse result=ok
+2026-03-14 02:08:45.682 ingest batch=b0274 stage=commit bytes=1265536 sink=warehouse result=ok
+2026-03-14 02:08:48.112 ingest batch=b0652 stage=commit bytes=1829704 sink=warehouse result=ok
+2026-03-14 02:08:51.554 ingest batch=b0133 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:08:56.317 ingest batch=b0451 stage=commit bytes=2497414 sink=warehouse result=ok
+2026-03-14 02:08:57.711 ingest batch=b0789 stage=commit bytes=1011298 sink=warehouse result=ok
+2026-03-14 02:09:00.893 ingest batch=b0673 stage=commit bytes=3900800 sink=warehouse result=ok
+2026-03-14 02:09:03.240 ingest batch=b0653 stage=commit bytes=122909 sink=warehouse result=ok
+2026-03-14 02:09:13.803 ingest batch=b0663 stage=commit bytes=710302 sink=warehouse result=ok
+2026-03-14 02:09:22.751 ingest batch=b0604 stage=commit bytes=8910990 sink=warehouse result=ok
+2026-03-14 02:09:23.762 ingest batch=b0330 stage=commit bytes=1566952 sink=warehouse result=ok
+2026-03-14 02:09:29.414 ingest batch=b0291 stage=commit bytes=7538105 sink=warehouse result=ok
+2026-03-14 02:09:43.880 ingest batch=b0249 stage=commit bytes=6009776 sink=warehouse result=ok
+2026-03-14 02:09:51.800 ingest batch=b0002 stage=commit bytes=6558007 sink=warehouse result=ok
+2026-03-14 02:10:10.602 ingest batch=b0132 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 02:10:10.700 ingest batch=b0132 stage=commit bytes=7919175 sink=warehouse result=ok
+2026-03-14 02:10:21.376 ingest batch=b0542 stage=commit bytes=824166 sink=warehouse result=ok
+2026-03-14 02:10:21.774 ingest batch=b0693 stage=commit bytes=3243016 sink=warehouse result=ok
+2026-03-14 02:10:22.206 ingest batch=b0595 stage=commit bytes=1312329 sink=warehouse result=ok
+2026-03-14 02:10:32.976 ingest batch=b0394 stage=commit bytes=7787818 sink=warehouse result=ok
+2026-03-14 02:10:41.579 ingest batch=b0239 stage=commit bytes=4088822 sink=warehouse result=ok
+2026-03-14 02:10:43.171 ingest batch=b0165 stage=commit bytes=8341163 sink=warehouse result=ok
+2026-03-14 02:10:53.077 ingest batch=b0011 stage=commit bytes=6376996 sink=warehouse result=ok
+2026-03-14 02:11:05.435 ingest batch=b0269 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 02:11:05.569 ingest batch=b0269 stage=commit bytes=5453724 sink=warehouse result=ok
+2026-03-14 02:11:05.576 ingest batch=b0478 stage=commit bytes=1277291 sink=warehouse result=ok
+2026-03-14 02:11:13.678 ingest batch=b0234 stage=commit bytes=7728206 sink=warehouse result=ok
+2026-03-14 02:11:14.233 ingest batch=b0229 stage=commit bytes=8249314 sink=warehouse result=ok
+2026-03-14 02:11:14.965 ingest batch=b0167 stage=commit bytes=3286969 sink=warehouse result=ok
+2026-03-14 02:11:15.093 ingest batch=b0367 stage=commit bytes=2086919 sink=warehouse result=ok
+2026-03-14 02:11:26.291 ingest batch=b0773 stage=commit bytes=2114987 sink=warehouse result=ok
+2026-03-14 02:11:32.259 ingest batch=b0594 stage=commit bytes=2953130 sink=warehouse result=ok
+2026-03-14 02:11:34.882 ingest batch=b0474 stage=commit bytes=2242625 sink=warehouse result=ok
+2026-03-14 02:11:43.379 ingest batch=b0439 stage=commit bytes=776753 sink=warehouse result=ok
+2026-03-14 02:11:43.877 ingest batch=b0493 stage=commit bytes=5652113 sink=warehouse result=ok
+2026-03-14 02:11:47.783 ingest batch=b0049 stage=commit bytes=405824 sink=warehouse result=ok
+2026-03-14 02:11:49.617 ingest batch=b0150 stage=commit bytes=2219772 sink=warehouse result=ok
+2026-03-14 02:11:50.225 ingest batch=b0642 stage=commit bytes=5123301 sink=warehouse result=ok
+2026-03-14 02:11:52.246 ingest batch=b0190 stage=commit bytes=8888895 sink=warehouse result=ok
+2026-03-14 02:11:55.786 ingest batch=b0016 stage=commit bytes=6087095 sink=warehouse result=ok
+2026-03-14 02:11:56.585 ingest batch=b0016 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:12:07.852 ingest batch=b0016 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:12:17.687 ingest batch=b0107 stage=commit bytes=4827337 sink=warehouse result=ok
+2026-03-14 02:12:18.283 ingest batch=b0107 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:12:26.008 ingest batch=b0402 stage=commit bytes=6829108 sink=warehouse result=ok
+2026-03-14 02:12:30.195 ingest batch=b0354 stage=commit bytes=770840 sink=warehouse result=ok
+2026-03-14 02:12:43.698 ingest batch=b0794 stage=commit bytes=7129059 sink=warehouse result=ok
+2026-03-14 02:13:07.974 ingest batch=b0317 stage=commit bytes=6513553 sink=warehouse result=ok
+2026-03-14 02:13:08.937 ingest batch=b0054 stage=commit bytes=1594750 sink=warehouse result=ok
+2026-03-14 02:13:14.942 ingest batch=b0348 stage=commit bytes=5096085 sink=warehouse result=ok
+2026-03-14 02:13:14.983 ingest batch=b0223 stage=commit bytes=148075 sink=warehouse result=ok
+2026-03-14 02:13:31.397 ingest batch=b0138 stage=commit bytes=954252 sink=warehouse result=ok
+2026-03-14 02:13:33.310 ingest batch=b0188 stage=commit bytes=5979435 sink=warehouse result=ok
+2026-03-14 02:13:36.825 ingest batch=b0895 stage=commit bytes=826092 sink=warehouse result=ok
+2026-03-14 02:13:40.086 ingest batch=b0071 stage=commit bytes=6895482 sink=warehouse result=ok
+2026-03-14 02:13:49.041 ingest batch=b0205 stage=commit bytes=5946660 sink=warehouse result=ok
+2026-03-14 02:13:52.505 ingest batch=b0861 stage=commit bytes=5253695 sink=warehouse result=ok
+2026-03-14 02:13:57.148 ingest batch=b0758 stage=commit bytes=1930037 sink=warehouse result=ok
+2026-03-14 02:13:58.421 ingest batch=b0346 stage=commit bytes=6182688 sink=warehouse result=ok
+2026-03-14 02:14:11.541 ingest batch=b0650 stage=commit bytes=7875719 sink=warehouse result=ok
+2026-03-14 02:14:19.662 ingest batch=b0286 stage=commit bytes=8376814 sink=warehouse result=ok
+2026-03-14 02:14:50.722 ingest batch=b0571 stage=commit bytes=6225505 sink=warehouse result=ok
+2026-03-14 02:14:52.657 ingest batch=b0355 stage=commit bytes=1164249 sink=warehouse result=ok
+2026-03-14 02:14:56.805 ingest batch=b0639 stage=commit bytes=984969 sink=warehouse result=ok
+2026-03-14 02:15:25.883 ingest batch=b0103 stage=commit bytes=5709938 sink=warehouse result=ok
+2026-03-14 02:15:28.005 ingest batch=b0892 stage=commit bytes=7698759 sink=warehouse result=ok
+2026-03-14 02:15:33.461 ingest batch=b0891 stage=commit bytes=7956629 sink=warehouse result=ok
+2026-03-14 02:15:36.303 ingest batch=b0381 stage=commit bytes=1005008 sink=warehouse result=ok
+2026-03-14 02:15:36.496 ingest batch=b0381 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 02:15:39.442 ingest batch=b0677 stage=commit bytes=2740542 sink=warehouse result=ok
+2026-03-14 02:15:40.266 ingest batch=b0555 stage=commit bytes=4504965 sink=warehouse result=ok
+2026-03-14 02:15:45.964 ingest batch=b0857 stage=commit bytes=8878727 sink=warehouse result=ok
+2026-03-14 02:15:48.665 ingest batch=b0381 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:15:59.618 ingest batch=b0647 stage=commit bytes=7943892 sink=warehouse result=ok
+2026-03-14 02:15:59.860 ingest batch=b0152 stage=commit bytes=2176857 sink=warehouse result=ok
+2026-03-14 02:16:09.241 ingest batch=b0326 stage=commit bytes=212164 sink=warehouse result=ok
+2026-03-14 02:16:19.030 ingest batch=b0313 stage=commit bytes=8097837 sink=warehouse result=ok
+2026-03-14 02:16:25.656 ingest batch=b0045 stage=commit bytes=4354240 sink=warehouse result=ok
+2026-03-14 02:16:28.560 ingest batch=b0703 stage=commit bytes=5985485 sink=warehouse result=ok
+2026-03-14 02:16:44.149 ingest batch=b0400 stage=commit bytes=7081204 sink=warehouse result=ok
+2026-03-14 02:16:47.859 ingest batch=b0040 stage=commit bytes=6864757 sink=warehouse result=ok
+2026-03-14 02:17:22.841 ingest batch=b0061 stage=commit bytes=6629972 sink=warehouse result=ok
+2026-03-14 02:17:24.143 ingest batch=b0440 stage=commit bytes=4807998 sink=warehouse result=ok
+2026-03-14 02:17:25.426 ingest batch=b0681 stage=commit bytes=838070 sink=warehouse result=ok
+2026-03-14 02:17:29.148 ingest batch=b0589 stage=commit bytes=5003700 sink=warehouse result=ok
+2026-03-14 02:17:32.514 ingest batch=b0488 stage=commit bytes=4454276 sink=warehouse result=ok
+2026-03-14 02:17:35.543 ingest batch=b0322 stage=commit bytes=5203165 sink=warehouse result=ok
+2026-03-14 02:18:05.417 ingest batch=b0864 stage=commit bytes=5954378 sink=warehouse result=ok
+2026-03-14 02:18:05.516 ingest batch=b0818 stage=commit bytes=6796166 sink=warehouse result=ok
+2026-03-14 02:18:28.076 ingest batch=b0552 stage=commit bytes=374427 sink=warehouse result=ok
+2026-03-14 02:18:28.978 ingest batch=b0679 stage=commit bytes=6570887 sink=warehouse result=ok
+2026-03-14 02:18:34.679 ingest batch=b0727 stage=commit bytes=1884178 sink=warehouse result=ok
+2026-03-14 02:18:51.873 ingest batch=b0714 stage=commit bytes=5650689 sink=warehouse result=ok
+2026-03-14 02:18:53.289 ingest batch=b0183 stage=commit bytes=4329158 sink=warehouse result=ok
+2026-03-14 02:19:03.338 ingest batch=b0510 stage=commit bytes=2810673 sink=warehouse result=ok
+2026-03-14 02:19:06.233 ingest batch=b0518 stage=commit bytes=8807399 sink=warehouse result=ok
+2026-03-14 02:19:07.244 ingest batch=b0772 stage=commit bytes=3027098 sink=warehouse result=ok
+2026-03-14 02:19:07.518 ingest batch=b0145 stage=commit bytes=587666 sink=warehouse result=ok
+2026-03-14 02:19:13.506 ingest batch=b0548 stage=commit bytes=4886855 sink=warehouse result=ok
+2026-03-14 02:19:21.559 ingest batch=b0581 stage=commit bytes=4516222 sink=warehouse result=ok
+2026-03-14 02:19:31.430 ingest batch=b0453 stage=commit bytes=3137572 sink=warehouse result=ok
+2026-03-14 02:19:31.808 ingest batch=b0053 stage=commit bytes=7024615 sink=warehouse result=ok
+2026-03-14 02:19:32.316 ingest batch=b0053 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 02:19:32.368 ingest batch=b0102 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:19:32.680 ingest batch=b0102 stage=commit bytes=8716412 sink=warehouse result=ok
+2026-03-14 02:19:34.634 ingest batch=b0379 stage=commit bytes=7451628 sink=warehouse result=ok
+2026-03-14 02:19:36.309 ingest batch=b0654 stage=commit bytes=8184626 sink=warehouse result=ok
+2026-03-14 02:19:44.423 ingest batch=b0053 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:20:12.929 ingest batch=b0014 stage=commit bytes=6287211 sink=warehouse result=ok
+2026-03-14 02:20:31.604 ingest batch=b0226 stage=commit bytes=1782713 sink=warehouse result=ok
+2026-03-14 02:20:44.809 ingest batch=b0419 stage=commit bytes=1376930 sink=warehouse result=ok
+2026-03-14 02:20:45.659 ingest batch=b0419 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 02:20:54.859 ingest batch=b0129 stage=commit bytes=1227324 sink=warehouse result=ok
+2026-03-14 02:20:56.931 ingest batch=b0419 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:20:59.531 ingest batch=b0822 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 02:20:59.897 ingest batch=b0822 stage=commit bytes=3948581 sink=warehouse result=ok
+2026-03-14 02:21:04.435 ingest batch=b0532 stage=commit bytes=8867392 sink=warehouse result=ok
+2026-03-14 02:21:05.548 ingest batch=b0597 stage=commit bytes=718160 sink=warehouse result=ok
+2026-03-14 02:21:07.536 ingest batch=b0627 stage=commit bytes=2505378 sink=warehouse result=ok
+2026-03-14 02:21:07.756 ingest batch=b0240 stage=commit bytes=1849792 sink=warehouse result=ok
+2026-03-14 02:21:13.826 ingest batch=b0553 stage=commit bytes=6024991 sink=warehouse result=ok
+2026-03-14 02:21:22.656 ingest batch=b0369 stage=commit bytes=2673728 sink=warehouse result=ok
+2026-03-14 02:21:30.143 ingest batch=b0334 stage=commit bytes=6669481 sink=warehouse result=ok
+2026-03-14 02:21:34.377 ingest batch=b0378 stage=commit bytes=6246795 sink=warehouse result=ok
+2026-03-14 02:21:35.084 ingest batch=b0564 stage=commit bytes=8566743 sink=warehouse result=ok
+2026-03-14 02:21:36.268 ingest batch=b0635 stage=commit bytes=3847986 sink=warehouse result=ok
+2026-03-14 02:21:36.514 ingest batch=b0067 stage=commit bytes=323195 sink=warehouse result=ok
+2026-03-14 02:21:37.962 ingest batch=b0483 stage=commit bytes=8176860 sink=warehouse result=ok
+2026-03-14 02:21:41.714 ingest batch=b0769 stage=commit bytes=801886 sink=warehouse result=ok
+2026-03-14 02:21:43.455 ingest batch=b0785 stage=commit bytes=2615546 sink=warehouse result=ok
+2026-03-14 02:21:49.404 ingest batch=b0628 stage=commit bytes=2939967 sink=warehouse result=ok
+2026-03-14 02:21:52.972 ingest batch=b0042 stage=commit bytes=6228118 sink=warehouse result=ok
+2026-03-14 02:21:54.552 ingest batch=b0351 stage=commit bytes=4250489 sink=warehouse result=ok
+2026-03-14 02:21:54.778 ingest batch=b0219 stage=commit bytes=1230982 sink=warehouse result=ok
+2026-03-14 02:21:55.331 ingest batch=b0219 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:22:01.197 ingest batch=b0030 stage=commit bytes=3832790 sink=warehouse result=ok
+2026-03-14 02:22:04.835 ingest batch=b0732 stage=commit bytes=7228596 sink=warehouse result=ok
+2026-03-14 02:22:06.911 ingest batch=b0219 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:22:11.982 ingest batch=b0060 stage=commit bytes=8123660 sink=warehouse result=ok
+2026-03-14 02:22:16.862 ingest batch=b0153 stage=commit bytes=5455463 sink=warehouse result=ok
+2026-03-14 02:22:50.624 ingest batch=b0142 stage=commit bytes=1630074 sink=warehouse result=ok
+2026-03-14 02:23:05.457 ingest batch=b0403 stage=commit bytes=5312011 sink=warehouse result=ok
+2026-03-14 02:23:07.964 ingest batch=b0494 stage=commit bytes=1570070 sink=warehouse result=ok
+2026-03-14 02:23:08.053 ingest batch=b0336 stage=commit bytes=3499653 sink=warehouse result=ok
+2026-03-14 02:23:29.387 ingest batch=b0298 stage=commit bytes=3084640 sink=warehouse result=ok
+2026-03-14 02:23:38.764 ingest batch=b0733 stage=commit bytes=7706303 sink=warehouse result=ok
+2026-03-14 02:23:47.315 ingest batch=b0607 stage=commit bytes=988924 sink=warehouse result=ok
+2026-03-14 02:23:47.712 ingest batch=b0372 stage=commit bytes=4910292 sink=warehouse result=ok
+2026-03-14 02:23:51.797 ingest batch=b0676 stage=commit bytes=2174085 sink=warehouse result=ok
+2026-03-14 02:23:59.456 ingest batch=b0265 stage=commit bytes=955907 sink=warehouse result=ok
+2026-03-14 02:24:05.136 ingest batch=b0537 stage=commit bytes=7974740 sink=warehouse result=ok
+2026-03-14 02:24:29.784 ingest batch=b0796 stage=commit bytes=394522 sink=warehouse result=ok
+2026-03-14 02:24:29.933 ingest batch=b0158 stage=commit bytes=6450238 sink=warehouse result=ok
+2026-03-14 02:24:33.581 ingest batch=b0878 stage=commit bytes=4301576 sink=warehouse result=ok
+2026-03-14 02:24:41.214 ingest batch=b0058 stage=commit bytes=503262 sink=warehouse result=ok
+2026-03-14 02:24:44.771 ingest batch=b0366 stage=commit bytes=8118982 sink=warehouse result=ok
+2026-03-14 02:24:56.282 ingest batch=b0119 stage=commit bytes=2973986 sink=warehouse result=ok
+2026-03-14 02:24:59.471 ingest batch=b0242 stage=commit bytes=8726526 sink=warehouse result=ok
+2026-03-14 02:25:02.057 ingest batch=b0618 stage=commit bytes=5563199 sink=warehouse result=ok
+2026-03-14 02:25:12.358 ingest batch=b0389 stage=commit bytes=6852487 sink=warehouse result=ok
+2026-03-14 02:25:21.537 ingest batch=b0371 stage=commit bytes=4634210 sink=warehouse result=ok
+2026-03-14 02:25:26.019 ingest batch=b0237 stage=commit bytes=7820237 sink=warehouse result=ok
+2026-03-14 02:25:30.899 ingest batch=b0760 stage=commit bytes=5383233 sink=warehouse result=ok
+2026-03-14 02:25:36.046 ingest batch=b0059 stage=commit bytes=4243330 sink=warehouse result=ok
+2026-03-14 02:25:36.060 ingest batch=b0059 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 02:25:45.703 ingest batch=b0046 stage=commit bytes=7001757 sink=warehouse result=ok
+2026-03-14 02:25:46.198 ingest batch=b0069 stage=commit bytes=7256594 sink=warehouse result=ok
+2026-03-14 02:25:46.551 ingest batch=b0069 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 02:25:53.036 ingest batch=b0283 stage=commit bytes=7583677 sink=warehouse result=ok
+2026-03-14 02:25:58.069 ingest batch=b0396 stage=commit bytes=8583162 sink=warehouse result=ok
+2026-03-14 02:25:58.326 ingest batch=b0069 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:26:03.797 ingest batch=b0602 stage=commit bytes=45072 sink=warehouse result=ok
+2026-03-14 02:26:08.366 ingest batch=b0252 stage=commit bytes=8360120 sink=warehouse result=ok
+2026-03-14 02:26:13.194 ingest batch=b0683 stage=commit bytes=7393209 sink=warehouse result=ok
+2026-03-14 02:26:15.787 ingest batch=b0433 stage=commit bytes=5222189 sink=warehouse result=ok
+2026-03-14 02:26:15.957 ingest batch=b0253 stage=commit bytes=5814390 sink=warehouse result=ok
+2026-03-14 02:26:21.096 ingest batch=b0527 stage=commit bytes=4412711 sink=warehouse result=ok
+2026-03-14 02:26:21.273 ingest batch=b0438 stage=commit bytes=8704622 sink=warehouse result=ok
+2026-03-14 02:26:27.438 ingest batch=b0191 stage=commit bytes=8001849 sink=warehouse result=ok
+2026-03-14 02:26:32.627 ingest batch=b0264 stage=commit bytes=8999932 sink=warehouse result=ok
+2026-03-14 02:26:34.307 ingest batch=b0122 stage=commit bytes=5322141 sink=warehouse result=ok
+2026-03-14 02:26:42.628 ingest batch=b0786 stage=commit bytes=8110858 sink=warehouse result=ok
+2026-03-14 02:26:53.541 ingest batch=b0809 stage=commit bytes=4259618 sink=warehouse result=ok
+2026-03-14 02:27:03.805 ingest batch=b0697 stage=commit bytes=1971642 sink=warehouse result=ok
+2026-03-14 02:27:04.578 ingest batch=b0406 stage=commit bytes=1515524 sink=warehouse result=ok
+2026-03-14 02:27:07.805 ingest batch=b0826 stage=commit bytes=4231306 sink=warehouse result=ok
+2026-03-14 02:27:10.373 ingest batch=b0425 stage=commit bytes=6291417 sink=warehouse result=ok
+2026-03-14 02:27:12.445 ingest batch=b0373 stage=commit bytes=7329199 sink=warehouse result=ok
+2026-03-14 02:27:12.691 ingest batch=b0373 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:27:24.482 ingest batch=b0373 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:27:26.737 ingest batch=b0675 stage=commit bytes=7044344 sink=warehouse result=ok
+2026-03-14 02:27:30.133 ingest batch=b0404 stage=commit bytes=346731 sink=warehouse result=ok
+2026-03-14 02:27:45.818 ingest batch=b0436 stage=commit bytes=1069151 sink=warehouse result=ok
+2026-03-14 02:27:46.843 ingest batch=b0418 stage=commit bytes=6848380 sink=warehouse result=ok
+2026-03-14 02:27:59.743 ingest batch=b0033 stage=commit bytes=7278890 sink=warehouse result=ok
+2026-03-14 02:28:05.894 ingest batch=b0544 stage=commit bytes=3543490 sink=warehouse result=ok
+2026-03-14 02:28:20.940 ingest batch=b0055 stage=commit bytes=4563790 sink=warehouse result=ok
+2026-03-14 02:28:22.250 ingest batch=b0731 stage=commit bytes=1034986 sink=warehouse result=ok
+2026-03-14 02:28:22.357 ingest batch=b0131 stage=commit bytes=5880297 sink=warehouse result=ok
+2026-03-14 02:28:43.578 ingest batch=b0620 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:28:43.596 ingest batch=b0890 stage=commit bytes=3591968 sink=warehouse result=ok
+2026-03-14 02:28:43.616 ingest batch=b0620 stage=commit bytes=3172235 sink=warehouse result=ok
+2026-03-14 02:28:55.842 ingest batch=b0620 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:28:57.093 ingest batch=b0344 stage=commit bytes=650465 sink=warehouse result=ok
+2026-03-14 02:28:57.976 ingest batch=b0344 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:29:05.715 ingest batch=b0444 stage=commit bytes=2444126 sink=warehouse result=ok
+2026-03-14 02:29:08.874 ingest batch=b0804 stage=commit bytes=7595540 sink=warehouse result=ok
+2026-03-14 02:29:09.965 ingest batch=b0344 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:29:26.651 ingest batch=b0551 stage=commit bytes=1809343 sink=warehouse result=ok
+2026-03-14 02:29:42.511 ingest batch=b0057 stage=commit bytes=8338870 sink=warehouse result=ok
+2026-03-14 02:29:45.184 ingest batch=b0320 stage=commit bytes=163098 sink=warehouse result=ok
+2026-03-14 02:29:55.216 ingest batch=b0811 stage=commit bytes=2080476 sink=warehouse result=ok
+2026-03-14 02:30:14.204 ingest batch=b0070 stage=commit bytes=5166986 sink=warehouse result=ok
+2026-03-14 02:30:15.369 ingest batch=b0831 stage=commit bytes=5023255 sink=warehouse result=ok
+2026-03-14 02:30:21.612 ingest batch=b0471 stage=commit bytes=2101686 sink=warehouse result=ok
+2026-03-14 02:30:21.877 ingest batch=b0206 stage=commit bytes=3799239 sink=warehouse result=ok
+2026-03-14 02:30:30.536 ingest batch=b0302 stage=commit bytes=7945036 sink=warehouse result=ok
+2026-03-14 02:30:31.607 ingest batch=b0723 stage=commit bytes=2348530 sink=warehouse result=ok
+2026-03-14 02:30:35.643 ingest batch=b0417 stage=commit bytes=6520103 sink=warehouse result=ok
+2026-03-14 02:30:37.508 ingest batch=b0003 stage=commit bytes=4878632 sink=warehouse result=ok
+2026-03-14 02:30:45.938 ingest batch=b0661 stage=commit bytes=5533284 sink=warehouse result=ok
+2026-03-14 02:30:58.098 ingest batch=b0362 stage=commit bytes=6267138 sink=warehouse result=ok
+2026-03-14 02:30:59.887 ingest batch=b0582 stage=commit bytes=7022191 sink=warehouse result=ok
+2026-03-14 02:31:13.706 ingest batch=b0782 stage=commit bytes=1482667 sink=warehouse result=ok
+2026-03-14 02:31:16.403 ingest batch=b0431 stage=commit bytes=3805552 sink=warehouse result=ok
+2026-03-14 02:31:18.135 ingest batch=b0224 stage=commit bytes=2657650 sink=warehouse result=ok
+2026-03-14 02:31:22.400 ingest batch=b0446 stage=commit bytes=388202 sink=warehouse result=ok
+2026-03-14 02:31:26.605 ingest batch=b0342 stage=commit bytes=7594438 sink=warehouse result=ok
+2026-03-14 02:31:48.474 ingest batch=b0696 stage=commit bytes=603049 sink=warehouse result=ok
+2026-03-14 02:31:50.852 ingest batch=b0735 stage=commit bytes=1354279 sink=warehouse result=ok
+2026-03-14 02:31:55.064 ingest batch=b0140 stage=commit bytes=3667316 sink=warehouse result=ok
+2026-03-14 02:32:03.152 ingest batch=b0233 stage=commit bytes=8873834 sink=warehouse result=ok
+2026-03-14 02:32:04.378 ingest batch=b0505 stage=commit bytes=8120484 sink=warehouse result=ok
+2026-03-14 02:32:05.827 ingest batch=b0718 stage=commit bytes=6105545 sink=warehouse result=ok
+2026-03-14 02:32:09.425 ingest batch=b0547 stage=commit bytes=712872 sink=warehouse result=ok
+2026-03-14 02:32:12.324 ingest batch=b0243 stage=commit bytes=4100213 sink=warehouse result=ok
+2026-03-14 02:32:27.820 ingest batch=b0803 stage=commit bytes=3292916 sink=warehouse result=ok
+2026-03-14 02:32:29.733 ingest batch=b0865 stage=commit bytes=3695872 sink=warehouse result=ok
+2026-03-14 02:32:32.209 ingest batch=b0721 stage=commit bytes=4181551 sink=warehouse result=ok
+2026-03-14 02:32:41.914 ingest batch=b0028 stage=commit bytes=1138757 sink=warehouse result=ok
+2026-03-14 02:32:45.289 ingest batch=b0827 stage=commit bytes=5096134 sink=warehouse result=ok
+2026-03-14 02:32:46.946 ingest batch=b0258 stage=commit bytes=4278877 sink=warehouse result=ok
+2026-03-14 02:33:02.346 ingest batch=b0203 stage=commit bytes=2823416 sink=warehouse result=ok
+2026-03-14 02:33:11.179 ingest batch=b0147 stage=commit bytes=4872680 sink=warehouse result=ok
+2026-03-14 02:33:13.788 ingest batch=b0074 stage=commit bytes=4718238 sink=warehouse result=ok
+2026-03-14 02:33:14.340 ingest batch=b0074 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 02:33:26.630 ingest batch=b0074 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:33:37.261 ingest batch=b0280 stage=commit bytes=7358214 sink=warehouse result=ok
+2026-03-14 02:33:37.726 ingest batch=b0008 stage=commit bytes=2395967 sink=warehouse result=ok
+2026-03-14 02:33:39.244 ingest batch=b0343 stage=commit bytes=879372 sink=warehouse result=ok
+2026-03-14 02:33:41.833 ingest batch=b0349 stage=commit bytes=1385005 sink=warehouse result=ok
+2026-03-14 02:33:44.581 ingest batch=b0276 stage=commit bytes=96928 sink=warehouse result=ok
+2026-03-14 02:34:01.705 ingest batch=b0868 stage=commit bytes=2487745 sink=warehouse result=ok
+2026-03-14 02:34:22.389 ingest batch=b0005 stage=commit bytes=2862498 sink=warehouse result=ok
+2026-03-14 02:34:22.471 ingest batch=b0005 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 02:34:23.011 ingest batch=b0525 stage=commit bytes=8954566 sink=warehouse result=ok
+2026-03-14 02:34:26.867 ingest batch=b0220 stage=commit bytes=6841862 sink=warehouse result=ok
+2026-03-14 02:34:30.682 ingest batch=b0658 stage=commit bytes=3968481 sink=warehouse result=ok
+2026-03-14 02:34:30.969 ingest batch=b0658 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 02:34:33.695 ingest batch=b0005 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:34:38.346 ingest batch=b0888 stage=commit bytes=7029373 sink=warehouse result=ok
+2026-03-14 02:34:42.973 ingest batch=b0658 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:34:43.112 ingest batch=b0736 stage=commit bytes=260423 sink=warehouse result=ok
+2026-03-14 02:34:47.579 ingest batch=b0181 stage=commit bytes=2078886 sink=warehouse result=ok
+2026-03-14 02:34:56.022 ingest batch=b0586 stage=commit bytes=5215207 sink=warehouse result=ok
+2026-03-14 02:34:56.527 ingest batch=b0457 stage=commit bytes=8196736 sink=warehouse result=ok
+2026-03-14 02:34:58.523 ingest batch=b0761 stage=commit bytes=5857456 sink=warehouse result=ok
+2026-03-14 02:34:59.694 ingest batch=b0210 stage=commit bytes=2116833 sink=warehouse result=ok
+2026-03-14 02:35:11.314 ingest batch=b0489 stage=commit bytes=7178221 sink=warehouse result=ok
+2026-03-14 02:35:12.654 ingest batch=b0214 stage=commit bytes=6174453 sink=warehouse result=ok
+2026-03-14 02:35:18.963 ingest batch=b0834 stage=commit bytes=231351 sink=warehouse result=ok
+2026-03-14 02:35:29.925 ingest batch=b0603 stage=commit bytes=6602724 sink=warehouse result=ok
+2026-03-14 02:35:37.522 ingest batch=b0802 stage=commit bytes=8528258 sink=warehouse result=ok
+2026-03-14 02:35:56.079 ingest batch=b0007 stage=commit bytes=6825918 sink=warehouse result=ok
+2026-03-14 02:35:58.550 ingest batch=b0887 stage=commit bytes=6271163 sink=warehouse result=ok
+2026-03-14 02:35:59.718 ingest batch=b0104 stage=commit bytes=1578633 sink=warehouse result=ok
+2026-03-14 02:36:00.507 ingest batch=b0398 stage=commit bytes=7850292 sink=warehouse result=ok
+2026-03-14 02:36:00.686 ingest batch=b0398 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 02:36:01.249 ingest batch=b0232 stage=commit bytes=3002157 sink=warehouse result=ok
+2026-03-14 02:36:09.898 ingest batch=b0017 stage=commit bytes=3170704 sink=warehouse result=ok
+2026-03-14 02:36:11.657 ingest batch=b0882 stage=commit bytes=3482782 sink=warehouse result=ok
+2026-03-14 02:36:13.105 ingest batch=b0398 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:36:16.532 ingest batch=b0585 stage=commit bytes=386525 sink=warehouse result=ok
+2026-03-14 02:36:16.560 ingest batch=b0585 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 02:36:28.492 ingest batch=b0585 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:36:29.403 ingest batch=b0869 stage=commit bytes=2146677 sink=warehouse result=ok
+2026-03-14 02:36:31.061 ingest batch=b0401 stage=commit bytes=5058998 sink=warehouse result=ok
+2026-03-14 02:36:32.899 ingest batch=b0497 stage=commit bytes=4409383 sink=warehouse result=ok
+2026-03-14 02:36:39.979 ingest batch=b0023 stage=commit bytes=5415296 sink=warehouse result=ok
+2026-03-14 02:36:42.789 ingest batch=b0420 stage=commit bytes=5847276 sink=warehouse result=ok
+2026-03-14 02:36:45.992 ingest batch=b0163 stage=commit bytes=8061666 sink=warehouse result=ok
+2026-03-14 02:36:52.491 ingest batch=b0524 stage=commit bytes=2803073 sink=warehouse result=ok
+2026-03-14 02:37:04.700 ingest batch=b0032 stage=commit bytes=8374529 sink=warehouse result=ok
+2026-03-14 02:37:06.524 ingest batch=b0352 stage=commit bytes=7246667 sink=warehouse result=ok
+2026-03-14 02:37:14.752 ingest batch=b0560 stage=commit bytes=1247903 sink=warehouse result=ok
+2026-03-14 02:37:21.348 ingest batch=b0554 stage=commit bytes=959026 sink=warehouse result=ok
+2026-03-14 02:37:21.996 ingest batch=b0631 stage=commit bytes=8632231 sink=warehouse result=ok
+2026-03-14 02:37:22.435 ingest batch=b0038 stage=commit bytes=5048453 sink=warehouse result=ok
+2026-03-14 02:37:27.345 ingest batch=b0455 stage=commit bytes=735682 sink=warehouse result=ok
+2026-03-14 02:37:37.519 ingest batch=b0515 stage=commit bytes=8176329 sink=warehouse result=ok
+2026-03-14 02:37:42.264 ingest batch=b0533 stage=commit bytes=145306 sink=warehouse result=ok
+2026-03-14 02:37:44.220 ingest batch=b0511 stage=commit bytes=8234154 sink=warehouse result=ok
+2026-03-14 02:37:44.998 ingest batch=b0741 stage=commit bytes=8180461 sink=warehouse result=ok
+2026-03-14 02:37:55.211 ingest batch=b0437 stage=commit bytes=8500105 sink=warehouse result=ok
+2026-03-14 02:37:55.352 ingest batch=b0077 stage=commit bytes=3406959 sink=warehouse result=ok
+2026-03-14 02:38:00.708 ingest batch=b0472 stage=commit bytes=4301480 sink=warehouse result=ok
+2026-03-14 02:38:10.372 ingest batch=b0583 stage=commit bytes=8462833 sink=warehouse result=ok
+2026-03-14 02:38:10.904 ingest batch=b0155 stage=commit bytes=5112939 sink=warehouse result=ok
+2026-03-14 02:38:20.246 ingest batch=b0331 stage=commit bytes=5648883 sink=warehouse result=ok
+2026-03-14 02:38:36.572 ingest batch=b0496 stage=commit bytes=7917268 sink=warehouse result=ok
+2026-03-14 02:38:38.365 ingest batch=b0307 stage=commit bytes=994536 sink=warehouse result=ok
+2026-03-14 02:38:40.940 ingest batch=b0787 stage=commit bytes=5666769 sink=warehouse result=ok
+2026-03-14 02:38:49.317 ingest batch=b0414 stage=commit bytes=4614104 sink=warehouse result=ok
+2026-03-14 02:38:50.268 ingest batch=b0177 stage=commit bytes=4601359 sink=warehouse result=ok
+2026-03-14 02:38:54.870 ingest batch=b0112 stage=commit bytes=4349816 sink=warehouse result=ok
+2026-03-14 02:38:58.862 ingest batch=b0899 stage=commit bytes=2853225 sink=warehouse result=ok
+2026-03-14 02:39:01.267 ingest batch=b0271 stage=commit bytes=2094610 sink=warehouse result=ok
+2026-03-14 02:39:07.451 ingest batch=b0339 stage=commit bytes=7316934 sink=warehouse result=ok
+2026-03-14 02:39:08.883 ingest batch=b0709 stage=commit bytes=617338 sink=warehouse result=ok
+2026-03-14 02:39:15.070 ingest batch=b0728 stage=commit bytes=1318878 sink=warehouse result=ok
+2026-03-14 02:39:18.034 ingest batch=b0270 stage=commit bytes=2046676 sink=warehouse result=ok
+2026-03-14 02:39:21.523 ingest batch=b0530 stage=commit bytes=1425441 sink=warehouse result=ok
+2026-03-14 02:39:24.993 ingest batch=b0076 stage=commit bytes=7044876 sink=warehouse result=ok
+2026-03-14 02:39:31.976 ingest batch=b0356 stage=commit bytes=2685056 sink=warehouse result=ok
+2026-03-14 02:39:38.525 ingest batch=b0499 stage=commit bytes=6868758 sink=warehouse result=ok
+2026-03-14 02:39:42.537 ingest batch=b0783 stage=commit bytes=4981118 sink=warehouse result=ok
+2026-03-14 02:39:43.316 ingest batch=b0783 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:39:44.266 ingest batch=b0562 stage=commit bytes=7680962 sink=warehouse result=ok
+2026-03-14 02:39:44.868 ingest batch=b0702 stage=commit bytes=7939792 sink=warehouse result=ok
+2026-03-14 02:39:45.919 ingest batch=b0079 stage=commit bytes=2382322 sink=warehouse result=ok
+2026-03-14 02:39:58.582 ingest batch=b0492 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:39:59.489 ingest batch=b0492 stage=commit bytes=5142013 sink=warehouse result=ok
+2026-03-14 02:40:06.763 ingest batch=b0754 stage=commit bytes=8277202 sink=warehouse result=ok
+2026-03-14 02:40:10.213 ingest batch=b0459 stage=commit bytes=8481331 sink=warehouse result=ok
+2026-03-14 02:40:11.149 ingest batch=b0492 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:40:30.618 ingest batch=b0797 stage=commit bytes=999758 sink=warehouse result=ok
+2026-03-14 02:40:32.550 ingest batch=b0807 stage=commit bytes=4789589 sink=warehouse result=ok
+2026-03-14 02:40:39.812 ingest batch=b0391 stage=commit bytes=2959411 sink=warehouse result=ok
+2026-03-14 02:40:41.449 ingest batch=b0476 stage=commit bytes=4627182 sink=warehouse result=ok
+2026-03-14 02:40:42.670 ingest batch=b0832 stage=commit bytes=1492133 sink=warehouse result=ok
+2026-03-14 02:40:49.114 ingest batch=b0790 stage=commit bytes=1050911 sink=warehouse result=ok
+2026-03-14 02:41:04.095 ingest batch=b0306 stage=commit bytes=1658791 sink=warehouse result=ok
+2026-03-14 02:41:20.434 ingest batch=b0235 stage=commit bytes=7267678 sink=warehouse result=ok
+2026-03-14 02:41:21.248 ingest batch=b0657 stage=commit bytes=4967410 sink=warehouse result=ok
+2026-03-14 02:41:31.058 ingest batch=b0780 stage=commit bytes=4529264 sink=warehouse result=ok
+2026-03-14 02:41:32.423 ingest batch=b0791 stage=commit bytes=593025 sink=warehouse result=ok
+2026-03-14 02:41:52.360 ingest batch=b0660 stage=commit bytes=759497 sink=warehouse result=ok
+2026-03-14 02:42:00.759 ingest batch=b0044 stage=commit bytes=886310 sink=warehouse result=ok
+2026-03-14 02:42:04.173 ingest batch=b0012 stage=commit bytes=3457865 sink=warehouse result=ok
+2026-03-14 02:42:08.277 ingest batch=b0482 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:42:08.495 ingest batch=b0482 stage=commit bytes=2079933 sink=warehouse result=ok
+2026-03-14 02:42:14.714 ingest batch=b0144 stage=commit bytes=3315235 sink=warehouse result=ok
+2026-03-14 02:42:20.581 ingest batch=b0482 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:42:24.187 ingest batch=b0301 stage=commit bytes=3136281 sink=warehouse result=ok
+2026-03-14 02:42:24.386 ingest batch=b0708 stage=commit bytes=2278360 sink=warehouse result=ok
+2026-03-14 02:42:36.148 ingest batch=b0503 stage=commit bytes=3635430 sink=warehouse result=ok
+2026-03-14 02:42:42.086 ingest batch=b0447 stage=commit bytes=6919532 sink=warehouse result=ok
+2026-03-14 02:42:52.119 ingest batch=b0262 stage=commit bytes=1184131 sink=warehouse result=ok
+2026-03-14 02:42:55.490 ingest batch=b0590 stage=commit bytes=3534217 sink=warehouse result=ok
+2026-03-14 02:43:00.721 ingest batch=b0066 stage=commit bytes=2060848 sink=warehouse result=ok
+2026-03-14 02:43:04.362 ingest batch=b0615 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 02:43:04.782 ingest batch=b0615 stage=commit bytes=2335963 sink=warehouse result=ok
+2026-03-14 02:43:09.601 ingest batch=b0105 stage=commit bytes=1575839 sink=warehouse result=ok
+2026-03-14 02:43:15.519 ingest batch=b0238 stage=commit bytes=8925275 sink=warehouse result=ok
+2026-03-14 02:43:16.636 ingest batch=b0615 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:43:24.319 ingest batch=b0202 stage=commit bytes=5053968 sink=warehouse result=ok
+2026-03-14 02:43:39.294 ingest batch=b0416 stage=commit bytes=212013 sink=warehouse result=ok
+2026-03-14 02:44:00.787 ingest batch=b0692 stage=commit bytes=8352126 sink=warehouse result=ok
+2026-03-14 02:44:01.801 ingest batch=b0277 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:44:02.492 ingest batch=b0277 stage=commit bytes=2055565 sink=warehouse result=ok
+2026-03-14 02:44:04.734 ingest batch=b0897 stage=commit bytes=1884993 sink=warehouse result=ok
+2026-03-14 02:44:09.966 ingest batch=b0192 stage=commit bytes=4071670 sink=warehouse result=ok
+2026-03-14 02:44:13.303 ingest batch=b0296 stage=commit bytes=4567674 sink=warehouse result=ok
+2026-03-14 02:44:13.798 ingest batch=b0277 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:44:17.130 ingest batch=b0512 stage=commit bytes=7654312 sink=warehouse result=ok
+2026-03-14 02:44:20.356 ingest batch=b0113 stage=commit bytes=7097937 sink=warehouse result=ok
+2026-03-14 02:44:22.710 ingest batch=b0039 stage=commit bytes=1339612 sink=warehouse result=ok
+2026-03-14 02:44:26.089 ingest batch=b0666 stage=commit bytes=4905345 sink=warehouse result=ok
+2026-03-14 02:44:26.372 ingest batch=b0720 stage=commit bytes=7890937 sink=warehouse result=ok
+2026-03-14 02:44:37.646 ingest batch=b0889 stage=commit bytes=259089 sink=warehouse result=ok
+2026-03-14 02:44:38.977 ingest batch=b0176 stage=commit bytes=2640444 sink=warehouse result=ok
+2026-03-14 02:44:41.471 ingest batch=b0456 stage=commit bytes=2769888 sink=warehouse result=ok
+2026-03-14 02:44:44.436 ingest batch=b0781 stage=commit bytes=1459064 sink=warehouse result=ok
+2026-03-14 02:44:45.326 ingest batch=b0632 stage=commit bytes=1887742 sink=warehouse result=ok
+2026-03-14 02:44:54.155 ingest batch=b0443 stage=commit bytes=7972675 sink=warehouse result=ok
+2026-03-14 02:44:54.863 ingest batch=b0027 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:44:55.602 ingest batch=b0027 stage=commit bytes=264968 sink=warehouse result=ok
+2026-03-14 02:45:00.590 ingest batch=b0162 stage=commit bytes=8378987 sink=warehouse result=ok
+2026-03-14 02:45:07.318 ingest batch=b0027 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:45:08.743 ingest batch=b0664 stage=commit bytes=5983094 sink=warehouse result=ok
+2026-03-14 02:45:11.774 ingest batch=b0109 stage=commit bytes=3883454 sink=warehouse result=ok
+2026-03-14 02:45:11.985 ingest batch=b0312 stage=commit bytes=4274270 sink=warehouse result=ok
+2026-03-14 02:45:47.715 ingest batch=b0026 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:45:47.977 ingest batch=b0026 stage=commit bytes=5473206 sink=warehouse result=ok
+2026-03-14 02:45:49.037 ingest batch=b0707 stage=commit bytes=5271013 sink=warehouse result=ok
+2026-03-14 02:45:49.375 ingest batch=b0608 stage=commit bytes=2399391 sink=warehouse result=ok
+2026-03-14 02:45:49.997 ingest batch=b0460 stage=commit bytes=5116670 sink=warehouse result=ok
+2026-03-14 02:45:55.086 ingest batch=b0043 stage=commit bytes=4160555 sink=warehouse result=ok
+2026-03-14 02:45:58.370 ingest batch=b0877 stage=commit bytes=2118960 sink=warehouse result=ok
+2026-03-14 02:45:59.803 ingest batch=b0026 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:46:00.664 ingest batch=b0854 stage=commit bytes=3756343 sink=warehouse result=ok
+2026-03-14 02:46:06.133 ingest batch=b0292 stage=commit bytes=5927636 sink=warehouse result=ok
+2026-03-14 02:46:13.867 ingest batch=b0570 stage=commit bytes=900943 sink=warehouse result=ok
+2026-03-14 02:46:14.264 ingest batch=b0215 stage=commit bytes=6402635 sink=warehouse result=ok
+2026-03-14 02:46:17.645 ingest batch=b0649 stage=commit bytes=3425592 sink=warehouse result=ok
+2026-03-14 02:46:40.258 ingest batch=b0546 stage=commit bytes=5296033 sink=warehouse result=ok
+2026-03-14 02:46:50.355 ingest batch=b0365 stage=commit bytes=2401025 sink=warehouse result=ok
+2026-03-14 02:46:52.027 ingest batch=b0154 stage=commit bytes=2844739 sink=warehouse result=ok
+2026-03-14 02:46:52.062 ingest batch=b0166 stage=commit bytes=8049038 sink=warehouse result=ok
+2026-03-14 02:47:03.808 ingest batch=b0614 stage=commit bytes=637786 sink=warehouse result=ok
+2026-03-14 02:47:08.264 ingest batch=b0445 stage=commit bytes=3291505 sink=warehouse result=ok
+2026-03-14 02:47:26.470 ingest batch=b0025 stage=commit bytes=6289505 sink=warehouse result=ok
+2026-03-14 02:47:26.893 ingest batch=b0025 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:47:32.123 ingest batch=b0545 stage=commit bytes=1723313 sink=warehouse result=ok
+2026-03-14 02:47:38.461 ingest batch=b0025 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:47:39.815 ingest batch=b0842 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 02:47:39.954 ingest batch=b0842 stage=commit bytes=7836489 sink=warehouse result=ok
+2026-03-14 02:47:42.636 ingest batch=b0374 stage=commit bytes=7078369 sink=warehouse result=ok
+2026-03-14 02:47:51.742 ingest batch=b0842 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:48:08.928 ingest batch=b0837 stage=commit bytes=4905189 sink=warehouse result=ok
+2026-03-14 02:48:11.157 ingest batch=b0576 stage=commit bytes=3354225 sink=warehouse result=ok
+2026-03-14 02:48:16.256 ingest batch=b0852 stage=commit bytes=4469069 sink=warehouse result=ok
+2026-03-14 02:48:17.160 ingest batch=b0866 stage=commit bytes=6575814 sink=warehouse result=ok
+2026-03-14 02:48:20.046 ingest batch=b0636 stage=commit bytes=6073998 sink=warehouse result=ok
+2026-03-14 02:48:28.202 ingest batch=b0621 stage=commit bytes=4844375 sink=warehouse result=ok
+2026-03-14 02:48:28.529 ingest batch=b0248 stage=commit bytes=1800099 sink=warehouse result=ok
+2026-03-14 02:48:30.770 ingest batch=b0550 stage=commit bytes=2919364 sink=warehouse result=ok
+2026-03-14 02:48:32.234 ingest batch=b0559 stage=commit bytes=1736664 sink=warehouse result=ok
+2026-03-14 02:48:38.975 ingest batch=b0705 stage=commit bytes=6030090 sink=warehouse result=ok
+2026-03-14 02:48:39.787 ingest batch=b0111 stage=commit bytes=1347597 sink=warehouse result=ok
+2026-03-14 02:48:41.345 ingest batch=b0241 stage=commit bytes=4731742 sink=warehouse result=ok
+2026-03-14 02:48:43.638 ingest batch=b0641 stage=commit bytes=146604 sink=warehouse result=ok
+2026-03-14 02:48:43.925 ingest batch=b0700 stage=commit bytes=5883912 sink=warehouse result=ok
+2026-03-14 02:48:48.904 ingest batch=b0409 stage=commit bytes=1091996 sink=warehouse result=ok
+2026-03-14 02:48:49.107 ingest batch=b0409 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 02:48:57.659 ingest batch=b0872 stage=commit bytes=6674008 sink=warehouse result=ok
+2026-03-14 02:49:00.511 ingest batch=b0409 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:49:01.826 ingest batch=b0197 stage=commit bytes=6480750 sink=warehouse result=ok
+2026-03-14 02:49:06.045 ingest batch=b0099 stage=commit bytes=3686043 sink=warehouse result=ok
+2026-03-14 02:49:08.469 ingest batch=b0486 stage=commit bytes=7562103 sink=warehouse result=ok
+2026-03-14 02:49:30.192 ingest batch=b0385 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 02:49:30.423 ingest batch=b0385 stage=commit bytes=3834460 sink=warehouse result=ok
+2026-03-14 02:49:33.655 ingest batch=b0180 stage=commit bytes=6729895 sink=warehouse result=ok
+2026-03-14 02:49:38.749 ingest batch=b0566 stage=commit bytes=8092173 sink=warehouse result=ok
+2026-03-14 02:49:39.710 ingest batch=b0114 stage=commit bytes=964383 sink=warehouse result=ok
+2026-03-14 02:49:40.313 ingest batch=b0347 stage=commit bytes=6425224 sink=warehouse result=ok
+2026-03-14 02:49:41.625 ingest batch=b0385 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:49:45.812 ingest batch=b0157 stage=commit bytes=4886340 sink=warehouse result=ok
+2026-03-14 02:49:45.837 ingest batch=b0001 stage=commit bytes=5136135 sink=warehouse result=ok
+2026-03-14 02:49:46.387 ingest batch=b0422 stage=commit bytes=324753 sink=warehouse result=ok
+2026-03-14 02:49:51.243 ingest batch=b0665 stage=commit bytes=2594743 sink=warehouse result=ok
+2026-03-14 02:49:52.392 ingest batch=b0874 stage=commit bytes=1090727 sink=warehouse result=ok
+2026-03-14 02:49:58.782 ingest batch=b0836 stage=commit bytes=8822031 sink=warehouse result=ok
+2026-03-14 02:50:13.041 ingest batch=b0596 stage=commit bytes=6830461 sink=warehouse result=ok
+2026-03-14 02:50:20.098 ingest batch=b0075 stage=commit bytes=1735205 sink=warehouse result=ok
+2026-03-14 02:50:27.453 ingest batch=b0041 stage=commit bytes=7050644 sink=warehouse result=ok
+2026-03-14 02:50:27.758 ingest batch=b0475 stage=commit bytes=2873217 sink=warehouse result=ok
+2026-03-14 02:50:29.886 ingest batch=b0382 stage=commit bytes=8005716 sink=warehouse result=ok
+2026-03-14 02:50:37.648 ingest batch=b0538 stage=commit bytes=3878108 sink=warehouse result=ok
+2026-03-14 02:50:41.713 ingest batch=b0427 stage=commit bytes=8536991 sink=warehouse result=ok
+2026-03-14 02:50:45.714 ingest batch=b0808 stage=commit bytes=6300004 sink=warehouse result=ok
+2026-03-14 02:50:47.599 ingest batch=b0726 stage=commit bytes=327219 sink=warehouse result=ok
+2026-03-14 02:50:49.235 ingest batch=b0098 stage=commit bytes=8599428 sink=warehouse result=ok
+2026-03-14 02:50:57.355 ingest batch=b0716 stage=commit bytes=7794757 sink=warehouse result=ok
+2026-03-14 02:51:14.911 ingest batch=b0601 stage=commit bytes=5463980 sink=warehouse result=ok
+2026-03-14 02:51:14.947 ingest batch=b0010 stage=commit bytes=3603810 sink=warehouse result=ok
+2026-03-14 02:51:24.146 ingest batch=b0846 stage=commit bytes=3094261 sink=warehouse result=ok
+2026-03-14 02:51:27.607 ingest batch=b0247 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:51:27.670 ingest batch=b0247 stage=commit bytes=5147208 sink=warehouse result=ok
+2026-03-14 02:51:28.861 ingest batch=b0507 stage=commit bytes=3237067 sink=warehouse result=ok
+2026-03-14 02:51:34.401 ingest batch=b0423 stage=commit bytes=5663022 sink=warehouse result=ok
+2026-03-14 02:51:35.086 ingest batch=b0257 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 02:51:35.358 ingest batch=b0257 stage=commit bytes=1732298 sink=warehouse result=ok
+2026-03-14 02:51:38.255 ingest batch=b0753 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:51:38.310 ingest batch=b0753 stage=commit bytes=6108433 sink=warehouse result=ok
+2026-03-14 02:51:38.371 ingest batch=b0469 stage=commit bytes=741374 sink=warehouse result=ok
+2026-03-14 02:51:47.123 ingest batch=b0257 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:51:53.555 ingest batch=b0812 stage=commit bytes=6213314 sink=warehouse result=ok
+2026-03-14 02:52:38.161 ingest batch=b0279 stage=commit bytes=3179092 sink=warehouse result=ok
+2026-03-14 02:52:41.374 ingest batch=b0245 stage=commit bytes=3879092 sink=warehouse result=ok
+2026-03-14 02:52:42.133 ingest batch=b0737 stage=commit bytes=2213890 sink=warehouse result=ok
+2026-03-14 02:52:49.603 ingest batch=b0810 stage=commit bytes=2707984 sink=warehouse result=ok
+2026-03-14 02:52:50.994 ingest batch=b0851 stage=commit bytes=532199 sink=warehouse result=ok
+2026-03-14 02:52:56.804 ingest batch=b0324 stage=commit bytes=5013307 sink=warehouse result=ok
+2026-03-14 02:52:56.945 ingest batch=b0324 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 02:52:57.573 ingest batch=b0353 stage=commit bytes=3244564 sink=warehouse result=ok
+2026-03-14 02:52:58.977 ingest batch=b0081 stage=commit bytes=7865808 sink=warehouse result=ok
+2026-03-14 02:53:17.683 ingest batch=b0756 stage=commit bytes=3901293 sink=warehouse result=ok
+2026-03-14 02:53:39.387 ingest batch=b0823 stage=commit bytes=2993078 sink=warehouse result=ok
+2026-03-14 02:53:44.333 ingest batch=b0637 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 02:53:44.798 ingest batch=b0637 stage=commit bytes=6339602 sink=warehouse result=ok
+2026-03-14 02:53:47.083 ingest batch=b0561 stage=commit bytes=7158391 sink=warehouse result=ok
+2026-03-14 02:53:49.177 ingest batch=b0195 stage=commit bytes=504577 sink=warehouse result=ok
+2026-03-14 02:53:56.685 ingest batch=b0637 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:53:59.154 ingest batch=b0300 stage=commit bytes=5633924 sink=warehouse result=ok
+2026-03-14 02:54:00.958 ingest batch=b0310 stage=commit bytes=2743838 sink=warehouse result=ok
+2026-03-14 02:54:07.718 ingest batch=b0748 stage=commit bytes=134416 sink=warehouse result=ok
+2026-03-14 02:54:07.859 ingest batch=b0358 stage=commit bytes=5811198 sink=warehouse result=ok
+2026-03-14 02:54:12.376 ingest batch=b0745 stage=commit bytes=7406757 sink=warehouse result=ok
+2026-03-14 02:54:26.617 ingest batch=b0713 stage=commit bytes=1830781 sink=warehouse result=ok
+2026-03-14 02:54:34.004 ingest batch=b0870 stage=commit bytes=5106693 sink=warehouse result=ok
+2026-03-14 02:54:43.290 ingest batch=b0767 stage=commit bytes=1840386 sink=warehouse result=ok
+2026-03-14 02:54:56.837 ingest batch=b0605 stage=commit bytes=6104618 sink=warehouse result=ok
+2026-03-14 02:55:01.224 ingest batch=b0501 stage=commit bytes=56159 sink=warehouse result=ok
+2026-03-14 02:55:04.297 ingest batch=b0896 stage=commit bytes=8107315 sink=warehouse result=ok
+2026-03-14 02:55:06.886 ingest batch=b0143 stage=commit bytes=3619310 sink=warehouse result=ok
+2026-03-14 02:55:08.998 ingest batch=b0575 stage=commit bytes=4535517 sink=warehouse result=ok
+2026-03-14 02:55:30.951 ingest batch=b0273 stage=commit bytes=3370752 sink=warehouse result=ok
+2026-03-14 02:55:33.822 ingest batch=b0855 stage=commit bytes=4611471 sink=warehouse result=ok
+2026-03-14 02:55:39.325 ingest batch=b0849 stage=commit bytes=8658594 sink=warehouse result=ok
+2026-03-14 02:55:57.495 ingest batch=b0275 stage=commit bytes=269113 sink=warehouse result=ok
+2026-03-14 02:56:00.389 ingest batch=b0491 stage=commit bytes=3429163 sink=warehouse result=ok
+2026-03-14 02:56:05.683 ingest batch=b0287 stage=commit bytes=4104857 sink=warehouse result=ok
+2026-03-14 02:56:11.228 ingest batch=b0096 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 02:56:11.388 ingest batch=b0096 stage=commit bytes=1642425 sink=warehouse result=ok
+2026-03-14 02:56:11.691 ingest batch=b0609 stage=commit bytes=8475658 sink=warehouse result=ok
+2026-03-14 02:56:14.877 ingest batch=b0260 stage=commit bytes=8315535 sink=warehouse result=ok
+2026-03-14 02:56:22.902 ingest batch=b0096 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:56:25.608 ingest batch=b0231 stage=commit bytes=2553994 sink=warehouse result=ok
+2026-03-14 02:56:37.125 ingest batch=b0297 stage=commit bytes=2219123 sink=warehouse result=ok
+2026-03-14 02:56:43.931 ingest batch=b0052 stage=commit bytes=7598117 sink=warehouse result=ok
+2026-03-14 02:56:52.050 ingest batch=b0434 stage=commit bytes=2326823 sink=warehouse result=ok
+2026-03-14 02:57:01.580 ingest batch=b0186 stage=commit bytes=4929576 sink=warehouse result=ok
+2026-03-14 02:57:04.420 ingest batch=b0160 stage=commit bytes=1744909 sink=warehouse result=ok
+2026-03-14 02:57:13.027 ingest batch=b0461 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 02:57:13.378 ingest batch=b0461 stage=commit bytes=123431 sink=warehouse result=ok
+2026-03-14 02:57:17.370 ingest batch=b0213 stage=commit bytes=7044514 sink=warehouse result=ok
+2026-03-14 02:57:17.709 ingest batch=b0213 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 02:57:24.331 ingest batch=b0390 stage=commit bytes=5138226 sink=warehouse result=ok
+2026-03-14 02:57:25.776 ingest batch=b0461 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:57:29.013 ingest batch=b0213 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:57:50.744 ingest batch=b0413 stage=commit bytes=6070551 sink=warehouse result=ok
+2026-03-14 02:57:50.841 ingest batch=b0413 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 02:57:52.849 ingest batch=b0410 stage=commit bytes=7985512 sink=warehouse result=ok
+2026-03-14 02:58:09.808 ingest batch=b0141 stage=commit bytes=542032 sink=warehouse result=ok
+2026-03-14 02:58:11.460 ingest batch=b0774 stage=commit bytes=5814554 sink=warehouse result=ok
+2026-03-14 02:58:12.230 ingest batch=b0598 stage=commit bytes=3989633 sink=warehouse result=ok
+2026-03-14 02:58:16.034 ingest batch=b0377 stage=commit bytes=6966324 sink=warehouse result=ok
+2026-03-14 02:58:16.303 ingest batch=b0377 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 02:58:19.905 ingest batch=b0694 stage=commit bytes=5952761 sink=warehouse result=ok
+2026-03-14 02:58:28.212 ingest batch=b0377 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:58:28.243 ingest batch=b0816 stage=commit bytes=3078709 sink=warehouse result=ok
+2026-03-14 02:58:35.421 ingest batch=b0432 stage=commit bytes=1467662 sink=warehouse result=ok
+2026-03-14 02:58:41.419 ingest batch=b0573 stage=commit bytes=8987455 sink=warehouse result=ok
+2026-03-14 02:58:42.316 ingest batch=b0875 stage=commit bytes=4170617 sink=warehouse result=ok
+2026-03-14 02:58:44.636 ingest batch=b0805 stage=commit bytes=2443320 sink=warehouse result=ok
+2026-03-14 02:58:50.211 ingest batch=b0876 stage=commit bytes=7105913 sink=warehouse result=ok
+2026-03-14 02:58:52.495 ingest batch=b0211 stage=commit bytes=8676169 sink=warehouse result=ok
+2026-03-14 02:59:08.740 ingest batch=b0817 stage=commit bytes=4130260 sink=warehouse result=ok
+2026-03-14 02:59:14.372 ingest batch=b0426 stage=commit bytes=668783 sink=warehouse result=ok
+2026-03-14 02:59:22.881 ingest batch=b0690 stage=commit bytes=2538181 sink=warehouse result=ok
+2026-03-14 02:59:34.043 ingest batch=b0093 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 02:59:34.299 ingest batch=b0093 stage=commit bytes=2676308 sink=warehouse result=ok
+2026-03-14 02:59:35.549 ingest batch=b0222 stage=commit bytes=5569715 sink=warehouse result=ok
+2026-03-14 02:59:41.819 ingest batch=b0695 stage=commit bytes=8440365 sink=warehouse result=ok
+2026-03-14 02:59:42.991 ingest batch=b0848 stage=commit bytes=3806295 sink=warehouse result=ok
+2026-03-14 02:59:46.500 ingest batch=b0093 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 02:59:46.742 ingest batch=b0711 stage=commit bytes=4604428 sink=warehouse result=ok
+2026-03-14 02:59:49.178 ingest batch=b0204 stage=commit bytes=6691550 sink=warehouse result=ok
+2026-03-14 02:59:56.326 ingest batch=b0850 stage=commit bytes=6348070 sink=warehouse result=ok
+2026-03-14 02:59:58.041 ingest batch=b0126 stage=commit bytes=3465439 sink=warehouse result=ok
+2026-03-14 03:00:02.299 ingest batch=b0536 stage=commit bytes=7990856 sink=warehouse result=ok
+2026-03-14 03:00:03.313 ingest batch=b0779 stage=commit bytes=2845905 sink=warehouse result=ok
+2026-03-14 03:00:08.345 ingest batch=b0835 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 03:00:08.555 ingest batch=b0835 stage=commit bytes=7510108 sink=warehouse result=ok
+2026-03-14 03:00:10.430 ingest batch=b0325 stage=commit bytes=1439943 sink=warehouse result=ok
+2026-03-14 03:00:17.276 ingest batch=b0022 stage=commit bytes=2654517 sink=warehouse result=ok
+2026-03-14 03:00:34.517 ingest batch=b0411 stage=commit bytes=2886855 sink=warehouse result=ok
+2026-03-14 03:00:38.903 ingest batch=b0629 stage=commit bytes=7348372 sink=warehouse result=ok
+2026-03-14 03:00:46.242 ingest batch=b0862 stage=commit bytes=4300511 sink=warehouse result=ok
+2026-03-14 03:00:49.167 ingest batch=b0613 stage=commit bytes=4912048 sink=warehouse result=ok
+2026-03-14 03:00:50.399 ingest batch=b0161 stage=commit bytes=7073462 sink=warehouse result=ok
+2026-03-14 03:01:08.758 ingest batch=b0722 stage=commit bytes=2488930 sink=warehouse result=ok
+2026-03-14 03:01:12.487 ingest batch=b0228 stage=commit bytes=241204 sink=warehouse result=ok
+2026-03-14 03:01:17.758 ingest batch=b0465 stage=commit bytes=3730144 sink=warehouse result=ok
+2026-03-14 03:01:19.839 ingest batch=b0667 stage=commit bytes=5229486 sink=warehouse result=ok
+2026-03-14 03:01:23.619 ingest batch=b0207 stage=commit bytes=88570 sink=warehouse result=ok
+2026-03-14 03:01:25.618 ingest batch=b0534 stage=commit bytes=47016 sink=warehouse result=ok
+2026-03-14 03:01:27.382 ingest batch=b0187 stage=commit bytes=5137497 sink=warehouse result=ok
+2026-03-14 03:01:32.040 ingest batch=b0743 stage=commit bytes=621456 sink=warehouse result=ok
+2026-03-14 03:01:36.667 ingest batch=b0100 stage=commit bytes=327136 sink=warehouse result=ok
+2026-03-14 03:01:37.759 ingest batch=b0463 stage=commit bytes=1889429 sink=warehouse result=ok
+2026-03-14 03:01:38.202 ingest batch=b0777 stage=commit bytes=5174745 sink=warehouse result=ok
+2026-03-14 03:01:38.909 ingest batch=b0009 stage=commit bytes=2883367 sink=warehouse result=ok
+2026-03-14 03:01:40.506 ingest batch=b0035 stage=commit bytes=1140878 sink=warehouse result=ok
+2026-03-14 03:01:42.072 ingest batch=b0184 stage=commit bytes=4807395 sink=warehouse result=ok
+2026-03-14 03:01:45.423 ingest batch=b0506 stage=commit bytes=849600 sink=warehouse result=ok
+2026-03-14 03:01:46.990 ingest batch=b0380 stage=commit bytes=6771759 sink=warehouse result=ok
+2026-03-14 03:01:47.525 ingest batch=b0380 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 03:01:53.585 ingest batch=b0034 stage=commit bytes=5877896 sink=warehouse result=ok
+2026-03-14 03:01:59.069 ingest batch=b0380 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 03:02:00.075 ingest batch=b0625 stage=commit bytes=801777 sink=warehouse result=ok
+2026-03-14 03:02:00.396 ingest batch=b0625 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 03:02:01.933 ingest batch=b0619 stage=commit bytes=6959321 sink=warehouse result=ok
+2026-03-14 03:02:12.119 ingest batch=b0088 stage=commit bytes=622430 sink=warehouse result=ok
+2026-03-14 03:02:21.373 ingest batch=b0567 stage=commit bytes=6298986 sink=warehouse result=ok
+2026-03-14 03:02:41.362 ingest batch=b0556 stage=commit bytes=6635896 sink=warehouse result=ok
+2026-03-14 03:02:41.744 ingest batch=b0556 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 03:02:42.890 ingest batch=b0395 stage=commit bytes=2574715 sink=warehouse result=ok
+2026-03-14 03:02:43.193 ingest batch=b0395 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 03:02:47.371 ingest batch=b0024 stage=commit bytes=658869 sink=warehouse result=ok
+2026-03-14 03:02:53.179 ingest batch=b0556 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 03:02:54.954 ingest batch=b0395 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 03:03:03.328 ingest batch=b0840 stage=commit bytes=2629347 sink=warehouse result=ok
+2026-03-14 03:03:32.071 ingest batch=b0871 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 03:03:32.150 ingest batch=b0871 stage=commit bytes=3686329 sink=warehouse result=ok
+2026-03-14 03:03:32.510 ingest batch=b0792 stage=commit bytes=5870343 sink=warehouse result=ok
+2026-03-14 03:03:33.047 ingest batch=b0036 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 03:03:33.378 ingest batch=b0036 stage=commit bytes=7662218 sink=warehouse result=ok
+2026-03-14 03:03:41.960 ingest batch=b0080 stage=commit bytes=4011006 sink=warehouse result=ok
+2026-03-14 03:03:47.931 ingest batch=b0746 stage=commit bytes=7162094 sink=warehouse result=ok
+2026-03-14 03:03:50.583 ingest batch=b0272 stage=commit bytes=205094 sink=warehouse result=ok
+2026-03-14 03:03:52.763 ingest batch=b0806 stage=commit bytes=7134076 sink=warehouse result=ok
+2026-03-14 03:03:53.199 ingest batch=b0288 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 03:03:53.634 ingest batch=b0288 stage=commit bytes=1971610 sink=warehouse result=ok
+2026-03-14 03:04:04.424 ingest batch=b0259 stage=commit bytes=4284745 sink=warehouse result=ok
+2026-03-14 03:04:12.355 ingest batch=b0170 stage=commit bytes=1007998 sink=warehouse result=ok
+2026-03-14 03:04:13.341 ingest batch=b0487 stage=commit bytes=3419015 sink=warehouse result=ok
+2026-03-14 03:04:35.574 ingest batch=b0146 stage=commit bytes=813552 sink=warehouse result=ok
+2026-03-14 03:04:35.578 ingest batch=b0668 stage=commit bytes=3321810 sink=warehouse result=ok
+2026-03-14 03:04:35.655 ingest batch=b0828 stage=commit bytes=3885590 sink=warehouse result=ok
+2026-03-14 03:04:35.931 ingest batch=b0828 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 03:04:41.158 ingest batch=b0880 stage=commit bytes=2078571 sink=warehouse result=ok
+2026-03-14 03:04:43.490 ingest batch=b0134 stage=commit bytes=7639586 sink=warehouse result=ok
+2026-03-14 03:04:45.446 ingest batch=b0278 stage=commit bytes=7044539 sink=warehouse result=ok
+2026-03-14 03:04:46.077 ingest batch=b0194 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 03:04:46.392 ingest batch=b0194 stage=commit bytes=1918956 sink=warehouse result=ok
+2026-03-14 03:04:47.545 ingest batch=b0828 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 03:04:52.862 ingest batch=b0847 stage=commit bytes=7813349 sink=warehouse result=ok
+2026-03-14 03:04:58.211 ingest batch=b0194 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 03:05:00.590 ingest batch=b0311 stage=commit bytes=757360 sink=warehouse result=ok
+2026-03-14 03:05:07.213 ingest batch=b0528 stage=commit bytes=1074029 sink=warehouse result=ok
+2026-03-14 03:05:14.648 ingest batch=b0520 stage=commit bytes=7921621 sink=warehouse result=ok
+2026-03-14 03:05:16.422 ingest batch=b0293 stage=commit bytes=7090001 sink=warehouse result=ok
+2026-03-14 03:05:24.800 ingest batch=b0424 stage=commit bytes=8779418 sink=warehouse result=ok
+2026-03-14 03:05:35.539 ingest batch=b0863 stage=commit bytes=7858368 sink=warehouse result=ok
+2026-03-14 03:05:42.749 ingest batch=b0118 stage=commit bytes=1218941 sink=warehouse result=ok
+2026-03-14 03:05:44.473 ingest batch=b0189 stage=commit bytes=7629338 sink=warehouse result=ok
+2026-03-14 03:05:58.873 ingest batch=b0830 stage=commit bytes=4527436 sink=warehouse result=ok
+2026-03-14 03:06:02.561 ingest batch=b0168 stage=commit bytes=331450 sink=warehouse result=ok
+2026-03-14 03:06:17.693 ingest batch=b0117 stage=commit bytes=3833810 sink=warehouse result=ok
+2026-03-14 03:06:19.094 ingest batch=b0127 stage=commit bytes=4973174 sink=warehouse result=ok
+2026-03-14 03:06:25.680 ingest batch=b0013 stage=commit bytes=6250605 sink=warehouse result=ok
+2026-03-14 03:06:26.404 ingest batch=b0588 stage=commit bytes=7917913 sink=warehouse result=ok
+2026-03-14 03:06:32.109 ingest batch=b0169 stage=commit bytes=602909 sink=warehouse result=ok
+2026-03-14 03:06:33.326 ingest batch=b0178 stage=commit bytes=6769474 sink=warehouse result=ok
+2026-03-14 03:06:37.926 ingest batch=b0218 stage=commit bytes=7651228 sink=warehouse result=ok
+2026-03-14 03:06:45.131 ingest batch=b0415 stage=commit bytes=1066956 sink=warehouse result=ok
+2026-03-14 03:06:46.389 ingest batch=b0333 stage=commit bytes=5329481 sink=warehouse result=ok
+2026-03-14 03:06:58.809 ingest batch=b0303 stage=commit bytes=7921133 sink=warehouse result=ok
+2026-03-14 03:07:04.082 ingest batch=b0611 stage=commit bytes=5940769 sink=warehouse result=ok
+2026-03-14 03:07:04.410 ingest batch=b0611 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 03:07:15.978 ingest batch=b0611 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 03:07:23.069 ingest batch=b0094 stage=commit bytes=60306 sink=warehouse result=ok
+2026-03-14 03:07:44.313 ingest batch=b0359 stage=commit bytes=6560077 sink=warehouse result=ok
+2026-03-14 03:07:44.902 ingest batch=b0577 stage=commit bytes=3998664 sink=warehouse result=ok
+2026-03-14 03:07:47.144 ingest batch=b0328 stage=commit bytes=6206280 sink=warehouse result=ok
+2026-03-14 03:07:47.964 ingest batch=b0450 stage=commit bytes=6047031 sink=warehouse result=ok
+2026-03-14 03:07:55.496 ingest batch=b0765 stage=commit bytes=4343158 sink=warehouse result=ok
+2026-03-14 03:08:04.613 ingest batch=b0171 stage=commit bytes=8704359 sink=warehouse result=ok
+2026-03-14 03:08:09.969 ingest batch=b0130 stage=commit bytes=1219173 sink=warehouse result=ok
+2026-03-14 03:08:10.646 ingest batch=b0115 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 03:08:10.838 ingest batch=b0115 stage=commit bytes=6635828 sink=warehouse result=ok
+2026-03-14 03:08:21.117 ingest batch=b0064 stage=commit bytes=7050146 sink=warehouse result=ok
+2026-03-14 03:08:21.409 ingest batch=b0682 stage=commit bytes=1596466 sink=warehouse result=ok
+2026-03-14 03:08:22.451 ingest batch=b0115 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 03:08:32.232 ingest batch=b0799 stage=commit bytes=53776 sink=warehouse result=ok
+2026-03-14 03:08:34.297 ingest batch=b0856 stage=commit bytes=1069525 sink=warehouse result=ok
+2026-03-14 03:08:36.696 ingest batch=b0747 stage=commit bytes=8528326 sink=warehouse result=ok
+2026-03-14 03:08:46.387 ingest batch=b0019 stage=commit bytes=3304254 sink=warehouse result=ok
+2026-03-14 03:08:49.604 ingest batch=b0000 stage=commit bytes=7572848 sink=warehouse result=ok
+2026-03-14 03:08:50.771 ingest batch=b0335 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 03:08:50.836 ingest batch=b0638 stage=commit bytes=823020 sink=warehouse result=ok
+2026-03-14 03:08:51.035 ingest batch=b0335 stage=commit bytes=4847986 sink=warehouse result=ok
+2026-03-14 03:09:02.526 ingest batch=b0335 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 03:09:09.926 ingest batch=b0072 stage=commit bytes=8079005 sink=warehouse result=ok
+2026-03-14 03:09:10.915 ingest batch=b0458 stage=commit bytes=8646425 sink=warehouse result=ok
+2026-03-14 03:09:32.149 ingest batch=b0108 stage=commit bytes=3603478 sink=warehouse result=ok
+2026-03-14 03:09:38.016 ingest batch=b0383 stage=commit bytes=610954 sink=warehouse result=ok
+2026-03-14 03:09:42.770 ingest batch=b0750 stage=commit bytes=5745436 sink=warehouse result=ok
+2026-03-14 03:09:48.014 ingest batch=b0751 stage=commit bytes=5713123 sink=warehouse result=ok
+2026-03-14 03:09:49.310 ingest batch=b0255 stage=commit bytes=1265940 sink=warehouse result=ok
+2026-03-14 03:09:50.167 ingest batch=b0763 stage=commit bytes=7926582 sink=warehouse result=ok
+2026-03-14 03:10:07.896 ingest batch=b0516 stage=commit bytes=3566290 sink=warehouse result=ok
+2026-03-14 03:10:08.487 ingest batch=b0516 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 03:10:12.891 ingest batch=b0284 stage=commit bytes=634108 sink=warehouse result=ok
+2026-03-14 03:10:18.569 ingest batch=b0759 stage=commit bytes=3465251 sink=warehouse result=ok
+2026-03-14 03:10:18.874 ingest batch=b0101 stage=commit bytes=6799004 sink=warehouse result=ok
+2026-03-14 03:10:20.288 ingest batch=b0516 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 03:10:36.722 ingest batch=b0125 stage=commit bytes=7300250 sink=warehouse result=ok
+2026-03-14 03:10:43.265 ingest batch=b0172 stage=commit bytes=582192 sink=warehouse result=ok
+2026-03-14 03:10:44.817 ingest batch=b0771 stage=commit bytes=7844994 sink=warehouse result=ok
+2026-03-14 03:10:49.812 ingest batch=b0350 stage=commit bytes=8985819 sink=warehouse result=ok
+2026-03-14 03:10:51.127 ingest batch=b0473 stage=commit bytes=1031224 sink=warehouse result=ok
+2026-03-14 03:11:04.096 ingest batch=b0174 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 03:11:04.404 ingest batch=b0174 stage=commit bytes=8272408 sink=warehouse result=ok
+2026-03-14 03:11:12.187 ingest batch=b0151 stage=commit bytes=5663141 sink=warehouse result=ok
+2026-03-14 03:11:16.320 ingest batch=b0174 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 03:11:18.996 ingest batch=b0106 stage=commit bytes=7069861 sink=warehouse result=ok
+2026-03-14 03:11:29.260 ingest batch=b0392 stage=commit bytes=6017025 sink=warehouse result=ok
+2026-03-14 03:11:57.001 ingest batch=b0386 stage=commit bytes=3327160 sink=warehouse result=ok
+2026-03-14 03:12:00.078 ingest batch=b0757 stage=commit bytes=4897807 sink=warehouse result=ok
+2026-03-14 03:12:00.265 ingest batch=b0006 stage=commit bytes=7981126 sink=warehouse result=ok
+2026-03-14 03:12:01.699 ingest batch=b0196 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 03:12:01.771 ingest batch=b0196 stage=commit bytes=405819 sink=warehouse result=ok
+2026-03-14 03:12:07.720 ingest batch=b0549 stage=commit bytes=6429514 sink=warehouse result=ok
+2026-03-14 03:12:13.821 ingest batch=b0196 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 03:12:16.816 ingest batch=b0236 stage=commit bytes=8733764 sink=warehouse result=ok
+2026-03-14 03:12:17.575 ingest batch=b0078 stage=commit bytes=1197613 sink=warehouse result=ok
+2026-03-14 03:12:18.167 ingest batch=b0314 stage=commit bytes=5537123 sink=warehouse result=ok
+2026-03-14 03:12:21.508 ingest batch=b0397 stage=commit bytes=1824098 sink=warehouse result=ok
+2026-03-14 03:12:35.898 ingest batch=b0659 stage=commit bytes=119634 sink=warehouse result=ok
+2026-03-14 03:12:35.907 ingest batch=b0659 stage=commit error=checksum-mismatch result=retry_scheduled
+2026-03-14 03:12:36.032 ingest batch=b0329 stage=commit bytes=1562552 sink=warehouse result=ok
+2026-03-14 03:12:47.717 ingest batch=b0659 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 03:12:57.780 ingest batch=b0622 stage=commit bytes=870640 sink=warehouse result=ok
+2026-03-14 03:12:59.065 ingest batch=b0674 stage=commit bytes=4878039 sink=warehouse result=ok
+2026-03-14 03:13:07.297 ingest batch=b0565 stage=commit bytes=6142698 sink=warehouse result=ok
+2026-03-14 03:13:07.516 ingest batch=b0565 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 03:13:13.172 ingest batch=b0360 stage=commit bytes=4704454 sink=warehouse result=ok
+2026-03-14 03:13:18.362 ingest batch=b0315 stage=commit bytes=3256734 sink=warehouse result=ok
+2026-03-14 03:13:19.369 ingest batch=b0565 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 03:13:25.843 ingest batch=b0227 stage=commit bytes=45574 sink=warehouse result=ok
+2026-03-14 03:13:34.934 ingest batch=b0442 stage=commit bytes=7741315 sink=warehouse result=ok
+2026-03-14 03:13:38.939 ingest batch=b0159 stage=commit bytes=1420015 sink=warehouse result=ok
+2026-03-14 03:13:41.978 ingest batch=b0819 stage=commit bytes=411556 sink=warehouse result=ok
+2026-03-14 03:13:42.583 ingest batch=b0062 stage=commit bytes=8622567 sink=warehouse result=ok
+2026-03-14 03:14:06.045 ingest batch=b0164 stage=commit bytes=7579786 sink=warehouse result=ok
+2026-03-14 03:14:26.495 ingest batch=b0485 stage=commit bytes=6042133 sink=warehouse result=ok
+2026-03-14 03:14:43.119 ingest batch=b0173 stage=commit bytes=3912044 sink=warehouse result=ok
+2026-03-14 03:14:47.546 ingest batch=b0884 stage=commit bytes=3688143 sink=warehouse result=ok
+2026-03-14 03:14:52.409 ingest batch=b0393 stage=commit bytes=3028088 sink=warehouse result=ok
+2026-03-14 03:14:55.934 ingest batch=b0844 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 03:14:56.139 ingest batch=b0844 stage=commit bytes=6339950 sink=warehouse result=ok
+2026-03-14 03:15:08.207 ingest batch=b0844 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 03:15:10.964 ingest batch=b0521 stage=commit bytes=2772715 sink=warehouse result=ok
+2026-03-14 03:15:22.451 ingest batch=b0047 stage=commit bytes=8316730 sink=warehouse result=ok
+2026-03-14 03:15:23.784 ingest batch=b0428 stage=commit bytes=6368881 sink=warehouse result=ok
+2026-03-14 03:15:26.349 ingest batch=b0217 stage=commit error=schema-version-skew result=retry_scheduled
+2026-03-14 03:15:26.586 ingest batch=b0217 stage=commit bytes=8394912 sink=warehouse result=ok
+2026-03-14 03:15:39.495 ingest batch=b0687 stage=commit bytes=2787360 sink=warehouse result=ok
+2026-03-14 03:15:39.835 ingest batch=b0193 stage=commit bytes=385558 sink=warehouse result=ok
+2026-03-14 03:15:43.225 ingest batch=b0712 stage=commit bytes=2589122 sink=warehouse result=ok
+2026-03-14 03:15:43.525 ingest batch=b0281 stage=commit bytes=7995768 sink=warehouse result=ok
+2026-03-14 03:15:44.257 ingest batch=b0281 stage=commit error=sink-timeout result=retry_scheduled
+2026-03-14 03:15:55.777 ingest batch=b0281 stage=commit attempt=2 result=ok note=recovered
+2026-03-14 03:16:08.168 ingest batch=b0407 stage=commit bytes=5485470 sink=warehouse result=ok
+2026-03-14 03:16:11.498 ingest batch=b0375 stage=commit bytes=4997839 sink=warehouse result=ok
+2026-03-14 03:16:12.534 ingest batch=b0479 stage=commit bytes=6543851 sink=warehouse result=ok
+2026-03-14 03:16:23.101 ingest batch=b0338 stage=commit bytes=1502068 sink=warehouse result=ok
+2026-03-14 03:16:26.738 ingest batch=b0578 stage=commit bytes=605747 sink=warehouse result=ok
+2026-03-14 03:16:49.578 ingest batch=b0087 stage=commit bytes=7149782 sink=warehouse result=ok
+2026-03-14 03:16:52.602 ingest batch=b0502 stage=commit bytes=8758489 sink=warehouse result=ok
+2026-03-14 03:17:03.851 ingest batch=b0739 stage=commit bytes=4915415 sink=warehouse result=ok
+2026-03-14 03:17:08.667 ingest batch=b0370 stage=commit bytes=5285835 sink=warehouse result=ok
+2026-03-14 03:17:14.333 ingest batch=b0795 stage=commit bytes=7707081 sink=warehouse result=ok
+2026-03-14 03:17:19.642 ingest batch=b0730 stage=commit bytes=1314386 sink=warehouse result=ok
+2026-03-14 03:17:33.220 ingest batch=b0670 stage=commit bytes=6943849 sink=warehouse result=ok
+2026-03-14 03:17:34.645 ingest batch=b0212 stage=commit bytes=6788629 sink=warehouse result=ok
+2026-03-14 03:17:38.115 ingest batch=b0717 stage=commit bytes=8883505 sink=warehouse result=ok
+2026-03-14 03:17:47.936 ingest batch=b0893 stage=commit bytes=1399066 sink=warehouse result=ok
+2026-03-14 03:17:54.401 ingest batch=b0388 stage=commit bytes=3726548 sink=warehouse result=ok
+2026-03-14 03:17:58.540 ingest batch=b0541 stage=commit bytes=1714295 sink=warehouse result=ok
+2026-03-14 03:17:59.654 ingest batch=b0885 stage=commit bytes=7289896 sink=warehouse result=ok
+2026-03-14 03:18:00.417 ingest FATAL marker=INGEST-CRASH-78 reason=upstream-pool-exhausted exiting code=70
+2026-03-14 03:18:14.184 ingest batch=b0517 stage=commit bytes=3689941 sink=warehouse result=ok
+2026-03-14 03:18:17.918 ingest batch=b0092 stage=commit bytes=7959710 sink=warehouse result=ok
+2026-03-14 03:18:23.634 ingest batch=b0770 stage=commit bytes=644743 sink=warehouse result=ok
+2026-03-14 03:18:36.082 ingest batch=b91134 stage=commit bytes=211805 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:18:40.043 ingest batch=b91131 stage=commit bytes=4145017 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:18:40.527 ingest batch=b0839 stage=commit bytes=7210362 sink=warehouse result=ok
+2026-03-14 03:18:40.639 ingest batch=b91024 stage=commit bytes=7663301 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:18:41.340 ingest batch=b91013 stage=commit bytes=1610351 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:18:45.588 ingest batch=b91004 stage=commit bytes=2876942 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:18:45.911 ingest batch=b91037 stage=commit bytes=7115130 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:18:46.607 ingest batch=b0824 stage=commit bytes=6002577 sink=warehouse result=ok
+2026-03-14 03:18:47.286 ingest batch=b0685 stage=commit bytes=3371604 sink=warehouse result=ok
+2026-03-14 03:18:55.626 ingest batch=b0318 stage=commit bytes=5575686 sink=warehouse result=ok
+2026-03-14 03:19:01.232 ingest batch=b91110 stage=commit bytes=5446586 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:19:02.949 ingest batch=b91032 stage=commit bytes=5748569 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:19:11.509 ingest batch=b91123 stage=commit bytes=1457664 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:19:25.819 ingest batch=b0798 stage=commit bytes=8730799 sink=warehouse result=ok
+2026-03-14 03:19:26.889 ingest batch=b91079 stage=commit bytes=4304265 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:19:32.505 ingest batch=b0031 stage=commit bytes=8116676 sink=warehouse result=ok
+2026-03-14 03:19:36.474 ingest batch=b91052 stage=commit bytes=2221187 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:19:40.327 ingest batch=b0449 stage=commit bytes=8263524 sink=warehouse result=ok
+2026-03-14 03:19:47.558 ingest batch=b0268 stage=commit bytes=8018312 sink=warehouse result=ok
+2026-03-14 03:19:48.300 ingest batch=b0699 stage=commit bytes=4103267 sink=warehouse result=ok
+2026-03-14 03:19:49.048 ingest batch=b91090 stage=commit bytes=7681514 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:19:51.933 ingest batch=b0535 stage=commit bytes=1596958 sink=warehouse result=ok
+2026-03-14 03:19:53.644 ingest batch=b9999 stage=commit bytes=7512831 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:19:53.777 ingest batch=b91050 stage=commit bytes=5079352 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:20:00.517 ingest batch=b91072 stage=commit bytes=8740213 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:20:03.550 ingest batch=b91054 stage=commit bytes=3953109 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:20:04.277 ingest batch=b0738 stage=commit bytes=1588808 sink=warehouse result=ok
+2026-03-14 03:20:06.209 ingest batch=b91077 stage=commit bytes=3815605 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:20:07.980 ingest batch=b91148 stage=commit bytes=5110565 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:20:15.206 ingest batch=b0775 stage=commit bytes=372876 sink=warehouse result=ok
+2026-03-14 03:20:15.518 ingest batch=b91085 stage=commit bytes=7873040 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:20:21.561 ingest batch=b0688 stage=commit bytes=6126303 sink=warehouse result=ok
+2026-03-14 03:20:32.308 ingest batch=b0090 stage=commit bytes=5599721 sink=warehouse result=ok
+2026-03-14 03:20:37.370 ingest batch=b0648 stage=commit bytes=4064830 sink=warehouse result=ok
+2026-03-14 03:20:39.886 ingest batch=b0630 stage=commit bytes=2396678 sink=warehouse result=ok
+2026-03-14 03:20:40.122 ingest batch=b91149 stage=commit bytes=469647 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:20:41.610 ingest batch=b0522 stage=commit bytes=5148728 sink=warehouse result=ok
+2026-03-14 03:20:51.842 ingest batch=b91078 stage=commit bytes=7273174 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:20:56.793 ingest batch=b91133 stage=commit bytes=3388951 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:21:02.741 ingest batch=b0867 stage=commit bytes=748072 sink=warehouse result=ok
+2026-03-14 03:21:03.247 ingest batch=b0606 stage=commit bytes=420350 sink=warehouse result=ok
+2026-03-14 03:21:07.068 ingest batch=b91074 stage=commit bytes=6054652 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:21:21.987 ingest batch=b0462 stage=commit bytes=7666227 sink=warehouse result=ok
+2026-03-14 03:21:28.146 ingest batch=b0156 stage=commit bytes=8960837 sink=warehouse result=ok
+2026-03-14 03:21:32.796 ingest batch=b91094 stage=commit bytes=8244365 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:21:33.234 ingest batch=b0089 stage=commit bytes=4832915 sink=warehouse result=ok
+2026-03-14 03:21:33.919 ingest batch=b0345 stage=commit bytes=5027838 sink=warehouse result=ok
+2026-03-14 03:21:39.626 ingest batch=b91108 stage=commit bytes=8663524 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:21:49.326 ingest batch=b0179 stage=commit bytes=3156890 sink=warehouse result=ok
+2026-03-14 03:21:49.433 ingest batch=b91061 stage=commit bytes=1601172 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:21:51.542 ingest batch=b0477 stage=commit bytes=169682 sink=warehouse result=ok
+2026-03-14 03:21:52.352 ingest batch=b91122 stage=commit bytes=1098672 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:21:54.254 ingest batch=b0572 stage=commit bytes=3353710 sink=warehouse result=ok
+2026-03-14 03:21:59.853 ingest batch=b0841 stage=commit bytes=6357897 sink=warehouse result=ok
+2026-03-14 03:22:00.984 ingest batch=b0680 stage=commit bytes=2524797 sink=warehouse result=ok
+2026-03-14 03:22:13.541 ingest batch=b0230 stage=commit bytes=456015 sink=warehouse result=ok
+2026-03-14 03:22:13.806 ingest batch=b91097 stage=commit bytes=6443613 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:22:13.855 ingest batch=b91030 stage=commit bytes=6590867 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:22:18.567 ingest batch=b0208 stage=commit bytes=5396921 sink=warehouse result=ok
+2026-03-14 03:22:26.189 ingest batch=b0691 stage=commit bytes=7574170 sink=warehouse result=ok
+2026-03-14 03:22:30.801 ingest batch=b91001 stage=commit bytes=1433553 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:22:31.459 ingest batch=b0801 stage=commit bytes=1920889 sink=warehouse result=ok
+2026-03-14 03:22:32.122 ingest batch=b91048 stage=commit bytes=2282251 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:22:37.061 ingest batch=b91012 stage=commit bytes=6419884 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:22:54.237 ingest batch=b91055 stage=commit bytes=2188169 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:22:59.633 ingest batch=b0813 stage=commit bytes=5495420 sink=warehouse result=ok
+2026-03-14 03:23:02.950 ingest batch=b0251 stage=commit bytes=930896 sink=warehouse result=ok
+2026-03-14 03:23:08.795 ingest batch=b91127 stage=commit bytes=4128871 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:23:12.194 ingest batch=b91145 stage=commit bytes=2184400 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:23:12.611 ingest batch=b0327 stage=commit bytes=6149418 sink=warehouse result=ok
+2026-03-14 03:23:22.790 ingest batch=b0429 stage=commit bytes=323923 sink=warehouse result=ok
+2026-03-14 03:23:29.217 ingest batch=b0579 stage=commit bytes=8687665 sink=warehouse result=ok
+2026-03-14 03:23:29.541 ingest batch=b0441 stage=commit bytes=3212893 sink=warehouse result=ok
+2026-03-14 03:23:40.359 ingest batch=b91017 stage=commit bytes=4340627 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:23:47.503 ingest batch=b0305 stage=commit bytes=8932631 sink=warehouse result=ok
+2026-03-14 03:23:47.749 ingest batch=b91021 stage=commit bytes=5639659 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:23:50.299 ingest batch=b0435 stage=commit bytes=318306 sink=warehouse result=ok
+2026-03-14 03:23:51.679 ingest batch=b91068 stage=commit bytes=6792994 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:23:53.802 ingest batch=b91126 stage=commit bytes=6887898 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:23:59.945 ingest batch=b0216 stage=commit bytes=8339569 sink=warehouse result=ok
+2026-03-14 03:24:02.428 ingest batch=b0662 stage=commit bytes=5276032 sink=warehouse result=ok
+2026-03-14 03:24:02.467 ingest batch=b0744 stage=commit bytes=4437288 sink=warehouse result=ok
+2026-03-14 03:24:12.644 ingest batch=b0266 stage=commit bytes=4727080 sink=warehouse result=ok
+2026-03-14 03:24:19.571 ingest batch=b0128 stage=commit bytes=6999888 sink=warehouse result=ok
+2026-03-14 03:24:22.866 ingest batch=b0050 stage=commit bytes=1383175 sink=warehouse result=ok
+2026-03-14 03:24:33.278 ingest batch=b91100 stage=commit bytes=6373691 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:24:34.082 ingest batch=b91141 stage=commit bytes=3923212 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:24:36.104 ingest batch=b0175 stage=commit bytes=4359314 sink=warehouse result=ok
+2026-03-14 03:24:38.505 ingest batch=b0704 stage=commit bytes=2047984 sink=warehouse result=ok
+2026-03-14 03:24:40.174 ingest batch=b0523 stage=commit bytes=2083794 sink=warehouse result=ok
+2026-03-14 03:24:47.463 ingest batch=b0319 stage=commit bytes=646612 sink=warehouse result=ok
+2026-03-14 03:24:48.503 ingest batch=b0021 stage=commit bytes=8745371 sink=warehouse result=ok
+2026-03-14 03:24:55.949 ingest batch=b91034 stage=commit bytes=2515017 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:24:57.654 ingest batch=b0490 stage=commit bytes=6029138 sink=warehouse result=ok
+2026-03-14 03:24:58.067 ingest batch=b0755 stage=commit bytes=2448872 sink=warehouse result=ok
+2026-03-14 03:24:58.719 ingest batch=b0610 stage=commit bytes=8978893 sink=warehouse result=ok
+2026-03-14 03:25:03.468 ingest batch=b0408 stage=commit bytes=5904245 sink=warehouse result=ok
+2026-03-14 03:25:04.513 ingest batch=b0139 stage=commit bytes=1691323 sink=warehouse result=ok
+2026-03-14 03:25:06.082 ingest batch=b0584 stage=commit bytes=6615745 sink=warehouse result=ok
+2026-03-14 03:25:06.240 ingest batch=b0793 stage=commit bytes=3627316 sink=warehouse result=ok
+2026-03-14 03:25:10.110 ingest batch=b0508 stage=commit bytes=7600294 sink=warehouse result=ok
+2026-03-14 03:25:11.419 ingest batch=b0084 stage=commit bytes=952700 sink=warehouse result=ok
+2026-03-14 03:25:12.095 ingest batch=b0470 stage=commit bytes=8821792 sink=warehouse result=ok
+2026-03-14 03:25:13.804 ingest batch=b91096 stage=commit bytes=5922417 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:25:15.774 ingest batch=b91081 stage=commit bytes=6462675 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:25:16.348 ingest batch=b0316 stage=commit bytes=2446731 sink=warehouse result=ok
+2026-03-14 03:25:18.489 ingest batch=b9992 stage=commit bytes=2546699 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:25:19.213 ingest batch=b0645 stage=commit bytes=3893984 sink=warehouse result=ok
+2026-03-14 03:25:30.583 ingest batch=b0200 stage=commit bytes=151488 sink=warehouse result=ok
+2026-03-14 03:25:39.655 ingest batch=b0498 stage=commit bytes=8775181 sink=warehouse result=ok
+2026-03-14 03:25:39.685 ingest batch=b91028 stage=commit bytes=1249214 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:25:42.292 ingest batch=b91062 stage=commit bytes=1304492 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:25:42.303 ingest batch=b91098 stage=commit bytes=2244078 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:25:44.075 ingest batch=b0776 stage=commit bytes=4506062 sink=warehouse result=ok
+2026-03-14 03:25:47.727 ingest batch=b0250 stage=commit bytes=2178898 sink=warehouse result=ok
+2026-03-14 03:25:59.826 ingest batch=b0363 stage=commit bytes=6874709 sink=warehouse result=ok
+2026-03-14 03:26:01.712 ingest batch=b91051 stage=commit bytes=469479 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:26:01.910 ingest batch=b91084 stage=commit bytes=4452833 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:26:04.665 ingest batch=b91135 stage=commit bytes=1638525 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:26:19.079 ingest batch=b0368 stage=commit bytes=5902471 sink=warehouse result=ok
+2026-03-14 03:26:24.658 ingest batch=b91128 stage=commit bytes=8400843 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:26:28.278 ingest batch=b0557 stage=commit bytes=762268 sink=warehouse result=ok
+2026-03-14 03:26:28.339 ingest batch=b9997 stage=commit bytes=676997 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:26:45.317 ingest batch=b0698 stage=commit bytes=411389 sink=warehouse result=ok
+2026-03-14 03:26:48.972 ingest batch=b0689 stage=commit bytes=6301717 sink=warehouse result=ok
+2026-03-14 03:26:50.622 ingest batch=b91033 stage=commit bytes=1514979 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:26:50.631 ingest batch=b91104 stage=commit bytes=5448587 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:26:54.767 ingest batch=b91106 stage=commit bytes=7498808 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:27:04.879 ingest batch=b91016 stage=commit bytes=6358732 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:27:05.808 ingest batch=b9995 stage=commit bytes=2819525 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:27:09.658 ingest batch=b91003 stage=commit bytes=540293 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:27:11.527 ingest batch=b0883 stage=commit bytes=2966375 sink=warehouse result=ok
+2026-03-14 03:27:14.657 ingest batch=b9998 stage=commit bytes=2876746 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:27:19.511 ingest batch=b91053 stage=commit bytes=1132263 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:27:22.057 ingest batch=b0612 stage=commit bytes=4839134 sink=warehouse result=ok
+2026-03-14 03:27:28.666 ingest batch=b91089 stage=commit bytes=5245087 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:27:31.319 ingest batch=b0481 stage=commit bytes=8386772 sink=warehouse result=ok
+2026-03-14 03:27:36.600 ingest batch=b91102 stage=commit bytes=2169139 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:27:36.784 ingest batch=b91082 stage=commit bytes=5149016 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:27:38.151 ingest batch=b0710 stage=commit bytes=534812 sink=warehouse result=ok
+2026-03-14 03:27:41.135 ingest batch=b0587 stage=commit bytes=2938661 sink=warehouse result=ok
+2026-03-14 03:27:41.517 ingest batch=b91107 stage=commit bytes=4749499 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:27:50.798 ingest batch=b0894 stage=commit bytes=8587296 sink=warehouse result=ok
+2026-03-14 03:27:53.581 ingest batch=b91139 stage=commit bytes=3152837 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:28:00.881 ingest batch=b0701 stage=commit bytes=2915475 sink=warehouse result=ok
+2026-03-14 03:28:04.152 ingest batch=b91000 stage=commit bytes=6505218 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:28:05.962 ingest batch=b0148 stage=commit bytes=8094050 sink=warehouse result=ok
+2026-03-14 03:28:06.449 ingest batch=b0509 stage=commit bytes=3094940 sink=warehouse result=ok
+2026-03-14 03:28:10.424 ingest batch=b0833 stage=commit bytes=765394 sink=warehouse result=ok
+2026-03-14 03:28:11.816 ingest batch=b91101 stage=commit bytes=3330979 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:28:12.323 ingest batch=b91143 stage=commit bytes=5580871 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:28:15.525 ingest batch=b0678 stage=commit bytes=1882300 sink=warehouse result=ok
+2026-03-14 03:28:17.108 ingest batch=b91093 stage=commit bytes=2955740 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:28:25.246 ingest batch=b0838 stage=commit bytes=6717317 sink=warehouse result=ok
+2026-03-14 03:28:26.516 ingest batch=b9996 stage=commit bytes=6534317 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:28:29.153 ingest batch=b0466 stage=commit bytes=82036 sink=warehouse result=ok
+2026-03-14 03:28:30.254 ingest batch=b0719 stage=commit bytes=441302 sink=warehouse result=ok
+2026-03-14 03:28:31.747 ingest batch=b0480 stage=commit bytes=2483282 sink=warehouse result=ok
+2026-03-14 03:28:32.771 ingest batch=b0467 stage=commit bytes=2398831 sink=warehouse result=ok
+2026-03-14 03:28:32.968 ingest batch=b91099 stage=commit bytes=6542588 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:28:34.753 ingest batch=b0285 stage=commit bytes=145186 sink=warehouse result=ok
+2026-03-14 03:28:37.846 ingest batch=b91069 stage=commit bytes=89404 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:28:40.504 ingest batch=b91036 stage=commit bytes=1136911 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:28:42.128 ingest batch=b0198 stage=commit bytes=1104512 sink=warehouse result=ok
+2026-03-14 03:28:49.920 ingest batch=b9990 stage=commit bytes=2984203 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:28:50.673 ingest batch=b0646 stage=commit bytes=4658351 sink=warehouse result=ok
+2026-03-14 03:28:55.640 ingest batch=b91144 stage=commit bytes=554673 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:28:56.770 ingest batch=b0749 stage=commit bytes=1305006 sink=warehouse result=ok
+2026-03-14 03:28:57.073 ingest batch=b0495 stage=commit bytes=8748672 sink=warehouse result=ok
+2026-03-14 03:28:59.901 ingest batch=b0539 stage=commit bytes=8180002 sink=warehouse result=ok
+2026-03-14 03:29:00.048 ingest batch=b91129 stage=commit bytes=3602451 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:29:02.562 ingest batch=b0820 stage=commit bytes=4749360 sink=warehouse result=ok
+2026-03-14 03:29:06.002 ingest batch=b91045 stage=commit bytes=5102467 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:29:08.080 ingest batch=b0669 stage=commit bytes=7829877 sink=warehouse result=ok
+2026-03-14 03:29:08.740 ingest batch=b91115 stage=commit bytes=4502113 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:29:11.414 ingest batch=b0734 stage=commit bytes=8775191 sink=warehouse result=ok
+2026-03-14 03:29:13.905 ingest batch=b91057 stage=commit bytes=6449093 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:29:14.225 ingest batch=b0859 stage=commit bytes=5710842 sink=warehouse result=ok
+2026-03-14 03:29:14.273 ingest batch=b91137 stage=commit bytes=8484646 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:29:30.569 ingest batch=b0569 stage=commit bytes=450974 sink=warehouse result=ok
+2026-03-14 03:29:32.541 ingest batch=b0800 stage=commit bytes=2086998 sink=warehouse result=ok
+2026-03-14 03:29:32.838 ingest batch=b0651 stage=commit bytes=6384533 sink=warehouse result=ok
+2026-03-14 03:29:35.759 ingest batch=b91091 stage=commit bytes=1534560 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:29:36.773 ingest batch=b0095 stage=commit bytes=8885047 sink=warehouse result=ok
+2026-03-14 03:29:41.329 ingest batch=b0254 stage=commit bytes=1905668 sink=warehouse result=ok
+2026-03-14 03:29:41.910 ingest batch=b0644 stage=commit bytes=1409398 sink=warehouse result=ok
+2026-03-14 03:29:50.086 ingest batch=b0294 stage=commit bytes=7666683 sink=warehouse result=ok
+2026-03-14 03:29:51.481 ingest batch=b91066 stage=commit bytes=8404967 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:30:01.224 ingest batch=b0421 stage=commit bytes=4030742 sink=warehouse result=ok
+2026-03-14 03:30:01.994 ingest batch=b0182 stage=commit bytes=7151771 sink=warehouse result=ok
+2026-03-14 03:30:06.692 ingest batch=b0299 stage=commit bytes=440141 sink=warehouse result=ok
+2026-03-14 03:30:06.792 ingest batch=b0484 stage=commit bytes=3670038 sink=warehouse result=ok
+2026-03-14 03:30:09.452 ingest batch=b91005 stage=commit bytes=6308250 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:30:09.859 ingest batch=b0384 stage=commit bytes=470460 sink=warehouse result=ok
+2026-03-14 03:30:09.884 ingest batch=b91008 stage=commit bytes=5240458 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:30:13.377 ingest batch=b91059 stage=commit bytes=4216929 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:30:13.909 ingest batch=b91009 stage=commit bytes=6576702 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:30:14.699 ingest batch=b0829 stage=commit bytes=7935183 sink=warehouse result=ok
+2026-03-14 03:30:17.078 ingest batch=b0037 stage=commit bytes=3127655 sink=warehouse result=ok
+2026-03-14 03:30:18.081 ingest batch=b91120 stage=commit bytes=1822271 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:30:19.903 ingest batch=b91027 stage=commit bytes=254905 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:30:24.194 ingest batch=b0376 stage=commit bytes=4630156 sink=warehouse result=ok
+2026-03-14 03:30:24.668 ingest batch=b91006 stage=commit bytes=2457463 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:30:28.003 ingest batch=b0086 stage=commit bytes=781889 sink=warehouse result=ok
+2026-03-14 03:30:39.742 ingest batch=b91067 stage=commit bytes=1220255 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:30:41.599 ingest batch=b0309 stage=commit bytes=6523790 sink=warehouse result=ok
+2026-03-14 03:30:42.906 ingest batch=b0898 stage=commit bytes=690641 sink=warehouse result=ok
+2026-03-14 03:30:43.960 ingest batch=b0063 stage=commit bytes=6765457 sink=warehouse result=ok
+2026-03-14 03:30:46.041 ingest batch=b91076 stage=commit bytes=3515689 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:30:50.256 ingest batch=b91063 stage=commit bytes=5633672 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:30:51.583 ingest batch=b0729 stage=commit bytes=8973337 sink=warehouse result=ok
+2026-03-14 03:30:52.675 ingest batch=b0623 stage=commit bytes=4309674 sink=warehouse result=ok
+2026-03-14 03:30:54.015 ingest batch=b0778 stage=commit bytes=8850243 sink=warehouse result=ok
+2026-03-14 03:31:08.060 ingest batch=b91014 stage=commit bytes=4176088 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:31:15.313 ingest batch=b0879 stage=commit bytes=4888469 sink=warehouse result=ok
+2026-03-14 03:31:16.518 ingest batch=b0082 stage=commit bytes=7901576 sink=warehouse result=ok
+2026-03-14 03:31:20.417 ingest batch=b91011 stage=commit bytes=1334307 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:31:27.992 ingest batch=b91142 stage=commit bytes=793890 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:31:28.380 ingest batch=b0672 stage=commit bytes=3872642 sink=warehouse result=ok
+2026-03-14 03:31:28.931 ingest batch=b0020 stage=commit bytes=5541598 sink=warehouse result=ok
+2026-03-14 03:31:30.197 ingest batch=b0740 stage=commit bytes=1046708 sink=warehouse result=ok
+2026-03-14 03:31:31.023 ingest batch=b0752 stage=commit bytes=2490109 sink=warehouse result=ok
+2026-03-14 03:31:36.653 ingest batch=b0825 stage=commit bytes=6139517 sink=warehouse result=ok
+2026-03-14 03:31:37.079 ingest batch=b91019 stage=commit bytes=4959689 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:31:37.826 ingest batch=b91041 stage=commit bytes=6499809 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:31:43.758 ingest batch=b0853 stage=commit bytes=96252 sink=warehouse result=ok
+2026-03-14 03:31:49.331 ingest batch=b91073 stage=commit bytes=781727 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:31:52.875 ingest batch=b91109 stage=commit bytes=3071042 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:31:54.143 ingest batch=b91010 stage=commit bytes=8756151 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:32:00.378 ingest batch=b91042 stage=commit bytes=6699957 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:32:00.615 ingest batch=b0337 stage=commit bytes=8010569 sink=warehouse result=ok
+2026-03-14 03:32:01.465 ingest batch=b0083 stage=commit bytes=5905884 sink=warehouse result=ok
+2026-03-14 03:32:13.678 ingest batch=b91023 stage=commit bytes=2957985 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:32:18.966 ingest batch=b0121 stage=commit bytes=5919116 sink=warehouse result=ok
+2026-03-14 03:32:19.695 ingest batch=b0715 stage=commit bytes=8677421 sink=warehouse result=ok
+2026-03-14 03:32:23.332 ingest batch=b91015 stage=commit bytes=1201648 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:32:23.483 ingest batch=b91117 stage=commit bytes=2054533 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:32:28.173 ingest batch=b0244 stage=commit bytes=3393358 sink=warehouse result=ok
+2026-03-14 03:32:36.314 ingest batch=b0600 stage=commit bytes=666304 sink=warehouse result=ok
+2026-03-14 03:32:36.657 ingest batch=b0886 stage=commit bytes=6885185 sink=warehouse result=ok
+2026-03-14 03:32:36.923 ingest batch=b91043 stage=commit bytes=8814726 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:32:38.855 ingest batch=b0686 stage=commit bytes=3267912 sink=warehouse result=ok
+2026-03-14 03:32:39.439 ingest batch=b91018 stage=commit bytes=4947603 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:32:39.743 ingest batch=b91040 stage=commit bytes=2430651 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:32:42.149 ingest batch=b0500 stage=commit bytes=8680538 sink=warehouse result=ok
+2026-03-14 03:32:44.289 ingest batch=b0452 stage=commit bytes=3957082 sink=warehouse result=ok
+2026-03-14 03:32:45.123 ingest batch=b0742 stage=commit bytes=1343852 sink=warehouse result=ok
+2026-03-14 03:32:49.657 ingest batch=b0656 stage=commit bytes=4677849 sink=warehouse result=ok
+2026-03-14 03:32:52.260 ingest batch=b0784 stage=commit bytes=1895740 sink=warehouse result=ok
+2026-03-14 03:32:54.630 ingest batch=b91124 stage=commit bytes=3303400 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:32:58.790 ingest batch=b91038 stage=commit bytes=1781992 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:33:01.894 ingest batch=b0221 stage=commit bytes=8290586 sink=warehouse result=ok
+2026-03-14 03:33:02.774 ingest batch=b0706 stage=commit bytes=1998571 sink=warehouse result=ok
+2026-03-14 03:33:07.108 ingest batch=b0289 stage=commit bytes=7711482 sink=warehouse result=ok
+2026-03-14 03:33:07.866 ingest batch=b0091 stage=commit bytes=1013527 sink=warehouse result=ok
+2026-03-14 03:33:11.320 ingest batch=b0405 stage=commit bytes=1194116 sink=warehouse result=ok
+2026-03-14 03:33:16.904 ingest batch=b91049 stage=commit bytes=7805257 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:33:17.213 ingest batch=b0592 stage=commit bytes=3542212 sink=warehouse result=ok
+2026-03-14 03:33:18.500 ingest batch=b91116 stage=commit bytes=3178355 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:33:22.712 ingest batch=b0263 stage=commit bytes=5894556 sink=warehouse result=ok
+2026-03-14 03:33:33.897 ingest batch=b0068 stage=commit bytes=1813148 sink=warehouse result=ok
+2026-03-14 03:33:36.423 ingest batch=b91022 stage=commit bytes=4852753 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:33:37.118 ingest batch=b0110 stage=commit bytes=6660249 sink=warehouse result=ok
+2026-03-14 03:33:37.814 ingest batch=b0361 stage=commit bytes=3973479 sink=warehouse result=ok
+2026-03-14 03:33:38.362 ingest batch=b91058 stage=commit bytes=6678033 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:33:38.879 ingest batch=b0149 stage=commit bytes=3557568 sink=warehouse result=ok
+2026-03-14 03:33:42.359 ingest batch=b91071 stage=commit bytes=4817507 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:33:46.051 ingest batch=b0464 stage=commit bytes=5211861 sink=warehouse result=ok
+2026-03-14 03:33:47.720 ingest batch=b9993 stage=commit bytes=803375 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:33:48.916 ingest batch=b0454 stage=commit bytes=2055330 sink=warehouse result=ok
+2026-03-14 03:33:49.573 ingest batch=b91140 stage=commit bytes=1473721 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:33:57.061 ingest batch=b91138 stage=commit bytes=3125402 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:34:02.882 ingest batch=b0357 stage=commit bytes=1979480 sink=warehouse result=ok
+2026-03-14 03:34:08.273 ingest batch=b91044 stage=commit bytes=1599810 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:34:10.771 ingest batch=b91095 stage=commit bytes=8766844 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:34:11.521 ingest batch=b91080 stage=commit bytes=6110159 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:34:14.168 ingest batch=b0029 stage=commit bytes=1681199 sink=warehouse result=ok
+2026-03-14 03:34:16.283 ingest batch=b0185 stage=commit bytes=3462049 sink=warehouse result=ok
+2026-03-14 03:34:17.082 ingest batch=b91118 stage=commit bytes=8961340 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:34:24.692 ingest batch=b91056 stage=commit bytes=8660666 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:34:26.295 ingest batch=b91146 stage=commit bytes=7768241 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:34:27.849 ingest batch=b91047 stage=commit bytes=886341 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:34:41.826 ingest batch=b0655 stage=commit bytes=4079036 sink=warehouse result=ok
+2026-03-14 03:34:43.664 ingest batch=b91086 stage=commit bytes=4713445 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:34:43.805 ingest batch=b91130 stage=commit bytes=2083730 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:34:45.188 ingest batch=b91039 stage=commit bytes=1895742 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:34:53.328 ingest batch=b0304 stage=commit bytes=414139 sink=warehouse result=ok
+2026-03-14 03:34:55.547 ingest batch=b0616 stage=commit bytes=778659 sink=warehouse result=ok
+2026-03-14 03:34:56.183 ingest batch=b0634 stage=commit bytes=6567927 sink=warehouse result=ok
+2026-03-14 03:34:58.195 ingest batch=b0768 stage=commit bytes=6531593 sink=warehouse result=ok
+2026-03-14 03:35:06.692 ingest batch=b91136 stage=commit bytes=457944 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:35:14.592 ingest batch=b91147 stage=commit bytes=7558420 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:35:23.283 ingest batch=b91083 stage=commit bytes=6122327 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:35:29.210 ingest batch=b91092 stage=commit bytes=6658269 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:35:31.978 ingest batch=b91132 stage=commit bytes=6286700 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:36:05.813 ingest batch=b91103 stage=commit bytes=4270032 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:36:06.629 ingest batch=b91075 stage=commit bytes=3948097 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:36:07.552 ingest batch=b91002 stage=commit bytes=6462114 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:36:12.637 ingest batch=b91087 stage=commit bytes=3519666 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:36:17.843 ingest batch=b91020 stage=commit bytes=7436261 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:36:22.505 ingest batch=b91119 stage=commit bytes=7054344 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:36:23.723 ingest batch=b91125 stage=commit bytes=2612959 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:36:25.447 ingest batch=b9991 stage=commit bytes=2350488 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:36:27.740 ingest batch=b91007 stage=commit bytes=5693951 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:36:43.754 ingest batch=b91031 stage=commit bytes=6291905 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:36:44.342 ingest batch=b9994 stage=commit bytes=3531727 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:36:50.337 ingest batch=b91112 stage=commit bytes=3772555 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:36:58.676 ingest batch=b91111 stage=commit bytes=8331990 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:37:04.569 ingest batch=b91064 stage=commit bytes=7880559 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:37:05.165 ingest batch=b91121 stage=commit bytes=7215076 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:37:06.206 ingest batch=b91114 stage=commit bytes=2431195 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:37:08.751 ingest batch=b91035 stage=commit bytes=410058 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:37:17.319 ingest batch=b91088 stage=commit bytes=8118135 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:37:24.811 ingest batch=b91060 stage=commit bytes=1457695 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:37:26.211 ingest batch=b91070 stage=commit bytes=6954579 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:37:27.938 ingest batch=b91046 stage=commit bytes=917920 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:37:30.745 ingest batch=b91025 stage=commit bytes=2669816 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:37:41.545 ingest batch=b91029 stage=commit bytes=7706505 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:37:41.847 ingest batch=b91105 stage=commit bytes=5100519 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:37:48.182 ingest batch=b91026 stage=commit bytes=4323288 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:37:50.749 ingest batch=b91113 stage=commit bytes=2980069 sink=warehouse result=ok note=post-crash-recovery
+2026-03-14 03:37:55.264 ingest batch=b91065 stage=commit bytes=3071850 sink=warehouse result=ok note=post-crash-recovery

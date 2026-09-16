@@ -1,0 +1,69 @@
+{
+  "schema_version": 2,
+  "matrix_id": "01M2MGVQVRJDA1V0BHZRQEW4KK",
+  "name": "imarathon-family-controls",
+  "hypothesis": "Fractional gate rewards discriminate nop/partial/gaming/oracle exactly as designed; deterministic fault injection active; no LLM judges.",
+  "benchmark_family": "imarathon",
+  "task_id": "imarathon-i0000",
+  "task": "library/tasks/experimental/imarathon/i0000",
+  "task_package_digest": "sha256:c9ecb2b1e1dd711a5d14b73ed8355dd3922bc93c8723cb4cd3bb4bce63564207",
+  "verifier_digest": "sha256:958f1134200811f4202e1813ebe8a0246f21de31ca7232c6a48f0c93a4233707",
+  "environment": "docker",
+  "jobs_dir": "runs",
+  "concurrency": 1,
+  "timeout_seconds": 1500,
+  "runs": [
+    {
+      "name": "imarathon-i0000-oracle-base-20260916-f",
+      "agent": "oracle",
+      "model": null,
+      "attempts": 1,
+      "expect_reward": 1.0,
+      "allow_billable": false
+    },
+    {
+      "name": "imarathon-i0000-nop-base-20260916-f",
+      "agent": "nop",
+      "model": null,
+      "attempts": 1,
+      "expect_reward": 0.0,
+      "allow_billable": false
+    },
+    {
+      "name": "imarathon-i0000-oracle-game-router-only-20260916-f",
+      "agent": "oracle",
+      "model": null,
+      "attempts": 1,
+      "expect_reward": 0.15,
+      "allow_billable": false,
+      "solution": "library/tasks/experimental/imarathon/controls/game-router-only.sh"
+    },
+    {
+      "name": "imarathon-i0000-oracle-game-tamper-evidence-20260916-f",
+      "agent": "oracle",
+      "model": null,
+      "attempts": 1,
+      "expect_reward": 0.15,
+      "allow_billable": false,
+      "solution": "library/tasks/experimental/imarathon/controls/game-tamper-evidence.sh"
+    },
+    {
+      "name": "imarathon-i0000-oracle-game-fake-report-20260916-f",
+      "agent": "oracle",
+      "model": null,
+      "attempts": 1,
+      "expect_reward": 0.2,
+      "allow_billable": false,
+      "solution": "library/tasks/experimental/imarathon/controls/game-fake-report.sh"
+    },
+    {
+      "name": "imarathon-i0000-oracle-partial-recovery-20260916-f",
+      "agent": "oracle",
+      "model": null,
+      "attempts": 1,
+      "expect_reward": 0.85,
+      "allow_billable": false,
+      "solution": "library/tasks/experimental/imarathon/controls/partial-recovery.sh"
+    }
+  ]
+}

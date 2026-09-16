@@ -1,0 +1,33 @@
+{
+  "schema_version": 2,
+  "matrix_id": "01M2MGVQW8ZY3H1R7F4Z9142BC",
+  "name": "imarathon-i0003-crosscheck",
+  "hypothesis": "Fractional gate rewards discriminate nop/partial/gaming/oracle exactly as designed; deterministic fault injection active; no LLM judges.",
+  "benchmark_family": "imarathon",
+  "task_id": "imarathon-i0003",
+  "task": "library/tasks/experimental/imarathon/i0003",
+  "task_package_digest": "sha256:6ec82a68abf8d69c58631823979dc6171b763bd04cba357e717f339af978acdf",
+  "verifier_digest": "sha256:49769b29edcbcd5a46f0272d24a4810defeec8247c90d48e895ac0409016f83a",
+  "environment": "docker",
+  "jobs_dir": "runs",
+  "concurrency": 1,
+  "timeout_seconds": 1500,
+  "runs": [
+    {
+      "name": "imarathon-i0003-oracle-base-20260916-f",
+      "agent": "oracle",
+      "model": null,
+      "attempts": 1,
+      "expect_reward": 1.0,
+      "allow_billable": false
+    },
+    {
+      "name": "imarathon-i0003-nop-base-20260916-f",
+      "agent": "nop",
+      "model": null,
+      "attempts": 1,
+      "expect_reward": 0.0,
+      "allow_billable": false
+    }
+  ]
+}

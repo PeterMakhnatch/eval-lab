@@ -90,6 +90,8 @@ inputs:
     digest: sha256:4611ea9127cb133c78a4b4c8508a3866b23ddc5759639e66faffcc9607759959
   - path: docs/research/literature-survey.md
     digest: sha256:8dd8e6aebe4aa36c02157da5519c9469308be13377bf67b564fc386bcc0bd27e
+  - path: docs/research/optimizer-friendly-environments.md
+    digest: sha256:1bbb56e4a2e4067dca8264b292ebbef20ef3187ff2e620baca9e9e2d6255da63
   - path: docs/research/synthetic-tasks.md
     digest: sha256:991d90264398946e24fe9370bd6a48f05ab73924976f4ccd9eacc0a44eb840c0
   - path: docs/research/trajectory-intelligence.md
@@ -158,6 +160,7 @@ an operator can see what is archived.
 | `docs/research/antigravity-lane.md` | Antigravity (AGY) Agent Lane Research & Architecture | `living` | `builder, runner` |
 | `docs/research/external-datasets.md` | External trajectory datasets: catalog and ingestion specification | `living` | `builder, analyst` |
 | `docs/research/harbor-ecosystem-architecture-perspective.md` | Where eval-lab sits in the Harbor ecosystem, and what it is missing | `living` | `builder, analyst` |
+| `docs/research/optimizer-friendly-environments.md` | Optimizer-friendly environments: selection criteria and the imarathon build | `living` | `builder, analyst, operator` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
 | `docs/task-registry.md` | Task registry and admission trust boundary | `living` | `builder, operator` |
@@ -207,6 +210,7 @@ an operator can see what is archived.
 | `docs/research-questions.md` | What this lab studies | `living` | `builder, analyst` |
 | `docs/research/external-datasets.md` | External trajectory datasets: catalog and ingestion specification | `living` | `builder, analyst` |
 | `docs/research/harbor-ecosystem-architecture-perspective.md` | Where eval-lab sits in the Harbor ecosystem, and what it is missing | `living` | `builder, analyst` |
+| `docs/research/optimizer-friendly-environments.md` | Optimizer-friendly environments: selection criteria and the imarathon build | `living` | `builder, analyst, operator` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
 | `docs/research/trajectory-intelligence.md` | Trajectory intelligence: metrics and failure signals | `living` | `analyst` |
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
@@ -296,6 +300,7 @@ an operator can see what is archived.
 | `docs/quality.md` | DirectoryQueue property-based fuzzing | `living` | `builder, operator` |
 | `docs/quota-accounting.md` | Subscription quota accounting | `living` | `runner, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
+| `docs/research/optimizer-friendly-environments.md` | Optimizer-friendly environments: selection criteria and the imarathon build | `living` | `builder, analyst, operator` |
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
 | `docs/scaling.md` | Scaling gates | `living` | `runner, operator` |
 | `docs/storm-alarms.md` | Storm Alarms & STATUS.md Generator | `living` | `operator, runner` |

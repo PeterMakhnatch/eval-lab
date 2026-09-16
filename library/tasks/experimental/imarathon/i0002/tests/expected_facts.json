@@ -1,0 +1,61 @@
+{
+  "digest_inputs": {
+    "conf/live/ingest.conf": "ebcadabf09ac87de64f095f4df5b110a764219aeafe767af34efe5d444659ab0",
+    "conf/manifest.yaml": "4b7c11e94c8e405514b51125b8bb6765b2092e2d070097cad1b26af2df0596d8",
+    "data/jobs.sqlite": "e3b71db6af73404bf7fa9d918162b74bded17d8ca81cc82135924f9d1c581fac",
+    "data/recovered-fragment/wal-extract.log": "e1a2a54f8d0d3df8a1da26dd43c1e06b5d88b2b33e451cf1c64da53fd811fdc4",
+    "logs/debug-notes.log": "79b3a74ecf8bbc7c392769be335273a7183ac71e9807cadc5ff1dd70b2703d62",
+    "logs/ingest.log": "6e1f072dd7206b7dc58af1c7f3c9910675041be3c04d6e969b4f9c97b5928e34",
+    "logs/job-runner.log": "85a430b44e4a97430c5c524ee4f733edfedddb50825f5313bf66a3d2012c2375",
+    "logs/metrics-scrape.log": "5bcba0ca8639da332720d25ae838ca6ca08eaef39e25f5fb205e989fe5d43936",
+    "logs/router-access.log": "bf225385ffda849b0e807d3d3c64061f4492de75be18b94463c80879734ad7ee"
+  },
+  "facts": {
+    "deploy_marker": "router-config-v9",
+    "fragment_run_ids": [
+      "r4671",
+      "r4665",
+      "r4695"
+    ],
+    "jobs_count": 7,
+    "last_ok_pre_crash": "r4741",
+    "mean_duration_job": "J10156",
+    "mean_duration_ms": 60346,
+    "oom_run_ids": [
+      "r4787",
+      "r4736",
+      "r4737"
+    ],
+    "per_status_counts": {
+      "failed": 6,
+      "ok": 113,
+      "oom_killed": 3,
+      "retry_ok": 6
+    },
+    "q1_oom_job_ids": [
+      "J10217"
+    ],
+    "q2_first_502_after_deploy": "2026-03-14T02:33:05Z",
+    "q3_retried_ok_batches": 54,
+    "q4_drift_keys": [
+      "ingest.workers"
+    ],
+    "q5_bytes_before_crash": 3515334602,
+    "q6_error_signature_sequence": [
+      "checksum-mismatch",
+      "sink-timeout",
+      "schema-version-skew"
+    ],
+    "schedules_count": 7,
+    "total_runs": 128
+  },
+  "gate_total": 20,
+  "manifest_body_kb": 12,
+  "router_bytes": {
+    "badge.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\"><rect width=\"10\" height=\"10\" fill=\"#106ba3\"/></svg>\n",
+    "index.html": "<html><body><h1>edge gateway</h1><p>platform front page</p></body></html>\n",
+    "style.css": "body { font-family: sans-serif; margin: 2rem; }\n.edge { color: #106ba3; }\n"
+  },
+  "seed": 2,
+  "upstream_good": 8081
+}

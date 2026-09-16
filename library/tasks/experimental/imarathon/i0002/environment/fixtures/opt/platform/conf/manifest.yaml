@@ -1,0 +1,7 @@
+# declared intent for the platform, owned by the SRE lead
+router:
+  max_body_kb: 12
+  upstream_port: 8081
+ingest:
+  workers: 8
+  sink: warehouse

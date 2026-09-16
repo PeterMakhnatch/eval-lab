@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "family": "imarathon",
+  "generator": "scripts/gen_imarathon.py",
+  "gate_total": 20,
+  "reward": "passed_gates / 20",
+  "frozen_at": "2026-09-16",
+  "split_policy": "70/15/15 across generated instances; existing 6 assigned, future ids reserved",
+  "instances": {
+    "i0000": {"seed": 0, "split": "development", "status": "control-validated-native"},
+    "i0001": {"seed": 1, "split": "development", "status": "oracle-host-validated"},
+    "i0002": {"seed": 2, "split": "development", "status": "generated"},
+    "i0003": {"seed": 3, "split": "development", "status": "control-validated-native"},
+    "i0004": {"seed": 4, "split": "development", "status": "oracle-host-validated"},
+    "i0005": {"seed": 5, "split": "holdout", "status": "generated"},
+    "i0006_i0019": {"split": "reserved", "note": "same generator, any seed 6..19; assign to val/test on generation"}
+  },
+  "rules": [
+    "holdout instances never enter optimizer development or selection loops",
+    "regenerating an instance with the same seed must reproduce identical digests",
+    "controls are family-shared under controls/ and apply to any instance"
+  ]
+}

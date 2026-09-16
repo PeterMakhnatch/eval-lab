@@ -58,7 +58,7 @@ this packet holds the reviewed summaries, the specs that ran, and the decision.
 | Runners | `src/evallab/rlm/bench_runner.py`, `bench_report.py`, `gepa_rlm.py` | per-task JSONL + trajectories, paired report with exact sign tests on accuracy/cost/iterations, GEPA driver over the action instructions (written, not yet run: quota) |
 | Tests | `tests/test_rlm_lane.py`, `tests/test_rlm_policies_bench.py`, `tests/test_rlm_harness.py` | 14 + 14 + 8 focused behavioural tests (`test_rlm_harness.py` skips without dspy) |
 
-Runtime: isolated `.harbor-dspy` venv (harbor 0.21.0 + dspy 3.3.1, deno 2.9.6) put on
+Runtime: isolated `runs/.harbor-dspy` venv (untracked, under the scanner-ignored runs/) (harbor 0.21.0 + dspy 3.3.1, deno 2.9.6) put on
 `PATH` only for this lane's executor process; the shared `~/.local/bin/harbor` tool is
 untouched. Model: `zai-coding-plan/glm-5.3-flash` via the Z.ai coding endpoint, key
 read host-side from the runner's 0400 file, never in the container or logs.
@@ -154,11 +154,11 @@ on GEPA.
 ```bash
 cd .worktrees/rlm-harness-20260916
 uv run pytest tests/test_rlm_lane.py tests/test_rlm_policies_bench.py -q
-PYTHONPATH=src .harbor-dspy/bin/python -m pytest tests/test_rlm_harness.py -q
+PYTHONPATH=src runs/.harbor-dspy/bin/python -m pytest tests/test_rlm_harness.py -q
 # bench (needs ZAI_API_KEY in the environment; never write it to disk)
-PYTHONPATH=src .harbor-dspy/bin/python -m evallab.rlm.bench_runner --policy stock-lenient \
+PYTHONPATH=src runs/.harbor-dspy/bin/python -m evallab.rlm.bench_runner --policy stock-lenient \
   --seed 1 --n-per-family 6 --context-chars 120000 --workers 2 --out runs/x
-PYTHONPATH=src .harbor-dspy/bin/python -m evallab.rlm.bench_report --dir runs/x --baseline stock
+PYTHONPATH=src runs/.harbor-dspy/bin/python -m evallab.rlm.bench_report --dir runs/x --baseline stock
 # Harbor: submit specs/rlm-<task>-<policy>-r<k>.json, approve, then
-PATH="$PWD/.harbor-dspy/bin:$PATH" uv run evallab tick --max-specs 1
+PATH="$PWD/runs/.harbor-dspy/bin:$PATH" uv run evallab tick --max-specs 1
 ```

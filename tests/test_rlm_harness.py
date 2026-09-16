@@ -1,23 +1,44 @@
-"""Behavioural checks for the policy-driven RLM harness (skipped without dspy)."""
+"""Behavioural checks for the policy-driven RLM harness (skipped without dspy).
+
+The module must stay importable without dspy so default collection still sees
+it; every test is skipped, not omitted, when the optional runtime is absent.
+"""
 
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import subprocess
 
 import pytest
 
-dspy = pytest.importorskip("dspy")
+from evallab.rlm.policies import resolve_policy
 
-from dspy.primitives.repl_types import REPLHistory  # noqa: E402
-from dspy.utils.exceptions import AdapterParseError  # noqa: E402
-
-from evallab.rlm.harness import MASKED_OUTPUT_MARKER, LabRlm, lm_usage  # noqa: E402
-from evallab.rlm.policies import resolve_policy  # noqa: E402
+pytestmark = pytest.mark.skipif(
+    importlib.util.find_spec("dspy") is None, reason="dspy is not installed in this environment"
+)
 
 
-def _history(n: int) -> REPLHistory:
-    history = REPLHistory()
+def _h():
+    from evallab.rlm import harness
+
+    return harness
+
+
+def _repl_history():
+    from dspy.primitives.repl_types import REPLHistory
+
+    return REPLHistory
+
+
+def _parse_error():
+    from dspy.utils.exceptions import AdapterParseError
+
+    return AdapterParseError
+
+
+def _history(n: int):
+    history = _repl_history()()
     for index in range(n):
         history = history.append(
             reasoning=f"r{index}", code=f"print({index})", output=f"out-{index}-" + "x" * 50
@@ -26,35 +47,37 @@ def _history(n: int) -> REPLHistory:
 
 
 def test_history_window_masks_only_older_outputs_and_keeps_code() -> None:
-    rlm = LabRlm("context, query -> answer", resolve_policy("orchestrator-mask4"))
+    rlm = _h().LabRlm("context, query -> answer", resolve_policy("orchestrator-mask4"))
     full = _history(7)
     view = rlm._history_view(full)
     assert len(view) == 7
     for index, entry in enumerate(view.entries):
         assert entry.code == f"print({index})"
         if index < 3:
-            assert entry.output == MASKED_OUTPUT_MARKER.format(
+            assert entry.output == _h().MASKED_OUTPUT_MARKER.format(
                 chars=len(full.entries[index].output)
             )
         else:
             assert entry.output == full.entries[index].output
     assert rlm._history_view(_history(4)).entries == _history(4).entries  # nothing to mask
-    assert LabRlm("context, query -> answer", resolve_policy("stock"))._history_view(full) is full
+    assert (
+        _h().LabRlm("context, query -> answer", resolve_policy("stock"))._history_view(full) is full
+    )
 
 
 def test_iteration_label_reports_remaining_budget_only_when_enabled() -> None:
-    plain = LabRlm("context, query -> answer", resolve_policy("orchestrator"))
-    remind = LabRlm("context, query -> answer", resolve_policy("orchestrator-remind"))
+    plain = _h().LabRlm("context, query -> answer", resolve_policy("orchestrator"))
+    remind = _h().LabRlm("context, query -> answer", resolve_policy("orchestrator-remind"))
     assert plain._iteration_label(0) == "1/20"
     assert remind._iteration_label(0).startswith("1/20 (19 iterations remain")
     assert "LAST iteration" in remind._iteration_label(19)
 
 
 def test_marker_history_renders_field_markers_and_composes_with_masking() -> None:
-    from evallab.rlm.harness import MarkerHistory
+    MarkerHistory = _h().MarkerHistory
 
-    stock = LabRlm("context, query -> answer", resolve_policy("stock"))
-    markers = LabRlm("context, query -> answer", resolve_policy("stock-markers"))
+    stock = _h().LabRlm("context, query -> answer", resolve_policy("stock"))
+    markers = _h().LabRlm("context, query -> answer", resolve_policy("stock-markers"))
     full = _history(3)
     assert "Reasoning: r0" in stock._history_view(full).format()
     rendered = markers._history_view(full).format()
@@ -62,7 +85,7 @@ def test_marker_history_renders_field_markers_and_composes_with_masking() -> Non
     assert rendered.count("[[ ## code ## ]]") == 3 and "[[ ## reasoning ## ]]\nr2" in rendered
     assert isinstance(markers._history_view(full), MarkerHistory)
     masked = resolve_policy("stock-markers").derive("m", "masked markers", history_window=1)
-    view = LabRlm("context, query -> answer", masked)._history_view(full).format()
+    view = _h().LabRlm("context, query -> answer", masked)._history_view(full).format()
     assert view.count("masked by harness policy") == 2 and "out-2-" in view
 
 
@@ -71,8 +94,8 @@ def test_policy_addenda_compose_into_action_instructions() -> None:
         """A tool."""
         return x
 
-    bench = LabRlm("context, query -> answer", resolve_policy("orchestrator-bridge"))
-    harbor = LabRlm(
+    bench = _h().LabRlm("context, query -> answer", resolve_policy("orchestrator-bridge"))
+    harbor = _h().LabRlm(
         "instruction, file_tree -> solution", resolve_policy("orchestrator-bridge"), tools=[tool]
     )
     assert "isolated sandbox" not in bench.generate_action.signature.instructions
@@ -82,7 +105,7 @@ def test_policy_addenda_compose_into_action_instructions() -> None:
         "g", "gepa", action_instructions_override="NEW INSTRUCTIONS"
     )
     assert (
-        LabRlm("context, query -> answer", override).generate_action.signature.instructions
+        _h().LabRlm("context, query -> answer", override).generate_action.signature.instructions
         == "NEW INSTRUCTIONS"
     )
 
@@ -90,11 +113,11 @@ def test_policy_addenda_compose_into_action_instructions() -> None:
 def test_unparseable_action_becomes_a_recoverable_observation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    rlm = LabRlm("context, query -> answer", resolve_policy("stock"))
+    rlm = _h().LabRlm("context, query -> answer", resolve_policy("stock"))
     signature = rlm.generate_action.signature
 
     def explode(self, **_: object):
-        raise AdapterParseError(
+        raise _parse_error()(
             adapter_name="ChatAdapter", signature=signature, lm_response="garbled {{"
         )
 
@@ -102,12 +125,12 @@ def test_unparseable_action_becomes_a_recoverable_observation(
     outcome = rlm._execute_iteration(
         repl=None,
         variables=[],
-        history=REPLHistory(),
+        history=_repl_history()(),
         iteration=0,
         input_args={},
         output_field_names=["answer"],
     )
-    assert isinstance(outcome, REPLHistory) and len(outcome) == 1
+    assert isinstance(outcome, _repl_history()) and len(outcome) == 1
     assert outcome.entries[0].output.startswith(
         "[Error] Your previous response could not be parsed"
     )
@@ -118,7 +141,7 @@ def test_unparseable_action_becomes_a_recoverable_observation(
 def test_lenient_policy_salvages_history_mirroring_responses(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from evallab.rlm.harness import salvage_action
+    salvage_action = _h().salvage_action
 
     drifted = "Reasoning: parsed 1,428 rows; verifying.\n\nCode:\n```python\nimport re\nprint(len(context))\n```\n"
     assert salvage_action(drifted) == (
@@ -130,13 +153,11 @@ def test_lenient_policy_salvages_history_mirroring_responses(
     assert salvage_action("no code here") is None
     assert salvage_action("```python\n\n```") is None
 
-    rlm = LabRlm("context, query -> answer", resolve_policy("stock-lenient"))
+    rlm = _h().LabRlm("context, query -> answer", resolve_policy("stock-lenient"))
     signature = rlm.generate_action.signature
 
     def explode(self, **_: object):
-        raise AdapterParseError(
-            adapter_name="ChatAdapter", signature=signature, lm_response=drifted
-        )
+        raise _parse_error()(adapter_name="ChatAdapter", signature=signature, lm_response=drifted)
 
     executed: list[str] = []
     monkeypatch.setattr(type(rlm.generate_action), "__call__", explode)
@@ -146,13 +167,13 @@ def test_lenient_policy_salvages_history_mirroring_responses(
     outcome = rlm._execute_iteration(
         repl=None,
         variables=[],
-        history=REPLHistory(),
+        history=_repl_history()(),
         iteration=0,
         input_args={},
         output_field_names=["answer"],
     )
     assert executed == ["import re\nprint(len(context))"]
-    assert isinstance(outcome, REPLHistory) and outcome.entries[0].output == "ok"
+    assert isinstance(outcome, _repl_history()) and outcome.entries[0].output == "ok"
     assert (rlm.salvaged_actions, rlm.parse_failures) == (1, 0)
 
 
@@ -170,7 +191,7 @@ def test_lm_usage_sums_history_and_prices_api_equivalent() -> None:
             "not-a-dict",
         ]
 
-    usage = lm_usage(FakeLm())  # type: ignore[arg-type]
+    usage = _h().lm_usage(FakeLm())  # type: ignore[arg-type]
     assert (usage.calls, usage.input_tokens, usage.output_tokens, usage.reasoning_tokens) == (
         2,
         1_000_000,
@@ -178,7 +199,7 @@ def test_lm_usage_sums_history_and_prices_api_equivalent() -> None:
         400,
     )
     assert usage.cost_usd == pytest.approx(1.40 + 4.40)
-    assert lm_usage(None).calls == 0
+    assert _h().lm_usage(None).calls == 0
 
 
 def test_container_python_tool_quotes_arbitrary_source() -> None:

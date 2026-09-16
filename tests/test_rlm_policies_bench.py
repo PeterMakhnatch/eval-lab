@@ -45,9 +45,11 @@ def test_suite_is_deterministic_per_seed_and_sized() -> None:
         (t.task_id, t.context, t.query, t.answer) for t in second
     ]
     assert generate_suite(4, 2, 50_000)[0].context != first[0].context
-    assert [t.family for t in first] == ["ledger-agg"] * 2 + ["chain-lookup"] * 2 + [
-        "state-tracking"
-    ] * 2
+    assert [t.family for t in first] == [
+        family
+        for family in ("ledger-agg", "chain-lookup", "state-tracking", "memo-classify")
+        for _ in range(2)
+    ]
     for task in first:
         assert 0.8 * 50_000 <= len(task.context) <= 1.2 * 50_000, (task.task_id, len(task.context))
         assert "ground_truth" in task.meta and "difficulty" in task.meta

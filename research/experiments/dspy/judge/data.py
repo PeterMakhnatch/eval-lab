@@ -25,7 +25,9 @@ class FamilySets:
     heldout: list[dspy.Example]
 
 
-def load_key_rationales(repo_root: Path, family: str, document_id: str) -> dict[str, dict[str, str]]:
+def load_key_rationales(
+    repo_root: Path, family: str, document_id: str
+) -> dict[str, dict[str, str]]:
     """Return dimension -> criterion -> one-line gold rationale from the sealed key."""
     key_path = calibration_root(repo_root) / family / "answer-keys" / f"{document_id}.json"
     key = json.loads(key_path.read_text(encoding="utf-8"))

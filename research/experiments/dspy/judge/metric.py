@@ -9,7 +9,9 @@ import dspy
 from .program import flatten_verdicts
 
 
-def cell_outcomes(example: dspy.Example, prediction: dspy.Prediction) -> list[tuple[str, str, str, str | None]]:
+def cell_outcomes(
+    example: dspy.Example, prediction: dspy.Prediction
+) -> list[tuple[str, str, str, str | None]]:
     """(dimension, criterion, expected, observed-or-None) for every gold cell."""
     expected = json.loads(example.expected_json)
     observed = flatten_verdicts(prediction)
@@ -44,11 +46,11 @@ def agreement_with_feedback(
             continue
         why = rationales.get(dimension, {}).get(name, "")
         got = observed if observed is not None else "MISSING"
-        lines.append(
-            f"- {dimension}.{name}: expected {expected}, got {got}. Reviewer note: {why}"
-        )
+        lines.append(f"- {dimension}.{name}: expected {expected}, got {got}. Reviewer note: {why}")
     if not lines:
-        feedback = f"All {len(cells)} criteria agree with the reviewer for document {gold.document_id}."
+        feedback = (
+            f"All {len(cells)} criteria agree with the reviewer for document {gold.document_id}."
+        )
     else:
         feedback = (
             f"{len(lines)} of {len(cells)} criteria disagree with the reviewer for document "

@@ -21,24 +21,21 @@ from __future__ import annotations
 import argparse
 import json
 import time
-from datetime import UTC, datetime
 from pathlib import Path
 
 import dspy
-
-from evallab.calibrate import RUBRICS, corpus_digest, rubric_digest
-from evallab.schemas import JudgeCriterionVerdict, JudgeDocumentPrediction, JudgePredictionBundle
 from lm import DEFAULT_MODEL, configure, zai_lm
+
+from evallab.calibrate import dspy_prediction_bundle
+from evallab.schemas import JudgePredictionBundle
 
 from .data import FamilySets, family_sets
 from .metric import agreement, agreement_with_feedback, cell_outcomes
-from .program import CalibrationJudge, flatten_verdicts, rationales
+from .program import CalibrationJudge, flatten_verdicts
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[3]
 ARTIFACTS = HERE / "artifacts"
-
-OMITTED = "JUDGE OMITTED CRITERION; recorded as no"
 
 
 def _usage(lm: dspy.LM, since: int) -> dict:
@@ -55,47 +52,29 @@ def _usage(lm: dspy.LM, since: int) -> dict:
 
 
 def _bundle(
-    family: str, results: list[tuple[dspy.Example, dspy.Prediction, float]], *, judge_backend: str, judge_model: str
+    family: str,
+    results: list[tuple[dspy.Example, dspy.Prediction, float]],
+    *,
+    judge_backend: str,
+    judge_model: str,
 ) -> tuple[JudgePredictionBundle, int]:
-    by_id = {example.document_id: prediction for example, prediction, _ in results}
-    omitted = 0
-    predictions = []
-    for example, _, _ in results:
-        prediction = by_id[example.document_id]
-        flat = flatten_verdicts(prediction)
-        why = rationales(prediction)
-        criteria: dict[str, dict[str, JudgeCriterionVerdict]] = {}
-        for dimension, block in RUBRICS[family]["criteria"].items():
-            for name in block:
-                verdict = flat.get(dimension, {}).get(name)
-                if verdict is None:
-                    omitted += 1
-                    criteria.setdefault(dimension, {})[name] = JudgeCriterionVerdict(
-                        verdict="no", rationale=OMITTED
-                    )
-                else:
-                    criteria.setdefault(dimension, {})[name] = JudgeCriterionVerdict(
-                        verdict=verdict, rationale=why.get(dimension, {}).get(name, "no rationale returned")
-                    )
-        predictions.append(JudgeDocumentPrediction(document_id=example.document_id, criteria=criteria))
-    bundle = JudgePredictionBundle(
-        family=family,
+    return dspy_prediction_bundle(
+        REPO_ROOT,
+        family,
+        [(example.document_id, prediction) for example, prediction, _ in results],
         judge_backend=judge_backend,
         judge_model=judge_model,
         judge_engine_version=f"dspy {dspy.__version__}",
-        rubric_digest=rubric_digest(family),
-        corpus_digest=corpus_digest(REPO_ROOT, family),
-        generated_at=datetime.now(UTC),
-        predictions=predictions,
     )
-    return bundle, omitted
 
 
 def _per_criterion(results) -> dict[str, dict[str, int]]:
     table: dict[str, dict[str, int]] = {}
     for example, prediction, _ in results:
         for dimension, name, expected, observed in cell_outcomes(example, prediction):
-            cell = table.setdefault(f"{dimension}.{name}", {"agreements": 0, "total": 0, "missing": 0})
+            cell = table.setdefault(
+                f"{dimension}.{name}", {"agreements": 0, "total": 0, "missing": 0}
+            )
             cell["total"] += 1
             cell["agreements"] += int(expected == observed)
             cell["missing"] += int(observed is None)
@@ -117,7 +96,11 @@ def evaluate_set(
     since = len(lm.history)
     started = time.time()
     evaluator = dspy.Evaluate(
-        devset=examples, metric=agreement, num_threads=threads, display_progress=True, provide_traceback=True,
+        devset=examples,
+        metric=agreement,
+        num_threads=threads,
+        display_progress=True,
+        provide_traceback=True,
         max_errors=len(examples),
     )
     result = evaluator(program)
@@ -150,12 +133,16 @@ def evaluate_set(
     }
     out_dir.mkdir(parents=True, exist_ok=True)
     if split == "all":
-        bundle, omitted = _bundle(family, results, judge_backend=judge_backend, judge_model=judge_model)
+        bundle, omitted = _bundle(
+            family, results, judge_backend=judge_backend, judge_model=judge_model
+        )
         bundle_path = out_dir / f"bundle-{family}.json"
         bundle_path.write_text(bundle.model_dump_json(indent=2) + "\n", encoding="utf-8")
         metrics["bundle"] = bundle_path.relative_to(REPO_ROOT).as_posix()
         metrics["omitted_cells_filled_no"] = omitted
-    (out_dir / f"metrics-{family}-{split}.json").write_text(json.dumps(metrics, indent=2) + "\n", encoding="utf-8")
+    (out_dir / f"metrics-{family}-{split}.json").write_text(
+        json.dumps(metrics, indent=2) + "\n", encoding="utf-8"
+    )
     print(
         f"[{judge_backend}] {family}/{split}: mean agreement {metrics['mean_agreement']:.4f} "
         f"over {len(examples)} docs, {metrics['usage']['calls']} calls, "
@@ -171,12 +158,21 @@ def load_program(path: Path | None) -> dspy.Module:
     return program
 
 
+GEPA_METRIC_CALLS = {"light": 120, "medium": 240, "heavy": 480}
+
+
 def build_optimizer(name: str, *, reflection_lm: dspy.LM, threads: int, budget: str, log_dir: Path):
     if name == "bootstrap":
-        return dspy.BootstrapFewShot(metric=agreement, max_bootstrapped_demos=2, max_labeled_demos=2)
+        return dspy.BootstrapFewShot(
+            metric=agreement, max_bootstrapped_demos=2, max_labeled_demos=2
+        )
     if name == "bootstrap-rs":
         return dspy.BootstrapFewShotWithRandomSearch(
-            metric=agreement, max_bootstrapped_demos=2, max_labeled_demos=2, num_candidate_programs=6, num_threads=threads
+            metric=agreement,
+            max_bootstrapped_demos=2,
+            max_labeled_demos=2,
+            num_candidate_programs=6,
+            num_threads=threads,
         )
     if name == "mipro":
         return dspy.MIPROv2(
@@ -189,9 +185,11 @@ def build_optimizer(name: str, *, reflection_lm: dspy.LM, threads: int, budget: 
             log_dir=str(log_dir),
         )
     if name == "gepa":
+        # Explicit cap instead of ``auto``: every metric call is one judge call
+        # (~$0.0015 at Flash prices), so the spend is bounded up front.
         return dspy.GEPA(
             metric=agreement_with_feedback,
-            auto=budget,
+            max_metric_calls=GEPA_METRIC_CALLS[budget],
             reflection_lm=reflection_lm,
             reflection_minibatch_size=3,
             num_threads=threads,
@@ -199,7 +197,14 @@ def build_optimizer(name: str, *, reflection_lm: dspy.LM, threads: int, budget: 
             log_dir=str(log_dir),
         )
     if name == "simba":
-        return dspy.SIMBA(metric=lambda ex, pred: agreement(ex, pred), bsize=8, num_candidates=4, max_steps=4, max_demos=2, num_threads=threads)
+        return dspy.SIMBA(
+            metric=lambda ex, pred: agreement(ex, pred),
+            bsize=8,
+            num_candidates=4,
+            max_steps=4,
+            max_demos=2,
+            num_threads=threads,
+        )
     raise ValueError(f"unknown optimizer {name!r}")
 
 
@@ -209,8 +214,15 @@ def cmd_baseline(args: argparse.Namespace) -> int:
     sets = family_sets(REPO_ROOT, args.family)
     program = load_program(None)
     evaluate_set(
-        program, getattr(sets, args.split), out_dir=out_dir, family=args.family, split=args.split,
-        judge_backend="dspy-cot-unoptimized", judge_model=args.model.removeprefix("zai/"), lm=lm, threads=args.threads,
+        program,
+        getattr(sets, args.split),
+        out_dir=out_dir,
+        family=args.family,
+        split=args.split,
+        judge_backend="dspy-cot-unoptimized",
+        judge_model=args.model.removeprefix("zai/"),
+        lm=lm,
+        threads=args.threads,
     )
     return 0
 
@@ -223,7 +235,11 @@ def cmd_optimize(args: argparse.Namespace) -> int:
     sets: FamilySets = family_sets(REPO_ROOT, args.train_family)
     student = load_program(args.seed_program)
     optimizer = build_optimizer(
-        args.optimizer, reflection_lm=reflection, threads=args.threads, budget=args.budget, log_dir=out_dir / "optimizer-log"
+        args.optimizer,
+        reflection_lm=reflection,
+        threads=args.threads,
+        budget=args.budget,
+        log_dir=out_dir / "optimizer-log",
     )
     since_task, since_reflect = len(lm.history), len(reflection.history)
     started = time.time()
@@ -232,7 +248,9 @@ def cmd_optimize(args: argparse.Namespace) -> int:
     elif args.optimizer == "bootstrap-rs":
         compiled = optimizer.compile(student, trainset=sets.train, valset=sets.val)
     elif args.optimizer == "mipro":
-        compiled = optimizer.compile(student, trainset=sets.train, valset=sets.val, requires_permission_to_run=False)
+        compiled = optimizer.compile(
+            student, trainset=sets.train, valset=sets.val, requires_permission_to_run=False
+        )
     else:
         compiled = optimizer.compile(student, trainset=sets.train, valset=sets.val)
     elapsed = time.time() - started
@@ -261,12 +279,16 @@ def cmd_optimize(args: argparse.Namespace) -> int:
     detailed = getattr(compiled, "detailed_results", None)
     if detailed is not None:
         try:
-            summary["gepa_val_aggregate_scores"] = list(getattr(detailed, "val_aggregate_scores", []))
+            summary["gepa_val_aggregate_scores"] = list(
+                getattr(detailed, "val_aggregate_scores", [])
+            )
             summary["gepa_best_idx"] = getattr(detailed, "best_idx", None)
             summary["gepa_num_candidates"] = len(getattr(detailed, "candidates", []))
         except Exception as exc:  # noqa: BLE001
             summary["gepa_detail_error"] = repr(exc)
-    (out_dir / "optimize-summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    (out_dir / "optimize-summary.json").write_text(
+        json.dumps(summary, indent=2) + "\n", encoding="utf-8"
+    )
     print(json.dumps({k: v for k, v in summary.items() if k != "compiled_instructions"}, indent=2))
     print("--- compiled instructions ---")
     for name, text in instructions.items():
@@ -278,19 +300,30 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     lm = configure(args.model)
     out_dir = ARTIFACTS / args.run_id
     program = load_program(Path(args.program) if args.program else None)
-    backend = args.judge_backend or ("dspy-cot-unoptimized" if not args.program else f"dspy-{Path(args.program).parent.name}")
+    backend = args.judge_backend or (
+        "dspy-cot-unoptimized" if not args.program else f"dspy-{Path(args.program).parent.name}"
+    )
     for family in args.family:
         sets = family_sets(REPO_ROOT, family)
         for split in args.split:
             evaluate_set(
-                program, getattr(sets, split), out_dir=out_dir, family=family, split=split,
-                judge_backend=backend, judge_model=args.model.removeprefix("zai/"), lm=lm, threads=args.threads,
+                program,
+                getattr(sets, split),
+                out_dir=out_dir,
+                family=family,
+                split=split,
+                judge_backend=backend,
+                judge_model=args.model.removeprefix("zai/"),
+                lm=lm,
+                threads=args.threads,
             )
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--threads", type=int, default=4)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -303,7 +336,11 @@ def main(argv: list[str] | None = None) -> int:
 
     optimize = sub.add_parser("optimize")
     optimize.add_argument("--train-family", required=True)
-    optimize.add_argument("--optimizer", required=True, choices=("bootstrap", "bootstrap-rs", "mipro", "gepa", "simba"))
+    optimize.add_argument(
+        "--optimizer",
+        required=True,
+        choices=("bootstrap", "bootstrap-rs", "mipro", "gepa", "simba"),
+    )
     optimize.add_argument("--budget", default="light", choices=("light", "medium", "heavy"))
     optimize.add_argument("--reflection-model", default=DEFAULT_MODEL)
     optimize.add_argument("--seed-program", type=Path, default=None)

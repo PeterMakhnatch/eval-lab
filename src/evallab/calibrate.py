@@ -366,9 +366,15 @@ def load_prediction_bundle(path: Path) -> JudgePredictionBundle:
 
 
 def _record_id(bundle: JudgePredictionBundle, evaluated_on: date) -> str:
-    model = re.sub(r"[^a-z0-9]+", "-", bundle.judge_model.lower()).strip("-")
+    slug = lambda text, width: re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:width]  # noqa: E731
     suffix = bundle.corpus_digest.removeprefix("sha256:")[:10]
-    return f"{bundle.family}-{evaluated_on:%Y%m%d}-{model[:28]}-{suffix}"
+    # Backend is part of the id: two judge programs on the same model and day
+    # (an unoptimized DSPy program and a compiled one) are distinct measurements
+    # and must not collide on the append-only record path.
+    return (
+        f"{bundle.family}-{evaluated_on:%Y%m%d}-{slug(bundle.judge_backend, 24)}-"
+        f"{slug(bundle.judge_model, 28)}-{suffix}"
+    )
 
 
 def evaluate_predictions(
@@ -922,27 +928,70 @@ def split_dspy_examples(examples: Sequence[DspyExample]) -> DspySplit:
     return DspySplit(train=train, optimizer_validation=optimizer_validation, heldout=heldout)
 
 
+DSPY_JUDGE_INSTRUCTIONS = (
+    "Judge an incident postmortem against every criterion in the rubric.\n\n"
+    "For each dimension and criterion in rubric_json.criteria, answer the criterion's "
+    "question about the document with a raw yes/no. Negated criteria ask whether a flaw "
+    "is PRESENT; answer yes when the flaw is present and do not invert. Decide evidence "
+    "questions only against rubric_json.reference_facts and the document text; do not "
+    "assume facts that are not supplied."
+)
+DSPY_OMITTED_RATIONALE = "JUDGE OMITTED CRITERION; recorded as no"
+
+
 def build_dspy_program(dspy_module: Any | None = None) -> Any:
+    """Typed judge program: ``family, rubric_json, document -> judgments``.
+
+    ``judgments`` is ``dict[dimension, dict[criterion, JudgeCriterionVerdict]]`` so
+    a non yes/no verdict or a missing rationale fails at parse time instead of
+    silently scoring zero. The wrapper module keeps the predictor name
+    ``judge.predict`` stable for saved/compiled program state.
+    """
     dspy = dspy_module or importlib.import_module("dspy")
     signature = dspy.Signature(
-        "family, rubric_json, document -> judgments_json",
-        instructions=(
-            "Apply every criterion in rubric_json to document. Return judgments_json as a JSON "
-            "object mapping dimension to criterion to the raw pre-inversion yes/no verdict."
-        ),
+        "family: str, rubric_json: str, document: str -> judgments: dict[str, dict[str, JudgeCriterionVerdict]]",
+        instructions=DSPY_JUDGE_INSTRUCTIONS,
+        custom_types={"JudgeCriterionVerdict": JudgeCriterionVerdict},
     )
-    return dspy.ChainOfThought(signature)
+
+    class CalibrationJudge(dspy.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.judge = dspy.ChainOfThought(signature)
+
+        def forward(self, family: str, rubric_json: str, document: str) -> Any:
+            return self.judge(family=family, rubric_json=rubric_json, document=document)
+
+    return CalibrationJudge()
+
+
+def dspy_verdicts(prediction: Any) -> dict[str, dict[str, JudgeCriterionVerdict]]:
+    """dimension -> criterion -> verdict cell from a typed prediction; invalid cells dropped."""
+    judgments = getattr(prediction, "judgments", None)
+    if not isinstance(judgments, dict):
+        return {}
+    flat: dict[str, dict[str, JudgeCriterionVerdict]] = {}
+    for dimension, block in judgments.items():
+        if not isinstance(block, dict):
+            continue
+        for name, cell in block.items():
+            if isinstance(cell, dict):
+                try:
+                    cell = JudgeCriterionVerdict.model_validate(cell)
+                except ValidationError:
+                    continue
+            if isinstance(cell, JudgeCriterionVerdict):
+                flat.setdefault(dimension, {})[name] = cell
+    return flat
 
 
 def dspy_metric(example: Any, prediction: Any, trace: Any | None = None) -> float:
+    """Exact per-criterion agreement with the sealed key; a missing cell is a disagreement."""
     del trace
     expected = json.loads(example.expected_json)
-    try:
-        observed = json.loads(prediction.judgments_json)
-    except (AttributeError, TypeError, json.JSONDecodeError):
-        return 0.0
+    observed = dspy_verdicts(prediction)
     cells = [
-        observed.get(dimension, {}).get(name) == verdict
+        (cell := observed.get(dimension, {}).get(name)) is not None and cell.verdict == verdict
         for dimension, block in expected.items()
         for name, verdict in block.items()
     ]
@@ -957,6 +1006,52 @@ def as_dspy_example(dspy: Any, example: DspyExample) -> Any:
         document=example.document,
         expected_json=example.expected_json,
     ).with_inputs("family", "rubric_json", "document")
+
+
+def dspy_prediction_bundle(
+    repo_root: Path,
+    family: str,
+    predictions: Sequence[tuple[str, Any]],
+    *,
+    judge_backend: str,
+    judge_model: str,
+    judge_engine_version: str | None = None,
+) -> tuple[JudgePredictionBundle, int]:
+    """Turn ``(document_id, typed prediction)`` pairs into a scoreable bundle.
+
+    A criterion the judge omitted is recorded as ``no`` with
+    ``DSPY_OMITTED_RATIONALE`` so the bundle stays scoreable; the count of such
+    fills is returned so the caller can refuse to record a run that omitted much.
+    Documents must cover the sealed corpus in order (validated by the bundle check).
+    """
+    by_id = dict(predictions)
+    omitted = 0
+    documents = []
+    for document_id, prediction in (
+        (d.document_id, by_id.get(d.document_id)) for d in load_corpus(repo_root, family)
+    ):
+        observed = dspy_verdicts(prediction) if prediction is not None else {}
+        criteria: dict[str, dict[str, JudgeCriterionVerdict]] = {}
+        for dimension, block in RUBRICS[family]["criteria"].items():
+            for name in block:
+                cell = observed.get(dimension, {}).get(name)
+                if cell is None:
+                    omitted += 1
+                    cell = JudgeCriterionVerdict(verdict="no", rationale=DSPY_OMITTED_RATIONALE)
+                criteria.setdefault(dimension, {})[name] = cell
+        documents.append(JudgeDocumentPrediction(document_id=document_id, criteria=criteria))
+    bundle = JudgePredictionBundle(
+        family=family,
+        judge_backend=judge_backend,
+        judge_model=judge_model,
+        judge_engine_version=judge_engine_version,
+        rubric_digest=rubric_digest(family),
+        corpus_digest=corpus_digest(repo_root, family),
+        generated_at=datetime.now(UTC),
+        predictions=documents,
+    )
+    validate_prediction_bundle(repo_root, bundle)
+    return bundle, omitted
 
 
 def dspy_split_summary(repo_root: Path, family: str) -> dict[str, Any]:

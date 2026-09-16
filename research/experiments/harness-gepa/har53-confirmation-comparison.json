@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "comparison_id": "har53-confirmation-20260915",
+  "experiment_id": "har53-gepa-omni-20260915",
+  "declared_variable": "preamble_content_sha256",
+  "mode": "exploratory",
+  "reward_name": "reward",
+  "pass_threshold": 1.0,
+  "pass_k": [
+    1
+  ],
+  "budget_exhaustion_is_failure": false,
+  "pairing_key": "task_digest",
+  "constraints": {},
+  "cohorts": [
+    {
+      "label": "seed",
+      "paths": [
+        "research/evidence/runs/gepa-zai-opencode-event-summary-8f6d211486a72f024483869d",
+        "research/evidence/runs/gepa-zai-opencode-syn-funcdag-easy-4a4e41ccd285e11d9109bd8f"
+      ],
+      "trial_names": []
+    },
+    {
+      "label": "selected",
+      "paths": [
+        "research/evidence/runs/gepa-zai-opencode-event-summary-c29fd211521aa25c1095287c",
+        "research/evidence/runs/gepa-zai-opencode-syn-funcdag-easy-51e81d84722a302daf64dddc"
+      ],
+      "trial_names": []
+    }
+  ]
+}

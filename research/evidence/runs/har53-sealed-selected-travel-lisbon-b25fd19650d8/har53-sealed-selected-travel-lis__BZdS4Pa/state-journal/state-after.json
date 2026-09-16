@@ -1,0 +1,43 @@
+{
+  "captured_at": "2026-09-16T00:04:17.610251Z",
+  "entries": [
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789517049446064009,
+      "path": ".",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789516786000000000,
+      "path": "data",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "hash_status": "complete",
+      "mode": "-rw-r--r--",
+      "mtime_ns": 1789517049446064009,
+      "path": "answer.json",
+      "sha256": "sha256:c434a4f627f79126077af3c0593301aa8f6b29947611e915611e1e0de0ba10c9",
+      "size_bytes": 696,
+      "type": "file"
+    },
+    {
+      "hash_status": "complete",
+      "mode": "-rw-r--r--",
+      "mtime_ns": 1789510271000000000,
+      "path": "data/task.json",
+      "sha256": "sha256:c7291885f7403799ea7a6df58b5249c0eb48fb1b7982b5100c0094b431f7a935",
+      "size_bytes": 1457,
+      "type": "file"
+    }
+  ],
+  "entry_count": 4,
+  "label": "after",
+  "root": "/app",
+  "schema_version": 1,
+  "target_pid": 54893,
+  "truncated": false
+}

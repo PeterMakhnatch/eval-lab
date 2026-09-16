@@ -1,0 +1,276 @@
+{
+  "schema_version": 2,
+  "bundle": "har53-sealed-seed-travel-lisbon-b25fd19650d8",
+  "source_job_runtime_path": "runs/har53-sealed-seed-travel-lisbon-b25fd19650d8",
+  "source_job_result_sha256": "sha256:ecdc2cc7a4414af5ca7e7617d1a7418d190842ebd6cd28e24108873a8c4aa643",
+  "promoted_by": "scripts/promote_codex_bundle.py",
+  "redaction_rules": {
+    "R1": "system/user ATIF step message text removed; sha256 and length kept",
+    "R2": "agent/sessions/**, agent/codex.txt, agent/opencode.txt, agent/opencode/**, job.log and trial.log raw prompt/model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
+    "R3a": "verifier/* JSON string values over 1024 bytes replaced by digest markers",
+    "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body",
+    "R4": "each omitted rollout leaves a quota sidecar under <trial>/agent/quota/ holding only the event timestamp and a whitelist of payload.rate_limits scalars, with the parent rollout's sha256; account-scope point-in-time readings, no message, prompt, reasoning, session title or token"
+  },
+  "totals": {
+    "source_files": 26,
+    "promoted_files": 18,
+    "omitted_files": 8,
+    "quota_sidecars": 0,
+    "promoted_bytes": 38140,
+    "source_bytes": 2630081
+  },
+  "files": [
+    {
+      "source_path": "config.json",
+      "promoted_path": "config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1117,
+      "source_sha256": "sha256:e5bfa6b232952036ddcda6dbfc63ba7f87b1b93f877619abd47737cfbb2923cc",
+      "promoted_bytes": 1117,
+      "promoted_sha256": "sha256:e5bfa6b232952036ddcda6dbfc63ba7f87b1b93f877619abd47737cfbb2923cc"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/agent/opencode/xdg-data/opencode/log/opencode.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 31976,
+      "source_sha256": "sha256:4f54158b428acf2944120fb5b57aae2f935cd26407e67de167948dee9b1b885f"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/agent/opencode/xdg-data/opencode/opencode.db",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 4096,
+      "source_sha256": "sha256:40cf07c52bfaa52b334ef341456f970787f6dc701ffe18ad3c572cb5056dbd70"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/agent/opencode/xdg-data/opencode/opencode.db-shm",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 32768,
+      "source_sha256": "sha256:e368538265318d7ab0b7b090ee7fbdc4a56d2efd01690160a2580630920d4624"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/agent/opencode/xdg-data/opencode/opencode.db-wal",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 2500872,
+      "source_sha256": "sha256:e01bdf92950bd54b38a97e7c9db168adaf01f2a4805b5c52db5ad7507da0b0ec"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/agent/opencode/xdg-data/opencode/snapshot/global/42099b4af021e53fd8fd4e056c2568d7c2e3ffa8/info/exclude",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 0,
+      "source_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/agent/opencode.txt",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 17692,
+      "source_sha256": "sha256:647af56c7799372c4c60e4ade2a3d9000e1b466f37e43d145b1d7217589e3f51"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/agent/trajectory.json",
+      "promoted_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/agent/trajectory.json",
+      "action": "redacted",
+      "rule": "R1",
+      "source_bytes": 11315,
+      "source_sha256": "sha256:6cb55f3046ef6450fd1a3982ea758f14b87faa71f19ccfdfa0c3a471ddfd9085",
+      "promoted_bytes": 11398,
+      "promoted_sha256": "sha256:d6713f6c47fa94a16637943d17d7bbced73c45d114e72e47c187923f252d4a6e"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/artifacts/app/answer.json",
+      "promoted_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/artifacts/app/answer.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 803,
+      "source_sha256": "sha256:ef5d6032f8383c80b5c2f121f031170bf33e1f44efd6b5c63d5e4870db4861c2",
+      "promoted_bytes": 803,
+      "promoted_sha256": "sha256:ef5d6032f8383c80b5c2f121f031170bf33e1f44efd6b5c63d5e4870db4861c2"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/artifacts/manifest.json",
+      "promoted_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/artifacts/manifest.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 310,
+      "source_sha256": "sha256:d78a1450e5192ae975ea2685155dbc1e9f731a5df54284b7c36a97ae54d1b47b",
+      "promoted_bytes": 310,
+      "promoted_sha256": "sha256:d78a1450e5192ae975ea2685155dbc1e9f731a5df54284b7c36a97ae54d1b47b"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/config.json",
+      "promoted_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1128,
+      "source_sha256": "sha256:072f54496c4939c6cde53437e4f98d1d23f29589ca4ad8af723b31e5a12bfd09",
+      "promoted_bytes": 1128,
+      "promoted_sha256": "sha256:072f54496c4939c6cde53437e4f98d1d23f29589ca4ad8af723b31e5a12bfd09"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/lock.json",
+      "promoted_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2017,
+      "source_sha256": "sha256:adc9816729e7b965d5172dbb8197dd53b7d61613c5302048c5ca8d448cf2c788",
+      "promoted_bytes": 2017,
+      "promoted_sha256": "sha256:adc9816729e7b965d5172dbb8197dd53b7d61613c5302048c5ca8d448cf2c788"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/result.json",
+      "promoted_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 4608,
+      "source_sha256": "sha256:86957a1c1f9596b169d27406a8856fb89bb77568a8350716d2e7b4bffc34b6c0",
+      "promoted_bytes": 4608,
+      "promoted_sha256": "sha256:86957a1c1f9596b169d27406a8856fb89bb77568a8350716d2e7b4bffc34b6c0"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/state-journal/state-after.json",
+      "promoted_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/state-journal/state-after.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1063,
+      "source_sha256": "sha256:61d3debf5e7b160a1610a81b1fc2e2a176b2b98d6ed42814023890ae36d6c7e9",
+      "promoted_bytes": 1063,
+      "promoted_sha256": "sha256:61d3debf5e7b160a1610a81b1fc2e2a176b2b98d6ed42814023890ae36d6c7e9"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/state-journal/state-before.json",
+      "promoted_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/state-journal/state-before.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 785,
+      "source_sha256": "sha256:1296be27b87694ebb5b8e42e4b1ed7dc851ddbd45fe6a69cc803de8642e39ae7",
+      "promoted_bytes": 785,
+      "promoted_sha256": "sha256:1296be27b87694ebb5b8e42e4b1ed7dc851ddbd45fe6a69cc803de8642e39ae7"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/state-journal/state-diff.json",
+      "promoted_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/state-journal/state-diff.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1312,
+      "source_sha256": "sha256:005c2591a0139d0def69814f03ffce42f8c31529cb5c871130a624c24b47c440",
+      "promoted_bytes": 1312,
+      "promoted_sha256": "sha256:005c2591a0139d0def69814f03ffce42f8c31529cb5c871130a624c24b47c440"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/state-journal/state-events.jsonl",
+      "promoted_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/state-journal/state-events.jsonl",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 685,
+      "source_sha256": "sha256:35ebd5a7b8c62a7ad14410c09c6e9b569c0ec8c71da481a74f6d8e63db2b8928",
+      "promoted_bytes": 685,
+      "promoted_sha256": "sha256:35ebd5a7b8c62a7ad14410c09c6e9b569c0ec8c71da481a74f6d8e63db2b8928"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/state-journal/status.json",
+      "promoted_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/state-journal/status.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 510,
+      "source_sha256": "sha256:eb01afe4880ffa73aa9119324e1d95a7cb9fc8fd12682ccf35df6297c90a30a7",
+      "promoted_bytes": 510,
+      "promoted_sha256": "sha256:eb01afe4880ffa73aa9119324e1d95a7cb9fc8fd12682ccf35df6297c90a30a7"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/trial.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 2310,
+      "source_sha256": "sha256:6719d36d1b8bccfdc9f0fd8c804b64054728ccee8170132e0c4ac86faa5e25c1"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/verifier/result.json",
+      "promoted_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/verifier/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 127,
+      "source_sha256": "sha256:6d384cca17a546723a7a02e7a28b9383c9e2a4aaeb390d8f863d1a3401fd30e0",
+      "promoted_bytes": 127,
+      "promoted_sha256": "sha256:6d384cca17a546723a7a02e7a28b9383c9e2a4aaeb390d8f863d1a3401fd30e0"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/verifier/reward.txt",
+      "promoted_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/verifier/reward.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 4,
+      "source_sha256": "sha256:51ff0d2f0d3a5d61edec31785532ea0d570f8c348d58b15b94ff9c2ca6e926a4",
+      "promoted_bytes": 4,
+      "promoted_sha256": "sha256:51ff0d2f0d3a5d61edec31785532ea0d570f8c348d58b15b94ff9c2ca6e926a4"
+    },
+    {
+      "source_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/verifier/test-stdout.txt",
+      "promoted_path": "har53-sealed-seed-travel-lisbon__pDgDoVU/verifier/test-stdout.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 78,
+      "source_sha256": "sha256:c3c78ac590c1f7e84fd55a3fd9df9cfbab8109890f7edf25432c34fdbc03c162",
+      "promoted_bytes": 78,
+      "promoted_sha256": "sha256:c3c78ac590c1f7e84fd55a3fd9df9cfbab8109890f7edf25432c34fdbc03c162"
+    },
+    {
+      "source_path": "job.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 2310,
+      "source_sha256": "sha256:6719d36d1b8bccfdc9f0fd8c804b64054728ccee8170132e0c4ac86faa5e25c1"
+    },
+    {
+      "source_path": "lab-metadata.json",
+      "promoted_path": "lab-metadata.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 7900,
+      "source_sha256": "sha256:90b414b83b8776d6adbac0931f2094645dc596bd41ca4edbc2f668a9f4efeee8",
+      "promoted_bytes": 7900,
+      "promoted_sha256": "sha256:90b414b83b8776d6adbac0931f2094645dc596bd41ca4edbc2f668a9f4efeee8"
+    },
+    {
+      "source_path": "lock.json",
+      "promoted_path": "lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 3155,
+      "source_sha256": "sha256:a90a7e14db3bb640167dd42919952f43184f3a108889b271d929dee7b983641b",
+      "promoted_bytes": 3155,
+      "promoted_sha256": "sha256:a90a7e14db3bb640167dd42919952f43184f3a108889b271d929dee7b983641b"
+    },
+    {
+      "source_path": "result.json",
+      "promoted_path": "result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1140,
+      "source_sha256": "sha256:ecdc2cc7a4414af5ca7e7617d1a7418d190842ebd6cd28e24108873a8c4aa643",
+      "promoted_bytes": 1140,
+      "promoted_sha256": "sha256:ecdc2cc7a4414af5ca7e7617d1a7418d190842ebd6cd28e24108873a8c4aa643"
+    }
+  ]
+}

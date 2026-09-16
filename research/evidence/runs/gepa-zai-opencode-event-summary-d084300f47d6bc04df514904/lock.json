@@ -1,0 +1,80 @@
+{
+    "schema_version": 3,
+    "created_at": "2026-09-15T23:44:36.997136Z",
+    "harbor": {
+        "version": "0.21.0",
+        "is_editable": false
+    },
+    "n_concurrent_trials": 1,
+    "retry": {
+        "max_retries": 0,
+        "exclude_exceptions": [
+            "AgentAuthenticationError",
+            "VerifierOutputParseError",
+            "RewardFileNotFoundError",
+            "AgentTimeoutError",
+            "AgentSafetyRefusalError",
+            "RewardFileEmptyError",
+            "VerifierTimeoutError",
+            "ModelNotFoundError",
+            "ApiUsageLimitError"
+        ],
+        "wait_multiplier": 1.0,
+        "min_wait_sec": 1.0,
+        "max_wait_sec": 60.0
+    },
+    "trials": [
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "gepa-zai-opencode-event-summary-d084300f47d6bc04df514904",
+                "version": "1.0.0",
+                "type": "local",
+                "digest": "sha256:0efc1c8c6cae8e54fba151134c97bcfc2eb1d0c2a21776d63ee64ef39365adac",
+                "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har53-gepa-omni-20260915/runs/.exec-stage/gepa-zai-opencode-event-summary-d084300f47d6bc04df514904"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent_timeout_multiplier": 2.5,
+            "extra_instructions": [
+                {
+                    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har53-gepa-omni-20260915/runs/har53-gepa-omni-20260915/gepa/lab/candidates/e6ca24a27ad8a7271c6dd8ad8668574e9c214ca33755e84e4c7db39a1a8fb8d9.txt",
+                    "digest": "sha256:e6ca24a27ad8a7271c6dd8ad8668574e9c214ca33755e84e4c7db39a1a8fb8d9"
+                }
+            ],
+            "agent": {
+                "name": "evallab.harbor_zai_opencode:SecretSafeZaiOpenCodeAgent",
+                "model_name": "zai-coding-plan/glm-5.3-flash",
+                "n_concurrent": 1,
+                "skills": [],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [
+                    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har53-gepa-omni-20260915/containers/zai-secret.compose.yaml"
+                ],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "extra_docker_compose": [
+                {
+                    "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har53-gepa-omni-20260915/containers/zai-secret.compose.yaml",
+                    "digest": "sha256:3b476a08816a135d13b6956338d0a75ccfe598acddfb07a7af4ae90ce779c401"
+                }
+            ],
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        }
+    ]
+}

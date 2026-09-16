@@ -1,0 +1,7 @@
+{
+  "observed_target": "n_2_0",
+  "observed_value": 3,
+  "passed": true,
+  "reason": "Verified exact dependency trace for n_2_0 = 3",
+  "trace_length": 1
+}

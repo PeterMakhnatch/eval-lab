@@ -1,0 +1,122 @@
+{
+    "id": "720c61de-f93e-4cde-85d1-f085f31f8719",
+    "task_name": "local-lab/event-summary",
+    "trial_name": "gepa-zai-opencode-event-summary__dzaPvcL",
+    "trial_uri": "file:///Users/petermakhnatch/Developer/eval-lab/.worktrees/har53-gepa-omni-20260915/runs/gepa-zai-opencode-event-summary-c29fd211521aa25c1095287c/gepa-zai-opencode-event-summary__dzaPvcL",
+    "task_id": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har53-gepa-omni-20260915/runs/.exec-stage/gepa-zai-opencode-event-summary-c29fd211521aa25c1095287c"
+    },
+    "source": null,
+    "task_checksum": "567bcc8325df2a11eccb6fe99b8e43daa4304ea56b3003e9e10d7b08a059299c",
+    "config": {
+        "task": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har53-gepa-omni-20260915/runs/.exec-stage/gepa-zai-opencode-event-summary-c29fd211521aa25c1095287c",
+            "git_url": null,
+            "git_commit_id": null,
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": null
+        },
+        "trial_name": "gepa-zai-opencode-event-summary__dzaPvcL",
+        "trials_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har53-gepa-omni-20260915/runs/gepa-zai-opencode-event-summary-c29fd211521aa25c1095287c",
+        "install_only": false,
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": 2.5,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "evallab.harbor_zai_opencode:SecretSafeZaiOpenCodeAgent",
+            "import_path": null,
+            "model_name": "zai-coding-plan/glm-5.3-flash",
+            "n_concurrent": 1,
+            "concurrency_group": null,
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "resume_trajectory": false,
+            "load_trajectory": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {},
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": "docker",
+            "import_path": null,
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": null,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": null,
+            "extra_docker_compose": [
+                "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har53-gepa-omni-20260915/containers/zai-secret.compose.yaml"
+            ],
+            "kwargs": {},
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [
+            "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har53-gepa-omni-20260915/runs/har53-gepa-omni-20260915/confirmation/selected/lab/candidates/8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8.txt"
+        ],
+        "job_id": "a81630f9-c64a-4243-8f7e-290c95161843",
+        "source_trial": null
+    },
+    "agent_info": {
+        "name": "opencode",
+        "version": "1.18.25",
+        "model_info": {
+            "name": "glm-5.3-flash",
+            "provider": "zai-coding-plan"
+        }
+    },
+    "agent_result": {
+        "n_input_tokens": 38325,
+        "n_cache_tokens": 27264,
+        "n_output_tokens": 415,
+        "cost_usd": null,
+        "rollout_details": null,
+        "metadata": null
+    },
+    "verifier_result": {
+        "rewards": {
+            "correctness": 1.0,
+            "input_preservation": 1.0,
+            "output_hygiene": 1.0,
+            "reward": 1.0
+        }
+    },
+    "verifier_environment_mode": "separate",
+    "exception_info": null,
+    "started_at": "2026-09-15T23:53:23.187936Z",
+    "finished_at": "2026-09-15T23:55:06.358097Z",
+    "environment_setup": {
+        "started_at": "2026-09-15T23:53:23.216540Z",
+        "finished_at": "2026-09-15T23:53:27.831859Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-09-15T23:53:27.831946Z",
+        "finished_at": "2026-09-15T23:53:51.755528Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-09-15T23:53:52.182404Z",
+        "finished_at": "2026-09-15T23:54:52.444525Z"
+    },
+    "verifier": {
+        "started_at": "2026-09-15T23:55:00.027618Z",
+        "finished_at": "2026-09-15T23:55:06.358077Z"
+    },
+    "step_results": null
+}

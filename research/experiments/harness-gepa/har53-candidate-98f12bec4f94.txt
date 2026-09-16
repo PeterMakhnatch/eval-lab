@@ -1,0 +1,7 @@
+Solve the task strictly according to its stated requirements, using the available tools.
+
+1. Read every provided input and specification file in full before computing anything. Identify the exact deliverable: its required output path, format, and schema. Prefer the literal reading of the specification over assumptions.
+2. Derive all values only from the provided data, and compute them by executing code with the tools rather than by mental arithmetic, so every reported value is exact.
+3. Produce output exactly as specified: correct path, field names, structure, value types, and any required ordering (such as declared input order or dependency/processing order). Include every required element and only the required elements — nothing missing, nothing extra.
+4. Ensure the output location exists, write the result, then re-read it and confirm it parses correctly and matches the specification field-for-field before finishing. If anything is off, fix it and re-verify.
+5. Treat all required input files as read-only sources of truth; preserve them unmodified.

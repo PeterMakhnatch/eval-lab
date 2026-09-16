@@ -386,3 +386,118 @@ def test_stop_between_evaluations_prevents_next_proposer_request(tmp_path):
     with pytest.raises(CampaignStopped):
         proposer("Feedback from a completed evaluation")
     assert not list((tmp_path / "proposer").glob("*.json"))
+
+
+def test_shared_proposer_cap_does_not_charge_replay(tmp_path, monkeypatch):
+    pytest.importorskip("gepa")
+    import gepa.lm
+
+    from evallab.gepa_optimizer.budget import AggregateBudget, BudgetExhausted
+
+    calls = []
+
+    class ResponseModel:
+        total_cost = 0.0
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __call__(self, prompt):
+            calls.append(prompt)
+            self.total_cost += 0.01
+            return "retained proposal"
+
+    monkeypatch.setattr(gepa.lm, "LM", ResponseModel)
+
+    def proposer(stage):
+        shared = AggregateBudget(
+            tmp_path / "budget",
+            max_target_attempts=2,
+            max_proposer_requests=1,
+            max_proposer_cost_usd=0.1,
+        )
+        return JournaledReflectionLM(
+            model="test/model",
+            directory=tmp_path / stage,
+            max_requests=4,
+            budgets=(shared,),
+        )
+
+    assert proposer("first")("feedback") == "retained proposal"
+    assert proposer("first")("feedback") == "retained proposal"
+    with pytest.raises(BudgetExhausted):
+        proposer("second")("different feedback")
+    assert calls == ["feedback"]
+
+
+def test_review_resume_reuses_second_round_proposal(tmp_path, monkeypatch):
+    pytest.importorskip("gepa")
+    import gepa.lm
+    from gepa.optimize_anything import OptimizeAnythingConfig, optimize_anything
+
+    from evallab.gepa_optimizer.proposer import ReplaySafeGepaEngine
+
+    generated = []
+    approved = {"seed"}
+
+    class ReviewRequired(BaseException):
+        def __init__(self, candidate):
+            self.candidate = candidate
+
+    class ResponseModel:
+        total_cost = 0.0
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __call__(self, prompt):
+            candidate = f"proposal-{len(generated) + 1}"
+            generated.append(candidate)
+            self.total_cost += 0.01
+            return candidate
+
+    monkeypatch.setattr(gepa.lm, "LM", ResponseModel)
+
+    def evaluate(candidate, example):
+        if candidate not in approved:
+            raise ReviewRequired(candidate)
+        return 1.0, {"task_id": example["task_id"], "feedback": "Retained task evidence."}
+
+    def run():
+        lm = JournaledReflectionLM(
+            model="test/model", directory=tmp_path / "proposer", max_requests=4
+        )
+
+        def propose(candidate, reflective_dataset, components_to_update, **kwargs):
+            response = lm(json.dumps(reflective_dataset, sort_keys=True))
+            return {name: response for name in components_to_update}
+
+        config = OptimizeAnythingConfig(
+            engine="gepa",
+            max_evals=64,
+            max_concurrency=1,
+            run_dir=str(tmp_path / "state"),
+            output_dir=tmp_path / "output",
+            engine_config={
+                "reflection": {
+                    "custom_candidate_proposer": propose,
+                    "reflection_minibatch_size": 1,
+                    "skip_perfect_score": False,
+                },
+                "engine": {"seed": 0, "max_candidate_proposals": 2},
+            },
+        )
+        config.engine = ReplaySafeGepaEngine(config)
+        config.engine_config = {}
+        return optimize_anything(
+            "seed", evaluator=evaluate, dataset=[{"task_id": "a"}, {"task_id": "b"}], config=config
+        )
+
+    for expected in ("proposal-1", "proposal-2"):
+        with pytest.raises(ReviewRequired) as pause:
+            run()
+        assert pause.value.candidate == expected
+        approved.add(expected)
+    result = run()
+    assert generated == ["proposal-1", "proposal-2"]
+    assert result.best_candidate == "seed"

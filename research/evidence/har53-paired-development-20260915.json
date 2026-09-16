@@ -1,0 +1,478 @@
+{
+  "schema_version": 1,
+  "caveat": "Search-visible development score is not held-out improvement. Paired deltas describe optimization feedback on search-visible tasks only. The method control checks completed-evaluation counts, not matched spend, verified no-feedback provenance, or generalization.",
+  "source_groups": null,
+  "campaign": {
+    "usage_totals": {
+      "cost_usd": {
+        "total": null,
+        "known_rows": 0,
+        "unknown_rows": 10
+      },
+      "latency_seconds": {
+        "total": null,
+        "known_rows": 0,
+        "unknown_rows": 10
+      },
+      "n_input_tokens": {
+        "total": 371651,
+        "known_rows": 10,
+        "unknown_rows": 0
+      },
+      "n_output_tokens": {
+        "total": 4611,
+        "known_rows": 10,
+        "unknown_rows": 0
+      },
+      "n_total_tokens": {
+        "total": 376262,
+        "known_rows": 10,
+        "unknown_rows": 0
+      }
+    },
+    "campaign_dir": "runs/har53-gepa-omni-20260915/gepa/lab",
+    "agent": "zai-opencode",
+    "model": "zai-coding-plan/glm-5.3-flash",
+    "stock_candidate": "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8",
+    "task_identities": [
+      {
+        "task_id": "event-summary",
+        "task_package_digest": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d"
+      },
+      {
+        "task_id": "syn-funcdag-easy",
+        "task_package_digest": "sha256:a0523d926254bb7025eed41ece31f66cf8974c20839ad1f9647e0224c35568f5"
+      }
+    ],
+    "receipts": {
+      "files": 10,
+      "completed": 10,
+      "pending": 0,
+      "error": 0,
+      "completed_unscored": 0,
+      "candidates": 5,
+      "task_identities": 2
+    },
+    "stock": {
+      "missingness": {
+        "completed": 2
+      },
+      "completed_tasks": 2,
+      "scored_tasks": [
+        {
+          "task_id": "event-summary",
+          "task_package_digest": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d",
+          "stock_score": 1.0
+        },
+        {
+          "task_id": "syn-funcdag-easy",
+          "task_package_digest": "sha256:a0523d926254bb7025eed41ece31f66cf8974c20839ad1f9647e0224c35568f5",
+          "stock_score": 1.0
+        }
+      ]
+    },
+    "candidates": {
+      "sha256:15b24b11f269fbb84880b3330e91c7990502dd626e07a103dd247d1b6e48137f": {
+        "paired_task_count": 2,
+        "paired_tasks": [
+          {
+            "task_id": "event-summary",
+            "task_package_digest": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d",
+            "stock_score": 1.0,
+            "candidate_score": 1.0,
+            "delta": 0.0
+          },
+          {
+            "task_id": "syn-funcdag-easy",
+            "task_package_digest": "sha256:a0523d926254bb7025eed41ece31f66cf8974c20839ad1f9647e0224c35568f5",
+            "stock_score": 1.0,
+            "candidate_score": 1.0,
+            "delta": 0.0
+          }
+        ],
+        "stock_mean_success": 1.0,
+        "candidate_mean_success": 1.0,
+        "paired_mean_delta": 0.0,
+        "regressions": [],
+        "only_candidate_tasks": [],
+        "only_stock_tasks": [],
+        "missingness": {
+          "completed": 2
+        },
+        "usage_totals": {
+          "paired_tasks": {
+            "stock": {
+              "cost_usd": {
+                "total": null,
+                "known_rows": 0,
+                "unknown_rows": 2
+              },
+              "latency_seconds": {
+                "total": null,
+                "known_rows": 0,
+                "unknown_rows": 2
+              },
+              "n_input_tokens": {
+                "total": 73293,
+                "known_rows": 2,
+                "unknown_rows": 0
+              },
+              "n_output_tokens": {
+                "total": 793,
+                "known_rows": 2,
+                "unknown_rows": 0
+              },
+              "n_total_tokens": {
+                "total": 74086,
+                "known_rows": 2,
+                "unknown_rows": 0
+              }
+            },
+            "candidate": {
+              "cost_usd": {
+                "total": null,
+                "known_rows": 0,
+                "unknown_rows": 2
+              },
+              "latency_seconds": {
+                "total": null,
+                "known_rows": 0,
+                "unknown_rows": 2
+              },
+              "n_input_tokens": {
+                "total": 67310,
+                "known_rows": 2,
+                "unknown_rows": 0
+              },
+              "n_output_tokens": {
+                "total": 963,
+                "known_rows": 2,
+                "unknown_rows": 0
+              },
+              "n_total_tokens": {
+                "total": 68273,
+                "known_rows": 2,
+                "unknown_rows": 0
+              }
+            }
+          }
+        },
+        "uncertainty": {
+          "method": "paired cluster bootstrap of the mean delta (2.5/97.5 percentiles)",
+          "seed": 17,
+          "resamples": 2000,
+          "clusters": 2,
+          "source_groups_provided": false,
+          "unmapped_tasks": 0,
+          "available": true,
+          "low": 0.0,
+          "high": 0.0,
+          "unavailable_reason": null
+        }
+      },
+      "sha256:7d56ffec7c5bbad899522beeaa06b0b7914491f145cd85d674bdb41d78472869": {
+        "paired_task_count": 2,
+        "paired_tasks": [
+          {
+            "task_id": "event-summary",
+            "task_package_digest": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d",
+            "stock_score": 1.0,
+            "candidate_score": 1.0,
+            "delta": 0.0
+          },
+          {
+            "task_id": "syn-funcdag-easy",
+            "task_package_digest": "sha256:a0523d926254bb7025eed41ece31f66cf8974c20839ad1f9647e0224c35568f5",
+            "stock_score": 1.0,
+            "candidate_score": 1.0,
+            "delta": 0.0
+          }
+        ],
+        "stock_mean_success": 1.0,
+        "candidate_mean_success": 1.0,
+        "paired_mean_delta": 0.0,
+        "regressions": [],
+        "only_candidate_tasks": [],
+        "only_stock_tasks": [],
+        "missingness": {
+          "completed": 2
+        },
+        "usage_totals": {
+          "paired_tasks": {
+            "stock": {
+              "cost_usd": {
+                "total": null,
+                "known_rows": 0,
+                "unknown_rows": 2
+              },
+              "latency_seconds": {
+                "total": null,
+                "known_rows": 0,
+                "unknown_rows": 2
+              },
+              "n_input_tokens": {
+                "total": 73293,
+                "known_rows": 2,
+                "unknown_rows": 0
+              },
+              "n_output_tokens": {
+                "total": 793,
+                "known_rows": 2,
+                "unknown_rows": 0
+              },
+              "n_total_tokens": {
+                "total": 74086,
+                "known_rows": 2,
+                "unknown_rows": 0
+              }
+            },
+            "candidate": {
+              "cost_usd": {
+                "total": null,
+                "known_rows": 0,
+                "unknown_rows": 2
+              },
+              "latency_seconds": {
+                "total": null,
+                "known_rows": 0,
+                "unknown_rows": 2
+              },
+              "n_input_tokens": {
+                "total": 94655,
+                "known_rows": 2,
+                "unknown_rows": 0
+              },
+              "n_output_tokens": {
+                "total": 1147,
+                "known_rows": 2,
+                "unknown_rows": 0
+              },
+              "n_total_tokens": {
+                "total": 95802,
+                "known_rows": 2,
+                "unknown_rows": 0
+              }
+            }
+          }
+        },
+        "uncertainty": {
+          "method": "paired cluster bootstrap of the mean delta (2.5/97.5 percentiles)",
+          "seed": 17,
+          "resamples": 2000,
+          "clusters": 2,
+          "source_groups_provided": false,
+          "unmapped_tasks": 0,
+          "available": true,
+          "low": 0.0,
+          "high": 0.0,
+          "unavailable_reason": null
+        }
+      },
+      "sha256:98f12bec4f9435a09846c51b4bb571ad41e38dc264d71ab681ee9377a24263c2": {
+        "paired_task_count": 2,
+        "paired_tasks": [
+          {
+            "task_id": "event-summary",
+            "task_package_digest": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d",
+            "stock_score": 1.0,
+            "candidate_score": 1.0,
+            "delta": 0.0
+          },
+          {
+            "task_id": "syn-funcdag-easy",
+            "task_package_digest": "sha256:a0523d926254bb7025eed41ece31f66cf8974c20839ad1f9647e0224c35568f5",
+            "stock_score": 1.0,
+            "candidate_score": 1.0,
+            "delta": 0.0
+          }
+        ],
+        "stock_mean_success": 1.0,
+        "candidate_mean_success": 1.0,
+        "paired_mean_delta": 0.0,
+        "regressions": [],
+        "only_candidate_tasks": [],
+        "only_stock_tasks": [],
+        "missingness": {
+          "completed": 2
+        },
+        "usage_totals": {
+          "paired_tasks": {
+            "stock": {
+              "cost_usd": {
+                "total": null,
+                "known_rows": 0,
+                "unknown_rows": 2
+              },
+              "latency_seconds": {
+                "total": null,
+                "known_rows": 0,
+                "unknown_rows": 2
+              },
+              "n_input_tokens": {
+                "total": 73293,
+                "known_rows": 2,
+                "unknown_rows": 0
+              },
+              "n_output_tokens": {
+                "total": 793,
+                "known_rows": 2,
+                "unknown_rows": 0
+              },
+              "n_total_tokens": {
+                "total": 74086,
+                "known_rows": 2,
+                "unknown_rows": 0
+              }
+            },
+            "candidate": {
+              "cost_usd": {
+                "total": null,
+                "known_rows": 0,
+                "unknown_rows": 2
+              },
+              "latency_seconds": {
+                "total": null,
+                "known_rows": 0,
+                "unknown_rows": 2
+              },
+              "n_input_tokens": {
+                "total": 67365,
+                "known_rows": 2,
+                "unknown_rows": 0
+              },
+              "n_output_tokens": {
+                "total": 877,
+                "known_rows": 2,
+                "unknown_rows": 0
+              },
+              "n_total_tokens": {
+                "total": 68242,
+                "known_rows": 2,
+                "unknown_rows": 0
+              }
+            }
+          }
+        },
+        "uncertainty": {
+          "method": "paired cluster bootstrap of the mean delta (2.5/97.5 percentiles)",
+          "seed": 17,
+          "resamples": 2000,
+          "clusters": 2,
+          "source_groups_provided": false,
+          "unmapped_tasks": 0,
+          "available": true,
+          "low": 0.0,
+          "high": 0.0,
+          "unavailable_reason": null
+        }
+      },
+      "sha256:e6ca24a27ad8a7271c6dd8ad8668574e9c214ca33755e84e4c7db39a1a8fb8d9": {
+        "paired_task_count": 2,
+        "paired_tasks": [
+          {
+            "task_id": "event-summary",
+            "task_package_digest": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d",
+            "stock_score": 1.0,
+            "candidate_score": 1.0,
+            "delta": 0.0
+          },
+          {
+            "task_id": "syn-funcdag-easy",
+            "task_package_digest": "sha256:a0523d926254bb7025eed41ece31f66cf8974c20839ad1f9647e0224c35568f5",
+            "stock_score": 1.0,
+            "candidate_score": 1.0,
+            "delta": 0.0
+          }
+        ],
+        "stock_mean_success": 1.0,
+        "candidate_mean_success": 1.0,
+        "paired_mean_delta": 0.0,
+        "regressions": [],
+        "only_candidate_tasks": [],
+        "only_stock_tasks": [],
+        "missingness": {
+          "completed": 2
+        },
+        "usage_totals": {
+          "paired_tasks": {
+            "stock": {
+              "cost_usd": {
+                "total": null,
+                "known_rows": 0,
+                "unknown_rows": 2
+              },
+              "latency_seconds": {
+                "total": null,
+                "known_rows": 0,
+                "unknown_rows": 2
+              },
+              "n_input_tokens": {
+                "total": 73293,
+                "known_rows": 2,
+                "unknown_rows": 0
+              },
+              "n_output_tokens": {
+                "total": 793,
+                "known_rows": 2,
+                "unknown_rows": 0
+              },
+              "n_total_tokens": {
+                "total": 74086,
+                "known_rows": 2,
+                "unknown_rows": 0
+              }
+            },
+            "candidate": {
+              "cost_usd": {
+                "total": null,
+                "known_rows": 0,
+                "unknown_rows": 2
+              },
+              "latency_seconds": {
+                "total": null,
+                "known_rows": 0,
+                "unknown_rows": 2
+              },
+              "n_input_tokens": {
+                "total": 69028,
+                "known_rows": 2,
+                "unknown_rows": 0
+              },
+              "n_output_tokens": {
+                "total": 831,
+                "known_rows": 2,
+                "unknown_rows": 0
+              },
+              "n_total_tokens": {
+                "total": 69859,
+                "known_rows": 2,
+                "unknown_rows": 0
+              }
+            }
+          }
+        },
+        "uncertainty": {
+          "method": "paired cluster bootstrap of the mean delta (2.5/97.5 percentiles)",
+          "seed": 17,
+          "resamples": 2000,
+          "clusters": 2,
+          "source_groups_provided": false,
+          "unmapped_tasks": 0,
+          "available": true,
+          "low": 0.0,
+          "high": 0.0,
+          "unavailable_reason": null
+        }
+      }
+    },
+    "best_by_search_score": {
+      "candidate_id": "sha256:8de74e42dbcaf095a7d59d693583fdd80c70ada0ae4474908efdb25fd19650d8",
+      "search_mean_score": 1.0,
+      "paired_mean_delta_vs_stock": 0.0,
+      "paired_task_count": 2
+    }
+  },
+  "method_control": {
+    "status": "missing"
+  }
+}

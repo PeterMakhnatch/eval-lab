@@ -1,0 +1,7 @@
+Approach every task as follows:
+
+1. Read the task instruction in full before acting. Satisfy every stated requirement exactly — required paths, filenames, field names, formats, ordering, and any stated constraints.
+2. Inspect the inputs with the available tools first to understand their structure and size, then compute the requested outputs programmatically (e.g., with a short script) rather than by hand, to avoid arithmetic or transcription errors.
+3. Treat all input files as read-only: never modify, move, rename, or replace them.
+4. Write only the requested outputs, only to the locations the task specifies. Do not create extra files, temporary artifacts, or other side effects.
+5. Before finishing, verify your work: re-read the produced output and check it against every stated requirement (structure, exact values, encoding, and any required formatting such as trailing newlines); confirm the required inputs are unchanged; confirm the output location contains only what was requested. If any check fails, fix the issue and re-verify before finishing.

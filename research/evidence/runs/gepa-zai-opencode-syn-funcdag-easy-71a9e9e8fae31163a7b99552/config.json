@@ -1,0 +1,27 @@
+{
+    "job_name": "gepa-zai-opencode-syn-funcdag-easy-71a9e9e8fae31163a7b99552",
+    "jobs_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har53-gepa-omni-20260915/runs",
+    "agent_timeout_multiplier": 5.0,
+    "n_concurrent_trials": 1,
+    "environment": {
+        "type": "docker",
+        "extra_docker_compose": [
+            "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har53-gepa-omni-20260915/containers/zai-secret.compose.yaml"
+        ]
+    },
+    "agents": [
+        {
+            "name": "evallab.harbor_zai_opencode:SecretSafeZaiOpenCodeAgent",
+            "model_name": "zai-coding-plan/glm-5.3-flash",
+            "n_concurrent": 1
+        }
+    ],
+    "tasks": [
+        {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har53-gepa-omni-20260915/runs/.exec-stage/gepa-zai-opencode-syn-funcdag-easy-71a9e9e8fae31163a7b99552"
+        }
+    ],
+    "extra_instruction_paths": [
+        "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har53-gepa-omni-20260915/runs/har53-gepa-omni-20260915/gepa/lab/candidates/e6ca24a27ad8a7271c6dd8ad8668574e9c214ca33755e84e4c7db39a1a8fb8d9.txt"
+    ]
+}

@@ -1,0 +1,57 @@
+{
+    "id": "d685e6fe-2240-4dd9-b627-bbd5b67c772e",
+    "started_at": "2026-09-15T19:44:36.992600",
+    "updated_at": "2026-09-15T19:45:54.296464",
+    "finished_at": "2026-09-15T19:45:54.296464",
+    "n_total_trials": 1,
+    "stats": {
+        "n_completed_trials": 1,
+        "n_errored_trials": 0,
+        "n_running_trials": 0,
+        "n_pending_trials": 0,
+        "n_cancelled_trials": 0,
+        "n_retries": 0,
+        "evals": {
+            "opencode__glm-5.3-flash__adhoc": {
+                "n_trials": 1,
+                "n_errors": 0,
+                "metrics": [
+                    {
+                        "correctness": 1.0,
+                        "input_preservation": 1.0,
+                        "output_hygiene": 1.0,
+                        "reward": 1.0
+                    }
+                ],
+                "pass_at_k": {},
+                "reward_stats": {
+                    "correctness": {
+                        "1.0": [
+                            "gepa-zai-opencode-event-summary__tCtHyVf"
+                        ]
+                    },
+                    "input_preservation": {
+                        "1.0": [
+                            "gepa-zai-opencode-event-summary__tCtHyVf"
+                        ]
+                    },
+                    "output_hygiene": {
+                        "1.0": [
+                            "gepa-zai-opencode-event-summary__tCtHyVf"
+                        ]
+                    },
+                    "reward": {
+                        "1.0": [
+                            "gepa-zai-opencode-event-summary__tCtHyVf"
+                        ]
+                    }
+                },
+                "exception_stats": {}
+            }
+        },
+        "n_input_tokens": 23334,
+        "n_cache_tokens": 15040,
+        "n_output_tokens": 298,
+        "cost_usd": null
+    }
+}

@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "task_id": "travel-lisbon-002",
+  "task_version": "1.0.0",
+  "raw_rewards": [
+    0.0,
+    0.0
+  ],
+  "native_execution_errors": 0,
+  "selection_unchanged": true,
+  "optimizer_stopped_before_final": true,
+  "task_inspected_only_after_final_runs": "instruction.md and task.json after frozen selection; verifier source after both runs completed",
+  "finding": "Agent-visible task does not declare acquired_sources/status/refusal_reason output schema or required exact refusal string. Both answers correctly identify1130>900 and refuse; verifier rejects missing acquired_sources before semantic decision check.",
+  "source_evidence": {
+    "instruction": "library/tasks/experimental/deepplanning-v1/travel-lisbon-002/instruction.md",
+    "visible_data": "library/tasks/experimental/deepplanning-v1/travel-lisbon-002/environment/data/task.json",
+    "visible_files": "environment/Dockerfile copies only data/task.json",
+    "verifier": "library/tasks/experimental/deepplanning-v1/travel-lisbon-002/tests/verify.py:46-62"
+  },
+  "interpretation": "Raw0/0 remain unchanged. Exclude from clean planning-capability/generalization claims pending task-quality review; this is not a new verifier certificate or regrade.",
+  "native_evidence": [
+    {
+      "job_path": "runs/har53-sealed-seed-travel-lisbon-b25fd19650d8",
+      "trial_name": "har53-sealed-seed-travel-lisbon__pDgDoVU",
+      "answer": "artifacts/app/answer.json",
+      "rejection": "verifier/result.json"
+    },
+    {
+      "job_path": "runs/har53-sealed-selected-travel-lisbon-b25fd19650d8",
+      "trial_name": "har53-sealed-selected-travel-lis__BZdS4Pa",
+      "answer": "artifacts/app/answer.json",
+      "rejection": "verifier/result.json"
+    }
+  ],
+  "task_bytes_changed": false,
+  "admission_changed": false,
+  "further_inference": false,
+  "future_holdout_use": "This identity is now exposed and must not be called untouched in a future campaign."
+}

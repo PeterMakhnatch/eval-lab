@@ -1,0 +1,47 @@
+{
+  "name": "har53-omni",
+  "enabled": false,
+  "engine": "omni",
+  "agent": "zai-opencode",
+  "model": "zai-coding-plan/glm-5.3-flash",
+  "seed_candidate_path": "research/experiments/harness-gepa/seed.txt",
+  "examples": [
+    {
+      "task_id": "event-summary",
+      "task_path": "library/tasks/event-summary",
+      "task_package_digest": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d",
+      "split": "development"
+    },
+    {
+      "task_id": "syn-funcdag-easy",
+      "task_path": "library/tasks/experimental/syn-funcdag-easy",
+      "task_package_digest": "sha256:a0523d926254bb7025eed41ece31f66cf8974c20839ad1f9647e0224c35568f5",
+      "split": "development"
+    }
+  ],
+  "validation_task_ids": [],
+  "max_evals": 64,
+  "max_proposer_requests": 4,
+  "max_proposer_cost_usd": 0.05,
+  "proposer_model": "zai/glm-5.3-flash",
+  "timeout_seconds": 300,
+  "output_dir": "runs/har53-gepa-omni-20260915/omni",
+  "estimated_cost_usd": 0.12,
+  "provider_ceilings": {
+    "max_requests": 12,
+    "max_input_tokens": 120000,
+    "max_output_tokens": 12000,
+    "max_total_tokens": 132000,
+    "cost_limit_usd": 0.25
+  },
+  "feedback_max_chars": 16000,
+  "candidate_evaluation": "review",
+  "objective": "Improve task completion by revising only general supplementary instructions. Inspect the actual execution feedback; do not include task-specific answers, reference solutions, or verifier source.",
+  "max_target_attempts": 10,
+  "shared_budget": {
+    "output_dir": "runs/har53-gepa-omni-20260915/shared-budget",
+    "max_target_attempts": 32,
+    "max_proposer_requests": 12,
+    "max_proposer_cost_usd": 0.1
+  }
+}

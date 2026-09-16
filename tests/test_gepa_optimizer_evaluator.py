@@ -607,6 +607,14 @@ def test_resume_reuses_pending_spec_without_duplicate_submit(tmp_path: Path) -> 
     repo_root.mkdir()
     task = create_task_fixture(repo_root, "tasks/task_1")
     output_dir = repo_root / "out"
+    from evallab.gepa_optimizer.budget import AggregateBudget, BudgetExhausted
+
+    budget = AggregateBudget(
+        repo_root / "budget",
+        max_target_attempts=1,
+        max_proposer_requests=1,
+        max_proposer_cost_usd=0.1,
+    )
 
     executor = MockExecutor(repo_root)
     evaluator = LabEvaluator(
@@ -617,6 +625,7 @@ def test_resume_reuses_pending_spec_without_duplicate_submit(tmp_path: Path) -> 
         model=TEST_NATIVE_MODEL,
         estimated_cost_usd=0.35,
         executor=executor,
+        budgets=(budget,),
     )
 
     candidate_text = "Candidate instruction."
@@ -625,12 +634,24 @@ def test_resume_reuses_pending_spec_without_duplicate_submit(tmp_path: Path) -> 
     with pytest.raises(EvaluationPending):
         evaluator(candidate_text, task)
     assert len(executor.submitted_specs) == 1
+    in_flight = repo_root / "runs" / executor.submitted_specs[0].name
+    in_flight.mkdir(parents=True)
+    (in_flight / "result.json").write_text(
+        json.dumps({"n_total_trials": 1, "stats": {}, "finished_at": None})
+    )
 
     # Second call: reuses pending spec, does NOT submit a second spec
-    with pytest.raises(EvaluationPending) as exc_info:
+    with pytest.raises(EvaluationPending):
         evaluator(candidate_text, task)
     assert len(executor.submitted_specs) == 1
-    assert "already pending" in str(exc_info.value)
+    assert budget.summary()["target"]["reserved"] == 1
+    with pytest.raises(BudgetExhausted):
+        evaluator("Different candidate instruction.", task)
+    assert len(executor.submitted_specs) == 1
+    Path(evaluator.records[-1].receipt_paths["evaluation_artifact"]).unlink()
+    with pytest.raises(EvaluationUnavailable):
+        evaluator(candidate_text, task)
+    assert len(executor.submitted_specs) == 1
 
 
 @pytest.mark.parametrize("reward", [None, float("nan")], ids=["missing", "nonfinite"])

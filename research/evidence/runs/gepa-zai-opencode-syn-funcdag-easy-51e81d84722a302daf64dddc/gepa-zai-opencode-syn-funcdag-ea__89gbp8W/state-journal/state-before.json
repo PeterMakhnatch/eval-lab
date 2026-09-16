@@ -1,0 +1,59 @@
+{
+  "captured_at": "2026-09-15T23:55:42.079052Z",
+  "entries": [
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1787880804000000000,
+      "path": ".",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1787880804000000000,
+      "path": "output",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1787880804000000000,
+      "path": "src",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "hash_status": "complete",
+      "mode": "-rw-r--r--",
+      "mtime_ns": 1787880708000000000,
+      "path": "src/dag_code.py",
+      "sha256": "sha256:57740959cae301906e863267caaa06f9e0503728fdde9fb395789cc1c39f8c49",
+      "size_bytes": 713,
+      "type": "file"
+    },
+    {
+      "hash_status": "complete",
+      "mode": "-rw-r--r--",
+      "mtime_ns": 1787880708000000000,
+      "path": "src/dag_spec.json",
+      "sha256": "sha256:28be296c28a778081fa9e64c90dfa9b7e7b22b92e24877608932706b22e8293f",
+      "size_bytes": 2164,
+      "type": "file"
+    },
+    {
+      "hash_status": "complete",
+      "mode": "-rw-r--r--",
+      "mtime_ns": 1787880708000000000,
+      "path": "src/inputs.json",
+      "sha256": "sha256:9cbf45d74e6bd90a939797a036996573e3394e077338ac78a91cb590e2259566",
+      "size_bytes": 29,
+      "type": "file"
+    }
+  ],
+  "entry_count": 6,
+  "label": "before",
+  "root": "/app",
+  "schema_version": 1,
+  "target_pid": 36999,
+  "truncated": false
+}

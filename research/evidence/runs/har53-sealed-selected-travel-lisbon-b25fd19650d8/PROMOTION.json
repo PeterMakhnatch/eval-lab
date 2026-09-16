@@ -1,0 +1,276 @@
+{
+  "schema_version": 2,
+  "bundle": "har53-sealed-selected-travel-lisbon-b25fd19650d8",
+  "source_job_runtime_path": "runs/har53-sealed-selected-travel-lisbon-b25fd19650d8",
+  "source_job_result_sha256": "sha256:16014b65e77d8792636ad6e913b0caa8ea422dc8202ea0cc6e46838b8ab160c6",
+  "promoted_by": "scripts/promote_codex_bundle.py",
+  "redaction_rules": {
+    "R1": "system/user ATIF step message text removed; sha256 and length kept",
+    "R2": "agent/sessions/**, agent/codex.txt, agent/opencode.txt, agent/opencode/**, job.log and trial.log raw prompt/model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
+    "R3a": "verifier/* JSON string values over 1024 bytes replaced by digest markers",
+    "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body",
+    "R4": "each omitted rollout leaves a quota sidecar under <trial>/agent/quota/ holding only the event timestamp and a whitelist of payload.rate_limits scalars, with the parent rollout's sha256; account-scope point-in-time readings, no message, prompt, reasoning, session title or token"
+  },
+  "totals": {
+    "source_files": 26,
+    "promoted_files": 18,
+    "omitted_files": 8,
+    "quota_sidecars": 0,
+    "promoted_bytes": 37431,
+    "source_bytes": 2689676
+  },
+  "files": [
+    {
+      "source_path": "config.json",
+      "promoted_path": "config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1125,
+      "source_sha256": "sha256:400c1fa6ee7b8da68d403d9f1f3d521f71b7792c7e910e12c7eed580ce6fa250",
+      "promoted_bytes": 1125,
+      "promoted_sha256": "sha256:400c1fa6ee7b8da68d403d9f1f3d521f71b7792c7e910e12c7eed580ce6fa250"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/agent/opencode/xdg-data/opencode/log/opencode.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 31335,
+      "source_sha256": "sha256:32e98cd2ca426ffd4f0a57e6bf64569ace28d9228b1793d6f1f5a08ec3c977ef"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/agent/opencode/xdg-data/opencode/opencode.db",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 4096,
+      "source_sha256": "sha256:40cf07c52bfaa52b334ef341456f970787f6dc701ffe18ad3c572cb5056dbd70"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/agent/opencode/xdg-data/opencode/opencode.db-shm",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 32768,
+      "source_sha256": "sha256:ac19eb7fde7c118032f537b82bc8728dee407262664f2e5e68e08db4cc5284fa"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/agent/opencode/xdg-data/opencode/opencode.db-wal",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 2562672,
+      "source_sha256": "sha256:660cc5b8eea3867e00dd656eaa7b7cd4e168b362ed248ba4d3568b13a3fb7367"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/agent/opencode/xdg-data/opencode/snapshot/global/42099b4af021e53fd8fd4e056c2568d7c2e3ffa8/info/exclude",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 0,
+      "source_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/agent/opencode.txt",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 16827,
+      "source_sha256": "sha256:95197fd317e3ebe4c59fe158fdaa494848f60cfa4a7febaba76c3922aaaf6edc"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/agent/trajectory.json",
+      "promoted_path": "har53-sealed-selected-travel-lis__BZdS4Pa/agent/trajectory.json",
+      "action": "redacted",
+      "rule": "R1",
+      "source_bytes": 11091,
+      "source_sha256": "sha256:84b1919cfe7259b9fb36dcf05dfd8e8d13c4cf737c88ee62bee9358bbc11dbc0",
+      "promoted_bytes": 11174,
+      "promoted_sha256": "sha256:a8a6c6a272d7cd53d4abe0b05344ddee4ff871cb6f5e18db80006f1693331b27"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/artifacts/app/answer.json",
+      "promoted_path": "har53-sealed-selected-travel-lis__BZdS4Pa/artifacts/app/answer.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 696,
+      "source_sha256": "sha256:c434a4f627f79126077af3c0593301aa8f6b29947611e915611e1e0de0ba10c9",
+      "promoted_bytes": 696,
+      "promoted_sha256": "sha256:c434a4f627f79126077af3c0593301aa8f6b29947611e915611e1e0de0ba10c9"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/artifacts/manifest.json",
+      "promoted_path": "har53-sealed-selected-travel-lis__BZdS4Pa/artifacts/manifest.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 310,
+      "source_sha256": "sha256:d78a1450e5192ae975ea2685155dbc1e9f731a5df54284b7c36a97ae54d1b47b",
+      "promoted_bytes": 310,
+      "promoted_sha256": "sha256:d78a1450e5192ae975ea2685155dbc1e9f731a5df54284b7c36a97ae54d1b47b"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/config.json",
+      "promoted_path": "har53-sealed-selected-travel-lis__BZdS4Pa/config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1137,
+      "source_sha256": "sha256:9809ea22a9a0ff0d5cae1d631a1905d9dee2114b75ace219fd48d89ee59c8e48",
+      "promoted_bytes": 1137,
+      "promoted_sha256": "sha256:9809ea22a9a0ff0d5cae1d631a1905d9dee2114b75ace219fd48d89ee59c8e48"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/lock.json",
+      "promoted_path": "har53-sealed-selected-travel-lis__BZdS4Pa/lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2025,
+      "source_sha256": "sha256:5d42d846f9f550053d552bdf6e3991f10708ac52059ff3b95bd4ae264df440bc",
+      "promoted_bytes": 2025,
+      "promoted_sha256": "sha256:5d42d846f9f550053d552bdf6e3991f10708ac52059ff3b95bd4ae264df440bc"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/result.json",
+      "promoted_path": "har53-sealed-selected-travel-lis__BZdS4Pa/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 4627,
+      "source_sha256": "sha256:0c2468a9c751eb4cb561614da4b5eef4c53700b8dffe28c309cb18ef5ddb44ed",
+      "promoted_bytes": 4627,
+      "promoted_sha256": "sha256:0c2468a9c751eb4cb561614da4b5eef4c53700b8dffe28c309cb18ef5ddb44ed"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/state-journal/state-after.json",
+      "promoted_path": "har53-sealed-selected-travel-lis__BZdS4Pa/state-journal/state-after.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1063,
+      "source_sha256": "sha256:cfb0de6292415c99846cb657d451eed9605bf8b9127b3df5a71546e04256df68",
+      "promoted_bytes": 1063,
+      "promoted_sha256": "sha256:cfb0de6292415c99846cb657d451eed9605bf8b9127b3df5a71546e04256df68"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/state-journal/state-before.json",
+      "promoted_path": "har53-sealed-selected-travel-lis__BZdS4Pa/state-journal/state-before.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 785,
+      "source_sha256": "sha256:72eb5ce97c94404772263108b50d045b7ce028307528912130ac51f03a000a76",
+      "promoted_bytes": 785,
+      "promoted_sha256": "sha256:72eb5ce97c94404772263108b50d045b7ce028307528912130ac51f03a000a76"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/state-journal/state-diff.json",
+      "promoted_path": "har53-sealed-selected-travel-lis__BZdS4Pa/state-journal/state-diff.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1312,
+      "source_sha256": "sha256:76a568cdb8e29d203d186603e8ea35c29fbc966bd778c6b75c1d6f0dc3e78ed1",
+      "promoted_bytes": 1312,
+      "promoted_sha256": "sha256:76a568cdb8e29d203d186603e8ea35c29fbc966bd778c6b75c1d6f0dc3e78ed1"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/state-journal/state-events.jsonl",
+      "promoted_path": "har53-sealed-selected-travel-lis__BZdS4Pa/state-journal/state-events.jsonl",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 685,
+      "source_sha256": "sha256:6199dac2102ae09e28797a7fdb0024f28a048c167ea259af4867fb4847c8a2bc",
+      "promoted_bytes": 685,
+      "promoted_sha256": "sha256:6199dac2102ae09e28797a7fdb0024f28a048c167ea259af4867fb4847c8a2bc"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/state-journal/status.json",
+      "promoted_path": "har53-sealed-selected-travel-lis__BZdS4Pa/state-journal/status.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 510,
+      "source_sha256": "sha256:e1ea1a9f44f9abcc16f5d2777128e85840ae030551b4602e5ae34955ad31ac61",
+      "promoted_bytes": 510,
+      "promoted_sha256": "sha256:e1ea1a9f44f9abcc16f5d2777128e85840ae030551b4602e5ae34955ad31ac61"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/trial.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 2315,
+      "source_sha256": "sha256:9becd0c5e8bc9a3ff44db161031824694c4b49139e643385c215bf1dad478abe"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/verifier/result.json",
+      "promoted_path": "har53-sealed-selected-travel-lis__BZdS4Pa/verifier/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 127,
+      "source_sha256": "sha256:6d384cca17a546723a7a02e7a28b9383c9e2a4aaeb390d8f863d1a3401fd30e0",
+      "promoted_bytes": 127,
+      "promoted_sha256": "sha256:6d384cca17a546723a7a02e7a28b9383c9e2a4aaeb390d8f863d1a3401fd30e0"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/verifier/reward.txt",
+      "promoted_path": "har53-sealed-selected-travel-lis__BZdS4Pa/verifier/reward.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 4,
+      "source_sha256": "sha256:51ff0d2f0d3a5d61edec31785532ea0d570f8c348d58b15b94ff9c2ca6e926a4",
+      "promoted_bytes": 4,
+      "promoted_sha256": "sha256:51ff0d2f0d3a5d61edec31785532ea0d570f8c348d58b15b94ff9c2ca6e926a4"
+    },
+    {
+      "source_path": "har53-sealed-selected-travel-lis__BZdS4Pa/verifier/test-stdout.txt",
+      "promoted_path": "har53-sealed-selected-travel-lis__BZdS4Pa/verifier/test-stdout.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 78,
+      "source_sha256": "sha256:c3c78ac590c1f7e84fd55a3fd9df9cfbab8109890f7edf25432c34fdbc03c162",
+      "promoted_bytes": 78,
+      "promoted_sha256": "sha256:c3c78ac590c1f7e84fd55a3fd9df9cfbab8109890f7edf25432c34fdbc03c162"
+    },
+    {
+      "source_path": "job.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 2315,
+      "source_sha256": "sha256:9becd0c5e8bc9a3ff44db161031824694c4b49139e643385c215bf1dad478abe"
+    },
+    {
+      "source_path": "lab-metadata.json",
+      "promoted_path": "lab-metadata.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 7469,
+      "source_sha256": "sha256:e43924ce1b5c1170db112e81dc77892b4dd1f4dc87d1e560487972e195b6d4f5",
+      "promoted_bytes": 7469,
+      "promoted_sha256": "sha256:e43924ce1b5c1170db112e81dc77892b4dd1f4dc87d1e560487972e195b6d4f5"
+    },
+    {
+      "source_path": "lock.json",
+      "promoted_path": "lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 3163,
+      "source_sha256": "sha256:98016035e3597182c8c974b3c28bb4c82155487ccadc801d683515b32c275285",
+      "promoted_bytes": 3163,
+      "promoted_sha256": "sha256:98016035e3597182c8c974b3c28bb4c82155487ccadc801d683515b32c275285"
+    },
+    {
+      "source_path": "result.json",
+      "promoted_path": "result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1141,
+      "source_sha256": "sha256:16014b65e77d8792636ad6e913b0caa8ea422dc8202ea0cc6e46838b8ab160c6",
+      "promoted_bytes": 1141,
+      "promoted_sha256": "sha256:16014b65e77d8792636ad6e913b0caa8ea422dc8202ea0cc6e46838b8ab160c6"
+    }
+  ]
+}

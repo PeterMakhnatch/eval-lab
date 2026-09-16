@@ -1,0 +1,41 @@
+{
+  "captured_at": "2026-09-15T23:53:52.131020Z",
+  "entries": [
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1788738577000000000,
+      "path": ".",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1788738577000000000,
+      "path": "input",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1788738577000000000,
+      "path": "output",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "hash_status": "complete",
+      "mode": "-rw-r--r--",
+      "mtime_ns": 1788738014000000000,
+      "path": "input/events.jsonl",
+      "sha256": "sha256:e1342580d8b19cae1c5d789466f39168d9cd53705c50831c9b2814825e6590c0",
+      "size_bytes": 458,
+      "type": "file"
+    }
+  ],
+  "entry_count": 4,
+  "label": "before",
+  "root": "/app",
+  "schema_version": 1,
+  "target_pid": 30341,
+  "truncated": false
+}

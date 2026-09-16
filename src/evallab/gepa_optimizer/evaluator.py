@@ -71,6 +71,7 @@ from evallab.results import JobRecord, load_job
 from evallab.runner import CONTROL_AGENTS, RunRequest, profile_for_request, resolve_harbor_model
 from evallab.schemas import CohortComparisonSpec, CohortSelector, ExperimentSpec, RunProvenance
 
+from .budget import AggregateBudget
 from .feedback import build_feedback
 
 PERMITTED_CONTROLS = frozenset({"oracle", "nop"})
@@ -446,6 +447,7 @@ class LabEvaluator:
         ceilings: ProviderCeilings | None = None,
         approved_candidate_ids: frozenset[str] | None = None,
         feedback_max_chars: int = 24000,
+        budgets: tuple[AggregateBudget, ...] = (),
     ) -> None:
         self.repo_root = Path(repo_root).resolve()
         self.output_dir = _validate_in_repo_dir(self.repo_root, Path(output_dir), "output_dir")
@@ -467,6 +469,7 @@ class LabEvaluator:
         self.ceilings = ceilings
         self.approved_candidate_ids = approved_candidate_ids
         self.feedback_max_chars = feedback_max_chars
+        self.budgets = budgets
         if ceilings is not None and self.agent not in {DEEPSEEK_TARGET_AGENT, "zai-opencode"}:
             raise ValueError(f"the {self.agent} target does not accept provider ceilings")
 
@@ -593,6 +596,21 @@ class LabEvaluator:
         receipt_file.write_text(
             json.dumps(record.to_dict(), indent=2, allow_nan=False) + "\n", encoding="utf-8"
         )
+        if job_path is not None:
+            identity = deterministic_job_name(
+                campaign_path=self._campaign_path,
+                agent=self.agent,
+                model=self.model,
+                task_id=example["task_id"],
+                candidate_sha256=candidate_sha256,
+            )
+            for budget in self.budgets:
+                budget.complete(
+                    "target",
+                    identity,
+                    status=status,
+                    metadata={"trial_id": trial_id, "candidate_id": candidate_sha256},
+                )
 
         return record
 
@@ -821,9 +839,11 @@ class LabEvaluator:
         )
         exact_job_dir = self.jobs_dir / job_name
         receipt_path = (
-            self.output_dir / "evaluations"
+            self.output_dir
+            / "evaluations"
             / f"{candidate_sha256.split(':', 1)[-1]}_{_artifact_task_tag(task_id)}.json"
         )
+        retained: dict[str, Any] = {}
         if receipt_path.is_file():
             retained = json.loads(receipt_path.read_text(encoding="utf-8"))
             if retained.get("status") == "completed":
@@ -837,8 +857,17 @@ class LabEvaluator:
                         "Retained completed job is unavailable; restore its evidence, not a new run"
                     )
 
-        # Check the exact retained or campaign-scoped path, never scan other campaigns.
-        if exact_job_dir.is_dir() and (exact_job_dir / "result.json").is_file():
+        # Harbor writes result.json while the job is still running. Only a
+        # finished result is consumable; otherwise reuse the exact queued spec.
+        result_path = exact_job_dir / "result.json"
+        finished = False
+        if result_path.is_file():
+            finished = bool(json.loads(result_path.read_text()).get("finished_at"))
+            if not finished and retained.get("status") != "pending":
+                raise EvaluationUnavailable(
+                    "Unfinished native job has no retained pending receipt; inspect the queue, not a new run"
+                )
+        if finished:
             job_record = load_job(exact_job_dir)
             if not _check_job_provenance(
                 job_record,
@@ -1000,6 +1029,17 @@ class LabEvaluator:
         if self.ceilings is not None:
             spec_kwargs.update(self.ceilings.to_spec_kwargs())
         spec = ExperimentSpec(**spec_kwargs)
+        for budget in self.budgets:
+            budget.reserve(
+                "target",
+                clean_spec_name,
+                metadata={
+                    "spec_id": spec.spec_id,
+                    "task_id": task_id,
+                    "candidate_id": candidate_sha256,
+                    "campaign": self._campaign_path,
+                },
+            )
 
         spec_path, decision = self.executor.submit(spec)
 

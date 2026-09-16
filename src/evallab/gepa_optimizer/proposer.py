@@ -12,9 +12,52 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from .budget import AggregateBudget
+
 
 class ProposalUnavailable(BaseException):
     """A spent/unknown request must not become an automatic paid retry."""
+
+
+class _FeedbackOnlyServer:
+    """Keep live enforcement while excluding transient telemetry from reflection."""
+
+    def __init__(self, server: Any) -> None:
+        self.server = server
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.server, name)
+
+    def evaluate(self, *args: Any, **kwargs: Any) -> Any:
+        score, info = self.server.evaluate(*args, **kwargs)
+        info.pop("_budget", None)
+        return score, info
+
+    def evaluate_batch(self, *args: Any, **kwargs: Any) -> Any:
+        results = self.server.evaluate_batch(*args, **kwargs)
+        for _score, info in results:
+            info.pop("_budget", None)
+        return results
+
+
+class ReplaySafeGepaEngine:
+    """Delegate released GEPA without making per-process counters prompt identity."""
+
+    name = "gepa"
+
+    def __init__(self, config: Any) -> None:
+        from gepa.oa.engines.gepa import GepaEngine  # ty: ignore[unresolved-import]
+
+        self.engine: Any = GepaEngine(config)
+
+    def run(self, task: Any, server: Any) -> Any:
+        # EvalServer adds _budget after our evaluator returns. Its used/remaining
+        # counters restart on resume, otherwise changing an identical reflection
+        # request into a new paid proposal. The original server still meters it.
+        return self.engine.run(task, _FeedbackOnlyServer(server))
+
+    def process_result(self, result: Any, output_dir: Path | None) -> None:
+        self.engine.process_result(result, output_dir)
 
 
 class JournaledReflectionLM:
@@ -25,11 +68,13 @@ class JournaledReflectionLM:
         directory: Path,
         max_requests: int,
         before_request: Callable[[], None] | None = None,
+        budgets: tuple[AggregateBudget, ...] = (),
     ) -> None:
         self.model = model
         self.directory = directory
         self.max_requests = max_requests
         self.before_request = before_request
+        self.budgets = budgets
         directory.mkdir(parents=True, exist_ok=True)
         self.replayed = 0
         self.new_requests = 0
@@ -67,6 +112,7 @@ class JournaledReflectionLM:
                 raise ProposalUnavailable(
                     "Previous proposer request has unknown outcome; no automatic retry"
                 )
+            self._settle_budget(path, receipt)
             self.replayed += 1
             return receipt["response"]
         if len(self._receipts()) >= self.max_requests:
@@ -97,6 +143,8 @@ class JournaledReflectionLM:
             "actual_usage": None,
             "accounting_limit": "upstream LM converts missing cost/usage to zero; these are not authoritative billing receipts",
         }
+        for budget in self.budgets:
+            budget.reserve("proposer", str(path), metadata={"model": self.model})
         with path.open("x") as stream:
             json.dump(receipt, stream, indent=2)
         self.new_requests += 1
@@ -110,4 +158,19 @@ class JournaledReflectionLM:
             upstream_estimated_cost_usd=self._lm.total_cost - before,
         )
         path.write_text(json.dumps(receipt, indent=2) + "\n")
+        self._settle_budget(path, receipt)
         return response
+
+    def _settle_budget(self, path: Path, receipt: dict[str, Any]) -> None:
+        # The upstream LM collapses missing estimates to zero; do not attest
+        # those as known free requests. Replaying settlement is idempotent.
+        estimate = receipt.get("upstream_estimated_cost_usd")
+        known_estimate = estimate if isinstance(estimate, (int, float)) and estimate > 0 else None
+        for budget in self.budgets:
+            budget.complete(
+                "proposer",
+                str(path),
+                status="completed",
+                estimated_cost_usd=known_estimate,
+                metadata={"receipt_path": str(path)},
+            )

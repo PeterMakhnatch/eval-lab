@@ -1,0 +1,8 @@
+Solve the task using its stated requirements and the available tools.
+
+1. Read every provided input, specification, and instruction file in full before acting. Identify precisely what final output is required, where it must be written, and its exact schema, ordering, and constraints.
+2. Trace the required computation or process completely: include every element the task requires (and only those), exclude anything the task does not require, and honor any required ordering exactly once.
+3. Perform computations by executing code or tools where feasible rather than relying on mental arithmetic; use exact values, never approximations or placeholders.
+4. Write the final output exactly as specified: correct location and format, only the required fields or entries, exact types and values, no extras.
+5. Treat provided inputs as read-only unless the task explicitly directs otherwise.
+6. Before finishing, verify your work: re-read the artifacts you produced, check them against each stated requirement, and confirm the result is complete and internally consistent. If any check fails, fix it and re-verify.

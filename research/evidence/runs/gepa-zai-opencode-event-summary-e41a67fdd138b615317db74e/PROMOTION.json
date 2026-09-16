@@ -1,0 +1,314 @@
+{
+  "schema_version": 2,
+  "bundle": "gepa-zai-opencode-event-summary-e41a67fdd138b615317db74e",
+  "source_job_runtime_path": "runs/gepa-zai-opencode-event-summary-e41a67fdd138b615317db74e",
+  "source_job_result_sha256": "sha256:9254afac071c3294c11fdbd2100031f57954a15292d8fbf8697abed7d69dd706",
+  "promoted_by": "scripts/promote_codex_bundle.py",
+  "redaction_rules": {
+    "R1": "system/user ATIF step message text removed; sha256 and length kept",
+    "R2": "agent/sessions/**, agent/codex.txt, agent/opencode.txt, agent/opencode/**, job.log and trial.log raw prompt/model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
+    "R3a": "verifier/* JSON string values over 1024 bytes replaced by digest markers",
+    "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body",
+    "R4": "each omitted rollout leaves a quota sidecar under <trial>/agent/quota/ holding only the event timestamp and a whitelist of payload.rate_limits scalars, with the parent rollout's sha256; account-scope point-in-time readings, no message, prompt, reasoning, session title or token"
+  },
+  "totals": {
+    "source_files": 30,
+    "promoted_files": 20,
+    "omitted_files": 10,
+    "quota_sidecars": 0,
+    "promoted_bytes": 36208,
+    "source_bytes": 2708002
+  },
+  "files": [
+    {
+      "source_path": "config.json",
+      "promoted_path": "config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1141,
+      "source_sha256": "sha256:6f883c46166e9751c8cc1f150587ff299e925a44e88d312357e7dc6fabd277e7",
+      "promoted_bytes": 1141,
+      "promoted_sha256": "sha256:6f883c46166e9751c8cc1f150587ff299e925a44e88d312357e7dc6fabd277e7"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/agent/opencode/xdg-data/opencode/log/opencode.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 28767,
+      "source_sha256": "sha256:a1dbddbffae192894496b57a1a66baf277ddf7a96b9c36b711bdb645bed38b33"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/agent/opencode/xdg-data/opencode/opencode.db",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 4096,
+      "source_sha256": "sha256:40cf07c52bfaa52b334ef341456f970787f6dc701ffe18ad3c572cb5056dbd70"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/agent/opencode/xdg-data/opencode/opencode.db-shm",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 32768,
+      "source_sha256": "sha256:b03a77d90760d3ba01ba68b40b27565af58d89dc26ed2f9a468e10d1b2dd3604"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/agent/opencode/xdg-data/opencode/opencode.db-wal",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 2587392,
+      "source_sha256": "sha256:baac4f372b9bae560efa0c8bd2c9cd4cff965098bc04977dac5987dc9addfcbe"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/agent/opencode/xdg-data/opencode/snapshot/global/42099b4af021e53fd8fd4e056c2568d7c2e3ffa8/info/exclude",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 0,
+      "source_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/agent/opencode/xdg-state/opencode/locks/47a4a0a4ea940bcafbfc8a3f3b8b8003f45c8137.lock/heartbeat",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 0,
+      "source_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/agent/opencode/xdg-state/opencode/locks/47a4a0a4ea940bcafbfc8a3f3b8b8003f45c8137.lock/meta.json",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 124,
+      "source_sha256": "sha256:457e63aea00620051d5c18cdd54f6c77eaf957c6371450a364fde78dc21315d0"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/agent/opencode.txt",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 12938,
+      "source_sha256": "sha256:6806d9ed61fd34aa4de48a6603e2532df63d66800e6701e0783d81ed59ffe270"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/agent/trajectory.json",
+      "promoted_path": "gepa-zai-opencode-event-summary__u6EdsRJ/agent/trajectory.json",
+      "action": "redacted",
+      "rule": "R1",
+      "source_bytes": 8419,
+      "source_sha256": "sha256:22b743229b4dbb3a336935640249fae3f9ed5cf8ae39b9ec9c7c581730c6a106",
+      "promoted_bytes": 8112,
+      "promoted_sha256": "sha256:667f5fdedc34e4be9c9b1dbe532b5654c63eb364850f786d19a82fd3374000db"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/artifacts/app/input/events.jsonl",
+      "promoted_path": "gepa-zai-opencode-event-summary__u6EdsRJ/artifacts/app/input/events.jsonl",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 458,
+      "source_sha256": "sha256:e1342580d8b19cae1c5d789466f39168d9cd53705c50831c9b2814825e6590c0",
+      "promoted_bytes": 458,
+      "promoted_sha256": "sha256:e1342580d8b19cae1c5d789466f39168d9cd53705c50831c9b2814825e6590c0"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/artifacts/app/output/summary.json",
+      "promoted_path": "gepa-zai-opencode-event-summary__u6EdsRJ/artifacts/app/output/summary.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 158,
+      "source_sha256": "sha256:7e2e689066832f734940f5b7d3ee5bfabcef2ca5c8acbffc35dbce82182bbaaa",
+      "promoted_bytes": 158,
+      "promoted_sha256": "sha256:7e2e689066832f734940f5b7d3ee5bfabcef2ca5c8acbffc35dbce82182bbaaa"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/artifacts/manifest.json",
+      "promoted_path": "gepa-zai-opencode-event-summary__u6EdsRJ/artifacts/manifest.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 491,
+      "source_sha256": "sha256:53d36aa77aa02f671b07ce7fe8f09bbf4c55a6f8667b4843585f7f7ac5197697",
+      "promoted_bytes": 491,
+      "promoted_sha256": "sha256:53d36aa77aa02f671b07ce7fe8f09bbf4c55a6f8667b4843585f7f7ac5197697"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/config.json",
+      "promoted_path": "gepa-zai-opencode-event-summary__u6EdsRJ/config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1152,
+      "source_sha256": "sha256:ec85e2572fe9c7e599a470e5d731358c2fa430fb7a8d018c2b3b2e497dd4d7dd",
+      "promoted_bytes": 1152,
+      "promoted_sha256": "sha256:ec85e2572fe9c7e599a470e5d731358c2fa430fb7a8d018c2b3b2e497dd4d7dd"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/lock.json",
+      "promoted_path": "gepa-zai-opencode-event-summary__u6EdsRJ/lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2041,
+      "source_sha256": "sha256:ce32d67dd8ba6eb76fc838e81d8ec795daa995436bac3248b30fec280d76f444",
+      "promoted_bytes": 2041,
+      "promoted_sha256": "sha256:ce32d67dd8ba6eb76fc838e81d8ec795daa995436bac3248b30fec280d76f444"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/result.json",
+      "promoted_path": "gepa-zai-opencode-event-summary__u6EdsRJ/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 4752,
+      "source_sha256": "sha256:b7ef57c1265f734772184efd3c17748351e79a3cc3c69b49ef3afd6ad03b0faa",
+      "promoted_bytes": 4752,
+      "promoted_sha256": "sha256:b7ef57c1265f734772184efd3c17748351e79a3cc3c69b49ef3afd6ad03b0faa"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/state-journal/state-after.json",
+      "promoted_path": "gepa-zai-opencode-event-summary__u6EdsRJ/state-journal/state-after.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1231,
+      "source_sha256": "sha256:8ec643bed1f8cc61cc1045c0365224b896c06cd0644b8ee0860e5f3495a19237",
+      "promoted_bytes": 1231,
+      "promoted_sha256": "sha256:8ec643bed1f8cc61cc1045c0365224b896c06cd0644b8ee0860e5f3495a19237"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/state-journal/state-before.json",
+      "promoted_path": "gepa-zai-opencode-event-summary__u6EdsRJ/state-journal/state-before.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 945,
+      "source_sha256": "sha256:9dd3ffcb3d794e7d3034fa9ee657115f5681d5415fe48061b205af78fce79a0c",
+      "promoted_bytes": 945,
+      "promoted_sha256": "sha256:9dd3ffcb3d794e7d3034fa9ee657115f5681d5415fe48061b205af78fce79a0c"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/state-journal/state-diff.json",
+      "promoted_path": "gepa-zai-opencode-event-summary__u6EdsRJ/state-journal/state-diff.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1343,
+      "source_sha256": "sha256:72913004dced8f7c1df1f825155e5af7d6de821ce8274765b8bb0355b1018d90",
+      "promoted_bytes": 1343,
+      "promoted_sha256": "sha256:72913004dced8f7c1df1f825155e5af7d6de821ce8274765b8bb0355b1018d90"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/state-journal/state-events.jsonl",
+      "promoted_path": "gepa-zai-opencode-event-summary__u6EdsRJ/state-journal/state-events.jsonl",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 717,
+      "source_sha256": "sha256:b3f35a9b12bad71861dbd37211bb8755dcf9639287bf86685a75d686c69a9f7e",
+      "promoted_bytes": 717,
+      "promoted_sha256": "sha256:b3f35a9b12bad71861dbd37211bb8755dcf9639287bf86685a75d686c69a9f7e"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/state-journal/status.json",
+      "promoted_path": "gepa-zai-opencode-event-summary__u6EdsRJ/state-journal/status.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 510,
+      "source_sha256": "sha256:ba86e00302ba6b3b5eed0e7de3f9b9fff971522694b935e4778af22ceca2838f",
+      "promoted_bytes": 510,
+      "promoted_sha256": "sha256:ba86e00302ba6b3b5eed0e7de3f9b9fff971522694b935e4778af22ceca2838f"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/trial.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 2701,
+      "source_sha256": "sha256:3c6c48fae54fe5a8c9fcf4de194a49a5be5181821ed2f0be29e9c583877d9b26"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/verifier/checks.json",
+      "promoted_path": "gepa-zai-opencode-event-summary__u6EdsRJ/verifier/checks.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 384,
+      "source_sha256": "sha256:2045854a723ba267cd1c4bfeaad946e42040c19d996c4925c4a281e9b99a352f",
+      "promoted_bytes": 384,
+      "promoted_sha256": "sha256:2045854a723ba267cd1c4bfeaad946e42040c19d996c4925c4a281e9b99a352f"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/verifier/ctrf.json",
+      "promoted_path": "gepa-zai-opencode-event-summary__u6EdsRJ/verifier/ctrf.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 892,
+      "source_sha256": "sha256:169e8cecdc7b146b6e65f229b32e7444b3dc2cf1179cddbbf5f69da9b753e1e3",
+      "promoted_bytes": 892,
+      "promoted_sha256": "sha256:169e8cecdc7b146b6e65f229b32e7444b3dc2cf1179cddbbf5f69da9b753e1e3"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/verifier/reward.json",
+      "promoted_path": "gepa-zai-opencode-event-summary__u6EdsRJ/verifier/reward.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 86,
+      "source_sha256": "sha256:f339aa2f53e93bb73349b11f5728acbe23e1ffc6a77472956cfe41578cc70824",
+      "promoted_bytes": 86,
+      "promoted_sha256": "sha256:f339aa2f53e93bb73349b11f5728acbe23e1ffc6a77472956cfe41578cc70824"
+    },
+    {
+      "source_path": "gepa-zai-opencode-event-summary__u6EdsRJ/verifier/test-stdout.txt",
+      "promoted_path": "gepa-zai-opencode-event-summary__u6EdsRJ/verifier/test-stdout.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 354,
+      "source_sha256": "sha256:6b30fe93f6de0e133e4c65e604eed60d01030b270c833475c1f86ef35dabfd94",
+      "promoted_bytes": 354,
+      "promoted_sha256": "sha256:6b30fe93f6de0e133e4c65e604eed60d01030b270c833475c1f86ef35dabfd94"
+    },
+    {
+      "source_path": "job.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 2701,
+      "source_sha256": "sha256:3c6c48fae54fe5a8c9fcf4de194a49a5be5181821ed2f0be29e9c583877d9b26"
+    },
+    {
+      "source_path": "lab-metadata.json",
+      "promoted_path": "lab-metadata.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 6398,
+      "source_sha256": "sha256:5b2228894212d353f3bc958da8ca25b7228e163db264aa8ed021906982121aa2",
+      "promoted_bytes": 6398,
+      "promoted_sha256": "sha256:5b2228894212d353f3bc958da8ca25b7228e163db264aa8ed021906982121aa2"
+    },
+    {
+      "source_path": "lock.json",
+      "promoted_path": "lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 3179,
+      "source_sha256": "sha256:46f0b3d887cadc9770da1f139532e66186da4edea5265a495cf2db29352a6bfe",
+      "promoted_bytes": 3179,
+      "promoted_sha256": "sha256:46f0b3d887cadc9770da1f139532e66186da4edea5265a495cf2db29352a6bfe"
+    },
+    {
+      "source_path": "result.json",
+      "promoted_path": "result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1864,
+      "source_sha256": "sha256:9254afac071c3294c11fdbd2100031f57954a15292d8fbf8697abed7d69dd706",
+      "promoted_bytes": 1864,
+      "promoted_sha256": "sha256:9254afac071c3294c11fdbd2100031f57954a15292d8fbf8697abed7d69dd706"
+    }
+  ]
+}

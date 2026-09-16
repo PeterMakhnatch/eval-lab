@@ -253,6 +253,14 @@ encoding/media/charset classifications, never arbitrary headers or bodies.
 Historical HAR-54 response details were not captured and cannot be recovered
 from this new instrumentation; their reserved usage remains unresolved.
 
+The disabled `har59-bench-development.json` consumes HAR-61/PR439's eight
+digest-pinned TB2/FACET development packages through this same campaign schema.
+Its three validation packages are deliberately **not** supplied as GEPA
+`validation_task_ids`, which are search-visible selection data. Package
+availability/admission remains owned by the benchmark lane and Peter. The full
+cohort exceeds the existing two-target residual allowance; this prepared
+projection grants neither task eligibility nor additional execution budget.
+
 `--qualification` uses free local controls and a deterministic proposer fixture.
 It can demonstrate real code injection, feedback, selection and comparison, but
 is **not model-learned improvement**, held-out benefit, or task admission.

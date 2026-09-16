@@ -242,6 +242,25 @@
     "throwaway_drivers_removed_after_archive": true,
     "raw_native_jobs_and_receipts_retained": true
   },
+  "benchmark_intake": {
+    "source_issue": "HAR-61",
+    "source_pr": "https://github.com/PeterMakhnatch/eval-lab/pull/439",
+    "source_commit": "f2aafa3d23f3bf04f4841ba121ef4bbd4be13a65",
+    "source_manifest": "research/experiments/bench-cohort-2026-09-16.json",
+    "source_manifest_sha256": "sha256:dac5039369c376597a1497375406e51f94caa15f4d1dae2089725c11a88763f0",
+    "prepared_campaign": "research/experiments/harness-gepa/har59-bench-development.json",
+    "consumed_development_examples": 8,
+    "validation_tasks_excluded_from_search": [
+      "library/tasks/experimental/bench-tb2-val/cancel-async-tasks-b45af75bcc92",
+      "library/tasks/experimental/bench-tb2-val/configure-git-webserver-e7c1d7f3942e",
+      "library/tasks/experimental/bench-tb2-val/dna-insert-69a2b9412ef7"
+    ],
+    "tb3_tb4_examples": 0,
+    "enabled": false,
+    "execution_status": "not_run",
+    "limits": "PR439 is an unaccepted experimental task-package dependency, not task admission. Full eight-task baseline/search cannot fit the residual two-target allowance; do not enable without task eligibility and sufficient explicitly authorized budget. Original limits unchanged.",
+    "split_disposition": "Existing GEPA validation_task_ids are search-visible selection data. HAR61 says validation never enters optimization, so all three validation tasks stay out of this campaign rather than being silently passed to that valset."
+  },
   "limits": [
     "No live proposer, learned code change, model-task efficiency comparison or held-out benefit claimed",
     "One unregistered native interface task; Oracle checks validate helper behavior, not model capability or benchmark quality",

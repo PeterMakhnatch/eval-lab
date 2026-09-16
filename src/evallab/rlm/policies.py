@@ -289,6 +289,19 @@ POLICIES: dict[str, RlmPolicy] = {
             environment_addendum=ENVIRONMENT_BRIDGE_ADDENDUM + "\n\n" + CONTAINER_PYTHON_ADDENDUM,
             container_python_tool=True,
         ),
+        _STOCK.derive(
+            "bridge-lenient",
+            "bridge + salvage of format-drifted actions",
+            environment_addendum=ENVIRONMENT_BRIDGE_ADDENDUM,
+            lenient_parse=True,
+        ),
+        _STOCK.derive(
+            "tools-lenient",
+            "tools-bridge + salvage of format-drifted actions",
+            environment_addendum=ENVIRONMENT_BRIDGE_ADDENDUM + "\n\n" + CONTAINER_PYTHON_ADDENDUM,
+            container_python_tool=True,
+            lenient_parse=True,
+        ),
     )
 }
 

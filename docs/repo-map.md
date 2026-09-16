@@ -293,7 +293,7 @@ inputs:
   - path: src/evallab/run_preflight.py
     digest: sha256:c6f34f15c3d8fc8a30ee5b09abda23195d983340d77ea7af2b05bc27c6d37624
   - path: src/evallab/runner.py
-    digest: sha256:0871a53dd427fbb3ef6b0b158f98b0d5e965789980aab313e0e31f3e406a5896
+    digest: sha256:ae29d06248ad2e9fa1f8c8cb766b217d11c0041156b8757011cbcd3d579e9f9c
   - path: src/evallab/schemas/__init__.py
     digest: sha256:641754d3f5ca93815f4d8c569b83f17cedabef2a0b15b32e57f3230fa091eeaf
   - path: src/evallab/screen.py

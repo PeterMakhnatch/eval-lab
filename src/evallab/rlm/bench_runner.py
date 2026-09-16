@@ -249,10 +249,12 @@ def main(argv: list[str] | None = None) -> int:
                 sink.write(json.dumps(row) + "\n")
                 sink.flush()
             status = "ok " if row["score"] == 1.0 else "ERR" if row["error"] else "bad"
+            prediction_head = str(row["prediction"])[:40]
+            answer_head = str(row["answer"])[:24]
             print(
                 f"[{len(rows):>3}/{len(tasks)}] {status} {row['task_id']:<28} iters={row['iterations']:<3} "
                 f"sub={row['sub_calls']:<3} cost=${row['cost_usd']:.3f} wall={row['wall_seconds']:.0f}s "
-                f"pred={row['prediction'][:40]!r} ans={row['answer'][:24]!r}",
+                f"pred={prediction_head!r} ans={answer_head!r}",
                 flush=True,
             )
     summary = summarize(rows)

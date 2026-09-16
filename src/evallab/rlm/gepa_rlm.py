@@ -27,12 +27,11 @@ import time
 from pathlib import Path
 from typing import Any
 
-import dspy
+import dspy  # ty: ignore[unresolved-import]
 
 from evallab.rlm.bench import BenchTask, generate_suite, score
 from evallab.rlm.bench_runner import SIGNATURE, load_policy, provider_key
 from evallab.rlm.harness import LabRlm, build_lm, build_lms, zai_model_id
-from evallab.rlm.policies import RlmPolicy
 
 REFLECTION_MODEL = "glm-5.3"
 
@@ -139,14 +138,11 @@ def main(argv: list[str] | None = None) -> int:
 
     new_instructions = optimized.generate_action.signature.instructions
     changed = new_instructions != original_instructions
-    candidate = RlmPolicy(
-        **{
-            **{k: v for k, v in base.to_json().items() if k != "schema_version"},
-            "policy_id": f"gepa-{base.policy_id}",
-            "description": f"GEPA-optimised action instructions on top of {base.policy_id} (train seed {args.train_seed}, {args.max_metric_calls} metric calls)",
-            "source": "evallab.rlm.gepa_rlm; dspy.GEPA over LabRlm.generate_action",
-            "action_instructions_override": new_instructions if changed else None,
-        }
+    candidate = base.derive(
+        f"gepa-{base.policy_id}",
+        f"GEPA-optimised action instructions on top of {base.policy_id} (train seed {args.train_seed}, {args.max_metric_calls} metric calls)",
+        source="evallab.rlm.gepa_rlm; dspy.GEPA over LabRlm.generate_action",
+        action_instructions_override=new_instructions if changed else None,
     )
     record: dict[str, Any] = {
         "policy": candidate.to_json(),

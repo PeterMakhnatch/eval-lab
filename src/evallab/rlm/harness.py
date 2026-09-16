@@ -24,13 +24,20 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-import dspy
-from dspy.adapters.chat_adapter import ChatAdapter
-from dspy.primitives.code_interpreter import CodeInterpreter
-from dspy.primitives.prediction import Prediction
-from dspy.primitives.python_interpreter import PythonInterpreter
-from dspy.primitives.repl_types import REPLEntry, REPLHistory, REPLVariable
-from dspy.utils.exceptions import AdapterParseError, format_error_for_lm
+import dspy  # ty: ignore[unresolved-import]
+from dspy.adapters.chat_adapter import ChatAdapter  # ty: ignore[unresolved-import]
+from dspy.primitives.code_interpreter import CodeInterpreter  # ty: ignore[unresolved-import]
+from dspy.primitives.prediction import Prediction  # ty: ignore[unresolved-import]
+from dspy.primitives.python_interpreter import PythonInterpreter  # ty: ignore[unresolved-import]
+from dspy.primitives.repl_types import (  # ty: ignore[unresolved-import]
+    REPLEntry,
+    REPLHistory,
+    REPLVariable,
+)
+from dspy.utils.exceptions import (  # ty: ignore[unresolved-import]
+    AdapterParseError,
+    format_error_for_lm,
+)
 
 from evallab.rlm.policies import RlmPolicy
 
@@ -394,7 +401,7 @@ class LabRlm(dspy.RLM):
 
 
 def _strip_code_fences(code: str) -> str:
-    from dspy.predict.rlm import _strip_code_fences as strip
+    from dspy.predict.rlm import _strip_code_fences as strip  # ty: ignore[unresolved-import]
 
     return strip(code)
 

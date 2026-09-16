@@ -104,7 +104,7 @@ class LabRlmAgent(BaseAgent):
 
     @override
     def version(self) -> str | None:
-        import dspy
+        import dspy  # ty: ignore[unresolved-import]
 
         return f"{ADAPTER_VERSION}+dspy-{dspy.__version__}"
 

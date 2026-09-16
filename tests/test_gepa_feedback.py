@@ -658,7 +658,7 @@ def test_oracle_reference_contrastive_feedback_with_state_journal(tmp_path: Path
 
 def test_oracle_reference_budget_truncation_and_redaction(tmp_path: Path) -> None:
     """Feedback with oracle reference is strictly bounded and redacts secrets."""
-    secret = "sk-ant-api03-SECRETTOKEN123456789"
+    secret = "rk-proj-REDACTIONTEST0123456789abcd"
     traj = {
         "steps": [
             {

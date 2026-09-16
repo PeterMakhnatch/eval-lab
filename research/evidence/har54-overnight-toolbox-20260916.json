@@ -475,7 +475,9 @@
       "toolbox_group_archive_uri": "cas://sha256/05b59804c28e4b31ac84eb02279cee9c04a482cc919a4e51615d2247c4b5a7fa",
       "runtime_bundle_verified": true,
       "bundle_verification": "The bundle contains this ref:\n7f825d81c09f15de8648aec4326b46a7403c4073 HEAD\nThe bundle requires this ref:\nbac8bc54c77a6fc50c908abbb491f27495c4d112 \nThe bundle uses this hash algorithm: sha1\n/private/tmp/har54-restore-zg5k8alv/toolbox/runtime-source.bundle is okay\n"
-    }
+    },
+    "draft_taxonomy_labels": 9,
+    "draft_labels_are_not_human_gold": true
   },
   "release": {
     "base_main": "19b654b4b9e3d8f7308df3527d2de24e2353c67d",
@@ -508,13 +510,19 @@
       "reason": "One protocol task, not a statistical improvement study"
     },
     "privacy": {
-      "scanned_files": 189,
+      "scanned_files": 198,
       "flags": 0,
-      "method": "Known actual secret and encoded-key needles, bearer and generic text redactors; failed model prompt-bearing bundles retained privately"
+      "method": "Known-key and encoded-key matching plus generic credential redaction; failed model prompt-bearing bundles retained privately."
     },
     "exact_runtime_code_reviews": [
       "ToolboxMethodReview at7f825d81: no outstanding findings after actual lock/regex corrections",
       "ToolboxSecurityReview at7f825d81: no outstanding findings; unsupported bind-mount claim withdrawn after primary Docker-copy source check"
-    ]
+    ],
+    "publication_gate_repair": {
+      "cause": "Hosted full matrix required nine draft trajectory labels and rejected a provider-key-shaped synthetic test value.",
+      "changes": "Added evidence-linked draft labels; replaced the redaction-test sentinel without relaxing scanner or calibration gates.",
+      "focused_repair_checks_passed": 3,
+      "production_code_changed": false
+    }
   }
 }

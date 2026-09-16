@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GEPA Candidate Tree</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; width: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f8f9fa; display: flex; flex-direction: column; }
+  #header { background: #fff; border-bottom: 1px solid #dee2e6; padding: 12px 20px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+  #header h1 { font-size: 18px; font-weight: 600; color: #212529; }
+  .legend { display: flex; gap: 14px; font-size: 13px; color: #495057; }
+  .legend-item { display: flex; align-items: center; gap: 4px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #adb5bd; }
+  #graph-container { flex: 1 1 auto; width: 100%; overflow: auto; padding: 20px; text-align: center; }
+  #graph-container svg { width: 100%; height: 100%; }
+  #tooltip {
+    display: none; position: fixed; background: #fff; border: 1px solid #dee2e6;
+    border-radius: 8px; padding: 14px 16px; max-width: 560px; max-height: 70vh; overflow-y: auto;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18); z-index: 1000; font-size: 13px; line-height: 1.5;
+  }
+  #tooltip .tt-header { font-weight: 700; font-size: 15px; margin-bottom: 6px; color: #212529; }
+  #tooltip .tt-meta { color: #6c757d; margin-bottom: 4px; }
+  #tooltip .tt-hint { color: #adb5bd; font-size: 11px; font-style: italic; margin-bottom: 10px; }
+  #tooltip .tt-comp-name { font-weight: 600; color: #495057; margin-top: 10px; border-bottom: 1px solid #e9ecef; padding-bottom: 2px; }
+  #tooltip .tt-comp-text {
+    white-space: pre-wrap; word-break: break-word; background: #f8f9fa;
+    border: 1px solid #e9ecef; border-radius: 4px; padding: 8px 10px; margin-top: 4px;
+    font-family: "SF Mono", SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px;
+    max-height: 200px; overflow-y: auto;
+  }
+  .role-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-left: 6px; }
+  .role-best { background: #00e5ff33; color: #006064; }
+  .role-pareto { background: #ff980033; color: #e65100; }
+  .role-seed { background: #e0e0e0; color: #424242; }
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>GEPA Candidate Tree</h1>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:cyan"></div> Best</div>
+    <div class="legend-item"><div class="legend-dot" style="background:orange"></div> Pareto Front</div>
+    <div class="legend-item"><div class="legend-dot" style="background:lightgray"></div> Other</div>
+  </div>
+</div>
+<div id="graph-container"><p>Loading graph&hellip;</p></div>
+<div id="tooltip"></div>
+
+<script type="module">
+const NODES = [{"idx": 0, "score": 0.7969, "parents": "seed", "role": "Pareto Front", "components": {"judge.predict": "Judge an incident postmortem against every criterion in the rubric.\n\nFor each dimension and criterion in rubric_json.criteria, answer the criterion's question about the document with a raw yes/no. Negated criteria ask whether a flaw is PRESENT; answer yes when the flaw is present and do not invert. Decide evidence questions only against rubric_json.reference_facts and the document text; do not assume facts that are not supplied."}},
+{"idx": 1, "score": 0.8906, "parents": "0", "role": "Best", "components": {"judge.predict": "Judge an incident postmortem against every criterion in rubric_json.criteria.\n\nProcedure:\n1. Read rubric_json.reference_facts and the document carefully.\n2. For each dimension and criterion, answer the criterion's question about the document with a raw yes/no.\n3. Negated criteria (listed in rubric_json.negated) ask whether a flaw is PRESENT; answer yes when the flaw is present. Do not invert any answer.\n4. Evidence-fidelity questions are decided only against rubric_json.reference_facts and the document text; do not assume facts that are not supplied.\n\nDomain-specific decision rules (learned from reviewer conventions):\n\n- actions_are_actionable: Answer YES if the corrective actions name concrete, specific changes \u2014 e.g., config keys, rollback targets, alert routes, thresholds, a DLQ, a benchmark with a condition \u2014 even without named owners or dates. A \"done-when\" or measurable target strengthens the yes, but terse-but-concrete actions qualify. Answer NO only when actions are vague (\"improve reliability\") or unbounded.\n\n- actions_trace_to_findings: Actions that address causes or contributing factors stated earlier in the document count as tracing, even if those stated causes are themselves wrong relative to the reference facts. \"Traces\" is judged within the document's own reasoning.\n\n- rules_out_the_decoys: Answer YES if the document explicitly rejects both decoy causes (the v2.8.1 log-format deploy and the database CPU warning) as causes. Explicit rejection as \"not the cause\" suffices; a detailed timing/behavior argument is not required. Answer NO if either decoy is embraced as a cause or never addressed.\n\n- asserts_unsupported_cause: This concerns the document's stated PRIMARY causal mechanism. Answer YES only if the mechanism the document names as the cause is contradicted by or absent from the reference facts. A fabricated or unverifiable secondary story (e.g., a vendor BGP claim) that the document does not adopt as its root cause does NOT make this criterion yes \u2014 that belongs under invents_evidence instead.\n\n- invents_evidence: Answer YES when the document cites a metric, ticket, log, email, dashboard, or observation not present in the reference facts, EVEN IF the document itself flags it as fabricated or absent from the evidence pack. Self-disclosed fabrications still count.\n\n- proposes_unsupported_work: Answer YES only for material corrective work grounded in causes or risks the reference facts do not support (e.g., rollback for a logging-cost theory, DB resizing tied to the CPU decoy). Minor housekeeping actions (filing an email, checking a metric into a dashboard) do not count as \"material work.\"\n\n- closes_the_detection_gap: Lowering a queue-depth alert threshold to a sane value counts as closing the gap, as does adding paging on delivery lag, retry share, or slot saturation.\n\n- grounded_in_evidence: Counts as YES when the mechanism is tied to multiple specific facts \u2014 including facts cited in the document (config keys, log lines, timeline rows) that are consistent with the reference facts \u2014 rather than bare assertion.\n\n- uncertainty_is_genuine: Open questions about quantities or outcomes the reference facts do not settle (e.g., per-message logging overhead, message loss during drain, customer counts) are genuine. This is not violated merely because the document's primary cause is wrong.\n\n- misstates_a_fact: YES only when a time, count, version, or configuration value that IS supplied in the reference facts is materially misstated. Extra details not present in the facts go under invents_evidence, not here.\n\nOutput: a reasoning summary plus a nested judgments object mapping each dimension and criterion to a verdict ('yes'/'no') with a one-sentence rationale grounded in the document and reference facts."}}];
+const DOT = `digraph G {
+    rankdir=TB;
+    node [style=filled, shape=circle, fontsize=14, width=0.6, height=0.6];
+    0 [label="0\\n(0.80)", fillcolor=orange, tooltip=" "];
+    1 [label="1\\n(0.89)", fillcolor=cyan, tooltip=" "];
+    0 -> 1;
+}`;
+
+const nodeMap = {};
+NODES.forEach(n => { nodeMap[n.idx] = n; });
+
+let pinnedIdx = null;   // non-null when tooltip is click-pinned (scrollable)
+let hoverIdx = null;    // non-null when hovering over a node
+
+function renderTooltip(idx) {
+  const n = nodeMap[idx];
+  if (!n) return "";
+  let roleBadge = "";
+  if (n.role === "Best") roleBadge = '<span class="role-badge role-best">BEST</span>';
+  else if (n.role === "Pareto Front") roleBadge = '<span class="role-badge role-pareto">PARETO</span>';
+  else if (n.role === "Seed") roleBadge = '<span class="role-badge role-seed">SEED</span>';
+
+  let comps = "";
+  for (const [name, text] of Object.entries(n.components)) {
+    const escaped = text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    comps += '<div class="tt-comp-name">' + name + '</div><div class="tt-comp-text">' + escaped + '</div>';
+  }
+
+  return '<div class="tt-header">Candidate ' + n.idx + roleBadge + '</div>' +
+    '<div class="tt-meta">Score: <strong>' + n.score + '</strong>&nbsp;&nbsp;|&nbsp;&nbsp;Parent(s): ' + n.parents +
+    '</div><div class="tt-hint">' + (pinnedIdx === idx ? 'Click node again to dismiss' : 'Click to pin &amp; scroll') + '</div>' +
+    comps;
+}
+
+function positionTooltip(x, y) {
+  const tt = document.getElementById("tooltip");
+  let tx = x + 16, ty = y + 16;
+  const r = tt.getBoundingClientRect();
+  if (tx + r.width > window.innerWidth - 8) tx = x - r.width - 16;
+  if (ty + r.height > window.innerHeight - 8) ty = y - r.height - 16;
+  if (tx < 8) tx = 8;
+  if (ty < 8) ty = 8;
+  tt.style.left = tx + "px";
+  tt.style.top = ty + "px";
+}
+
+function showTooltip(idx, x, y) {
+  const tt = document.getElementById("tooltip");
+  tt.innerHTML = renderTooltip(idx);
+  tt.style.display = "block";
+  positionTooltip(x, y);
+}
+
+function hideTooltip() {
+  pinnedIdx = null;
+  hoverIdx = null;
+  document.getElementById("tooltip").style.display = "none";
+}
+
+// Click outside tooltip and outside nodes dismisses pinned tooltip
+document.addEventListener("mousedown", function(e) {
+  const tt = document.getElementById("tooltip");
+  if (pinnedIdx !== null && tt.style.display === "block"
+      && !tt.contains(e.target) && !e.target.closest(".node")) {
+    hideTooltip();
+  }
+});
+
+async function render() {
+  const { instance } = await import("https://cdn.jsdelivr.net/npm/@viz-js/viz@3.11.0/lib/viz-standalone.mjs");
+  const viz = await instance();
+  const svg = viz.renderSVGElement(DOT);
+  const container = document.getElementById("graph-container");
+  container.innerHTML = "";
+  container.appendChild(svg);
+
+  // Attach hover listeners and strip native <title> tooltips to avoid double tooltips
+  svg.querySelectorAll(".node").forEach(node => {
+    const title = node.querySelector("title");
+    if (!title) return;
+    const idx = parseInt(title.textContent, 10);
+    if (isNaN(idx)) return;
+    title.remove();  // remove native SVG tooltip
+    node.style.cursor = "pointer";
+    // Hover: show tooltip following the mouse (non-interactive)
+    node.addEventListener("mouseenter", e => {
+      if (pinnedIdx !== null) return;  // don't override a pinned tooltip
+      hoverIdx = idx;
+      showTooltip(idx, e.clientX, e.clientY);
+    });
+    node.addEventListener("mousemove", e => {
+      if (pinnedIdx !== null || hoverIdx !== idx) return;
+      positionTooltip(e.clientX, e.clientY);
+    });
+    node.addEventListener("mouseleave", () => {
+      if (pinnedIdx !== null) return;
+      hoverIdx = null;
+      document.getElementById("tooltip").style.display = "none";
+    });
+    // Click: pin the tooltip so user can scroll it
+    node.addEventListener("click", e => {
+      e.stopPropagation();
+      if (pinnedIdx === idx) { hideTooltip(); return; }
+      pinnedIdx = idx;
+      showTooltip(idx, e.clientX, e.clientY);
+    });
+  });
+  // Also strip <title> from edges and the graph itself
+  svg.querySelectorAll(".edge title").forEach(t => t.remove());
+  const graphTitle = svg.querySelector(":scope > title");
+  if (graphTitle) graphTitle.remove();
+}
+
+render().catch(err => {
+  document.getElementById("graph-container").innerHTML =
+    "<p style='color:red'>Failed to render graph: " + err.message + "</p>" +
+    "<pre>" + DOT.replace(/</g,"&lt;") + "</pre>";
+});
+</script>
+</body>
+</html>

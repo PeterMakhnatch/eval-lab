@@ -38,6 +38,13 @@ REPO_ROOT = HERE.parents[3]
 ARTIFACTS = HERE / "artifacts"
 
 
+def task_lm(args: argparse.Namespace) -> dspy.LM:
+    """Task LM; ``--thinking`` re-enables GLM's hidden reasoning with a larger budget."""
+    if getattr(args, "thinking", False):
+        return configure(args.model, thinking=True, max_tokens=16000)
+    return configure(args.model)
+
+
 def _usage(lm: dspy.LM, since: int) -> dict:
     entries = lm.history[since:]
     prompt = sum((e.get("usage") or {}).get("prompt_tokens", 0) or 0 for e in entries)
@@ -209,7 +216,7 @@ def build_optimizer(name: str, *, reflection_lm: dspy.LM, threads: int, budget: 
 
 
 def cmd_baseline(args: argparse.Namespace) -> int:
-    lm = configure(args.model)
+    lm = task_lm(args)
     out_dir = ARTIFACTS / args.run_id
     sets = family_sets(REPO_ROOT, args.family)
     program = load_program(None)
@@ -250,7 +257,7 @@ def training_sets(train_family: str) -> FamilySets:
 
 
 def cmd_optimize(args: argparse.Namespace) -> int:
-    lm = configure(args.model)
+    lm = task_lm(args)
     reflection = zai_lm(args.reflection_model, max_tokens=16000, temperature=1.0)
     out_dir = ARTIFACTS / args.run_id
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -319,7 +326,7 @@ def cmd_optimize(args: argparse.Namespace) -> int:
 
 
 def cmd_evaluate(args: argparse.Namespace) -> int:
-    lm = configure(args.model)
+    lm = task_lm(args)
     out_dir = ARTIFACTS / args.run_id
     program = load_program(Path(args.program) if args.program else None)
     backend = args.judge_backend or (
@@ -353,7 +360,7 @@ def cmd_export_sft(args: argparse.Namespace) -> int:
     from dspy.adapters import ChatAdapter
     from dspy.teleprompt.bootstrap_finetune import bootstrap_trace_data, build_call_data_from_trace
 
-    lm = configure(args.model)
+    lm = task_lm(args)
     out_dir = ARTIFACTS / args.run_id
     out_dir.mkdir(parents=True, exist_ok=True)
     program = load_program(Path(args.program) if args.program else None)
@@ -409,6 +416,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--threads", type=int, default=4)
+    parser.add_argument(
+        "--thinking", action="store_true", help="enable GLM hidden reasoning (default off)"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     baseline = sub.add_parser("baseline")

@@ -147,6 +147,7 @@ class LabRlmAgent(BaseAgent):
             root_lm=root_lm,
             cost_limit_usd=self._cost_limit_usd,
             verbose=self._verbose,
+            on_step=self._write_partial_trajectory,
         )
         self._write_policy_record()
         execute = functools.partial(
@@ -184,6 +185,17 @@ class LabRlmAgent(BaseAgent):
             "signature": SIGNATURE,
         }
         (self._rlm_dir() / "policy.json").write_text(json.dumps(record, indent=2))
+
+    def _write_partial_trajectory(self, history: Any) -> None:
+        # Called from the RLM loop after every step, so a trial killed mid-run
+        # (wall-clock timeout, host sleep) still leaves its steps for analysis.
+        steps = [
+            {"reasoning": entry.reasoning, "code": entry.code, "output": entry.output}
+            for entry in history.entries
+        ]
+        (self._rlm_dir() / "trajectory.partial.json").write_text(
+            json.dumps(steps, indent=2, default=str)
+        )
 
     def _save_logs(self, result: RlmRunResult) -> None:
         rlm_dir = self._rlm_dir()

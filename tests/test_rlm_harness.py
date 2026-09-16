@@ -113,7 +113,12 @@ def test_policy_addenda_compose_into_action_instructions() -> None:
 def test_unparseable_action_becomes_a_recoverable_observation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    rlm = _h().LabRlm("context, query -> answer", resolve_policy("stock"))
+    seen: list[int] = []
+    rlm = _h().LabRlm(
+        "context, query -> answer",
+        resolve_policy("stock"),
+        on_step=lambda history: seen.append(len(history)),
+    )
     signature = rlm.generate_action.signature
 
     def explode(self, **_: object):
@@ -136,6 +141,9 @@ def test_unparseable_action_becomes_a_recoverable_observation(
     )
     assert "garbled {{" in outcome.entries[0].output
     assert rlm.parse_failures == 1
+    # The persistence hook sees every step, including recovery turns, so a
+    # trial killed later still leaves what happened so far on disk.
+    assert seen == [1]
 
 
 def test_lenient_policy_salvages_history_mirroring_responses(

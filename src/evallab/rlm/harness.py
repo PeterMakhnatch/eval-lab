@@ -240,6 +240,7 @@ class LabRlm(dspy.RLM):
         cost_limit_usd: float | None = None,
         interpreter_factory: Callable[[], CodeInterpreter] = PythonInterpreter,
         verbose: bool = False,
+        on_step: Callable[[REPLHistory], None] | None = None,
     ) -> None:
         parts = [] if policy.action_instructions_override else [policy.instruction_addendum]
         if tools and policy.environment_addendum:
@@ -270,6 +271,7 @@ class LabRlm(dspy.RLM):
         self.iteration_wall_seconds: list[float] = []
         self.parse_failures = 0
         self.salvaged_actions = 0
+        self._on_step = on_step
 
     # -- policy mechanics -------------------------------------------------
 
@@ -365,15 +367,17 @@ class LabRlm(dspy.RLM):
                 self.parse_failures += 1
                 raw = raw_full[:1500]
                 self.iteration_wall_seconds.append(time.monotonic() - started)
-                return history.append(
-                    reasoning="",
-                    code="# (no code executed: previous response was not parseable)",
-                    output=(
-                        "[Error] Your previous response could not be parsed into the required "
-                        "`reasoning` and `code` fields. Reply again using exactly the field "
-                        "markers `[[ ## reasoning ## ]]` and `[[ ## code ## ]]`, then "
-                        "`[[ ## completed ## ]]`. Unparsed response head: " + repr(raw)
-                    ),
+                return self._observe(
+                    history.append(
+                        reasoning="",
+                        code="# (no code executed: previous response was not parseable)",
+                        output=(
+                            "[Error] Your previous response could not be parsed into the "
+                            "required `reasoning` and `code` fields. Reply again using exactly "
+                            "the field markers `[[ ## reasoning ## ]]` and `[[ ## code ## ]]`, "
+                            "then `[[ ## completed ## ]]`. Unparsed response head: " + repr(raw)
+                        ),
+                    )
                 )
         if self.verbose:
             logger.info(
@@ -397,6 +401,13 @@ class LabRlm(dspy.RLM):
                 action, code, result, history, output_field_names
             )
         self.iteration_wall_seconds.append(time.monotonic() - started)
+        return self._observe(outcome)
+
+    def _observe(self, outcome: Prediction | REPLHistory) -> Prediction | REPLHistory:
+        # Persist progress after every step: a trial killed by a wall-clock
+        # timeout (or a host sleep) otherwise loses its whole trajectory.
+        if self._on_step is not None and isinstance(outcome, REPLHistory):
+            self._on_step(outcome)
         return outcome
 
 

@@ -43,8 +43,47 @@ program under the new contract (5,488 prompt tokens): `invents_evidence = yes`,
 rationale *"It cites a Datadog monitor 88412 and a PagerDuty note attributed to
 s.lindqvist claiming 12,400 customers; neither appears in the evidence files or
 reference facts."* — the decision is now made against the files, not against a
-memorised list. Unoptimized full-family baselines under the new contract are in
-`artifacts/baseline-evidence/` (see the table at the end of this file).
+memorised list.
+
+### Evidence-bound baselines (unoptimized program, all 22 documents per family)
+
+Records: `research/calibration/records/<family>/…-dspy-cot-unoptimized-glm-5-3-flash-…-e<evidence>.json`
+(`--skip-catalog`); metrics and bundles in `artifacts/baseline-evidence/`.
+52 calls, ≈$0.06 list-equivalent, 2 threads, ≈6.5 min per family.
+
+| Family | pre-evidence (historical) | evidence-bound | floor |
+|---|---|---|---|
+| checkout-pool-exhaustion | 0.851 | **0.899** (277/308) | 0.90 — not met, by one cell |
+| retry-storm-backlog | 0.818 | **0.869** (306/352) | 0.90 — not met |
+
+The digest line is now "no judge is calibrated — 0 of 2 evidence-bound measured
+record(s) reach their agreement floor, closest checkout-pool-exhaustion /
+dspy-cot-unoptimized glm-5.3-flash, mean agreement 0.899". No optimizer has run
+under this contract; these are the same instruction as the pre-evidence
+baselines with the evidence added.
+
+What the evidence changed, per criterion (cells agreeing with the key, of 22):
+
+| Criterion | checkout before → after | retry-storm before → after |
+|---|---|---|
+| `evidence_fidelity.invents_evidence` | 7 → **21** | 8 → **20** |
+| `causal_reasoning.separates_contributing_factors` | 18 → 21 | 15 → 16 |
+| `causal_reasoning.rules_out_the_decoy(s)` | 20 → 22 | 14 → 15 |
+| `causal_reasoning.separates_trigger_from_cause` | — | 20 → 22 |
+| `action_quality.proposes_unsupported_work` | 20 → 19 | 19 → 21 |
+| `action_quality.actions_are_actionable` | 19 → 16 | 17 → 14 |
+| `evidence_fidelity.misstates_a_fact` | 19 → 18 | 20 → 19 |
+
+`invents_evidence` — the criterion GEPA could only reach 17–20/22 by
+memorising fixture names — is decided correctly on 41 of 44 documents by the
+*unoptimized* judge once it can see the files. The regression is
+`actions_are_actionable` (−3 on both families): with the evidence in view the
+judge reads "concrete changes with owners, targets, or checkable completion
+conditions" more strictly than the keys do. That is a rubric-wording question
+for the next optimizer run under this contract, not an evidence question.
+Weakest documents: `02-style-only-fluent-generic`, `11-subtly-wrong-cause-tls`,
+`12-subtly-wrong-cause-ledger-cpu` (checkout, 0.71 each);
+`14-subtly-wrong-cause-gateway-only` (retry-storm, 0.56).
 
 ## Pre-evidence results (historical; judge saw rubric + document only)
 

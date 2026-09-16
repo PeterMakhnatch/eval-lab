@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "record_id": "retry-storm-backlog-20260916-dspy-cot-unoptimized-glm-5-3-flash-e05b4fda9f-e78a30d5e",
+  "family": "retry-storm-backlog",
+  "status": "measured",
+  "judge_backend": "dspy-cot-unoptimized",
+  "judge_model": "glm-5.3-flash",
+  "judge_engine_version": "dspy 3.3.1",
+  "rubric_digest": "sha256:66d684ef1b846224b2a7e461f5fad99d81130d783d21c6003196301cf7a0a622",
+  "corpus_digest": "sha256:e05b4fda9f460984b7708bed1550b8d64d1bad996a80c10f393c438c312e7dcb",
+  "evidence_digest": "sha256:78a30d5eb205e87741ce4e2167d276761244ed459632faea0101e5f8320a77a4",
+  "per_criterion_agreement": {
+    "action_quality.actions_are_actionable": {
+      "agreements": 14,
+      "total": 22,
+      "rate": 0.6363636363636364
+    },
+    "action_quality.actions_trace_to_findings": {
+      "agreements": 18,
+      "total": 22,
+      "rate": 0.8181818181818182
+    },
+    "action_quality.bounds_the_amplification": {
+      "agreements": 22,
+      "total": 22,
+      "rate": 1.0
+    },
+    "action_quality.closes_the_detection_gap": {
+      "agreements": 20,
+      "total": 22,
+      "rate": 0.9090909090909091
+    },
+    "action_quality.proposes_unsupported_work": {
+      "agreements": 21,
+      "total": 22,
+      "rate": 0.9545454545454546
+    },
+    "causal_reasoning.grounded_in_evidence": {
+      "agreements": 17,
+      "total": 22,
+      "rate": 0.7727272727272727
+    },
+    "causal_reasoning.identifies_the_mechanism": {
+      "agreements": 22,
+      "total": 22,
+      "rate": 1.0
+    },
+    "causal_reasoning.rules_out_the_decoys": {
+      "agreements": 15,
+      "total": 22,
+      "rate": 0.6818181818181818
+    },
+    "causal_reasoning.separates_contributing_factors": {
+      "agreements": 16,
+      "total": 22,
+      "rate": 0.7272727272727273
+    },
+    "causal_reasoning.separates_trigger_from_cause": {
+      "agreements": 22,
+      "total": 22,
+      "rate": 1.0
+    },
+    "causal_reasoning.uncertainty_is_genuine": {
+      "agreements": 17,
+      "total": 22,
+      "rate": 0.7727272727272727
+    },
+    "evidence_fidelity.asserts_unsupported_cause": {
+      "agreements": 20,
+      "total": 22,
+      "rate": 0.9090909090909091
+    },
+    "evidence_fidelity.blames_the_deploy": {
+      "agreements": 22,
+      "total": 22,
+      "rate": 1.0
+    },
+    "evidence_fidelity.invents_evidence": {
+      "agreements": 20,
+      "total": 22,
+      "rate": 0.9090909090909091
+    },
+    "evidence_fidelity.misstates_a_fact": {
+      "agreements": 19,
+      "total": 22,
+      "rate": 0.8636363636363636
+    },
+    "evidence_fidelity.treats_db_cpu_as_cause": {
+      "agreements": 21,
+      "total": 22,
+      "rate": 0.9545454545454546
+    }
+  },
+  "mean_agreement": 0.8693181818181818,
+  "agreement_floor": 0.9,
+  "meets_floor": false,
+  "reportable": true,
+  "document_count": 22,
+  "evaluated_on": "2026-09-16",
+  "prediction_artifact": "research/experiments/dspy/judge/artifacts/baseline-evidence/bundle-retry-storm-backlog.json",
+  "pending_backends": []
+}

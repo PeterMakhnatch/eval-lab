@@ -252,7 +252,7 @@ def test_staged_agent_judge_task_ships_the_evidence_directory(tmp_path: Path) ->
         shutil.rmtree(task_root)
 
 
-def test_record_id_distinguishes_judge_programs_on_the_same_model_and_day() -> None:
+def test_record_id_distinguishes_programs_and_input_contracts_on_the_same_day() -> None:
     stub = make_stub_bundle(REPO_ROOT, FAMILY)
     unoptimized = stub.model_copy(
         update={"judge_backend": "dspy-cot-unoptimized", "judge_model": "glm-5.3-flash"}
@@ -260,11 +260,14 @@ def test_record_id_distinguishes_judge_programs_on_the_same_model_and_day() -> N
     compiled = stub.model_copy(
         update={"judge_backend": "dspy-gepa-checkout", "judge_model": "glm-5.3-flash"}
     )
+    pack = load_evidence_pack(REPO_ROOT, FAMILY)
+    bound = unoptimized.model_copy(update={"evidence_digest": pack.digest})
     day = date(2026, 9, 16)
 
-    first, second = _record_id(unoptimized, day), _record_id(compiled, day)
+    first, second, third = (_record_id(b, day) for b in (unoptimized, compiled, bound))
 
-    assert first != second
+    assert len({first, second, third}) == 3
     assert first.startswith(f"{FAMILY}-20260916-dspy-cot-unoptimized-glm-5-3-flash-")
+    assert third == first + "-e" + pack.digest.removeprefix("sha256:")[:8]
     pattern = JudgeCalibrationRecord.model_fields["record_id"].metadata[0].pattern
-    assert re.fullmatch(pattern, first) and re.fullmatch(pattern, second)
+    assert all(re.fullmatch(pattern, value) for value in (first, second, third))

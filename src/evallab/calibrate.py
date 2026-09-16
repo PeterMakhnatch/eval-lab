@@ -491,10 +491,14 @@ def _record_id(bundle: JudgePredictionBundle, evaluated_on: date) -> str:
     suffix = bundle.corpus_digest.removeprefix("sha256:")[:10]
     # Backend is part of the id: two judge programs on the same model and day
     # (an unoptimized DSPy program and a compiled one) are distinct measurements
-    # and must not collide on the append-only record path.
+    # and must not collide on the append-only record path. An evidence-bound
+    # measurement is likewise a different measurement from a pre-evidence one.
+    evidence = (
+        f"-e{bundle.evidence_digest.removeprefix('sha256:')[:8]}" if bundle.evidence_digest else ""
+    )
     return (
         f"{bundle.family}-{evaluated_on:%Y%m%d}-{_slug(bundle.judge_backend, 24)}-"
-        f"{_slug(bundle.judge_model, 28)}-{suffix}"
+        f"{_slug(bundle.judge_model, 28)}-{suffix}{evidence}"
     )
 
 

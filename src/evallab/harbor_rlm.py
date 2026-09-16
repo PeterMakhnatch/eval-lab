@@ -206,6 +206,7 @@ class LabRlmAgent(BaseAgent):
                 "rlm_sub_calls": result.sub_usage.calls,
                 "rlm_budget_stopped": result.budget_stopped,
                 "rlm_parse_failures": result.parse_failures,
+                "rlm_salvaged_actions": result.salvaged_actions,
                 "rlm_error": result.error,
             }
         )

@@ -116,6 +116,7 @@ def run_task(
         "wall_seconds": round(result.wall_seconds, 2),
         "budget_stopped": result.budget_stopped,
         "parse_failures": result.parse_failures,
+        "salvaged_actions": result.salvaged_actions,
         "error": result.error,
         "trajectory_path": str(trajectory_path),
     }
@@ -233,6 +234,7 @@ def main(argv: list[str] | None = None) -> int:
                     "wall_seconds": 0.0,
                     "budget_stopped": False,
                     "parse_failures": 0,
+                    "salvaged_actions": 0,
                     "error": f"runner: {type(exc).__name__}: {exc}"[:500],
                     "trajectory_path": None,
                 }

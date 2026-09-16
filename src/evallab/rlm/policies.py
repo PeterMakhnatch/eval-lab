@@ -140,6 +140,9 @@ class RlmPolicy:
     environment_addendum: str = ""
     #: Expose ``run_python`` (executes inside the task container) on Harbor.
     container_python_tool: bool = False
+    #: Salvage `reasoning`/`code` from responses that drift off dspy's field
+    #: markers (fenced code + preamble) instead of spending an iteration.
+    lenient_parse: bool = False
     #: Complete replacement for the action predictor's instructions (e.g. a
     #: GEPA candidate). When set, ``instruction_addendum`` is not prepended.
     action_instructions_override: str | None = None
@@ -195,6 +198,17 @@ POLICIES: dict[str, RlmPolicy] = {
             "stock + separate sub-LM with thinking disabled for llm_query (cost/latency)",
             separate_sub_lm=True,
             sub_thinking=False,
+        ),
+        _STOCK.derive(
+            "stock-lenient",
+            "stock + salvage of format-drifted actions (fenced code + preamble) instead of a retry turn",
+            lenient_parse=True,
+            source="observed: GLM-5.3-Flash mirrors the rendered REPL history format instead of dspy field markers (2026-09-16)",
+        ),
+        _ORCHESTRATOR.derive(
+            "orchestrator-lenient",
+            "orchestrator + salvage of format-drifted actions",
+            lenient_parse=True,
         ),
         _ORCHESTRATOR,
         _ORCHESTRATOR.derive(

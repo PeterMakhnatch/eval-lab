@@ -18,6 +18,7 @@ agent build byte-identical requests for the same policy.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -43,6 +44,27 @@ _ACTION_ADAPTER = ChatAdapter(use_json_adapter_fallback=False)
 #: litellm retries with exponential backoff; the Z.ai coding plan enforces a
 #: per-account concurrency window that other lanes share, so 429s are routine.
 LM_RETRIES = 8
+
+_FENCED_CODE = re.compile(r"```(?:python|py|python3|py3)?[ \t]*\n(.*?)```", re.S)
+_FIELD_MARKER = re.compile(r"\[\[\s*##\s*\w+\s*##\s*\]\]")
+_LABEL_PREFIX = re.compile(r"^\s*(?:reasoning|code)\s*:\s*", re.I | re.M)
+
+
+def salvage_action(raw: str) -> tuple[str, str] | None:
+    """Recover ``(reasoning, code)`` from a response that drifted off dspy's markers.
+
+    Returns ``None`` when no non-empty fenced Python block exists, in which case
+    the caller must treat the turn as unparseable.
+    """
+    match = _FENCED_CODE.search(raw)
+    if match is None:
+        return None
+    code = match.group(1).strip()
+    if not code:
+        return None
+    head = _FIELD_MARKER.sub("", raw[: match.start()])
+    head = _LABEL_PREFIX.sub("", head)
+    return head.strip(), code
 
 #: Z.ai coding-plan OpenAI-compatible endpoint; the same upstream path the
 #: container-side broker (``containers/zai_secret_proxy.py``) forwards to.
@@ -212,6 +234,7 @@ class LabRlm(dspy.RLM):
         self.budget_stopped = False
         self.iteration_wall_seconds: list[float] = []
         self.parse_failures = 0
+        self.salvaged_actions = 0
 
     # -- policy mechanics -------------------------------------------------
 
@@ -285,23 +308,32 @@ class LabRlm(dspy.RLM):
                     iteration=self._iteration_label(iteration),
                 )
         except AdapterParseError as exc:
-            # Keep the trajectory alive: record the unparseable turn as an
-            # observation so the model can recover on the next iteration
-            # instead of aborting the trial (dspy's default JSON fallback
-            # returned "{}" from GLM-5.3-Flash and killed the run).
-            self.parse_failures += 1
-            raw = str(getattr(exc, "lm_response", "") or "")[:600]
-            self.iteration_wall_seconds.append(time.monotonic() - started)
-            return history.append(
-                reasoning="",
-                code="# (no code executed: previous response was not parseable)",
-                output=(
-                    "[Error] Your previous response could not be parsed into the required "
-                    "`reasoning` and `code` fields. Reply again using exactly the field "
-                    "markers `[[ ## reasoning ## ]]` and `[[ ## code ## ]]`, then "
-                    "`[[ ## completed ## ]]`. Unparsed response head: " + repr(raw)
-                ),
-            )
+            # GLM-5.3-Flash frequently mirrors the rendered REPL history
+            # ("Reasoning: ... Code: ```python ...```") instead of dspy's
+            # "[[ ## field ## ]]" markers. Under ``lenient_parse`` the fenced code
+            # and its preamble are salvaged as the action (no extra LM call);
+            # otherwise the turn is recorded as a recoverable observation so the
+            # model can retry on the next iteration instead of the trial dying
+            # (dspy's JSON fallback returned "{}" and killed the run).
+            raw_full = str(getattr(exc, "lm_response", "") or "")
+            salvaged = salvage_action(raw_full) if self.policy.lenient_parse else None
+            if salvaged is not None:
+                self.salvaged_actions += 1
+                action = Prediction(reasoning=salvaged[0], code=salvaged[1])
+            else:
+                self.parse_failures += 1
+                raw = raw_full[:600]
+                self.iteration_wall_seconds.append(time.monotonic() - started)
+                return history.append(
+                    reasoning="",
+                    code="# (no code executed: previous response was not parseable)",
+                    output=(
+                        "[Error] Your previous response could not be parsed into the required "
+                        "`reasoning` and `code` fields. Reply again using exactly the field "
+                        "markers `[[ ## reasoning ## ]]` and `[[ ## code ## ]]`, then "
+                        "`[[ ## completed ## ]]`. Unparsed response head: " + repr(raw)
+                    ),
+                )
         if self.verbose:
             logger.info(
                 "RLM iteration %d/%d\nReasoning: %s\nCode:\n%s",
@@ -342,6 +374,7 @@ class RlmRunResult:
     iterations: int
     budget_stopped: bool
     parse_failures: int
+    salvaged_actions: int
     error: str | None
 
     @property
@@ -359,6 +392,7 @@ class RlmRunResult:
             "iterations": self.iterations,
             "budget_stopped": self.budget_stopped,
             "parse_failures": self.parse_failures,
+            "salvaged_actions": self.salvaged_actions,
             "error": self.error,
         }
 
@@ -398,5 +432,6 @@ def run_rlm(
         iterations=len(trajectory),
         budget_stopped=rlm.budget_stopped,
         parse_failures=rlm.parse_failures,
+        salvaged_actions=rlm.salvaged_actions,
         error=error,
     )

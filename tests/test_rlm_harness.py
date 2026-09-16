@@ -75,6 +75,33 @@ def test_unparseable_action_becomes_a_recoverable_observation(monkeypatch: pytes
     assert rlm.parse_failures == 1
 
 
+def test_lenient_policy_salvages_history_mirroring_responses(monkeypatch: pytest.MonkeyPatch) -> None:
+    from evallab.rlm.harness import salvage_action
+
+    drifted = (
+        "Reasoning: parsed 1,428 rows; verifying.\n\nCode:\n```python\nimport re\nprint(len(context))\n```\n"
+    )
+    assert salvage_action(drifted) == ("parsed 1,428 rows; verifying.", "import re\nprint(len(context))")
+    marked = "[[ ## reasoning ## ]]\nBoth agree: 4.\nCode:\n```python\nSUBMIT(\"4\")\n```\n[[ ## completed ## ]]"
+    assert salvage_action(marked) == ("Both agree: 4.", 'SUBMIT("4")')
+    assert salvage_action("no code here") is None
+    assert salvage_action("```python\n\n```") is None
+
+    rlm = LabRlm("context, query -> answer", resolve_policy("stock-lenient"))
+    signature = rlm.generate_action.signature
+
+    def explode(self, **_: object):
+        raise AdapterParseError(adapter_name="ChatAdapter", signature=signature, lm_response=drifted)
+
+    executed: list[str] = []
+    monkeypatch.setattr(type(rlm.generate_action), "__call__", explode)
+    monkeypatch.setattr(rlm, "_execute_code", lambda repl, code, input_args: executed.append(code) or "ok")
+    outcome = rlm._execute_iteration(repl=None, variables=[], history=REPLHistory(), iteration=0, input_args={}, output_field_names=["answer"])
+    assert executed == ["import re\nprint(len(context))"]
+    assert isinstance(outcome, REPLHistory) and outcome.entries[0].output == "ok"
+    assert (rlm.salvaged_actions, rlm.parse_failures) == (1, 0)
+
+
 def test_lm_usage_sums_history_and_prices_api_equivalent() -> None:
     class FakeLm:
         history = [

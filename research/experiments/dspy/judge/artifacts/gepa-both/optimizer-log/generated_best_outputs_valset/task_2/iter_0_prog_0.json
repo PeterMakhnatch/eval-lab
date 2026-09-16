@@ -1,0 +1,25 @@
+{
+    "reasoning": "The document rejects the correct mechanism (pool exhaustion from 32 workers vs. a 10-connection pool) and instead asserts a ledger-db CPU-starvation root cause that the reference facts not only do not support but explicitly mark as an unrelated signal. It correctly rules out the payments vendor, and its corrective actions are concrete, but they target the wrong cause, add no pool-saturation/acquire-wait detection, and propose work (sharding) on an unproven premise. It also cites evidence not in the pack (72% CPU figure, \"connections enough for months\").",
+    "judgments": {
+        "action_quality": {
+            "actions_are_actionable": "JudgeCriterionVerdict(verdict='yes', rationale='Actions name concrete changes (vertical scaling, 60% CPU warning, worker freeze, DBA review gate, 90%\u219270% threshold) with objectively checkable completion conditions.')",
+            "actions_trace_to_findings": "JudgeCriterionVerdict(verdict='yes', rationale='Each action ties back to causes or contributing factors stated earlier in the document (DB headroom, review gap, alerting threshold), even though those findings themselves are wrong.')",
+            "closes_the_detection_gap": "JudgeCriterionVerdict(verdict='no', rationale='No action adds detection for pool saturation or connection-acquire wait; the added alerts target CPU only.')",
+            "fixes_the_capacity_coupling": "JudgeCriterionVerdict(verdict='no', rationale='The document denies the pool is undersized and proposes no coupling of pool sizing to worker count nor a startup guard on a worker/pool mismatch; the DBA review gate is a process step, not a pool-sizing or startup check.')",
+            "proposes_unsupported_work": "JudgeCriterionVerdict(verdict='yes', rationale='Sharding ledger-db before the next peak is material work premised on a CPU-starvation cause that the supplied reference facts do not support (facts identify pool exhaustion, and the ledger-db CPU warning is unrelated).')"
+        },
+        "causal_reasoning": {
+            "grounded_in_evidence": "JudgeCriterionVerdict(verdict='no', rationale='The stated mechanism is grounded in a CPU warning and pool warnings it reinterprets as symptoms; the supplied facts contradict the mechanism (pool pinned at 10 with rising waiters, rollback to 8 workers restoring normality), so it rests on reinterpreted signals rather than multiple supporting facts.')",
+            "identifies_the_mechanism": "JudgeCriterionVerdict(verdict='no', rationale='The document identifies ledger-db CPU saturation, not the contention between 32 workers and a 10-connection pool producing 5000ms acquire timeouts and checkout 500s; it explicitly dismisses the pool as the problem.')",
+            "rules_out_the_decoy": "JudgeCriterionVerdict(verdict='yes', rationale='It explicitly rejects payments-vendor involvement, citing vendor p99 latency of ~130ms.')",
+            "separates_contributing_factors": "JudgeCriterionVerdict(verdict='yes', rationale='It distinguishes process/alerting gaps (no autoscale, missing capacity review, high CPU page threshold) from the causal mechanism in a separate Contributing Factors section.')",
+            "uncertainty_is_genuine": "JudgeCriterionVerdict(verdict='yes', rationale='The open questions (which query burned CPU, whether to shard) are framed as unresolved and, taken at face value, concern matters the supplied facts do not settle.')"
+        },
+        "evidence_fidelity": {
+            "asserts_unsupported_cause": "JudgeCriterionVerdict(verdict='yes', rationale='The CPU-starvation causal mechanism is absent from and contradicted by the supplied reference facts, which establish worker/pool contention as the cause and the ledger-db CPU warning as unrelated.')",
+            "blames_payments_vendor": "JudgeCriterionVerdict(verdict='no', rationale='The vendor is treated as a rejected hypothesis, not a cause, consistent with the reference facts.')",
+            "invents_evidence": "JudgeCriterionVerdict(verdict='yes', rationale=\"It cites specifics not in the reference facts: 72% CPU 'and still rising through 14:45', '10 connections had been enough for months', and a `vendor_payments_p99_ms` metric by name.\")",
+            "misstates_a_fact": "JudgeCriterionVerdict(verdict='yes', rationale='It materially misrepresents the supplied facts: it treats the ledger-db CPU warning (flagged in the facts as an unrelated signal) as the root cause and recasts pool-saturation warnings as a symptom of the database, inverting the actual evidence.')"
+        }
+    }
+}

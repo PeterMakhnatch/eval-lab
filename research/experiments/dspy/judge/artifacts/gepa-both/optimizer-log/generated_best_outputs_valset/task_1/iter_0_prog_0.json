@@ -1,0 +1,25 @@
+{
+    "reasoning": "The document correctly identifies the worker/pool mismatch mechanism, rejects the payments-vendor hypothesis using timing, flat latency, and 200 responses, and separates contributing factors (alerting, review, canary). Corrective actions are concrete and trace to established causes. However, it cites numerous artifacts and figures not present in the supplied reference facts (metrics.csv, alerts.log, service-config.yaml, the 7,021 count, waiters=41, bucket-by-bucket rates, six instances, 127\u2013134ms latency, 72%/90% thresholds), so invents_evidence is present. No supplied fact is directly contradicted, so misstates_a_fact is no.",
+    "judgments": {
+        "action_quality": {
+            "actions_are_actionable": "JudgeCriterionVerdict(verdict='yes', rationale='Actions name concrete config changes, alert thresholds, and checkable conditions (e.g., pool sized to workers, alert on active >= max for 5 minutes).')",
+            "actions_trace_to_findings": "JudgeCriterionVerdict(verdict='yes', rationale='Each action maps to an established cause or contributing factor: pool/worker mismatch, missing saturation alert, disabled canary.')",
+            "closes_the_detection_gap": "JudgeCriterionVerdict(verdict='yes', rationale='Action 3 pages on db_pool_active >= db_pool_max and warns on acquire-wait p99.')",
+            "fixes_the_capacity_coupling": "JudgeCriterionVerdict(verdict='yes', rationale='Action 1 couples pool size to workers or fails startup when workers > max_connections.')",
+            "proposes_unsupported_work": "JudgeCriterionVerdict(verdict='no', rationale='All proposed work (pool sizing, alerts, canary) is supported by the established causes and supplied facts.')"
+        },
+        "causal_reasoning": {
+            "grounded_in_evidence": "JudgeCriterionVerdict(verdict='yes', rationale='It grounds the mechanism in the supplied deploy fact (8\u219232 workers), the unchanged 10-connection pool with 5000ms timeout, pool pinned at 10 with rising 500s, and rollback restoring 8 workers fixing errors.')",
+            "identifies_the_mechanism": "JudgeCriterionVerdict(verdict='yes', rationale='It explicitly names 32 workers contending for a 10-connection pool causing 5000ms acquire timeouts and 500s.')",
+            "rules_out_the_decoy": "JudgeCriterionVerdict(verdict='yes', rationale='It explicitly rejects the vendor advisory using flat vendor latency (~130ms), 200 responses, and error timing before and after the advisory window.')",
+            "separates_contributing_factors": "JudgeCriterionVerdict(verdict='yes', rationale='It lists missing pool alerts, unreviewed sizing change, disabled canary, and slow hypothesis rejection as distinct contributing factors separate from the worker/pool mechanism.')",
+            "uncertainty_is_genuine": "JudgeCriterionVerdict(verdict='yes', rationale='Open questions (customer reconciliation, motivation for the worker raise, other services) are all outside the supplied facts.')"
+        },
+        "evidence_fidelity": {
+            "asserts_unsupported_cause": "JudgeCriterionVerdict(verdict='no', rationale='The stated causal mechanism (workers vs pool) is supported by the reference facts; no contradictory cause is asserted.')",
+            "blames_payments_vendor": "JudgeCriterionVerdict(verdict='no', rationale='The vendor is treated as a rejected hypothesis, not a cause.')",
+            "invents_evidence": "JudgeCriterionVerdict(verdict='yes', rationale='The document cites metrics.csv, alerts.log, service-config.yaml, startup log lines, specific counts (7,021 failures, waiters=41, six instances), bucket-level rates, and a 72%/90% ledger-db threshold\u2014none present in the supplied reference facts.')",
+            "misstates_a_fact": "JudgeCriterionVerdict(verdict='no', rationale='Core supplied facts (worker counts, pool size, 5000ms timeout, pinned pool, rollback timing, flat vendor latency ~130ms, rejected decoys) are not contradicted; extra figures are inventions rather than misstatements of supplied facts.')"
+        }
+    }
+}

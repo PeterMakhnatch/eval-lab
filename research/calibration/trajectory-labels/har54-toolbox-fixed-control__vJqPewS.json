@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "trial_name": "har54-toolbox-fixed-control__vJqPewS",
+  "source": "research/evidence/runs/har54-toolbox-fixed-control/har54-toolbox-fixed-control__vJqPewS",
+  "primary_category": "unknown",
+  "summary": "Successful no-model Oracle/interface control. This does not demonstrate learned agent improvement.",
+  "evidence": [
+    {
+      "path": "result.json",
+      "step": null,
+      "supports": "Records the original native outcome, agent identity and exception state without regrading."
+    }
+  ],
+  "agent": "oracle",
+  "reward": 1.0,
+  "review_status": "draft_pending_research_review",
+  "review_note": "Evidence-linked operator triage, not a human gold label, task certificate or model-improvement claim.",
+  "labelled_by": "GEPA HAR-54, 2026-09-16",
+  "parent_trajectory_sha256": null,
+  "parent_result_sha256": "sha256:a495d82a25aa06066ddf45eb943654d7361a1e81ce400c23d19341f3871933e6"
+}

@@ -164,6 +164,7 @@ def main() -> int:
             agent=config["agent"],
             model=None,
             timeout_seconds=config.get("timeout_seconds", 1200),
+            candidate_kind=config.get("candidate_kind", "instructions"),
         )
         report = qualify_meta_harness(
             evaluator=evaluator,

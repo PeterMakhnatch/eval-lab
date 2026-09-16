@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "rlm-syn-funcdag-easy-tools-bridge-r2",
+  "hypothesis": "Under the lab-owned dspy.RLM agent with policy tools-bridge (harness runtime with in-loop parse recovery and 8 LM retries), the registered task syn-funcdag-easy is attempted with GLM-5.3-Flash; reward, iterations, sub-calls, parse failures and API-equivalent cost are recorded for a paired comparison against policy stock on the same task.",
+  "purpose": "elicitation",
+  "task": "library/tasks/experimental/syn-funcdag-easy",
+  "task_path": "library/tasks/experimental/syn-funcdag-easy",
+  "task_id": "syn-funcdag-easy",
+  "agent": "rlm",
+  "model": "zai-coding-plan/glm-5.3-flash",
+  "harness_policy": "tools-bridge",
+  "cost_limit_usd": 0.6,
+  "environment": "docker",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "concurrency": 1,
+  "timeout_seconds": 900,
+  "submitted_by": "harness",
+  "priority": 100,
+  "est_cost_usd": 0.3,
+  "policy_rule": "human-approval",
+  "task_package_digest": "sha256:a0523d926254bb7025eed41ece31f66cf8974c20839ad1f9647e0224c35568f5"
+}

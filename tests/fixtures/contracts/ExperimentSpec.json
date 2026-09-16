@@ -517,6 +517,19 @@
       "default": null,
       "title": "Grid Point"
     },
+    "harness_policy": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "harness variant selector forwarded as --agent-kwarg policy for the rlm lane",
+      "title": "Harness Policy"
+    },
     "hypothesis": {
       "minLength": 1,
       "title": "Hypothesis",
@@ -829,6 +842,33 @@
       "minimum": 1,
       "title": "Timeout Seconds",
       "type": "integer"
+    },
+    "toolbox_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "repo-relative path to a python toolbox candidate file deployed as Harbor's repl-tools skill",
+      "title": "Toolbox Path"
+    },
+    "toolbox_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "content digest of toolbox_path at spec generation",
+      "title": "Toolbox Sha256"
     },
     "verifier_digest": {
       "anyOf": [

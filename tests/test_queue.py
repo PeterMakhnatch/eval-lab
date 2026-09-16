@@ -1,3 +1,4 @@
+import hashlib
 import json
 import multiprocessing
 import os
@@ -1405,3 +1406,75 @@ def test_dispatch_refuses_preamble_digest_mismatch(tmp_path: Path) -> None:
 
     with pytest.raises(ExecutionFailure, match="no longer matches"):
         executor(tmp_path).execute_spec(item)
+
+
+def test_dispatch_refuses_mutated_toolbox_after_approval(tmp_path: Path) -> None:
+    """Mutating toolbox code after spec creation/approval fails dispatch."""
+    toolbox_code = (
+        "def read_window(file, start=1, end=None): return {}\n"
+        "def smart_grep(pattern, path='.', max_matches=20, context=2): return {}\n"
+        "def check_output(file): return {}\n"
+    )
+    toolbox_file = tmp_path / "repl_tools.py"
+    toolbox_file.write_text(toolbox_code, encoding="utf-8")
+    toolbox_sha = f"sha256:{hashlib.sha256(toolbox_code.encode('utf-8')).hexdigest()}"
+
+    item = spec("toolbox-mutated").model_copy(
+        update={"toolbox_path": "repl_tools.py", "toolbox_sha256": toolbox_sha}
+    )
+    svc = executor(tmp_path)
+
+    # Mutate the file on disk after spec is submitted/approved
+    toolbox_file.write_text(toolbox_code + "\n# mutated bytes\n", encoding="utf-8")
+
+    with pytest.raises(ExecutionFailure) as error:
+        svc.execute_spec(item)
+    assert error.value.reason_code == "toolbox_validation_failed"
+
+
+def test_dispatch_refuses_unsupported_agent_for_toolbox(tmp_path: Path) -> None:
+    """Toolbox cannot be used on agents that do not support it."""
+    toolbox_code = (
+        "def read_window(file, start=1, end=None): return {}\n"
+        "def smart_grep(pattern, path='.', max_matches=20, context=2): return {}\n"
+        "def check_output(file): return {}\n"
+    )
+    toolbox_file = tmp_path / "repl_tools.py"
+    toolbox_file.write_text(toolbox_code, encoding="utf-8")
+    toolbox_sha = f"sha256:{hashlib.sha256(toolbox_code.encode('utf-8')).hexdigest()}"
+
+    item = spec("toolbox-unsupported-agent").model_copy(
+        update={
+            "toolbox_path": "repl_tools.py",
+            "toolbox_sha256": toolbox_sha,
+            "agent": "mini-swe-agent",
+        }
+    )
+    svc = executor(tmp_path)
+
+    with pytest.raises(ExecutionFailure) as error:
+        svc.execute_spec(item)
+    assert error.value.reason_code == "unsupported_toolbox_target"
+
+
+def test_dispatch_refuses_toolbox_symlink(tmp_path: Path) -> None:
+    """Symlinks to toolbox files are refused."""
+    real_file = tmp_path / "real_repl_tools.py"
+    real_file.write_text(
+        "def read_window(file, start=1, end=None): return {}\n"
+        "def smart_grep(pattern, path='.', max_matches=20, context=2): return {}\n"
+        "def check_output(file): return {}\n",
+        encoding="utf-8",
+    )
+    symlink_file = tmp_path / "symlink_repl_tools.py"
+    symlink_file.symlink_to(real_file)
+    toolbox_sha = f"sha256:{hashlib.sha256(real_file.read_bytes()).hexdigest()}"
+
+    item = spec("toolbox-symlink-rejected").model_copy(
+        update={"toolbox_path": "symlink_repl_tools.py", "toolbox_sha256": toolbox_sha}
+    )
+    svc = executor(tmp_path)
+
+    with pytest.raises(ExecutionFailure) as error:
+        svc.execute_spec(item)
+    assert error.value.reason_code == "toolbox_symlink_rejected"

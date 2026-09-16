@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "rlm-event-summary-bridge-r1",
+  "hypothesis": "Under the lab-owned dspy.RLM agent with policy bridge, the registered task event-summary is attempted with GLM-5.3-Flash; reward, iterations, sub-calls and API-equivalent cost are recorded for a paired comparison against policy stock on the same task.",
+  "purpose": "elicitation",
+  "task": "library/tasks/event-summary",
+  "task_path": "library/tasks/event-summary",
+  "task_id": "event-summary",
+  "agent": "rlm",
+  "model": "zai-coding-plan/glm-5.3-flash",
+  "harness_policy": "bridge",
+  "cost_limit_usd": 0.6,
+  "environment": "docker",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "concurrency": 1,
+  "timeout_seconds": 900,
+  "submitted_by": "harness",
+  "priority": 100,
+  "est_cost_usd": 0.3,
+  "policy_rule": "human-approval",
+  "task_package_digest": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d"
+}

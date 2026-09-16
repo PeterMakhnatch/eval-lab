@@ -141,6 +141,7 @@ DEEPSEEK_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
         DEEPSEEK_PROXY_GID_ENV,
     }
 )
+RLM_AGENT = "rlm"
 ZAI_OPENCODE_AGENT = "zai-opencode"
 ZAI_OPENCODE_MODEL_SELECTORS: frozenset[str] = frozenset(
     {"zai-coding-plan/glm-5.3", "zai-coding-plan/glm-5.3-flash"}
@@ -211,6 +212,7 @@ HARBOR_AGENT_IMPORT_PATHS: dict[str, str] = {
     "antigravity-cli": "evallab.harbor_antigravity:AntigravityCliCapture",
     "mini-swe-agent": "evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent",
     "zai-opencode": "evallab.harbor_zai_opencode:SecretSafeZaiOpenCodeAgent",
+    RLM_AGENT: "evallab.harbor_rlm:LabRlmAgent",
 }
 
 DEEPSEEK_MODEL_SELECTOR = "deepseek/deepseek-flash"
@@ -270,6 +272,8 @@ class RunRequest:
     lease_path: Path | None = None
     lease_generation: str | None = None
     extra_instruction_path: Path | None = None
+    toolbox_path: Path | None = None
+    toolbox_sha256: str | None = None
     skill: Path | str | Sequence[Path | str] | None = None
     skills: Sequence[Path | str] | None = None
     load_trajectory: Path | str | None = None
@@ -279,6 +283,7 @@ class RunRequest:
     max_output_tokens: int | None = None
     max_total_tokens: int | None = None
     cost_limit_usd: float | None = None
+    harness_policy: str | None = None
 
     @property
     def job_timeout_seconds(self) -> int:
@@ -733,6 +738,10 @@ def validate_request(request: RunRequest) -> None:
         request.max_total_tokens,
         request.cost_limit_usd,
     )
+    # The rlm lane forwards cost_limit_usd as a harness agent-kwarg rather than
+    # enforcing it through the secret proxy, so it is not a proxy ceiling here.
+    if request.agent == RLM_AGENT:
+        proxy_limits = proxy_limits[:4]
     metered_agents = {"mini-swe-agent", ZAI_OPENCODE_AGENT}
     if any(value is not None for value in proxy_limits):
         if request.agent not in metered_agents:
@@ -766,6 +775,16 @@ def validate_request(request: RunRequest) -> None:
             raise ValueError(f"{request.agent} requires explicit provider ceilings")
         if request.attempts != 1 or request.concurrency != 1:
             raise ValueError(f"{request.agent} capabilities bind exactly one trial")
+    if request.harness_policy is not None and request.agent != RLM_AGENT:
+        raise ValueError("harness_policy is supported only by the rlm lane")
+    if request.agent == RLM_AGENT:
+        if request.attempts != 1 or request.concurrency != 1:
+            raise ValueError(f"{request.agent} capabilities bind exactly one trial")
+        if request.model not in ZAI_OPENCODE_MODEL_SELECTORS:
+            raise ValueError(
+                "rlm requires one of the exact models "
+                f"{sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
+            )
     if request.agent not in CONTROL_AGENTS and not request.allow_billable:
         raise ValueError(
             f"Agent {request.agent!r} may invoke a model. Pass --allow-billable "
@@ -775,6 +794,30 @@ def validate_request(request: RunRequest) -> None:
         raise ValueError(f"The {request.agent} control does not accept a model")
     if request.model and not request.allow_billable:
         raise ValueError("A model requires --allow-billable")
+    if request.toolbox_path is not None or request.toolbox_sha256 is not None:
+        if request.toolbox_path is None or request.toolbox_sha256 is None:
+            raise ValueError("toolbox_path and toolbox_sha256 must be provided together")
+        if request.agent not in {"oracle", "nop", ZAI_OPENCODE_AGENT}:
+            raise ValueError(
+                f"Agent {request.agent!r} does not support toolbox skills; "
+                f"supported agents are 'oracle', 'nop', and {ZAI_OPENCODE_AGENT!r}"
+            )
+        if request.agent == ZAI_OPENCODE_AGENT:
+            model = request.model or "zai-coding-plan/glm-5.3-flash"
+            if model not in ZAI_OPENCODE_MODEL_SELECTORS:
+                raise ValueError(
+                    f"zai-opencode requires one of the exact models {sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
+                )
+        if request.environment != "docker":
+            raise ValueError("toolbox execution requires environment='docker'")
+        environment = tomllib.loads((request.task / "task.toml").read_text()).get("environment", {})
+        if environment.get("skills_dir") not in {None, "/harbor/skills"}:
+            raise ValueError("toolbox descriptor requires the native /harbor/skills directory")
+        if request.resolved_skills:
+            raise ValueError("toolbox artifact cannot be combined with other skill sources")
+        from evallab.toolbox import validate_toolbox_source
+
+        validate_toolbox_source(request.toolbox_path, request.toolbox_sha256)
 
 
 def resolve_harbor_agent(agent: str) -> str:
@@ -862,6 +905,26 @@ def build_command(request: RunRequest) -> list[str]:
                 "1",
                 "--max-retries",
                 "0",
+            ]
+        )
+    if request.agent == RLM_AGENT:
+        if harbor_model not in ZAI_OPENCODE_MODEL_SELECTORS:
+            raise ValueError(
+                "rlm requires one of the exact models "
+                f"{sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
+            )
+        command.extend(
+            [
+                "--n-concurrent-agents",
+                "1",
+                "--n-tasks",
+                "1",
+                "--max-retries",
+                "0",
+                "--agent-kwarg",
+                f"policy={request.harness_policy or 'stock'}",
+                "--agent-kwarg",
+                f"cost_limit_usd={request.cost_limit_usd or 1.0}",
             ]
         )
     if request.extra_instruction_path is not None:

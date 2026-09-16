@@ -1,0 +1,15 @@
+{
+    "task": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-overnight-20260916/runs/.exec-stage/gepa-oracle-har54-toolbox-protoc-23a0b01043ea81b2417c82cb"
+    },
+    "trial_name": "gepa-oracle-har54-toolbox-protoc__8bpSU2i",
+    "trials_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-overnight-20260916/runs/gepa-oracle-har54-toolbox-protoc-23a0b01043ea81b2417c82cb",
+    "agent_timeout_multiplier": 2.0,
+    "agent": {
+        "name": "oracle",
+        "skills": [
+            "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-overnight-20260916/runs/.toolbox-staging/gepa-oracle-har54-toolbox-protoc-23a0b01043ea81b2417c82cb/dc3e4589f8b8ff84e5ce81fd9f82fad3441af45afb618f47a49153f09a22ed70/repl-tools"
+        ]
+    },
+    "job_id": "bc000f38-13d8-420c-9882-f7520b31ffe2"
+}

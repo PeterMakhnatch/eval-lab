@@ -57,7 +57,7 @@ inputs:
   - path: src/evallab/craft.py
     digest: sha256:86c3189ab17b2f1e38f1709f86d4742732596cf5f98a52b733f28890f347949f
   - path: src/evallab/credentials.py
-    digest: sha256:7490f5045ede401729d1254bd3b27e511a7454e4ec13fdfff3d2fe2f10d4d6ab
+    digest: sha256:8df02a33a2e51f2e9e121e1112eb51a6c261a6a25fa1861b7cfbb25d1e9a2290
   - path: src/evallab/curve.py
     digest: sha256:b9b2712aa1dfb58d7f95f7dc5eb9e2291cc8e9f7cc6d30a6d95120ad82f806cf
   - path: src/evallab/database.py
@@ -89,7 +89,7 @@ inputs:
   - path: src/evallab/evidence_store.py
     digest: sha256:0895da2e4a79ae88fd54dce9b5a5a63f04e2dbe8c663ab0e50145e2a1d9518b7
   - path: src/evallab/execution_contracts.py
-    digest: sha256:3a7d850f9b7e1a9975af4a6ec646262cb8474e8fe45a37007be34e6152ab1e40
+    digest: sha256:a0ef117d4419b34952d54518bfb09fe5f4c65fdb31e98a48ce2302ed8a4a432b
   - path: src/evallab/explorer.py
     digest: sha256:7835237b175b6ed36e5a07851bf6c27f2f8c8a44f8c189874c04feab6914d255
   - path: src/evallab/fetch.py
@@ -103,21 +103,21 @@ inputs:
   - path: src/evallab/gepa_optimizer/budget.py
     digest: sha256:e867a13904190106d912860a50fe7a72a7ad36e1b7d6be1c165e35015e5949e0
   - path: src/evallab/gepa_optimizer/composition.py
-    digest: sha256:b5966150f38b2255703a9f67124f92bf30019ee2dc599e9b6f0162af9fd767b5
+    digest: sha256:8cee253a03e935db6d30b97a96480928270cc015782c502429ac07f5dcd69195
   - path: src/evallab/gepa_optimizer/evaluator.py
-    digest: sha256:3e01cfe94fa38c09cca5dd265eb849bc7e133a085e7ec625f1af3d5d24f5efcb
+    digest: sha256:8de1705233a2347455a5bc885a1776f31720c5a103de9dd6177c991ec6ac5674
   - path: src/evallab/gepa_optimizer/feedback.py
-    digest: sha256:ab9d2aed217d4df5b6657a7ff15305fae968fdc68e7b5ba841d4386aeec1fdec
+    digest: sha256:b8a08d61b5f11e4e0e1dc8ffb344238fdae757e1581c9c993afaf0276804c6e9
   - path: src/evallab/gepa_optimizer/meta_engine.py
     digest: sha256:932a35437b5f652edf2770c8256ee5397a26d6eee32f01dbdea1663b259fc5ad
   - path: src/evallab/gepa_optimizer/paired_analysis.py
     digest: sha256:8316fc2493762b387a70b2e2d8435d813fdf4cc98b32aa207f9b5eb73000cbdd
   - path: src/evallab/gepa_optimizer/proposer.py
-    digest: sha256:b89bc709949dbfe47a4c84ab369265993932c92f3e784195484299e021a5b74f
+    digest: sha256:e47494ce9744ca92d2f7e473d5d3d7babfbeb9cddb1a7b92a2f43bf79a2e5403
   - path: src/evallab/gepa_optimizer/release.py
     digest: sha256:64f8d2c60bcedcc8da4e75c6dd354993897967abdec14abf879d65a956fab214
   - path: src/evallab/gepa_optimizer/workflow.py
-    digest: sha256:ab11bfa33b7c405b57f13442fafaf354d8a4622073e9cb64446e28a80c3a16e8
+    digest: sha256:2fc960e12437d1e75ce551805e144cd8804738938a72a790cbb3d98679f5f530
   - path: src/evallab/governance.py
     digest: sha256:ae2a14127f4be7f73748c01aa694858a8015ef1173b1e76019b91212c5e61ddc
   - path: src/evallab/harbor_antigravity.py
@@ -130,6 +130,8 @@ inputs:
     digest: sha256:e54d726c085e2f26942863736382d628904ab2e4059c44e4dc29b858fff09a56
   - path: src/evallab/harbor_network.py
     digest: sha256:afacb92ed92744bff3be78f75c86ed48a6f26102c16079cfd6679dbb7d1715d3
+  - path: src/evallab/harbor_rlm.py
+    digest: sha256:035288573e38478c9662fa267d5bedfc9103d34f43501d2ecdb4e300a1075c88
   - path: src/evallab/harbor_state_journal.py
     digest: sha256:9b95447082a99c2b8316ec183c97f27a3de3978758e828433b299a51526fe494
   - path: src/evallab/harbor_zai_opencode.py
@@ -237,13 +239,13 @@ inputs:
   - path: src/evallab/preflight.py
     digest: sha256:ec5a51185993a8f000285ed39dcf92a31e12d642abd577c933bf0791fe256412
   - path: src/evallab/profiles.py
-    digest: sha256:622d18574f626fb5c3f84d0944f20e3c0b28d6d96d806f49c604ec5ecf4dca2f
+    digest: sha256:228dcdf52003f488bff7bdd73b8c3560fb355c6cd3ee90a5ad9d22909b03f27f
   - path: src/evallab/provenance.py
     digest: sha256:8b76204b8281dc651babfe786a51a88688c3e462adf6e274a8b172d9b6c09807
   - path: src/evallab/quality_audit.py
     digest: sha256:a6c4c575c999c1eb58dd5ebc2059204a80a778f8f1014985a0a8a3e112d9a997
   - path: src/evallab/queue.py
-    digest: sha256:5396b2f4bd780e6a08f61b29a96ddb95d12e74cacf5d91e25d18824983c5e49f
+    digest: sha256:1e8d9c6a7c351f80b5fcb5ba5ccf78c0082b250e99c10b3662ff8337b85c2987
   - path: src/evallab/quota.py
     digest: sha256:bfefe9c6dfafda451b2fcb76bc9404066ea39a0cc681bdf96e10690486c9bb2c
   - path: src/evallab/recovery/__init__.py
@@ -268,12 +270,34 @@ inputs:
     digest: sha256:5bb9bf0ad75b7da3bf0285feacd39280cc1829df99dcd586ff1d81d310175f52
   - path: src/evallab/results.py
     digest: sha256:4ba7d3de34e765fc5f9f1cc8e8b8cccfb4cab3503abbcab50eeecc6a66fb171d
+  - path: src/evallab/rlm/__init__.py
+    digest: sha256:72ec828d553f09b8218b61f95eee8873ec978e227c040adad6d5281fd8acfb45
+  - path: src/evallab/rlm/bench/__init__.py
+    digest: sha256:23bd5bd11886e22d73f935f8683e93ef7c38486826676951736b5bcdcc55a981
+  - path: src/evallab/rlm/bench/generators.py
+    digest: sha256:e7f10a41413c41111beadaa6b8ac6182d2c314fb7c611da9fe9b54e6e758c460
+  - path: src/evallab/rlm/bench/memo_family.py
+    digest: sha256:26e002b54a6d316b30bc02e2d3616e6426475e10ff6c48fd76b7363169002569
+  - path: src/evallab/rlm/bench/scoring.py
+    digest: sha256:1bfd1e3799bdc03238f5e6ee2dae2768cf2506b9780c3bf4dea60b77bc267f47
+  - path: src/evallab/rlm/bench_report.py
+    digest: sha256:be337c05d854eb9239d8392e813d3659c5169dcc8f8aeba075aefda309da8c3d
+  - path: src/evallab/rlm/bench_runner.py
+    digest: sha256:d57703fb1df078f77e7ce296328e405cb52a1550ae211cee266901cd60b9c054
+  - path: src/evallab/rlm/gepa_rlm.py
+    digest: sha256:13b0dbed011bec4506723dc69950de8d3bfecf785cf6b440aa11475d22d11480
+  - path: src/evallab/rlm/harness.py
+    digest: sha256:5ad6fb925bab8b525cc912e03210c39158815663cddcfc5130d9f95e7c8a0212
+  - path: src/evallab/rlm/policies.py
+    digest: sha256:8017513ce6b2d62dd2700b4a8f087a07b6103b0ac66a38be79453a304d825e5c
+  - path: src/evallab/rlm/traj_report.py
+    digest: sha256:dbefe71b295c0c561913fd266e53f6643a159319ae12f2d1d924b186e5e78a2b
   - path: src/evallab/run_preflight.py
     digest: sha256:c6f34f15c3d8fc8a30ee5b09abda23195d983340d77ea7af2b05bc27c6d37624
   - path: src/evallab/runner.py
-    digest: sha256:c5ba4d85d3070e04740297be603b5312e64042ccb868d2cbf9321692e4f45d62
+    digest: sha256:461cbb42d038d09b61e059fdfd3c87c9e8b10675557c2ae10276e4349ac9159e
   - path: src/evallab/schemas/__init__.py
-    digest: sha256:f1a290e03d8a162c55f71fbe531dafd6ed4fc611f4b2cec0154331bf7aa44734
+    digest: sha256:38d16e7732d3e419c288f70520bc3d38084f093f99b3611dfe4df7b534628bbc
   - path: src/evallab/screen.py
     digest: sha256:2b73a0dabcdc25ee596d9068a23935b2d9f7deaad60cca6322cd8be1061620ef
   - path: src/evallab/semantic_facts.py
@@ -318,6 +342,8 @@ inputs:
     digest: sha256:eecec160b974a13c4c8380a3851306f9260896129aeaaf59816d489b98baf9de
   - path: src/evallab/tidy.py
     digest: sha256:75132e3edc2a2fb8ec26d4e0a0c1755f86ae67d3f4f6430ddedbe16efbef459c
+  - path: src/evallab/toolbox.py
+    digest: sha256:ffe4e1968b5eb2c990fec10c0c543dbbb29539d196d762f0e307299610a59bd8
   - path: src/evallab/tracing.py
     digest: sha256:5166b3122ef3afbd2d6cf937d941bd7b6a7e53ba6063a050a4734b43b3492a58
   - path: src/evallab/training_eligibility.py
@@ -379,7 +405,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `capability_contract` | 900 | Typed, evidence-bound P/R/U/C/Y capability admission. | — |
 | `cards` | 600 | E11: eval-card generator with purpose-bound shape and mandatory uncertainty. | — |
 | `cli` | 4600 | Run, inspect, and analyze agent evaluations through Harbor. | `campaign`, `plan`, `schedule`, `install`, `uninstall`, `canary`, `import-terminal-bench`, `quality`, `audit`, `curve`, `validate`, `build`, `report`, `family`, `card`, `analyze`, `worker-plan`, `worker-status`, `worker-run-one`, `worker-resolve-ambiguous`, `ingest-sidecar`, `review`, `agreement`, `trial`, `batch`, `data`, `backfill`, `db`, `init`, `list`, `attach`, `analyst`, `show`, `generate`, `semantic-facts`, `project`, `semantics`, `evidence`, `archive`, `restore`, `tasks`, `import`, `lint`, `ladder`, `screen`, `stage1`, `registry`, `promote`, `register`, `devloop`, `tidy`, `traj`, `outline`, `queue`, `label`, `ir`, `pack`, `regrade`, `verifier` |
-| `cohort` | 1800 | Percentile interval that resamples the supplied evidence units. | `compare`, `power` |
+| `cohort` | 1900 | Percentile interval that resamples the supplied evidence units. | `compare`, `power` |
 | `contextpack` | 1300 | Context Pack Compiler (WS-B). | `python -m evallab.contextpack build`, `python -m evallab.contextpack list-docs` |
 | `continuous_control_plane` | 200 | Campaign ownership adapter for the disabled continuous operator. | — |
 | `craft` | 2000 | CRAFT: the deterministic half of the task-corpus analyzer (WS-A). | `python -m evallab.craft scan`, `python -m evallab.craft plan`, `python -m evallab.craft compile` |
@@ -407,19 +433,20 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `gepa_optimizer.__main__` | 200 | Opt-in Harbor optimization and retained-receipt analysis. | — |
 | `gepa_optimizer.budget` | 200 | Durable reservations shared by optimizer stages and independent native repeats. | — |
 | `gepa_optimizer.composition` | 400 | Pinned Omni recipe: three genuine engines, common scoring, fresh continuation. | — |
-| `gepa_optimizer.evaluator` | 1200 | LabEvaluator integration for GEPA optimize_anything and MetaHarnessEngine. | — |
-| `gepa_optimizer.feedback` | 400 | Feedback builder for GEPA prompt optimizer and reflection. | — |
+| `gepa_optimizer.evaluator` | 1300 | LabEvaluator integration for GEPA optimize_anything and MetaHarnessEngine. | — |
+| `gepa_optimizer.feedback` | 700 | Feedback builder for GEPA prompt optimizer and reflection. | — |
 | `gepa_optimizer.meta_engine` | 500 | MetaHarnessEngine qualification and configuration for Eval Lab. | — |
 | `gepa_optimizer.paired_analysis` | 600 | Paired candidate-vs-stock analysis over retained GEPA evaluation receipts. | — |
 | `gepa_optimizer.proposer` | 200 | Retain released GEPA LM responses across target-approval interruptions. | — |
 | `gepa_optimizer.release` | 100 | Verify installed GEPA code, not a mutable package-version label. | — |
-| `gepa_optimizer.workflow` | 700 | Released GEPA search over instruction artifacts and actual Lab evaluations. | — |
+| `gepa_optimizer.workflow` | 900 | Released GEPA search over instruction artifacts and actual Lab evaluations. | — |
 | `governance` | 300 | Deterministic checks for the repository coordination contract. | — |
 | `harbor_antigravity` | 200 | Repo-owned Harbor adapter for Antigravity's structured headless stream. | — |
 | `harbor_codex` | 100 | Repo-owned Harbor adapter that pins a complete Codex CLI release. | — |
 | `harbor_common` | 100 | Shared native-trajectory redaction used by every Harbor credential adapter. | — |
 | `harbor_deepseek` | 100 | DeepSeek credential isolation for Harbor's generic mini-swe-agent adapter. | — |
 | `harbor_network` | 300 | Platform-aware Harbor Docker network policy for the execution staging adapter. | — |
+| `harbor_rlm` | 200 | Lab-owned Harbor agent running dspy.RLM under a named harness policy. | — |
 | `harbor_state_journal` | 300 | Passive filesystem state journal for Harbor Docker trials. | — |
 | `harbor_zai_opencode` | 300 | Harbor adapter for the Z.ai Coding Plan via OpenCode. | — |
 | `host_task_staging` | 600 | Reusable host task staging for Darwin (Docker Desktop) execution lanes. | — |
@@ -489,8 +516,19 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `researchers` | 1400 | Run schema-constrained Codex with read-only, networkless evidence access. | — |
 | `restraint_canary` | 800 | Cleanroom Single-Delta Operational Restraint Canary Benchmark Family (V1). | `python -m evallab.restraint_canary generate`, `python -m evallab.restraint_canary audit`, `python -m evallab.restraint_canary controls` |
 | `results` | 300 | Best-effort object load used only by job *discovery*. | `summarize` |
+| `rlm` | 100 | RLM harness policies, synthetic bench, and Harbor agent support. | — |
+| `rlm.bench` | 100 | Deterministic synthetic long-context suite for RLM harness development. | — |
+| `rlm.bench.generators` | 400 | Deterministic synthetic long-context tasks for RLM harness development. | — |
+| `rlm.bench.memo_family` | 200 | ``memo-classify``: aggregation that needs semantic classification per record. | — |
+| `rlm.bench.scoring` | 100 | Exact-match scoring with format normalisation for the synthetic suite. | — |
+| `rlm.bench_report` | 200 | Aggregate synthetic-bench result rows into a comparison report. | — |
+| `rlm.bench_runner` | 300 | Run one RLM harness policy over the synthetic long-context suite. | — |
+| `rlm.gepa_rlm` | 200 | GEPA over the RLM action instructions, evaluated on the synthetic suite. | — |
+| `rlm.harness` | 500 | Policy-driven dspy.RLM harness shared by the synthetic bench and the Harbor agent. | — |
+| `rlm.policies` | 300 | Named, content-addressed harness policies for the lab-owned dspy.RLM agent. | — |
+| `rlm.traj_report` | 200 | Mechanical trajectory analysis for RLM runs (bench and Harbor). | — |
 | `run_preflight` | 700 | Secret-safe preflight for Z.ai / TB4 overnight campaigns. | — |
-| `runner` | 1600 | Return only containers proven by labels to belong to Harbor for this task. | `dashboard`, `run`, `matrix` |
+| `runner` | 1700 | Return only containers proven by labels to belong to Harbor for this task. | `dashboard`, `run`, `matrix` |
 | `schemas` | 2400 | Strict base for durable lab contracts. | — |
 | `screen` | 1100 | Difficulty screening and follow-up generation for eval-lab (v2 §4). | — |
 | `semantic_facts` | 500 | Typed, provenance-preserving semantic facts for benchmark analysis. | — |
@@ -514,6 +552,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `task_lint` | 200 | Read-only static checks for Harbor task verifier trust boundaries. | — |
 | `task_workbench` | 8500 | Deterministic, non-admitting quality workbench for Harbor task candidates. | `python -m evallab.task_workbench plan`, `python -m evallab.task_workbench scan`, `python -m evallab.task_workbench check`, `python -m evallab.task_workbench packet`, `python -m evallab.task_workbench audit-evidence`, `python -m evallab.task_workbench audit-compare`, `python -m evallab.task_workbench experiment` |
 | `tidy` | 1400 | E16: working tree tidy sweep reporting strays, stale worktrees, and retention violations. | — |
+| `toolbox` | 200 | Python toolbox packaging and validation for Harbor agent environments. | — |
 | `tracing` | 800 | ATIF → OpenTelemetry conversion and Phoenix shipping. | `nightly`, `trace` |
 | `training_eligibility` | 200 | No-spend SFT and online-RL eligibility over native Harbor trials. | — |
 | `training_pool` | 300 | Export explicitly selected registered tasks as an offline LEGO-RL task index. | — |

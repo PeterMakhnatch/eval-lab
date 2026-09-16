@@ -1,0 +1,110 @@
+"""Behavioural checks for the policy-driven RLM harness (skipped without dspy)."""
+
+from __future__ import annotations
+
+import asyncio
+import subprocess
+
+import pytest
+
+dspy = pytest.importorskip("dspy")
+
+from dspy.primitives.repl_types import REPLHistory  # noqa: E402
+from dspy.utils.exceptions import AdapterParseError  # noqa: E402
+
+from evallab.rlm.harness import MASKED_OUTPUT_MARKER, LabRlm, lm_usage  # noqa: E402
+from evallab.rlm.policies import resolve_policy  # noqa: E402
+
+
+def _history(n: int) -> REPLHistory:
+    history = REPLHistory()
+    for index in range(n):
+        history = history.append(reasoning=f"r{index}", code=f"print({index})", output=f"out-{index}-" + "x" * 50)
+    return history
+
+
+def test_history_window_masks_only_older_outputs_and_keeps_code() -> None:
+    rlm = LabRlm("context, query -> answer", resolve_policy("orchestrator-mask4"))
+    full = _history(7)
+    view = rlm._history_view(full)
+    assert len(view) == 7
+    for index, entry in enumerate(view.entries):
+        assert entry.code == f"print({index})"
+        if index < 3:
+            assert entry.output == MASKED_OUTPUT_MARKER.format(chars=len(full.entries[index].output))
+        else:
+            assert entry.output == full.entries[index].output
+    assert rlm._history_view(_history(4)).entries == _history(4).entries  # nothing to mask
+    assert LabRlm("context, query -> answer", resolve_policy("stock"))._history_view(full) is full
+
+
+def test_iteration_label_reports_remaining_budget_only_when_enabled() -> None:
+    plain = LabRlm("context, query -> answer", resolve_policy("orchestrator"))
+    remind = LabRlm("context, query -> answer", resolve_policy("orchestrator-remind"))
+    assert plain._iteration_label(0) == "1/20"
+    assert remind._iteration_label(0).startswith("1/20 (19 iterations remain")
+    assert "LAST iteration" in remind._iteration_label(19)
+
+
+def test_policy_addenda_compose_into_action_instructions() -> None:
+    def tool(x: str) -> str:
+        """A tool."""
+        return x
+
+    bench = LabRlm("context, query -> answer", resolve_policy("orchestrator-bridge"))
+    harbor = LabRlm("instruction, file_tree -> solution", resolve_policy("orchestrator-bridge"), tools=[tool])
+    assert "isolated sandbox" not in bench.generate_action.signature.instructions
+    assert "isolated sandbox" in harbor.generate_action.signature.instructions
+    assert harbor.generate_action.signature.instructions.startswith("As a Recursive Language Model")
+    override = resolve_policy("orchestrator").derive("g", "gepa", action_instructions_override="NEW INSTRUCTIONS")
+    assert LabRlm("context, query -> answer", override).generate_action.signature.instructions == "NEW INSTRUCTIONS"
+
+
+def test_unparseable_action_becomes_a_recoverable_observation(monkeypatch: pytest.MonkeyPatch) -> None:
+    rlm = LabRlm("context, query -> answer", resolve_policy("stock"))
+    signature = rlm.generate_action.signature
+
+    def explode(self, **_: object):
+        raise AdapterParseError(adapter_name="ChatAdapter", signature=signature, lm_response="garbled {{")
+
+    monkeypatch.setattr(type(rlm.generate_action), "__call__", explode)
+    outcome = rlm._execute_iteration(repl=None, variables=[], history=REPLHistory(), iteration=0, input_args={}, output_field_names=["answer"])
+    assert isinstance(outcome, REPLHistory) and len(outcome) == 1
+    assert outcome.entries[0].output.startswith("[Error] Your previous response could not be parsed")
+    assert "garbled {{" in outcome.entries[0].output
+    assert rlm.parse_failures == 1
+
+
+def test_lm_usage_sums_history_and_prices_api_equivalent() -> None:
+    class FakeLm:
+        history = [
+            {"usage": {"prompt_tokens": 1_000_000, "completion_tokens": 0}},
+            {"usage": {"prompt_tokens": 0, "completion_tokens": 1_000_000, "completion_tokens_details": {"reasoning_tokens": 400}}},
+            "not-a-dict",
+        ]
+
+    usage = lm_usage(FakeLm())  # type: ignore[arg-type]
+    assert (usage.calls, usage.input_tokens, usage.output_tokens, usage.reasoning_tokens) == (2, 1_000_000, 1_000_000, 400)
+    assert usage.cost_usd == pytest.approx(1.40 + 4.40)
+    assert lm_usage(None).calls == 0
+
+
+def test_container_python_tool_quotes_arbitrary_source() -> None:
+    from harbor.environments.base import ExecResult
+
+    from evallab.harbor_rlm import ContainerPythonBridge
+
+    class FakeEnv:
+        async def exec(self, command: str, cwd: str | None = None, timeout_sec: int = 30) -> ExecResult:
+            done = subprocess.run(["bash", "-c", command], capture_output=True, text=True)
+            return ExecResult(stdout=done.stdout, stderr=done.stderr, return_code=done.returncode)
+
+    async def run() -> str:
+        loop = asyncio.get_running_loop()
+        bridge = ContainerPythonBridge(FakeEnv(), loop, cwd="/tmp")
+        code = "print(repr('it''s $HOME `x` \\\\ \"q\"'))\nprint(1+1)"
+        return await loop.run_in_executor(None, lambda: bridge.run_python(code))
+
+    output = asyncio.run(run())
+    assert output.splitlines() == ["'its $HOME `x` \\\\ \"q\"'", "2"]
+    assert [t.__name__ for t in ContainerPythonBridge(None, None).get_tools()][-1] == "run_python"  # type: ignore[arg-type]

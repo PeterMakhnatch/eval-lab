@@ -2026,6 +2026,7 @@ class Executor:
             max_output_tokens=spec.max_output_tokens,
             max_total_tokens=spec.max_total_tokens,
             cost_limit_usd=spec.cost_limit_usd,
+            harness_policy=spec.harness_policy,
             lease_path=self.queue.lease_path(spec),
             lease_generation=lease_generation,
             provenance=RunProvenance(

@@ -18,6 +18,7 @@ from pathlib import Path
 
 from evallab.execution_contracts import (
     OPENCODE_AUTH_RELATIVE_PATH,
+    RLM_AGENT,
     ZAI_AUTH_PROVIDER,
     ZAI_OPENCODE_AGENT,
 )
@@ -50,6 +51,7 @@ AGENT_CREDENTIAL_REQUIREMENTS: dict[str, str] = {
     "antigravity-cli": ANTIGRAVITY_SESSION,
     "mini-swe-agent": DEEPSEEK_API_CREDENTIAL,
     ZAI_OPENCODE_AGENT: ZAI_OPENCODE_AUTH,
+    RLM_AGENT: ZAI_OPENCODE_AUTH,
 }
 
 _PROFILES = builtin_profiles()
@@ -200,6 +202,7 @@ DEFAULT_PROFILE_FOR_ADAPTER: dict[str, str] = {
     "antigravity-cli": "antigravity-gemini-3.7-flash-high",
     "mini-swe-agent": "mini-swe-agent-deepseek-v4-flash",
     ZAI_OPENCODE_AGENT: "zai-opencode-glm-5.3-flash",
+    RLM_AGENT: "rlm-glm-5.3-flash",
 }
 
 DEFAULT_AGENT_MODELS: dict[str, str] = {

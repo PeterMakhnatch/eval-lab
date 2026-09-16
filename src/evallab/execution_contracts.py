@@ -141,6 +141,7 @@ DEEPSEEK_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
         DEEPSEEK_PROXY_GID_ENV,
     }
 )
+RLM_AGENT = "rlm"
 ZAI_OPENCODE_AGENT = "zai-opencode"
 ZAI_OPENCODE_MODEL_SELECTORS: frozenset[str] = frozenset(
     {"zai-coding-plan/glm-5.3", "zai-coding-plan/glm-5.3-flash"}
@@ -211,6 +212,7 @@ HARBOR_AGENT_IMPORT_PATHS: dict[str, str] = {
     "antigravity-cli": "evallab.harbor_antigravity:AntigravityCliCapture",
     "mini-swe-agent": "evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent",
     "zai-opencode": "evallab.harbor_zai_opencode:SecretSafeZaiOpenCodeAgent",
+    RLM_AGENT: "evallab.harbor_rlm:LabRlmAgent",
 }
 
 DEEPSEEK_MODEL_SELECTOR = "deepseek/deepseek-flash"
@@ -279,6 +281,7 @@ class RunRequest:
     max_output_tokens: int | None = None
     max_total_tokens: int | None = None
     cost_limit_usd: float | None = None
+    harness_policy: str | None = None
 
     @property
     def job_timeout_seconds(self) -> int:
@@ -733,6 +736,10 @@ def validate_request(request: RunRequest) -> None:
         request.max_total_tokens,
         request.cost_limit_usd,
     )
+    # The rlm lane forwards cost_limit_usd as a harness agent-kwarg rather than
+    # enforcing it through the secret proxy, so it is not a proxy ceiling here.
+    if request.agent == RLM_AGENT:
+        proxy_limits = proxy_limits[:4]
     metered_agents = {"mini-swe-agent", ZAI_OPENCODE_AGENT}
     if any(value is not None for value in proxy_limits):
         if request.agent not in metered_agents:
@@ -766,6 +773,16 @@ def validate_request(request: RunRequest) -> None:
             raise ValueError(f"{request.agent} requires explicit provider ceilings")
         if request.attempts != 1 or request.concurrency != 1:
             raise ValueError(f"{request.agent} capabilities bind exactly one trial")
+    if request.harness_policy is not None and request.agent != RLM_AGENT:
+        raise ValueError("harness_policy is supported only by the rlm lane")
+    if request.agent == RLM_AGENT:
+        if request.attempts != 1 or request.concurrency != 1:
+            raise ValueError(f"{request.agent} capabilities bind exactly one trial")
+        if request.model not in ZAI_OPENCODE_MODEL_SELECTORS:
+            raise ValueError(
+                "rlm requires one of the exact models "
+                f"{sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
+            )
     if request.agent not in CONTROL_AGENTS and not request.allow_billable:
         raise ValueError(
             f"Agent {request.agent!r} may invoke a model. Pass --allow-billable "
@@ -862,6 +879,26 @@ def build_command(request: RunRequest) -> list[str]:
                 "1",
                 "--max-retries",
                 "0",
+            ]
+        )
+    if request.agent == RLM_AGENT:
+        if harbor_model not in ZAI_OPENCODE_MODEL_SELECTORS:
+            raise ValueError(
+                "rlm requires one of the exact models "
+                f"{sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
+            )
+        command.extend(
+            [
+                "--n-concurrent-agents",
+                "1",
+                "--n-tasks",
+                "1",
+                "--max-retries",
+                "0",
+                "--agent-kwarg",
+                f"policy={request.harness_policy or 'stock'}",
+                "--agent-kwarg",
+                f"cost_limit_usd={request.cost_limit_usd or 1.0}",
             ]
         )
     if request.extra_instruction_path is not None:

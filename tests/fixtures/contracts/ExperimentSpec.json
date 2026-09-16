@@ -517,6 +517,19 @@
       "default": null,
       "title": "Grid Point"
     },
+    "harness_policy": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "harness variant selector forwarded as --agent-kwarg policy for the rlm lane",
+      "title": "Harness Policy"
+    },
     "hypothesis": {
       "minLength": 1,
       "title": "Hypothesis",

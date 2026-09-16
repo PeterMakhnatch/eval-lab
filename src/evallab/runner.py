@@ -53,6 +53,7 @@ from evallab.execution_contracts import (
     WATCHDOG_POLL_SECONDS,
     ZAI_CAPABILITY_EXPIRES_AT_ENV,
     ZAI_INPUT_COST_MICROS_PER_MILLION,
+    RLM_AGENT,
     ZAI_OPENCODE_AGENT,
     ZAI_OUTPUT_COST_MICROS_PER_MILLION,
     ZAI_PROXY_ATTEMPT_ID_ENV,
@@ -622,6 +623,8 @@ def run_harbor_process(
     deepseek_lane = deepseek_adapter in command
     zai_adapter = HARBOR_AGENT_IMPORT_PATHS[ZAI_OPENCODE_AGENT]
     zai_lane = zai_adapter in command
+    rlm_adapter = HARBOR_AGENT_IMPORT_PATHS[RLM_AGENT]
+    rlm_lane = rlm_adapter in command
     runtime_environment = subscription_environment(
         include_deepseek_credentials=deepseek_lane,
         include_zai_credentials=zai_lane,
@@ -772,6 +775,21 @@ def run_harbor_process(
             )
             runtime_environment["ZAI_CODING_PLAN_API_KEY"] = capability
             runtime_environment["ZAI_API_KEY"] = capability
+            secret_values = collected_secret_values({**os.environ, **runtime_environment})
+        if rlm_lane:
+            # Host-secret-file transport: the lab-owned RLM agent reads the
+            # provider key from this owner-only file. No proxy URLs,
+            # capability tokens, or OPENAI_BASE_URL overrides are set.
+            owned_secret_dir = Path(
+                tempfile.mkdtemp(
+                    prefix="evallab-rlm-secret.",
+                    dir=os.environ.get("TMPDIR") or None,
+                )
+            )
+            os.chmod(owned_secret_dir, 0o700)
+            owned_secret_path = owned_secret_dir / "key"
+            materialize_zai_secret_file(owned_secret_path)
+            runtime_environment[ZAI_SECRET_FILE_ENV] = str(owned_secret_path)
             secret_values = collected_secret_values({**os.environ, **runtime_environment})
         if any(import_path in command for import_path in repo_imports):
             source_root = _RUNTIME_ROOT / "src"

@@ -277,7 +277,7 @@ inputs:
   - path: src/evallab/rlm/bench/generators.py
     digest: sha256:e7f10a41413c41111beadaa6b8ac6182d2c314fb7c611da9fe9b54e6e758c460
   - path: src/evallab/rlm/bench/memo_family.py
-    digest: sha256:a0b3b3291f17f45da7e1af9989972bdda196af237c0b96543da2edd529ea60e8
+    digest: sha256:26e002b54a6d316b30bc02e2d3616e6426475e10ff6c48fd76b7363169002569
   - path: src/evallab/rlm/bench/scoring.py
     digest: sha256:1bfd1e3799bdc03238f5e6ee2dae2768cf2506b9780c3bf4dea60b77bc267f47
   - path: src/evallab/rlm/bench_report.py

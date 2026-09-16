@@ -62,7 +62,10 @@ def approve_candidate(config_path: Path, *, repo_root: Path, candidate_id: str) 
     digest = candidate_id.removeprefix("sha256:")
     if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
         raise ValueError("candidate must be a complete SHA-256 digest")
-    candidate = _path(root, str((output / "lab/candidates" / f"{digest}.txt").relative_to(root)))
+    suffix = ".py" if config.get("candidate_kind") == "python_toolbox" else ".txt"
+    candidate = _path(
+        root, str((output / "lab/candidates" / f"{digest}{suffix}").relative_to(root))
+    )
     if hashlib.sha256(candidate.read_bytes()).hexdigest() != digest:
         raise ValueError("Retained candidate bytes do not match the requested digest")
     approvals = _path(root, str((output / "reviewed-candidates").relative_to(root)))
@@ -273,6 +276,7 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         "max_target_attempts",
         "shared_budget",
         "score_mode",
+        "candidate_kind",
     }
     if not isinstance(raw, dict) or set(raw) - allowed:
         raise ValueError("Unknown campaign fields; arbitrary engine configuration is not supported")
@@ -301,6 +305,12 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         "quality_gated_request_efficiency",
     }:
         raise ValueError("score_mode must be 'native_reward' or 'quality_gated_request_efficiency'")
+    candidate_kind = raw.get("candidate_kind", "instructions")
+    if not isinstance(candidate_kind, str) or candidate_kind not in {
+        "instructions",
+        "python_toolbox",
+    }:
+        raise ValueError("candidate_kind must be instructions or python_toolbox")
     for key in (
         "max_evals",
         "max_iterations",
@@ -328,11 +338,13 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         raise ValueError("An explicit nonempty development task list is required")
     example_fields = {"task_id", "task_path", "task_package_digest", "split"}
     if any(
-        not isinstance(example, dict) or set(example) != example_fields
+        not isinstance(example, dict)
+        or not example_fields <= set(example)
+        or set(example) - (example_fields | {"oracle_reference"})
         for example in raw["examples"]
     ):
         raise ValueError(
-            "Search examples may contain only declared task identity, path, digest and development split"
+            "Search examples require task identity, path, digest, development split and optional Oracle reference"
         )
     if any(example.get("split") != "development" for example in raw["examples"]):
         raise ValueError("Only development examples may enter search; no final/test split")
@@ -406,16 +418,18 @@ class QualificationProposer:
 
     total_cost = 0.0
 
-    def __init__(self) -> None:
+    def __init__(self, candidate_kind: str = "instructions") -> None:
         self.calls = 0
+        self.candidate_kind = candidate_kind
 
     def __call__(self, candidate, reflective_dataset, components_to_update, **kwargs):
         self.calls += 1
-        return {
-            key: candidate[key]
-            + "\nInspect the final task outputs against the stated requirements.\n"
-            for key in components_to_update
-        }
+        suffix = (
+            "\n# Interface qualification only: this is not a learned code improvement.\n"
+            if self.candidate_kind == "python_toolbox"
+            else "\nInspect the final task outputs against the stated requirements.\n"
+        )
+        return {key: candidate[key] + suffix for key in components_to_update}
 
 
 def run_campaign(
@@ -474,10 +488,11 @@ def _run_campaign(
         authorization_bytes = proposer_approval_ref.read_bytes()
     output = _path(repo_root, config["output_dir"])
     score_mode = config.get("score_mode", "native_reward")
+    candidate_kind = config.get("candidate_kind", "instructions")
     output.mkdir(parents=True, exist_ok=True)
     seed = _path(repo_root, config["seed_candidate_path"]).read_text(encoding="utf-8")
     if not seed.strip():
-        raise ValueError("An explicit nonempty seed instruction is required")
+        raise ValueError("An explicit nonempty seed artifact is required")
     binding = {
         "config": config,
         "seed_sha256": "sha256:" + hashlib.sha256(seed.encode()).hexdigest(),
@@ -548,13 +563,14 @@ def _run_campaign(
         else frozenset(reviewed),
         feedback_max_chars=config.get("feedback_max_chars", 24000),
         budgets=budgets,
+        candidate_kind=candidate_kind,
     )
     validation_ids = set(config.get("validation_task_ids", []))
     train = [row for row in config["examples"] if row["task_id"] not in validation_ids]
     validation = [row for row in config["examples"] if row["task_id"] in validation_ids]
     engine = None
     result = None
-    fixture = QualificationProposer() if qualification else None
+    fixture = QualificationProposer(candidate_kind) if qualification else None
     reflection_lm = None
     status = "running"
     error_type = None
@@ -562,11 +578,15 @@ def _run_campaign(
     pending_candidate = None
     availability = None
     stage_lms: dict[str, JournaledReflectionLM] = {}
+    invalid_candidates: dict[str, dict[str, Any]] = {}
 
     def evaluate(candidate, example):
         try:
             _check_running(output)
             raw_score, info = evaluator(candidate, example)
+            if info.get("status") == "invalid_candidate":
+                invalid_candidates[info["candidate_id"]] = info
+                return raw_score, info
             if score_mode == "quality_gated_request_efficiency":
                 utility, calls = _compute_request_efficiency_utility(info, raw_score=raw_score)
                 info["optimization"] = {
@@ -596,12 +616,25 @@ def _run_campaign(
         )
 
         objective = config.get(
-            "objective", "Improve task success with general supplementary instructions"
+            "objective",
+            "Improve task success by evolving reusable Python helpers"
+            if candidate_kind == "python_toolbox"
+            else "Improve task success with general supplementary instructions",
+        )
+        editable = (
+            "Candidates are complete UTF-8 Python modules providing smart_grep, read_window, "
+            "check_output and the seed's command-line interface. Preserve these interfaces. "
+            "Only this helper code changes; skill instructions and task/verifier bytes stay fixed. "
+            "Code executes exclusively inside the existing Harbor task sandbox, never on the host. "
+            "Use standard-library helpers with bounded output, not hardcoded task solutions. "
+            if candidate_kind == "python_toolbox"
+            else "Candidates are supplementary instruction text, not executable host code. "
         )
         background = (
-            "Candidates are supplementary instruction text, not executable host code. "
-            "All supplied train and validation examples are search-visible development tasks. "
-            "No task-specific answers, verifier content or final evaluation tasks are permitted."
+            editable
+            + "All supplied train and validation examples are search-visible development tasks. "
+            "No task-specific answers, verifier content or final evaluation tasks are permitted. "
+            "Oracle contrasts describe only captured reference behavior; missing traces are not clean steps."
         )
 
         def make_config(stage_id: str, engine_name: str):
@@ -770,6 +803,8 @@ def _run_campaign(
         "engine": config["engine"],
         "engine_availability": availability,
         "score_mode": score_mode,
+        "candidate_kind": candidate_kind,
+        "candidate_validation_failures": list(invalid_candidates.values()),
         "budget_accounting": [
             {"directory": str(budget.directory), **budget.summary()} for budget in budgets
         ],

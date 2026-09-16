@@ -1,206 +1,217 @@
 #!/usr/bin/env python3
-"""Standard-library Python seed toolbox for agent environments.
+"""Bounded, read-only file helpers. JSON validity is not task correctness.
 
-Provides bounded inspection, regex search, and output checking.
-Can be imported directly or executed via a minimal CLI.
-
-Adversarial regex caveat:
-Python's standard library `re` uses a backtracking engine that can experience
-polynomial or exponential runtime on pathological patterns (ReDoS). While input
-line lengths are strictly bounded to MAX_LINE_CHARS to mitigate impact, stdlib
-`re` cannot guarantee bounded execution time for arbitrary adversarial regular
-expressions.
+Regex input is bounded, but Python's backtracking regex engine has no execution
+ time guarantee; the containing Harbor trial supplies the execution deadline.
 """
+
 from __future__ import annotations
 
-import argparse, collections, json, os, re, sys
+import argparse
+import codecs
+import json
+import os
+import re
+from pathlib import Path
 
-MAX_WINDOW_LINES, DEFAULT_MAX_CHARS, MAX_CHARS_CAP = 200, 16384, 65536
-DEFAULT_MAX_MATCHES, MAX_MATCHES_CAP, DEFAULT_CONTEXT, MAX_CONTEXT_CAP = 20, 100, 2, 5
-MAX_FILE_BYTES, MAX_TOTAL_BYTES, MAX_VISITED_FILES = 5 * 1024 * 1024, 20 * 1024 * 1024, 250
-MAX_TREE_DEPTH, MAX_LINE_CHARS = 8, 4096
-
-
-def _read_line(f):
-    line = f.readline(MAX_LINE_CHARS + 1)
-    if len(line) > MAX_LINE_CHARS and not line.endswith("\n"):
-        line = line[:MAX_LINE_CHARS] + "\n"
-        while True:
-            chunk = f.readline(MAX_LINE_CHARS + 1)
-            if not chunk or chunk.endswith("\n"): break
-    return line
+MAX_BYTES = 262144
+MAX_TOTAL_BYTES = 1048576
+MAX_ENTRIES = 128
+MAX_DEPTH = 8
+MAX_CHARS = 16384
+MAX_LINES = 200
+MAX_LINE_CHARS = 4096
 
 
-def read_window(file, start=1, end=None, max_chars=DEFAULT_MAX_CHARS):
-    """Read a bounded line window [start, end] (1-indexed) from a regular text file."""
-    p = str(file)
-    res = {"file": p, "start_line": start, "end_line": end, "content": "", "truncated": False, "error": None}
-    if start < 1: return {**res, "error": f"Invalid start line {start}: must be >= 1"}
-    if end is not None and end < start: return {**res, "error": f"Invalid line range: end ({end}) < start ({start})"}
-    if os.path.islink(p): return {**res, "error": f"Symlinks are not supported: {p}"}
-    if not os.path.exists(p): return {**res, "error": f"File not found: {p}"}
-    if not os.path.isfile(p): return {**res, "error": f"Not a regular file: {p}"}
+def _path(value):
+    path = Path(value).absolute()
+    if any(part.is_symlink() for part in (path, *path.parents)):
+        raise ValueError("symlinks are not supported")
+    return path
+
+
+def _text(path, limit=MAX_BYTES):
+    if not path.is_file():
+        raise ValueError("not a regular file")
+    with path.open("rb") as stream:
+        data = stream.read(limit + 1)
+    truncated = len(data) > limit
+    prefix = data[:limit]
+    if b"\x00" in prefix:
+        raise ValueError("binary content is not supported")
+    decoder = codecs.getincrementaldecoder("utf-8")()
+    return decoder.decode(prefix, final=not truncated), truncated, len(data)
+
+
+def read_window(file, start=1, end=None, max_chars=MAX_CHARS):
+    """Read a numbered inclusive line window from a bounded UTF-8 prefix."""
     try:
-        with open(p, "rb") as bf:
-            if b"\x00" in bf.read(1024): return {**res, "error": f"Binary file not supported: {p}"}
-        eff_end = min(end, start + MAX_WINDOW_LINES - 1) if end is not None else start + MAX_WINDOW_LINES - 1
-        max_c, trunc = min(max(1, int(max_chars)), MAX_CHARS_CAP), end is not None and end > eff_end
-        buf, cur_c, cur_ln, bytes_read = [], 0, 0, 0
-        with open(p, "r", encoding="utf-8") as f:
-            while cur_ln < eff_end:
-                line = _read_line(f)
-                if not line: break
-                bytes_read += len(line.encode("utf-8", errors="replace"))
-                if bytes_read > MAX_FILE_BYTES: trunc = True; break
-                cur_ln += 1
-                if cur_ln < start: continue
-                entry = f"{cur_ln}:{line}"
-                if cur_c + len(entry) > max_c: trunc = True; break
-                buf.append(entry); cur_c += len(entry)
-        return {**res, "end_line": cur_ln, "content": "".join(buf), "truncated": trunc}
-    except (UnicodeDecodeError, OSError) as exc:
-        return {**res, "error": f"Read failed: {exc}"}
+        if (
+            type(start) is not int
+            or start < 1
+            or (end is not None and (type(end) is not int or end < start))
+        ):
+            raise ValueError("require 1 <= start <= end")
+        if type(max_chars) is not int or not 1 <= max_chars <= MAX_CHARS:
+            raise ValueError(f"max_chars must be in 1..{MAX_CHARS}")
+        text, truncated, _ = _text(_path(file))
+        lines = text.splitlines()
+        stop = min(end if end is not None else len(lines), start + MAX_LINES - 1, len(lines))
+        requested_stop = min(end if end is not None else len(lines), len(lines))
+        truncated |= stop < requested_stop
+        content = ""
+        for number in range(start, stop + 1):
+            line = lines[number - 1]
+            entry = f"{number}:{line[:MAX_LINE_CHARS]}\n"
+            truncated |= len(line) > MAX_LINE_CHARS
+            remaining = max_chars - len(content)
+            if len(entry) > remaining:
+                content += entry[:remaining]
+                truncated = True
+                break
+            content += entry
+        return {"content": content, "truncated": truncated, "error": None}
+    except (OSError, UnicodeError, ValueError, TypeError) as exc:
+        return {"content": "", "truncated": False, "error": str(exc)}
 
 
-def _iter_files(root_dir):
-    base_depth = root_dir.rstrip(os.sep).count(os.sep)
-    for root, dirs, files in os.walk(root_dir):
-        if root.rstrip(os.sep).count(os.sep) - base_depth >= MAX_TREE_DEPTH:
-            dirs.clear(); continue
-        dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("__pycache__", "node_modules", "venv", ".venv") and not os.path.islink(os.path.join(root, d))]
-        for fn in sorted(files):
-            if not fn.startswith("."):
-                fp = os.path.join(root, fn)
-                if not os.path.islink(fp) and os.path.isfile(fp): yield fp
+def _files(root):
+    if root.is_file():
+        return [root], False
+    if not root.is_dir():
+        raise ValueError("not a regular file or directory")
+    files, stack, visited, truncated = [], [(root, 0)], 0, False
+    while stack:
+        directory, depth = stack.pop()
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                visited += 1
+                if visited > MAX_ENTRIES:
+                    return sorted(files), True
+                if entry.is_symlink() or entry.name.startswith("."):
+                    continue
+                if entry.is_file(follow_symlinks=False):
+                    files.append(Path(entry.path))
+                elif entry.is_dir(follow_symlinks=False):
+                    if depth < MAX_DEPTH:
+                        stack.append((Path(entry.path), depth + 1))
+                    else:
+                        truncated = True
+    return sorted(files), truncated
 
 
-def smart_grep(pattern, path=".", max_matches=DEFAULT_MAX_MATCHES, context=DEFAULT_CONTEXT):
-    """Search for regex pattern in bounded file or tree; rejects symlinks/binaries."""
-    p_str = str(path)
-    res = {"pattern": pattern, "path": p_str, "matches": [], "total_matches": 0, "truncated": False, "error": None}
-    try: regex = re.compile(pattern)
-    except re.error as exc: return {**res, "error": f"Invalid regex pattern: {exc}"}
-    if os.path.islink(p_str): return {**res, "error": f"Symlinks are not supported: {p_str}"}
-    if not os.path.exists(p_str): return {**res, "error": f"Path not found: {p_str}"}
-    if not (os.path.isfile(p_str) or os.path.isdir(p_str)): return {**res, "error": f"Unsupported path type: {p_str}"}
-
-    max_m, ctx_n = min(max(1, int(max_matches)), MAX_MATCHES_CAP), min(max(0, int(context)), MAX_CONTEXT_CAP)
-    files_iter = [p_str] if os.path.isfile(p_str) else _iter_files(p_str)
-    visited, total_bytes, out_chars, matches, total_matches, trunc = 0, 0, 0, [], 0, False
-
-    for fpath in files_iter:
-        visited += 1
-        if visited > MAX_VISITED_FILES: trunc = True; break
-        try:
-            fsize = os.path.getsize(fpath)
-            if fsize > MAX_FILE_BYTES: continue
-            if total_bytes + fsize > MAX_TOTAL_BYTES: trunc = True; break
-            with open(fpath, "rb") as bf:
-                if b"\x00" in bf.read(1024): continue
-            pre_ctx, pending, ln, file_bytes = collections.deque(maxlen=ctx_n), [], 0, 0
-            add_m = lambda pm: (matches.append({"file": fpath, "line": pm["line"], "match": pm["match"], "context": "".join(pm["ctx"])}), len(matches[-1]["context"]))
-            with open(fpath, "r", encoding="utf-8") as tf:
-                while True:
-                    line = _read_line(tf)
-                    if not line: break
-                    line_bytes = len(line.encode("utf-8", errors="replace"))
-                    file_bytes += line_bytes; total_bytes += line_bytes; ln += 1
-                    for pm in pending:
-                        if ln <= pm["end"]: pm["ctx"].append(f"{ln}- {line}")
-                    for pm in [p for p in pending if ln >= p["end"]]:
-                        _, clen = add_m(pm); out_chars += clen
-                    pending = [p for p in pending if ln < p["end"]]
-
-                    if len(matches) + len(pending) < max_m and regex.search(line):
-                        total_matches += 1
-                        m_text = line.rstrip("\r\n")
-                        ctx_lines = [f"{pln}- {pline}" for pln, pline in pre_ctx] + [f"{ln}:{line}"]
-                        if ctx_n == 0:
-                            matches.append({"file": fpath, "line": ln, "match": m_text, "context": "".join(ctx_lines)})
-                            out_chars += len(ctx_lines[0])
-                        else: pending.append({"line": ln, "match": m_text, "ctx": ctx_lines, "end": ln + ctx_n})
-                    elif regex.search(line): total_matches += 1; trunc = True
-
-                    pre_ctx.append((ln, line))
-                    if len(matches) >= max_m or out_chars >= MAX_CHARS_CAP or total_bytes >= MAX_TOTAL_BYTES or file_bytes >= MAX_FILE_BYTES:
-                        if len(matches) >= max_m or out_chars >= MAX_CHARS_CAP: trunc = True
-                        break
-
-            for pm in pending:
-                _, clen = add_m(pm); out_chars += clen
-            if len(matches) >= max_m or out_chars >= MAX_CHARS_CAP or total_bytes >= MAX_TOTAL_BYTES: trunc = True; break
-        except (UnicodeDecodeError, OSError): continue
-
-    return {**res, "matches": matches, "total_matches": total_matches, "truncated": trunc}
+def smart_grep(pattern, path=".", max_matches=20, context=2):
+    """Search bounded files; reported matches are not a full-tree match count."""
+    matches, used_bytes, used_chars, truncated, skipped = [], 0, 0, False, 0
+    try:
+        if type(max_matches) is not int or not 1 <= max_matches <= 100:
+            raise ValueError("max_matches must be in 1..100")
+        if type(context) is not int or not 0 <= context <= 5:
+            raise ValueError("context must be in 0..5")
+        if not isinstance(pattern, str) or len(pattern) > 1024:
+            raise ValueError("pattern must be at most 1024 characters")
+        expression = re.compile(pattern)
+        files, truncated = _files(_path(path))
+        for file in files:
+            remaining = MAX_TOTAL_BYTES - used_bytes
+            if remaining <= 0:
+                truncated = True
+                break
+            limit = min(MAX_BYTES, remaining)
+            try:
+                text, partial, count = _text(file, limit)
+            except (OSError, UnicodeError, ValueError):
+                used_bytes += limit + 1
+                skipped += 1
+                truncated = True
+                continue
+            used_bytes += count
+            truncated |= partial
+            lines = text.splitlines()
+            for index, line in enumerate(lines):
+                truncated |= len(line) > MAX_LINE_CHARS
+                if not expression.search(line[:MAX_LINE_CHARS]):
+                    continue
+                excerpt = "".join(
+                    f"{i + 1}:{lines[i][:MAX_LINE_CHARS]}\n"
+                    for i in range(max(0, index - context), min(len(lines), index + context + 1))
+                )
+                remaining_chars = MAX_CHARS - used_chars
+                if len(excerpt) > remaining_chars:
+                    excerpt = excerpt[:remaining_chars]
+                    truncated = True
+                matches.append({"file": str(file), "line": index + 1, "context": excerpt})
+                used_chars += len(excerpt)
+                if len(matches) >= max_matches or used_chars >= MAX_CHARS:
+                    return {
+                        "matches": matches,
+                        "truncated": True,
+                        "skipped_files": skipped,
+                        "error": None,
+                    }
+        return {"matches": matches, "truncated": truncated, "skipped_files": skipped, "error": None}
+    except (OSError, UnicodeError, ValueError, TypeError) as exc:
+        return {"matches": matches, "truncated": True, "skipped_files": skipped, "error": str(exc)}
 
 
 def check_output(file, expected_format="auto"):
-    """Check existence, true UTF-8 parseability, and schema shape. Never scores or writes."""
-    p = str(file)
-    res = {"file": p, "exists": False, "is_regular_file": False, "size_bytes": 0, "format": expected_format, "valid": False, "parse_error": None, "summary": None}
-    if os.path.islink(p): return {**res, "parse_error": f"Symlinks are not supported: {p}"}
-    if not os.path.exists(p): return {**res, "parse_error": f"File does not exist: {p}"}
-    res["exists"] = True
-    if not os.path.isfile(p): return {**res, "parse_error": f"Path exists but is not a regular file: {p}"}
-    res["is_regular_file"] = True
+    """Check complete UTF-8/JSON parseability only; never score task correctness."""
     try:
-        res["size_bytes"] = os.path.getsize(p)
-        if res["size_bytes"] > MAX_FILE_BYTES: return {**res, "parse_error": f"File exceeds maximum size ({MAX_FILE_BYTES} bytes)"}
-        with open(p, "rb") as raw_f: raw_bytes = raw_f.read(MAX_FILE_BYTES + 1)
-        if len(raw_bytes) > MAX_FILE_BYTES: return {**res, "parse_error": f"File exceeds maximum size ({MAX_FILE_BYTES} bytes)"}
-        text = raw_bytes.decode("utf-8")
-        if expected_format == "json" or (expected_format == "auto" and (p.endswith(".json") or text.strip().startswith(("{", "[")))):
-            data = json.loads(text)
-            res.update({"format": "json", "valid": True})
-            if isinstance(data, dict): res["summary"] = {"type": "object", "keys": sorted(data.keys())[:20], "num_keys": len(data)}
-            elif isinstance(data, list): res["summary"] = {"type": "array", "length": len(data)}
-            else: res["summary"] = {"type": type(data).__name__, "value": repr(data)[:100]}
+        if expected_format not in {"auto", "json", "text"}:
+            raise ValueError("format must be auto, json, or text")
+        path = _path(file)
+        text, truncated, _ = _text(path)
+        if truncated:
+            raise ValueError("file exceeds complete validation byte limit")
+        kind = (
+            "json"
+            if expected_format == "json" or (expected_format == "auto" and path.suffix == ".json")
+            else "text"
+        )
+
+        def reject_constant(value):
+            raise ValueError(f"non-JSON numeric constant: {value}")
+
+        if kind == "json":
+            value = json.loads(text, parse_constant=reject_constant)
+            shape = type(value).__name__
         else:
-            res.update({"format": "text", "valid": True, "summary": {"lines": len(text.splitlines()), "chars": len(text)}})
-        return res
-    except UnicodeDecodeError as ude: return {**res, "parse_error": f"UTF-8 decode failure: {ude}"}
-    except json.JSONDecodeError as jde: return {**res, "valid": False, "parse_error": f"JSON parse error: {jde}"}
-    except OSError as exc: return {**res, "parse_error": f"Error reading file: {exc}"}
+            shape = "text"
+        return {
+            "valid": True,
+            "format": kind,
+            "shape": shape,
+            "task_correctness": "not_checked",
+            "error": None,
+        }
+    except (OSError, UnicodeError, ValueError, TypeError) as exc:
+        return {"valid": False, "task_correctness": "not_checked", "error": str(exc)}
 
 
-def _build_cli():
-    p = argparse.ArgumentParser(prog="repl_tools", description="Bounded inspection & output checking.")
-    sub = p.add_subparsers(dest="subcommand")
-    r = sub.add_parser("read")
-    r.add_argument("file"); r.add_argument("--start", type=int, default=1); r.add_argument("--end", type=int, default=None); r.add_argument("--max-chars", type=int, default=DEFAULT_MAX_CHARS)
-    g = sub.add_parser("grep")
-    g.add_argument("pattern"); g.add_argument("path", nargs="?", default="."); g.add_argument("--max-matches", type=int, default=DEFAULT_MAX_MATCHES); g.add_argument("--context", "-C", type=int, default=DEFAULT_CONTEXT)
-    c = sub.add_parser("check")
-    c.add_argument("file"); c.add_argument("--format", choices=["auto", "json", "text"], default="auto")
-    return p
-
-
-def main(argv=None):
-    parser = _build_cli()
-    args = parser.parse_args(argv)
-    if not args.subcommand:
-        parser.print_help(sys.stderr); return 1
-    if args.subcommand == "read":
-        res = read_window(args.file, start=args.start, end=args.end, max_chars=args.max_chars)
-        if res["error"]: sys.stderr.write(f"Error: {res['error']}\n"); return 2
-        sys.stdout.write(res["content"])
-        if res["truncated"]: sys.stderr.write("\n[Note: truncated by max_chars]\n")
-        return 0
-    if args.subcommand == "grep":
-        res = smart_grep(args.pattern, path=args.path, max_matches=args.max_matches, context=args.context)
-        if res["error"]: sys.stderr.write(f"Error: {res['error']}\n"); return 2
-        for m in res["matches"]:
-            sep = "" if m["context"].endswith("\n") else "\n"
-            sys.stdout.write(f"--- {m['file']}:{m['line']} ---\n{m['context']}{sep}")
-        if res["truncated"]:
-            sys.stderr.write(f"\n[Note: truncated at {len(res['matches'])} matches; total: {res['total_matches']}]\n")
-        return 0 if res["total_matches"] > 0 else 1
-    if args.subcommand == "check":
-        res = check_output(args.file, expected_format=args.format)
-        sys.stdout.write(json.dumps(res, indent=2) + "\n")
-        return 0 if res["valid"] else 1
-    return 1
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+    read = commands.add_parser("read")
+    read.add_argument("file")
+    read.add_argument("--start", type=int, default=1)
+    read.add_argument("--end", type=int)
+    read.add_argument("--max-chars", type=int, default=MAX_CHARS)
+    grep = commands.add_parser("grep")
+    grep.add_argument("pattern")
+    grep.add_argument("path", nargs="?", default=".")
+    grep.add_argument("--max-matches", type=int, default=20)
+    grep.add_argument("--context", type=int, default=2)
+    check = commands.add_parser("check")
+    check.add_argument("file")
+    check.add_argument("--format", choices=["auto", "json", "text"], default="auto")
+    args = vars(parser.parse_args())
+    command = args.pop("command")
+    if command == "check":
+        args["expected_format"] = args.pop("format")
+    result = {"read": read_window, "grep": smart_grep, "check": check_output}[command](**args)
+    print(json.dumps(result, ensure_ascii=False))
+    return 1 if result.get("error") else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

@@ -9,7 +9,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import os
-import shutil
+import stat
 from pathlib import Path
 from typing import Any
 
@@ -91,15 +91,11 @@ def validate_toolbox_code(source: str) -> None:
         raise ValueError(f"toolbox syntax error: {exc}") from exc
 
     callables = {
-        node.name
-        for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
     missing = TOOLBOX_REQUIRED_CALLABLES - callables
     if missing:
-        raise ValueError(
-            f"toolbox source missing required callables: {sorted(missing)}"
-        )
+        raise ValueError(f"toolbox source missing required callables: {sorted(missing)}")
 
 
 def validate_toolbox_source(
@@ -108,56 +104,32 @@ def validate_toolbox_source(
     *,
     repo_root: Path | None = None,
 ) -> tuple[bytes, str]:
-    """Validate a toolbox source file on disk without host execution.
-
-    Verifies that the file:
-    1. Is not a symlink.
-    2. Exists and is a regular file.
-    3. Has a '.py' extension.
-    4. Does not escape repo_root if provided.
-    5. Is within TOOLBOX_MAX_BYTES and decodes as valid UTF-8.
-    6. Passes validate_toolbox_code.
-    7. Matches expected_sha256 if provided.
-
-    Returns:
-        tuple[bytes, str]: (raw_bytes, computed_sha256_digest)
-    """
+    """Read bounded, non-symlink source bytes without importing candidate code."""
     path = Path(source_path)
-    if path.is_symlink():
-        raise ValueError(f"toolbox source path must not be a symlink: {source_path}")
-    if not path.exists():
-        raise ValueError(f"toolbox source file does not exist: {source_path}")
-    if not path.is_file():
-        raise ValueError(f"toolbox source path is not a regular file: {source_path}")
     if path.suffix != ".py":
-        raise ValueError(f"toolbox source must have a .py extension: {source_path}")
-
-    if repo_root is not None:
-        root_resolved = repo_root.resolve()
-        path_resolved = path.resolve()
-        if path_resolved != root_resolved and root_resolved not in path_resolved.parents:
-            raise ValueError(f"toolbox path escapes repository root: {source_path}")
-
-    raw_bytes = path.read_bytes()
-    if len(raw_bytes) > TOOLBOX_MAX_BYTES:
-        raise ValueError(
-            f"toolbox source exceeds maximum allowed size ({TOOLBOX_MAX_BYTES} bytes): "
-            f"{len(raw_bytes)} bytes"
-        )
+        raise ValueError("toolbox source must have a .py extension")
+    if any(part.is_symlink() for part in (path, *path.parents)):
+        raise ValueError("toolbox source path must not be a symlink")
+    if repo_root is not None and not path.resolve().is_relative_to(repo_root.resolve()):
+        raise ValueError("toolbox path escapes repository root")
     try:
-        source_text = raw_bytes.decode("utf-8")
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, "rb") as stream:
+            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                raise ValueError("toolbox source must be a regular file")
+            raw_bytes = stream.read(TOOLBOX_MAX_BYTES + 1)
+    except OSError as exc:
+        raise ValueError(f"toolbox source unavailable: {exc}") from exc
+    if len(raw_bytes) > TOOLBOX_MAX_BYTES:
+        raise ValueError("toolbox source exceeds maximum allowed size")
+    try:
+        validate_toolbox_code(raw_bytes.decode("utf-8"))
     except UnicodeDecodeError as exc:
-        raise ValueError(f"toolbox source must be valid UTF-8: {exc}") from exc
-
-    validate_toolbox_code(source_text)
-
-    actual_sha256 = f"sha256:{hashlib.sha256(raw_bytes).hexdigest()}"
-    if expected_sha256 is not None and actual_sha256 != expected_sha256:
-        raise ValueError(
-            f"toolbox digest mismatch: expected {expected_sha256}, got {actual_sha256}"
-        )
-
-    return raw_bytes, actual_sha256
+        raise ValueError("toolbox source must be valid UTF-8") from exc
+    digest = "sha256:" + hashlib.sha256(raw_bytes).hexdigest()
+    if expected_sha256 is not None and digest != expected_sha256:
+        raise ValueError("toolbox digest mismatch")
+    return raw_bytes, digest
 
 
 def stage_toolbox(
@@ -178,42 +150,22 @@ def stage_toolbox(
     raw_bytes, actual_sha256 = validate_toolbox_source(
         source_path, expected_sha256, repo_root=repo_root
     )
-    hex_digest = actual_sha256.removeprefix("sha256:")
-    bundle_dir = staging_root / f"sha256-{hex_digest}" / TOOLBOX_SKILL_NAME
-    bundle_dir.mkdir(parents=True, exist_ok=True)
-
-    descriptor_path = bundle_dir / TOOLBOX_DESCRIPTOR_NAME
-    script_path = bundle_dir / TOOLBOX_SCRIPT_NAME
-
-    descriptor_bytes = TOOLBOX_SKILL_MD.encode("utf-8")
-    descriptor_path.write_bytes(descriptor_bytes)
-    script_path.write_bytes(raw_bytes)
-
-    # Make files read-only to ensure immutability
-    os.chmod(descriptor_path, 0o444)
-    os.chmod(script_path, 0o444)
-
-    skill_digest = compute_skill_digest(bundle_dir)
-
-    metadata: dict[str, Any] = {
+    bundle_dir = staging_root / actual_sha256.removeprefix("sha256:") / TOOLBOX_SKILL_NAME
+    _retain_bundle(
+        bundle_dir,
+        {
+            TOOLBOX_DESCRIPTOR_NAME: TOOLBOX_SKILL_MD.encode("utf-8"),
+            TOOLBOX_SCRIPT_NAME: raw_bytes,
+        },
+    )
+    return bundle_dir, {
         "schema_version": 1,
         "skill_name": TOOLBOX_SKILL_NAME,
-        "script_name": TOOLBOX_SCRIPT_NAME,
-        "descriptor_name": TOOLBOX_DESCRIPTOR_NAME,
         "container_path": TOOLBOX_CONTAINER_PATH,
         "artifact_path": TOOLBOX_JOB_RELATIVE_PATH,
-        "toolbox_path": str(source_path),
-        "toolbox_sha256": actual_sha256,
         "sha256": actual_sha256,
-        "content_digest": actual_sha256,
-        "skill_digest": skill_digest,
-        "byte_count": len(raw_bytes),
-        "artifact_bytes": raw_bytes.decode("utf-8"),
-        "skill_descriptor": TOOLBOX_SKILL_MD,
-        "staged_bundle_path": str(bundle_dir),
+        "skill_digest": compute_skill_digest(bundle_dir),
     }
-
-    return bundle_dir, metadata
 
 
 def retain_toolbox_evidence(
@@ -221,20 +173,33 @@ def retain_toolbox_evidence(
     staged_bundle: Path,
     metadata: dict[str, Any],
 ) -> Path:
-    """Retain the staged toolbox skill bundle under the job directory for CAS evidence.
+    """Retain the exact executed skill bytes, never reconstruct them from metadata."""
+    if compute_skill_digest(staged_bundle) != metadata["skill_digest"]:
+        raise ValueError("staged toolbox changed before evidence retention")
+    files = {
+        name: (staged_bundle / name).read_bytes()
+        for name in (TOOLBOX_DESCRIPTOR_NAME, TOOLBOX_SCRIPT_NAME)
+    }
+    if "sha256:" + hashlib.sha256(files[TOOLBOX_SCRIPT_NAME]).hexdigest() != metadata["sha256"]:
+        raise ValueError("staged Python bytes differ from approved toolbox")
+    target = job_dir / "toolbox" / TOOLBOX_SKILL_NAME
+    _retain_bundle(target, files)
+    return target
 
-    Copies the descriptor and script into `job_dir / "toolbox" / "repl-tools"`
-    and marks them read-only.
-    """
-    target_dir = job_dir / "toolbox" / TOOLBOX_SKILL_NAME
-    target_dir.mkdir(parents=True, exist_ok=True)
-    target_descriptor = target_dir / TOOLBOX_DESCRIPTOR_NAME
-    target_script = target_dir / TOOLBOX_SCRIPT_NAME
 
-    target_descriptor.write_text(metadata.get("skill_descriptor", TOOLBOX_SKILL_MD), encoding="utf-8")
-    target_script.write_text(metadata.get("artifact_bytes", ""), encoding="utf-8")
-
-    os.chmod(target_descriptor, 0o444)
-    os.chmod(target_script, 0o444)
-
-    return target_dir
+def _retain_bundle(directory: Path, files: dict[str, bytes]) -> None:
+    if any(path.is_symlink() for path in (directory, *directory.parents)):
+        raise ValueError("toolbox bundle path must not be a symlink")
+    if directory.exists():
+        if {path.name for path in directory.iterdir()} != set(files):
+            raise ValueError("immutable toolbox bundle has unexpected files")
+        for name, data in files.items():
+            path = directory / name
+            if path.is_symlink() or not path.is_file() or path.read_bytes() != data:
+                raise ValueError("immutable toolbox bundle content mismatch")
+        return
+    directory.mkdir(parents=True)
+    for name, data in files.items():
+        with (directory / name).open("xb") as stream:
+            stream.write(data)
+        (directory / name).chmod(0o444)

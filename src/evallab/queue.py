@@ -31,10 +31,10 @@ from evallab.eventlog import event_log_lock, read_event_log_lines
 from evallab.evidence.atif import IngestProjectionResult, ingest_and_project
 from evallab.evidence_store import EvidenceArchive, archive_evidence
 from evallab.execution_contracts import (
-    DispatchCapacity,
-    PaidRunAuthorization,
     ZAI_OPENCODE_AGENT,
     ZAI_OPENCODE_MODEL_SELECTORS,
+    DispatchCapacity,
+    PaidRunAuthorization,
     is_lease_generation,
     load_policy,
     new_ulid,
@@ -2009,17 +2009,12 @@ class Executor:
                 f"preamble {spec.extra_instruction_path!r} no longer matches "
                 f"declared digest {declared_preamble_hash}",
             )
-        toolbox_path = (
-            self._safe_repo_path(spec.toolbox_path)
-            if spec.toolbox_path
-            else None
-        )
+        toolbox_path = self.repo_root / spec.toolbox_path if spec.toolbox_path else None
         if bool(toolbox_path) != bool(spec.toolbox_sha256):
             raise ExecutionFailure(
                 "toolbox_pair_required",
                 "toolbox_path and toolbox_sha256 must be provided together",
             )
-        staged_toolbox_skill = None
         if toolbox_path is not None:
             if toolbox_path.is_symlink():
                 raise ExecutionFailure(
@@ -2033,7 +2028,6 @@ class Executor:
                 )
             from evallab.toolbox import (
                 TOOLBOX_SUPPORTED_AGENTS,
-                stage_toolbox,
                 validate_toolbox_source,
             )
 
@@ -2056,25 +2050,15 @@ class Executor:
                     "toolbox execution requires environment='docker'",
                 )
             try:
-                validate_toolbox_source(
-                    toolbox_path, spec.toolbox_sha256, repo_root=self.repo_root
-                )
+                validate_toolbox_source(toolbox_path, spec.toolbox_sha256, repo_root=self.repo_root)
             except ValueError as exc:
                 raise ExecutionFailure("toolbox_validation_failed", str(exc)) from exc
 
-            staging_root = jobs_dir / ".toolbox-staging"
-            staged_toolbox_skill, _ = stage_toolbox(
-                toolbox_path,
-                spec.toolbox_sha256,
-                staging_root=staging_root,
-                repo_root=self.repo_root,
-            )
         request = RunRequest(
             task=task_path,
             extra_instruction_path=extra_instruction_path,
             toolbox_path=toolbox_path,
             toolbox_sha256=spec.toolbox_sha256,
-            skill=staged_toolbox_skill,
             agent=spec.agent,
             name=spec.name,
             jobs_dir=jobs_dir,

@@ -687,6 +687,7 @@ def test_toolbox_path_cannot_escape_the_repository(escape):
             toolbox_sha256="sha256:" + "a" * 64,
         )
 
+
 def test_factor_provenance_schema_migrates_preexisting_fact_table_additively() -> None:
     schema = (Path(__file__).parents[1] / "sql" / "schema.sql").read_text()
     columns = (

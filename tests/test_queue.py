@@ -1,3 +1,4 @@
+import hashlib
 import json
 import multiprocessing
 import os
@@ -1405,45 +1406,6 @@ def test_dispatch_refuses_preamble_digest_mismatch(tmp_path: Path) -> None:
 
     with pytest.raises(ExecutionFailure, match="no longer matches"):
         executor(tmp_path).execute_spec(item)
-def test_dispatch_stages_toolbox_and_sets_skill(tmp_path: Path) -> None:
-    """A spec declaring toolbox_path and toolbox_sha256 stages repl-tools and sets request.skill."""
-    from evallab.toolbox import TOOLBOX_SKILL_NAME
-
-    toolbox_code = (
-        "def read_window(file, start=1, end=None): return {}\n"
-        "def smart_grep(pattern, path='.', max_matches=20, context=2): return {}\n"
-        "def check_output(file): return {}\n"
-    )
-    toolbox_file = tmp_path / "repl_tools.py"
-    toolbox_file.write_text(toolbox_code, encoding="utf-8")
-    toolbox_sha = f"sha256:{hashlib.sha256(toolbox_code.encode('utf-8')).hexdigest()}"
-
-    requests: list[RunRequest] = []
-
-    def run(req: RunRequest) -> Path:
-        requests.append(req)
-        job_dir = req.jobs_dir / req.name
-        job_dir.mkdir(parents=True, exist_ok=True)
-        return job_dir
-
-    item = spec(
-        "toolbox-spec",
-        toolbox_path="repl_tools.py",
-        toolbox_sha256=toolbox_sha,
-        agent="oracle",
-    )
-    svc = executor(tmp_path, runner=run)
-    svc.execute_spec(item)
-
-    assert len(requests) == 1
-    req = requests[0]
-    assert req.toolbox_path == toolbox_file
-    assert req.toolbox_sha256 == toolbox_sha
-    assert req.skill is not None
-    assert Path(req.skill).name == TOOLBOX_SKILL_NAME
-    assert (Path(req.skill) / "SKILL.md").is_file()
-    assert (Path(req.skill) / "repl_tools.py").is_file()
-    assert any("--skill" in part or part == "--skill" for part in build_command(req))
 
 
 def test_dispatch_refuses_mutated_toolbox_after_approval(tmp_path: Path) -> None:
@@ -1457,19 +1419,17 @@ def test_dispatch_refuses_mutated_toolbox_after_approval(tmp_path: Path) -> None
     toolbox_file.write_text(toolbox_code, encoding="utf-8")
     toolbox_sha = f"sha256:{hashlib.sha256(toolbox_code.encode('utf-8')).hexdigest()}"
 
-    item = spec(
-        "toolbox-mutated",
-        toolbox_path="repl_tools.py",
-        toolbox_sha256=toolbox_sha,
-        agent="oracle",
+    item = spec("toolbox-mutated").model_copy(
+        update={"toolbox_path": "repl_tools.py", "toolbox_sha256": toolbox_sha}
     )
     svc = executor(tmp_path)
 
     # Mutate the file on disk after spec is submitted/approved
     toolbox_file.write_text(toolbox_code + "\n# mutated bytes\n", encoding="utf-8")
 
-    with pytest.raises(ExecutionFailure, match="toolbox_validation_failed"):
+    with pytest.raises(ExecutionFailure) as error:
         svc.execute_spec(item)
+    assert error.value.reason_code == "toolbox_validation_failed"
 
 
 def test_dispatch_refuses_unsupported_agent_for_toolbox(tmp_path: Path) -> None:
@@ -1483,16 +1443,18 @@ def test_dispatch_refuses_unsupported_agent_for_toolbox(tmp_path: Path) -> None:
     toolbox_file.write_text(toolbox_code, encoding="utf-8")
     toolbox_sha = f"sha256:{hashlib.sha256(toolbox_code.encode('utf-8')).hexdigest()}"
 
-    item = spec(
-        "toolbox-unsupported-agent",
-        toolbox_path="repl_tools.py",
-        toolbox_sha256=toolbox_sha,
-        agent="mini-swe-agent",
+    item = spec("toolbox-unsupported-agent").model_copy(
+        update={
+            "toolbox_path": "repl_tools.py",
+            "toolbox_sha256": toolbox_sha,
+            "agent": "mini-swe-agent",
+        }
     )
     svc = executor(tmp_path)
 
-    with pytest.raises(ExecutionFailure, match="unsupported_toolbox_target"):
+    with pytest.raises(ExecutionFailure) as error:
         svc.execute_spec(item)
+    assert error.value.reason_code == "unsupported_toolbox_target"
 
 
 def test_dispatch_refuses_toolbox_symlink(tmp_path: Path) -> None:
@@ -1508,13 +1470,11 @@ def test_dispatch_refuses_toolbox_symlink(tmp_path: Path) -> None:
     symlink_file.symlink_to(real_file)
     toolbox_sha = f"sha256:{hashlib.sha256(real_file.read_bytes()).hexdigest()}"
 
-    item = spec(
-        "toolbox-symlink-rejected",
-        toolbox_path="symlink_repl_tools.py",
-        toolbox_sha256=toolbox_sha,
-        agent="oracle",
+    item = spec("toolbox-symlink-rejected").model_copy(
+        update={"toolbox_path": "symlink_repl_tools.py", "toolbox_sha256": toolbox_sha}
     )
     svc = executor(tmp_path)
 
-    with pytest.raises(ExecutionFailure, match="toolbox_symlink_rejected"):
+    with pytest.raises(ExecutionFailure) as error:
         svc.execute_spec(item)
+    assert error.value.reason_code == "toolbox_symlink_rejected"

@@ -778,7 +778,7 @@ def validate_request(request: RunRequest) -> None:
     if request.model and not request.allow_billable:
         raise ValueError("A model requires --allow-billable")
     if request.toolbox_path is not None or request.toolbox_sha256 is not None:
-        if bool(request.toolbox_path) != bool(request.toolbox_sha256):
+        if request.toolbox_path is None or request.toolbox_sha256 is None:
             raise ValueError("toolbox_path and toolbox_sha256 must be provided together")
         if request.agent not in {"oracle", "nop", ZAI_OPENCODE_AGENT}:
             raise ValueError(
@@ -793,12 +793,10 @@ def validate_request(request: RunRequest) -> None:
                 )
         if request.environment != "docker":
             raise ValueError("toolbox execution requires environment='docker'")
-        repl_tools_skills = [
-            s for s in request.resolved_skills if Path(s).name == "repl-tools"
-        ]
-        if len(repl_tools_skills) > 1:
-            raise ValueError("Conflicting multiple repl-tools skill bundles in resolved_skills")
+        if request.resolved_skills:
+            raise ValueError("toolbox artifact cannot be combined with other skill sources")
         from evallab.toolbox import validate_toolbox_source
+
         validate_toolbox_source(request.toolbox_path, request.toolbox_sha256)
 
 

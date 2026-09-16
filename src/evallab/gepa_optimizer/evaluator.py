@@ -70,9 +70,10 @@ from evallab.registry import task_directory_digest
 from evallab.results import JobRecord, load_job
 from evallab.runner import CONTROL_AGENTS, RunRequest, profile_for_request, resolve_harbor_model
 from evallab.schemas import CohortComparisonSpec, CohortSelector, ExperimentSpec, RunProvenance
+from evallab.toolbox import validate_toolbox_code
 
 from .budget import AggregateBudget
-from .feedback import build_feedback
+from .feedback import build_feedback, validate_oracle_reference
 
 PERMITTED_CONTROLS = frozenset({"oracle", "nop"})
 DEEPSEEK_TARGET_AGENT = "mini-swe-agent"
@@ -230,6 +231,7 @@ class EvaluationRecord:
     trial_id: str | None
     trial_name: str | None
     evaluated_at: str
+    candidate_kind: str = "instructions"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -327,12 +329,24 @@ def validate_example_dict(repo_root: Path, example: dict[str, Any]) -> dict[str,
             f"Task package digest mismatch for {task_id}: declared {declared_digest}, computed {computed_digest}"
         )
 
-    return {
+    validated: dict[str, Any] = {
         "task_id": str(task_id),
         "task_path": str(task_path_str),
         "task_package_digest": str(declared_digest),
         "split": "development",
     }
+    if "oracle_reference" in example:
+        reference = example["oracle_reference"]
+        if (
+            not isinstance(reference, dict)
+            or set(reference) != {"trial_path", "result_sha256", "task_package_digest"}
+            or reference.get("task_package_digest") != declared_digest
+            or not all(isinstance(value, str) for value in reference.values())
+        ):
+            raise ExampleDeclarationError("Oracle reference must bind this development package")
+        validated["oracle_reference"] = copy.deepcopy(reference)
+        validate_oracle_reference(repo_root, Path(task_path_str), reference)
+    return validated
 
 
 def _check_job_provenance(
@@ -344,6 +358,7 @@ def _check_job_provenance(
     expected_package_digest: str,
     expected_candidate_sha256: str,
     expected_ceilings: ProviderCeilings | None = None,
+    candidate_kind: str = "instructions",
 ) -> bool:
     """Bind the single native trial to its recorded request and fixed profile."""
     locked_trials = job.lock.get("trials")
@@ -355,7 +370,10 @@ def _check_job_provenance(
         if not isinstance(locked, dict):
             return False
         extras = locked.get("extra_instructions", [])
-        if len(extras) != 1 or extras[0].get("digest") != expected_candidate_sha256:
+        if candidate_kind == "instructions":
+            if len(extras) != 1 or extras[0].get("digest") != expected_candidate_sha256:
+                return False
+        elif extras:
             return False
         agent = locked.get("agent")
         if not isinstance(agent, dict) or agent.get("model_name") != resolve_harbor_model(
@@ -387,8 +405,32 @@ def _check_job_provenance(
         return False
     if exp.get("package_digest") != expected_package_digest:
         return False
-    if exp.get("preamble_sha256") != expected_candidate_sha256:
+    identity_field = "toolbox_sha256" if candidate_kind == "python_toolbox" else "preamble_sha256"
+    if exp.get(identity_field) != expected_candidate_sha256:
         return False
+    if candidate_kind == "python_toolbox":
+        toolbox = job.metadata.get("toolbox", {})
+        relative = toolbox.get("artifact_path")
+        if not isinstance(relative, str) or Path(relative).is_absolute():
+            return False
+        artifact = job.path / relative
+        if artifact.is_symlink() or not artifact.resolve().is_relative_to(job.path.resolve()):
+            return False
+        if (
+            not artifact.is_file()
+            or "sha256:" + hashlib.sha256(artifact.read_bytes()).hexdigest()
+            != expected_candidate_sha256
+            or toolbox.get("sha256") != expected_candidate_sha256
+        ):
+            return False
+        for locked in (locked_trials[0], job.trials[0].lock):
+            skills = locked["agent"].get("skills", [])
+            if len(skills) != 1 or not isinstance(skills[0], dict):
+                return False
+            if skills[0].get("name") != "repl-tools" or skills[0].get("digest") != toolbox.get(
+                "skill_digest"
+            ):
+                return False
     if expected_ceilings is not None:
         # The runner persists the enforced ceilings in the DeepSeek accounting
         # report (metadata provider_usage.limits). A missing or differing
@@ -448,6 +490,7 @@ class LabEvaluator:
         approved_candidate_ids: frozenset[str] | None = None,
         feedback_max_chars: int = 24000,
         budgets: tuple[AggregateBudget, ...] = (),
+        candidate_kind: str = "instructions",
     ) -> None:
         self.repo_root = Path(repo_root).resolve()
         self.output_dir = _validate_in_repo_dir(self.repo_root, Path(output_dir), "output_dir")
@@ -470,6 +513,9 @@ class LabEvaluator:
         self.approved_candidate_ids = approved_candidate_ids
         self.feedback_max_chars = feedback_max_chars
         self.budgets = budgets
+        if candidate_kind not in {"instructions", "python_toolbox"}:
+            raise ValueError("Unsupported candidate_kind")
+        self.candidate_kind = candidate_kind
         if ceilings is not None and self.agent not in {DEEPSEEK_TARGET_AGENT, "zai-opencode"}:
             raise ValueError(f"the {self.agent} target does not accept provider ceilings")
 
@@ -531,7 +577,8 @@ class LabEvaluator:
         candidate_sha256 = f"sha256:{hashlib.sha256(candidate_bytes).hexdigest()}"
         digest_hex = candidate_sha256.split(":", 1)[-1]
 
-        local_candidate_file = self.output_dir / "candidates" / f"{digest_hex}.txt"
+        suffix = ".py" if self.candidate_kind == "python_toolbox" else ".txt"
+        local_candidate_file = self.output_dir / "candidates" / f"{digest_hex}{suffix}"
         if local_candidate_file.is_symlink():
             raise ValueError("Candidate files must not be symlinks")
         if local_candidate_file.exists():
@@ -586,6 +633,7 @@ class LabEvaluator:
             trial_id=trial_id,
             trial_name=trial_name,
             evaluated_at=datetime.now(UTC).isoformat(),
+            candidate_kind=self.candidate_kind,
         )
         self._records.append(record)
 
@@ -750,6 +798,7 @@ class LabEvaluator:
                 task_path=Path(example["task_path"]),
                 trial_path=trial.path,
                 max_chars=self.feedback_max_chars,
+                oracle_reference=example.get("oracle_reference"),
             )
             if trial is not None
             else {"feedback": "No trial evidence available."}
@@ -785,7 +834,7 @@ class LabEvaluator:
         return score, info
 
     def __call__(self, candidate: str, example: dict[str, Any]) -> tuple[float, dict[str, Any]]:
-        """Evaluate one candidate instruction string on one development example.
+        """Evaluate one retained instruction or Python toolbox artifact on development data.
 
         Returns:
             (score, info): Scalar score and diagnostic feedback dict.
@@ -815,6 +864,10 @@ class LabEvaluator:
                     f"Incoming example field '{key}' differs from immutable declared contract: "
                     f"{example.get(key)!r} != {declared[key]!r}"
                 )
+        if example.get("oracle_reference") != declared.get("oracle_reference"):
+            raise ExampleDeclarationError(
+                "Oracle reference differs from frozen development declaration"
+            )
 
         abs_task_path = (self.repo_root / declared["task_path"]).resolve()
         current_digest = task_directory_digest(abs_task_path)
@@ -829,6 +882,20 @@ class LabEvaluator:
             and candidate_sha256 not in self.approved_candidate_ids
         ):
             raise CandidateReviewRequired(candidate_sha256, local_candidate_file)
+        if self.candidate_kind == "python_toolbox":
+            try:
+                validate_toolbox_code(candidate)
+            except ValueError as exc:
+                info = {
+                    "status": "invalid_candidate",
+                    "candidate_id": candidate_sha256,
+                    "candidate_path": str(local_candidate_file),
+                    "native_trial_executed": False,
+                    "feedback": f"Python toolbox static validation failed: {exc}",
+                }
+                rejection = local_candidate_file.with_suffix(".validation.json")
+                rejection.write_text(json.dumps(info, indent=2) + "\n")
+                return 0.0, info
 
         job_name = deterministic_job_name(
             campaign_path=self._campaign_path,
@@ -877,6 +944,7 @@ class LabEvaluator:
                 expected_package_digest=declared["task_package_digest"],
                 expected_candidate_sha256=candidate_sha256,
                 expected_ceilings=self.ceilings,
+                candidate_kind=self.candidate_kind,
             ):
                 raise ProvenanceMismatchError(
                     f"Job at {exact_job_dir} exists but does not match exact candidate/task/model provenance"
@@ -896,7 +964,15 @@ class LabEvaluator:
                 name=job_name,
                 jobs_dir=self.jobs_dir,
                 model=None,
-                extra_instruction_path=local_candidate_file,
+                extra_instruction_path=local_candidate_file
+                if self.candidate_kind == "instructions"
+                else None,
+                toolbox_path=local_candidate_file
+                if self.candidate_kind == "python_toolbox"
+                else None,
+                toolbox_sha256=candidate_sha256
+                if self.candidate_kind == "python_toolbox"
+                else None,
                 timeout_seconds=self.timeout_seconds,
                 provenance=RunProvenance(
                     spec_id=f"gepa-{new_ulid()}",
@@ -904,8 +980,18 @@ class LabEvaluator:
                     task_path=declared["task_path"],
                     task_id=task_id,
                     package_digest=declared["task_package_digest"],
-                    preamble_path=rel_candidate_path,
-                    preamble_sha256=candidate_sha256,
+                    preamble_path=rel_candidate_path
+                    if self.candidate_kind == "instructions"
+                    else None,
+                    preamble_sha256=candidate_sha256
+                    if self.candidate_kind == "instructions"
+                    else None,
+                    toolbox_path=rel_candidate_path
+                    if self.candidate_kind == "python_toolbox"
+                    else None,
+                    toolbox_sha256=candidate_sha256
+                    if self.candidate_kind == "python_toolbox"
+                    else None,
                 ),
             )
             job_dir = self.executor.execute_direct(request)
@@ -918,6 +1004,7 @@ class LabEvaluator:
                 expected_package_digest=declared["task_package_digest"],
                 expected_candidate_sha256=candidate_sha256,
                 expected_ceilings=self.ceilings,
+                candidate_kind=self.candidate_kind,
             ):
                 raise ProvenanceMismatchError(
                     f"Executed job at {job_dir} failed provenance verification: recorded metadata does not match requested agent/model/task/candidate"
@@ -1011,7 +1098,7 @@ class LabEvaluator:
         spec_kwargs: dict[str, Any] = {
             "spec_id": new_ulid(),
             "name": clean_spec_name,
-            "hypothesis": f"Instruction preamble improves performance on {task_id}",
+            "hypothesis": f"{self.candidate_kind} candidate improves performance on {task_id}",
             "purpose": "elicitation",
             "task": declared["task_path"],
             "task_path": declared["task_path"],
@@ -1022,10 +1109,14 @@ class LabEvaluator:
             "timeout_seconds": self.timeout_seconds,
             "est_cost_usd": self.estimated_cost_usd,
             "submitted_by": "gepa-evaluator",
-            "extra_instruction_path": rel_candidate_path,
-            "extra_instruction_sha256": candidate_sha256,
             "jobs_dir": self.jobs_dir.relative_to(self.repo_root).as_posix(),
         }
+        if self.candidate_kind == "python_toolbox":
+            spec_kwargs.update(toolbox_path=rel_candidate_path, toolbox_sha256=candidate_sha256)
+        else:
+            spec_kwargs.update(
+                extra_instruction_path=rel_candidate_path, extra_instruction_sha256=candidate_sha256
+            )
         if self.ceilings is not None:
             spec_kwargs.update(self.ceilings.to_spec_kwargs())
         spec = ExperimentSpec(**spec_kwargs)
@@ -1140,7 +1231,9 @@ class LabEvaluator:
             schema_version=1,
             comparison_id=comparison_id,
             experiment_id="gepa-optimization",
-            declared_variable="preamble_content_sha256",
+            declared_variable="toolset_digest"
+            if self.candidate_kind == "python_toolbox"
+            else "preamble_content_sha256",
             mode="exploratory",  # exploratory, no causal claim
             reward_name="reward",
             pass_threshold=1.0,

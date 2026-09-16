@@ -1,0 +1,251 @@
+{
+  "schema_version": 1,
+  "issue": "HAR-59",
+  "status": "setup_qualified_offline_live_canary_blocked_by_prior_unknown_accounting",
+  "summary": "Implemented a genuine, contained, one-physical-request OpenCode proposer transport for released GEPA. Real CLI, broker, Python candidate, native Harbor Oracle evaluation, feedback and seed-on-tie selection were exercised together with an explicitly deterministic loopback response fixture. No live model proposal or performance win is claimed.",
+  "source": {
+    "base": "f405468f8929d9e5afed4afab9b518a2e0962eab",
+    "native_execution_commit": "cc6cf58904d3fa194061b3c33bd8da1eee4bae41",
+    "native_execution_dirty": false,
+    "runtime_source_bundle_in_group_cas": "runtime-source.bundle",
+    "later_repairs": "Process-exit cleanup race and partial-UTF8 polling repaired after native controls; final real-CLI smoke and focused regressions passed. Retained unresolved proposer accounting now stops before baseline dispatch."
+  },
+  "transport": {
+    "client": "actual OpenCode CLI",
+    "version": "1.18.9",
+    "binary_sha256": "sha256:2348bf6751a04498090b2a301afcae4ff55785e0502ba76a42acba6617f3a7ea",
+    "supported_model_selector": "zai-coding-plan/glm-5.3-flash",
+    "platform": "darwin with sandbox-exec and Command Line Tools git",
+    "provider_terms_sources": [
+      "https://docs.z.ai/devpack/tool/opencode",
+      "https://docs.z.ai/devpack/faq"
+    ],
+    "upstream_code_sources": [
+      "https://github.com/anomalyco/opencode/blob/v1.18.9/packages/opencode/src/session/llm.ts",
+      "https://github.com/anomalyco/opencode/blob/v1.18.9/packages/opencode/src/session/processor.ts"
+    ],
+    "source_correction": "Pinned AI SDK call explicitly uses input.retries ?? 0, not SDK default2. The outer session Effect.retry remains. Broker cap1 and parent failure/tool monitoring prevent a second physical upstream call; do not claim the client contains no retry code.",
+    "controls": {
+      "successful_text": "one loopback upstream request, tools empty, text returned, one reconciled usage record",
+      "upstream_html_error": "one loopback request then immediate halt; HTTP502/text-html classification retained, usage remains unresolved/reserved",
+      "forbidden_tool": "one loopback request then halt; requested shell action not executed"
+    },
+    "provider_calls": 0,
+    "offline_usage": "Synthetic usage fields come from the local fixture; token/cost figures in those protocol receipts are not observed model usage or spending."
+  },
+  "containment": {
+    "exit_code": 0,
+    "scope": "same generated Seatbelt policy with trusted Python executable and read-only Python runtime added; not candidate execution",
+    "facts": {
+      "outside_read_denied": true,
+      "outside_write_denied": true,
+      "shell_execution_denied": true,
+      "nonbroker_egress_denied": true,
+      "workspace_write_allowed": true,
+      "broker_egress_allowed": true
+    },
+    "shell_or_outside_file_created": false,
+    "model_calls": 0
+  },
+  "native_chain": {
+    "proposal_origin": "explicit loopback deterministic fixture, not LLM discovery",
+    "native_jobs": [
+      {
+        "path": "research/evidence/runs/gepa-oracle-har54-toolbox-protoc-4d85283d6869379a853979ad",
+        "trial": "gepa-oracle-har54-toolbox-protoc__U6A8NoE",
+        "candidate_id": "sha256:dc3e4589f8b8ff84e5ce81fd9f82fad3441af45afb618f47a49153f09a22ed70",
+        "native_reward": 1.0,
+        "exception": null,
+        "result_sha256": "sha256:de6e243af651673c41bfaa492088cc8efe5e82472c2d89613c25261894a9c981",
+        "artifact_probe": {
+          "numbered_window": true,
+          "grep_line": true,
+          "invalid_regex_error": true,
+          "valid_json": true,
+          "invalid_json": true,
+          "nonfinite_json": true,
+          "invalid_utf8": true,
+          "symlink_rejected": true,
+          "bounded_long_line": true,
+          "bounded_empty_tree": true,
+          "cli_execution": true,
+          "no_input_writes": true
+        }
+      },
+      {
+        "path": "research/evidence/runs/gepa-oracle-har54-toolbox-protoc-d9da1b5d31841c173c970c42",
+        "trial": "gepa-oracle-har54-toolbox-protoc__2UTweXE",
+        "candidate_id": "sha256:51501ba11255ddda2a9b4e11bc5a9fe4665d980ba0898bf549e227320db6fa9d",
+        "native_reward": 1.0,
+        "exception": null,
+        "result_sha256": "sha256:f29ef8872c63d9fb68a3921436ab7b66c1563eff2952489fbb205473375acfec",
+        "artifact_probe": {
+          "numbered_window": true,
+          "grep_line": true,
+          "invalid_regex_error": true,
+          "valid_json": true,
+          "invalid_json": true,
+          "nonfinite_json": true,
+          "invalid_utf8": true,
+          "symlink_rejected": true,
+          "bounded_long_line": true,
+          "bounded_empty_tree": true,
+          "cli_execution": true,
+          "no_input_writes": true
+        }
+      }
+    ],
+    "evaluations_including_cached_callback": 3,
+    "new_native_jobs": 2,
+    "task_package_digest": "sha256:343018b35ab8a72e7ac57c03f7267961177dbdfbae9494971bea5d644ee6701e",
+    "task_admitted": false,
+    "candidate_change": "Fixture adds only a provenance comment to competent helper seed; no functional improvement claimed. Released GEPA strips code fences/surrounding whitespace.",
+    "selected_candidate_id": "sha256:dc3e4589f8b8ff84e5ce81fd9f82fad3441af45afb618f47a49153f09a22ed70",
+    "candidate_id": "sha256:51501ba11255ddda2a9b4e11bc5a9fe4665d980ba0898bf549e227320db6fa9d",
+    "selection": "Seed retained on native1.0/1.0 tie",
+    "feedback": {
+      "journal_path": "runs/har59-setup-20260916/native-cycle/proposer/afe609d695bd009415a13160eca9ad7d00b39043bbfb798ca5ca4cb39819071f.json",
+      "journal_sha256": "sha256:4574f02bf2400dc3960eb64307fb04cf831c5870d971aa3d94a9c31114332852",
+      "oracle_heading_present": true,
+      "oracle_result_digest_present": true,
+      "helper_source_present": true,
+      "instrumentation_correction": "Native-cycle receipt oracle_contrast_present tested the nonexistent literal oracle_contrast. Actual reflection contains the Oracle Reference Contrast heading, bound reference result digest, real native state transitions and seed source. Original receipt retained unchanged.",
+      "candidate_transform": "Released GEPA output_extractor strips the enclosing fence and surrounding whitespace before validation; native candidate51501ba is the extracted source, not fixture wire-source d37c6b05."
+    },
+    "comparison_spec": "research/experiments/harness-gepa/har59-toolbox-protocol-comparison.json",
+    "public_only_replay": {
+      "validity_warnings": [],
+      "n_tasks": 1,
+      "n_pairs": 1,
+      "mean_reward_delta": 0.0,
+      "rankable": false,
+      "refusal_reasons": [
+        "only 1 paired task(s); at least 2 are required",
+        "the paired 95% interval [0.000, 0.000] includes zero"
+      ]
+    }
+  },
+  "historical_budget": {
+    "initial_tranche": {
+      "native_attempts": 32,
+      "physical_proposer_requests": 12
+    },
+    "charged_native_reservations": 30,
+    "charged_proposer_units": 6,
+    "new_live_native_trials": 0,
+    "new_live_proposer_requests": 0,
+    "refunds": 0,
+    "original_ledgers_byte_unchanged": true,
+    "numerical_global_headroom": {
+      "native_reservations": 2,
+      "proposer_units": 6
+    },
+    "tighter_active_residual_ledger": {
+      "target_cap": 15,
+      "target_reserved": 13,
+      "proposer_cap": 2,
+      "proposer_reserved": 1,
+      "proposer_estimate_cap_usd": 0.05
+    },
+    "dispatchable_live_proposals": 0,
+    "blocker": "HAR54 proposer974708 remains reserved with unknown outcome/cost. Its fail-closed halt is not bypassed by a new card/output directory or the global numerical headroom. No historical failed reservations are refunded.",
+    "ledgers": [
+      {
+        "path": ".worktrees/har53-gepa-omni-20260915/runs/har53-gepa-omni-20260915/shared-budget/aggregate_budget.json",
+        "sha256": "53dfe76905036a08cd22d4e3c3a0e60581c47f25469987d71173e4f95b1db286",
+        "limits": {
+          "max_proposer_cost_usd": 0.1,
+          "max_proposer_requests": 12,
+          "max_target_attempts": 32
+        },
+        "targets": 16,
+        "proposer_units": 4
+      },
+      {
+        "path": ".worktrees/gepa-overnight-20260916/runs/har54-overnight-20260916/shared-budget/aggregate_budget.json",
+        "sha256": "aa2b015c59493db44d41dbd532012d7e5411ae6954327376119c7cad80094b9a",
+        "limits": {
+          "max_proposer_cost_usd": 0.05,
+          "max_proposer_requests": 3,
+          "max_target_attempts": 16
+        },
+        "targets": 1,
+        "proposer_units": 1
+      },
+      {
+        "path": ".worktrees/gepa-overnight-20260916/runs/har54-overnight-20260916/residual-budget/aggregate_budget.json",
+        "sha256": "5cd4f1c225f1a7469eae3c2d7f7e3cf51db3724e569a5d32ecbfdb8209b7ebad",
+        "limits": {
+          "max_proposer_cost_usd": 0.05,
+          "max_proposer_requests": 2,
+          "max_target_attempts": 15
+        },
+        "targets": 13,
+        "proposer_units": 1
+      }
+    ]
+  },
+  "target_failures": {
+    "historical_root_cause": "Exact upstream HTTP status/body/headers were not retained; their response-type cause is irrecoverable from available evidence. Later local429 cannot establish provider quota exhaustion.",
+    "repair": "Persist bounded categorical status/content-encoding/transfer-encoding/media/charset diagnosis on rejected calls. No arbitrary headers/body retained, no protocol relaxation or regrading.",
+    "actual_new_upstream_contacts": 0
+  },
+  "omni": {
+    "live_executed": false,
+    "reachable_change": "Reject sandbox=False before launching the genuine engine; prerequisite facts no longer report fail-closed OS launch support when bwrap is absent.",
+    "remaining_blockers": [
+      "Pinned macOS Claude engine sandbox failIfUnavailable=False",
+      "Claude-engine Flash transport not wired/qualified",
+      "Subprocess physical-request metering not qualified"
+    ],
+    "gepa_independent": true
+  },
+  "verification": {
+    "focused_tests_passed": 84,
+    "focused_scope": "OpenCode transport, workflow, MetaHarness, composition, Z.ai broker",
+    "targeted_typecheck": "pass",
+    "disabled_operator_cli": "disabled, no execution",
+    "isolated_doctor": {
+      "catalog": 2,
+      "projected": 2,
+      "exceptions": 0,
+      "missing": 0,
+      "extra": 0
+    },
+    "process_exit_race": {
+      "before": {
+        "error": "ProcessLookupError",
+        "child_reaped": true
+      },
+      "after": {
+        "error": null,
+        "child_reaped": true
+      }
+    },
+    "public_promoted_native_files": 38,
+    "public_promoted_native_bytes": 310041,
+    "draft_control_labels": 2,
+    "canonical_restore": {
+      "job_id": "dc003459-768f-47be-a4f1-49237457af4d",
+      "n_trials": 1,
+      "reward": 1.0,
+      "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har59-opencode-proposer-20260916/runs/har59-native-restore-proof"
+    }
+  },
+  "retention": {
+    "group": "cas://sha256/85e6e9ee4125350effe3d4932aa9188b4471cf84292f9662e878259b0acd0173",
+    "native_jobs": [
+      "cas://sha256/7bca812b181975879ed7ca510c298f772c9d2a7fafda09bf946c0f62cc5ac1bf",
+      "cas://sha256/a7924b9ded566ce6b9fc3fa3fc37c2143a67b5523a51bcb89ef9d1a39e994758"
+    ],
+    "store": "derived/evidence-cas in primary repository",
+    "throwaway_drivers_removed_after_archive": true,
+    "raw_native_jobs_and_receipts_retained": true
+  },
+  "limits": [
+    "No live proposer, learned code change, model-task efficiency comparison or held-out benefit claimed",
+    "One unregistered native interface task; Oracle checks validate helper behavior, not model capability or benchmark quality",
+    "No new task admission, TB3/TB4 tasks, GPU/cloud spending, provider substitution, primary-checkout edit or shared-runtime adoption",
+    "RE retains independent-review, merge and runtime-adoption authority"
+  ]
+}

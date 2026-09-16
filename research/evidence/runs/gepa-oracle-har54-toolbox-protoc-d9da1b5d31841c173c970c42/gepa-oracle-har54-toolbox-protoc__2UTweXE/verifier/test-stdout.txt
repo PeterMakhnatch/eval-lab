@@ -1,0 +1,1 @@
+{"interface_probe_pass": true, "not_a_security_certificate": true}

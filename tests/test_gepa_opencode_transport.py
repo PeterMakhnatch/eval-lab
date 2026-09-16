@@ -37,3 +37,21 @@ def test_truncated_proposal_is_not_a_completed_module(tmp_path):
     )
     with pytest.raises(OpenCodeTransportError):
         parse_response(path)
+
+
+def test_live_event_monitor_preserves_partial_utf8_and_rejects_tool(tmp_path):
+    from evallab.gepa_optimizer.opencode_transport import _poll_events
+
+    path = tmp_path / "events.jsonl"
+    event = json.dumps({"type": "text", "part": {"text": "café"}}, ensure_ascii=False).encode()
+    split = event.index("é".encode()) + 1
+    path.write_bytes(event[:split])
+    offset, pending = _poll_events(path, 0, b"")
+    with path.open("ab") as stream:
+        stream.write(event[split:] + b"\n")
+    offset, pending = _poll_events(path, offset, pending)
+    assert pending == b""
+    with path.open("ab") as stream:
+        stream.write(b'{"type":"tool_use"}\n')
+    with pytest.raises(OpenCodeTransportError):
+        _poll_events(path, offset, pending)

@@ -655,6 +655,12 @@ def _run_campaign(
                 route_blocker = direct_proposer_blocker(config["proposer_model"])
                 if route_blocker:
                     raise ProposalUnavailable(route_blocker)
+        for budget in budgets:
+            proposer_state = budget.summary()["proposer"]
+            if any(proposer_state[key] for key in ("unsettled", "errors", "missing_cost_count")):
+                raise BudgetExhausted(
+                    "Retained proposer accounting is unresolved; refusing baseline dispatch"
+                )
         # Resolve the baseline target gate before any paid proposer can start.
         for example in config["examples"]:
             evaluate(seed, example)
@@ -868,6 +874,8 @@ def _run_campaign(
             if route_blocker
             else "engine_preflight_only"
             if status == "engine_unavailable"
+            else "budget_preflight_only"
+            if status == "budget_exhausted" and not records and not stage_lms
             else "real_gepa_with_local_controls_and_deterministic_proposer"
             if qualification
             else "model_search"
@@ -884,7 +892,9 @@ def _run_campaign(
             if fixture
             else (
                 0
-                if route_blocker or status == "engine_unavailable"
+                if route_blocker
+                or status == "engine_unavailable"
+                or (config["engine"] == "gepa" and not stage_lms)
                 else sum(lm.new_requests for lm in stage_lms.values())
                 if stage_lms
                 else None

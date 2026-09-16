@@ -1,0 +1,72 @@
+{
+    "schema_version": 3,
+    "created_at": "2026-09-16T22:29:55.257775Z",
+    "harbor": {
+        "version": "0.21.0",
+        "is_editable": false
+    },
+    "n_concurrent_trials": 1,
+    "retry": {
+        "max_retries": 0,
+        "exclude_exceptions": [
+            "RewardFileNotFoundError",
+            "VerifierOutputParseError",
+            "ApiUsageLimitError",
+            "RewardFileEmptyError",
+            "AgentAuthenticationError",
+            "ModelNotFoundError",
+            "AgentTimeoutError",
+            "VerifierTimeoutError",
+            "AgentSafetyRefusalError"
+        ],
+        "wait_multiplier": 1.0,
+        "min_wait_sec": 1.0,
+        "max_wait_sec": 60.0
+    },
+    "trials": [
+        {
+            "schema_version": 2,
+            "task": {
+                "name": "gepa-oracle-har54-toolbox-protoc-d9da1b5d31841c173c970c42",
+                "version": "0.0.0",
+                "type": "local",
+                "digest": "sha256:617ea2561fb3e240c13dc554b44312416614e6a742c98d77a8d9ae7dab189312",
+                "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har59-opencode-proposer-20260916/runs/.exec-stage/gepa-oracle-har54-toolbox-protoc-d9da1b5d31841c173c970c42"
+            },
+            "install_only": false,
+            "timeout_multiplier": 1.0,
+            "agent_timeout_multiplier": 2.0,
+            "agent": {
+                "name": "oracle",
+                "skills": [
+                    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har59-opencode-proposer-20260916/runs/.toolbox-staging/gepa-oracle-har54-toolbox-protoc-d9da1b5d31841c173c970c42/51501ba11255ddda2a9b4e11bc5a9fe4665d980ba0898bf549e227320db6fa9d/repl-tools"
+                ],
+                "resume_trajectory": false,
+                "extra_allowed_hosts": [],
+                "kwargs": {},
+                "mcp_servers": []
+            },
+            "skills": [
+                {
+                    "name": "repl-tools",
+                    "source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har59-opencode-proposer-20260916/runs/.toolbox-staging/gepa-oracle-har54-toolbox-protoc-d9da1b5d31841c173c970c42/51501ba11255ddda2a9b4e11bc5a9fe4665d980ba0898bf549e227320db6fa9d/repl-tools",
+                    "digest": "sha256:bb85655a34a4ff5a7bcf9ac6b526cf470efd40e2b20d417e3d29570ffbaa4155"
+                }
+            ],
+            "environment": {
+                "type": "docker",
+                "force_build": false,
+                "delete": true,
+                "cpu_enforcement_policy": "auto",
+                "memory_enforcement_policy": "auto",
+                "extra_docker_compose": [],
+                "kwargs": {},
+                "extra_allowed_hosts": []
+            },
+            "verifier": {
+                "disable": false,
+                "environment_mode": "separate"
+            }
+        }
+    ]
+}

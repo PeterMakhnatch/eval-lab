@@ -18,6 +18,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from contextlib import ExitStack, suppress
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -140,13 +141,37 @@ def parse_response(path: Path) -> str:
     return response
 
 
+def _poll_events(path: Path, offset: int, pending: bytes) -> tuple[int, bytes]:
+    """Consume only complete UTF-8 JSONL records while the child is writing."""
+    if path.stat().st_size > MAX_TRANSCRIPT_BYTES:
+        raise OpenCodeTransportError("OpenCode output limit reached")
+    with path.open("rb") as stream:
+        stream.seek(offset)
+        data = stream.read(MAX_TRANSCRIPT_BYTES - offset + 1)
+    if not data:
+        return offset, pending
+    offset += len(data)
+    if offset > MAX_TRANSCRIPT_BYTES:
+        raise OpenCodeTransportError("OpenCode output limit reached")
+    lines = (pending + data).split(b"\n")
+    for line in lines[:-1]:
+        if not line:
+            continue
+        event = json.loads(line)
+        if not isinstance(event, dict) or event.get("type") in {"tool_use", "error"}:
+            raise OpenCodeTransportError("OpenCode attempted a tool or reported an error")
+    return offset, lines[-1]
+
+
 def _stop(process: subprocess.Popen[bytes]) -> None:
     if process.poll() is None:
-        os.killpg(process.pid, signal.SIGTERM)
+        with suppress(ProcessLookupError):
+            os.killpg(process.pid, signal.SIGTERM)
         try:
             process.wait(timeout=5)
         except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGKILL)
+            with suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
             process.wait()
 
 
@@ -164,6 +189,8 @@ class OpenCodeTransport:
             raise OpenCodeTransportError("OpenCode proposer requires qualified macOS Seatbelt")
         if not self.executable.is_file():
             raise OpenCodeTransportError("Installed OpenCode executable is unavailable")
+        if not GIT_EXECUTABLE.is_file():
+            raise OpenCodeTransportError("OpenCode proposer requires Command Line Tools git")
         version = (
             subprocess.run(
                 [str(self.executable), "--version"],
@@ -300,9 +327,9 @@ class OpenCodeTransport:
             "--dir",
             str(workspace),
         ]
-        client = None
-        broker = None
-        try:
+        with ExitStack() as cleanup:
+            cleanup.callback(key_file.unlink, missing_ok=True)
+            cleanup.callback((workspace / "config.json").unlink, missing_ok=True)
             if offline_upstream is None:
                 materialize_zai_secret_file(key_file)
             else:
@@ -318,6 +345,7 @@ class OpenCodeTransport:
                     stderr=broker_log,
                     start_new_session=True,
                 )
+                cleanup.callback(_stop, broker)
                 deadline = time.monotonic() + 10
                 while True:
                     if broker.poll() is not None:
@@ -347,6 +375,8 @@ class OpenCodeTransport:
                         stderr=stderr,
                         start_new_session=True,
                     )
+                    cleanup.callback(_stop, client)
+                    event_offset, pending_event = 0, b""
                     deadline = time.monotonic() + self.timeout_seconds
                     while client.poll() is None:
                         if usage_file.is_file():
@@ -358,21 +388,13 @@ class OpenCodeTransport:
                                 raise OpenCodeTransportError(
                                     "Broker rejected the first response; no automatic retry"
                                 )
-                        if (directory / "events.jsonl").stat().st_size:
-                            events = (directory / "events.jsonl").read_text()
-                            for line in events.splitlines():
-                                try:
-                                    event = json.loads(line)
-                                except json.JSONDecodeError:
-                                    continue  # A writer may not have finished its last line.
-                                if event.get("type") in {"tool_use", "error"}:
-                                    raise OpenCodeTransportError(
-                                        "OpenCode attempted a tool or reported an error"
-                                    )
+                        if (directory / "client.log").stat().st_size > MAX_TRANSCRIPT_BYTES:
+                            raise OpenCodeTransportError("OpenCode output limit reached")
+                        event_offset, pending_event = _poll_events(
+                            directory / "events.jsonl", event_offset, pending_event
+                        )
                         if time.monotonic() >= deadline:
                             raise OpenCodeTransportError("OpenCode timed out; no automatic retry")
-                        if max(stdout.tell(), stderr.tell()) > MAX_TRANSCRIPT_BYTES:
-                            raise OpenCodeTransportError("OpenCode output limit reached")
                         time.sleep(0.1)
                     if client.returncode != 0:
                         raise OpenCodeTransportError(
@@ -406,10 +428,3 @@ class OpenCodeTransport:
                     "transport": facts,
                     "offline_control": offline_upstream is not None,
                 }
-        finally:
-            if client is not None:
-                _stop(client)
-            if broker is not None:
-                _stop(broker)
-            key_file.unlink(missing_ok=True)
-            (workspace / "config.json").unlink(missing_ok=True)

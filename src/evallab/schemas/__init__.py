@@ -304,7 +304,7 @@ class ExperimentSpec(ContractModel):
     jobs_dir: str = EXPLORATION_JOBS_ROOT
     attempts: int = Field(default=1, ge=1)
     concurrency: int = Field(default=1, ge=1)
-    timeout_seconds: int = Field(default=1_800, ge=1, le=21_600)
+    timeout_seconds: int = Field(default=1_800, ge=1, le=28_800)
     submitted_by: str = Field(min_length=1)
     priority: int = Field(default=100, ge=0, le=1000)
     est_cost_usd: float = Field(default=0.0, ge=0)
@@ -513,7 +513,7 @@ class ExperimentMatrix(ContractModel):
     environment: str = "docker"
     jobs_dir: str = EXPLORATION_JOBS_ROOT
     concurrency: int = Field(default=1, ge=1)
-    timeout_seconds: int = Field(default=1_800, ge=1, le=21_600)
+    timeout_seconds: int = Field(default=1_800, ge=1, le=28_800)
     runs: list[MatrixRun] = Field(min_length=1)
 
     # `purpose` is deliberately NOT declared here, and the asymmetry is the
@@ -2066,8 +2066,8 @@ class GridFactor(ContractModel):
                 raise ValueError(f"binding {self.binding!r} requires integer levels, got {level!r}")
             if level < 1:
                 raise ValueError(f"binding {self.binding!r} requires levels >= 1")
-            if self.binding == "timeout_seconds" and level > 21_600:
-                raise ValueError("timeout_seconds factor levels must be <= 21600")
+            if self.binding == "timeout_seconds" and level > 28_800:
+                raise ValueError("timeout_seconds factor levels must be <= 28800 (TB4 v4.0.0 official agent.timeout_sec)")
         return self
 
 
@@ -2278,7 +2278,7 @@ class GridSpec(ContractModel):
     environment: str = "docker"
     jobs_dir: str = EXPLORATION_JOBS_ROOT
     concurrency: int = Field(default=1, ge=1)
-    timeout_seconds: int = Field(default=1_800, ge=1, le=21_600)
+    timeout_seconds: int = Field(default=1_800, ge=1, le=28_800)
     submitted_by: str = Field(default="ladder-generator", min_length=1)
     priority: int = Field(default=100, ge=0, le=1000)
     hypothesis: str | None = None

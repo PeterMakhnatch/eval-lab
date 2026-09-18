@@ -143,6 +143,34 @@ DEEPSEEK_ALLOWED_AGENTS: frozenset[str] = frozenset(
     {"mini-swe-agent", "evallab.harbor_dsh:DeepSeekHarnessAgent"}
 )
 
+#: Z.ai Open Platform (standard API) selector for the mini-SWE-agent lane
+#: (HAR-62). Billed per-token on api.z.ai — never against Coding-Plan quota,
+#: whose devpack FAQ lists tools mini-SWE is absent from. Routed through the
+#: secret-safe zai-openapi proxy lane, not the coding-plan proxy.
+ZAI_OPENAPI_MODEL_SELECTOR: str = "zai/glm-5.3-flash"
+ZAI_OPENAPI_ALLOWED_AGENTS: frozenset[str] = frozenset({"mini-swe-agent"})
+
+#: TB4 tasks declaring an H100 GPU (pinned v4.0.0 manifests). Local Docker on
+#: this aarch64 host has no CUDA, so these route to a remote Harbor backend.
+TB4_GPU_TASK_REFS: frozenset[str] = frozenset(
+    {
+        "terminal-bench/fp8-rmsnorm-gemm",
+        "terminal-bench/jax-speedrun-gpu",
+        "terminal-bench/math-eval-grader",
+    }
+)
+
+#: Remote Harbor backends usable for the H100 class, with the exact credential
+#: environment variables each fails closed on. Modal is the default (24h
+#: sandbox lifetime covers the 8h agent timeout; 1 TiB free volume covers
+#: jax-speedrun-gpu's 1 TB storage). Beam and Daytona are supported alternates.
+TB4_REMOTE_ENVIRONMENTS: dict[str, tuple[str, ...]] = {
+    "modal": ("MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET"),
+    "beam": ("BEAM_TOKEN",),
+    "daytona": ("DAYTONA_API_KEY",),
+}
+TB4_DEFAULT_REMOTE_ENVIRONMENT: str = "modal"
+
 #: A task directory is one that carries both files. Harbor's own layout adds
 #: `environment/`, `tests/`, and `solution/`, but those are checked per facet
 #: rather than required for discovery, so a partial task is still recorded (with
@@ -1371,6 +1399,7 @@ def compile_tb4(
     agent: str = ZAI_DEFAULT_AGENT,
     tb3_path: Path | None = None,
     include_tasks: Sequence[str] | None = None,
+    remote_environment: str = TB4_DEFAULT_REMOTE_ENVIRONMENT,
 ) -> dict[str, Any]:
     """Compile the pinned TB4 v4.0.0 adoption lane into an executable Harbor job plan.
 
@@ -1400,11 +1429,25 @@ def compile_tb4(
         provider_family = "zai"
     elif model == DEEPSEEK_MODEL_SELECTOR and agent in DEEPSEEK_ALLOWED_AGENTS:
         provider_family = "deepseek"
+    elif model == ZAI_OPENAPI_MODEL_SELECTOR and agent in ZAI_OPENAPI_ALLOWED_AGENTS:
+        provider_family = "zai-openapi"
     else:
         raise ValueError(
             f"invalid model selector {model!r} with agent {agent!r}: model must be one of {sorted(ZAI_ALLOWED_MODELS)} "
-            f"or {DEEPSEEK_MODEL_SELECTOR!r} paired with an agent in {sorted(DEEPSEEK_ALLOWED_AGENTS)}; "
+            f"or {DEEPSEEK_MODEL_SELECTOR!r} paired with an agent in {sorted(DEEPSEEK_ALLOWED_AGENTS)} "
+            f"or {ZAI_OPENAPI_MODEL_SELECTOR!r} paired with an agent in {sorted(ZAI_OPENAPI_ALLOWED_AGENTS)}; "
             "highspeed, non-Z.ai, and unapproved DeepSeek configurations are refused at compile time (fail closed)"
+        )
+
+    # 2b. Remote backend validation for the H100 task class (fail closed).
+    # Selecting a backend here is routing representation only: it never
+    # authorizes spend, and queued execution keeps the standing
+    # cloud_or_remote_environment admission policy. The docker+GPU refusal
+    # happens after task selection (step 7) where the selected refs are known.
+    if remote_environment != "docker" and remote_environment not in TB4_REMOTE_ENVIRONMENTS:
+        raise ValueError(
+            f"invalid remote_environment {remote_environment!r}: must be 'docker' or one of "
+            f"{sorted(TB4_REMOTE_ENVIRONMENTS)} (HAR-62 backend routing)"
         )
 
     # 3. Pin validation (refuses wrong dataset, floating refs, wrong version)
@@ -1466,6 +1509,16 @@ def compile_tb4(
     else:
         selected_set = expected_set
 
+    if remote_environment == "docker":
+        gpu_selected = sorted(TB4_GPU_TASK_REFS & selected_set)
+        if gpu_selected:
+            raise ValueError(
+                "local docker cannot execute the H100 task class (no CUDA on this host): "
+                f"{gpu_selected} require a remote backend — pass a Harbor environment such as "
+                f"{TB4_DEFAULT_REMOTE_ENVIRONMENT!r} instead of silently degrading or swapping "
+                "the task (HAR-62)"
+            )
+
     # 8. Construct task entries
     task_entries: list[dict[str, Any]] = []
     current_digests: dict[str, str] = {}
@@ -1475,6 +1528,7 @@ def compile_tb4(
         task_digest_val = rec.task_digest
         current_digests[task_ref] = task_digest_val
         if task_ref in selected_set:
+            is_gpu = task_ref in TB4_GPU_TASK_REFS
             task_entries.append(
                 {
                     "task_id": task_id,
@@ -1483,6 +1537,8 @@ def compile_tb4(
                     "timeout_seconds": TB4_TIMEOUT_SECONDS,
                     "agent": agent,
                     "model": model,
+                    "environment": remote_environment if is_gpu else "docker",
+                    **({"gpu_types": ["H100"]} if is_gpu else {}),
                 }
             )
 
@@ -1521,8 +1577,8 @@ def compile_tb4(
     allowed_pairs = sorted(
         [[m, ZAI_DEFAULT_AGENT] for m in ZAI_ALLOWED_MODELS]
         + [[DEEPSEEK_MODEL_SELECTOR, a] for a in DEEPSEEK_ALLOWED_AGENTS]
+        + [[ZAI_OPENAPI_MODEL_SELECTOR, a] for a in ZAI_OPENAPI_ALLOWED_AGENTS]
     )
-
     plan: dict[str, Any] = {
         "plan_version": "tb4-job-plan/1",
         "command": "craft compile",
@@ -1552,16 +1608,34 @@ def compile_tb4(
             "provider_family": provider_family,
             "agent": agent,
             "selected_agent": agent,
-            "model_prefix": ZAI_MODEL_PREFIX,
-            "allowed_models": sorted(ZAI_ALLOWED_MODELS),
+            "model_prefix": (
+                "zai/" if provider_family == "zai-openapi" else ZAI_MODEL_PREFIX
+            ),
+            "allowed_models": sorted(ZAI_ALLOWED_MODELS | {ZAI_OPENAPI_MODEL_SELECTOR}),
             "selected_model": model,
             "allowed_pairs": allowed_pairs,
             "highspeed": "refused",
+        },
+        "environment_routing": {
+            "default": "docker",
+            "remote_for_gpu": remote_environment,
+            "gpu_task_refs": sorted(TB4_GPU_TASK_REFS),
+            "required_credentials": {
+                name: list(envs) for name, envs in TB4_REMOTE_ENVIRONMENTS.items()
+            },
+            "note": (
+                "63 CPU tasks run on local Docker Desktop; the H100 class routes to "
+                f"{remote_environment!r} (fail-closed on its credential env before dispatch). "
+                "Routing is representation only: queued execution keeps the standing "
+                "cloud_or_remote_environment admission policy, and no spend is authorized "
+                "by compilation (HAR-62)."
+            ),
         },
         "refuses": {
             "tb3_mixing": True,
             "floating_refs": True,
             "digest_drift": True,
+            "gpu_on_local_docker": True,
         },
         "manifest_digest": manifest_digest,
         "task_digests": current_digests,
@@ -1831,7 +1905,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--tb3-root",
         type=Path,
         default=None,
-        help="TB3 root, when present, to detect the removed tasks live",
+        help="TB3 root; if supplied, plan validates TB3/TB4 non-aggregation guards",
     )
     plan_parser.add_argument(
         "--ref",
@@ -1875,6 +1949,16 @@ def build_parser() -> argparse.ArgumentParser:
         type=str,
         default=ZAI_DEFAULT_AGENT,
         help=f"agent identifier for trusted-task execution (default: {ZAI_DEFAULT_AGENT})",
+    )
+    compile_parser.add_argument(
+        "--remote-environment",
+        dest="remote_environment",
+        choices=sorted([*TB4_REMOTE_ENVIRONMENTS, "docker"]),
+        default=TB4_DEFAULT_REMOTE_ENVIRONMENT,
+        help=(
+            "Harbor backend routed for the H100 task class (default: modal; "
+            "'docker' refuses GPU tasks rather than degrading them)"
+        ),
     )
     compile_parser.add_argument(
         "--include-task",
@@ -1943,6 +2027,7 @@ def _main_compile(args: argparse.Namespace) -> int:
             agent=args.agent,
             tb3_path=tb3,
             include_tasks=args.include_tasks,
+            remote_environment=args.remote_environment,
         )
     except (ValueError, RuntimeError, FileNotFoundError) as error:
         print(f"craft compile: {error}", file=sys.stderr)

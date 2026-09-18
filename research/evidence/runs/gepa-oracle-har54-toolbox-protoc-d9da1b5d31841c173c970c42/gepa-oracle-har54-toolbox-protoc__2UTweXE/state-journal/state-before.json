@@ -1,0 +1,32 @@
+{
+  "captured_at": "2026-09-16T22:29:57.510929Z",
+  "entries": [
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789543140000000000,
+      "path": ".",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789543140000000000,
+      "path": "output",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789543140000000000,
+      "path": "probes",
+      "size_bytes": 4096,
+      "type": "directory"
+    }
+  ],
+  "entry_count": 3,
+  "label": "before",
+  "root": "/app",
+  "schema_version": 1,
+  "target_pid": 2934,
+  "truncated": false
+}

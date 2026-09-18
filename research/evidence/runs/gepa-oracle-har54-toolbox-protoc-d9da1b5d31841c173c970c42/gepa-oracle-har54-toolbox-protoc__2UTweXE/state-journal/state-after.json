@@ -1,0 +1,1160 @@
+{
+  "captured_at": "2026-09-16T22:29:58.080754Z",
+  "entries": [
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789543140000000000,
+      "path": ".",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797812279013,
+      "path": "output",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797762149722,
+      "path": "probes",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "hash_status": "complete",
+      "mode": "-rw-r--r--",
+      "mtime_ns": 1789597797813194722,
+      "path": "output/probe.json",
+      "sha256": "sha256:daeef8e83797318626ee82e9340901684ad6c2d3349ba903b5bc787a97d415ed",
+      "size_bytes": 995,
+      "type": "file"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797789279013,
+      "path": "probes/empty-tree",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "hash_status": "complete",
+      "mode": "-rw-r--r--",
+      "mtime_ns": 1789597797762149722,
+      "path": "probes/bad.txt",
+      "sha256": "sha256:a8100ae6aa1940d0b663bb31cd466142ebbdbd5187131b92d93818987832eb89",
+      "size_bytes": 1,
+      "type": "file"
+    },
+    {
+      "hash_status": "complete",
+      "mode": "-rw-r--r--",
+      "mtime_ns": 1789597797761628847,
+      "path": "probes/invalid.json",
+      "sha256": "sha256:be302461cda285db3ed2d45fb767b23e08ca8808b35a638009937df22b332d73",
+      "size_bytes": 7,
+      "type": "file"
+    },
+    {
+      "mode": "lrwxrwxrwx",
+      "mtime_ns": 1789597797761654222,
+      "path": "probes/link.txt",
+      "size_bytes": 22,
+      "target": "/app/probes/sample.txt",
+      "type": "symlink"
+    },
+    {
+      "hash_status": "complete",
+      "mode": "-rw-r--r--",
+      "mtime_ns": 1789597797762048138,
+      "path": "probes/long.txt",
+      "sha256": "sha256:830b6df3b18ef78234fa0b1ffbefbe147c2d46be9a528f9765e14bdf3b704a8d",
+      "size_bytes": 600008,
+      "type": "file"
+    },
+    {
+      "hash_status": "complete",
+      "mode": "-rw-r--r--",
+      "mtime_ns": 1789597797761654222,
+      "path": "probes/nonfinite.json",
+      "sha256": "sha256:f25495433680c64f27a7a866c4e7e9708faec11fde6d27d7229655d9193db431",
+      "size_bytes": 15,
+      "type": "file"
+    },
+    {
+      "hash_status": "complete",
+      "mode": "-rw-r--r--",
+      "mtime_ns": 1789597797761568138,
+      "path": "probes/sample.txt",
+      "sha256": "sha256:a13a364b17364c42511162043ce6dd89e211b0ffe4f1299086aae6abdb3a7791",
+      "size_bytes": 24,
+      "type": "file"
+    },
+    {
+      "hash_status": "complete",
+      "mode": "-rw-r--r--",
+      "mtime_ns": 1789597797761600888,
+      "path": "probes/valid.json",
+      "sha256": "sha256:e200939d95ca03d2063c27b64eef8e2a386b152f857a0b9e75cfb601235927cd",
+      "size_bytes": 14,
+      "type": "file"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797762149722,
+      "path": "probes/empty-tree/0",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797762149722,
+      "path": "probes/empty-tree/1",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797764137263,
+      "path": "probes/empty-tree/10",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797779279013,
+      "path": "probes/empty-tree/100",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797779279013,
+      "path": "probes/empty-tree/101",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797780279013,
+      "path": "probes/empty-tree/102",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797780279013,
+      "path": "probes/empty-tree/103",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797780279013,
+      "path": "probes/empty-tree/104",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797780279013,
+      "path": "probes/empty-tree/105",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797780279013,
+      "path": "probes/empty-tree/106",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797781279013,
+      "path": "probes/empty-tree/107",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797781279013,
+      "path": "probes/empty-tree/108",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797781279013,
+      "path": "probes/empty-tree/109",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797764137263,
+      "path": "probes/empty-tree/11",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797781279013,
+      "path": "probes/empty-tree/110",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797781279013,
+      "path": "probes/empty-tree/111",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797781279013,
+      "path": "probes/empty-tree/112",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797782279013,
+      "path": "probes/empty-tree/113",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797782279013,
+      "path": "probes/empty-tree/114",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797782279013,
+      "path": "probes/empty-tree/115",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797782279013,
+      "path": "probes/empty-tree/116",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797782279013,
+      "path": "probes/empty-tree/117",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797783279013,
+      "path": "probes/empty-tree/118",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797783279013,
+      "path": "probes/empty-tree/119",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797764137263,
+      "path": "probes/empty-tree/12",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797783279013,
+      "path": "probes/empty-tree/120",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797783279013,
+      "path": "probes/empty-tree/121",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797783279013,
+      "path": "probes/empty-tree/122",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797784279013,
+      "path": "probes/empty-tree/123",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797784279013,
+      "path": "probes/empty-tree/124",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797784279013,
+      "path": "probes/empty-tree/125",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797784279013,
+      "path": "probes/empty-tree/126",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797784279013,
+      "path": "probes/empty-tree/127",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797785279013,
+      "path": "probes/empty-tree/128",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797785279013,
+      "path": "probes/empty-tree/129",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797764279013,
+      "path": "probes/empty-tree/13",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797785279013,
+      "path": "probes/empty-tree/130",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797785279013,
+      "path": "probes/empty-tree/131",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797785279013,
+      "path": "probes/empty-tree/132",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797785279013,
+      "path": "probes/empty-tree/133",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797786279013,
+      "path": "probes/empty-tree/134",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797786279013,
+      "path": "probes/empty-tree/135",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797786279013,
+      "path": "probes/empty-tree/136",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797786279013,
+      "path": "probes/empty-tree/137",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797786279013,
+      "path": "probes/empty-tree/138",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797787279013,
+      "path": "probes/empty-tree/139",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797764279013,
+      "path": "probes/empty-tree/14",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797787279013,
+      "path": "probes/empty-tree/140",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797787279013,
+      "path": "probes/empty-tree/141",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797787279013,
+      "path": "probes/empty-tree/142",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797787279013,
+      "path": "probes/empty-tree/143",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797788279013,
+      "path": "probes/empty-tree/144",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797788279013,
+      "path": "probes/empty-tree/145",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797788279013,
+      "path": "probes/empty-tree/146",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797788279013,
+      "path": "probes/empty-tree/147",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797788279013,
+      "path": "probes/empty-tree/148",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797788279013,
+      "path": "probes/empty-tree/149",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797764279013,
+      "path": "probes/empty-tree/15",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797764279013,
+      "path": "probes/empty-tree/16",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797764279013,
+      "path": "probes/empty-tree/17",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797764279013,
+      "path": "probes/empty-tree/18",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797765279013,
+      "path": "probes/empty-tree/19",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797762279013,
+      "path": "probes/empty-tree/2",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797765279013,
+      "path": "probes/empty-tree/20",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797765279013,
+      "path": "probes/empty-tree/21",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797765279013,
+      "path": "probes/empty-tree/22",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797765279013,
+      "path": "probes/empty-tree/23",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797766279013,
+      "path": "probes/empty-tree/24",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797766279013,
+      "path": "probes/empty-tree/25",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797766279013,
+      "path": "probes/empty-tree/26",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797766279013,
+      "path": "probes/empty-tree/27",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797766279013,
+      "path": "probes/empty-tree/28",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797766279013,
+      "path": "probes/empty-tree/29",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797762279013,
+      "path": "probes/empty-tree/3",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797767279013,
+      "path": "probes/empty-tree/30",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797767279013,
+      "path": "probes/empty-tree/31",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797767279013,
+      "path": "probes/empty-tree/32",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797767279013,
+      "path": "probes/empty-tree/33",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797767279013,
+      "path": "probes/empty-tree/34",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797768279013,
+      "path": "probes/empty-tree/35",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797768279013,
+      "path": "probes/empty-tree/36",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797768279013,
+      "path": "probes/empty-tree/37",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797768279013,
+      "path": "probes/empty-tree/38",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797768279013,
+      "path": "probes/empty-tree/39",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797762279013,
+      "path": "probes/empty-tree/4",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797768279013,
+      "path": "probes/empty-tree/40",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797769279013,
+      "path": "probes/empty-tree/41",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797769279013,
+      "path": "probes/empty-tree/42",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797769279013,
+      "path": "probes/empty-tree/43",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797769279013,
+      "path": "probes/empty-tree/44",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797769279013,
+      "path": "probes/empty-tree/45",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797770279013,
+      "path": "probes/empty-tree/46",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797770279013,
+      "path": "probes/empty-tree/47",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797770279013,
+      "path": "probes/empty-tree/48",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797770279013,
+      "path": "probes/empty-tree/49",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797762279013,
+      "path": "probes/empty-tree/5",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797770279013,
+      "path": "probes/empty-tree/50",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797770279013,
+      "path": "probes/empty-tree/51",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797771279013,
+      "path": "probes/empty-tree/52",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797771279013,
+      "path": "probes/empty-tree/53",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797771279013,
+      "path": "probes/empty-tree/54",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797771279013,
+      "path": "probes/empty-tree/55",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797771279013,
+      "path": "probes/empty-tree/56",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797772279013,
+      "path": "probes/empty-tree/57",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797772279013,
+      "path": "probes/empty-tree/58",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797772279013,
+      "path": "probes/empty-tree/59",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797762279013,
+      "path": "probes/empty-tree/6",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797772279013,
+      "path": "probes/empty-tree/60",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797772279013,
+      "path": "probes/empty-tree/61",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797772279013,
+      "path": "probes/empty-tree/62",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797773279013,
+      "path": "probes/empty-tree/63",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797773279013,
+      "path": "probes/empty-tree/64",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797773279013,
+      "path": "probes/empty-tree/65",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797773279013,
+      "path": "probes/empty-tree/66",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797773279013,
+      "path": "probes/empty-tree/67",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797773279013,
+      "path": "probes/empty-tree/68",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797774279013,
+      "path": "probes/empty-tree/69",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797763279013,
+      "path": "probes/empty-tree/7",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797774279013,
+      "path": "probes/empty-tree/70",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797774279013,
+      "path": "probes/empty-tree/71",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797774279013,
+      "path": "probes/empty-tree/72",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797774279013,
+      "path": "probes/empty-tree/73",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797775279013,
+      "path": "probes/empty-tree/74",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797775279013,
+      "path": "probes/empty-tree/75",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797775279013,
+      "path": "probes/empty-tree/76",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797775279013,
+      "path": "probes/empty-tree/77",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797775279013,
+      "path": "probes/empty-tree/78",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797775279013,
+      "path": "probes/empty-tree/79",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797763279013,
+      "path": "probes/empty-tree/8",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797776279013,
+      "path": "probes/empty-tree/80",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797776279013,
+      "path": "probes/empty-tree/81",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797776279013,
+      "path": "probes/empty-tree/82",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797776279013,
+      "path": "probes/empty-tree/83",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797776279013,
+      "path": "probes/empty-tree/84",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797777279013,
+      "path": "probes/empty-tree/85",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797777279013,
+      "path": "probes/empty-tree/86",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797777279013,
+      "path": "probes/empty-tree/87",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797777279013,
+      "path": "probes/empty-tree/88",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797777279013,
+      "path": "probes/empty-tree/89",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797763279013,
+      "path": "probes/empty-tree/9",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797777279013,
+      "path": "probes/empty-tree/90",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797778279013,
+      "path": "probes/empty-tree/91",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797778279013,
+      "path": "probes/empty-tree/92",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797778279013,
+      "path": "probes/empty-tree/93",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797778279013,
+      "path": "probes/empty-tree/94",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797778279013,
+      "path": "probes/empty-tree/95",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797779279013,
+      "path": "probes/empty-tree/96",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797779279013,
+      "path": "probes/empty-tree/97",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797779279013,
+      "path": "probes/empty-tree/98",
+      "size_bytes": 4096,
+      "type": "directory"
+    },
+    {
+      "mode": "drwxr-xr-x",
+      "mtime_ns": 1789597797779279013,
+      "path": "probes/empty-tree/99",
+      "size_bytes": 4096,
+      "type": "directory"
+    }
+  ],
+  "entry_count": 162,
+  "label": "after",
+  "root": "/app",
+  "schema_version": 1,
+  "target_pid": 2934,
+  "truncated": false
+}

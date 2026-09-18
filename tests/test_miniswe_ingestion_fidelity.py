@@ -661,6 +661,7 @@ def _create_test_executor(root: Path) -> Executor:
         ingester=lambda _job: None,
         spent_today=lambda: 0.0,
         credential_probe=lambda: frozenset(),
+        consecutive_harness_failures=lambda: 0,
         headroom=lambda _agent=None: Headroom(
             agent="mini-swe-agent",
             plan="team",

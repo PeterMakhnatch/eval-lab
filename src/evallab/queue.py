@@ -1411,12 +1411,12 @@ class Executor:
                     break
                 except (json.JSONDecodeError, UnicodeDecodeError):
                     pass
-        agent_res = (
-            trial.result.get("agent_result")
-            if isinstance(trial.result.get("agent_result"), dict)
-            else {}
-        )
-        exit_code = agent_res.get("exit_code") or trial.result.get("exit_code")
+        agent_res = trial.result.get("agent_result")
+        exit_code = (
+            agent_res.get("exit_code")
+            if isinstance(agent_res, dict)
+            else None
+        ) or trial.result.get("exit_code")
         if exit_code is not None and exit_code != 0 and not has_valid_atif:
             task_success = False
         else:

@@ -308,6 +308,10 @@ class TrialTimeoutFailure(ExecutionFailure):
 
     reason_code = "trial_wall_clock_timeout"
 
+    #: Identity of the specific trial that exceeded its per-trial allowance,
+    #: when the aggregate process outlived per-trial limits (else None).
+    timed_out_trial: str | None = None
+
 
 class TransientHarnessFailure(ExecutionFailure):
     """Raised when execution encounters a transient provider/harness error eligible for retry."""

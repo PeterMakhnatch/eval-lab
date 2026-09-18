@@ -182,6 +182,17 @@ gh api --method POST repos/PeterMakhnatch/eval-lab/statuses/REVIEWED_SHA \
   -f target_url=GITHUB_REVIEW_RECEIPT_URL
 ```
 
+The **CI steward** (`evallab steward run`, operations in `docs/ci-steward.md`) is
+the standing integration owner for `main`: it runs the dual independent review of
+each green head, posts the `independent-review` status, carries attestations
+forward only across proven pure merges of `main`, squash-merges with GitHub's
+SHA guard, deletes merged branches, and sweeps abandoned worktrees. Peter
+retains override: the `steward:hold` label, a draft flag, or the steward's
+`PAUSE` file removes any PR (or everything) from its authority. A manual
+integration owner who reviews and attests per the rules above still satisfies
+this section; the steward exists so the pipeline does not stall when no session
+is live, not to weaken the evidence bar.
+
 Use GitHub's native auto-merge, not a privileged custom merger, fabricated check,
 or `pull_request_target` workflow executing PR code. Workflow tokens remain
 read-only and actions remain SHA-pinned.
@@ -190,7 +201,6 @@ See GitHub's [native auto-merge semantics](https://docs.github.com/en/pull-reque
 and [required review semantics](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches#require-pull-request-reviews-before-merging).
 
 ## Integration and sunset
-
 An integration owner serializes shared mutations, final generation, and validation.
 A squash-merged branch is spent; start subsequent work from the intended current
 base rather than rebasing or pushing the old branch again.
@@ -202,3 +212,9 @@ ignored evidence and recovery commits. Use `evallab tidy --dry-run` for its
 fail-closed classification; do not reinterpret report-only retention notices as
 permission to delete evidence. Do not stop another lane's services or alter its
 credentials, environment, or dependency lock.
+
+For routine estate reduction, prefer the standing CI steward hygiene pass
+(`evallab steward hygiene --apply`) over ad-hoc removals: it applies these same
+preservation gates, backs up unpushed branches before removing their worktrees,
+and records every disposition in `derived/ci-steward/hygiene-last.json`.
+

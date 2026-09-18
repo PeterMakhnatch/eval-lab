@@ -39,8 +39,9 @@ Past `independent-review` commit statuses in GitHub history are historical artif
 not active CI requirements, and must never be reset or faked. Zero reviewer approvals
 are required for merge. The author owns diagnosing and fixing all CI failures, as well as
 any known concrete bugs, before merging.
+
 Auxiliary benchmark, certification, performance, and platform workflows are
-additional evidence, not substitutes for these core gates. Every check that
+additional evidence, not substitutes for these core gates. Every CI check that
 actually reports on the PR must still succeed under the merge rule below.
 Do not require path-filtered workflows globally without first making their
 trigger and dependency handling fail closed, including merge-group support.
@@ -113,10 +114,11 @@ developer happens to be authenticated is a failing test design.
 Before any role (author DRI or integrator) merges a PR:
 
 1. Fetch the current PR head and confirm the intended diff.
-2. Run `gh pr checks <number>` and require every reported check to be complete and
-   successful for that head. Explicitly confirm `quality-required` and
-   `typecheck-required` are present: an all-green list of auxiliary checks is not
-   evidence that missing core workflows ran.
+2. Inspect `gh pr checks <number>` and require every reported CI check to be complete
+   and successful for that head. Explicitly confirm `quality-required` and
+   `typecheck-required` are present. The retired `independent-review` commit status
+   may still appear on older heads; it is not a CI check or a merge requirement.
+   Do not rewrite its history or substitute auxiliary green checks for missing core gates.
 3. Ensure there are no unresolved CI failures or known concrete bugs on the branch.
    Authors own fixing concrete issues on their changes; removing the review gate does
    not permit knowingly merging broken code.
@@ -130,6 +132,7 @@ Before any role (author DRI or integrator) merges a PR:
    with exact-head guards (`gh pr merge <n> --squash --delete-branch --match-head-commit <HEAD_SHA>`).
    Follow with bounded merged-revision proof on `main` (confirm the merge commit, its CI,
    or postmerge verification).
+
 A squash-merged branch is never rebased, reused, or pushed again. After your PR
 merges, delete the branch and start any follow-up from a fresh branch off
 `origin/main`. An add/add conflict in your own files after a squash merge means

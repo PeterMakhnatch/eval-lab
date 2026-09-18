@@ -55,7 +55,7 @@ The release operating loop assigns clear, disjoint responsibilities:
    into auto-merge.
 3. **GitHub checks and guarded merge**: GitHub Actions enforces the required gates
    (`quality-required`, `typecheck-required`). Merges (manual guarded merge or native auto-merge)
-   are executed only after every required and reported check succeeds on that exact head SHA.
+   are executed only after every required and reported CI check succeeds on that exact head SHA.
 4. **Safe local and runtime adoption**: Merged source code and deployed runtime environments
    remain distinct. RE - Eval Lab adopts merged code into the active runtime environment
    preserving all user and owner state. Merging to `main` is not permission to deploy or disrupt
@@ -63,6 +63,7 @@ The release operating loop assigns clear, disjoint responsibilities:
 5. **Acceptance**: Research - Harbor verifies scientific alignment and accepts delivered
    work in Linear. Genuine external blockers are recorded on the existing Linear card with
    concrete dependencies, not left as idle handoffs.
+
 ### Queue dispatch and lane boundaries
 
 RE - Eval Lab operates HAR-46 via explicit CLI commands (`lin get HAR-46`,
@@ -128,7 +129,7 @@ it does not grant ownership or authorize deletion.
 3. Push the topic branch and open a PR against its declared integration target.
    Report the exact head, verification, and any unavailable evidence honestly.
 4. Zero reviewer approvals are required. The author executes the merge only after
-   the explicit core gates and every reported check succeed for the current head/base
+   the explicit core gates and every reported CI check succeed for the current head/base
    pair (`agents/CHECKS.md`). Local green, a different head's CI, or a merge to an
    integration branch is not a merge to `main`.
 5. Follow through to actual merge and post-merge verification. A PR is not delivered
@@ -156,7 +157,7 @@ Before merging or opting a PR into native auto-merge:
    bugs.
 3. Verify the live target-branch protection enforces the required gates in
    `agents/CHECKS.md`, with no admin bypass.
-4. With every required and reported check successful for the current head/base pair, the
+4. With every required and reported CI check successful for the current head/base pair, the
    author (or an integrator) executes the merge using the head-commit guard to prevent racing pushes:
 
    ```bash
@@ -164,10 +165,10 @@ Before merging or opting a PR into native auto-merge:
    ```
 
    Never pass `--admin` to bypass required checks or branch protections.
-5. If using GitHub's native auto-merge instead, the author may opt in after the required
-   checks are configured and in-progress. Native auto-merge will merge once all requirements succeed.
-   Draft pull requests and explicit operator holds (e.g. hold labels) remain honored pauses
-   preventing merge.
+5. Native auto-merge is optional, not a new delivery owner. Opt in only after all
+   reported CI checks pass; GitHub waits for configured requirements, not every
+   optional workflow. Do not merge or enable auto-merge for a draft or an explicit
+   operator-held PR. A label alone is not GitHub branch-protection enforcement.
 6. A changed head/base requires fresh combined evidence. If the PR branch is updated or rebased,
    await fresh complete CI runs on the new head before merging.
 
@@ -176,6 +177,7 @@ fabricated check, or `pull_request_target` workflow executing PR code. Workflow 
 remain read-only and actions remain SHA-pinned.
 
 See GitHub's [native auto-merge semantics](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/automatically-merging-a-pull-request).
+
 ## Integration and sunset
 An integration owner serializes shared mutations, final generation, and validation.
 A squash-merged branch is spent; start subsequent work from the intended current

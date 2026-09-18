@@ -26,7 +26,7 @@
 
 - **Merge owner / DRI:** <author or integrator>
 - Exact-head rule (`agents/CHECKS.md`): merge only after `gh pr checks <n>`
-  shows every reported check successful **for this head SHA**. No local green, stale run, or mergeability substitute.
+  shows every reported CI check successful **for this head SHA**. Retired `independent-review` statuses are not CI gates. No local green, stale run, or mergeability substitute.
 - Protected merge execution:
   `gh pr merge <n> --squash --delete-branch --match-head-commit <HEAD_SHA>`
   followed by bounded postmerge proof on `main`.

@@ -38,8 +38,6 @@ inputs:
     digest: sha256:a2e1f3126b86cd8f6201578a8b7cac18b5a52588d535220c067aa66ec06bc544
   - path: docs/catalog-tables.md
     digest: sha256:0392155288dbabcf02852f4eb1625ec3fe0bd4954019d3591b4c83258cd4ef2c
-  - path: docs/ci-steward.md
-    digest: sha256:b5b3095cdffbc942925f954454a6636de90e448b812a3380483a06c27b039b63
   - path: docs/context-packs.md
     digest: sha256:d509838f870be51f616190cd2bfa754b30cf0fc0d9882913d6c081f8e6b8cd6e
   - path: docs/continuous-loop-operator.md
@@ -145,7 +143,6 @@ an operator can see what is archived.
 | `docs/authoring.md` | BUILDER authoring pipeline | `living` | `builder, operator` |
 | `docs/behavior-analysis.md` | Behavioral Analysis | `living` | `analyst, builder` |
 | `docs/catalog-tables.md` | Catalog Tables and Views: Suites, Suite Members, and Quota | `living` | `builder, operator` |
-| `docs/ci-steward.md` | CI Steward (`evallab steward`) | `living` | `operator, builder` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
 | `docs/contracts.md` | Platform Contracts (E00) | `living` | `builder, analyst` |
 | `docs/craft.md` | CRAFT: the task-corpus scanner, and where determinism stops | `living` | `builder, analyst` |
@@ -282,7 +279,6 @@ an operator can see what is archived.
 | `docs/authoring.md` | BUILDER authoring pipeline | `living` | `builder, operator` |
 | `docs/canaries.md` | Canary suite and drift interpretation | `living` | `runner, operator` |
 | `docs/catalog-tables.md` | Catalog Tables and Views: Suites, Suite Members, and Quota | `living` | `builder, operator` |
-| `docs/ci-steward.md` | CI Steward (`evallab steward`) | `living` | `operator, builder` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
 | `docs/continuous-loop-operator.md` | Continuous-loop operator (disabled by default) | `living` | `operator, runner` |
 | `docs/dashboard.md` | Eval Lab Dashboard (E13) | `living` | `operator, analyst` |

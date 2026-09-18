@@ -116,20 +116,23 @@ developer happens to be authenticated is a failing test design.
 
 ## Merge rule
 
-Before any role, human, or integrator merges a PR:
+Before any role (author DRI, integrator, or steward) merges a PR:
 
 1. Fetch the current PR head and confirm the intended diff.
 2. Run `gh pr checks <number>` and require every reported check to be complete and
    successful for that head. Explicitly confirm `quality-required` and
    `typecheck-required` are present: an all-green list of auxiliary checks is not
    evidence that missing core workflows ran.
-3. Inspect the corresponding workflow runs for the current head/base pair and
+3. Confirm the `independent-review` status is successful on this exact head SHA.
+   The author cannot self-approve; authentic independent review must have occurred.
+4. Inspect the corresponding workflow runs for the current head/base pair and
    successful `lint`, both Python `test` jobs, and `ty`. PR workflows normally
    check out GitHub's test merge commit; record both PR head and tested merge SHA
    where available. A base change requires fresh combined evidence.
-4. Do not substitute local green, an old run, a manual dispatch, mergeability, or
+5. Do not substitute local green, an old run, a manual dispatch, mergeability, or
    unavailable branch protection for these checks.
-5. Apply the independent-review and auto-merge rules in `agents/WORKFLOW.md`.
+6. Apply the independent-review and merge rules in `agents/WORKFLOW.md`, executing
+   with exact-head guards (`gh pr merge <n> --squash --delete-branch --match-head-commit <HEAD_SHA>`).
 
 A squash-merged branch is never rebased, reused, or pushed again. After your PR
 merges, delete the branch and start any follow-up from a fresh branch off

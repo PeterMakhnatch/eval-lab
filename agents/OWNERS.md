@@ -21,8 +21,8 @@ operations docs are Platform; governance docs are Integration.
 Exactly one session at a time acts as integrator (Integration lane). The integrator
 edits `missions/ACTIVE.md`, coordinates overlapping integration branches, resolves
 cross-mission conflicts, and sunsets spent branches/worktrees. Routine protected PR
-merges are owned by the PR author (or unattended CI steward automation); the integrator
-handles cross-mission integration merges and conflict resolution. Workers who hit a conflict
+merges are owned by the PR author; the integrator handles cross-mission integration merges
+and conflict resolution. Workers who hit a conflict
 with another mission **stop and record it in their handoff** — they never resolve it themselves.
 
 ## Peter's reserved authority

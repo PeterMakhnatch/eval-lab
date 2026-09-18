@@ -1402,6 +1402,27 @@ class Executor:
             and not ingest_result.failures
         )
         result = trial.result
+        has_valid_atif = False
+        for atif_path in trial.path.rglob("*.json"):
+            if atif_path.name in {"trajectory.json", "mini-swe-agent.trajectory.json"}:
+                try:
+                    json.loads(atif_path.read_text(encoding="utf-8"))
+                    has_valid_atif = True
+                    break
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    pass
+        agent_res = (
+            trial.result.get("agent_result")
+            if isinstance(trial.result.get("agent_result"), dict)
+            else {}
+        )
+        exit_code = agent_res.get("exit_code") or trial.result.get("exit_code")
+        if exit_code is not None and exit_code != 0 and not has_valid_atif:
+            task_success = False
+        else:
+            task_success = (
+                trial.primary_reward == 1.0 if trial.primary_reward is not None else None
+            )
         bundle = TrialEvidenceBundle(
             settlement=PlatformSettlement(
                 job_id=job.id,
@@ -1417,14 +1438,9 @@ class Executor:
             ),
             model_name=spec.model,
             agent_name=spec.agent,
-            task_success=(
-                trial.primary_reward == 1.0 if trial.primary_reward is not None else None
-            ),
+            task_success=task_success,
             result_present=True,
-            atif_present=any(
-                path.name in {"trajectory.json", "mini-swe-agent.trajectory.json"}
-                for path in trial.path.rglob("*.json")
-            ),
+            atif_present=has_valid_atif,
             finished_at=(
                 str(result["finished_at"]) if result.get("finished_at") is not None else None
             ),
@@ -1486,6 +1502,58 @@ class Executor:
         stage = "artifact_scan"
         try:
             self._assert_persistent_artifacts_safe(spec, job_dir)
+            # Validate trial outcomes and evidence fidelity
+            try:
+                job = load_job(job_dir)
+                trials = getattr(job, "trials", ())
+            except Exception:
+                trials = ()
+            for trial in trials:
+                native_traj = trial.path / "agent" / "trajectory.json"
+                atif_traj = trial.path / "trajectory.json"
+                traj_path = (
+                    native_traj
+                    if native_traj.is_file()
+                    else (atif_traj if atif_traj.is_file() else None)
+                )
+                if traj_path is not None:
+                    try:
+                        json.loads(traj_path.read_text(encoding="utf-8"))
+                    except (json.JSONDecodeError, UnicodeDecodeError) as parse_err:
+                        return PolicyDecision(
+                            admitted=False,
+                            reason_code="trajectory_parse_failure",
+                            message=f"Trial {trial.path.name} trajectory is malformed: {parse_err}",
+                        )
+                agent_res = (
+                    trial.result.get("agent_result")
+                    if isinstance(trial.result.get("agent_result"), dict)
+                    else {}
+                )
+                exit_code = agent_res.get("exit_code")
+                if exit_code is None:
+                    exit_code = trial.result.get("exit_code")
+                if exit_code is not None and exit_code != 0 and traj_path is None:
+                    return PolicyDecision(
+                        admitted=False,
+                        reason_code="agent_nonzero_exit",
+                        message=(
+                            f"Trial {trial.path.name} agent exited with code {exit_code} "
+                            "without trajectory; refusing completion"
+                        ),
+                    )
+            metadata_path = job_dir / "lab-metadata.json"
+            if metadata_path.is_file():
+                try:
+                    meta = json.loads(metadata_path.read_text(encoding="utf-8"))
+                    if meta.get("model_identity_mismatch"):
+                        return PolicyDecision(
+                            admitted=False,
+                            reason_code="model_identity_mismatch",
+                            message="Provider-returned model identity does not match requested model",
+                        )
+                except Exception:
+                    pass
             archive: EvidenceArchive | None = None
             if spec.campaign_ledger is not None:
                 stage = "post_run_archive"

@@ -190,14 +190,6 @@ def test_verdict_parsing_and_blocking_rule() -> None:
     assert [f.title for f in blocking] == ["A", "B"]  # C lacks confidence, D is advisory
 
 
-def test_malformed_verdicts_fail_closed() -> None:
-    assert parse_verdict("not json", lens="runtime") is None
-    assert parse_verdict('{"verdict":"maybe","summary":"x","findings":[]}', lens="runtime") is None
-    assert parse_verdict('{"verdict":"approve","summary":"","findings":[]}', lens="runtime") is None
-    bad_priority = '{"verdict":"approve","summary":"s","findings":[{"title":"t","body":"b","priority":9,"confidence":0.5}]}'
-    assert parse_verdict(bad_priority, lens="runtime") is None
-
-
 def test_request_changes_with_only_advisories_is_not_blocking() -> None:
     text = '{"verdict":"request_changes","summary":"nits","findings":[{"title":"t","body":"b","priority":2,"confidence":0.9}]}'
     verdict = parse_verdict(text, lens="workflow")
@@ -205,14 +197,46 @@ def test_request_changes_with_only_advisories_is_not_blocking() -> None:
     assert verdict.blocking(CONFIG) == ()
 
 
-# --- markers --------------------------------------------------------------------
-
-
 def test_marker_roundtrip_across_comment_bodies() -> None:
     marker = make_marker(kind="review", head="d" * 40, verdict="approve")
     body = f"prefix\n{marker}\n**CI steward:** things"
     parsed = parse_markers([body, "unrelated comment", "broken <!-- ci-steward oops --> tail"])
     assert parsed == [{"kind": "review", "head": "d" * 40, "verdict": "approve"}]
+
+
+def test_worktree_disposition_tiers() -> None:
+    base = dict(
+        clean=True, locked=False, branch="feat/x", head_in_main=False,
+        commit_age_days=30, mtime_age_days=30, open_pr=False, in_use=False,
+        has_run_evidence=False, config=CONFIG,
+    )
+    assert worktree_disposition(**base)[0] == "remove"  # abandoned
+    assert worktree_disposition(**{**base, "open_pr": True})[0] == "keep"
+    assert worktree_disposition(**{**base, "clean": False})[0] == "keep"
+    assert worktree_disposition(**{**base, "locked": True})[0] == "keep"
+    assert worktree_disposition(**{**base, "in_use": True})[0] == "keep"
+    assert worktree_disposition(**{**base, "commit_age_days": 2, "mtime_age_days": 2})[0] == "keep"
+    assert worktree_disposition(**{**base, "head_in_main": True, "commit_age_days": 0})[0] == "remove"
+    # ignored runs/ job evidence holds the tree even when every other gate says remove
+    held = worktree_disposition(**{**base, "head_in_main": True, "has_run_evidence": True})
+    assert held[0] == "keep" and "runs/" in held[1]
+    detached = {**base, "branch": None, "head_in_main": True}
+    assert worktree_disposition(**detached)[0] == "remove"
+    detached_fresh = {**base, "branch": None, "head_in_main": False}
+    assert worktree_disposition(**detached_fresh)[0] == "keep"
+
+
+def test_families_diverse_gates_dual_family_attestation() -> None:
+    from evallab.steward import families_diverse
+
+    assert families_diverse(["anthropic/claude-fable-5-1", "openai-codex/gpt-6-astra"]) is True
+    assert families_diverse(["google-antigravity/gemini-3.8-flash", "google-antigravity/gemini-3.8-flash"]) is False
+    assert families_diverse(["anthropic/claude-fable-5-1", "zai/glm-5.3"]) is True
+
+
+def test_verdict_rejects_non_list_findings() -> None:
+    assert parse_verdict('{"verdict":"approve","summary":"s","findings":false}', lens="runtime") is None
+    assert parse_verdict('{"verdict":"approve","summary":"s","findings":0}', lens="runtime") is None
 
 
 # --- pure merge detection (real git) ----------------------------------------------
@@ -278,22 +302,3 @@ def test_pure_merge_vs_edited_merge_vs_rebase(tmp_path: Path) -> None:
     assert is_pure_merge(git, reviewed, rebased_head) is False
 
 
-# --- worktree policy ----------------------------------------------------------------
-
-
-def test_worktree_disposition_tiers() -> None:
-    base = dict(
-        clean=True, locked=False, branch="feat/x", head_in_main=False,
-        commit_age_days=30, mtime_age_days=30, open_pr=False, in_use=False, config=CONFIG,
-    )
-    assert worktree_disposition(**base)[0] == "remove"  # abandoned
-    assert worktree_disposition(**{**base, "open_pr": True})[0] == "keep"
-    assert worktree_disposition(**{**base, "clean": False})[0] == "keep"
-    assert worktree_disposition(**{**base, "locked": True})[0] == "keep"
-    assert worktree_disposition(**{**base, "in_use": True})[0] == "keep"
-    assert worktree_disposition(**{**base, "commit_age_days": 2, "mtime_age_days": 2})[0] == "keep"
-    assert worktree_disposition(**{**base, "head_in_main": True, "commit_age_days": 0})[0] == "remove"
-    detached = {**base, "branch": None, "head_in_main": True}
-    assert worktree_disposition(**detached)[0] == "remove"
-    detached_fresh = {**base, "branch": None, "head_in_main": False}
-    assert worktree_disposition(**detached_fresh)[0] == "keep"

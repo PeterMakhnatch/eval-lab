@@ -71,21 +71,38 @@ through. Reviewers get read/grep/glob/bash with a poisoned `remote.origin.pushur
 diff as untrusted input. Verdicts, per-model JSONL transcripts, and rejected
 verdict files are kept under `derived/ci-steward/reviews/<pr>-<sha>/`.
 
-On approval the steward posts `independent-review: success` with the reviewer
-identities in the description and a machine-parseable comment carrying the
-attested head. On blocking findings it posts `failure`, comments the findings,
-and sends the Linear card back to `Todo` so the dispatcher wakes the author lane.
-
 ## Carry-forward
 
 Branch protection requires the head to be up to date with `main`. When the only
 change since an approved head is GitHub's own `update-branch` merge, re-running
 both reviewers would burn tokens reviewing main's already-merged code. The
 steward therefore re-attests when it can *prove* the new head is a pure merge:
-two parents, one is the previously approved head, the other is an ancestor of
+two parents, one is a previously approved head, the other is an ancestor of
 `origin/main`, and the head's tree equals the clean 3-way `merge-tree` result —
-so no conflict resolution or extra edits can hide inside it. Anything else
-(meaningful new commits, a rebase, an edited merge) gets a full fresh review.
+so no conflict resolution or extra edits can hide inside it. "Previously
+approved" is authenticated against GitHub itself: only a head that carries a
+real `independent-review: success` commit status qualifies. PR comments (which
+any same-principal agent can forge) may only *nominate* candidate heads, never
+attest one. Anything else (meaningful new commits, a rebase, an edited merge)
+gets a full fresh review.
+
+## Reviewer isolation and residual risk
+
+Reviewers are fresh non-interactive sessions in detached checkouts with
+read/grep/glob/bash only. Their environment denies every credential-enabled
+mutation path the steward can reach: pushes fail (poisoned `remote.origin.pushurl`,
+`GIT_SSH_COMMAND=/usr/bin/false`, empty `credential.helper`, askPass
+`/bin/false`), and `gh` runs unauthenticated (`GH_*` scrubbed, isolated
+`GH_CONFIG_DIR`). The PR body and diff are framed as untrusted input; the
+steward — not the reviewer — computes the blocking rule from the verdict files;
+the two lenses must come from different model families or the run fails closed.
+`HOME` is inherited because the reviewer session itself needs the operator's
+model credentials; a sufficiently compromised reviewer model therefore still
+has the powers of any local model session (network egress via bash, reading the
+operator's credential material). That residual risk is owned by the harness
+threat model, not eliminated here, and is why transcripts are retained for
+audit under `derived/ci-steward/reviews/`.
+
 
 ## Hygiene
 
@@ -97,18 +114,22 @@ Every 6 hours (and via `evallab steward hygiene [--apply]`):
    files), not locked, no process cwd inside, no open PR on the branch, and
    either the branch is fully contained in `main`, or the tree has been idle
    ≥ 14 days (detached checkouts: ≥ 7 days at a commit already on `main`).
-   Before removing an unpushed branch's worktree the branch is pushed to
-   `origin` — every commit stays reachable; only ignored runtime state
-   (`.venv`, unpromoted `runs/`) is reclaimed. Dirty trees are never touched.
+   Worktrees whose ignored `runs/` holds job directories are **held**, never
+   removed — ignored evidence follows the evidence lifecycle (promotion or
+   `evallab gc`), per `docs/GENERATED-CACHE-POLICY.md`. Before removing an
+   unpushed branch's worktree the branch is pushed to `origin` — every commit
+   stays reachable; only rebuildable runtime state (`.venv`, caches) is
+   reclaimed. Dirty trees are never touched.
 3. **Spent local branches** — not checked out anywhere, no open PR, and merged
    into `origin/main` by ancestry *or* by `merge-tree` content equivalence
    (squash-safe).
-4. **Spent remote branches** — no open PR and either a MERGED PR or
-   ancestry/content containment in `origin/main`; deleted in batched
+4. **Spent remote branches** — no open PR, and either ancestry/content
+   containment in `origin/main` or a MERGED PR whose head SHA is exactly the
+   branch's current SHA (branch-name reuse never counts); deleted in batched
    `git push origin --delete`.
 
 Everything the sweeps keep (dirty trees, active branches, locked registrations,
-unknown PR state) is reported in the digest with the reason.
+unknown PR state, held evidence) is reported in the digest with the reason.
 
 ## Deployment
 

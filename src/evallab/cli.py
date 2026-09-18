@@ -4400,8 +4400,7 @@ def parser() -> argparse.ArgumentParser:
     steward_hygiene = steward_commands.add_parser("hygiene", help="Sweep worktrees and spent branches")
     steward_hygiene.add_argument("--apply", action="store_true", help="Execute removals (default is dry-run)")
     steward_hygiene.add_argument("--force", action="store_true", help="Run even when the daemon holds the lock")
-    steward_digest = steward_commands.add_parser("digest", help="Refresh and print the operator digest")
-    steward_digest.add_argument("--force", action="store_true", help="Run even when the daemon holds the lock")
+    steward_digest = steward_commands.add_parser("digest", help="Refresh and print the operator digest (observe-only)")
     steward_install = steward_commands.add_parser(
         "install", help="Install the steward LaunchAgent, hold label, and worktree lock"
     )

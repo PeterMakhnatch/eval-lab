@@ -214,7 +214,9 @@ permission to delete evidence. Do not stop another lane's services or alter its
 credentials, environment, or dependency lock.
 
 For routine estate reduction, prefer the standing CI steward hygiene pass
-(`evallab steward hygiene --apply`) over ad-hoc removals: it applies these same
-preservation gates, backs up unpushed branches before removing their worktrees,
-and records every disposition in `derived/ci-steward/hygiene-last.json`.
+(`evallab steward hygiene --apply`) over ad-hoc removals: it preserves every
+commit (unpushed branches are pushed before their worktree is removed), holds
+trees carrying ignored `runs/` job evidence for the evidence lifecycle instead
+of deleting them, and records every disposition in
+`derived/ci-steward/hygiene-last.json`.
 

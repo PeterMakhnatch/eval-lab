@@ -3570,15 +3570,6 @@
       {
         "choices": null,
         "flags": [
-          "--force"
-        ],
-        "nargs": 0,
-        "positional": null,
-        "required": false
-      },
-      {
-        "choices": null,
-        "flags": [
           "--help",
           "-h"
         ],

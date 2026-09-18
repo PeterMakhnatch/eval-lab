@@ -39,7 +39,7 @@ inputs:
   - path: docs/catalog-tables.md
     digest: sha256:0392155288dbabcf02852f4eb1625ec3fe0bd4954019d3591b4c83258cd4ef2c
   - path: docs/ci-steward.md
-    digest: sha256:8aa8c295c6a021eb8a6cb26de103bc34a51b83144b9f5ab021ffdaa432f307df
+    digest: sha256:b5d6267a330ad804b78d69358755e49c8596d7f58ac1db604a5dd3e87d969eca
   - path: docs/context-packs.md
     digest: sha256:d509838f870be51f616190cd2bfa754b30cf0fc0d9882913d6c081f8e6b8cd6e
   - path: docs/continuous-loop-operator.md

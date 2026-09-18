@@ -315,6 +315,11 @@ class Memory:
         self.review_attempts = {
             k: v for k, v in self.review_attempts.items() if k.split(":", 1)[0] in keep
         }
+        self.alerts = {
+            k: v
+            for k, v in self.alerts.items()
+            if not any(k.startswith(f"{prefix}{n}") for n in keep for prefix in ("error:", "review:"))
+        }
 
 
 def classify(pr: PullSnapshot) -> Phase:
@@ -425,7 +430,10 @@ def parse_verdict(text: str, *, lens: str) -> Verdict | None:
     if not isinstance(summary, str) or not summary.strip():
         return None
     findings: list[Finding] = []
-    for item in raw.get("findings") or []:
+    raw_findings = raw.get("findings")
+    if not isinstance(raw_findings, list):
+        return None
+    for item in raw_findings:
         if not isinstance(item, dict):
             return None
         try:
@@ -518,6 +526,11 @@ def run(
             f"{shlex.join(argv)} exited {completed.returncode}: {completed.stderr.strip()[:500]}"
         )
     return completed
+
+
+def families_diverse(models: Sequence[str]) -> bool:
+    """True when the reviewer models span more than one provider family."""
+    return len({model.split("/", 1)[0] for model in models if model}) > 1
 
 
 class Git:
@@ -628,7 +641,7 @@ class GitHub:
         completed = run(
             [
                 "gh", "pr", "list", "--repo", self.repo, "--state", "all", "--limit", "1000",
-                "--json", "number,state,headRefName,mergedAt,isDraft",
+                "--json", "number,state,headRefName,headRefOid,mergedAt,isDraft",
             ],
             timeout=180,
         )
@@ -689,6 +702,14 @@ class GitHub:
             str(item.get("name")): str(item.get("conclusion") or item.get("status") or "")
             for item in (data or {}).get("check_runs", [])
         }
+
+    def review_status(self, sha: str) -> str | None:
+        """State of the ``independent-review`` commit status on GitHub for a SHA."""
+        data = self._api("GET", f"repos/{self.repo}/commits/{sha}/status")
+        for status in (data or {}).get("statuses", []):
+            if status.get("context") == REVIEW_CONTEXT:
+                return str(status.get("state") or "").upper() or None
+        return None
 
     def ensure_label(self, name: str, color: str, description: str) -> None:
         run(
@@ -841,16 +862,20 @@ class ReviewRunner:
         short = pr.head_sha[:8]
         log_dir = self.state_dir / "reviews" / f"{pr.number}-{short}"
         log_dir.mkdir(parents=True, exist_ok=True)
-        worktree = self.primary / REVIEW_WORKTREE_DIR / f"review-{pr.number}-{short}"
+        worktrees: dict[str, Path] = {}
         errors: list[str] = []
         verdicts: list[Verdict] = []
         try:
             self.git.fetch_pull(pr.number)
             base = self.git.rev_parse("origin/main") or ""
-            self._prepare_worktree(worktree, pr.head_sha)
             threads: list[threading.Thread] = []
             results: dict[str, Verdict | str] = {}
             for lens in LENSES:
+                # One detached checkout per lens: concurrent focused-test runs in a
+                # shared checkout would collide on caches and scratch files.
+                worktree = self.primary / REVIEW_WORKTREE_DIR / f"review-{pr.number}-{short}-{lens}"
+                worktrees[lens] = worktree
+                self._prepare_worktree(worktree, pr.head_sha)
                 verdict_path = log_dir / f"{lens}.verdict.json"
                 verdict_path.unlink(missing_ok=True)
                 prompt = REVIEW_PROMPT.format(
@@ -882,7 +907,8 @@ class ReviewRunner:
         except (CommandError, OSError, subprocess.TimeoutExpired) as exc:
             errors.append(f"setup: {exc}")
         finally:
-            self._remove_worktree(worktree)
+            for worktree in worktrees.values():
+                self._remove_worktree(worktree)
         return ReviewOutcome(verdicts=tuple(verdicts), errors=tuple(errors), log_dir=log_dir)
 
     def _prepare_worktree(self, worktree: Path, sha: str) -> None:
@@ -905,15 +931,26 @@ class ReviewRunner:
             )
         if worktree.exists():
             shutil.rmtree(worktree, ignore_errors=True)
-            run(["git", "-C", str(self.primary), "worktree", "prune"], check=False)
-
     def _env(self, worktree: Path) -> dict[str, str]:
         env = dict(os.environ)
         env["UV_PROJECT_ENVIRONMENT"] = str(self.primary / REVIEW_WORKTREE_DIR / ".venv")
-        # Reviewers get bash for read-only exploration; make every push a hard error.
-        env["GIT_CONFIG_COUNT"] = "1"
+        # Reviewers get bash for read-only exploration. Deny every mutation path
+        # that inherited credentials would enable: pushes (poisoned pushurl, no
+        # ssh, no credential helpers, no askpass) and gh API writes (scrubbed
+        # tokens, isolated config dir). HOME stays: the reviewer session itself
+        # needs the operator's model credentials to run at all.
+        env["GIT_CONFIG_COUNT"] = "3"
         env["GIT_CONFIG_KEY_0"] = "remote.origin.pushurl"
         env["GIT_CONFIG_VALUE_0"] = "/dev/null/steward-reviewers-never-push"
+        env["GIT_CONFIG_KEY_1"] = "credential.helper"
+        env["GIT_CONFIG_VALUE_1"] = ""
+        env["GIT_CONFIG_KEY_2"] = "core.askPass"
+        env["GIT_CONFIG_VALUE_2"] = "/bin/false"
+        env["GIT_SSH_COMMAND"] = "/usr/bin/false"
+        env["GH_CONFIG_DIR"] = str(self.primary / REVIEW_WORKTREE_DIR / ".gh-config")
+        for key in list(env):
+            if key.startswith(("GH_", "GITHUB_")) and key != "GH_CONFIG_DIR":
+                del env[key]
         env.pop("HERDR_PANE_ID", None)
         return env
 
@@ -1015,9 +1052,16 @@ def worktree_disposition(
     mtime_age_days: float,
     open_pr: bool,
     in_use: bool,
+    has_run_evidence: bool,
     config: StewardConfig,
 ) -> tuple[Literal["remove", "keep"], str]:
-    """Pure policy for a registered linked worktree that tidy left in place."""
+    """Pure policy for a registered linked worktree that tidy left in place.
+
+    Mirrors docs/GENERATED-CACHE-POLICY.md worktree-retirement gates: ignored
+    ``runs/`` evidence is never bulk-deleted by this sweep. A tree carrying job
+    directories is held for the evidence lifecycle (promotion or ``evallab gc``)
+    even when every other gate says removable.
+    """
     if locked:
         return "keep", "locked"
     if in_use:
@@ -1026,6 +1070,8 @@ def worktree_disposition(
         return "keep", "uncommitted changes"
     if open_pr:
         return "keep", "open pull request"
+    if has_run_evidence:
+        return "keep", "ignored runs/ job evidence present — promote or gc before removal"
     idle_days = min(commit_age_days, mtime_age_days)
     if branch is None:
         if head_in_main and idle_days >= config.detached_stale_after_days:
@@ -1151,6 +1197,7 @@ class Hygiene:
                 mtime_age_days=mtime_age,
                 open_pr=open_pr,
                 in_use=_inside(path, in_use),
+                has_run_evidence=_has_run_evidence(path),
                 config=self.config,
             )
             verdict = WorktreeVerdict(path=path, branch=branch, action=action, reason=reason)
@@ -1205,9 +1252,12 @@ class Hygiene:
                 continue
             if any(p.get("state") == "OPEN" for p in pulls.get(branch, [])):
                 continue
-            merged_pr = any(p.get("state") == "MERGED" for p in pulls.get(branch, []))
+            merged_pr_at_head = any(
+                p.get("state") == "MERGED" and str(p.get("headRefOid") or "") == sha
+                for p in pulls.get(branch, [])
+            )
             contained = self.git.is_ancestor(sha, "origin/main") or self.git.merge_tree("origin/main", sha) == main_tree
-            if not (merged_pr or contained):
+            if not (merged_pr_at_head or contained):
                 report.unmerged_remote_branches += 1
                 continue
             report.spent_remote_branches.append(branch)
@@ -1239,6 +1289,14 @@ def _newest_mtime(path: Path) -> float:
     except OSError:
         pass
     return newest
+
+def _has_run_evidence(path: Path) -> bool:
+    """True when the worktree's ignored ``runs/`` holds any job directory."""
+    runs = path / "runs"
+    try:
+        return any(child.is_dir() for child in runs.iterdir())
+    except OSError:
+        return False
 
 
 def _chunks(items: Sequence[str], size: int) -> Iterable[Sequence[str]]:
@@ -1277,7 +1335,15 @@ class Steward:
 
     def log(self, message: str) -> None:
         line = f"{utcnow().isoformat(timespec='seconds')} {message}"
-        print(line, flush=True)
+        # The state-dir log is the durable sink; stdout is printed only for
+        # interactive runs so a launchd daemon (stdout redirected to a file)
+        # does not duplicate every line on disk.
+        try:
+            interactive = sys.stdout.isatty()
+        except (AttributeError, ValueError):
+            interactive = False
+        if interactive:
+            print(line, flush=True)
         with (self.state_dir / "steward.log").open("a", encoding="utf-8") as handle:
             handle.write(line + "\n")
 
@@ -1356,10 +1422,17 @@ class Steward:
     # -- actions --------------------------------------------------------------
 
     def _review_or_carry(self, pr: PullSnapshot) -> None:
-        prior = self._prior_approvals(pr)
-        self.git.fetch_pull(pr.number)
-        for old_sha in reversed(prior):
-            if is_pure_merge(self.git, old_sha, pr.head_sha):
+        self.git.fetch_pull(pr.number)  # the exact head must be local for the merge proof
+        for old_sha in reversed(self._prior_approvals(pr)):
+            # A prior head is only carry-forwardable when GitHub itself carries a
+            # successful independent-review status for it: comment markers are
+            # unauthenticated (every agent shares the PR author's principal), so
+            # they may only nominate candidates, never attest.
+            try:
+                verified = self.github.review_status(old_sha) == "success"
+            except CommandError:
+                verified = False
+            if verified and is_pure_merge(self.git, old_sha, pr.head_sha):
                 description = f"carried forward from {old_sha[:8]}: pure merge of main, no new changes"
                 self.github.status(pr.head_sha, "success", description, self.github.pull_url(pr.number))
                 self.memory.record_approval(pr.number, pr.head_sha, time.time(), ["carry-forward"])
@@ -1378,12 +1451,19 @@ class Steward:
             if count >= self.config.review_attempt_limit:
                 self.alert(f"review:{pr.number}:{pr.head_sha}", f"CI steward: PR #{pr.number} review keeps failing", detail[:200])
             return
-        blocking = [(v, f) for v in outcome.verdicts for f in v.blocking(self.config)]
         reviewers = [f"{v.lens}={v.model}" for v in outcome.verdicts]
+        if not families_diverse([v.model for v in outcome.verdicts]):
+            # Both lenses fell back to the same model family: the dual-family
+            # independence the attestation promises is gone, so fail closed.
+            detail = f"reviewers collapsed onto one model family ({', '.join(reviewers)})"
+            self.github.status(pr.head_sha, "error", f"review pipeline error: {detail}", self.github.pull_url(pr.number))
+            self.event(pr.number, "review-error", detail, pr.head_sha)
+            return
+        blocking = [(v, f) for v in outcome.verdicts for f in v.blocking(self.config)]
         body = self._review_comment(pr, outcome, blocking)
         self.github.comment(pr.number, body)
         if blocking:
-            description = f"changes requested: {len(blocking)} blocking finding(s) — {reviewers[0]}, {reviewers[1]}"
+            description = f"changes requested: {len(blocking)} blocking finding(s) — {', '.join(reviewers)}"
             self.github.status(pr.head_sha, "failure", description, self.github.pull_url(pr.number))
             self.event(pr.number, "review-rejected", description, pr.head_sha)
             if pr.linear_id:
@@ -1396,7 +1476,9 @@ class Steward:
             self.event(pr.number, "review-approved", description, pr.head_sha)
 
     def _prior_approvals(self, pr: PullSnapshot) -> list[str]:
-        heads = self.memory.approved_heads(pr.number)
+        """Candidate previously-approved heads. Comment markers only nominate;
+        every candidate is re-verified against GitHub's commit status before use."""
+        heads = list(self.memory.approved_heads(pr.number))
         try:
             markers = parse_markers(self.github.comments(pr.number))
         except CommandError:
@@ -1581,7 +1663,7 @@ class Steward:
 
     def startup_cleanup(self) -> None:
         """Remove review scratch worktrees abandoned by a crash or restart."""
-        review_root = self.root / REVIEW_WORKTREE_DIR
+        review_root = shared_checkout_root(self.root) / REVIEW_WORKTREE_DIR
         if not review_root.is_dir():
             return
         for path in sorted(review_root.glob("review-*")):
@@ -1637,7 +1719,11 @@ def render_digest(steward: Steward) -> str:
     events_path = steward.state_dir / "events.jsonl"
     lines += ["", "## Recent events", ""]
     if events_path.is_file():
-        tail = events_path.read_text(encoding="utf-8").splitlines()[-25:]
+        with events_path.open("rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            handle.seek(max(0, handle.tell() - 256 * 1024))
+            raw_tail = handle.read().decode("utf-8", errors="replace")
+        tail = raw_tail.splitlines()[-25:]
         for raw in reversed(tail):
             try:
                 event = json.loads(raw)
@@ -1727,7 +1813,7 @@ def run_steward(root: Path, command: str, args: Any) -> int:
         print(f"installed {target}")
         return 0
     steward = Steward(root)
-    if command in ("once", "hygiene", "digest") and not args.force:
+    if command in ("once", "hygiene") and not args.force:
         lock = steward.acquire_lock()
         if lock is None:
             print("another steward holds the lock; use --force to run anyway", file=sys.stderr)
@@ -1753,7 +1839,8 @@ def run_steward(root: Path, command: str, args: Any) -> int:
             print(f"error {error}")
         return 1 if report.errors else 0
     if command == "digest":
-        steward.tick(review=False)
+        # Observe-only: refresh the snapshot and digest; never act on a read path.
+        steward.tick(review=False, dry_run=True)
         print((steward.state_dir / "DIGEST.md").read_text(encoding="utf-8"))
         return 0
     raise ValueError(command)

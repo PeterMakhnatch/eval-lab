@@ -323,7 +323,7 @@ inputs:
   - path: src/evallab/status_generator.py
     digest: sha256:c61016ce6fce4c3f1a977a702590f5b89a1d63e0f906708c9fd563e09138e185
   - path: src/evallab/steward.py
-    digest: sha256:1c92367ddd64aaef1d458990c3199d26f36fbfd7aa29241af334885b239e4d00
+    digest: sha256:ddc265c8a90fbe89c3032a136818388fd4c1e29eae80301ca8228d08315e38de
   - path: src/evallab/storage/__init__.py
     digest: sha256:7276bb505f87769117c2c3e16f7e2c83dbd33806fc791adbdfc6353dd6fc0b11
   - path: src/evallab/storage/attach.py

@@ -16,7 +16,7 @@ board is worse than no board.
 | Acceptance | the checkable list that defines done |
 | PR | number once open |
 | State | ready / active / review / blocked / merged |
-| Merge owner | who merges — author DRI, integrator, or steward (never self-approved review) |
+| Merge owner | who merges — author DRI or integrator |
 
 Worker rules (mirror of `WORKFLOW.md`): work only inside the lease; stop and
 record on any conflict; handoff at `agents/handoffs/m###-slug.md` with the

@@ -125,6 +125,52 @@ def check_example(
     }
 
 
+def account_tokens(tokenizer: Any, records_dir: Path, out_path: Path, model_id: str) -> int:
+    """Render every full record once; report rendered token totals.
+
+    Answers the fit question for the SFT owner: whether whole trajectories
+    fit the training window or the decision-example path is required. Counts
+    cover messages through the last supervised target (trailing observations
+    after the final target supervise nothing).
+    """
+    rows = [
+        json.loads(line) for line in (records_dir / "records.full.jsonl").read_text().splitlines()
+    ]
+    per_record = []
+    for row in rows:
+        last_target = row["targets"][-1]
+        rendered = [_render(m) for m in row["messages"][: last_target + 1]]
+        ids = tokenizer.apply_chat_template(rendered, tokenize=True)
+        if hasattr(ids, "ids"):  # tokenizers.Encoding
+            tokens = len(ids.ids)
+        elif hasattr(ids, "get") and ids.get("input_ids") is not None:  # BatchEncoding
+            tokens = len(ids["input_ids"])
+        else:
+            tokens = len(ids)
+        per_record.append(
+            {
+                "record_id": row["record_id"],
+                "task_family": row["lineage"]["task_family"],
+                "targets": len(row["targets"]),
+                "rendered_tokens": tokens,
+            }
+        )
+    counts = sorted(item["rendered_tokens"] for item in per_record)
+    summary = {
+        "model_id": model_id,
+        "records": len(per_record),
+        "min": counts[0],
+        "median": counts[len(counts) // 2],
+        "p95": counts[int(len(counts) * 0.95)],
+        "max": counts[-1],
+    }
+    out_path.write_text(
+        json.dumps({"summary": summary, "records": per_record}, indent=2, ensure_ascii=False) + "\n"
+    )
+    print(json.dumps(summary))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -139,6 +185,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--human", type=Path, default=None, help="human-readable excerpt output path"
+    )
+    parser.add_argument(
+        "--account",
+        action="store_true",
+        help="render every full record and write token counts beside the receipt",
     )
     args = parser.parse_args(argv)
 
@@ -220,6 +271,10 @@ def main(argv: list[str] | None = None) -> int:
                 ]
             )
             + "\n"
+        )
+    if args.account:
+        account_tokens(
+            tokenizer, args.records_dir, args.records_dir / "token-accounting.json", args.model_id
         )
     print(
         json.dumps(

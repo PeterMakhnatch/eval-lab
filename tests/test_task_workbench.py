@@ -2375,7 +2375,7 @@ def test_v2_compose_topology_accepted_and_rejected(tmp_path: Path) -> None:
     )
     assert "compose_main_service_missing" in _codes(_inspect(repo, task))
 
-    # 7. Negative control: 3 services
+    # 7. Multi-service topology (3 services) accepted; invalid service name rejected
     compose_path.write_text(
         "services:\n"
         "  main:\n"
@@ -2385,8 +2385,17 @@ def test_v2_compose_topology_accepted_and_rejected(tmp_path: Path) -> None:
         "  sidecar2:\n"
         "    build: .\n"
     )
-    assert "compose_topology_invalid" in _codes(_inspect(repo, task))
+    insp = _inspect(repo, task)
+    assert "compose_topology_invalid" not in _codes(insp)
 
+    compose_path.write_text(
+        "services:\n"
+        "  main:\n"
+        "    build: .\n"
+        "  invalid.name:\n"
+        "    build: .\n"
+    )
+    assert "compose_topology_invalid" in _codes(_inspect(repo, task))
     # 8. Negative control: build context escaping environment
     compose_path.write_text(
         "services:\n"

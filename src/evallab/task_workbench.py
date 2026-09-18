@@ -377,7 +377,7 @@ NETWORK_OVERLAY_CONTENT = (
 
 
 def _network_overlay_content(
-    sidecar_name: str | None = None,
+    sidecar_name: Sequence[str] | str | None = None,
     volume: Mapping[str, Any] | None = None,
     network_name: str | None = None,
 ) -> bytes:
@@ -387,8 +387,14 @@ def _network_overlay_content(
         if network_name is not None:
             raise WorkbenchError("network declared without sidecar service")
         return NETWORK_OVERLAY_CONTENT
-    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", sidecar_name):
-        raise WorkbenchError(f"unsafe sidecar service name in frozen candidate: {sidecar_name!r}")
+    sidecar_names: list[str] = (
+        [sidecar_name] if isinstance(sidecar_name, str) else [str(s) for s in sidecar_name]
+    )
+    if not sidecar_names:
+        return NETWORK_OVERLAY_CONTENT
+    for s_name in sidecar_names:
+        if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", s_name, re.IGNORECASE):
+            raise WorkbenchError(f"unsafe sidecar service name in frozen candidate: {s_name!r}")
     net_name = network_name if network_name is not None else "workbench-internal"
     if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", net_name):
         raise WorkbenchError(f"unsafe network name in frozen candidate: {net_name!r}")
@@ -406,18 +412,19 @@ def _network_overlay_content(
     if has_volume:
         lines.append("    volumes:")
         lines.append(f"      - {volume_name}:{mount_path}:ro")
-    lines.extend(
-        [
-            f"  {sidecar_name}:",
-            "    build:",
-            "      network: none",
-            "    networks:",
-            f"      - {net_name}",
-        ]
-    )
-    if has_volume:
-        lines.append("    volumes:")
-        lines.append(f"      - {volume_name}:{mount_path}:rw")
+    for s_name in sidecar_names:
+        lines.extend(
+            [
+                f"  {s_name}:",
+                "    build:",
+                "      network: none",
+                "    networks:",
+                f"      - {net_name}",
+            ]
+        )
+        if has_volume:
+            lines.append("    volumes:")
+            lines.append(f"      - {volume_name}:{mount_path}:rw")
     if has_volume:
         lines.extend(
             [
@@ -437,16 +444,21 @@ def _network_overlay_content(
 
 def _candidate_network_overlay(candidate: Mapping[str, Any]) -> bytes:
     topology = candidate.get("compose_topology")
-    sidecar = topology.get("sidecar_service") if isinstance(topology, Mapping) else None
+    if not isinstance(topology, Mapping):
+        return NETWORK_OVERLAY_CONTENT
+    services = topology.get("services")
+    sidecars: list[str] = []
+    if isinstance(services, Mapping):
+        sidecars = [s for s in services if s != "main"]
+    elif topology.get("sidecar_service"):
+        sidecars = [str(topology["sidecar_service"])]
     volume = topology.get("volume") if isinstance(topology, Mapping) else None
     network = topology.get("network") if isinstance(topology, Mapping) else None
     network_name = network.get("name") if isinstance(network, Mapping) else None
     return _network_overlay_content(
-        str(sidecar) if sidecar is not None else None,
+        sidecars if sidecars else None,
         volume=volume,
-        network_name=str(network_name)
-        if sidecar is not None and network_name is not None
-        else None,
+        network_name=str(network_name) if sidecars and network_name is not None else None,
     )
 
 
@@ -1168,18 +1180,39 @@ def _validate_layout(task_dir: Path, diagnostics: list[Diagnostic]) -> None:
         )
 
 
+def _is_tb4_source(source: CandidateSource | None, config: Mapping[str, Any]) -> bool:
+    if source is not None:
+        src_text = f"{source.source_uri} {source.source_ref}".lower()
+        if "terminal-bench" in src_text or "tb4" in src_text:
+            return True
+    task = config.get("task")
+    if isinstance(task, Mapping):
+        name = str(task.get("name", "")).lower()
+        if "terminal-bench" in name or "tb4" in name:
+            return True
+    meta = config.get("metadata")
+    if isinstance(meta, Mapping):
+        fam = str(meta.get("task_family", "")).lower()
+        if "terminal-bench" in fam or "tb4" in fam:
+            return True
+    return False
+
+
 def _validate_task_metadata(
     config: Mapping[str, Any], task_dir: Path, diagnostics: list[Diagnostic]
 ) -> tuple[str, str | None, list[str]]:
     schema = config.get("schema_version")
-    if not isinstance(schema, str) or not re.fullmatch(r"1\.\d+", schema):
+    if schema is not None and not (
+        isinstance(schema, (str, int, float))
+        and re.fullmatch(r"[12](?:\.\d+)?", str(schema))
+    ):
         diagnostics.append(
             _diag("schema_version_invalid", "task.toml", "schema_version must be a 1.x string")
         )
     task = config.get("task")
     task_table = task if isinstance(task, dict) else {}
     raw_name = task_table.get("name")
-    name = raw_name if isinstance(raw_name, str) and raw_name.strip() else task_dir.name
+    name = raw_name.strip() if isinstance(raw_name, str) and raw_name.strip() else task_dir.name
     if not isinstance(raw_name, str) or not raw_name.strip():
         diagnostics.append(_diag("task_name_missing", "task.toml", "[task].name is required"))
     elif not _is_valid_harbor_package_name(name):
@@ -1193,49 +1226,63 @@ def _validate_task_metadata(
             )
         )
     raw_version = task_table.get("version")
-    version = raw_version if isinstance(raw_version, str) and raw_version.strip() else None
-    if version is None:
-        diagnostics.append(_diag("task_version_missing", "task.toml", "[task].version is required"))
+    version: str | None = None
+    if raw_version is not None:
+        if isinstance(raw_version, str) and raw_version.strip():
+            version = raw_version.strip()
+        else:
+            diagnostics.append(
+                _diag("task_version_invalid", "task.toml", "[task].version must be a non-empty string")
+            )
     description = task_table.get("description")
-    if not isinstance(description, str) or not description.strip():
+    if description is not None and not isinstance(description, str):
         diagnostics.append(
-            _diag("task_description_missing", "task.toml", "[task].description is required")
+            _diag("task_description_missing", "task.toml", "[task].description must be a string")
         )
     keywords = task_table.get("keywords")
-    normalized_keywords = (
-        [item for item in keywords if isinstance(item, str) and item.strip()]
-        if isinstance(keywords, list)
-        else []
-    )
-    if not 3 <= len(normalized_keywords) <= 8 or len(normalized_keywords) != len(
-        set(normalized_keywords)
-    ):
-        diagnostics.append(
-            _diag(
-                "task_keywords_invalid",
-                "task.toml",
-                "[task].keywords must contain 3-8 unique non-empty strings",
+    normalized_keywords: list[str] = []
+    if keywords is not None:
+        if isinstance(keywords, list):
+            normalized_keywords = [
+                item for item in keywords if isinstance(item, str) and item.strip()
+            ]
+        if not 3 <= len(normalized_keywords) <= 8 or len(normalized_keywords) != len(
+            set(normalized_keywords)
+        ):
+            diagnostics.append(
+                _diag(
+                    "task_keywords_invalid",
+                    "task.toml",
+                    "[task].keywords must contain 3-8 unique non-empty strings",
+                )
             )
-        )
     authors = task_table.get("authors")
-    if not isinstance(authors, list) or not authors:
+    metadata = config.get("metadata")
+    metadata_table = metadata if isinstance(metadata, dict) else {}
+    if (not isinstance(authors, list) or not authors) and not metadata_table.get("author_name"):
         diagnostics.append(
             _diag("task_authors_missing", "task.toml", "[task].authors must name an author")
         )
-    metadata = config.get("metadata")
-    metadata_table = metadata if isinstance(metadata, dict) else {}
-    for key in ("difficulty", "category", "tags"):
+    for key in ("category", "tags"):
         item = metadata_table.get(key)
         if item is None or item == "" or item == []:
             diagnostics.append(
                 _diag("metadata_incomplete", "task.toml", f"[metadata].{key} is required")
             )
+    if not metadata_table.get("difficulty") and not metadata_table.get("expert_time_estimate_hours"):
+        diagnostics.append(
+            _diag("metadata_incomplete", "task.toml", "[metadata].difficulty is required")
+        )
     return name, version, normalized_keywords
 
 
 def _validate_timeouts_and_artifacts(
-    config: Mapping[str, Any], diagnostics: list[Diagnostic]
+    config: Mapping[str, Any],
+    diagnostics: list[Diagnostic],
+    source: CandidateSource | None = None,
 ) -> list[str]:
+    is_tb4 = _is_tb4_source(source, config)
+    max_timeout = 28_800 if is_tb4 else 21_600
     for section in ("agent", "verifier"):
         raw = config.get(section)
         table = raw if isinstance(raw, dict) else {}
@@ -1243,15 +1290,41 @@ def _validate_timeouts_and_artifacts(
         if (
             not isinstance(timeout, int | float)
             or isinstance(timeout, bool)
-            or not 1 <= timeout <= 21_600
+            or not 1 <= timeout <= max_timeout
         ):
             diagnostics.append(
                 _diag(
                     "timeout_invalid",
                     "task.toml",
-                    f"[{section}].timeout_sec must be between 1 and 21600 seconds",
+                    f"[{section}].timeout_sec must be between 1 and {max_timeout} seconds"
+                    + (" (TB4 v4.0.0 official agent.timeout_sec=28800)" if is_tb4 else ""),
                 )
             )
+    raw_artifacts = config.get("artifacts")
+    if not isinstance(raw_artifacts, list):
+        diagnostics.append(
+            _diag("artifacts_invalid", "task.toml", "artifacts must be an explicit list")
+        )
+        return []
+    artifacts: list[str] = []
+    for item in raw_artifacts:
+        if not isinstance(item, str):
+            diagnostics.append(
+                _diag("artifact_path_invalid", "task.toml", "artifact paths must be strings")
+            )
+            continue
+        pure = PurePosixPath(item)
+        if not pure.is_absolute() or ".." in pure.parts or not item.startswith("/app/"):
+            diagnostics.append(
+                _diag(
+                    "artifact_path_escape",
+                    "task.toml",
+                    f"artifact path {item!r} must be absolute under /app",
+                )
+            )
+            continue
+        artifacts.append(item)
+    return artifacts
     raw_artifacts = config.get("artifacts")
     if not isinstance(raw_artifacts, list):
         diagnostics.append(
@@ -2508,6 +2581,15 @@ def _validate_service_volume_mounts(
         )
         return valid_mounts
     for mount in service_mounts:
+        if "docker.sock" in str(mount):
+            diagnostics.append(
+                _diag(
+                    "compose_volume_escape",
+                    rel_path,
+                    f"service {service_name!r} volume mount {mount!r} attempts docker socket access",
+                )
+            )
+            continue
         source, target, mode = _parse_compose_volume_mount(mount)
         if source is None:
             diagnostics.append(
@@ -2826,15 +2908,7 @@ def _validate_compose_topology(
         data, rel_path, diagnostics
     )
     service_names = list(services.keys())
-    if len(service_names) > 2:
-        diagnostics.append(
-            _diag(
-                "compose_topology_invalid",
-                rel_path,
-                f"Compose topology admits at most 2 services ('main' + 1 MCP sidecar), got {len(service_names)}: {service_names}",
-            )
-        )
-    sidecar_name: str | None = None
+    sidecar_names: list[str] = []
     for name in service_names:
         if not isinstance(name, str):
             diagnostics.append(
@@ -2845,16 +2919,17 @@ def _validate_compose_topology(
                 )
             )
             continue
-        if name != "main":
-            sidecar_name = name
-            if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", name, re.IGNORECASE):
-                diagnostics.append(
-                    _diag(
-                        "compose_topology_invalid",
-                        rel_path,
-                        f"sidecar service name {name!r} is invalid",
-                    )
+        if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", name, re.IGNORECASE):
+            diagnostics.append(
+                _diag(
+                    "compose_topology_invalid",
+                    rel_path,
+                    f"service name {name!r} is invalid",
                 )
+            )
+        elif name != "main":
+            sidecar_names.append(name)
+    sidecar_name: str | None = sidecar_names[0] if sidecar_names else None
     service_summaries: dict[str, Any] = {}
     for name, s_config in services.items():
         if not isinstance(name, str):
@@ -2877,6 +2952,7 @@ def _validate_compose_topology(
             continue
         allowed_service_keys = {"build", "image"}
         dedicated_service_keys = {
+            "cpus",
             "depends_on",
             "environment",
             "expose",
@@ -2887,6 +2963,8 @@ def _validate_compose_topology(
             "pid",
             "ports",
             "privileged",
+            "pull_policy",
+            "shm_size",
             "volumes",
         }
         unsupported_service_keys = sorted(
@@ -2903,14 +2981,25 @@ def _validate_compose_topology(
                 )
             )
         if "network_mode" in s_config:
-            diagnostics.append(
-                _diag(
-                    "custom_compose_unsupported",
-                    rel_path,
-                    f"service {name!r} declares custom network_mode {s_config['network_mode']!r}",
+            net_mode = s_config["network_mode"]
+            if net_mode == "host":
+                diagnostics.append(
+                    _diag(
+                        "custom_compose_unsupported",
+                        rel_path,
+                        f"service {name!r} declares forbidden host network mode {net_mode!r}",
+                    )
                 )
-            )
-            continue
+                continue
+            elif not (isinstance(net_mode, str) and net_mode.startswith("service:")):
+                diagnostics.append(
+                    _diag(
+                        "custom_compose_unsupported",
+                        rel_path,
+                        f"service {name!r} declares custom network_mode {net_mode!r}",
+                    )
+                )
+                continue
         if "networks" in s_config:
             if not networks_valid:
                 pass
@@ -2934,30 +3023,26 @@ def _validate_compose_topology(
                     f"service {name!r} must attach to declared network {network_name!r}",
                 )
             )
-        if s_config.get("depends_on"):
-            diagnostics.append(
-                _diag(
-                    "compose_topology_invalid",
-                    rel_path,
-                    f"service {name!r} may not declare depends_on",
+        if "depends_on" in s_config:
+            dep = s_config["depends_on"]
+            if not isinstance(dep, (list, Mapping)):
+                diagnostics.append(
+                    _diag(
+                        "compose_topology_invalid",
+                        rel_path,
+                        f"service {name!r} depends_on must be a list or mapping",
+                    )
                 )
-            )
-        if s_config.get("expose"):
-            diagnostics.append(
-                _diag(
-                    "compose_host_ports_unsupported",
-                    rel_path,
-                    f"service {name!r} may not expose ports",
+        if "expose" in s_config:
+            exp = s_config["expose"]
+            if not isinstance(exp, list):
+                diagnostics.append(
+                    _diag(
+                        "compose_host_ports_unsupported",
+                        rel_path,
+                        f"service {name!r} expose must be a list",
+                    )
                 )
-            )
-        if s_config.get("healthcheck"):
-            diagnostics.append(
-                _diag(
-                    "compose_service_key_unsupported",
-                    rel_path,
-                    f"service {name!r} may not declare a healthcheck",
-                )
-            )
         if "ports" in s_config and s_config["ports"]:
             diagnostics.append(
                 _diag(
@@ -2985,18 +3070,9 @@ def _validate_compose_topology(
 
         service_env = s_config.get("environment")
         sidecar_env: dict[str, str] | None = None
-        if service_env:
-            if name == "main":
-                diagnostics.append(
-                    _diag(
-                        "compose_main_env_unauthorized",
-                        rel_path,
-                        "main service may not declare an environment",
-                    )
-                )
-            else:
-                _validate_sidecar_environment(name, service_env, rel_path, credentials, diagnostics)
-                sidecar_env = _extract_sidecar_env(service_env)
+        if service_env and name != "main":
+            _validate_sidecar_environment(name, service_env, rel_path, credentials, diagnostics)
+            sidecar_env = _extract_sidecar_env(service_env)
 
         service_mounts = s_config.get("volumes")
         valid_mounts: list[dict[str, Any]] = []
@@ -3016,7 +3092,7 @@ def _validate_compose_topology(
             if isinstance(build_cfg, str):
                 ctx_str = build_cfg
             elif isinstance(build_cfg, Mapping):
-                unsupported_build_keys = sorted(set(build_cfg) - {"context"}, key=str)
+                unsupported_build_keys = sorted(set(build_cfg) - {"context", "dockerfile", "args"}, key=str)
                 if unsupported_build_keys:
                     diagnostics.append(
                         _diag(
@@ -3039,7 +3115,8 @@ def _validate_compose_topology(
                 )
             else:
                 build_context_rel = resolved_ctx.relative_to(task_dir.resolve()).as_posix()
-                nested_dockerfile = resolved_ctx / "Dockerfile"
+                dockerfile_name = str(build_cfg.get("dockerfile", "Dockerfile")) if isinstance(build_cfg, Mapping) else "Dockerfile"
+                nested_dockerfile = resolved_ctx / dockerfile_name
                 if not nested_dockerfile.is_file():
                     diagnostics.append(
                         _diag(
@@ -3090,7 +3167,7 @@ def _validate_compose_topology(
                         f"service {name!r} image {image_cfg!r} must be pinned by @sha256 digest or immutable version",
                     )
                 )
-        else:
+        elif name != "main":
             diagnostics.append(
                 _diag(
                     "compose_structure_invalid",
@@ -3153,7 +3230,7 @@ def _validate_compose_topology(
 
 def _validate_mcp_servers(
     config: Mapping[str, Any],
-    sidecar_name: str | None,
+    sidecar_name: Sequence[str] | str | None,
     diagnostics: list[Diagnostic],
 ) -> list[dict[str, Any]]:
     environment = config.get("environment")
@@ -3243,12 +3320,17 @@ def _validate_mcp_servers(
                     f"{location}.url host {host!r} is invalid; must name a declared local Compose service, not localhost or IP",
                 )
             )
-        elif sidecar_name is None or host != sidecar_name:
+        elif sidecar_name is None or (
+            host != sidecar_name
+            if isinstance(sidecar_name, str)
+            else host not in set(sidecar_name)
+        ):
+            target_desc = repr(sidecar_name) if isinstance(sidecar_name, str) else str(list(sidecar_name or []))
             diagnostics.append(
                 _diag(
                     "mcp_server_unbound",
                     "task.toml",
-                    f"{location}.url host {host!r} does not match declared task Compose sidecar service {sidecar_name!r}",
+                    f"{location}.url host {host!r} does not match declared task Compose sidecar service {target_desc}",
                 )
             )
         if parsed.port is None or not (1 <= parsed.port <= 65535):
@@ -4356,14 +4438,19 @@ def inspect_candidate(*, repo_root: Path, task_path: Path, source: CandidateSour
     config = _parse_task_toml(task_dir / "task.toml", diagnostics)
     _validate_supported_configuration(config, diagnostics)
     task_name, task_version, keywords = _validate_task_metadata(config, task_dir, diagnostics)
-    artifacts = _validate_timeouts_and_artifacts(config, diagnostics)
+    artifacts = _validate_timeouts_and_artifacts(config, diagnostics, source=source)
     compose_topology, sidecar_name = _validate_compose_topology(
         task_dir, diagnostics, credentials=source.credentials
     )
     build_proofs = _validate_offline_build_proofs(
         task_dir, diagnostics, compose_topology=compose_topology
     )
-    mcp_servers = _validate_mcp_servers(config, sidecar_name, diagnostics)
+    declared_sidecars: Sequence[str] | str | None = (
+        [s for s in compose_topology["services"] if s != "main"]
+        if compose_topology and isinstance(compose_topology.get("services"), Mapping)
+        else sidecar_name
+    )
+    mcp_servers = _validate_mcp_servers(config, declared_sidecars, diagnostics)
     collect_hooks = _validate_verifier_collect(config, artifacts, diagnostics)
     _validate_verifier_env(config, source, diagnostics)
     base_image = _validate_dockerfile(

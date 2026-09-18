@@ -1384,9 +1384,26 @@ class TaskDigests(ContractModel):
 
 
 class TaskLimits(ContractModel):
-    timeout_seconds: int = Field(default=1_800, ge=1, le=21_600)
+    """Execution limits enforcing runtime constraints.
+
+    Representation fix: timeout ceiling is 28800 seconds to align with
+    TB4 v4.0.0 official agent.timeout_sec=28800. Spend and concurrency
+    policies remain unchanged.
+    """
+
+    timeout_seconds: int = Field(default=1_800, ge=1, le=28_800)
     max_memory_mb: int | None = Field(default=None, ge=1)
     max_cpus: float | None = Field(default=None, gt=0)
+
+    @field_validator("timeout_seconds", mode="before")
+    @classmethod
+    def _validate_timeout_seconds(cls, value: Any) -> Any:
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and not (1 <= value <= 28_800):
+            raise ValueError(
+                "timeout_seconds must be between 1 and 28800 seconds "
+                "(TB4 v4.0.0 official agent.timeout_sec=28800)"
+            )
+        return value
 
 
 DURABLE_CONTROL_EVIDENCE_PREFIX = "research/evidence/runs/"
@@ -1599,7 +1616,16 @@ class TaskRegistryRecord(ContractModel):
         min_length=1,
         pattern=r"^[a-z0-9][a-z0-9_-]+$",
     )
-    version: str = Field(min_length=1)
+    version: str = Field(default="1.0.0")
+
+    @field_validator("version", mode="before")
+    @classmethod
+    def _validate_version(cls, value: Any) -> str:
+        if value is None:
+            return "1.0.0"
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("version must be a non-empty string")
+        return value.strip()
     task_path: str = Field(min_length=1)
     digests: TaskDigests
     source_uri: str = Field(min_length=1)

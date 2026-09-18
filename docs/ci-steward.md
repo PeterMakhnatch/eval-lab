@@ -7,22 +7,30 @@ audience:
 
 # CI Steward (`evallab steward`)
 
-The unattended integrator for `main`: it produces the `independent-review`
-attestation `agents/CHECKS.md` requires, merges only what branch protection
-already admits, and keeps the worktree/branch estate from growing without bound.
+The unattended integration and review automation for `main`: it produces the
+`independent-review` attestation `agents/CHECKS.md` requires, merges only what
+branch protection already admits, and keeps the worktree/branch estate from growing
+without bound.
 
 Authority: `agents/CHECKS.md` (definition of green, merge rule),
-`agents/WORKFLOW.md` (integration and sunset), this file for operations.
+`agents/WORKFLOW.md` (integration, author delivery lifecycle, and sunset), this file
+for operations.
 
 ## Why it exists
 
 Every pull request is authored by the same GitHub principal, so GitHub approvals
 cannot express "a different agent reviewed this". The established substitute is a
 commit status named `independent-review` posted only after a genuine independent
-review of the exact head. That review was manual lane work and stopped whenever
-no release-owner session was live — pull requests then sat green-but-unreviewed
-for hours. The steward automates that duty without weakening any gate: branch
-protection, required checks, and exact-head attestation stay exactly as they are.
+review of the exact head.
+
+Under the author delivery lifecycle (Peter's 2026-09-18 policy cutover), PR authors
+are delivery DRIs responsible for driving their own PRs through review and merge.
+The steward provides unattended automation alongside author follow-through: it
+runs dual independent reviews and merges green, reviewed PRs whether or not an
+interactive author session is active. It does not replace author
+responsibility or strip authors of protected merge capability; it prevents the
+pipeline from stalling when sessions are idle. Branch protection, required checks,
+and exact-head attestation stay strictly enforced.
 
 ## The loop
 

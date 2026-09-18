@@ -24,7 +24,10 @@
 
 ## Merge
 
-- **Merge owner:** <release owner or assigned merge owner; never self-review>
+- **Merge owner / DRI:** <author, integrator, or steward; never self-approved review>
 - Exact-head rule (`agents/CHECKS.md`): merge only after `gh pr checks <n>`
-  shows every reported check successful **for this head SHA**. No local green,
-  stale run, or mergeability substitute.
+  shows every reported check successful **for this head SHA** and independent review
+  is attested (`independent-review` status). No local green, stale run, or mergeability substitute.
+- Protected merge execution:
+  `gh pr merge <n> --squash --delete-branch --match-head-commit <HEAD_SHA>`
+  or native auto-merge once all conditions are satisfied.

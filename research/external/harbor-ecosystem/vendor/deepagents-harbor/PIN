@@ -1,0 +1,3 @@
+langchain-ai/deepagents @ 07d2952d346d81d06bd181db8c560a77f2b51bc8 (MIT)
+vendored: libs/evals/deepagents_harbor/stats.py + failure.py (verbatim, header added)
+note: catalog path libs/harbor/scripts/analyze.py is stale at this pin; these are the live equivalents

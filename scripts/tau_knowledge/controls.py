@@ -7,6 +7,7 @@ import argparse
 import json
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -59,6 +60,7 @@ def _persisted_reward(trials_dir: Path) -> float:
         raise RuntimeError(f"Harbor produced no persisted result.json under {trials_dir}")
     raise RuntimeError(f"Harbor result files contain no persisted reward under {trials_dir}")
 
+
 def _prepare_trials_dir(trials_dir: Path) -> None:
     if trials_dir.exists():
         if not trials_dir.is_dir():
@@ -89,7 +91,24 @@ def run_control(
             _prepare_trials_dir(trials_dir)
             command.extend(["--trials-dir", str(trials_dir)])
         if not dry_run:
-            subprocess.run(command, check=True)
+            exec_command = list(command)
+            # Host adaptation is mandatory, not best-effort: on platforms
+            # where Harbor cannot enforce the declared network policy the
+            # pristine task is refused, so a silent fallback would only
+            # produce a confusing refusal. Fail closed instead.
+            sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+            from evallab.harbor_network import adapt_task_toml_for_host
+
+            adapted_text, adaptation = adapt_task_toml_for_host(
+                (target / "task.toml").read_text(encoding="utf-8")
+            )
+            if adaptation is not None:
+                host_copy = Path(scratch) / f"host-{target.name}"
+                if not host_copy.exists():
+                    shutil.copytree(target, host_copy)
+                (host_copy / "task.toml").write_text(adapted_text, encoding="utf-8")
+                exec_command = [item.replace(str(target), str(host_copy)) for item in exec_command]
+            subprocess.run(exec_command, check=True)
             if trials_dir is not None:
                 actual = _persisted_reward(trials_dir)
                 expected = EXPECTED_REWARDS[mode] if expected_reward is None else expected_reward

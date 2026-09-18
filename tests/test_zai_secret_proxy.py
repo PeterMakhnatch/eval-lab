@@ -20,7 +20,7 @@ Covers:
    - Secret file validation: rejects symlinks, wrong mode/owner (500).
    - Pinned upstream URL enforcement.
 2. Adapter integration (``SecretSafeZaiOpenCodeAgent``):
-   - Rewrites model_connection to internal proxy with placeholder token.
+   - Resolves either host capability name and fails before exec when missing.
    - Scrubs real secrets from environment and command execution.
    - Collects host secret file and path environment variables.
    - Sanitizes trajectory files.
@@ -132,6 +132,8 @@ def _package(name: str) -> ModuleType:
 
 @pytest.fixture
 def zai_adapter_module(monkeypatch: pytest.MonkeyPatch) -> Iterator[ModuleType]:
+    monkeypatch.delenv("ZAI_PROXY_CAPABILITY", raising=False)
+    monkeypatch.setenv("EVALLAB_ZAI_PROXY_CAPABILITY", "test-zai-capability-token-32b")
     for name in ("harbor", "harbor.agents", "harbor.agents.installed", "harbor.environments"):
         monkeypatch.setitem(sys.modules, name, _package(name))
     monkeypatch.setitem(
@@ -958,28 +960,70 @@ def test_proxy_pinned_upstream_url_enforces_whitelist(monkeypatch: pytest.Monkey
 # ==========================================================================
 
 
-def test_adapter_rewrites_connection_to_internal_proxy(
-    zai_adapter_module: ModuleType, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("canonical", "alias", "expected"),
+    [
+        ("canonical-capability", None, "canonical-capability"),
+        (None, "alias-capability", "alias-capability"),
+        ("", "alias-capability", "alias-capability"),
+        ("canonical-capability", "alias-capability", "canonical-capability"),
+    ],
+)
+def test_adapter_capability_authenticates_with_proxy(
+    zai_adapter_module: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    canonical: str | None,
+    alias: str | None,
+    expected: str,
 ) -> None:
-    monkeypatch.setenv("ZAI_CODING_PLAN_API_KEY", SECRET_SENTINEL)
-    module = zai_adapter_module
-    agent = module.SecretSafeZaiOpenCodeAgent(
-        model_name="zai-coding-plan/glm-5.3-flash",
-    )
-    conn = agent.model_connection
-    assert conn.api_key == module.ZAI_PROXY_TOKEN
-    assert conn.base_url == module.ZAI_PROXY_URL
-    assert conn.configured_base_url == module.ZAI_PROXY_URL
-    assert conn.env["ZAI_CODING_PLAN_API_KEY"] == module.ZAI_PROXY_TOKEN
-    assert conn.env["ZAI_API_KEY"] == module.ZAI_PROXY_TOKEN
-    assert conn.env["ZAI_BASE_URL"] == module.ZAI_PROXY_URL
-    assert conn.env["OPENAI_BASE_URL"] == module.ZAI_PROXY_URL
-    assert conn.env["SAFE_KEY"] == "ok"
-    assert SECRET_SENTINEL not in conn.env.values()
+    proxy, upstream, base_url = _setup_proxy(tmp_path, monkeypatch, capability=expected)
+    try:
+        # Resolve the host credential separately from the broker's environment.
+        with monkeypatch.context() as host:
+            for name, value in (
+                ("EVALLAB_ZAI_PROXY_CAPABILITY", canonical),
+                ("ZAI_PROXY_CAPABILITY", alias),
+            ):
+                if value is None:
+                    host.delenv(name, raising=False)
+                else:
+                    host.setenv(name, value)
+            agent = zai_adapter_module.SecretSafeZaiOpenCodeAgent()
+            connection = agent.model_connection
+        request = urllib.request.Request(
+            f"{base_url}/api/paas/v4/chat/completions",
+            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
+            headers={
+                "Authorization": f"Bearer {connection.api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            assert json.load(response)["choices"][0]["message"]["content"] == "ok"
+        assert _MockZaiUpstream.seen[0][1] == f"Bearer {SECRET_SENTINEL}"
+        assert SECRET_SENTINEL not in connection.env.values()
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
 
-    # Verify provider baseURL is configured in OpenCode config
-    opencode_cfg = agent.opencode_config
-    assert opencode_cfg["provider"]["zai-coding-plan"]["options"]["baseURL"] == module.ZAI_PROXY_URL
+
+@pytest.mark.parametrize("empty", [None, "", " \t"])
+def test_adapter_missing_capability_fails_before_container_exec(
+    zai_adapter_module: ModuleType, monkeypatch: pytest.MonkeyPatch, empty: str | None
+) -> None:
+    for name in ("EVALLAB_ZAI_PROXY_CAPABILITY", "ZAI_PROXY_CAPABILITY"):
+        if empty is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, empty)
+    agent = zai_adapter_module.SecretSafeZaiOpenCodeAgent()
+    with pytest.raises(ValueError, match="capability"):
+        _ = agent.model_connection
+    with pytest.raises(ValueError, match="capability"):
+        asyncio.run(agent.exec_as_agent(object(), "opencode run hello"))
+    assert agent.exec_calls == []
 
 
 def test_adapter_rejects_non_zai_models(zai_adapter_module: ModuleType) -> None:

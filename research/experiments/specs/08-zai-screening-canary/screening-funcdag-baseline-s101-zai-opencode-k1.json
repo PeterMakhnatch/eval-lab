@@ -1,0 +1,22 @@
+{
+  "agent": "zai-opencode",
+  "attempts": 1,
+  "concurrency": 1,
+  "environment": "docker",
+  "est_cost_usd": 0.0,
+  "generator_seed": 101,
+  "hypothesis": "Screening canary, calibration-only (n=1 per cell, not a ranking): baseline FuncDAG arm (depth 3, width 2, 2 lexical distractors, low name similarity, no schema drift) at generator seed 101, twin-paired with the schema_drift_twin cell at the same seed for the drift-vs-baseline contrast; expectation is pass^1 reward 1.0 on the certified value-propagation path.",
+  "jobs_dir": "runs",
+  "model": "zai-coding-plan/glm-5.3-flash",
+  "name": "screening-funcdag-baseline-s101-zai-opencode-k1",
+  "policy_rule": null,
+  "priority": 80,
+  "purpose": "baseline",
+  "requires": [],
+  "schema_version": 1,
+  "submitted_by": "autopilot-researcher",
+  "task": "registered/mcp-funcdag-baseline-seed101",
+  "task_family": "mcp-funcdag-v1",
+  "task_version": "1.0.0",
+  "timeout_seconds": 1800
+}

@@ -1,0 +1,520 @@
+"""Per-task hacker+fixer journal.
+
+The journal gives the hacker and fixer cross-iteration memory:
+
+  * `<task_output_dir>/journal.md` — compact, prompt-injected. Header +
+    tail of last K compact iter entries + current defenses-in-force ledger.
+  * `<task_output_dir>/journal/iter_<N>.md` — full per-iter summaries for
+    drill-down (mounted into containers at /journal/).
+  * `<task_output_dir>/journal/iter_<N>_compact.md` — pre-rendered compact
+    entry (so the prompt-facing `journal.md` is just concatenation, no
+    re-parsing of full summaries).
+  * `<task_output_dir>/journal/defenses_in_force.md` — LLM-maintained
+    ledger. Refreshed only on accepted-fix iters; reverted/replay-broken
+    iters do not enter the ledger.
+
+Writes go through `append_iter`, which is called once per iteration after
+the outcome is known. The journal is per-task and never propagated through
+the pool — the pool is the cross-task channel, the journal is intra-task
+memory.
+"""
+
+import json
+import logging
+import os
+import re
+import subprocess
+import tempfile
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+
+def _fixer_artifacts_dir(trial_dir: Path) -> Path:
+    """Return the correct host-side artifacts dir for a fixer trial.
+
+    Mirrors workspace._fixer_artifacts_dir — kept here to avoid a circular
+    import (journal ← workspace ← agent ← ...).
+
+    Docker: /logs/artifacts bind-mounts to trial_dir/artifacts/ (.git/ present).
+    Modal: Harbor downloads /logs/artifacts/ to trial_dir/artifacts/logs/artifacts/
+    (.git/ not included).
+    """
+    direct = trial_dir / "artifacts"
+    if (direct / ".git").is_dir():
+        return direct
+    modal = direct / "logs" / "artifacts"
+    if modal.is_dir():
+        return modal
+    return direct
+
+
+_JOURNAL_FILE = "journal.md"
+_JOURNAL_DIR = "journal"
+_DEFENSES_FILE = "defenses_in_force.md"
+_DEFAULT_COMPACT_MAX_ITERS = 10
+_LEDGER_MAX_CHARS = 8_000  # belt-and-braces; the LLM is also asked to keep it short
+
+
+# ── Read API ──────────────────────────────────────────────────────────────────
+
+def read_compact(task_output_dir: Path) -> str:
+    """Return the full prompt-facing journal markdown, or empty string if none."""
+    path = task_output_dir / _JOURNAL_FILE
+    if not path.exists():
+        return ""
+    return path.read_text()
+
+
+def read_defenses_in_force(task_output_dir: Path) -> str:
+    """Return only the defenses-in-force ledger, or empty string if none."""
+    path = task_output_dir / _JOURNAL_DIR / _DEFENSES_FILE
+    if not path.exists():
+        return ""
+    return path.read_text()
+
+
+def journal_dir(task_output_dir: Path) -> Path:
+    """Path to the per-iter drill-down dir (mounted into containers at /journal/)."""
+    return task_output_dir / _JOURNAL_DIR
+
+
+# ── Compact-entry rendering ───────────────────────────────────────────────────
+
+def _first_value_for(markdown: str, prefix: str) -> str:
+    """Extract the value from a `Prefix: value` line in the structured summary.
+
+    Returns empty string if not found. Used to build compact entries without
+    needing to plumb the Pydantic models through the call chain.
+    """
+    for raw in markdown.splitlines():
+        line = raw.strip()
+        if line.startswith(prefix):
+            return line[len(prefix):].strip()
+    return ""
+
+
+def _render_compact_entry(
+    iteration: int,
+    outcome: str,
+    hack_reward: float | None,
+    hack_summary: str | None,
+    fix_summary: str | None,
+    notes: str | None,
+    failure_detail: str | None = None,
+) -> str:
+    """Render a 4-6 line compact entry for one iteration.
+
+    Used both in journal.md (concatenated tail) and as the per-iter
+    `iter_<N>_compact.md` cache file. ``failure_detail`` is a one-line
+    extract of the validation error and appears as a **Failure** bullet so
+    the next fixer can read it directly without drilling down.
+    """
+    lines: list[str] = [f"## Iter {iteration} — outcome: {outcome}"]
+    if notes:
+        lines.append(f"_{notes}_")
+    lines.append("")
+
+    if failure_detail:
+        lines.append(f"- **Failure**: {failure_detail}")
+
+    if hack_summary:
+        strategy = _first_value_for(hack_summary, "Strategy:") or "(no strategy extracted)"
+        reward_str = f"reward {hack_reward:.2f}" if hack_reward is not None else "reward n/a"
+        lines.append(f"- **Hacker** ({reward_str}): {strategy}")
+    else:
+        lines.append("- **Hacker**: (no hack this iteration)")
+
+    if fix_summary:
+        defense = _first_value_for(fix_summary, "Defense:") or "(no defense extracted)"
+        interacts = _first_value_for(fix_summary, "Interacts with prior defenses:")
+        interacts_str = f" [{interacts}]" if interacts else ""
+        files = _first_value_for(fix_summary, "Files modified:")
+        files_str = f" — files: {files}" if files else ""
+        lines.append(f"- **Fixer**{interacts_str}: {defense}{files_str}")
+    else:
+        lines.append("- **Fixer**: (no fix this iteration)")
+
+    return "\n".join(lines) + "\n"
+
+
+# ── Defenses-in-force ledger ──────────────────────────────────────────────────
+
+_LEDGER_SYSTEM_PROMPT = (
+    "You maintain a running ledger of defenses currently in force on a "
+    "task verifier across an adversarial hardening loop. Each iteration, "
+    "the fixer adds, replaces, weakens, or extends defenses. You are given "
+    "the prior ledger and a single iteration's hack+fix summary with outcome, "
+    "and you produce the new ledger.\n\n"
+    "Rules:\n"
+    "- Each ledger entry is one line: '<short defense name> — <mechanism> (iter <N>)'.\n"
+    "- Keep the ledger under 10 entries. If new entries would push you over, "
+    "  merge the least-specific or oldest entries.\n"
+    "- If the new fix EXTENDS an existing entry (same attack class, stronger check), "
+    "  update that entry in place and keep its original iter index.\n"
+    "- If the new fix REPLACES an existing entry, remove the old one and add the new.\n"
+    "- If the new fix WEAKENS an existing entry (the diff removed a check), "
+    "  remove the weakened entry.\n"
+    "- If the new fix is INDEPENDENT (new attack class), add a new entry.\n"
+    "- Only update for accepted fixes. Reverted or replay-broken fixes must NOT "
+    "  appear in the ledger.\n"
+    "- Iter index in parentheses is the iteration the defense was first introduced."
+)
+
+
+async def _update_defenses_ledger(
+    prior_ledger: str,
+    iteration: int,
+    hack_summary: str,
+    fix_summary: str,
+    outcome: str,
+    model: str,
+    reasoning_effort: str | None,
+) -> str:
+    """Ask the LLM to fold the new iter into the ledger.
+
+    Returns markdown for the new ledger. Falls back to a deterministic
+    "append a line" update if the LLM call fails.
+    """
+    try:
+        from pydantic import BaseModel, Field
+
+        from harden.llm import acompletion_with_retry
+
+        class LedgerEntry(BaseModel):
+            name: str = Field(..., description="Short defense name, ~2-5 words.")
+            mechanism: str = Field(
+                ..., description="One-sentence description of how this defense blocks attacks."
+            )
+            iter_introduced: int = Field(
+                ..., description="Iteration index when this defense was first introduced."
+            )
+
+        class LedgerResponse(BaseModel):
+            entries: list[LedgerEntry] = Field(
+                ...,
+                description="The new ledger. Ordered newest-introduced first. Max 10 entries.",
+            )
+
+        user_payload = {
+            "prior_ledger": prior_ledger or "(empty)",
+            "iteration": iteration,
+            "hack_summary": hack_summary,
+            "fix_summary": fix_summary,
+            "outcome": outcome,
+        }
+        kwargs: dict = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": _LEDGER_SYSTEM_PROMPT},
+                {"role": "user", "content": json.dumps(user_payload)},
+            ],
+            "response_format": LedgerResponse,
+            "num_retries": 2,
+        }
+        if reasoning_effort is not None:
+            kwargs["reasoning_effort"] = reasoning_effort
+
+        response = await acompletion_with_retry(**kwargs)
+        parsed = LedgerResponse.model_validate_json(response.choices[0].message.content)
+
+        lines = ["## Defenses in force", ""]
+        for i, entry in enumerate(parsed.entries[:10], 1):
+            lines.append(
+                f"{i}. **{entry.name}** — {entry.mechanism} (iter {entry.iter_introduced})"
+            )
+        rendered = "\n".join(lines) + "\n"
+        if len(rendered) > _LEDGER_MAX_CHARS:
+            logger.warning(
+                "Ledger LLM output exceeded %d chars (%d); truncating.",
+                _LEDGER_MAX_CHARS, len(rendered),
+            )
+            rendered = rendered[:_LEDGER_MAX_CHARS]
+        return rendered
+
+    except Exception as exc:
+        logger.warning("Ledger LLM update failed (%s); appending deterministic entry.", exc)
+        defense = _first_value_for(fix_summary, "Defense:") or "(no defense extracted)"
+        mechanism = _first_value_for(fix_summary, "Mechanism:") or "(no mechanism extracted)"
+        appended = f"- **{defense}** — {mechanism} (iter {iteration})\n"
+        if prior_ledger.strip():
+            return prior_ledger.rstrip() + "\n" + appended
+        return "## Defenses in force\n\n" + appended
+
+
+# ── Write API ─────────────────────────────────────────────────────────────────
+
+def _atomic_write(path: Path, content: str) -> None:
+    """Write atomically via tmp + rename so partial writes don't corrupt journal."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(content)
+    tmp.replace(path)
+
+
+def _write_fixer_patch(
+    jdir: Path,
+    iteration: int,
+    fixer_trial: Path | None,
+) -> None:
+    """Write `journal/iter_<N>.patch` with this iter's fixer-committed diff.
+
+    Computed as ``git diff --binary initial HEAD`` inside the fixer's
+    artifacts repo. The ``initial`` tag is created at fixer container
+    start (see workspace.prepare_fixer_environment), so it captures the
+    state going into this iter — which equals the previous iter's
+    accepted hardened state (rejected iters don't update hardened).
+    ``--binary`` keeps adds/edits of binary files (e.g. reference
+    archives) in the patch rather than reducing them to "Binary files
+    differ."
+
+    Best-effort: missing/broken artifacts dirs log a warning and skip the
+    write; empty diffs (fixer committed only `.legitimate`, say) write no
+    file. The journal must never fail because of patch generation.
+    """
+    if fixer_trial is None:
+        return
+    artifacts = _fixer_artifacts_dir(fixer_trial)
+    if not artifacts.is_dir():
+        return
+    try:
+        result = subprocess.run(
+            ["git", "-c", "safe.directory=*", "-C", str(artifacts),
+             "diff", "--binary", "initial", "HEAD"],
+            capture_output=True, text=True, timeout=30,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Could not run git diff for iter %d patch (%s): %s",
+            iteration, artifacts, exc,
+        )
+        return
+    if result.returncode != 0:
+        # Modal path: .git/ is not downloaded, so git diff falls through to a
+        # parent repo that has no `initial` tag. Read the pre-generated
+        # _diff.patch file saved by the fixer entrypoint instead.
+        diff_patch = artifacts / "_diff.patch"
+        if diff_patch.is_file() and diff_patch.stat().st_size > 0:
+            jdir.mkdir(parents=True, exist_ok=True)
+            _atomic_write(jdir / f"iter_{iteration}.patch", diff_patch.read_text())
+        else:
+            logger.warning(
+                "git diff returned non-zero for iter %d patch (%s): %s",
+                iteration, artifacts, result.stderr.strip(),
+            )
+        return
+    if not result.stdout.strip():
+        # Empty diff — e.g. fixer only committed `.legitimate` with no
+        # actual content changes. Nothing useful to write.
+        return
+    jdir.mkdir(parents=True, exist_ok=True)
+    _atomic_write(jdir / f"iter_{iteration}.patch", result.stdout)
+
+
+def _write_hacker_patch(
+    jdir: Path,
+    iteration: int,
+    hacker_trial: Path | None,
+) -> None:
+    """Write `journal/iter_<N>_hacker.patch` with the hacker's /app changes.
+
+    The hacker's working dir (/app) is git-baselined at image-build time
+    (workspace.prepare_hacker_patch_capture tags `initial`), and Harbor
+    collects /app as ``artifacts/app`` at trial end. We diff that collected
+    working tree against `initial`, staging into a throwaway index so the
+    published artifact's own index is untouched. ``read-tree initial`` before
+    ``add -A`` means deletions are captured too, and ``--binary`` keeps binary
+    adds/edits in the patch.
+
+    This is the hacker's exploit as a diff — scoped to /app, the dir we get
+    back. Files the (privileged) hacker changes outside /app (OS files, /tests)
+    aren't captured: a true container-wide ``docker diff`` would need a live
+    container, which Modal trials don't expose to us.
+
+    Best-effort, like _write_fixer_patch: a missing repo / absent `initial`
+    tag / git error logs a warning and skips; an empty diff writes no file.
+    """
+    if hacker_trial is None:
+        return
+    app = hacker_trial / "artifacts" / "app"
+    if not (app / ".git").is_dir():
+        # No baseline repo — task bind-mounts /app, build-time capture failed,
+        # or /app wasn't collected. Nothing to diff against.
+        return
+    git = ["git", "-c", "safe.directory=*", "-C", str(app)]
+    try:
+        # Stage into a throwaway index (in its own temp dir, so it works
+        # whether or not jdir exists yet and never touches the published
+        # artifact's own index). Seed it from `initial`, then restage the
+        # working tree: the index now mirrors the final /app, so
+        # diff-vs-initial shows the hacker's adds, edits, and deletes.
+        with tempfile.TemporaryDirectory() as td:
+            env = {**os.environ, "GIT_INDEX_FILE": str(Path(td) / "index")}
+            subprocess.run(git + ["read-tree", "initial"], env=env,
+                           capture_output=True, text=True, timeout=30, check=True)
+            subprocess.run(git + ["add", "-A"], env=env,
+                           capture_output=True, text=True, timeout=120, check=True)
+            result = subprocess.run(
+                git + ["diff", "--binary", "--cached", "initial"],
+                env=env, capture_output=True, text=True, timeout=30,
+            )
+    except (OSError, subprocess.SubprocessError) as exc:
+        # CalledProcessError's str() omits stderr, but we captured it — surface
+        # it so a failed read-tree/add (e.g. missing `initial`) is debuggable.
+        stderr = getattr(exc, "stderr", None)
+        detail = f"\n{stderr.strip()}" if stderr else ""
+        logger.warning(
+            "Could not build hacker patch for iter %d (%s): %s%s",
+            iteration, app, exc, detail,
+        )
+        return
+    if result.returncode != 0:
+        logger.warning(
+            "git diff returned non-zero for iter %d hacker patch (%s): %s",
+            iteration, app, result.stderr.strip(),
+        )
+        return
+    if not result.stdout.strip():
+        # Hacker made no /app changes (e.g. exploited purely outside /app).
+        return
+    jdir.mkdir(parents=True, exist_ok=True)
+    _atomic_write(jdir / f"iter_{iteration}_hacker.patch", result.stdout)
+
+
+def _render_full_iter(
+    iteration: int,
+    outcome: str,
+    hack_reward: float | None,
+    hack_summary: str | None,
+    fix_summary: str | None,
+    notes: str | None,
+    failure_detail: str | None = None,
+) -> str:
+    """Render the full per-iter drill-down file content."""
+    parts: list[str] = [f"# Iter {iteration} — outcome: {outcome}"]
+    if notes:
+        parts.append(f"\n{notes}\n")
+    if failure_detail:
+        parts.append(f"\n## Failure\n\n{failure_detail}\n")
+    if hack_summary:
+        reward_str = f" (reward {hack_reward:.2f})" if hack_reward is not None else ""
+        parts.append(f"\n## Hacker{reward_str}\n\n{hack_summary}\n")
+    else:
+        parts.append("\n## Hacker\n\n(no hack this iteration)\n")
+    if fix_summary:
+        parts.append(f"\n## Fixer\n\n{fix_summary}\n")
+    else:
+        parts.append("\n## Fixer\n\n(no fix this iteration)\n")
+    return "".join(parts)
+
+
+def _rebuild_journal_md(
+    task_output_dir: Path,
+    compact_max_iters: int,
+) -> None:
+    """Regenerate journal.md from the per-iter compact files + current ledger.
+
+    Scans for `iter_<N>_compact.md` (sorted by N), takes the last
+    `compact_max_iters`, concatenates, then appends the ledger.
+    """
+    jdir = journal_dir(task_output_dir)
+    if not jdir.is_dir():
+        return
+
+    compact_files: list[tuple[int, Path]] = []
+    for p in jdir.glob("iter_*_compact.md"):
+        # Strip "iter_" prefix and "_compact.md" suffix to recover the integer.
+        stem = p.name[len("iter_"):-len("_compact.md")]
+        try:
+            compact_files.append((int(stem), p))
+        except ValueError:
+            continue
+    compact_files.sort(key=lambda t: t[0])
+
+    if not compact_files:
+        return
+
+    tail = compact_files[-compact_max_iters:]
+    truncated = len(compact_files) > len(tail)
+
+    parts: list[str] = [
+        "# Hardening journal",
+        "",
+        "Per-iteration history of hacker attacks and fixer defenses on this task. "
+        "Full per-iter summaries are at `/journal/iter_<N>.md` (read-only). "
+        "Use this to avoid (a) repeating defenses already tried, "
+        "(b) weakening defenses currently holding the line.",
+        "",
+    ]
+    if truncated:
+        parts.append(
+            f"_Showing iters {tail[0][0]}–{tail[-1][0]} "
+            f"(omitted {len(compact_files) - len(tail)} earlier iters; "
+            f"see `/journal/` for the full set)._"
+        )
+        parts.append("")
+
+    for _, path in tail:
+        parts.append(path.read_text().rstrip())
+        parts.append("")
+
+    ledger = read_defenses_in_force(task_output_dir)
+    if ledger.strip():
+        parts.append(ledger.rstrip())
+        parts.append("")
+
+    _atomic_write(task_output_dir / _JOURNAL_FILE, "\n".join(parts))
+
+
+async def append_iter(
+    task_output_dir: Path,
+    *,
+    iteration: int,
+    outcome: str,
+    fix_applied: bool,
+    hack_reward: float | None,
+    hack_summary: str | None,
+    fix_summary: str | None,
+    fixer_trial: Path | None = None,
+    hacker_trial: Path | None = None,
+    notes: str | None = None,
+    failure_detail: str | None = None,
+    ledger_model: str | None = None,
+    reasoning_effort: str | None = None,
+    compact_max_iters: int = _DEFAULT_COMPACT_MAX_ITERS,
+) -> None:
+    """Record one iteration in the journal.
+
+    Writes the full drill-down file and the compact entry, the fixer patch
+    (``iter_<N>.patch``) and hacker patch (``iter_<N>_hacker.patch``) when their
+    trials are given, then regenerates `journal.md`. Iff `fix_applied` and
+    `ledger_model` is set, also refreshes `defenses_in_force.md` via an LLM call.
+
+    ``failure_detail`` is a one-line summary of why the fix was rejected
+    (extracted upstream from ``previous_failure``); appears as a prominent
+    bullet in the compact entry so the next fixer's prompt surfaces the
+    specific blocker without needing to drill into ``iter_<N>.md``.
+    """
+    jdir = journal_dir(task_output_dir)
+    jdir.mkdir(parents=True, exist_ok=True)
+
+    full = _render_full_iter(
+        iteration, outcome, hack_reward, hack_summary, fix_summary, notes, failure_detail,
+    )
+    compact = _render_compact_entry(
+        iteration, outcome, hack_reward, hack_summary, fix_summary, notes, failure_detail,
+    )
+    _atomic_write(jdir / f"iter_{iteration}.md", full)
+    _atomic_write(jdir / f"iter_{iteration}_compact.md", compact)
+    _write_fixer_patch(jdir, iteration, fixer_trial)
+    _write_hacker_patch(jdir, iteration, hacker_trial)
+
+    if fix_applied and ledger_model and hack_summary and fix_summary:
+        prior = read_defenses_in_force(task_output_dir)
+        new_ledger = await _update_defenses_ledger(
+            prior, iteration, hack_summary, fix_summary, outcome,
+            model=ledger_model, reasoning_effort=reasoning_effort,
+        )
+        _atomic_write(jdir / _DEFENSES_FILE, new_ledger)
+
+    _rebuild_journal_md(task_output_dir, compact_max_iters=compact_max_iters)

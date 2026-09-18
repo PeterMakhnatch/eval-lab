@@ -1,0 +1,22 @@
+{
+  "agent": "zai-opencode",
+  "attempts": 1,
+  "concurrency": 1,
+  "environment": "docker",
+  "est_cost_usd": 0.0,
+  "generator_seed": 42,
+  "hypothesis": "Screening canary, calibration-only (per-class PRR, never pooled): zero-fault clean twin arm at seed 42 paired with the persistent-schema-mismatch fault cell (persistence 1); all-pass expected and required for the 8/8 recovery escalation kill rule.",
+  "jobs_dir": "runs",
+  "model": "zai-coding-plan/glm-5.3-flash",
+  "name": "screening-recovery-persistent-schema-mismatch-s42-p1-clean-zai-opencode-k1",
+  "policy_rule": null,
+  "priority": 80,
+  "purpose": "baseline",
+  "requires": [],
+  "schema_version": 1,
+  "submitted_by": "autopilot-researcher",
+  "task": "registered/recovery-persistent-schema-mismatch-s42-p1-clean",
+  "task_family": "mcp-recovery-v1",
+  "task_version": "1.0.0",
+  "timeout_seconds": 1800
+}

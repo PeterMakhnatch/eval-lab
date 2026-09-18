@@ -1,0 +1,22 @@
+{
+  "agent": "zai-opencode",
+  "attempts": 1,
+  "concurrency": 1,
+  "environment": "docker",
+  "est_cost_usd": 0.0,
+  "generator_seed": 2024,
+  "hypothesis": "Screening canary, calibration-only (n=1 per cell, not a ranking): name_similarity_high FuncDAG arm (high lexical tool-name similarity, no schema drift) at generator seed 2024, contrasted against the baseline cell at the same seed; wrong-graph traversal under high name similarity is the failure mechanism of interest and 3/3 passes trigger the conflict-synthesis pivot kill rule.",
+  "jobs_dir": "runs",
+  "model": "zai-coding-plan/glm-5.3-flash",
+  "name": "screening-funcdag-name-similarity-high-s2024-zai-opencode-k1",
+  "policy_rule": null,
+  "priority": 80,
+  "purpose": "baseline",
+  "requires": [],
+  "schema_version": 1,
+  "submitted_by": "autopilot-researcher",
+  "task": "registered/mcp-funcdag-name-similarity-high-seed2024",
+  "task_family": "mcp-funcdag-v1",
+  "task_version": "1.0.0",
+  "timeout_seconds": 1800
+}

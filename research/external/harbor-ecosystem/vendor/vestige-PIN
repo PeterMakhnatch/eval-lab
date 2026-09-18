@@ -1,0 +1,3 @@
+ASSERT-KTH/vestige @ d03e8a7f1bc2e7dc372b193a1ea2d81da08741fe (full clone, checked out at pin)
+use: pass@k vs pass^k reliability stats over multi-trial Harbor tasks (CPU seconds)
+note: shallow fetch of the short SHA fails; full clone required

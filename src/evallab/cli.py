@@ -1824,7 +1824,7 @@ def _db_init_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
     url = database_url_from_environment(args.database_url)
-    database.initialize(url)
+    database.initialize(url, force=True)
     print("database schema is current")
     return 0
 
@@ -4943,11 +4943,6 @@ def run_cli(
 
 def main(argv: Sequence[str] | None = None) -> None:
     raise SystemExit(run_cli(argv))
-
-
-def legacy_main() -> None:
-    print("warning: harbor-lab is deprecated; use evallab", file=sys.stderr)
-    main()
 
 
 if __name__ == "__main__":

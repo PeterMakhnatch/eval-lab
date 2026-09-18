@@ -1,7 +1,9 @@
 # Task 4 — first --skill intervention: analysis spec (DESIGNED, NOT RUN)
 
-Status: frozen spec. Execution needs Peter's approve (billable, ~$1.50). The data
-engineer executes blind per §5; no analysis change after unblinding.
+Status: frozen spec. Execution needs Peter's recorded authorization (`uv run
+evallab approve <spec-id> --actor peter`) because codex is a billable agent under
+`policy/standing-approvals.yaml` — NOT because money moves. The data engineer
+executes blind per §5; no analysis change after unblinding.
 
 ## 1. Question
 
@@ -20,8 +22,17 @@ agent, model, and date window fixed?
   pack; do not mix models across arms).
 - The skill under test: `research/analysis/harbor-native-track/skills/debugging-discipline/SKILL.md`
   (frozen in this commit; any edit = new intervention, new spec version).
-- Cost envelope: ~$0.25/trial observed → 6 trials ≈ $1.50. Abort if a single
-  trial exceeds $1.00 (record, exclude, note).
+- Budget, in the unit that actually binds: 6 codex trials against the **weekly
+  subscription window** (`limit_id=codex`, 10080 min, `hard_stop=true` — 100%
+  locks out every paid agent until reset, it does not bill). Comparable history:
+  html-js-filter averaged ~27k uncached input + ~11.6k output tokens per trial
+  with observed usage. The dollar figures Harbor reports (~$0.25/trial,
+  ~$1.50 total) are **API list-price equivalents, not spend** — no API key is
+  used; codex authenticates from the OAuth subscription. Do not gate on them.
+- Pre-run gate (MANDATORY): `uv run python -m evallab.quota runs` must show
+  enough `remaining_percent` that 6 trials cannot reach 100%. At the 1.0-point
+  counter resolution a 6-trial slice is typically undetectable, but ABORT if
+  `remaining_percent <= 2.0`. Record the reading in the results file.
 
 ## 3. Pre-declared metrics (no other number may be headlined)
 

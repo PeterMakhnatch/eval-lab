@@ -36,6 +36,10 @@ Treat generated runs as immutable once promoted to `research/evidence/runs/`.
 - Make meaningful changes on a named branch and open a pull request; do not push
   directly to `main` unless Peter explicitly asks. Treat every `quality` check
   as required even when the GitHub plan cannot enforce branch protection.
+- The main checkout (`~/Developer/eval-lab`) stays on `main`. Do ALL branch work
+  in `.worktrees/` or `/tmp` worktrees — never `git switch`/`checkout` branches in
+  the primary checkout. A watchdog (`eval-lab-main-watchdog`) auto-restores `main`
+  within ~10s whenever the tree is clean; dirty trees are left untouched and logged.
 - The authoring agent must run the repository checks before pushing. After CI,
   Peter or a different agent reviews the pull request before merge.
 

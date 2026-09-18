@@ -1,0 +1,348 @@
+"""CLI entry point: python -m harden"""
+
+import argparse
+import asyncio
+import logging
+from datetime import datetime
+from pathlib import Path
+
+from .batch import harden_batch
+from .config import BatchHardenConfig, HardenConfig
+from .loop import harden_task
+from .pool import pool_context
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Adversarial hardening loop. Two orthogonal mode flags: "
+                    "--oracle (deterministic pre-check) and --kernelbench-mode "
+                    "(KB-specific prompts/templates). KernelBench runs pass both.",
+    )
+
+    # Task selection — mutually exclusive
+    task_group = parser.add_mutually_exclusive_group(required=True)
+    task_group.add_argument("--task-id", help="Single task ID to harden")
+    task_group.add_argument(
+        "--task-ids",
+        help="Comma-separated list of task IDs to harden in batch",
+    )
+    task_group.add_argument(
+        "--all", action="store_true", dest="all_tasks",
+        help="Harden all tasks in tasks-dir",
+    )
+
+    parser.add_argument(
+        "--tasks-dir", type=Path, required=True,
+        help="Base directory containing task environments (required)",
+    )
+    parser.add_argument("--output-dir", type=Path, default=None)
+
+    # Mode (two orthogonal flags)
+    parser.add_argument(
+        "--oracle", dest="oracle", action="store_true", default=False,
+        help="Use deterministic pre-check (copies reference.py → solution.py via solve.sh). "
+             "Default is agent-solver pre-check.",
+    )
+    parser.add_argument(
+        "--kernelbench-mode", dest="kernelbench_mode", action="store_true", default=False,
+        help="Use KernelBench-specific prompts, templates, and eval-file check "
+             "(speedup metric, eval_kernel.py). Default is generic task-verifier framing "
+             "(pass/fail reward, test_outputs.py). KernelBench runs need both --oracle and this.",
+    )
+
+    # Models
+    parser.add_argument("--hacker-model", default="gemini/gemini-3.1-pro-preview")
+    parser.add_argument("--fixer-model", default="gemini/gemini-3.1-pro-preview")
+    parser.add_argument("--solver-model", default="gemini/gemini-3.1-pro-preview",
+                        help="Agent-solver model (used when --oracle is off; ignored when on)")
+
+    # Thresholds (defaults suit reward-based tasks; KB overrides to 10 / 0.5)
+    parser.add_argument("--hack-threshold", type=float, default=1.0,
+                        help="Reward/speedup above this counts as a successful hack (default: 1.0)")
+    parser.add_argument("--solver-threshold", type=float, default=1.0,
+                        help="Reward/speedup the solver must meet to pass (default: 1.0)")
+
+    parser.add_argument("--max-iterations", type=int, default=10)
+    parser.add_argument("--hacker-retries", type=int, default=3)
+    parser.add_argument("--solver-precheck-retries", type=int, default=1,
+                        help="Pre-check retries (only meaningful when --oracle is off; "
+                             "the deterministic oracle doesn't need retries)")
+    parser.add_argument("--legitimate-threshold", type=int, default=3)
+    parser.add_argument("--no-legitimate-marker", dest="legitimate_marker",
+                        action="store_false", default=True,
+                        help="Disable the .legitimate sentinel (fixer can't flag hacks as legitimate)")
+
+    parser.add_argument("--hacker-max-turns", type=int, default=None,
+                        help="Max turns for hacker (default: None = use task timeout)")
+    parser.add_argument("--fixer-max-turns", type=int, default=None,
+                        help="Max turns for fixer (default: None = use task timeout)")
+    parser.add_argument("--solver-max-turns", type=int, default=None,
+                        help="Max turns for solver (solver mode only; default: None)")
+
+    parser.add_argument("--solver-timeout-multiplier", type=float, default=2.0)
+    parser.add_argument("--hacker-timeout-multiplier", type=float, default=2.0)
+    parser.add_argument("--fixer-timeout-multiplier", type=float, default=10.0)
+
+    parser.add_argument("--temperature", type=float, default=None,
+                        help="Sampling temperature (default: None = agent default)")
+    parser.add_argument("--max-tokens", type=int, default=None,
+                        help="Max output tokens (default: None = model default)")
+    parser.add_argument("--reasoning-effort", default=None,
+                        choices=["none", "minimal", "low", "medium", "high"],
+                        help="Reasoning effort (default: None = high)")
+
+    parser.add_argument("--solver-privileged", action="store_true",
+                        help="Inject /solution/ into the solver's env (solver mode only)")
+    parser.add_argument("--hacker-feedback", action="store_true",
+                        help="Give hacker read-only access to previous failed attempts")
+    parser.add_argument("--summary-model", default=None,
+                        help="Model used to LLM-summarize failed hack trajectories after each attempt. "
+                             "Defaults to fixer_model when omitted. Pass empty string to disable.")
+    parser.add_argument("--hacker-privileged", action="store_true",
+                        help="Give hacker read-only access to the evaluation environment "
+                             "(tests/, environment/) at /eval_env/")
+    priv_iter_group = parser.add_mutually_exclusive_group()
+    priv_iter_group.add_argument("--hacker-privileged-disable-iteration", type=int, default=5,
+                        help="Iteration index at which --hacker-privileged is disabled "
+                             "(default: 5). Only applies when --hacker-privileged is set")
+    priv_iter_group.add_argument("--hacker-privileged-enable-iteration", type=int, default=None,
+                        help="Opposite of --hacker-privileged-disable-iteration: hacker "
+                             "starts non-privileged and privilege turns on at this iteration "
+                             "index (default: unset). Only applies when --hacker-privileged "
+                             "is set. While in effect, the task is not declared 'robust' until "
+                             "at least one iteration has actually run a privileged hacker.")
+
+    # Targeted replay (post-solver gate) — reuses hacker knobs for model/turns/timeout.
+    parser.add_argument("--replay-enabled", action="store_true",
+                        help="After solver passes, re-attempt the specific prior exploit on the "
+                             "patched task; if it re-lands, reject the fix.")
+    parser.add_argument("--replay-retries", type=int, default=1,
+                        help="Targeted-replay retries per iteration (default: 1)")
+
+    # Harbor knobs
+    parser.add_argument("-c", "--harbor-config", type=Path, default=None,
+                        help="Path to a Harbor YAML/JSON config file for environment/agent/orchestrator defaults")
+    parser.add_argument("--force-build", action="store_true",
+                        help="Always rebuild Docker images (useful when Dockerfile changes are expected)")
+    parser.add_argument("--image-name", default=None,
+                        help="Override image name so harden runs don't clobber the base image")
+
+    # Jumper / pooled mode
+    parser.add_argument("--pool-enabled", action="store_true",
+                        help="Enable jumper pooled mode: share a defense repo across tasks via "
+                             "a host-side git daemon. Fixer containers clone/push to the pool. "
+                             "Linux Docker Engine >= 20.10 only (uses extra_hosts:host-gateway).")
+    parser.add_argument("--pool-bootstrap-dir", type=Path, default=None,
+                        help="Hardened task dir to bootstrap the pool from (required if --pool-enabled).")
+    parser.add_argument("--pool-port", type=int, default=9418,
+                        help="Port for git daemon (default 9418; auto-bumps if busy).")
+    parser.add_argument("--pool-max-consecutive-syncs", type=int, default=1,
+                        help="Force the hacker after this many consecutive pool-sync skips (default: 1). "
+                             "Pool-sync iterations never count toward --max-iterations.")
+    parser.add_argument("--pool-integrate-bootstrap", action="store_true",
+                        help="Make iter 0 a skip-hacker pool-sync iteration so the fixer "
+                             "ports the bootstrap pool history into local /logs/artifacts/ "
+                             "before any attack. Default off: bootstrap typically contains "
+                             "task-specific files (e.g. KernelBench reference.py) that would "
+                             "corrupt sibling tasks. Only enable when --pool-bootstrap-dir "
+                             "is a task-agnostic defense scaffold.")
+
+    # Batch-only
+    parser.add_argument("--max-concurrent", type=int, default=4,
+                        help="Max concurrent Docker containers (batch mode)")
+
+    parser.add_argument("--retry-failed-prechecks", action="store_true",
+                        help="Re-run cached failed prechecks live instead of reusing their result")
+
+    parser.add_argument("--no-journal", dest="journal_enabled", action="store_false",
+                        help="Disable the cross-iteration hacker+fixer journal. "
+                             "Default: enabled. Use for ablation runs.")
+    parser.add_argument("--journal-compact-max-iters", type=int, default=10,
+                        help="How many recent iter compact entries to inline in journal.md (default 10).")
+
+    parser.add_argument("--fixer-prompt-file", type=Path, default=None,
+                        help="Optional path to a markdown file whose contents are appended to "
+                             "every fixer prompt as 'Additional guidance'. If unset, no extra "
+                             "section is added. File contents are hashed into the job-cache "
+                             "fingerprint, so editing the file invalidates the cache.")
+    parser.add_argument("--fixer-prompt-after-iter", type=int, default=-1,
+                        help="Inject --fixer-prompt-file only AFTER this iteration index "
+                             "(iter > N triggers inclusion). Default -1: inject from iter 0 "
+                             "onward (no gating). Set e.g. 2 to let the fixer attempt iters "
+                             "0/1/2 unguided before the custom directive kicks in.")
+
+    parser.add_argument("--log-level", default="INFO",
+                        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+                        help="Logging level (default: INFO)")
+
+    return parser
+
+
+def _config_kwargs(args: argparse.Namespace) -> dict:
+    return dict(
+        tasks_dir=args.tasks_dir,
+        output_dir=args.output_dir,
+        oracle=args.oracle,
+        kernelbench_mode=args.kernelbench_mode,
+        hacker_model=args.hacker_model,
+        fixer_model=args.fixer_model,
+        solver_model=args.solver_model,
+        hack_threshold=args.hack_threshold,
+        solver_threshold=args.solver_threshold,
+        max_iterations=args.max_iterations,
+        hacker_retries=args.hacker_retries,
+        solver_precheck_retries=args.solver_precheck_retries,
+        legitimate_threshold=args.legitimate_threshold,
+        legitimate_marker=args.legitimate_marker,
+        hacker_max_turns=args.hacker_max_turns,
+        fixer_max_turns=args.fixer_max_turns,
+        solver_max_turns=args.solver_max_turns,
+        solver_timeout_multiplier=args.solver_timeout_multiplier,
+        hacker_timeout_multiplier=args.hacker_timeout_multiplier,
+        fixer_timeout_multiplier=args.fixer_timeout_multiplier,
+        temperature=args.temperature,
+        max_tokens=args.max_tokens,
+        reasoning_effort=args.reasoning_effort,
+        solver_privileged=args.solver_privileged,
+        hacker_feedback=args.hacker_feedback,
+        summary_model=args.summary_model,
+        hacker_privileged=args.hacker_privileged,
+        hacker_privileged_disable_iteration=args.hacker_privileged_disable_iteration,
+        hacker_privileged_enable_iteration=args.hacker_privileged_enable_iteration,
+        replay_enabled=args.replay_enabled,
+        replay_retries=args.replay_retries,
+        harbor_config=args.harbor_config,
+        force_build=args.force_build,
+        image_name=args.image_name,
+        pool_enabled=args.pool_enabled,
+        pool_bootstrap_dir=args.pool_bootstrap_dir,
+        pool_port=args.pool_port,
+        pool_max_consecutive_syncs=args.pool_max_consecutive_syncs,
+        pool_integrate_bootstrap=args.pool_integrate_bootstrap,
+        resume=args.resume,
+        retry_failed_prechecks=args.retry_failed_prechecks,
+        journal_enabled=args.journal_enabled,
+        journal_compact_max_iters=args.journal_compact_max_iters,
+        fixer_prompt_file=args.fixer_prompt_file,
+        fixer_prompt_after_iter=args.fixer_prompt_after_iter,
+    )
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+
+    logging.basicConfig(
+        level=getattr(logging, args.log_level),
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    )
+    # Reduce log noise from LiteLLM
+    logging.getLogger("LiteLLM").setLevel(logging.WARNING)
+
+    if args.output_dir is None:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        args.output_dir = Path(f"outputs/batch_{ts}")
+
+    if args.harbor_config is not None and not args.harbor_config.is_file():
+        parser.error(f"Harbor config file not found: {args.harbor_config}")
+
+    if args.pool_enabled:
+        if args.pool_bootstrap_dir is None:
+            parser.error("--pool-enabled requires --pool-bootstrap-dir")
+        if not args.pool_bootstrap_dir.is_dir():
+            parser.error(f"--pool-bootstrap-dir not a directory: {args.pool_bootstrap_dir}")
+    elif args.pool_integrate_bootstrap:
+        parser.error("--pool-integrate-bootstrap requires --pool-enabled")
+
+    if args.hacker_privileged_disable_iteration < 0:
+        parser.error("--hacker-privileged-disable-iteration must be >= 0")
+    if (
+        args.hacker_privileged_enable_iteration is not None
+        and args.hacker_privileged_enable_iteration < 0
+    ):
+        parser.error("--hacker-privileged-enable-iteration must be >= 0")
+
+    args.resume = args.output_dir.exists()
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+
+    log_fmt = "%(asctime)s %(levelname)s [%(name)s] %(message)s"
+    file_handler = logging.FileHandler(args.output_dir / "harden_job.log")
+    file_handler.setFormatter(logging.Formatter(log_fmt))
+    logging.getLogger().addHandler(file_handler)
+
+    logging.info("Output directory: %s", args.output_dir.resolve())
+    if args.resume:
+        banner = "*" * 72
+        logging.warning(banner)
+        logging.warning(
+            "RESUME MODE — output dir already exists at %s",
+            args.output_dir.resolve(),
+        )
+        logging.warning(
+            "  - completed tasks (terminal status, matching mode flags) will be SKIPPED"
+        )
+        logging.warning(
+            "  - in-progress tasks will continue from their last persisted iteration"
+        )
+        logging.warning(
+            "  - existing hardened/ state is PRESERVED (not reset to original)"
+        )
+        logging.warning(
+            "If this is unintended, Ctrl-C now and pass a fresh --output-dir."
+        )
+        logging.warning(banner)
+
+    if args.task_id:
+        _run_single(args)
+    else:
+        _run_batch(args)
+
+
+def _run_single(args: argparse.Namespace) -> None:
+    config = HardenConfig(task_id=args.task_id, **_config_kwargs(args))
+
+    async def _go():
+        with pool_context(config) as pool_server:
+            return await harden_task(config, pool_server=pool_server)
+
+    result = asyncio.run(_go())
+
+    status = result.get("status", "unknown")
+    iterations = result.get("iterations", [])
+    # Metric label follows kernelbench_mode (what the verifier actually scores),
+    # not oracle (which only controls the pre-check dispatch).
+    metric = "speedup" if config.kernelbench_mode else "reward"
+    precheck = "oracle" if config.oracle else "solver-agent"
+    framing = "kernelbench" if config.kernelbench_mode else "generic"
+
+    logging.info("=" * 60)
+    logging.info("Task:       %s", config.task_id)
+    logging.info("Mode:       pre-check=%s, framing=%s", precheck, framing)
+    logging.info("Status:     %s", status)
+    logging.info("Iterations: %d", len(iterations))
+    for it in iterations:
+        hr = it.get("hack_reward")
+        hr_str = f"{hr:.2f}" if hr is not None else "N/A"
+        logging.info("  [%d] hack_%s=%s  outcome=%s", it["iteration"], metric, hr_str, it.get("outcome"))
+    logging.info("Result:     %s", config.result_path)
+    if "hardened_dir" in result:
+        logging.info("Hardened:   %s", result["hardened_dir"])
+    logging.info("=" * 60)
+
+
+def _run_batch(args: argparse.Namespace) -> None:
+    if args.all_tasks:
+        task_ids = sorted(p.name for p in args.tasks_dir.iterdir() if p.is_dir())
+    else:
+        task_ids = [t.strip() for t in args.task_ids.split(",") if t.strip()]
+
+    config = BatchHardenConfig(
+        task_ids=task_ids,
+        max_concurrent_containers=args.max_concurrent,
+        **_config_kwargs(args),
+    )
+    asyncio.run(harden_batch(config))
+
+
+if __name__ == "__main__":
+    main()

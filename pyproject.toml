@@ -23,7 +23,6 @@ verifier = [
 
 [project.scripts]
 evallab = "evallab.cli:main"
-harbor-lab = "evallab.cli:legacy_main"
 
 [dependency-groups]
 # Dependencies required by the mcp-recovery-v1 benchmark family's certified runtime

@@ -1,0 +1,22 @@
+{
+  "agent": "zai-opencode",
+  "attempts": 1,
+  "concurrency": 1,
+  "environment": "docker",
+  "est_cost_usd": 0.0,
+  "generator_seed": 42,
+  "hypothesis": "Screening canary, calibration-only (per-class PRR, never pooled): TRANSIENT_NETWORK_TIMEOUT fault arm at persistence 1, seed 42, twin-paired with its clean twin (seed, tools, compose held constant); causal recovery via the designated repair move is the scored outcome and the cell feeds the 8/8 recovery escalation gate.",
+  "jobs_dir": "runs",
+  "model": "zai-coding-plan/glm-5.3-flash",
+  "name": "screening-recovery-transient-network-timeout-s42-p1-zai-opencode-k1",
+  "policy_rule": null,
+  "priority": 80,
+  "purpose": "baseline",
+  "requires": [],
+  "schema_version": 1,
+  "submitted_by": "autopilot-researcher",
+  "task": "registered/recovery-transient-network-timeout-s42-p1",
+  "task_family": "mcp-recovery-v1",
+  "task_version": "1.0.0",
+  "timeout_seconds": 1800
+}

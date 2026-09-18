@@ -1,26 +1,25 @@
 ---
-status: living
+status: historical
 audience:
   - operator
   - builder
   - runner
 ---
 
-# Research status — 2026-08-26
+# Research status — 2026-09-18
 
 Projection of live catalog, queue state, and `PROGRAM.json`.
 Answers what happened yesterday and what is running now deterministically.
+Generated catalog snapshot; historical record, not a living contract.
 
-## RECENT (Yesterday: 2026-08-25)
+## RECENT (Yesterday: 2026-09-17)
 
-- **agentabstain/ambiguous_action_specification-preview_002-act** — 0/1 `reward==1.0` via oracle [exceptions: ValueError=1]
-- **deepplanning-v1/travel-lisbon-002** — 1/1 `reward==1.0` via codex (gpt-5.6-luna)
-- **loca-bench/ab-testing-seed-42-8k** — 0/1 `reward==1.0` via codex (gpt-5.6-luna) [exceptions: RewardFileNotFoundError=1]
+No completed trials observed in the reporting window.
 
 ### Evidence Quality Ledger
 
-- **Evaluated Trials:** 7 (Passed: 2, Warnings: 4, Failed: 0, Quarantined: 1)
-- **Top Quarantine/Failure Reasons:** `infrastructure_exception:Traceback (most recent call last):`: 1
+- **Evaluated Trials:** 320 (Passed: 262, Warnings: 10, Failed: 36, Quarantined: 12)
+- **Top Quarantine/Failure Reasons:** `missing_trajectory_file`: 36, `infrastructure_exception:Traceback (most recent call last):`: 12
 
 ## RUNNING NOW
 
@@ -28,7 +27,217 @@ Nothing in `queue/running/` or `queue/approved/`.
 
 ## NEXT
 
-No queued work waiting in `queue/waiting/`, `queue/pending/`, or `queue/proposed/`.
+- `[proposed]` **screening-metered-action-clean4k-zai-opencode-k1** (`01M1JV4X8RMW5JBBB0W00287FN`): task=`registered/action-memory-clean4k`, agent=`zai-opencode` [purpose: baseline]
+- `[proposed]` **screening-metered-action-neutral16k-zai-opencode-k1** (`01M1JV4X8SM5TYSG5C60XEZBPY`): task=`registered/action-memory-neutral16k`, agent=`zai-opencode` [purpose: baseline]
+- `[waiting]` **canary-event-summary-codex-20260916** (`01M2MEM67KDY1XM56E10P6Z726`): task=`canary/event-summary`, agent=`codex` [purpose: drift] — *Reason/Blocker:* paid_run_unauthorized: codex is a billable agent. Paid execution here draws on Peter's ChatGPT/Codex subscription, so it never runs unattended: this spec waits until a named human authorises it.
+  authorise: uv run evallab approve 01M2MEM67KDY1XM56E10P6Z726 --actor <you>
+  refuse:    uv run evallab reject 01M2MEM67KDY1XM56E10P6Z726 --actor <you> --reason "<why>"
+  then run:  uv run evallab tick
+The free oracle and nop controls are unaffected and still run unattended.
+Peter's ChatGPT/Codex subscription allowance/policy state (scope: account, NOT the lab; provider-reported):
+  used_percent         99.0 [observed]
+  remaining_percent    1.0 [observed] (account-wide, whole percentage points)
+  resets_at            2026-09-07T06:24:34+00:00
+  hard_stop            True
+    no overflow credits: reaching 100% blocks every paid agent until the window resets, it does not incur an extra charge
+  observed_at          2026-09-06T22:55:57.992000+00:00
+  staleness            223h35m old
+    a stale reading warns; it never refuses. The reading exists only because a paid trial recorded it, so refusing on age would make the first paid run after any quiet period impossible. Age is printed above precisely because you, not this gate, are the one judging whether it is still true.
+  source               fix-code-vulnerability__wWg7Wii/agent/sessions/2026/09/06/rollout-2026-09-06T22-55-18-01a078ee-e866-7e52-b9e7-6ecf20b7eb3a.jsonl
+  NOTE: resets_at has already passed, so this reading describes a window that has since rolled over. It cannot refuse anything, and it cannot reassure you either.
+- `[waiting]` **canary-event-summary-codex-20260917** (`01M2Q9J3DVEVBF1WXTCGVC1P4Q`): task=`canary/event-summary`, agent=`codex` [purpose: drift] — *Reason/Blocker:* paid_run_unauthorized: codex is a billable agent. Paid execution here draws on Peter's ChatGPT/Codex subscription, so it never runs unattended: this spec waits until a named human authorises it.
+  authorise: uv run evallab approve 01M2Q9J3DVEVBF1WXTCGVC1P4Q --actor <you>
+  refuse:    uv run evallab reject 01M2Q9J3DVEVBF1WXTCGVC1P4Q --actor <you> --reason "<why>"
+  then run:  uv run evallab tick
+The free oracle and nop controls are unaffected and still run unattended.
+Peter's ChatGPT/Codex subscription allowance/policy state (scope: account, NOT the lab; provider-reported):
+  used_percent         99.0 [observed]
+  remaining_percent    1.0 [observed] (account-wide, whole percentage points)
+  resets_at            2026-09-07T06:24:34+00:00
+  hard_stop            True
+    no overflow credits: reaching 100% blocks every paid agent until the window resets, it does not incur an extra charge
+  observed_at          2026-09-06T22:55:57.992000+00:00
+  staleness            250h05m old
+    a stale reading warns; it never refuses. The reading exists only because a paid trial recorded it, so refusing on age would make the first paid run after any quiet period impossible. Age is printed above precisely because you, not this gate, are the one judging whether it is still true.
+  source               fix-code-vulnerability__wWg7Wii/agent/sessions/2026/09/06/rollout-2026-09-06T22-55-18-01a078ee-e866-7e52-b9e7-6ecf20b7eb3a.jsonl
+  NOTE: resets_at has already passed, so this reading describes a window that has since rolled over. It cannot refuse anything, and it cannot reassure you either.
+- `[waiting]` **canary-event-summary-codex-20260918** (`01M2SKF2CA69Y84JRHSRTGQ2ED`): task=`canary/event-summary`, agent=`codex` [purpose: drift] — *Reason/Blocker:* paid_run_unauthorized: codex is a billable agent. Paid execution here draws on Peter's ChatGPT/Codex subscription, so it never runs unattended: this spec waits until a named human authorises it.
+  authorise: uv run evallab approve 01M2SKF2CA69Y84JRHSRTGQ2ED --actor <you>
+  refuse:    uv run evallab reject 01M2SKF2CA69Y84JRHSRTGQ2ED --actor <you> --reason "<why>"
+  then run:  uv run evallab tick
+The free oracle and nop controls are unaffected and still run unattended.
+Peter's ChatGPT/Codex subscription allowance/policy state (scope: account, NOT the lab; provider-reported):
+  used_percent         99.0 [observed]
+  remaining_percent    1.0 [observed] (account-wide, whole percentage points)
+  resets_at            2026-09-07T06:24:34+00:00
+  hard_stop            True
+    no overflow credits: reaching 100% blocks every paid agent until the window resets, it does not incur an extra charge
+  observed_at          2026-09-06T22:55:57.992000+00:00
+  staleness            271h36m old
+    a stale reading warns; it never refuses. The reading exists only because a paid trial recorded it, so refusing on age would make the first paid run after any quiet period impossible. Age is printed above precisely because you, not this gate, are the one judging whether it is still true.
+  source               fix-code-vulnerability__wWg7Wii/agent/sessions/2026/09/06/rollout-2026-09-06T22-55-18-01a078ee-e866-7e52-b9e7-6ecf20b7eb3a.jsonl
+  NOTE: resets_at has already passed, so this reading describes a window that has since rolled over. It cannot refuse anything, and it cannot reassure you either.
+- `[waiting]` **canary-terminal-bench-html-js-filter-codex-20260916** (`01M2MEM66944KFZ1V593VNQ3VG`): task=`canary/terminal-bench-html-js-filter`, agent=`codex` [purpose: drift] — *Reason/Blocker:* paid_run_unauthorized: codex is a billable agent. Paid execution here draws on Peter's ChatGPT/Codex subscription, so it never runs unattended: this spec waits until a named human authorises it.
+  authorise: uv run evallab approve 01M2MEM66944KFZ1V593VNQ3VG --actor <you>
+  refuse:    uv run evallab reject 01M2MEM66944KFZ1V593VNQ3VG --actor <you> --reason "<why>"
+  then run:  uv run evallab tick
+The free oracle and nop controls are unaffected and still run unattended.
+Peter's ChatGPT/Codex subscription allowance/policy state (scope: account, NOT the lab; provider-reported):
+  used_percent         99.0 [observed]
+  remaining_percent    1.0 [observed] (account-wide, whole percentage points)
+  resets_at            2026-09-07T06:24:34+00:00
+  hard_stop            True
+    no overflow credits: reaching 100% blocks every paid agent until the window resets, it does not incur an extra charge
+  observed_at          2026-09-06T22:55:57.992000+00:00
+  staleness            223h35m old
+    a stale reading warns; it never refuses. The reading exists only because a paid trial recorded it, so refusing on age would make the first paid run after any quiet period impossible. Age is printed above precisely because you, not this gate, are the one judging whether it is still true.
+  source               fix-code-vulnerability__wWg7Wii/agent/sessions/2026/09/06/rollout-2026-09-06T22-55-18-01a078ee-e866-7e52-b9e7-6ecf20b7eb3a.jsonl
+  NOTE: resets_at has already passed, so this reading describes a window that has since rolled over. It cannot refuse anything, and it cannot reassure you either.
+- `[waiting]` **canary-terminal-bench-html-js-filter-codex-20260917** (`01M2Q9J3CB7J7X7AP9S71YDQD3`): task=`canary/terminal-bench-html-js-filter`, agent=`codex` [purpose: drift] — *Reason/Blocker:* paid_run_unauthorized: codex is a billable agent. Paid execution here draws on Peter's ChatGPT/Codex subscription, so it never runs unattended: this spec waits until a named human authorises it.
+  authorise: uv run evallab approve 01M2Q9J3CB7J7X7AP9S71YDQD3 --actor <you>
+  refuse:    uv run evallab reject 01M2Q9J3CB7J7X7AP9S71YDQD3 --actor <you> --reason "<why>"
+  then run:  uv run evallab tick
+The free oracle and nop controls are unaffected and still run unattended.
+Peter's ChatGPT/Codex subscription allowance/policy state (scope: account, NOT the lab; provider-reported):
+  used_percent         99.0 [observed]
+  remaining_percent    1.0 [observed] (account-wide, whole percentage points)
+  resets_at            2026-09-07T06:24:34+00:00
+  hard_stop            True
+    no overflow credits: reaching 100% blocks every paid agent until the window resets, it does not incur an extra charge
+  observed_at          2026-09-06T22:55:57.992000+00:00
+  staleness            250h05m old
+    a stale reading warns; it never refuses. The reading exists only because a paid trial recorded it, so refusing on age would make the first paid run after any quiet period impossible. Age is printed above precisely because you, not this gate, are the one judging whether it is still true.
+  source               fix-code-vulnerability__wWg7Wii/agent/sessions/2026/09/06/rollout-2026-09-06T22-55-18-01a078ee-e866-7e52-b9e7-6ecf20b7eb3a.jsonl
+  NOTE: resets_at has already passed, so this reading describes a window that has since rolled over. It cannot refuse anything, and it cannot reassure you either.
+- `[waiting]` **canary-terminal-bench-html-js-filter-codex-20260918** (`01M2SKF2B2F6440C252Y5CW50G`): task=`canary/terminal-bench-html-js-filter`, agent=`codex` [purpose: drift] — *Reason/Blocker:* paid_run_unauthorized: codex is a billable agent. Paid execution here draws on Peter's ChatGPT/Codex subscription, so it never runs unattended: this spec waits until a named human authorises it.
+  authorise: uv run evallab approve 01M2SKF2B2F6440C252Y5CW50G --actor <you>
+  refuse:    uv run evallab reject 01M2SKF2B2F6440C252Y5CW50G --actor <you> --reason "<why>"
+  then run:  uv run evallab tick
+The free oracle and nop controls are unaffected and still run unattended.
+Peter's ChatGPT/Codex subscription allowance/policy state (scope: account, NOT the lab; provider-reported):
+  used_percent         99.0 [observed]
+  remaining_percent    1.0 [observed] (account-wide, whole percentage points)
+  resets_at            2026-09-07T06:24:34+00:00
+  hard_stop            True
+    no overflow credits: reaching 100% blocks every paid agent until the window resets, it does not incur an extra charge
+  observed_at          2026-09-06T22:55:57.992000+00:00
+  staleness            271h36m old
+    a stale reading warns; it never refuses. The reading exists only because a paid trial recorded it, so refusing on age would make the first paid run after any quiet period impossible. Age is printed above precisely because you, not this gate, are the one judging whether it is still true.
+  source               fix-code-vulnerability__wWg7Wii/agent/sessions/2026/09/06/rollout-2026-09-06T22-55-18-01a078ee-e866-7e52-b9e7-6ecf20b7eb3a.jsonl
+  NOTE: resets_at has already passed, so this reading describes a window that has since rolled over. It cannot refuse anything, and it cannot reassure you either.
+- `[waiting]` **canary-transaction-reconciliation-codex-20260916** (`01M2MEM512GJ0TKFEVPG6BYFS2`): task=`canary/transaction-reconciliation`, agent=`codex` [purpose: drift] — *Reason/Blocker:* paid_run_unauthorized: codex is a billable agent. Paid execution here draws on Peter's ChatGPT/Codex subscription, so it never runs unattended: this spec waits until a named human authorises it.
+  authorise: uv run evallab approve 01M2MEM512GJ0TKFEVPG6BYFS2 --actor <you>
+  refuse:    uv run evallab reject 01M2MEM512GJ0TKFEVPG6BYFS2 --actor <you> --reason "<why>"
+  then run:  uv run evallab tick
+The free oracle and nop controls are unaffected and still run unattended.
+Peter's ChatGPT/Codex subscription allowance/policy state (scope: account, NOT the lab; provider-reported):
+  used_percent         99.0 [observed]
+  remaining_percent    1.0 [observed] (account-wide, whole percentage points)
+  resets_at            2026-09-07T06:24:34+00:00
+  hard_stop            True
+    no overflow credits: reaching 100% blocks every paid agent until the window resets, it does not incur an extra charge
+  observed_at          2026-09-06T22:55:57.992000+00:00
+  staleness            223h35m old
+    a stale reading warns; it never refuses. The reading exists only because a paid trial recorded it, so refusing on age would make the first paid run after any quiet period impossible. Age is printed above precisely because you, not this gate, are the one judging whether it is still true.
+  source               fix-code-vulnerability__wWg7Wii/agent/sessions/2026/09/06/rollout-2026-09-06T22-55-18-01a078ee-e866-7e52-b9e7-6ecf20b7eb3a.jsonl
+  NOTE: resets_at has already passed, so this reading describes a window that has since rolled over. It cannot refuse anything, and it cannot reassure you either.
+- `[waiting]` **canary-transaction-reconciliation-codex-20260917** (`01M2Q9J1P31Y9S8PFFFRD182YZ`): task=`canary/transaction-reconciliation`, agent=`codex` [purpose: drift] — *Reason/Blocker:* paid_run_unauthorized: codex is a billable agent. Paid execution here draws on Peter's ChatGPT/Codex subscription, so it never runs unattended: this spec waits until a named human authorises it.
+  authorise: uv run evallab approve 01M2Q9J1P31Y9S8PFFFRD182YZ --actor <you>
+  refuse:    uv run evallab reject 01M2Q9J1P31Y9S8PFFFRD182YZ --actor <you> --reason "<why>"
+  then run:  uv run evallab tick
+The free oracle and nop controls are unaffected and still run unattended.
+Peter's ChatGPT/Codex subscription allowance/policy state (scope: account, NOT the lab; provider-reported):
+  used_percent         99.0 [observed]
+  remaining_percent    1.0 [observed] (account-wide, whole percentage points)
+  resets_at            2026-09-07T06:24:34+00:00
+  hard_stop            True
+    no overflow credits: reaching 100% blocks every paid agent until the window resets, it does not incur an extra charge
+  observed_at          2026-09-06T22:55:57.992000+00:00
+  staleness            250h05m old
+    a stale reading warns; it never refuses. The reading exists only because a paid trial recorded it, so refusing on age would make the first paid run after any quiet period impossible. Age is printed above precisely because you, not this gate, are the one judging whether it is still true.
+  source               fix-code-vulnerability__wWg7Wii/agent/sessions/2026/09/06/rollout-2026-09-06T22-55-18-01a078ee-e866-7e52-b9e7-6ecf20b7eb3a.jsonl
+  NOTE: resets_at has already passed, so this reading describes a window that has since rolled over. It cannot refuse anything, and it cannot reassure you either.
+- `[waiting]` **canary-transaction-reconciliation-codex-20260918** (`01M2SKF0X4A93C9QBGYQVQ3D08`): task=`canary/transaction-reconciliation`, agent=`codex` [purpose: drift] — *Reason/Blocker:* paid_run_unauthorized: codex is a billable agent. Paid execution here draws on Peter's ChatGPT/Codex subscription, so it never runs unattended: this spec waits until a named human authorises it.
+  authorise: uv run evallab approve 01M2SKF0X4A93C9QBGYQVQ3D08 --actor <you>
+  refuse:    uv run evallab reject 01M2SKF0X4A93C9QBGYQVQ3D08 --actor <you> --reason "<why>"
+  then run:  uv run evallab tick
+The free oracle and nop controls are unaffected and still run unattended.
+Peter's ChatGPT/Codex subscription allowance/policy state (scope: account, NOT the lab; provider-reported):
+  used_percent         99.0 [observed]
+  remaining_percent    1.0 [observed] (account-wide, whole percentage points)
+  resets_at            2026-09-07T06:24:34+00:00
+  hard_stop            True
+    no overflow credits: reaching 100% blocks every paid agent until the window resets, it does not incur an extra charge
+  observed_at          2026-09-06T22:55:57.992000+00:00
+  staleness            271h36m old
+    a stale reading warns; it never refuses. The reading exists only because a paid trial recorded it, so refusing on age would make the first paid run after any quiet period impossible. Age is printed above precisely because you, not this gate, are the one judging whether it is still true.
+  source               fix-code-vulnerability__wWg7Wii/agent/sessions/2026/09/06/rollout-2026-09-06T22-55-18-01a078ee-e866-7e52-b9e7-6ecf20b7eb3a.jsonl
+  NOTE: resets_at has already passed, so this reading describes a window that has since rolled over. It cannot refuse anything, and it cannot reassure you either.
+- `[waiting]` **funcdag-easy-terra-nightly** (`01M1W4WSTB1G2KVKJHJC9836FZ`): task=`library/tasks/experimental/syn-funcdag-easy`, agent=`codex` [purpose: baseline] — *Reason/Blocker:* paid_run_unauthorized: codex is a billable agent. Paid execution here draws on Peter's ChatGPT/Codex subscription, so it never runs unattended: this spec waits until a named human authorises it.
+  authorise: uv run evallab approve 01M1W4WSTB1G2KVKJHJC9836FZ --actor <you>
+  refuse:    uv run evallab reject 01M1W4WSTB1G2KVKJHJC9836FZ --actor <you> --reason "<why>"
+  then run:  uv run evallab tick
+The free oracle and nop controls are unaffected and still run unattended.
+Peter's ChatGPT/Codex subscription allowance/policy state (scope: account, NOT the lab; provider-reported):
+  used_percent         19.0 [observed]
+  remaining_percent    81.0 [observed] (account-wide, whole percentage points)
+  resets_at            2026-08-31T00:44:18+00:00
+  hard_stop            True
+    no overflow credits: reaching 100% blocks every paid agent until the window resets, it does not incur an extra charge
+  observed_at          2026-08-24T21:24:15.634000+00:00
+  staleness            310h35m old
+    a stale reading warns; it never refuses. The reading exists only because a paid trial recorded it, so refusing on age would make the first paid run after any quiet period impossible. Age is printed above precisely because you, not this gate, are the one judging whether it is still true.
+  source               gaia2-adapt-hard-1__XJL887e/agent/sessions/2026/08/24/rollout-2026-08-24T21-15-17-01a035a0-ada5-7df1-8efc-ed58e5a50cdd.jsonl
+  NOTE: resets_at has already passed, so this reading describes a window that has since rolled over. It cannot refuse anything, and it cannot reassure you either.
+- `[waiting]` **funcdag-easy-terra-proof** (`01M1W4WEEFRE5VZE4V54JQS4HB`): task=`library/tasks/experimental/syn-funcdag-easy`, agent=`codex` [purpose: baseline] — *Reason/Blocker:* paid_run_unauthorized: codex is a billable agent. Paid execution here draws on Peter's ChatGPT/Codex subscription, so it never runs unattended: this spec waits until a named human authorises it.
+  authorise: uv run evallab approve 01M1W4WEEFRE5VZE4V54JQS4HB --actor <you>
+  refuse:    uv run evallab reject 01M1W4WEEFRE5VZE4V54JQS4HB --actor <you> --reason "<why>"
+  then run:  uv run evallab tick
+The free oracle and nop controls are unaffected and still run unattended.
+Peter's ChatGPT/Codex subscription allowance/policy state (scope: account, NOT the lab; provider-reported):
+  used_percent         19.0 [observed]
+  remaining_percent    81.0 [observed] (account-wide, whole percentage points)
+  resets_at            2026-08-31T00:44:18+00:00
+  hard_stop            True
+    no overflow credits: reaching 100% blocks every paid agent until the window resets, it does not incur an extra charge
+  observed_at          2026-08-24T21:24:15.634000+00:00
+  staleness            310h35m old
+    a stale reading warns; it never refuses. The reading exists only because a paid trial recorded it, so refusing on age would make the first paid run after any quiet period impossible. Age is printed above precisely because you, not this gate, are the one judging whether it is still true.
+  source               gaia2-adapt-hard-1__XJL887e/agent/sessions/2026/08/24/rollout-2026-08-24T21-15-17-01a035a0-ada5-7df1-8efc-ed58e5a50cdd.jsonl
+  NOTE: resets_at has already passed, so this reading describes a window that has since rolled over. It cannot refuse anything, and it cannot reassure you either.
+- `[waiting]` **funcdag-hard-terra-nightly** (`01M1W4WSZYNRKGME4A43VD0E1D`): task=`library/tasks/experimental/syn-funcdag-hard`, agent=`codex` [purpose: baseline] — *Reason/Blocker:* paid_run_unauthorized: codex is a billable agent. Paid execution here draws on Peter's ChatGPT/Codex subscription, so it never runs unattended: this spec waits until a named human authorises it.
+  authorise: uv run evallab approve 01M1W4WSZYNRKGME4A43VD0E1D --actor <you>
+  refuse:    uv run evallab reject 01M1W4WSZYNRKGME4A43VD0E1D --actor <you> --reason "<why>"
+  then run:  uv run evallab tick
+The free oracle and nop controls are unaffected and still run unattended.
+Peter's ChatGPT/Codex subscription allowance/policy state (scope: account, NOT the lab; provider-reported):
+  used_percent         19.0 [observed]
+  remaining_percent    81.0 [observed] (account-wide, whole percentage points)
+  resets_at            2026-08-31T00:44:18+00:00
+  hard_stop            True
+    no overflow credits: reaching 100% blocks every paid agent until the window resets, it does not incur an extra charge
+  observed_at          2026-08-24T21:24:15.634000+00:00
+  staleness            310h35m old
+    a stale reading warns; it never refuses. The reading exists only because a paid trial recorded it, so refusing on age would make the first paid run after any quiet period impossible. Age is printed above precisely because you, not this gate, are the one judging whether it is still true.
+  source               gaia2-adapt-hard-1__XJL887e/agent/sessions/2026/08/24/rollout-2026-08-24T21-15-17-01a035a0-ada5-7df1-8efc-ed58e5a50cdd.jsonl
+  NOTE: resets_at has already passed, so this reading describes a window that has since rolled over. It cannot refuse anything, and it cannot reassure you either.
+- `[waiting]` **funcdag-medium-terra-nightly** (`01M1W4WSZD4FX8764A54YCQFRP`): task=`library/tasks/experimental/syn-funcdag-medium`, agent=`codex` [purpose: baseline] — *Reason/Blocker:* paid_run_unauthorized: codex is a billable agent. Paid execution here draws on Peter's ChatGPT/Codex subscription, so it never runs unattended: this spec waits until a named human authorises it.
+  authorise: uv run evallab approve 01M1W4WSZD4FX8764A54YCQFRP --actor <you>
+  refuse:    uv run evallab reject 01M1W4WSZD4FX8764A54YCQFRP --actor <you> --reason "<why>"
+  then run:  uv run evallab tick
+The free oracle and nop controls are unaffected and still run unattended.
+Peter's ChatGPT/Codex subscription allowance/policy state (scope: account, NOT the lab; provider-reported):
+  used_percent         19.0 [observed]
+  remaining_percent    81.0 [observed] (account-wide, whole percentage points)
+  resets_at            2026-08-31T00:44:18+00:00
+  hard_stop            True
+    no overflow credits: reaching 100% blocks every paid agent until the window resets, it does not incur an extra charge
+  observed_at          2026-08-24T21:24:15.634000+00:00
+  staleness            310h35m old
+    a stale reading warns; it never refuses. The reading exists only because a paid trial recorded it, so refusing on age would make the first paid run after any quiet period impossible. Age is printed above precisely because you, not this gate, are the one judging whether it is still true.
+  source               gaia2-adapt-hard-1__XJL887e/agent/sessions/2026/08/24/rollout-2026-08-24T21-15-17-01a035a0-ada5-7df1-8efc-ed58e5a50cdd.jsonl
+  NOTE: resets_at has already passed, so this reading describes a window that has since rolled over. It cannot refuse anything, and it cannot reassure you either.
+- `[waiting]` **screening-metered-event-summary-zai-opencode-k1** (`01M1KXAY7CHKF9YGXV2NAE1R6J`): task=`registered/event-summary`, agent=`zai-opencode` [purpose: baseline] — *Reason/Blocker:* verifier_digest_mismatch: spec verifier_digest 'sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d' does not match registered verifier 'sha256:1f499d550a3c39e1cb3e6ce9f88ac7afcd6ec2e1998bb46d3ce34d4c8e094a15'
 
 ### Program Ledger Next Actions
 
@@ -71,5 +280,5 @@ Human-owned, unresolved decisions from active proposals and policy review.
 ## SYSTEM HEALTH & OPERATIONAL SMOKE
 
 - Catalog accessible: yes
-- Operational smoke/control specs count: 0
+- Operational smoke/control specs count: 6
 - Active storm alarms: 0 (quiet: no alarms in window)

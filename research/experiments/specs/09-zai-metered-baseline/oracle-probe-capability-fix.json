@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "name": "oracle-probe-funcdag-capability-fix",
+  "hypothesis": "Free oracle control re-proves lane execution after capability-mint and container-env repairs.",
+  "purpose": "baseline",
+  "task": "registered/syn-funcdag-easy",
+  "task_path": "library/tasks/experimental/syn-funcdag-easy",
+  "agent": "oracle",
+  "environment": "docker",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "concurrency": 1,
+  "timeout_seconds": 600,
+  "submitted_by": "engineer-lead",
+  "priority": 90,
+  "est_cost_usd": 0.0,
+  "task_version": "1.0.0",
+  "verifier_digest": "sha256:c706665f958f15b45f4e29deef871410622627849c6333d7a9e66972a0f2413e"
+}

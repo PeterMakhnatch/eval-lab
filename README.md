@@ -150,9 +150,6 @@ uv run evallab verdict record <discovery_id> --status ACCEPTED --by <name>
 uv run pytest tests/test_repomap.py
 ```
 
-`harbor-lab` remains supported as a backwards-compatibility command alias for existing
-automation. Canonical commands and documentation use `evallab`.
-
 Generated navigation and status pages are outputs, not hand-edited sources.
 Refresh them with the live entrypoints (do not patch the files in place):
 

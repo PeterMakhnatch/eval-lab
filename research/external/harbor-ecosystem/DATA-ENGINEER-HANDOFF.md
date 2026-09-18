@@ -9,13 +9,66 @@ companion: "harbor corpus `~/Developer/research-context/harbor/corpus/LOCAL-VERI
 
 # Data Engineer — current lane handoff
 
-Canonical handoff for this lane. Placed beside this lane's other durable artifacts;
-`agents/handoffs/` is Integration-owned (`agents/OWNERS.md:11`) and absent from this
-checkout, so nothing there was created or edited. Coordination is **pull-only**:
-this file is updated silently and is the intake surface. No notification is sent.
+Canonical handoff for this lane. Coordination is via **monitored callbacks**
+(completion monitor registered; no manual notification on normal checkpoints).
 
-## Standing mission (Peter via charter 2026-09-08, supersedes finite-campaign framing)
+## Build assignment (Peter 2026-09-08 idle-lead correction; supersedes report-first pacing)
 
+Charter §'Immediate build assignments' + Data Engineer §'consume incomplete jobs and native accounting'. Two parallel owned slices, one writer per isolated worktree, disjoint files. Baseline committed as `938336fd` on new branch `lane/data-build-20260908` (lane files only; shared-branch files like `cli.py`, `AGENTS.md`, `docs/STATUS.md` deliberately left uncommitted). Venvs rebuilt per worktree-hygiene skill; `evallab` import verified to resolve inside each worktree.
+
+| Slice | Worktree | Worker owns (only) | Real inputs (read-only) |
+|---|---|---|---|
+| A partial-job intake | `.worktrees/data-partial-intake` | NEW `src/evallab/partial_intake.py` + `tests/test_partial_intake.py`; ONE hunk in `ingest_verify.py` (partial-marker rule) | `runs/failed-network-policy-oracle`, `runs/brief07-query-controls/…`, disk-only unfinished jobs — lock.json/config trials, NO trial result.json, NO rewards/trajectories to invent |
+| B request accounting | `.worktrees/data-request-accounting` | NEW `src/evallab/request_accounting.py` + `tests/test_request_accounting.py`; NO existing-file edits | harness `native-lab-20260908/adapter-contract.json` (request_sidecar schema v1, actor/image_controller, nulls-stay-null, cost-null) + `native-runtime-transport-replay.json` + `lab-development-usage.json` |
+
+Hard rules on both: no second store/catalog, no fabricated rewards/completion/ATIF/probabilities, no cost inference, sealed task_000009 excluded, no `cli.py`/`missions/ACTIVE.md` edits, no paid/network/Docker/Harbor execution. Workers skip validation mid-flight; lead runs integrated checks on delivery.
+
+### Landed 2026-09-08 (both slices, integrated by lead)
+
+Branch `lane/data-build-20260908` (base `938336fd`): merges `lane/data-partial-intake` + `lane/data-request-accounting`. NOT merged to any shared branch — no merge authority granted; integrator owns merges.
+
+| Slice | What landed | Proof (executed, measured) |
+|---|---|---|
+| A partial-job intake | `src/evallab/partial_intake.py` (lenient loader w/ deterministic UUID5 trial ids, catalog + jobs/trial_facts only, `_partial.json` marker, FORBIDDEN list enforced) + 1 hunk in `ingest_verify.py` (partial_jobs accounting) + owner-side `results.py` identity fallback + `atif.partition_missing_tables` delegation to the intake predicate | All 8 unfinished jobs converted (2 cataloged + 6 disk-only): jobs+trial_facts only, 0 failures, 0 reward/trajectory bytes. Verify now reads unfinished 0 / partial 8 / gaps 0 COMPLETE. Tests: 6 new + full sweep below |
+| B request accounting | `src/evallab/request_accounting.py` (RequestAttempt per contract: roles, attempt ordinals, nullable tokens, cost always None, late-receipt updates, sealed-000009 guard) + `derived/request-accounting/request_attempts.parquet` (13 rows) + `_accounting.json` manifest | 9 replay + 4 development attempts; role summary actor 13 (6 success / 5 error / 2 unknown-ish incl. timeouts), late 2; all 4 bound trials show ATIF steps != request attempts (9v1, 11v1, 12v1, 15v1); nulls preserved; cost null everywhere. Tests: 6 new |
+
+Integrated sweep: **316 passed, 2 skipped** across 13 modules (partial, accounting, ingest_verify, manifest, pipeline, z2, traj, semantics, conformance, coverage, compaction, attach, event_mart).
+
+### Next authorized successor — GATE IDENTIFIED, not started
+
+### Delivered 2026-09-08, second packet (Integration R2 request via inbox)
+
+Singleton `derived/coverage/coverage-scope-90e3c9e9a058.json` (`job_ids` exactly
+`[f94f1507-7958-4e08...]` = evidence UUID, spec `01M2199Y5ZE41QNPVCS7TSKA3Y` bound
+in `external_links`): catalogued 1, projected 1, oracle 1 trial expected-absent,
+reasons {} — plus corrected 79-set `coverage-scope-3454aaa747d7.json` (catalogued
+21/21, native 21 scoped, agents real, reasons scoped, failed 1 genuine Factory
+crash). Code: `scoped_catalog_loader` agent enrichment, `selected_job_ids`
+scoping for exceptions/failed/native/projected, `not_cataloged` surfacing,
+`catalogued` count==names fix. Tests: 13 in `tests/test_coverage_report.py`.
+Coordination: `research/inbox/data-engineer-coverage-scope-v2-20260908.md`
+(v1 note stands for the preserved v1 product).
+Incident, reported not smoothed: evidence UUID `4e08` vs a transient catalog row
+`4c80`; row + 19:42 partition vanished by 19:44 with no queue event during
+concurrent ingests, evidence intact throughout; both restored under the evidence
+Branch `lane/data-build-20260908`; worktree `data-coverage-scope` retained.
+
+### Delivered 2026-09-08, third packet (continuity correction)
+
+Writer-integrity repairs (slice branch `lane/data-writer-integrity`, worktree
+retained; 9 new behavioral tests, isolated DB + tmp roots, never prod R2/catalog):
+unique temp names (concurrent-tear reproduced: 2 errors + unreadable file under
+old behavior), `lab_metadata.supersedes` on same-path UUID replacement (same-id
+regeneration records nothing), staged per-job publish with atomic renames
+(interruption leaves zero live trace; one `test_pipeline` assertion updated to
+the atomicity contract with rationale), opt-in `purge_inert_staging()`.
+Correction product `derived/coverage/coverage-scope-45a1d8a6d0e0.json` (R2
+singleton, spec-link status derived as `bound-catalogued-projected` via new
+`summarize_binding`, matrix-pinned). v1/v2/incident preserved. Note:
+`research/inbox/data-engineer-coverage-scope-v3-20260908.md`. Sweep: 46 passed
+in main checkout. Known environmental: `test_ingest_verify_cli_output` fails in
+fresh worktrees lacking `queue/events.jsonl` (passes in main); R2 UUID
+transposition itself unattributed by design — now recorded rather than silent.
 **Data Engineer — experiment data reliability and useful datasets.** Real data products from Harbor ecosystem experiments. Added to the existing role: type/link legacy diagnostic evidence, make the first new Lab job queryable, resolve recorded catalog/projection coverage issues without deleting evidence, deliver useful cohort/failure/curation outputs. Reuse merged #381 (traj-store read rule) and existing ingestion/schemas/read rules; **do not build another store**. Shared boundaries: execution DTOs + `cli.py` integration = Eval Runner; data projections = this lane; workbench/comparison = Harbor Integration. No `cli.py` edits from this lane; no `missions/ACTIVE.md` edits (integrator only).
 
 ### Ready (independent work, startable now)

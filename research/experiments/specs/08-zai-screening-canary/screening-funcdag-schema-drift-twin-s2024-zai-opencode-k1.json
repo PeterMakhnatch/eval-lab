@@ -1,0 +1,22 @@
+{
+  "agent": "zai-opencode",
+  "attempts": 1,
+  "concurrency": 1,
+  "environment": "docker",
+  "est_cost_usd": 0.0,
+  "generator_seed": 2024,
+  "hypothesis": "Screening canary, calibration-only (n=1 per cell, not a ranking): schema_drift_twin FuncDAG arm (schema drift on; seed, depth, width, distractors held constant with baseline) at generator seed 2024, twin-paired with the baseline cell for the drift-vs-baseline paired difference.",
+  "jobs_dir": "runs",
+  "model": "zai-coding-plan/glm-5.3-flash",
+  "name": "screening-funcdag-schema-drift-twin-s2024-zai-opencode-k1",
+  "policy_rule": null,
+  "priority": 80,
+  "purpose": "baseline",
+  "requires": [],
+  "schema_version": 1,
+  "submitted_by": "autopilot-researcher",
+  "task": "registered/mcp-funcdag-schema-drift-twin-seed2024",
+  "task_family": "mcp-funcdag-v1",
+  "task_version": "1.0.0",
+  "timeout_seconds": 1800
+}

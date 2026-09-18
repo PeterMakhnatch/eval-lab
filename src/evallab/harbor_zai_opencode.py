@@ -4,7 +4,7 @@ Provides two execution lanes:
 1. ``ZaiOpenCodeAgent``: Trusted-task-only mount-based adapter (links auth.json).
 2. ``SecretSafeZaiOpenCodeAgent``: Proxy-grade credential isolation adapter.
    Untrusted task/agent containers talk only to the internal credential broker
-   (``zai-secret-proxy``) and receive a placeholder capability token, never
+   (``zai-secret-proxy``) and receive a host-provided capability token, never
    the real provider secret.
 """
 
@@ -59,6 +59,7 @@ ZAI_PROXY_HOST = "zai-secret-proxy"
 ZAI_PROXY_URL = "http://zai-secret-proxy:8080"
 ZAI_PROXY_TOKEN = "evallab-proxy-placeholder"
 ZAI_PROXY_CAPABILITY_ENV = "EVALLAB_ZAI_PROXY_CAPABILITY"
+ZAI_PROXY_CAPABILITY_ENVS = (ZAI_PROXY_CAPABILITY_ENV, "ZAI_PROXY_CAPABILITY")
 ZAI_SECRET_FILE_ENV = "EVALLAB_ZAI_SECRET_FILE"
 ZAI_SECRET_PATH_ENV = "EVALLAB_ZAI_SECRET_PATH"
 ZAI_CREDENTIAL_ENVIRONMENT_KEYS = frozenset(
@@ -110,6 +111,19 @@ def validate_model_name(model_name: str | None) -> str:
     return model_name
 
 
+def _required_proxy_capability() -> str:
+    """Resolve the host token, preferring EVALLAB's name over the short alias."""
+    token = os.environ.get(ZAI_PROXY_CAPABILITY_ENV) or os.environ.get(
+        "ZAI_PROXY_CAPABILITY"
+    )
+    if not token or not token.strip():
+        raise ValueError(
+            "OpenCode pre-flight: non-empty Z.ai proxy capability required; set "
+            "EVALLAB_ZAI_PROXY_CAPABILITY or ZAI_PROXY_CAPABILITY before launch"
+        )
+    return token
+
+
 def collected_zai_secret_values(
     environment: Mapping[str, str] | None = None,
 ) -> frozenset[str]:
@@ -131,9 +145,10 @@ def collected_zai_secret_values(
                         values.add(file_value)
             except OSError:
                 pass
-    capability = source.get(ZAI_PROXY_CAPABILITY_ENV)
-    if capability and capability != ZAI_PROXY_TOKEN:
-        values.add(capability)
+    for name in ZAI_PROXY_CAPABILITY_ENVS:
+        capability = source.get(name)
+        if capability and capability != ZAI_PROXY_TOKEN:
+            values.add(capability)
     values.update(collected_secret_values(environment))
     return frozenset(values)
 
@@ -177,14 +192,15 @@ def sanitize_native_trajectory(path: Path, secrets: frozenset[str] | None = None
     )
 
 
-def _scrubbed_connection_env(connection: ResolvedModelConnection) -> dict[str, str]:
+def _scrubbed_connection_env(
+    connection: ResolvedModelConnection, token: str
+) -> dict[str, str]:
     env = {
         name: value
         for name, value in dict(connection.env).items()
         if name not in ZAI_CREDENTIAL_ENVIRONMENT_KEYS
         and name not in {"ZAI_BASE_URL", "OPENAI_BASE_URL", "OPENAI_API_BASE"}
     }
-    token = os.environ.get(ZAI_PROXY_CAPABILITY_ENV) or ZAI_PROXY_TOKEN
     env["ZAI_CODING_PLAN_API_KEY"] = token
     env["ZAI_API_KEY"] = token
     env["ZAI_BASE_URL"] = ZAI_PROXY_URL
@@ -264,6 +280,7 @@ class SecretSafeZaiOpenCodeAgent(OpenCode):
 
     @property
     def model_connection(self) -> ResolvedModelConnection:
+        token = _required_proxy_capability()
         connection = super().model_connection
         if connection.provider != "zai-coding-plan" and connection.provider != "zai":
             # Also check if provider is part of model name
@@ -272,13 +289,12 @@ class SecretSafeZaiOpenCodeAgent(OpenCode):
                 validate_model_name(model)
             elif connection.provider:
                 validate_model_name(f"{connection.provider}/placeholder")
-        token = os.environ.get(ZAI_PROXY_CAPABILITY_ENV) or ZAI_PROXY_TOKEN
         return replace(
             connection,
             api_key=token,
             base_url=ZAI_PROXY_URL,
             configured_base_url=ZAI_PROXY_URL,
-            env=_scrubbed_connection_env(connection),
+            env=_scrubbed_connection_env(connection, token),
         )
 
     async def exec_as_agent(
@@ -290,7 +306,7 @@ class SecretSafeZaiOpenCodeAgent(OpenCode):
         timeout_sec: int | None = None,
     ) -> Any:
         runtime_env = dict(env or {})
-        capability = os.environ.get(ZAI_PROXY_CAPABILITY_ENV) or ZAI_PROXY_TOKEN
+        capability = _required_proxy_capability()
         allowed_tokens = {ZAI_PROXY_TOKEN, capability}
         host_secrets = collected_zai_secret_values() - allowed_tokens
         for name in ZAI_CREDENTIAL_ENVIRONMENT_KEYS:
@@ -310,6 +326,10 @@ class SecretSafeZaiOpenCodeAgent(OpenCode):
             f'{key}="$(cat' in command for key in ZAI_CREDENTIAL_ENVIRONMENT_KEYS
         ):
             raise ValueError("Z.ai provider credential cannot enter the task exec command")
+        # Compose's inherited environment may contain a placeholder; every OpenCode
+        # setup/run exec must receive the capability selected from the host instead.
+        runtime_env["ZAI_CODING_PLAN_API_KEY"] = capability
+        runtime_env["ZAI_API_KEY"] = capability
         return await super().exec_as_agent(
             environment,
             command,

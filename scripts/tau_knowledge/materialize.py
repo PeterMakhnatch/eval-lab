@@ -226,6 +226,44 @@ def _build_wheelhouse(source_root: Path, adapter_root: Path, temp_dir: Path) -> 
     adapter_pkg = _adapter_package_root(adapter_root)
     wheelhouse = temp_dir / "wheelhouse"
     wheelhouse.mkdir()
+    if sys.platform != "linux" and shutil.which("docker"):
+        mounts: list[str] = []
+        for p in {
+            source_root.resolve(),
+            data_pkg.resolve(),
+            adapter_pkg.resolve(),
+            wheelhouse.resolve(),
+        }:
+            mounts.extend(["-v", f"{p}:{p}"])
+        if Path("/private/tmp").is_dir():
+            mounts.extend(["-v", "/private/tmp:/private/tmp"])
+        if Path("/var/folders").is_dir():
+            mounts.extend(["-v", "/var/folders:/var/folders"])
+        cmd = [
+            "docker",
+            "run",
+            "--rm",
+            "--user",
+            f"{os.getuid()}:{os.getgid()}",
+            "-e",
+            "SOURCE_DATE_EPOCH=315532800",
+            "-e",
+            "HOME=/tmp",
+            *mounts,
+            PYTHON_BASE_IMAGE,
+            "pip",
+            "wheel",
+            f"{source_root}[knowledge]",
+            str(data_pkg),
+            str(adapter_pkg),
+            "fastmcp",
+            "--wheel-dir",
+            str(wheelhouse),
+            "--no-cache-dir",
+        ]
+        subprocess.run(cmd, check=True, stdout=sys.stderr, stderr=sys.stderr)
+        _prepare_wheelhouse(wheelhouse)
+        return wheelhouse
     build_venv = temp_dir / "build-venv"
     python = _python_for_wheelhouse()
     subprocess.run(

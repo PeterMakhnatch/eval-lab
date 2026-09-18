@@ -1,0 +1,28 @@
+# Filtered sample of checkout-api application logs, 2026-07-14.
+# Filter: level >= WARN, plus INFO lines matching 'startup' or 'vendor.payments'.
+# Repeated identical ERROR lines are collapsed; see metrics.csv for full counts.
+
+2026-07-14T13:47:02Z INFO  startup: checkout-api v4.18.3 workers=8 db_pool_max=10 acquire_timeout_ms=5000
+2026-07-14T13:52:41Z INFO  vendor.payments: POST /charge 200 in 126ms
+2026-07-14T13:58:19Z INFO  vendor.payments: POST /charge 200 in 133ms
+2026-07-14T14:02:11Z INFO  startup: checkout-api v4.19.0 workers=32 db_pool_max=10 acquire_timeout_ms=5000
+2026-07-14T14:02:44Z INFO  vendor.payments: POST /charge 200 in 129ms
+2026-07-14T14:03:58Z WARN  db.pool: acquire slow wait_ms=812 active=10 max=10 waiters=6
+2026-07-14T14:04:07Z WARN  db.pool: acquire slow wait_ms=1904 active=10 max=10 waiters=23
+2026-07-14T14:04:12Z ERROR http: POST /v1/checkout 500 TimeoutError: connection pool exhausted (max=10, waiters=41) after 5000ms
+2026-07-14T14:06:33Z WARN  db.pool: acquire slow wait_ms=2210 active=10 max=10 waiters=58
+2026-07-14T14:08:50Z ERROR http: POST /v1/checkout 500 TimeoutError: connection pool exhausted (max=10, waiters=76) after 5000ms
+2026-07-14T14:11:05Z INFO  vendor.payments: POST /charge 200 in 131ms
+2026-07-14T14:17:22Z ERROR http: POST /v1/checkout 500 TimeoutError: connection pool exhausted (max=10, waiters=88) after 5000ms
+2026-07-14T14:22:03Z INFO  vendor.payments: POST /charge 200 in 128ms
+2026-07-14T14:31:47Z WARN  db.pool: acquire slow wait_ms=3050 active=10 max=10 waiters=91
+2026-07-14T14:38:14Z INFO  vendor.payments: POST /charge 200 in 134ms
+2026-07-14T14:45:29Z ERROR http: POST /v1/checkout 500 TimeoutError: connection pool exhausted (max=10, waiters=97) after 5000ms
+2026-07-14T14:59:01Z INFO  vendor.payments: POST /charge 200 in 130ms
+2026-07-14T15:08:36Z ERROR http: POST /v1/checkout 500 TimeoutError: connection pool exhausted (max=10, waiters=94) after 5000ms
+2026-07-14T15:19:52Z WARN  db.pool: acquire slow wait_ms=2871 active=10 max=10 waiters=85
+2026-07-14T15:24:40Z INFO  vendor.payments: POST /charge 200 in 127ms
+2026-07-14T15:31:44Z INFO  startup: checkout-api v4.18.3 workers=8 db_pool_max=10 acquire_timeout_ms=5000
+2026-07-14T15:33:02Z INFO  db.pool: acquire ok wait_ms=3 active=4 max=10 waiters=0
+2026-07-14T15:36:18Z INFO  vendor.payments: POST /charge 200 in 132ms
+2026-07-14T15:41:55Z INFO  db.pool: acquire ok wait_ms=2 active=4 max=10 waiters=0

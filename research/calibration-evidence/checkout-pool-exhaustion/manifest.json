@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "family": "checkout-pool-exhaustion",
+  "source": {
+    "repository": "https://github.com/PeterMakhnatch/harbor-practice",
+    "revision": "a3bedf451187952f79f30c817cdcf5738ee6c24e",
+    "path": "datasets/judged-output/checkout-pool-exhaustion/environment/evidence",
+    "mount": "/app/evidence"
+  },
+  "files": [
+    {
+      "name": "alerts.log",
+      "sha256": "sha256:c4ff0761241b35b67e2773a81780290924c978eed89bc279cb62f9d5ea50787e",
+      "bytes": 914
+    },
+    {
+      "name": "checkout-api.log",
+      "sha256": "sha256:8720bd0860187f8e8f8204d5c6fce69affb0592d4d94d6aeaa1f18ce585f23fe",
+      "bytes": 2436
+    },
+    {
+      "name": "deploys.csv",
+      "sha256": "sha256:af4a54de64482d8fd0044d340362db06dc18a461440302d53366896db47e58e3",
+      "bytes": 582
+    },
+    {
+      "name": "metrics.csv",
+      "sha256": "sha256:33cdee49f3650f2d4ee4bcdb4bdb25e19fdb4989e8da96d4b667c144d861d5f7",
+      "bytes": 1659
+    },
+    {
+      "name": "oncall-chat.txt",
+      "sha256": "sha256:6be22c8ca6422ab3c5c08a9c0fc9fc4a121bdd6c8db73ace5ca03bd2a54407a5",
+      "bytes": 1445
+    },
+    {
+      "name": "service-config.yaml",
+      "sha256": "sha256:132d18c0b18b094fff72ad120f76346dd11241f0236207a9ae4732c8c3307b42",
+      "bytes": 724
+    },
+    {
+      "name": "ticket.md",
+      "sha256": "sha256:1e15c280c628df2f7bb51dc871c70f9eac63392b53f5f526711cf825b9308f80",
+      "bytes": 1051
+    }
+  ]
+}

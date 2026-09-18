@@ -1137,16 +1137,19 @@ def test_digest_aggregates_repeated_trials_and_keeps_the_reward_spread(
     )
 
 
-def _write_calibration_record(root: Path, *, agreements: int, total: int) -> None:
+def _write_calibration_record(
+    root: Path, *, agreements: int, total: int, evidence_digest: str | None = None
+) -> None:
     record = {
         "schema_version": 1,
-        "record_id": f"family-a-20260814-judge-{agreements}-{total}",
+        "record_id": f"family-a-20260814-judge-{agreements}-{total}-{'bound' if evidence_digest else 'unbound'}",
         "family": "checkout-pool-exhaustion",
         "status": "measured",
         "judge_backend": "harbor-codex-agent",
         "judge_model": "gpt-5.6-sol",
         "rubric_digest": "sha256:" + "a" * 64,
         "corpus_digest": "sha256:" + "b" * 64,
+        "evidence_digest": evidence_digest,
         "per_criterion_agreement": {
             "causal_reasoning.grounded_in_evidence": {
                 "agreements": agreements,
@@ -1180,14 +1183,13 @@ def test_digest_reports_the_measured_judge_calibration_state(tmp_path: Path) -> 
     )
     assert "brief 09" not in text
     assert "no judge is calibrated" in line
-    assert "0 of 1 measured record(s) reach their agreement floor" in line
+    assert "0 of 0 evidence-bound measured record(s) reach their agreement floor" in line
     assert "gpt-5.6-sol, mean agreement 0.750 against a 0.90 floor over 20 documents" in line
 
 
-def test_digest_says_no_judge_is_calibrated_when_a_record_clears_no_floor(
-    tmp_path: Path,
-) -> None:
-    """With no record at all the line still states the fact, and flips when one passes."""
+def test_digest_calibrates_a_judge_only_on_an_evidence_bound_record(tmp_path: Path) -> None:
+    """With no record the line still states the fact; a passing record scored without
+    the evidence pack is named but never counted; an evidence-bound one flips it."""
     empty = _renderer(tmp_path).write(report_date=date(2026, 8, 16)).read_text()
     assert (
         "- Judge calibration: no judge is calibrated — no measured record under "
@@ -1195,9 +1197,18 @@ def test_digest_says_no_judge_is_calibrated_when_a_record_clears_no_floor(
     )
 
     _write_calibration_record(tmp_path, agreements=19, total=20)
-    passing = _renderer(tmp_path).write(report_date=date(2026, 8, 16)).read_text()
+    unbound = _renderer(tmp_path).write(report_date=date(2026, 8, 16)).read_text()
+    assert "no judge is calibrated" in unbound
+    assert (
+        "1 pre-evidence record(s) at or above the floor were scored without the evidence "
+        "pack and are not calibration" in unbound
+    )
 
-    assert "1 of 1 measured record(s) reach their agreement floor" in passing
+    _write_calibration_record(
+        tmp_path, agreements=19, total=20, evidence_digest="sha256:" + "c" * 64
+    )
+    passing = _renderer(tmp_path).write(report_date=date(2026, 8, 16)).read_text()
+    assert "1 of 1 evidence-bound measured record(s) reach their agreement floor" in passing
     assert "no judge is calibrated" not in passing
 
 

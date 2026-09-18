@@ -1,0 +1,113 @@
+{
+  "family": "checkout-pool-exhaustion",
+  "split": "all",
+  "documents": 22,
+  "mean_agreement": 0.8993506493506493,
+  "per_document": {
+    "01-empty": 1.0,
+    "02-style-only-fluent-generic": 0.7143,
+    "03-copied-evidence-logs": 0.9286,
+    "04-subtly-wrong-cause-vendor": 0.8571,
+    "05-right-cause-useless-actions-tbd": 1.0,
+    "06-correct-oracle": 1.0,
+    "07-correct-metrics-led": 1.0,
+    "08-correct-config-led": 1.0,
+    "09-correct-compact": 0.9286,
+    "10-correct-timeline-dense": 1.0,
+    "11-subtly-wrong-cause-tls": 0.7143,
+    "12-subtly-wrong-cause-ledger-cpu": 0.7143,
+    "13-subtly-wrong-cause-traffic": 0.7857,
+    "14-subtly-wrong-cause-code-bug": 0.9286,
+    "15-right-cause-useless-actions-generic": 1.0,
+    "16-right-cause-useless-actions-rollback-only": 0.9286,
+    "17-right-cause-useless-actions-process": 1.0,
+    "18-fabricated-evidence-warroom": 0.7857,
+    "19-fabricated-evidence-dashboards": 0.7857,
+    "20-fabricated-evidence-tickets": 0.7857,
+    "21-style-only-fluent-executive": 1.0,
+    "22-style-only-fluent-runbook": 0.9286
+  },
+  "per_criterion": {
+    "action_quality.actions_are_actionable": {
+      "agreements": 16,
+      "total": 22,
+      "missing": 0
+    },
+    "action_quality.actions_trace_to_findings": {
+      "agreements": 20,
+      "total": 22,
+      "missing": 0
+    },
+    "action_quality.closes_the_detection_gap": {
+      "agreements": 21,
+      "total": 22,
+      "missing": 0
+    },
+    "action_quality.fixes_the_capacity_coupling": {
+      "agreements": 21,
+      "total": 22,
+      "missing": 0
+    },
+    "action_quality.proposes_unsupported_work": {
+      "agreements": 19,
+      "total": 22,
+      "missing": 0
+    },
+    "causal_reasoning.grounded_in_evidence": {
+      "agreements": 17,
+      "total": 22,
+      "missing": 0
+    },
+    "causal_reasoning.identifies_the_mechanism": {
+      "agreements": 22,
+      "total": 22,
+      "missing": 0
+    },
+    "causal_reasoning.rules_out_the_decoy": {
+      "agreements": 22,
+      "total": 22,
+      "missing": 0
+    },
+    "causal_reasoning.separates_contributing_factors": {
+      "agreements": 21,
+      "total": 22,
+      "missing": 0
+    },
+    "causal_reasoning.uncertainty_is_genuine": {
+      "agreements": 15,
+      "total": 22,
+      "missing": 0
+    },
+    "evidence_fidelity.asserts_unsupported_cause": {
+      "agreements": 22,
+      "total": 22,
+      "missing": 0
+    },
+    "evidence_fidelity.blames_payments_vendor": {
+      "agreements": 22,
+      "total": 22,
+      "missing": 0
+    },
+    "evidence_fidelity.invents_evidence": {
+      "agreements": 21,
+      "total": 22,
+      "missing": 0
+    },
+    "evidence_fidelity.misstates_a_fact": {
+      "agreements": 18,
+      "total": 22,
+      "missing": 0
+    }
+  },
+  "judge_backend": "dspy-cot-unoptimized",
+  "judge_model": "glm-5.3-flash",
+  "elapsed_s": 358.8,
+  "usage": {
+    "calls": 25,
+    "prompt_tokens": 137083,
+    "completion_tokens": 33210,
+    "litellm_estimated_cost_usd": 0.027374
+  },
+  "bundle": "research/experiments/dspy/judge/artifacts/baseline-evidence/bundle-checkout-pool-exhaustion.json",
+  "evidence_digest": "sha256:2614343c64ec72bd4e5096489abffd16e1ecff3bfaae4722274557e4753ba908"
+}

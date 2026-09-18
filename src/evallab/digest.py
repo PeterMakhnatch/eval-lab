@@ -107,9 +107,7 @@ class DigestRenderer:
         self._preflight_loader = preflight_loader or self._load_preflight
         self._storm_loader = storm_loader or self._load_storm_alarms
         self._discoveries_loader = (
-            discoveries_loader
-            if discoveries_loader is not None
-            else self._load_pending_discoveries
+            discoveries_loader if discoveries_loader is not None else self._load_pending_discoveries
         )
 
     def write(
@@ -446,9 +444,7 @@ class DigestRenderer:
             self.repo_root,
             now=datetime.now(UTC),
             refusal=provider_reported_exhaustion,
-            refuse_at_used_percent=getattr(
-                self.policy, "refuse_billable_at_used_percent", None
-            ),
+            refuse_at_used_percent=getattr(self.policy, "refuse_billable_at_used_percent", None),
         )
 
     def _load_pending_discoveries(self) -> list[PendingDiscovery]:
@@ -489,9 +485,7 @@ class DigestRenderer:
             trial for trial in trials if trial.exception_type or not is_lab_self_test(trial)
         ]
         summarised = [
-            trial
-            for trial in trials
-            if not trial.exception_type and is_lab_self_test(trial)
+            trial for trial in trials if not trial.exception_type and is_lab_self_test(trial)
         ]
         if not reported and not summarised:
             if empty:
@@ -756,8 +750,10 @@ def _judge_calibration_line(repo_root: Path) -> str:
     """Report the measured calibration state, never a brief number.
 
     `research/calibration/records/` is the committed record of every judge the
-    lab has measured. Whether any judge is usable is exactly "does a measured
-    record reach its own agreement floor", so that is what this reports.
+    lab has measured. A judge is usable exactly when a measured record reaches
+    its own agreement floor *and* the judge was shown the family's evidence pack
+    (`evidence_digest`); a record scored without the evidence answered a
+    different question and is reported as such, never as calibrated.
     """
     measured, unreportable = _measured_calibration_records(repo_root)
     stub = f" {unreportable} non-measured record(s) are not reportable." if unreportable else ""
@@ -766,8 +762,18 @@ def _judge_calibration_line(repo_root: Path) -> str:
             "- Judge calibration: no judge is calibrated — no measured record under "
             f"`research/calibration/records/`.{stub}"
         )
-    passing = [record for record in measured if record.meets_floor]
-    best = max(measured, key=lambda record: record.mean_agreement)
+    bound = [record for record in measured if record.evidence_digest is not None]
+    unbound_passing = sum(
+        1 for record in measured if record.evidence_digest is None and record.meets_floor
+    )
+    pre_evidence = (
+        f" {unbound_passing} pre-evidence record(s) at or above the floor were scored "
+        "without the evidence pack and are not calibration."
+        if unbound_passing
+        else ""
+    )
+    passing = [record for record in bound if record.meets_floor]
+    best = max(bound or measured, key=lambda record: record.mean_agreement)
     detail = (
         f"{best.family} / {best.judge_backend} {best.judge_model}, mean agreement "
         f"{best.mean_agreement:.3f} against a {best.agreement_floor:.2f} floor over "
@@ -775,14 +781,14 @@ def _judge_calibration_line(repo_root: Path) -> str:
     )
     if not passing:
         return (
-            f"- Judge calibration: no judge is calibrated — 0 of {len(measured)} measured "
-            f"record(s) reach their agreement floor, closest {detail}. No judged dimension "
-            f"is reportable and the analysis worker's `calibrated_judges_only` admission "
-            f"gate stays closed until one clears its floor.{stub}"
+            f"- Judge calibration: no judge is calibrated — 0 of {len(bound)} evidence-bound "
+            f"measured record(s) reach their agreement floor, closest {detail}. No judged "
+            f"dimension is reportable and the analysis worker's `calibrated_judges_only` "
+            f"admission gate stays closed until one clears its floor.{pre_evidence}{stub}"
         )
     return (
-        f"- Judge calibration: {len(passing)} of {len(measured)} measured record(s) reach "
-        f"their agreement floor; best {detail}.{stub}"
+        f"- Judge calibration: {len(passing)} of {len(bound)} evidence-bound measured "
+        f"record(s) reach their agreement floor; best {detail}.{pre_evidence}{stub}"
     )
 
 

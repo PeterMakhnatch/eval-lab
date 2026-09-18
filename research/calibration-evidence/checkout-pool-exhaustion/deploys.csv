@@ -1,0 +1,7 @@
+deployed_at_utc,service,release,change_summary,deployed_by
+2026-07-10T11:20:00Z,checkout-api,v4.18.1,add structured request logging,ci-bot
+2026-07-13T09:41:00Z,checkout-api,v4.18.3,dependency bumps only; no configuration change,ci-bot
+2026-07-14T14:02:00Z,checkout-api,v4.19.0,raise HTTP server worker count from 8 to 32 for throughput,ci-bot
+2026-07-14T14:05:00Z,search-api,v2.2.9,refresh bundled TLS certificate authorities,ci-bot
+2026-07-14T15:31:00Z,checkout-api,v4.18.3,rollback of v4.19.0,r.okafor
+2026-07-15T08:15:00Z,ledger-api,v9.4.0,scheduled index maintenance job,ci-bot

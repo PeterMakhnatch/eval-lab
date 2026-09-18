@@ -297,3 +297,27 @@ def test_macos_fail_open_source_cannot_launch_proposer(monkeypatch):
     engine = meta_engine.make_meta_harness_engine(gepa_config.OptimizeAnythingConfig(sandbox=True))
     with pytest.raises(RuntimeError):
         engine.run(None, None)
+
+
+@pytest.mark.parametrize(
+    ("sandbox", "missing"),
+    [(False, None), (True, "bwrap"), (True, "claude")],
+)
+def test_unqualified_launch_cannot_reach_upstream(monkeypatch, sandbox, missing):
+    monkeypatch.setattr(meta_engine, "_IS_MACOS", False)
+    monkeypatch.setattr(
+        meta_engine.shutil,
+        "which",
+        lambda command: None if command == missing else f"/mock/{command}",
+    )
+
+    def unexpected_launch(*args, **kwargs):
+        pytest.fail("An unqualified launch reached the upstream proposer")
+
+    monkeypatch.setattr(meta_engine.MetaHarnessEngine, "run", unexpected_launch)
+    engine = meta_engine.SafeMetaHarnessEngine(gepa_config.OptimizeAnythingConfig(sandbox=sandbox))
+    with pytest.raises(RuntimeError):
+        engine.run(None, None)
+    facts = meta_engine.check_prerequisite_facts(sandbox=sandbox)
+    assert facts["live_launch_blocker"] is not None
+    assert facts["runtime_isolation_tested"] is False

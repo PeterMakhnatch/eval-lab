@@ -1264,6 +1264,10 @@ class JudgePredictionBundle(ContractModel):
     judge_engine_version: str | None = None
     rubric_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     corpus_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    # Digest of the vendored evidence pack the judge was shown next to each
+    # document. ``None`` means the judge saw only the rubric and the document,
+    # the pre-evidence input contract; such measurements are never calibrated.
+    evidence_digest: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
     generated_at: datetime
     predictions: list[JudgeDocumentPrediction] = Field(min_length=1)
 
@@ -1300,6 +1304,7 @@ class JudgeCalibrationRecord(ContractModel):
     judge_engine_version: str | None = None
     rubric_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     corpus_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    evidence_digest: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
     per_criterion_agreement: dict[str, CriterionAgreementRate] = Field(min_length=1)
     mean_agreement: float = Field(ge=0, le=1)
     agreement_floor: float = Field(default=0.9, ge=0, le=1)

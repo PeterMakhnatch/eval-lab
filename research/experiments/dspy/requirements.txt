@@ -1,0 +1,9 @@
+# DSPy lane overlay. Never install this into the project venv: run lane commands
+# through uv's ephemeral overlay so the locked environment that runs the lab CLI
+# is left exactly as `uv sync --locked` made it:
+#   uv run --with-requirements research/experiments/dspy/requirements.txt python -m judge.run ...
+# DSPy 3.3.1 also resolves under the release Harbor 0.21.0; numpy is pinned to the
+# locked version because pyarrow in the base venv is built against it.
+dspy==3.3.1
+litellm==1.101.0
+numpy==2.5.2

@@ -287,6 +287,8 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         "shared_budget",
         "score_mode",
         "candidate_kind",
+        "proposer_transport",
+        "proposer_ceilings",
     }
     if not isinstance(raw, dict) or set(raw) - allowed:
         raise ValueError("Unknown campaign fields; arbitrary engine configuration is not supported")
@@ -321,6 +323,24 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         "python_toolbox",
     }:
         raise ValueError("candidate_kind must be instructions or python_toolbox")
+    transport = raw.get("proposer_transport", "direct")
+    if transport not in {"direct", "opencode"}:
+        raise ValueError("proposer_transport must be direct or opencode")
+    if transport == "opencode":
+        from .opencode_transport import MODEL
+
+        if raw["engine"] != "gepa" or raw.get("proposer_model") != MODEL:
+            raise ValueError("OpenCode transport supports the GEPA Flash proposer only")
+        proposal_limits = raw.get("proposer_ceilings")
+        if not isinstance(proposal_limits, dict) or set(proposal_limits) != set(
+            PROVIDER_CEILING_FIELDS
+        ):
+            raise ValueError("OpenCode proposer requires explicit proposer_ceilings")
+        proposer_ceilings = ProviderCeilings(**proposal_limits)
+        if proposer_ceilings.max_requests != 1:
+            raise ValueError("Each OpenCode proposal is limited to one physical request")
+    elif "proposer_ceilings" in raw:
+        raise ValueError("proposer_ceilings requires the OpenCode transport")
     for key in (
         "max_evals",
         "max_iterations",
@@ -602,6 +622,8 @@ def _run_campaign(
     pending_candidate = None
     availability = None
     route_blocker = None
+    opencode_transport = None
+    transport_facts = None
     stage_lms: dict[str, JournaledReflectionLM] = {}
     invalid_candidates: dict[str, dict[str, Any]] = {}
 
@@ -633,9 +655,31 @@ def _run_campaign(
             if not availability["all_available"]:
                 raise EngineUnavailable(availability)
         elif not qualification and config["engine"] == "gepa":
-            route_blocker = direct_proposer_blocker(config["proposer_model"])
-            if route_blocker:
-                raise ProposalUnavailable(route_blocker)
+            if config.get("proposer_transport", "direct") == "opencode":
+                from evallab.execution_contracts import ProxyTrialLimits
+
+                from .opencode_transport import OpenCodeTransport, OpenCodeTransportError
+
+                proposal_limits = ProviderCeilings(**config["proposer_ceilings"])
+                opencode_transport = OpenCodeTransport(
+                    repo_root=repo_root,
+                    limits=ProxyTrialLimits(**proposal_limits.expected_usage_limits()),
+                )
+                try:
+                    transport_facts = opencode_transport.preflight()
+                except (OpenCodeTransportError, OSError) as exc:
+                    route_blocker = str(exc)
+                    raise ProposalUnavailable(route_blocker) from exc
+            else:
+                route_blocker = direct_proposer_blocker(config["proposer_model"])
+                if route_blocker:
+                    raise ProposalUnavailable(route_blocker)
+        for budget in budgets:
+            proposer_state = budget.summary()["proposer"]
+            if any(proposer_state[key] for key in ("unsettled", "errors", "missing_cost_count")):
+                raise BudgetExhausted(
+                    "Retained proposer accounting is unresolved; refusing baseline dispatch"
+                )
         # Resolve the baseline target gate before any paid proposer can start.
         for example in config["examples"]:
             evaluate(seed, example)
@@ -685,6 +729,7 @@ def _run_campaign(
                         max_requests=stage_requests,
                         before_request=lambda: _check_running(output),
                         budgets=budgets,
+                        transport=opencode_transport,
                     )
                     stage_lms[stage_id] = reflection_lm
                 engine_options = {
@@ -832,6 +877,8 @@ def _run_campaign(
         "engine": config["engine"],
         "engine_availability": availability,
         "proposer_route_blocker": route_blocker,
+        "proposer_transport": config.get("proposer_transport", "direct"),
+        "proposer_transport_facts": transport_facts,
         "score_mode": score_mode,
         "candidate_kind": candidate_kind,
         "candidate_validation_failures": list(invalid_candidates.values()),
@@ -846,6 +893,8 @@ def _run_campaign(
             if route_blocker
             else "engine_preflight_only"
             if status == "engine_unavailable"
+            else "budget_preflight_only"
+            if status == "budget_exhausted" and not records and not stage_lms
             else "real_gepa_with_local_controls_and_deterministic_proposer"
             if qualification
             else "model_search"
@@ -862,7 +911,9 @@ def _run_campaign(
             if fixture
             else (
                 0
-                if route_blocker or status == "engine_unavailable"
+                if route_blocker
+                or status == "engine_unavailable"
+                or (config["engine"] == "gepa" and not stage_lms)
                 else sum(lm.new_requests for lm in stage_lms.values())
                 if stage_lms
                 else None
@@ -874,6 +925,8 @@ def _run_campaign(
             "actual_billing_cost_usd": None,
             "accounting_basis": "fixture_no_model"
             if qualification
+            else "broker_physical_usage_api_price_estimate_not_subscription_billing"
+            if opencode_transport is not None
             else "upstream_reported_estimate_not_complete_provider_billing",
             "cost_cap_excludes_target_evaluation": True,
         },

@@ -22,7 +22,15 @@
   "max_evals": 16,
   "max_proposer_requests": 1,
   "max_proposer_cost_usd": 0.05,
-  "proposer_model": "zai/glm-5.3-flash",
+  "proposer_model": "zai-coding-plan/glm-5.3-flash",
+  "proposer_transport": "opencode",
+  "proposer_ceilings": {
+    "max_requests": 1,
+    "max_input_tokens": 22000,
+    "max_output_tokens": 4096,
+    "max_total_tokens": 26096,
+    "cost_limit_usd": 0.05
+  },
   "timeout_seconds": 300,
   "output_dir": "runs/gepa-python-toolbox",
   "estimated_cost_usd": 0.12,
@@ -36,7 +44,7 @@
   "feedback_max_chars": 16000,
   "candidate_evaluation": "review",
   "objective": "Evolve the reusable Python helper module while preserving its interfaces, task requirements and fixed skill descriptor. Reduce native provider requests only when native correctness is preserved. Use the source-bound development Oracle contrast, not task-specific answers. Trace actual helper use before claiming a benefit.",
-  "max_target_attempts": 4,
+  "max_target_attempts": 2,
   "score_mode": "quality_gated_request_efficiency",
   "candidate_kind": "python_toolbox"
 }

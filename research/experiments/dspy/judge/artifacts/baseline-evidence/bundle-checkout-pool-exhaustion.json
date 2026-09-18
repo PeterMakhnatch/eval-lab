@@ -1,0 +1,1487 @@
+{
+  "schema_version": 1,
+  "family": "checkout-pool-exhaustion",
+  "judge_backend": "dspy-cot-unoptimized",
+  "judge_model": "glm-5.3-flash",
+  "judge_engine_version": "dspy 3.3.1",
+  "rubric_digest": "sha256:07271a7f84bd2f085313c0b395e186b5f76e6dab7b2ea9b0190391c83e068e32",
+  "corpus_digest": "sha256:bbfcdacbd3746a5ec1554a7e8481777bebfc37b749da6a8f69901d3559991224",
+  "evidence_digest": "sha256:2614343c64ec72bd4e5096489abffd16e1ecff3bfaae4722274557e4753ba908",
+  "generated_at": "2026-09-16T22:25:12.284055Z",
+  "predictions": [
+    {
+      "document_id": "01-empty",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "no",
+            "rationale": "The empty document identifies no mechanism linking 32 workers, the 10-connection pool, 5000ms timeouts, and checkout 500s."
+          },
+          "grounded_in_evidence": {
+            "verdict": "no",
+            "rationale": "An empty document cites no evidence items; grounding requires multiple specific references."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "no",
+            "rationale": "The empty document never explicitly rejects the payments-vendor advisory using timing, flat vendor latency, or successful vendor calls."
+          },
+          "separates_contributing_factors": {
+            "verdict": "no",
+            "rationale": "The empty document distinguishes no alerting, canary, review, or response gaps from the causal mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "no",
+            "rationale": "The empty document raises no open questions at all, so this criterion cannot be satisfied."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "no",
+            "rationale": "The empty document contains no action coupling pool sizing to worker count or failing startup on mismatch."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "The empty document proposes no detection for pool saturation or connection-acquire wait."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "The document is empty; it contains no corrective-action section, owners, targets, or completion conditions."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "no",
+            "rationale": "With an empty document there are no corrective actions to trace to any findings."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "The document is empty and therefore proposes no material work at all, supported or otherwise."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The empty document makes no claim about the payments vendor as a cause."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The document asserts no causal mechanism of any kind, so no unsupported cause is present."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "The empty document states no facts, so it cannot misstate times, counts, versions, or configuration values."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "The empty document cites no dashboards, tickets, logs, metrics, meetings, or observations."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "02-style-only-fluent-generic",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "no",
+            "rationale": "The document never identifies contention between 32 workers and the 10-connection pool, 5000ms acquire timeouts, or checkout 500s; it only gestures at 'a change' interacting with 'a constraint'."
+          },
+          "grounded_in_evidence": {
+            "verdict": "no",
+            "rationale": "The root cause section names no specific evidence items — no deploy, log lines, metrics, or reference facts — only fluent generalities about 'a change' and 'an existing constraint'."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "no",
+            "rationale": "The document never explicitly rejects the payments-vendor advisory using timing, flat vendor latency (~130ms), or successful vendor calls; it only vaguely mentions time lost to an incorrect hypothesis."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Contributing factors (monitoring, testing, deployment, response) are listed separately from the root cause mechanism, keeping them distinct."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions (full customer impact, other exposed systems, alert thresholds) concern matters not settled by the supplied evidence, e.g. the finance reconciliation report explicitly not yet gathered."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "no",
+            "rationale": "No action couples pool sizing to worker count or fails startup on an unsafe worker/pool mismatch; neither the pool nor worker count is even mentioned."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "No action adds detection for pool saturation or connection-acquire wait; the monitoring action is entirely generic."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "Corrective actions are generic ('improve monitoring', 'review the deployment process') with no owners, targets, or objectively checkable completion conditions."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Actions loosely correspond to the contributing factors listed (monitoring, testing, deployment practices, response runbook), though those factors themselves are generic."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "The proposed work is generic but not based on any unsupported specific cause or risk; it makes no substantive causal claims requiring evidence."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The payments vendor is never mentioned as a cause or otherwise."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The document asserts no specific causal mechanism at all, so none is contradicted by or absent from the evidence."
+          },
+          "misstates_a_fact": {
+            "verdict": "yes",
+            "rationale": "The timeline states the incident was 'closed' at 15:38, but ticket INC-2291 records status as 'mitigated, postmortem not yet written', not closed; the document also asserts customers 'had to be retried', which the evidence does not establish."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "No dashboard, ticket, log line, or metric is cited; the timeline entries used (14:09 alert, 15:31 rollback, 15:38 mitigation) all appear in the evidence."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "03-copied-evidence-logs",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "no",
+            "rationale": "The document never states the mechanism of 32 workers contending for a 10-connection pool causing 5000ms acquire timeouts and checkout 500s; it only pastes startup lines and says the cause is visible."
+          },
+          "grounded_in_evidence": {
+            "verdict": "no",
+            "rationale": "The root cause section pastes raw logs and deploy rows but does not connect them with reasoning beyond 'the root cause is visible'; it asserts rather than grounds the mechanism in specific evidence items."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "no",
+            "rationale": "The document contains chat lines mentioning the vendor theory, but it never explicitly rejects the advisory using timing, flat vendor latency, or successful vendor calls in its own analysis."
+          },
+          "separates_contributing_factors": {
+            "verdict": "no",
+            "rationale": "The contributing factors section pastes unrelated chat lines (restart, rollback) without distinguishing alerting, canary, review, or response gaps from the worker/pool mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "The open questions section contains only pasted alert-log lines and raises no questions that contradict the settled evidence; there are no improper open questions."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "no",
+            "rationale": "No action couples pool sizing to worker count or adds a startup guard against a worker/pool mismatch."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "No action adds pool-saturation or acquire-wait detection; the document never proposes any alerting change."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "The corrective action section only pastes configuration with 'should be reviewed'; no concrete changes, owners, targets, or checkable completion conditions."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "no",
+            "rationale": "No substantive corrective actions exist, so none trace to the established cause."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "The document proposes essentially no material work at all, so no unsupported work is present."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The vendor appears only in pasted chat lines including the conclusion that it was not the vendor; the document does not treat the vendor as a cause."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The document asserts no causal mechanism beyond 'visible in the logs'; nothing stated contradicts or goes beyond the evidence."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "All pasted times, counts, versions, and configuration values match the evidence files exactly."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "All cited logs, metrics, deploys, chat lines, config, and alerts match the supplied evidence files verbatim; nothing invented."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "04-subtly-wrong-cause-vendor",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "no",
+            "rationale": "The document never identifies contention between 32 workers and the 10-connection pool producing 5000ms acquire timeouts and checkout 500s; it attributes the 500s to queued work from slow vendor calls."
+          },
+          "grounded_in_evidence": {
+            "verdict": "no",
+            "rationale": "The claimed vendor-degradation mechanism rests on the 14:20 advisory and asserted correlation; it ignores the log and metric evidence of flat 130ms vendor latency, and offers no specific evidence items supporting slow vendor calls."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "no",
+            "rationale": "Far from rejecting the vendor hypothesis, the document endorses it as root cause, misreading the advisory timing and the flat vendor latency."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "The Contributing Factors section distinguishes the alerting gap (alerts not distinguishing failure sources) from the (mistaken) vendor causal mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "no",
+            "rationale": "Open questions include the underlying cause of the vendor's degradation, but the supplied evidence and reference facts settle that no vendor degradation occurred."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "no",
+            "rationale": "No action couples pool sizing to worker count or fails startup on a worker/pool mismatch; the document never acknowledges the worker/pool interaction at all."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "No action adds detection for pool saturation or connection-acquire wait; the only new alert proposed is on vendor call latency."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Actions name concrete changes with targets or checkable completion conditions (timeout from 3000ms to 1500ms, circuit breaker 'done when failover provider integrated behind a feature flag', ten-business-day vendor report target), though without named owners."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Each action (vendor review, failover provider, circuit breaker, timeout reduction, vendor latency alert) addresses the vendor-latency cause the document establishes in its Root Cause and Contributing Factors sections."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "yes",
+            "rationale": "Material work (vendor reliability review requiring a root-cause report, secondary payments provider, circuit breaker) is premised on a vendor latency degradation that the supplied evidence refutes: vendor p99 stayed ~130ms flat and every observed call returned 200."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "yes",
+            "rationale": "The document names the payments vendor's latency degradation as root cause rather than treating it as a rejected hypothesis."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "yes",
+            "rationale": "The stated causal mechanism (vendor latency degradation causing resource queueing and 500s) is contradicted by evidence: vendor latency stayed ~130ms flat and all observed vendor calls returned 200, while the actual mechanism was worker/pool contention after the 14:02 deploy."
+          },
+          "misstates_a_fact": {
+            "verdict": "yes",
+            "rationale": "It claims the vendor advisory 'aligns with the onset of our errors' (onset was 14:02; advisory 14:20), claims vendor calls took substantially longer than normal (they stayed ~130ms), and claims the rollback helped by reducing concurrency directed at a struggling vendor (the rollback restored 8 workers, relieving pool contention)."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "Cited artifacts (14:20 advisory, 14:09 page, 15:31 rollback, 15:38 mitigation, restarts at 14:52, support complaints at 14:18, reconciliation report pending) all appear in the chat, ticket, alerts log, deploys.csv, or metrics."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "05-right-cause-useless-actions-tbd",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "The root-cause section identifies 32 workers contending for the same 10 connections, 5000ms acquire timeouts, and resulting checkout 500s."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "The mechanism is grounded in multiple specific items: service-config.yaml values, the v4.19.0 deploy entry, db.pool warnings with active=10 and growing waiters, TimeoutError log lines, and metrics.csv pool-wait data."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "yes",
+            "rationale": "It explicitly rejects the vendor advisory using timing (errors began 16 minutes before the advisory), flat ~130ms vendor p99, and all-200 vendor responses."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Alerting, review/validation, no-canary, vendor-hypothesis retention, and restart-before-rollback are listed as contributing factors distinct from the worker/pool causal mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions (payment reconciliation, rationale for 32 workers, per-customer impact, vendor's own advisory, other services) are all matters the supplied evidence does not settle."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "no",
+            "rationale": "The capacity-coupling gap is discussed as a contributing factor, but the TBD action list contains no action coupling pool sizing to worker count or failing startup."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "Although the alerting gap is identified as a contributing factor, no action adds pool-saturation or acquire-wait detection; actions are TBD."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "The corrective-action section is literally 'TBD'; no concrete changes, owners, targets, or completion conditions are named."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "no",
+            "rationale": "No substantive corrective actions exist to trace; the section is 'TBD' (actions 2 and 6 are referenced but not defined)."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "No material work is proposed at all beyond evidence-grounded open questions; nothing is based on unsupported causes or risks."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The vendor is explicitly treated as a rejected hypothesis, listed among signals that are not causes."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated causal mechanism matches the supplied logs, metrics, config, and reference facts; no unsupported cause is asserted."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Times, counts, and values (14:02 deploy, 14:09 page, 38.1% peak, 7,021 5xx sum, pool max=10, 5000ms timeout, 15:31 rollback, 15:38 mitigation) all agree with the evidence and reference facts."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "All cited artifacts (alerts.log, checkout-api.log, deploys.csv, metrics.csv, oncall-chat.txt, service-config.yaml) exist and the cited entries match them."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "06-correct-oracle",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "The document explicitly identifies 32 workers contending for a 10-connection pool, 5000ms acquire timeouts, and resulting checkout 500s."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "The mechanism is grounded in multiple specific items: the 14:02:11 startup line (workers=32 db_pool_max=10), db.pool warnings showing active=10 max=10 with waiters growing 6→97, the TimeoutError 500 log lines, service-config.yaml (max_connections: 10, acquire_timeout_ms: 5000, last changed 2025-11-04), and the rollback recovery at 15:31–15:33."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "yes",
+            "rationale": "It explicitly rejects the vendor advisory citing timing (errors began 14:04, sixteen minutes before the 14:20 advisory; continued after it cleared at 14:41), flat vendor p99 of 127–134ms, and all vendor calls returning 200."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Alerting, review/CI, no-canary, vendor-hypothesis retention, and restart-before-rollback are listed as contributing factors distinct from the worker/pool causal mechanism; the ledger-db CPU rise is classified as a downstream effect."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions (reconciliation report, rationale for 32 workers, distinct customers, vendor's own advisory, other services' sizing) are all matters the evidence files and reference facts do not settle, and the document says so."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "yes",
+            "rationale": "Action 1 derives max_connections from server.workers or refuses startup on a workers > max_connections mismatch."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "yes",
+            "rationale": "Action 3 adds alerts on db_pool_wait_p99_ms > 250ms and db_pool_active >= db_pool_max, directly addressing the documented absence of pool-saturation/acquire-wait alerting."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Each of the six corrective actions names a concrete change with an objectively checkable completion condition (e.g., mismatched build fails before serving traffic, alert fires against replayed metrics)."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Actions map to established findings: pool/worker coupling to the root cause, alerts to the detection gap, canary to the no-canary factor, runbook check to the 20-minute detection delay, audit to the shared-assumption risk."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "All proposed work, including re-sizing the pool and re-releasing v4.19.0 under load, follows from causes or gaps established in the evidence; the audit action is explicitly framed as unanswered by the supplied evidence."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The vendor is treated only as a rejected hypothesis, explicitly listed among signals that are not causes."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "Every causal claim is supported by the logs, metrics, config, and rollback outcome; no cause contradicted by or absent from the evidence is asserted."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Times, counts, versions, and configuration values (workers 8→32, pool max 10, 5000ms timeout, 14:02 deploy, 15:31 rollback, 38.1% peak, waiter 6→97) all match the evidence; the small arithmetic variance in the derived Impact total (~7,021 vs. ~6,969 summed) is not a material misstatement of an evidence-established fact."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "All cited artifacts (alerts.log, checkout-api.log, deploys.csv, metrics.csv, oncall-chat.txt, service-config.yaml, ticket details) exist in the evidence; no fabricated dashboards, tickets, or observations appear."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "07-correct-metrics-led",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "The document states workers=32 against a pool of 10 caused requests to queue and time out at 5000ms, producing checkout 500s."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "Multiple specific items are cited: service-config.yaml pool values from 2025-11-04, the v4.19.0 startup line, db.pool warnings with active=10 max=10, TimeoutError text, and metrics showing wait p99 climbing and rollback recovery."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "yes",
+            "rationale": "It explicitly rejects the vendor hypothesis using flat 127–134ms vendor latency, 200 responses, error onset at 14:04 before the 14:20 advisory, and continued errors after the advisory cleared."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "It lists alerting gaps, review gaps from non-derived pool sizing, no canary, and the delayed vendor-hypothesis rejection as contributing factors, distinct from the worker/pool mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions (reconciliation report, reason for the 32-worker change, other services) are all matters not settled by the supplied evidence or reference facts."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "yes",
+            "rationale": "Action 1 couples max_connections to server.workers or fails startup when workers > max_connections, addressing the unsafe mismatch."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "yes",
+            "rationale": "Action 3 adds paging on db_pool_active >= db_pool_max and warning on db_pool_wait_p99_ms, directly closing the detection gap confirmed absent in alerts.log."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Each action names a concrete change with a checkable condition: coupling/fail startup on mismatch, specific alert thresholds (>=max for 5m, wait p99 >250ms), and canary enabled."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Pool sizing action traces to the worker/pool mismatch, the alert action to the missing pool alert, and the canary action to the uncanaried all-instances rollout listed as contributing factors."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "All four actions follow from evidence-supported findings; no material work rests on an unsupported cause or risk."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The vendor is treated only as a rejected hypothesis, with timing and latency evidence marshaled against it."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated causal mechanism is fully supported by the evidence files; no contradictory or unsupported cause is asserted."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Checked facts (14:02 deploy, workers 8->32, pool 10, 5000ms timeout, 38.1% peak, 72% ledger-db CPU, 15:31 rollback, 15:38 mitigation, vendor latency range) all match; the ~7,021 5xx sum is within rounding of the computed ~7,023."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "Every cited artifact (metrics.csv, alerts.log, service-config.yaml, startup log lines, chat events) appears in the supplied evidence or reference facts."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "08-correct-config-led",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "Identifies the 32-worker vs 10-connection mismatch causing pool exhaustion, 5000ms acquire timeouts, and checkout 500s."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "Cites service-config.yaml values, the 14:02:11 startup line, exhausted-pool error lines, metrics.csv db_pool_active=10 with rising wait p99, and recovery after rollback — multiple specific evidence items."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "yes",
+            "rationale": "Explicitly rules out the vendor advisory citing flat ~130ms latency, successful 200 responses, and wrong timing."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Detection gap, missing CI check, disabled canary, and vendor-theory delay are listed as contributing factors, distinct from the causal mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions (reconciliation report, reason for 32 workers, sibling service configs) are all genuinely unsettled by the supplied evidence."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "yes",
+            "rationale": "Action 1 refuses boot when workers exceed pool size, directly coupling or failing on an unsafe worker/pool mismatch."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "yes",
+            "rationale": "Action 3 adds alerting on pool acquire wait and saturation, which alerts.log confirms did not exist."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Actions name concrete changes (refuse boot on workers>pool, raise max_connections with load test, add acquire-wait alert, set canary true) with objectively checkable completion conditions."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Startup assertion and pool resize address the worker/pool mismatch; the alert addresses the detection gap; canary addresses the uncanaried deploy — all established earlier."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "All proposed work addresses supported causes or documented gaps; the reconciliation item is flagged as an open question, not proposed work."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The vendor appears only as an explicitly rejected hypothesis."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The causal mechanism is fully supported by the evidence files; no unsupported causal claims appear."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Times, values, and versions match the evidence; the only slip is the 5xx sum (7,021 vs actual 7,017), which is immaterial."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "All cited artifacts (deploys.csv, metrics.csv, alerts, chat events, config, log lines) exist in the evidence."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "09-correct-compact",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "Explicitly identifies 32 workers contending for a 10-connection pool, 5000ms acquire timeouts, and checkout 500s."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "Cites the startup line, TimeoutError log, db_pool_active=10 and wait p99 4→3104 in metrics.csv, and service-config.yaml max_connections=10."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "yes",
+            "rationale": "Rejects the vendor advisory citing flat vendor_payments_p99_ms 127–134ms and errors continuing past the advisory's clearing at 14:41."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Contributing Factors section separates alerting, CI check, canary, and delayed vendor-hypothesis rejection from the worker/pool mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions (charge-without-confirmation, reason for workers=32, other services) are all unsettled by the supplied evidence and reference facts."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "yes",
+            "rationale": "Action 1 derives pool size from worker count or fails startup on a mismatch."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "yes",
+            "rationale": "Action 3 adds alerting on db_pool_wait_p99_ms and pool saturation, directly closing the gap."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "Actions are concrete changes but name no owners, targets, or objectively checkable completion conditions."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Each action maps to an established cause or contributing factor: pool/worker mismatch (actions 1-2), missing saturation alert (3), canary disabled (4)."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "All proposed work is grounded in causes and gaps established by the evidence."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The vendor is treated only as a ruled-out hypothesis, never as a cause."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated causal mechanism is directly supported by the evidence; no unsupported cause is asserted."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Impact figures (~7,000 5xx, peak 38.1% at 14:45, 94-minute duration) and all cited values match the evidence."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "Every cited artifact, value, and event appears in the supplied evidence files or reference facts."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "10-correct-timeline-dense",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "The document states 32 workers contending for a 10-connection pool with a 5000ms acquire timeout, producing checkout 500s."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "The mechanism is grounded in the startup log line (workers=32, db_pool_max=10), pool warnings, TimeoutError 500s after 5000ms, metrics.csv saturation, and rollback recovery — multiple specific evidence items."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "yes",
+            "rationale": "It explicitly rejects the payments vendor using flat ~130ms latency, 200 responses, and the advisory's late timing relative to error onset."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Contributing factors (missing pool alert, canary disabled, vendor-hypothesis detour, restarts before rollback) are listed separately from the worker/pool mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions (missing reconciliation report, why workers were set to 32, other services) are matters not settled by the supplied evidence or reference facts."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "yes",
+            "rationale": "Action 1 asserts workers <= max_connections at startup, failing startup on an unsafe mismatch."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "yes",
+            "rationale": "Action 3 adds alerts on pool saturation and acquire wait, directly closing the documented gap (no such alert existed)."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Actions name concrete changes (startup assertion, alert on pool saturation/acquire wait, canary enablement, runbook step) that are objectively checkable, though owners/targets are absent."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Each action addresses an established cause or contributing factor: uncoupled worker/pool config, missing pool alert, canary off, and the deploy-detection delay."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "All proposed actions are grounded in causes and gaps established by the evidence; open questions do not constitute material unsupported work."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The vendor is treated as an explicitly rejected hypothesis, not a cause."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated causal mechanism is directly supported by the logs, metrics, config, and rollback evidence; no unsupported cause is asserted."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Times, counts, percentages, waiters, and durations match the evidence; derived totals (7,021 5xx, ~29.5% window rate) are approximations within reasonable range of the data and not material misstatements."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "Every cited artifact (deploys.csv, checkout-api.log lines, metrics.csv, service-config.yaml, alerts, chat) exists in the evidence directory."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "11-subtly-wrong-cause-tls",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "no",
+            "rationale": "The document explicitly calls the v4.19.0 worker change 'unrelated' and instead asserts a TLS failure, missing the 32-workers vs 10-connection pool contention mechanism with 5000ms acquire timeouts."
+          },
+          "grounded_in_evidence": {
+            "verdict": "no",
+            "rationale": "The TLS-validation mechanism is not grounded in any evidence item; it relies on assertion and a misreading of the search-api cert-expiry notice. The checkout log's pool-exhaustion TimeoutErrors and db.pool metrics directly contradict it."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "yes",
+            "rationale": "It explicitly labels the payments-vendor advisory unrelated and cites the flat ~130ms vendor latency to reject it."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "It lists alerting gaps, canary absence, and time spent on the vendor advisory as contributing factors distinct from its (incorrect) causal mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "no",
+            "rationale": "The open questions are settled by the evidence: the logs show the 500s were pool-exhaustion TimeoutErrors, not certificate errors, and vendor calls all returned 200 with flat ~130ms latency, so 'was the vendor also affected' is answered."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "no",
+            "rationale": "The document never identifies the worker/pool mismatch and proposes no action to couple pool sizing to worker count or gate startup."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "No action adds detection for pool saturation or connection-acquire wait; the only alerting action targets certificate expiry."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "Actions name changes (rollback TLS bundle, add alert, circuit breaker, canaries) but none have owners, targets, or objectively checkable completion conditions."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Each action (cert rollback, cert-expiry paging, circuit breaker, canaries for TLS) maps to the document's stated TLS-based causes and contributing factors, even though those findings are wrong."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "yes",
+            "rationale": "Actions 1-4 are material work premised on the search-api TLS cause, which the evidence files and reference facts do not support and in fact contradict (checkout 500s are pool-exhaustion TimeoutErrors, search-api is not in the checkout path, and the cert notice is on search-api only)."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The vendor is treated as a rejected red herring, consistent with the evidence."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "yes",
+            "rationale": "It states that a search-api TLS bundle broke certificate validation in checkout's product-metadata path, a mechanism absent from and contradicted by the evidence (all 500s are pool-exhaustion timeouts; rollback of checkout fixed it; search-api is not in the checkout path)."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Stated facts (14:02 v4.19.0, 14:05 search-api, 14:07:30 cert notice, 14:09 page at 18.4%, 15:31 rollback, 15:38 mitigation, peak 38.1%, ~130ms vendor latency) all match the evidence; the impact numbers are plausible aggregates."
+          },
+          "invents_evidence": {
+            "verdict": "yes",
+            "rationale": "It cites a checkout dependency on search-api for product metadata and certificate validation failures on that path; neither the dependency nor any certificate error appears in the evidence files or reference facts."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "12-subtly-wrong-cause-ledger-cpu",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "no",
+            "rationale": "The document attributes the incident to ledger-db CPU saturation rather than the contention between 32 workers and the 10-connection pool causing 5000ms acquire timeouts and checkout 500s, treating the pool signals as a mere symptom."
+          },
+          "grounded_in_evidence": {
+            "verdict": "no",
+            "rationale": "The claimed CPU-starvation mechanism misreads the evidence: metrics show CPU plateauing ~70-72% (page threshold 90%), and recovery followed the 8-worker rollback while CPU remained elevated; the pool warnings explicitly show active=10 waiters growing on 5000ms timeouts."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "yes",
+            "rationale": "It explicitly rejects the payments vendor, citing vendor_payments_p99_ms staying ~130ms, matching the evidence and reference facts."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "It has a distinct Contributing Factors section separating review, autoscaling, and threshold/alerting issues from its stated root cause."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "The open questions (missing pg_stat_statements; whether to shard) concern matters the supplied evidence and reference facts do not settle."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "yes",
+            "rationale": "Actions 2 and 3 keep checkout-api at 8 workers until ledger-db has headroom and add a DBA review gate on any worker-count change, coupling worker count to a capacity check."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "No action adds pool-saturation or connection-acquire-wait detection; the only detection action is a 60% CPU warning for ledger-db."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "The corrective actions list no owners, targets/dates, or objectively checkable completion conditions."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Each action maps to something the document asserts earlier (CPU saturation, worker increase, threshold, review gap), even though the root-cause claim itself is wrong."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "yes",
+            "rationale": "Vertical scaling of ledger-db and potential sharding rest on a CPU-saturation cause that the evidence does not support; CPU stayed near 70% and recovery tracked the worker rollback, not CPU relief."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The vendor is explicitly cleared using flat ~130ms vendor latency, not treated as a cause."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "yes",
+            "rationale": "The root-cause claim of ledger-db CPU starvation is contradicted by the evidence: CPU never neared the 90% page threshold, vendor calls succeeded, and errors vanished within minutes of reducing workers to 8 while CPU was still ~68-70%."
+          },
+          "misstates_a_fact": {
+            "verdict": "yes",
+            "rationale": "It claims CPU was 'still rising through 14:45,' but metrics show CPU flat at ~70-72% after 14:20; it also implies the 72% reading was itself harmful when the warning threshold was 90%."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "All cited artifacts (metrics, warnings, deploy times) exist in the evidence; pg_stat_statements is correctly noted as absent."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "13-subtly-wrong-cause-traffic",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "no",
+            "rationale": "The document attributes failures to a traffic spike and dismisses pool messages as generic saturation symptoms; it never identifies 32 workers contending for a 10-connection pool with 5000ms acquire timeouts."
+          },
+          "grounded_in_evidence": {
+            "verdict": "no",
+            "rationale": "It cites metrics.csv but misreads it: checkout_requests stays ~1150-1250/5min throughout, so the claimed surge is assertion, not evidence; the actual worker/pool mechanism is never grounded."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "yes",
+            "rationale": "It explicitly rejects the payments vendor advisory using flat vendor latency and calls search-api TLS unrelated."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Contributing factors (no load-shed, capacity planning, autoscaling) are listed separately from the (albeit incorrect) causal mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "no",
+            "rationale": "Open questions center on which campaign drove a 'spike' that the evidence shows never occurred, and on hypothetical 64-worker throughput, rather than matters genuinely unsettled by the evidence."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "no",
+            "rationale": "No action ties pool sizing to worker count or gates deployment on a workers/pool mismatch; the 32-vs-10 mismatch is never even identified."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "No action adds alerting on pool saturation or connection-acquire wait, despite the document noting pool messages during the incident."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "Actions are short directives with no owners and no targets or objectively checkable completion conditions (the 80%-of-workers load-shed threshold is the only quasi-checkable element)."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Autoscaling, load-shedding, and campaign capacity tickets each map to the contributing factors the document itself established (no autoscaling, no load-shed, no campaign capacity planning)."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "yes",
+            "rationale": "Warm standby region and mandatory capacity tickets for marketing campaigns are premised on a traffic spike/promotional event that the evidence (flat ~1200 requests/5min) does not support."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The vendor advisory is treated as unrelated/rejected, consistent with the evidence."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "yes",
+            "rationale": "The traffic-spike causal mechanism is contradicted by metrics.csv showing flat request volume, and the true pool-exhaustion mechanism is absent from the document."
+          },
+          "misstates_a_fact": {
+            "verdict": "yes",
+            "rationale": "It materially misstates that traffic spiked and receded with the rollback, when request volume was flat and errors vanished because workers returned to 8; it also characterizes 1200 requests/5min as a surge."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "No fabricated dashboard, ticket, log line, or metric is cited; the only citations (metrics.csv, the 14:20 advisory, 14:02 deploy) exist."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "14-subtly-wrong-cause-code-bug",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "no",
+            "rationale": "The document identifies a connection leak in the v4.19.0 handler, not the established contention between 32 workers and the 10-connection pool causing 5000ms acquire timeouts and checkout 500s."
+          },
+          "grounded_in_evidence": {
+            "verdict": "no",
+            "rationale": "The leak mechanism is asserted from the active=10/waiters pattern, but no evidence item shows connections checked out and never returned; the mechanism is not grounded in multiple specific evidence items."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "yes",
+            "rationale": "The payments vendor is explicitly ruled out using flat p99 (~130ms) and successful 200 responses, matching the evidence."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Contributing factors (missing integration test, premature restarts, canary off) are presented distinctly from the stated root cause."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions (which function leaked) concern matters the supplied evidence genuinely does not settle, though they presuppose the unsupported leak framing."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "no",
+            "rationale": "No action couples pool sizing to worker count or fails startup on an unsafe worker/pool mismatch; the document even denies the 10-connection pool is a defect."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "yes",
+            "rationale": "Action 2 adds paging when db_pool_active stays at max for 60s, directly addressing the absent pool-saturation alert."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Actions name concrete changes (revert diff, regression test on db_pool_active, pool-saturation paging alert, canary enablement, soak test) that are objectively checkable even without owners or numeric targets."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Each action traces to something the postmortem establishes earlier: the leak (revert, tests), the missing alert, and canary being off."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "yes",
+            "rationale": "The leak-regression test and connection-pool soak test rest on the leak mechanism, which the evidence files and reference facts do not support."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The vendor is treated as a rejected hypothesis, consistent with the evidence."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "yes",
+            "rationale": "The document states a connection-leak mechanism ('checked out and never returned') that is contradicted by the evidence, which shows contention-driven saturation resolved by restoring 8 workers."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Key facts check out: first TimeoutError 14:04, page 14:09, rollback 15:31, mitigated 15:38; ~7,000 failed checkouts matches summed 5xx counts; 94 minutes matches 14:04–15:38; peak 38.1% matches metrics.csv."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "All cited artifacts and events (TimeoutErrors, restart attempts, canary: false, db_pool_active metric, advisory, rollback) appear in the evidence files or reference facts."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "15-right-cause-useless-actions-generic",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "Explicitly identifies 32 workers contending for a 10-connection pool, hitting the 5000ms acquire timeout and returning 500s."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "Grounds the mechanism in the startup line, TimeoutError text, metrics.csv pool-active pinning at 10 with rising wait p99, and service-config.yaml max_connections: 10."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "yes",
+            "rationale": "Explicitly rejects the vendor advisory (flat ~130ms latency, cleared while errors persisted), search-api TLS, and ledger-db CPU as causes."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Contributing factors (missing alert, no CI coupling, canary disabled, vendor-hypothesis delay) are separated from the worker/pool causal mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions (reconciliation report, rationale for raising workers, other services) are all not settled by the evidence or reference facts."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "no",
+            "rationale": "No action couples pool sizing to worker count or fails startup on an unsafe mismatch; only a generic 'review our deployment process' item."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "No action adds detection for pool saturation or connection-acquire wait; only a vague 'improve monitoring and alerting' item."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "Corrective actions are generic ('improve monitoring', 'increase test coverage') with no owners, targets, or checkable completion conditions."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "no",
+            "rationale": "The listed actions are boilerplate and none substantively addresses the established worker/pool mismatch or its contributing factors."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "The proposed work, while vague, is not grounded in any cause or risk unsupported by the evidence."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The vendor is treated as a rejected hypothesis, not a cause."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated mechanism matches the supplied evidence and reference facts; no contradicted or absent causal claim."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Times, counts, versions, and values match the evidence; ~7,000 failed POSTs is consistent with the sum of 5xx counts in metrics.csv."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "All cited items (startup line, TimeoutError, metrics.csv, service-config.yaml) exist in the evidence files."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "16-right-cause-useless-actions-rollback-only",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "The root cause section states 32 workers against a 10-connection pool with a 5000ms acquire timeout, producing checkout 500s."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "The mechanism is grounded in the 14:02 startup line (workers=32, db_pool_max=10, 5000ms), TimeoutError 'connection pool exhausted' log lines, db_pool_active=10 metrics, and service-config.yaml."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "yes",
+            "rationale": "The timeline and root cause explicitly rule out the vendor advisory using the flat payments p99 (~127-134ms), matching the evidence."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Contributing factors (no pool alert, canary disabled, time spent on the vendor hypothesis) are listed separately from the worker/pool mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Both open questions — charge-without-confirm status (ticket says finance report not yet available) and why workers were raised to 32 (no evidence file explains the decision) — are not settled by the supplied materials."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "no",
+            "rationale": "No action couples pool sizing to worker count or fails startup on an unsafe worker/pool mismatch; the only config action is staying pinned to the old release."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "No action adds detection for pool saturation or connection-acquire wait; the proposed 5xx dashboard panel merely improves visibility of the existing customer-late signal."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "None of the four actions names an owner, a target date, or an objectively checkable completion condition; they are vague directives ('keep pinned indefinitely', 'remind on-call', 'write a Slack post')."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Pinning v4.18.3 addresses the faulty v4.19.0 change, the rollback-sooner reminder addresses the response-delay contributing factor, and the dashboard/announcement items address alerting/communication gaps established earlier."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "The proposed work (staying on v4.18.3, a 5xx dashboard panel, on-call reminder, Slack post) is consistent with findings supported by the evidence; nothing rests on unsupported causes or risks."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The vendor is treated only as a rejected hypothesis ('ruled out'), never as a cause."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated causal mechanism (worker/pool contention causing acquire timeouts) is exactly what the evidence supports; no additional unsupported cause is asserted."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Times (14:02, 14:04, 14:09, 15:31, 15:38), peak 38.1% 5xx, 5000ms timeout, and the ~7,021 failure estimate (vs ~6,969 summed) are all consistent with the evidence; no material misstatement."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "Everything cited (startup log lines, TimeoutError entries, db_pool_active=10, service-config.yaml, vendor p99) appears in the evidence files or reference facts."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "17-right-cause-useless-actions-process",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "It states v4.19.0 set workers=32 while max_connections stayed 10, causing requests to time out waiting for a connection."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "It cites the startup line 'workers=32 db_pool_max=10', the 'connection pool exhausted ... after 5000ms' errors, and metrics.csv wait p99 rising 4ms to 3104ms, all present in the evidence."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "yes",
+            "rationale": "It explicitly rejects the vendor hypothesis using the flat ~130ms vendor latency, consistent with the log and metrics."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "It distinguishes process gaps around review, canary, and incident comms from the worker/pool causal mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "The open questions (reconciliation numbers, other services) match items the ticket marks as not yet gathered; the evidence does not settle them."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "no",
+            "rationale": "No action couples pool sizing to worker count or fails startup on an unsafe mismatch."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "No action adds an alert on pool saturation or connection-acquire wait, despite the evidence showing no such alert existed."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "The four actions (workshop, values document, 'be more mindful', newsletter) name no owners, targets, or objectively checkable completion conditions."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "no",
+            "rationale": "None of the actions addresses the established worker/pool mismatch cause; they vaguely gesture at comms/review process gaps without concrete linkage to the mechanism."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "The proposed work is vague but is not material work based on a cause or risk absent from the evidence."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The document treats the vendor only as a rejected hypothesis ('The vendor is not the cause')."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated mechanism is fully supported by the evidence files and reference facts."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Times (14:02, 14:04, 14:09, 15:31, 15:38), peak 38.1%, and durations align with the evidence files and reference facts."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "All cited artifacts (startup line, TimeoutError logs, metrics.csv, ticket times, chat complaints at 14:18) appear in the evidence; ~7,000 failures is consistent with the 5xx sums in metrics.csv."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "18-fabricated-evidence-warroom",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "Explicitly identifies 32 workers contending for 10 connections, 5000ms acquire timeout, and resulting 500s."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "Grounds the mechanism in the v4.19.0 startup line (workers=32, db_pool_max=10), TimeoutError 'connection pool exhausted ... after 5000ms' log lines, metrics.csv db_pool_active=10, and service-config.yaml — multiple real evidence items."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "yes",
+            "rationale": "Explicitly rejects the payments vendor using the flat ~130ms p99, consistent with the evidence."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Lists missing pool alert, canary=false as contributing factors distinct from the worker/pool causal mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "no",
+            "rationale": "'Why workers=32 is unknown' is settled by deploys.csv: v4.19.0 raised workers 8→32 'for throughput.' Not all open questions are beyond the supplied evidence."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "yes",
+            "rationale": "Action 1 couples pool size to worker count or fails startup on an unsafe mismatch."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "yes",
+            "rationale": "Action 2 adds an alert on pool saturation, directly addressing the absent pool-saturation alert noted in alerts.log."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Actions name concrete changes: couple pool size to workers or fail startup, add saturation alerting, enable canary deploys — each objectively checkable."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Pool/worker coupling addresses the root cause, alerting addresses the detection gap, canary addresses the unguarded deploy; all established earlier."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "yes",
+            "rationale": "Action 4 promotes 'Mira's unofficial dashboard checkout-pool-sat,' an artifact that exists in neither the evidence files nor the reference facts."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The vendor is treated as a rejected hypothesis, not a cause."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated causal mechanism (workers/pool mismatch) matches the evidence; no contradicted or absent causal claim beyond invented artifacts."
+          },
+          "misstates_a_fact": {
+            "verdict": "yes",
+            "rationale": "States a 94-minute duration (ticket opened 14:09, mitigated 15:38 = 89 minutes) and '7,021 failed POSTs,' which does not match the metrics.csv 5xx totals (~6,975 including pre-incident buckets)."
+          },
+          "invents_evidence": {
+            "verdict": "yes",
+            "rationale": "Cites Mira Chen, a 'hidden Grafana board checkout-pool-sat,' the #rev-ops Slack GMV claim, and a 'war-room Zoom recording' — none appear in the evidence files or reference facts."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "19-fabricated-evidence-dashboards",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "It identifies the 32-worker vs 10-connection uncoupling leading to pool exhaustion and 5000ms TimeoutError 500s."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "It grounds the mechanism in the startup line (workers=32, db_pool_max=10), TimeoutError log entries, and db_pool_wait_p99_ms rising 4→3104 in metrics.csv."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "yes",
+            "rationale": "It explicitly rejects the vendor hypothesis, noting the advisory timing and vendor p99 staying flat at 127–134ms while errors persisted."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "The Contributing Factors section distinguishes the missing pool alert and canary=false from the causal mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions (reconciliation report, whether monitor 88412 was ever enabled) are matters the supplied files genuinely do not settle; the ticket confirms the reconciliation report is not yet gathered."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "yes",
+            "rationale": "Action 1 adds a startup assertion that workers <= max_connections, failing startup on an unsafe mismatch."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "yes",
+            "rationale": "Action 3 adds pool-saturation detection (importing a pool-saturation monitor into the alert list), addressing the absent pool/acquire-wait alert."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "The corrective actions are concrete changes but name no owners, targets, or completion conditions."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Each action maps to an established finding: startup assertion and pool re-size to the 32-vs-10 uncoupling, alert import to the missing pool-saturation alert, canary to the deployment gap."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "yes",
+            "rationale": "Action 3 proposes importing Datadog monitor 88412, an artifact that does not exist in the supplied evidence files or reference facts."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The document treats the vendor as a rejected hypothesis ('Vendor is not the cause'), consistent with the evidence."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The causal mechanism stated (worker/pool uncoupling) is supported by the evidence; the document explicitly flags the monitor claim as unverified rather than asserting it as a cause."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Times, counts, and values in the document (14:02 deploy, 15:31 rollback, 15:38 mitigation, ~7,000 failed POSTs, peak 38.1% 5xx, vendor p99 127–134ms, wait p99 4→3104) all match the evidence."
+          },
+          "invents_evidence": {
+            "verdict": "yes",
+            "rationale": "It cites a Datadog monitor 88412 and a PagerDuty note attributed to s.lindqvist claiming 12,400 customers; neither appears in the evidence files or reference facts."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "20-fabricated-evidence-tickets",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "States 32 workers vs 10 connections with a 5000ms acquire timeout causing pool exhaustion and 500s."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "Cites the startup log line, TimeoutError lines, metrics.csv, and service-config.yaml specifically."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "yes",
+            "rationale": "States the vendor advisory is not the cause, supported by the timeline note of flat latency, matching evidence."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Lists missing pool alert, canary off, and change-management gaps separately from the worker/pool mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions (charge reconciliation, unverifiable CAP-4419) are not settled by the supplied evidence."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "yes",
+            "rationale": "Action 1 couples pool size to workers, addressing the 32-vs-10 mismatch."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "yes",
+            "rationale": "Action 2 adds an alert on pool saturation, matching the reference fact that no such alert existed."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "The four corrective actions name changes but no owners, targets, or objectively checkable completion conditions."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Pool sizing addresses the worker/pool mismatch, alerting addresses the detection gap, canary addresses the unguarded deploy, all established earlier."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "yes",
+            "rationale": "Action 3 (require CAP tickets to attach a pool-sizing screenshot) is material work built around the invented CAP-4419 ticket process, which the evidence does not support."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The document explicitly treats the vendor advisory as not the cause."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated causal mechanism (worker/pool contention) is supported by the evidence and reference facts; no contradictory or absent cause is asserted as the mechanism."
+          },
+          "misstates_a_fact": {
+            "verdict": "yes",
+            "rationale": "States '94 minutes' and '7,021 failed POSTs'; neither matches the evidence (page-to-mitigation is 89 minutes, deploy-to-mitigation 96; total 5xx counts in metrics.csv do not yield 7,021 and that figure is unsupported)."
+          },
+          "invents_evidence": {
+            "verdict": "yes",
+            "rationale": "Cites JIRA CAP-4419 including a 13:10 'ready to ship' event that appears in neither the evidence files nor reference facts, and acknowledges it is not in the evidence directory yet uses it."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "21-style-only-fluent-executive",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "no",
+            "rationale": "The document never mentions workers, pool size, acquire timeouts, or 500s; it only gestures at 'throughput ambitions vs implicit resource constraint.'"
+          },
+          "grounded_in_evidence": {
+            "verdict": "no",
+            "rationale": "No specific evidence items (logs, metrics, deploys) are cited; the root cause section is fluent generality."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "no",
+            "rationale": "The payments-vendor advisory is never mentioned, let alone rejected via timing, flat vendor latency, or successful vendor calls."
+          },
+          "separates_contributing_factors": {
+            "verdict": "no",
+            "rationale": "Contributing factors are generic cultural/organizational claims, not the actual alerting, canary, review, or response gaps distinguishable from the worker/pool mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "no",
+            "rationale": "Open questions are about external messaging and investment level — but the document leaves entirely unsettled matters (the cause) that the evidence does settle, so uncertainty is misplaced rather than genuine."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "no",
+            "rationale": "No action couples pool sizing to worker count or gates startup on a mismatch."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "No action adds pool-saturation or acquire-wait alerting."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "Actions are abstract (board narrative, north-star metrics, multi-quarter program) with no owners, targets, or checkable completion conditions."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "no",
+            "rationale": "No root cause is established in the document, so no action can trace to one; actions are generic organizational items."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "The proposed work is vague and aspirational rather than material work justified by a specific unsupported cause or risk."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The vendor is never mentioned as a cause."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The document asserts no specific causal mechanism at all; its vagueness avoids contradiction, though it fails to state the real cause."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Timeline entries (14:09, 15:31, 15:38) are consistent with the ticket and deploys evidence; no supplied fact is contradicted."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "No dashboard, ticket, log line, or metric is cited; leadership/war-room claims are unsupported narrative but not cited artifacts."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "22-style-only-fluent-runbook",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "no",
+            "rationale": "The document never mentions 32 workers, the 10-connection pool, 5000ms timeouts, or checkout 500s."
+          },
+          "grounded_in_evidence": {
+            "verdict": "no",
+            "rationale": "The root cause section cites no specific evidence items; it offers only a generic 'recent change interacted with an existing limit'."
+          },
+          "rules_out_the_decoy": {
+            "verdict": "no",
+            "rationale": "The payments-vendor hypothesis is neither mentioned nor rejected anywhere in the document."
+          },
+          "separates_contributing_factors": {
+            "verdict": "no",
+            "rationale": "Contributing factors discuss runbook/template concerns only; the actual worker/pool mechanism is never separated out or even stated."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions are about postmortem process conventions, which the evidence does not settle; no settled matter is reopened."
+          }
+        },
+        "action_quality": {
+          "fixes_the_capacity_coupling": {
+            "verdict": "no",
+            "rationale": "No action couples pool sizing to worker count or fails startup on mismatch; the issue is never mentioned."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "No action adds detection for pool saturation or connection-acquire wait."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "Actions are vague ('tighten wording', 'add a screenshot') with no owners, targets, or checkable completion conditions."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "no",
+            "rationale": "No causes are established in the document; template/process actions address none of the technical findings."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "Proposed work is generic process improvement, not material work resting on an unsupported cause or risk."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_payments_vendor": {
+            "verdict": "no",
+            "rationale": "The payments vendor is never mentioned as a cause or otherwise."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The vague 'recent change interacted with an existing limit' is consistent with the evidence, not contradicted by it."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Stated times (14:09 page, 15:31 mitigation, 15:38 mitigation declared) and Sev-2 severity match the evidence."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "No dashboards, tickets, logs, or metrics are cited beyond generic references consistent with the evidence."
+          }
+        }
+      }
+    }
+  ]
+}

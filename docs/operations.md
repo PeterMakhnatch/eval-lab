@@ -222,12 +222,44 @@ Oracle arguments and raw stdout are withheld because they may contain answers.
 Missing command traces remain missing; observed file transitions are not
 automatically task requirements. Final/held-out examples remain forbidden.
 
-Current live-proposer gate: [Z.ai's Coding Plan tool rules](https://docs.z.ai/devpack/tool/others)
-list supported products, including OpenCode, but not bare GEPA/LiteLLM. The
-former direct Coding Plan proposer binding now refuses new requests before
-target evaluation. Do not spoof client identity or silently change providers;
-qualify a genuine supported-tool transport or obtain a separately approved API
-route. This is distinct from unresolved upstream response-format failures.
+The direct GEPA/LiteLLM Coding Plan route remains refused. The disabled toolbox
+example now selects `"proposer_transport": "opencode"` with the official
+`zai-coding-plan/glm-5.3-flash` selector and separate `proposer_ceilings`.
+[Z.ai explicitly supports OpenCode](https://docs.z.ai/devpack/tool/opencode);
+this launches that real CLI, not a spoofed client or another provider.
+
+The proposer transport currently supports installed OpenCode **1.18.9 on
+macOS with Seatbelt and Command Line Tools git**. It records the actual binary
+digest. The target Harbor adapter's separate OpenCode pin is unchanged.
+Each proposal has a private home/config, no enabled tools/plugins/MCP/sharing,
+and a default-deny OS profile: only its workspace is writable, external shell
+execution is denied, and egress is limited to the exact loopback broker port.
+Startup git discovery is confined to that workspace. The existing Z.ai broker,
+not the CLI's self-report, enforces **one physical upstream request per
+proposal**. OpenCode's outer session retry loop still exists; the broker
+prevents further upstream calls and the parent stops on a failed response or
+tool attempt. There is no automatic paid retry.
+
+Successful journal receipts retain the source response and reconciled broker
+usage/model identity. Subscription billing remains unknown. Unknown or failed
+requests remain charged and halt new proposals, including requests with changed
+feedback. Preserve historical ledgers when continuing a campaign: a fresh output
+directory is not a budget reset. The committed example remains disabled and is
+not permission to spend. HAR-59's offline OpenCode/Harbor protocol proof uses a
+declared loopback response fixture, not a live model proposal.
+
+Rejected target responses now retain bounded HTTP-status and
+encoding/media/charset classifications, never arbitrary headers or bodies.
+Historical HAR-54 response details were not captured and cannot be recovered
+from this new instrumentation; their reserved usage remains unresolved.
+
+The disabled `har59-bench-development.json` consumes HAR-61/PR439's eight
+digest-pinned TB2/FACET development packages through this same campaign schema.
+Its three validation packages are deliberately **not** supplied as GEPA
+`validation_task_ids`, which are search-visible selection data. Package
+availability/admission remains owned by the benchmark lane and Peter. The full
+cohort exceeds the existing two-target residual allowance; this prepared
+projection grants neither task eligibility nor additional execution budget.
 
 `--qualification` uses free local controls and a deterministic proposer fixture.
 It can demonstrate real code injection, feedback, selection and comparison, but

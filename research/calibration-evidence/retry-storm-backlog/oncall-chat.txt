@@ -1,0 +1,21 @@
+#notify-incidents — 2026-07-22 (all times UTC)
+
+06:04 <d.abara> support says customers stopped getting SMS codes around 03:15
+06:06 <d.abara> nobody was paged? checking alerts
+06:08 <d.abara> queue-depth alert fired at 06:00 but it only goes to email
+06:09 <d.abara> notifications.outbound is at 812k, it normally sits around 2k
+06:12 <m.tsai> delivery lag is nearly 4 hours
+06:14 <d.abara> notify-worker v2.8.1 went out at 02:47, that has to be it
+06:16 <m.tsai> rolling back?
+06:20 <d.abara> hold on, the queue was completely healthy from 02:47 to 03:11
+06:24 <m.tsai> notifications-db cpu warning fired at 03:20 as well, 86%
+06:26 <d.abara> pages at 95 so it never woke anyone, and it came after the queue grew
+06:31 <d.abara> diffed v2.8.1 — it is a logging change only, text to JSON. not it
+06:35 <m.tsai> gateway emailed back: they served 503s from 03:11 to 03:17
+06:37 <m.tsai> six minutes. we have been broken for three hours
+06:44 <d.abara> all 64 slots are busy but delivery throughput is basically zero
+06:48 <m.tsai> the workers are all retrying, look at retry_share_pct
+06:52 <d.abara> pulling up the worker config now
+07:01 <d.abara> draining the retry set and pushing a capped backoff config
+07:03 <d.abara> delivery is moving again, calling it resolved
+07:09 <m.tsai> first-attempt queue is back under 20k

@@ -305,27 +305,80 @@ def _canonicalize_sse_and_usage(
     return _redact_key(body, key), usage, next(iter(returned_models), None)
 
 
-def _response_encoding_ok(headers: http.client.HTTPMessage, *, stream: bool = False) -> bool:
-    encoding = (headers.get("Content-Encoding") or "identity").strip().casefold()
-    transfer = (headers.get("Transfer-Encoding") or "identity").strip().casefold()
-    if encoding not in {"identity", ""}:
-        return False
-    if transfer not in {"identity", "chunked", ""}:
-        return False
-    content_type = headers.get("Content-Type") or ""
-    media, _, params = content_type.partition(";")
-    if stream:
-        if media.strip().casefold() not in {"application/json", "text/event-stream"}:
-            return False
-    else:
-        if media.strip().casefold() not in {"application/json"}:
-            return False
-    charset = "utf-8"
+_ALLOWED_CONTENT_ENCODINGS: frozenset[str] = frozenset(
+    {"identity", "gzip", "deflate", "br", "zstd"}
+)
+_ALLOWED_TRANSFER_ENCODINGS: frozenset[str] = frozenset({"identity", "chunked"})
+_ALLOWED_MEDIA_TYPES: frozenset[str] = frozenset(
+    {
+        "application/json",
+        "text/event-stream",
+        "text/html",
+        "text/plain",
+        "application/problem+json",
+    }
+)
+_ALLOWED_CHARSETS: frozenset[str] = frozenset({"utf-8", "us-ascii", "iso-8859-1"})
+
+
+def _classify_response_encoding(
+    headers: http.client.HTTPMessage,
+    *,
+    stream: bool = False,
+    status: int | None = None,
+) -> tuple[str | None, dict[str, Any]]:
+    raw_encoding = (headers.get("Content-Encoding") or "").strip().casefold()
+    raw_transfer = (headers.get("Transfer-Encoding") or "").strip().casefold()
+    content_type_header = headers.get("Content-Type") or ""
+    raw_media, _, params = content_type_header.partition(";")
+    raw_media = raw_media.strip().casefold()
+    raw_charset = ""
     for part in params.split(";"):
         name, _, value = part.strip().partition("=")
         if name.casefold() == "charset" and value:
-            charset = value.strip().strip('"').casefold()
-    return charset in {"utf-8", "us-ascii", ""}
+            raw_charset = value.strip().strip('"').casefold()
+
+    content_encoding_class = (
+        raw_encoding
+        if raw_encoding in _ALLOWED_CONTENT_ENCODINGS
+        else ("none" if not raw_encoding else "other")
+    )
+    transfer_encoding_class = (
+        raw_transfer
+        if raw_transfer in _ALLOWED_TRANSFER_ENCODINGS
+        else ("none" if not raw_transfer else "other")
+    )
+    media_type_class = (
+        raw_media if raw_media in _ALLOWED_MEDIA_TYPES else ("none" if not raw_media else "other")
+    )
+    charset_class = (
+        raw_charset
+        if raw_charset in _ALLOWED_CHARSETS
+        else ("none" if not raw_charset else "other")
+    )
+
+    response_facts: dict[str, Any] = {
+        "status": status,
+        "content_encoding": content_encoding_class,
+        "transfer_encoding": transfer_encoding_class,
+        "media_type": media_type_class,
+        "charset": charset_class,
+    }
+
+    if raw_encoding not in {"identity", ""}:
+        return "unsupported_content_encoding", response_facts
+    if raw_transfer not in {"identity", "chunked", ""}:
+        return "unsupported_transfer_encoding", response_facts
+    if stream:
+        if raw_media not in {"application/json", "text/event-stream"}:
+            return "unsupported_content_type", response_facts
+    else:
+        if raw_media not in {"application/json"}:
+            return "unsupported_content_type", response_facts
+    if raw_charset not in {"utf-8", "us-ascii", ""}:
+        return "unsupported_charset", response_facts
+
+    return None, response_facts
 
 
 def _capability_ok(presented: str) -> bool:
@@ -559,6 +612,8 @@ class TrialBudget:
         reason: str,
         returned_model: Any = None,
         returned_model_reason: str | None = "response_not_observed",
+        status: int | None = None,
+        response_facts: dict[str, Any] | None = None,
     ) -> None:
         with self._lock:
             call = self._calls[call_id - 1]
@@ -569,6 +624,10 @@ class TrialBudget:
                 returned_model=returned_model,
                 returned_model_reason=returned_model_reason,
             )
+            if status is not None:
+                call["status"] = status
+            if response_facts is not None:
+                call["response_facts"] = response_facts
             self._sequence += 1
             self._persist_locked()
 
@@ -580,6 +639,7 @@ class TrialBudget:
         input_tokens: int,
         output_tokens: int,
         cost_micros: int,
+        status: int | None = None,
     ) -> None:
         with self._lock:
             call = self._calls[call_id - 1]
@@ -600,6 +660,8 @@ class TrialBudget:
                     "cost_micros": cost_micros,
                 }
             )
+            if status is not None:
+                call["status"] = status
             self._sequence += 1
             self._persist_locked()
 
@@ -934,10 +996,12 @@ class Handler(BaseHTTPRequestHandler):
         try:
             response = opener.open(request, timeout=UPSTREAM_TIMEOUT_SECONDS)
         except urllib.error.HTTPError as exc:
-            if 300 <= int(exc.code) < 400:
+            exc_code = int(exc.code) if isinstance(getattr(exc, "code", None), int) else 502
+            if 300 <= exc_code < 400:
                 self._budget().mark_unresolved(
                     call_id=call_id,
                     reason="upstream_redirect",
+                    status=exc_code,
                 )
                 self._reject(502, b"redirects disabled\n")
                 return
@@ -951,22 +1015,28 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         with response:
-            raw_status = getattr(response, "status", 502)
+            raw_status = getattr(response, "status", getattr(response, "code", 502))
             status = raw_status if isinstance(raw_status, int) else 502
             if 300 <= status < 400:
                 self._budget().mark_unresolved(
                     call_id=call_id,
                     reason="upstream_redirect",
+                    status=status,
                 )
                 self._reject(502, b"redirects disabled\n")
                 return
 
             content_type = response.headers.get("Content-Type") or ""
             is_stream = "text/event-stream" in content_type.casefold()
-            if not _response_encoding_ok(response.headers, stream=is_stream):
+            encoding_reason, response_facts = _classify_response_encoding(
+                response.headers, stream=is_stream, status=status
+            )
+            if encoding_reason is not None:
                 self._budget().mark_unresolved(
                     call_id=call_id,
-                    reason="unsupported_upstream_encoding",
+                    reason=encoding_reason,
+                    status=status,
+                    response_facts=response_facts,
                 )
                 self._reject(502, b"unsupported upstream encoding\n")
                 return
@@ -976,6 +1046,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._budget().mark_unresolved(
                     call_id=call_id,
                     reason="unsupported_upstream_body",
+                    status=status,
+                    response_facts=response_facts,
                 )
                 self._reject(502, b"unsupported upstream body\n")
                 return
@@ -983,6 +1055,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._budget().mark_unresolved(
                     call_id=call_id,
                     reason="unsupported_upstream_body",
+                    status=status,
+                    response_facts=response_facts,
                 )
                 self._reject(502, b"unsupported upstream body\n")
                 return
@@ -1017,6 +1091,8 @@ class Handler(BaseHTTPRequestHandler):
                     reason="unreconciled_upstream_usage",
                     returned_model=returned_model,
                     returned_model_reason=returned_model_reason,
+                    status=status,
+                    response_facts=response_facts,
                 )
                 self._reject(502, b"unsupported upstream body\n")
                 return
@@ -1027,6 +1103,8 @@ class Handler(BaseHTTPRequestHandler):
                     reason=f"provider_http_{status}_usage_unknown",
                     returned_model=returned_model,
                     returned_model_reason=returned_model_reason,
+                    status=status,
+                    response_facts=response_facts,
                 )
                 self._reject(status, sanitized_body)
                 return
@@ -1039,6 +1117,8 @@ class Handler(BaseHTTPRequestHandler):
                     reason="unreconciled_upstream_usage",
                     returned_model=returned_model,
                     returned_model_reason=returned_model_reason,
+                    status=status,
+                    response_facts=response_facts,
                 )
                 self._reject(502, b"unsupported upstream body\n")
                 return
@@ -1054,6 +1134,8 @@ class Handler(BaseHTTPRequestHandler):
                     reason="negative_upstream_usage",
                     returned_model=returned_model,
                     returned_model_reason=returned_model_reason,
+                    status=status,
+                    response_facts=response_facts,
                 )
                 self._reject(502, b"unsupported upstream body\n")
                 return
@@ -1068,6 +1150,7 @@ class Handler(BaseHTTPRequestHandler):
                     input_tokens=used_input,
                     output_tokens=used_output,
                     cost_micros=used_cost,
+                    status=status,
                 )
                 self._reject(429, b"trial budget exhausted\n")
                 return
@@ -1093,10 +1176,15 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def serve(
-    host: str = "0.0.0.0",
+    host: str | None = None,
     port: int | None = None,
     max_workers: int = MAX_CONCURRENT_WORKERS,
 ) -> ThreadingHTTPServer:
+    if host is None:
+        env_host = os.environ.get("EVALLAB_ZAI_PROXY_BIND_HOST", "").strip()
+        host = env_host if env_host else "0.0.0.0"
+    if host not in {"127.0.0.1", "0.0.0.0"}:
+        raise ValueError(f"unsupported bind host: {host}")
     bound_port = int(os.environ.get("PORT", "8080") if port is None else port)
     server = ProxyServer((host, bound_port), Handler, max_workers=max_workers)
     server.budget = TrialBudget()

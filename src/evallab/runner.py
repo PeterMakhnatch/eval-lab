@@ -59,10 +59,12 @@ from evallab.execution_contracts import (
     ZAI_OPENAPI_ALLOWED_MODEL_ENV,
     ZAI_OPENAPI_CAPABILITY_EXPIRES_AT_ENV,
     ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION,
+    ZAI_OPENAPI_MODEL_SELECTOR,
     ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION,
     ZAI_OPENAPI_PROXY_ATTEMPT_ID_ENV,
     ZAI_OPENAPI_PROXY_CAPABILITY_ENV,
     ZAI_OPENAPI_PROXY_GID_ENV,
+    ZAI_OPENAPI_PROXY_HOST,
     ZAI_OPENAPI_PROXY_SCRIPT,
     ZAI_OPENAPI_PROXY_SCRIPT_ENV,
     ZAI_OPENAPI_PROXY_UID_ENV,
@@ -156,6 +158,12 @@ __all__ = [
     "transient_provider_exception",
     "transient_provider_reason",
     "validate_request",
+    "TRIAL_NATIVE_TRAJECTORY_PATH",
+    "TRIAL_ATIF_TRAJECTORY_PATH",
+    "TRIAL_RESULT_PATH",
+    "TRIAL_VERIFIER_DIR",
+    "JOB_METADATA_PATH",
+    "JOB_RESULT_PATH",
 ]
 HARBOR_COMPOSE_CONFIG_LABEL = "com.docker.compose.project.config_files"
 HARBOR_COMPOSE_PROJECT_LABEL = "com.docker.compose.project"
@@ -163,6 +171,42 @@ HARBOR_COMPOSE_WORKDIR_LABEL = "com.docker.compose.project.working_dir"
 # Code and supporting assets belong to the imported release, not its data workspace.
 _RUNTIME_ROOT = Path(__file__).resolve().parents[2]
 
+
+# =============================================================================
+# HARNESS CAPTURE CONTRACT
+# =============================================================================
+# Immutable source paths and layout consumed by the lab reader:
+#
+# Job directory layout:
+#   <job_dir>/
+#     result.json                       - Harbor job-level completion summary
+#     config.json                       - Harbor job configuration
+#     lock.json                         - Harbor job environment and package lock
+#     lab-metadata.json                 - Lab executor run metadata (provenance,
+#                                         provider_usage, model_identity, host, tools)
+#     <trial_dir>/                      - Per-trial directories (<task>__<id>)
+#       result.json                     - Trial outcome, agent_result, verifier_result
+#       config.json                     - Trial configuration
+#       lock.json                       - Trial lock
+#       agent/
+#         trajectory.json               - Native / standard agent trajectory
+#       trajectory.json                 - ATIF trajectory (root fallback)
+#       verifier/
+#         reward.txt / reward.json      - Verifier reward output
+#         ctrf.json / test-stdout.txt   - Verifier test reports and stdout
+#
+# Executor state & secret proxy usage:
+#   <jobs_dir>/.executor/<name>.state.json           - Executor state machine
+#   <jobs_dir>/.executor/<name>.log                  - Redacted runner progress log
+#   <usage_dir>/*-proxy-usage.json                   - Ephemeral private proxy accounting
+# =============================================================================
+
+TRIAL_NATIVE_TRAJECTORY_PATH = Path("agent/trajectory.json")
+TRIAL_ATIF_TRAJECTORY_PATH = Path("trajectory.json")
+TRIAL_RESULT_PATH = Path("result.json")
+TRIAL_VERIFIER_DIR = Path("verifier")
+JOB_METADATA_PATH = Path("lab-metadata.json")
+JOB_RESULT_PATH = Path("result.json")
 
 def _run_text_command(
     command: list[str],
@@ -1226,7 +1270,55 @@ def _write_run_metadata(
     if request.provenance is not None:
         metadata["experiment"] = request.provenance.model_dump(mode="json")
     if process.proxy_usage is not None:
-        metadata["provider_usage"] = process.proxy_usage
+        calls = process.proxy_usage.get("calls")
+        totals = process.proxy_usage.get("totals", {})
+        if isinstance(calls, list) and len(calls) == 0:
+            metadata["provider_usage"] = {
+                **process.proxy_usage,
+                "totals": {
+                    **totals,
+                    "cost_usd": None,
+                    "cost_micros": None,
+                    "input_tokens": None,
+                    "output_tokens": None,
+                    "total_tokens": None,
+                },
+                "usage_status": "zero_calls",
+            }
+        else:
+            metadata["provider_usage"] = process.proxy_usage
+    else:
+        metadata["provider_usage"] = {
+            "requests": None,
+            "input_tokens": None,
+            "output_tokens": None,
+            "total_tokens": None,
+            "cost_usd": None,
+            "cost_micros": None,
+            "usage_status": "missing",
+        }
+    calls = (
+        process.proxy_usage.get("calls")
+        if isinstance(process.proxy_usage, dict)
+        else None
+    )
+    if isinstance(calls, list) and calls and request.model:
+        returned_models: list[str] = [
+            str(call["returned_model"])
+            for call in calls
+            if isinstance(call, dict) and call.get("returned_model")
+        ]
+        if returned_models:
+            norm_requested = request.model.rsplit("/", 1)[-1]
+            mismatch = any(m != norm_requested and m != request.model for m in returned_models)
+            metadata["model_identity"] = {
+                "requested": request.model,
+                "returned": returned_models[0] if len(set(returned_models)) == 1 else returned_models,
+                "matched": not mismatch,
+                "mismatch": mismatch,
+            }
+            if mismatch:
+                metadata["model_identity_mismatch"] = True
     if network_adaptation is not None:
         metadata["network_adaptation"] = asdict(network_adaptation)
     if task_staging is not None:
@@ -1398,13 +1490,21 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     executor_log = _executor_log_path(request)
     started = datetime.now(UTC)
     try:
+        is_zai_openapi = request.agent == "mini-swe-agent" and (
+            request.model == ZAI_OPENAPI_MODEL_SELECTOR
+            or (request.model is not None and request.model.startswith("zai/"))
+        )
         staged_task, adaptation = _stage_task_for_host(
             request.task,
             staging_dir,
             agent_allowed_hosts=(
-                (DEEPSEEK_PROXY_HOST,)
-                if request.agent == "mini-swe-agent"
-                else ((ZAI_PROXY_HOST,) if request.agent == ZAI_OPENCODE_AGENT else ())
+                (ZAI_OPENAPI_PROXY_HOST,)
+                if is_zai_openapi
+                else (
+                    (DEEPSEEK_PROXY_HOST,)
+                    if request.agent == "mini-swe-agent"
+                    else ((ZAI_PROXY_HOST,) if request.agent == ZAI_OPENCODE_AGENT else ())
+                )
             ),
             expected_package_digest=(
                 request.provenance.package_digest if request.provenance is not None else None
@@ -1503,7 +1603,9 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 else f"Harbor exceeded aggregate fail-safe {request.job_timeout_seconds}s"
             )
             cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
-            raise TrialTimeoutFailure(f"{scope}; inspect {executor_log}{cleanup_detail}")
+            timeout_exc = TrialTimeoutFailure(f"{scope}; inspect {executor_log}{cleanup_detail}")
+            timeout_exc.timed_out_trial = process.timed_out_trial
+            raise timeout_exc
         secret_values = collected_secret_values()
         assert_no_secret_material((job_dir,), secrets=secret_values)
         _sanitize_persisted_job_tree(
@@ -1523,7 +1625,11 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 f"Harbor exited with {process.returncode}; inspect {executor_log}{cleanup_detail}"
             )
         if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT}:
-            provider_label = "Z.ai" if request.agent == ZAI_OPENCODE_AGENT else "DeepSeek"
+            provider_label = (
+                "Z.ai OpenAPI"
+                if is_zai_openapi
+                else ("Z.ai" if request.agent == ZAI_OPENCODE_AGENT else "DeepSeek")
+            )
             if process.proxy_usage is None:
                 cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
                 cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
@@ -1539,6 +1645,76 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                     f"{provider_label} proxy has unreconciled provider calls{cleanup_detail}",
                 )
         job = load_job(job_dir)
+
+        # Validate trial outcomes and evidence fidelity:
+        metadata_path = job_dir / JOB_METADATA_PATH
+        for trial in getattr(job, "trials", ()):
+            native_traj = trial.path / TRIAL_NATIVE_TRAJECTORY_PATH
+            atif_traj = trial.path / TRIAL_ATIF_TRAJECTORY_PATH
+            traj_path = (
+                native_traj
+                if native_traj.is_file()
+                else (atif_traj if atif_traj.is_file() else None)
+            )
+
+            if traj_path is not None:
+                try:
+                    json.loads(traj_path.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, UnicodeDecodeError) as parse_err:
+                    if metadata_path.is_file():
+                        try:
+                            meta = json.loads(metadata_path.read_text(encoding="utf-8"))
+                            meta["trajectory_parse_failure"] = {
+                                "trial": trial.path.name,
+                                "path": str(traj_path.relative_to(job_dir)),
+                                "error": str(parse_err),
+                            }
+                            meta["trajectory_status"] = "parse_failure"
+                            persist_private_bytes(
+                                metadata_path,
+                                (json.dumps(meta, indent=2, sort_keys=True) + "\n").encode(),
+                                secrets=tuple(v.encode() for v in collected_secret_values()),
+                            )
+                        except Exception:
+                            pass
+                    cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
+                    cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
+                    raise ExecutionFailure(
+                        "trajectory_parse_failure",
+                        f"Trial {trial.path.name} trajectory at {traj_path.name} is malformed: {parse_err}{cleanup_detail}",
+                    ) from parse_err
+
+            agent_res = (
+                trial.result.get("agent_result")
+                if isinstance(trial.result.get("agent_result"), dict)
+                else {}
+            )
+            exit_code = agent_res.get("exit_code")
+            if exit_code is None:
+                exit_code = trial.result.get("exit_code")
+            if exit_code is not None and exit_code != 0 and traj_path is None:
+                cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
+                cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
+                raise ExecutionFailure(
+                    "agent_nonzero_exit",
+                    f"Trial {trial.path.name} agent exited with code {exit_code} without trajectory; no reward fabricated{cleanup_detail}",
+                )
+
+        if metadata_path.is_file():
+            try:
+                meta = json.loads(metadata_path.read_text(encoding="utf-8"))
+                if meta.get("model_identity_mismatch"):
+                    identity = meta.get("model_identity", {})
+                    cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
+                    cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""
+                    raise ExecutionFailure(
+                        "model_identity_mismatch",
+                        f"Provider returned model {identity.get('returned')!r} does not match requested {identity.get('requested')!r}{cleanup_detail}",
+                    )
+            except (ExecutionFailure, TransientHarnessFailure, TrialTimeoutFailure):
+                raise
+            except Exception:
+                pass
         _write_executor_state(
             request,
             started_at=started,

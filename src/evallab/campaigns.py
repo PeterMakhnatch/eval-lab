@@ -2615,3 +2615,51 @@ def plan_campaign(
     )
     store = CampaignStore(state_root, manifest.campaign_id)
     return manifest, store.freeze(manifest)
+
+
+def plan_repeated_matrix(
+    plan: Path | str | Mapping[str, Any],
+    *,
+    attempts_per_task: int = 2,
+    limits: TrialLimits | Mapping[str, Any] | None = None,
+    outcomes: Path | str | Sequence[Mapping[str, Any]] | Mapping[str, Any] | None = None,
+    authorize: bool = False,
+    operator: str | None = None,
+    out: Path | str | None = None,
+) -> Any:
+    """Prepare a numbered repeated-attempt matrix from a compiled TB4 plan (HAR-63)."""
+    from evallab.repetition import plan_repeated_matrix as _plan_repeated_matrix
+
+    return _plan_repeated_matrix(
+        plan,
+        attempts_per_task=attempts_per_task,
+        limits=limits,
+        outcomes=outcomes,
+        authorize=authorize,
+        operator=operator,
+        out=out,
+    )
+
+
+def resume_repeated_matrix(
+    matrix_or_plan: Path | str | Mapping[str, Any] | Any,
+    outcomes: Path | str | Sequence[Mapping[str, Any]] | Mapping[str, Any],
+    *,
+    attempts_per_task: int = 2,
+    limits: TrialLimits | Mapping[str, Any] | None = None,
+    authorize: bool = False,
+    operator: str | None = None,
+    out: Path | str | None = None,
+) -> Any:
+    """Resume a repeated-attempt matrix by merging retained outcomes (HAR-63)."""
+    from evallab.repetition import resume_repeated_matrix as _resume_repeated_matrix
+
+    return _resume_repeated_matrix(
+        matrix_or_plan,
+        outcomes,
+        attempts_per_task=attempts_per_task,
+        limits=limits,
+        authorize=authorize,
+        operator=operator,
+        out=out,
+    )

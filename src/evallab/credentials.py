@@ -17,12 +17,15 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from evallab.execution_contracts import (
+    GLM_SELFHOSTED_BASE_MODEL_SELECTOR,
+    GLM_SELFHOSTED_FT_MODEL_SELECTOR,
     OPENCODE_AUTH_RELATIVE_PATH,
     RLM_AGENT,
     ZAI_AUTH_PROVIDER,
     ZAI_OPENCODE_AGENT,
 )
 from evallab.profiles import (
+    GLM_SELFHOSTED_CREDENTIAL_NAMES,
     AuthFileProbe,
     CliSessionProbe,
     EnvironmentPresenceProbe,
@@ -42,7 +45,7 @@ ANTIGRAVITY_SESSION = "antigravity_session"
 DEEPSEEK_API_CREDENTIAL = "deepseek_api_environment"
 ZAI_OPENCODE_AUTH = "zai_opencode_auth"
 ZAI_OPENAPI_API_CREDENTIAL = "zai_openapi_api_environment"
-
+GLM_SELFHOSTED_API_CREDENTIAL = "glm_selfhosted_api_environment"
 # Agents whose runs require a credential. Control agents (oracle, nop) are
 # deliberately absent: they must run with no credential at all.
 AGENT_CREDENTIAL_REQUIREMENTS: dict[str | tuple[str, str], str] = {
@@ -53,6 +56,8 @@ AGENT_CREDENTIAL_REQUIREMENTS: dict[str | tuple[str, str], str] = {
     "mini-swe-agent": DEEPSEEK_API_CREDENTIAL,
     ("mini-swe-agent", "deepseek/deepseek-flash"): DEEPSEEK_API_CREDENTIAL,
     ("mini-swe-agent", "zai/glm-5.3-flash"): ZAI_OPENAPI_API_CREDENTIAL,
+    ("mini-swe-agent", GLM_SELFHOSTED_BASE_MODEL_SELECTOR): GLM_SELFHOSTED_API_CREDENTIAL,
+    ("mini-swe-agent", GLM_SELFHOSTED_FT_MODEL_SELECTOR): GLM_SELFHOSTED_API_CREDENTIAL,
     ZAI_OPENCODE_AGENT: ZAI_OPENCODE_AUTH,
     RLM_AGENT: ZAI_OPENCODE_AUTH,
 }
@@ -65,6 +70,8 @@ _ANTIGRAVITY_PROFILE = _PROFILES["antigravity-gemini-3.7-flash-high"]
 _DEEPSEEK_PROFILE = _PROFILES["mini-swe-agent-deepseek-v4-flash"]
 _ZAI_PROFILE = _PROFILES["zai-opencode-glm-5.3-flash"]
 _ZAI_MINISWE_PROFILE = _PROFILES["mini-swe-agent-glm-5.3-flash"]
+_GLM_SELFHOSTED_BASE_PROFILE = _PROFILES["glm-selfhosted-base"]
+_GLM_SELFHOSTED_FT_PROFILE = _PROFILES["glm-selfhosted-ft"]
 
 
 def _security_exit_status(args: list[str]) -> int:
@@ -170,6 +177,20 @@ def probe_zai_openapi_api_result(
     return probe(_ZAI_MINISWE_PROFILE)
 
 
+def probe_glm_selfhosted_api() -> bool:
+    return probe_glm_selfhosted_api_result().ok
+
+
+def probe_glm_selfhosted_api_result(
+    environment: Mapping[str, str] | None = None,
+) -> ProbeResult:
+    probe = EnvironmentPresenceProbe(
+        environment=os.environ if environment is None else environment,
+        names=tuple(sorted(GLM_SELFHOSTED_CREDENTIAL_NAMES)),
+    )
+    return probe(_GLM_SELFHOSTED_BASE_PROFILE)
+
+
 
 def probe_zai_opencode_auth_result(home: Path | None = None) -> ProbeResult:
     probe = OpenCodeProviderAuthProbe(
@@ -196,6 +217,8 @@ def available_credentials(home: Path | None = None) -> frozenset[str]:
         found.add(ZAI_OPENCODE_AUTH)
     if probe_zai_openapi_api():
         found.add(ZAI_OPENAPI_API_CREDENTIAL)
+    if probe_glm_selfhosted_api():
+        found.add(GLM_SELFHOSTED_API_CREDENTIAL)
     return frozenset(found)
 
 
@@ -209,6 +232,10 @@ def missing_credential_for(
             return None if required in available else required
         if agent == "mini-swe-agent" and model.startswith("zai/"):
             return None if ZAI_OPENAPI_API_CREDENTIAL in available else ZAI_OPENAPI_API_CREDENTIAL
+        if agent == "mini-swe-agent" and (
+            model.startswith("glm-selfhosted/") or model.startswith("glm-ft/")
+        ):
+            return None if GLM_SELFHOSTED_API_CREDENTIAL in available else GLM_SELFHOSTED_API_CREDENTIAL
     required = AGENT_CREDENTIAL_REQUIREMENTS.get(agent)
     if required is None or required in available:
         return None
@@ -230,6 +257,8 @@ DEFAULT_PROFILE_FOR_ADAPTER: dict[str | tuple[str, str], str] = {
     "mini-swe-agent": "mini-swe-agent-deepseek-v4-flash",
     ("mini-swe-agent", "deepseek/deepseek-flash"): "mini-swe-agent-deepseek-v4-flash",
     ("mini-swe-agent", "zai/glm-5.3-flash"): "mini-swe-agent-glm-5.3-flash",
+    ("mini-swe-agent", GLM_SELFHOSTED_BASE_MODEL_SELECTOR): "glm-selfhosted-base",
+    ("mini-swe-agent", GLM_SELFHOSTED_FT_MODEL_SELECTOR): "glm-selfhosted-ft",
     ZAI_OPENCODE_AGENT: "zai-opencode-glm-5.3-flash",
     RLM_AGENT: "rlm-glm-5.3-flash",
 }

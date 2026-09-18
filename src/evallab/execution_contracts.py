@@ -15,6 +15,7 @@ import re
 import secrets
 import stat
 import tomllib
+import urllib.parse
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
@@ -24,7 +25,7 @@ from types import MappingProxyType
 from typing import Any
 
 import yaml
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from evallab.schemas import (
     RunProvenance,
@@ -234,6 +235,25 @@ ZAI_OPENAPI_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
         ZAI_OPENAPI_PROXY_GID_ENV,
     }
 )
+GLM_SELFHOSTED_BASE_MODEL_SELECTOR = "glm-selfhosted/glm-5.3-flash"
+GLM_SELFHOSTED_FT_MODEL_SELECTOR = "glm-ft/glm-5.3-flash-ft"
+GLM_SELFHOSTED_ALLOWED_PROVIDERS: frozenset[str] = frozenset({"glm-selfhosted", "glm-ft"})
+GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS: frozenset[str] = frozenset({"GLM_SELFHOSTED_API_KEY"})
+GLM_SELFHOSTED_BASE_URL_ENV = "GLM_SELFHOSTED_BASE_URL"
+GLM_SELFHOSTED_PROXY_TOKEN = "evallab-proxy-placeholder"
+GLM_SELFHOSTED_MINISWE_AGENT_IMPORT_PATH = (
+    "evallab.harbor_glm_selfhosted:SecretSafeGlmSelfhostedMiniSweAgent"
+)
+
+
+class ProfileInferenceSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    effort: str | int | None = None
+    max_tokens: int | None = None
+
+
+InferenceSettings = ProfileInferenceSettings
 ZAI_MINISWE_AGENT_IMPORT_PATH = "evallab.harbor_zai_miniswe:SecretSafeZaiMiniSweAgent"
 REDACTED_SECRET_VALUE = "<redacted>"
 REDACTED_SECRET_BYTES = REDACTED_SECRET_VALUE.encode()
@@ -288,6 +308,10 @@ class TrialTimeoutFailure(ExecutionFailure):
 
     reason_code = "trial_wall_clock_timeout"
 
+    #: Identity of the specific trial that exceeded its per-trial allowance,
+    #: when the aggregate process outlived per-trial limits (else None).
+    timed_out_trial: str | None = None
+
 
 class TransientHarnessFailure(ExecutionFailure):
     """Raised when execution encounters a transient provider/harness error eligible for retry."""
@@ -327,7 +351,10 @@ class RunRequest:
     max_total_tokens: int | None = None
     cost_limit_usd: float | None = None
     harness_policy: str | None = None
-
+    requested_selector: str | None = None
+    effective_endpoint_base: str | None = None
+    provider_returned_model_id: str | None = None
+    inference_settings: ProfileInferenceSettings | None = None
     @property
     def job_timeout_seconds(self) -> int:
         """Conservative process deadline: one wall-clock allowance per attempt."""
@@ -564,6 +591,10 @@ def collected_secret_values(
         *((key, DEEPSEEK_PROXY_TOKEN) for key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, ZAI_PROXY_TOKEN) for key in ZAI_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, ZAI_OPENAPI_PROXY_TOKEN) for key in ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS),
+        *(
+            (key, GLM_SELFHOSTED_PROXY_TOKEN)
+            for key in GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
+        ),
     ):
         value = source.get(key)
         if value and value != placeholder:
@@ -724,6 +755,7 @@ def subscription_environment(
     include_deepseek_credentials: bool = False,
     include_zai_credentials: bool = False,
     include_zai_openapi_credentials: bool = False,
+    include_glm_selfhosted_credentials: bool = False,
 ) -> dict[str, str]:
     """Build Harbor's environment from explicit non-secret allowlists.
     DeepSeek and Z.ai provider keys never enter this mapping. The metered agent
@@ -778,6 +810,19 @@ def subscription_environment(
         sanitized["MSWEA_API_KEY"] = capability
         sanitized["OPENAI_BASE_URL"] = ZAI_OPENAPI_PROXY_URL
         sanitized["OPENAI_API_BASE"] = ZAI_OPENAPI_PROXY_URL
+    if include_glm_selfhosted_credentials:
+        base_url = source.get(GLM_SELFHOSTED_BASE_URL_ENV)
+        if not base_url:
+            raise ValueError(f"{GLM_SELFHOSTED_BASE_URL_ENV} environment variable is not set")
+        parsed = urllib.parse.urlparse(base_url)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError(
+                f"{GLM_SELFHOSTED_BASE_URL_ENV} must be a valid http or https URL, got {base_url!r}"
+            )
+        sanitized[GLM_SELFHOSTED_BASE_URL_ENV] = base_url
+        sanitized["MSWEA_API_KEY"] = GLM_SELFHOSTED_PROXY_TOKEN
+        sanitized["OPENAI_BASE_URL"] = base_url
+        sanitized["OPENAI_API_BASE"] = base_url
     sanitized["AGY_FORCE_AUTH_JSON"] = "1"
     sanitized["CODEX_FORCE_AUTH_JSON"] = "1"
     sanitized["CLAUDE_FORCE_OAUTH"] = "1"
@@ -792,6 +837,7 @@ def redact_environment(environment: Mapping[str, str]) -> dict[str, str]:
         DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS
         | ZAI_CREDENTIAL_ENVIRONMENT_KEYS
         | ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS
+        | GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
     )
     redacted: dict[str, str] = {}
     for key, value in environment.items():
@@ -909,8 +955,11 @@ def validate_request(request: RunRequest) -> None:
 
 def resolve_harbor_agent(agent: str, model: str | None = None) -> str:
     """Use the lab-owned adapter where Harbor supports custom import paths."""
-    if agent == "mini-swe-agent" and model is not None and model.startswith("zai/"):
-        return ZAI_MINISWE_AGENT_IMPORT_PATH
+    if agent == "mini-swe-agent" and model is not None:
+        if model.startswith("zai/"):
+            return ZAI_MINISWE_AGENT_IMPORT_PATH
+        if model.startswith(("glm-selfhosted/", "glm-ft/")):
+            return GLM_SELFHOSTED_MINISWE_AGENT_IMPORT_PATH
     return HARBOR_AGENT_IMPORT_PATHS.get(agent, agent)
 
 def resolve_harbor_model(agent: str, model: str | None) -> str | None:
@@ -1007,6 +1056,35 @@ def build_command(request: RunRequest) -> list[str]:
                     f"max_tokens={max_tokens}",
                 ]
             )
+        elif harbor_model and (
+            harbor_model.startswith("glm-selfhosted/") or harbor_model.startswith("glm-ft/")
+        ):
+            cost_limit = request.cost_limit_usd if request.cost_limit_usd is not None else 2.5
+            max_tokens = (
+                request.max_output_tokens
+                if request.max_output_tokens is not None
+                else (
+                    request.inference_settings.max_tokens
+                    if request.inference_settings and request.inference_settings.max_tokens is not None
+                    else 8192
+                )
+            )
+            command.extend(
+                [
+                    "--n-concurrent-agents",
+                    "1",
+                    "--n-tasks",
+                    "1",
+                    "--max-retries",
+                    "0",
+                    "--agent-kwarg",
+                    f"cost_limit={cost_limit}",
+                    "--agent-kwarg",
+                    f"max_tokens={max_tokens}",
+                ]
+            )
+            if request.inference_settings and request.inference_settings.effort is not None:
+                command.extend(["--agent-kwarg", f"reasoning_effort={request.inference_settings.effort}"])
         else:
             raise ValueError(
                 f"mini-swe-agent requires model {DEEPSEEK_MODEL_SELECTOR} or {ZAI_OPENAPI_MODEL_SELECTOR}"
@@ -1087,6 +1165,18 @@ def subscription_command(
             if not proxy.is_file():
                 raise RuntimeError(f"Z.ai OpenAPI secret proxy is missing: {proxy}")
             return [*harbor_command, "--extra-docker-compose", str(overlay)]
+        if request.model and (
+            request.model.startswith("glm-selfhosted/") or request.model.startswith("glm-ft/")
+        ):
+            base_url = os.environ.get(GLM_SELFHOSTED_BASE_URL_ENV)
+            if not base_url:
+                raise ValueError(f"{GLM_SELFHOSTED_BASE_URL_ENV} environment variable is not set")
+            parsed = urllib.parse.urlparse(base_url)
+            if parsed.scheme not in ("http", "https") or not parsed.netloc:
+                raise ValueError(
+                    f"{GLM_SELFHOSTED_BASE_URL_ENV} must be a valid http or https URL, got {base_url!r}"
+                )
+            return harbor_command
         raise RuntimeError(
             f"the mini-swe-agent execution lane requires model {DEEPSEEK_MODEL_SELECTOR} or {ZAI_OPENAPI_MODEL_SELECTOR}"
         )

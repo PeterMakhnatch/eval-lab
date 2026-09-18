@@ -168,6 +168,10 @@ def test_memory_roundtrip_and_pruning() -> None:
     loaded.forget([8])
     assert loaded.approved_heads(7) == []
     path.unlink(missing_ok=True)
+    # closed-PR alerts are pruned; open-PR alerts survive (rate limiting must hold)
+    loaded.alerts = {"error:7": 1.0, "review:7:abc": 2.0, "error:8": 3.0, "review:8:def": 4.0, "gh": 5.0}
+    loaded.forget([7])
+    assert loaded.alerts == {"error:7": 1.0, "review:7:abc": 2.0, "gh": 5.0}
 
 
 # --- verdicts -------------------------------------------------------------------

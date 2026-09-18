@@ -316,10 +316,17 @@ class Memory:
             k: v for k, v in self.review_attempts.items() if k.split(":", 1)[0] in keep
         }
         self.alerts = {
-            k: v
-            for k, v in self.alerts.items()
-            if not any(k.startswith(f"{prefix}{n}") for n in keep for prefix in ("error:", "review:"))
+            k: v for k, v in self.alerts.items() if _alert_survives(k, keep)
         }
+
+def _alert_survives(key: str, keep: set[str]) -> bool:
+    """Alert keys ``error:<pr>`` / ``review:<pr>...`` survive only while the PR is open."""
+    for prefix in ("error:", "review:"):
+        if key.startswith(prefix):
+            rest = key.removeprefix(prefix)
+            number = rest.split(":", 1)[0]
+            return number in keep
+    return True
 
 
 def classify(pr: PullSnapshot) -> Phase:
@@ -695,20 +702,12 @@ class GitHub:
         )
         nodes = json.loads(completed.stdout)["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
         return sum(1 for node in nodes if not node.get("isResolved"))
-
-    def commit_checks(self, sha: str) -> dict[str, str]:
-        data = self._api("GET", f"repos/{self.repo}/commits/{sha}/check-runs?per_page=100")
-        return {
-            str(item.get("name")): str(item.get("conclusion") or item.get("status") or "")
-            for item in (data or {}).get("check_runs", [])
-        }
-
     def review_status(self, sha: str) -> str | None:
-        """State of the ``independent-review`` commit status on GitHub for a SHA."""
+        """Lowercase state of the ``independent-review`` commit status for a SHA."""
         data = self._api("GET", f"repos/{self.repo}/commits/{sha}/status")
         for status in (data or {}).get("statuses", []):
             if status.get("context") == REVIEW_CONTEXT:
-                return str(status.get("state") or "").upper() or None
+                return str(status.get("state") or "").lower() or None
         return None
 
     def ensure_label(self, name: str, color: str, description: str) -> None:

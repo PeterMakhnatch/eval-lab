@@ -1156,8 +1156,13 @@ def tb4_source(root: Path) -> TaskSource:
     TB4 row for the same task share a `(source_repo, task_ref)` key. The
     `source_repo` is therefore forced to the pinned `@4.0.0` ref, which is both
     the distinct identity and the explicit pin.
+    Discovery is scoped to the checkout's `tasks/` directory when present:
+    upstream terminal-bench repositories also carry `archive/` tasks, which are
+    not part of the pinned 66-task v4.0.0 inventory.
     """
-    return TaskSource(root=root, source_repo=TB4_FALLBACK_SOURCE_REPO, label="tb4")
+    tasks_root = root / "tasks"
+    discovery_root = tasks_root if tasks_root.is_dir() else root
+    return TaskSource(root=discovery_root, source_repo=TB4_FALLBACK_SOURCE_REPO, label="tb4")
 
 
 def library_source(repo_root: Path) -> TaskSource:
@@ -1258,7 +1263,15 @@ def resolve_tb4_ref(root: Path, ref: str | None = None) -> str:
     identity = _dataset_identity(root)
     name = identity.get("name")
     if not name:
-        raise ValueError(f"not a Terminal-Bench checkout: {root} declares no dataset name")
+        # Upstream terminal-bench checkouts ship no dataset.toml. The exact
+        # v4.0.0 git pin (tag or 452bf30 commit) establishes the dataset
+        # identity on its own; anything else that declares nothing is refused.
+        if _git_pin_ref(root) == TB4_DATASET_REF:
+            name = TB4_DATASET_NAME
+        else:
+            raise ValueError(
+                f"not a Terminal-Bench checkout: {root} declares no dataset name"
+            )
     if name != TB4_DATASET_NAME:
         raise ValueError(f"wrong dataset: expected {TB4_DATASET_NAME!r}, got {name!r} at {root}")
     effective = ref

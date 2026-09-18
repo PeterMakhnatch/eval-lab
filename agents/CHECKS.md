@@ -38,7 +38,12 @@ as changes to the merge boundary, not just plumbing.
 approval. The integration owner records it only after resolving a different
 agent's or eligible human's review, with the PR review receipt as its target URL.
 No CI workflow may automatically issue it. New commits have no such status and
-remain blocked until reviewed again. See `agents/WORKFLOW.md`.
+remain blocked until reviewed again. The standing integration owner is the
+**CI steward** (`evallab steward`, see `docs/ci-steward.md`): it posts the status
+only after two fresh independent reviewer sessions (different model families)
+approve the exact head, or after proving a new head is a pure merge of `main`
+into an already-approved head. Peter or a delegated agent may issue the status
+manually under the same evidence bar. See `agents/WORKFLOW.md`.
 
 Auxiliary benchmark, certification, performance, and platform workflows are
 additional evidence, not substitutes for these core gates. Every check that

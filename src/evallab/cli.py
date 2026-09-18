@@ -2749,6 +2749,13 @@ def _tidy_command(
     apply = args.apply and not args.dry_run
     return run_tidy(root, apply=apply)
 
+def _steward_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.steward import run_steward
+
+    return run_steward(root, args.steward_command, args)
+
 
 def _verdict_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
@@ -4378,6 +4385,28 @@ def parser() -> argparse.ArgumentParser:
         help="Report findings without making changes (default behavior)",
     )
     tidy.set_defaults(func=_tidy_command)
+    steward = commands.add_parser(
+        "steward",
+        help="Unattended CI: independent review, merge, and repository hygiene",
+    )
+    steward_commands = steward.add_subparsers(dest="steward_command", required=True)
+    steward_run = steward_commands.add_parser("run", help="Run the steward daemon loop")
+    steward_run.add_argument("--interval", type=int, help="Tick interval in seconds")
+    steward_once = steward_commands.add_parser("once", help="Run one observe/act tick and exit")
+    steward_once.add_argument("--pr", type=int, help="Restrict actions to this pull request")
+    steward_once.add_argument("--no-review", action="store_true", help="Classify and act, but never run reviews")
+    steward_once.add_argument("--force", action="store_true", help="Run even when the daemon holds the lock")
+    steward_once.add_argument("--dry-run", action="store_true", help="Classify and print planned actions only")
+    steward_hygiene = steward_commands.add_parser("hygiene", help="Sweep worktrees and spent branches")
+    steward_hygiene.add_argument("--apply", action="store_true", help="Execute removals (default is dry-run)")
+    steward_hygiene.add_argument("--force", action="store_true", help="Run even when the daemon holds the lock")
+    steward_digest = steward_commands.add_parser("digest", help="Refresh and print the operator digest (observe-only)")
+    steward_install = steward_commands.add_parser(
+        "install", help="Install the steward LaunchAgent, hold label, and worktree lock"
+    )
+    steward_install.add_argument("--force", action="store_true", help=argparse.SUPPRESS)
+    for leaf in (steward_run, steward_once, steward_hygiene, steward_digest, steward_install):
+        leaf.set_defaults(func=_steward_command)
 
     verdict = commands.add_parser(
         "verdict",

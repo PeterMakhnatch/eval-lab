@@ -1,0 +1,46 @@
+{
+  "record_id": "tb4-demo-trial-001",
+  "task_id": "terminal-bench-4/git-rebase-conflict",
+  "source_split": "train",
+  "actor": "assistant",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a software engineer solving coding tasks in a terminal."
+    },
+    {
+      "role": "user",
+      "content": "Resolve the git rebase conflict on feature branch and verify with pytest."
+    },
+    {
+      "role": "assistant",
+      "reasoning_content": "The repository is mid-rebase with conflict markers. I should inspect git status first.",
+      "content": "I will inspect git status to identify conflicted files.",
+      "tool_calls": [
+        {
+          "type": "function",
+          "function": {
+            "name": "bash",
+            "arguments": {
+              "command": "git status --short"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "observation",
+      "content": "UU src/main.py\n M tests/test_main.py"
+    },
+    {
+      "role": "assistant",
+      "reasoning_content": "src/main.py has merge conflict markers. I need to edit src/main.py to resolve the conflict.",
+      "content": "Resolving conflict in src/main.py."
+    }
+  ],
+  "metadata": {
+    "harness": "mini-swe-agent",
+    "benchmark": "TB4",
+    "verified_success": true
+  }
+}

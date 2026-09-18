@@ -45,6 +45,10 @@ from evallab.execution_contracts import (
 # forbidden everywhere except the exact DeepSeek environment source below.
 _FORBIDDEN_KEY_MARKERS = ("API_KEY", "API_TOKEN", "_SECRET", "ACCESS_KEY")
 DEEPSEEK_CREDENTIAL_NAMES = frozenset({"DEEPSEEK_API_KEY", "MSWEA_API_KEY"})
+ZAI_OPENAPI_CREDENTIAL_NAMES = frozenset({"ZAI_OPENAPI_API_KEY"})
+ADMITTED_ENV_SECRET_SETS: frozenset[frozenset[str]] = frozenset(
+    {DEEPSEEK_CREDENTIAL_NAMES, ZAI_OPENAPI_CREDENTIAL_NAMES}
+)
 
 AuthMode = Literal[
     "none",
@@ -77,7 +81,7 @@ class ProfileResources(BaseModel):
 class ProfileLimits(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    max_timeout_seconds: int = Field(default=21_600, ge=1)
+    max_timeout_seconds: int = Field(default=28_800, ge=1)
     max_attempts: int = Field(default=5, ge=1)
     max_concurrency: int = Field(default=2, ge=1)
 
@@ -123,16 +127,16 @@ class AgentProfile(BaseModel):
             names = tuple(name.strip() for name in value.removeprefix("env:").split(","))
             if not names or any(not name for name in names):
                 raise ValueError("environment secret_source must name at least one variable")
-            if frozenset(names) != DEEPSEEK_CREDENTIAL_NAMES:
+            if frozenset(names) not in ADMITTED_ENV_SECRET_SETS:
                 raise ValueError(
-                    "environment secret_source may name only the admitted DeepSeek variables"
+                    "environment secret_source may name only the admitted DeepSeek or Z.ai variables"
                 )
             return value
         _rejects_api_key_names((value,))
         if not value.startswith(("keychain:", "file:", "cli:")):
             raise ValueError(
                 "secret_source must be 'keychain:<service>', 'file:<pattern>', "
-                "'cli:<command>', or the admitted DeepSeek 'env:<names>' source"
+                "'cli:<command>', or the admitted DeepSeek or Z.ai 'env:<names>' source"
             )
         return value
 
@@ -613,6 +617,22 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 verified_facts=(
                     "2026-08: credential-free Harbor install smoke completed "
                     "with zero model trials",
+                ),
+            ),
+            AgentProfile(
+                profile_id="mini-swe-agent-glm-5.3-flash",
+                adapter="mini-swe-agent",
+                model="zai/glm-5.3-flash",
+                auth_mode="api-key-environment",
+                secret_source="env:ZAI_OPENAPI_API_KEY",
+                limits=ProfileLimits(
+                    max_timeout_seconds=600,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-09: mini-swe-agent with Z.ai Open Platform standard API "
+                    "GLM-5.3-Flash lane added",
                 ),
             ),
             # Cursor lane. Verified in this lab on 2026-08-19: `cursor-agent status`

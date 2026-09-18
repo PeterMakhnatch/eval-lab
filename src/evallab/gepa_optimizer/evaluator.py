@@ -721,9 +721,13 @@ class LabEvaluator:
             # an unrecorded model is unknown, never inferred as matched, and
             # calls that disagree with the pin (or each other) are a mismatch.
             expected_model = (
-                DEEPSEEK_ALLOWED_MODEL
-                if self.agent == DEEPSEEK_TARGET_AGENT
-                else str(self.model).rsplit("/", 1)[-1]
+                str(self.model).rsplit("/", 1)[-1]
+                if str(self.model).startswith("zai/")
+                else (
+                    DEEPSEEK_ALLOWED_MODEL
+                    if self.agent == DEEPSEEK_TARGET_AGENT
+                    else str(self.model).rsplit("/", 1)[-1]
+                )
             )
             returned = _returned_provider_models(job_record)
             known = {name for name in returned if name is not None}

@@ -41,15 +41,18 @@ CURSOR_SESSION = "cursor_session"
 ANTIGRAVITY_SESSION = "antigravity_session"
 DEEPSEEK_API_CREDENTIAL = "deepseek_api_environment"
 ZAI_OPENCODE_AUTH = "zai_opencode_auth"
+ZAI_OPENAPI_API_CREDENTIAL = "zai_openapi_api_environment"
 
 # Agents whose runs require a credential. Control agents (oracle, nop) are
 # deliberately absent: they must run with no credential at all.
-AGENT_CREDENTIAL_REQUIREMENTS: dict[str, str] = {
+AGENT_CREDENTIAL_REQUIREMENTS: dict[str | tuple[str, str], str] = {
     "claude-code": CLAUDE_OAUTH,
     "codex": CODEX_AUTH,
     "cursor-cli": CURSOR_SESSION,
     "antigravity-cli": ANTIGRAVITY_SESSION,
     "mini-swe-agent": DEEPSEEK_API_CREDENTIAL,
+    ("mini-swe-agent", "deepseek/deepseek-flash"): DEEPSEEK_API_CREDENTIAL,
+    ("mini-swe-agent", "zai/glm-5.3-flash"): ZAI_OPENAPI_API_CREDENTIAL,
     ZAI_OPENCODE_AGENT: ZAI_OPENCODE_AUTH,
     RLM_AGENT: ZAI_OPENCODE_AUTH,
 }
@@ -61,6 +64,7 @@ _CURSOR_PROFILE = _PROFILES["cursor-grok-4.6-high"]
 _ANTIGRAVITY_PROFILE = _PROFILES["antigravity-gemini-3.7-flash-high"]
 _DEEPSEEK_PROFILE = _PROFILES["mini-swe-agent-deepseek-v4-flash"]
 _ZAI_PROFILE = _PROFILES["zai-opencode-glm-5.3-flash"]
+_ZAI_MINISWE_PROFILE = _PROFILES["mini-swe-agent-glm-5.3-flash"]
 
 
 def _security_exit_status(args: list[str]) -> int:
@@ -152,6 +156,20 @@ def probe_deepseek_api_result(
     )
     return probe(_DEEPSEEK_PROFILE)
 
+def probe_zai_openapi_api() -> bool:
+    return probe_zai_openapi_api_result().ok
+
+
+def probe_zai_openapi_api_result(
+    environment: Mapping[str, str] | None = None,
+) -> ProbeResult:
+    probe = EnvironmentPresenceProbe(
+        environment=os.environ if environment is None else environment,
+        names=("ZAI_OPENAPI_API_KEY",),
+    )
+    return probe(_ZAI_MINISWE_PROFILE)
+
+
 
 def probe_zai_opencode_auth_result(home: Path | None = None) -> ProbeResult:
     probe = OpenCodeProviderAuthProbe(
@@ -176,16 +194,25 @@ def available_credentials(home: Path | None = None) -> frozenset[str]:
         found.add(DEEPSEEK_API_CREDENTIAL)
     if probe_zai_opencode_auth_result(home).ok:
         found.add(ZAI_OPENCODE_AUTH)
+    if probe_zai_openapi_api():
+        found.add(ZAI_OPENAPI_API_CREDENTIAL)
     return frozenset(found)
 
 
-def missing_credential_for(agent: str, available: frozenset[str]) -> str | None:
+def missing_credential_for(
+    agent: str, available: frozenset[str], model: str | None = None
+) -> str | None:
     """Name the credential *agent* needs but which is not available, if any."""
+    if model is not None:
+        required = AGENT_CREDENTIAL_REQUIREMENTS.get((agent, model))
+        if required is not None:
+            return None if required in available else required
+        if agent == "mini-swe-agent" and model.startswith("zai/"):
+            return None if ZAI_OPENAPI_API_CREDENTIAL in available else ZAI_OPENAPI_API_CREDENTIAL
     required = AGENT_CREDENTIAL_REQUIREMENTS.get(agent)
     if required is None or required in available:
         return None
     return required
-
 
 # Default model per agent, derived from the profile registry (single source of
 # truth). The codex pin is proven (2026-08-06 harbor-practice run); the
@@ -195,12 +222,14 @@ def missing_credential_for(agent: str, available: frozenset[str]) -> str | None:
 #: "last profile wins": several profiles share the `cursor-cli` adapter, so a
 #: comprehension over the registry would let iteration order pick the default —
 #: which silently chose Gemini over Peter's stated grok-4.6 default once already.
-DEFAULT_PROFILE_FOR_ADAPTER: dict[str, str] = {
+DEFAULT_PROFILE_FOR_ADAPTER: dict[str | tuple[str, str], str] = {
     "codex": "codex-gpt-5.6-terra",
     "claude-code": "claude-code-fable-5",
     "cursor-cli": "cursor-grok-4.6-high",
     "antigravity-cli": "antigravity-gemini-3.7-flash-high",
     "mini-swe-agent": "mini-swe-agent-deepseek-v4-flash",
+    ("mini-swe-agent", "deepseek/deepseek-flash"): "mini-swe-agent-deepseek-v4-flash",
+    ("mini-swe-agent", "zai/glm-5.3-flash"): "mini-swe-agent-glm-5.3-flash",
     ZAI_OPENCODE_AGENT: "zai-opencode-glm-5.3-flash",
     RLM_AGENT: "rlm-glm-5.3-flash",
 }
@@ -208,5 +237,5 @@ DEFAULT_PROFILE_FOR_ADAPTER: dict[str, str] = {
 DEFAULT_AGENT_MODELS: dict[str, str] = {
     adapter: model
     for adapter, profile_id in DEFAULT_PROFILE_FOR_ADAPTER.items()
-    if (model := builtin_profiles()[profile_id].model) is not None
+    if isinstance(adapter, str) and (model := builtin_profiles()[profile_id].model) is not None
 }

@@ -1,0 +1,25 @@
+{
+    "reasoning": "The document is entirely generic: no mention of workers, pool sizing, 5000ms timeout, checkout-api version, or the payments-vendor hypothesis. So mechanism identification, evidence grounding, decoy rejection are all absent (no). Evidence-fidelity flaws (blaming vendor, unsupported cause, invented evidence, misstated facts) are not present, though the timeline's 15:31 mitigation matches the fact. Actions are generic without owners/targets and don't close the detection gap or fix capacity coupling; they propose vague material work not tied to established causes but not based on unsupported causes.",
+    "judgments": {
+        "action_quality": {
+            "actions_are_actionable": "CriterionVerdict(verdict='no', rationale=\"Actions like 'Improve monitoring and alerting across the platform' name no owners, targets, or checkable completion conditions.\")",
+            "actions_trace_to_findings": "CriterionVerdict(verdict='no', rationale='Actions are generic and do not reference the worker/pool interaction established in the root cause section.')",
+            "closes_the_detection_gap": "CriterionVerdict(verdict='no', rationale=\"'Improve monitoring and alerting across the platform' does not specifically add pool-saturation or acquire-wait detection.\")",
+            "fixes_the_capacity_coupling": "CriterionVerdict(verdict='no', rationale='No action couples pool sizing to worker count or gates startup on a safe mismatch.')",
+            "proposes_unsupported_work": "CriterionVerdict(verdict='no', rationale='The proposed work is vague rather than based on a specific unsupported causal claim, so the flaw of material work resting on an unsupported cause is not present.')"
+        },
+        "causal_reasoning": {
+            "grounded_in_evidence": "CriterionVerdict(verdict='no', rationale='The root cause section offers no specific supplied facts (workers 8\u219232, max_connections=10, 5000ms timeout), only generalities.')",
+            "identifies_the_mechanism": "CriterionVerdict(verdict='no', rationale=\"The document describes only 'a change that interacted badly with an existing constraint' and never names the 32-worker/10-connection contention or 5000ms timeouts.\")",
+            "rules_out_the_decoy": "CriterionVerdict(verdict='no', rationale='The payments-vendor advisory is never mentioned, so it is not explicitly rejected using timing, flat latency, or 200 responses.')",
+            "separates_contributing_factors": "CriterionVerdict(verdict='yes', rationale='The contributing-factors list (monitoring, testing, deployment, wasted hypothesis time) is kept distinct from the causal mechanism.')",
+            "uncertainty_is_genuine": "CriterionVerdict(verdict='yes', rationale='Open questions concern impact breadth and threshold policy, which are not settled by the supplied facts.')"
+        },
+        "evidence_fidelity": {
+            "asserts_unsupported_cause": "CriterionVerdict(verdict='no', rationale='The document asserts no specific causal mechanism beyond an unspecified change/constraint interaction, contradicting no supplied fact and not exceeding them concretely.')",
+            "blames_payments_vendor": "CriterionVerdict(verdict='no', rationale='The payments vendor is never mentioned as a cause or hypothesis.')",
+            "invents_evidence": "CriterionVerdict(verdict='no', rationale='The document cites no dashboards, tickets, logs, or meetings beyond generic narrative; timeline entries like 14:09 alerting and 15:31 mitigation are generic but not fabricated artifacts.')",
+            "misstates_a_fact": "CriterionVerdict(verdict='no', rationale='The 15:31 mitigation and restoration within minutes are consistent with the supplied facts, and no supplied time, count, or value is contradicted.')"
+        }
+    }
+}

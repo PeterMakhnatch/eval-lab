@@ -1,0 +1,27 @@
+{
+  "teacher_program": "research/experiments/dspy/judge/artifacts/gepa-checkout/program.json",
+  "family": "checkout-pool-exhaustion",
+  "split": "train",
+  "min_score": 0.9,
+  "examples": 12,
+  "kept_calls": 10,
+  "dropped_examples": [
+    {
+      "document_id": "03-copied-evidence-logs",
+      "score": 0.7857
+    },
+    {
+      "document_id": "14-subtly-wrong-cause-code-bug",
+      "score": 0.8571
+    }
+  ],
+  "format": "chat messages per predictor call (dspy ChatAdapter.format_finetune_data), demos excluded",
+  "trainer": null,
+  "usage": {
+    "calls": 14,
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "litellm_estimated_cost_usd": 0.012828
+  },
+  "note": "data-shape demonstration only; nothing was trained"
+}

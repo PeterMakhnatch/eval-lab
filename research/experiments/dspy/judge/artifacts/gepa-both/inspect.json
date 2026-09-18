@@ -1,0 +1,59 @@
+{
+  "program": "research/experiments/dspy/judge/artifacts/gepa-both/program.json",
+  "instruction_chars": 7627,
+  "instruction_lines": 39,
+  "demos": 0,
+  "fixture_files_named": [
+    "/app/evidence",
+    "alerts.log",
+    "deploys.csv",
+    "metrics.csv",
+    "service-config.yaml"
+  ],
+  "checkout-pool-exhaustion": {
+    "family_specific_fact_tokens_mentioned": [
+      "130ms",
+      "advisory",
+      "alert",
+      "back",
+      "began",
+      "errors",
+      "latency",
+      "ledger-db",
+      "rolling",
+      "signals",
+      "vendor",
+      "within"
+    ],
+    "criterion_names_mentioned": 12,
+    "criterion_names_total": 14
+  },
+  "retry-storm-backlog": {
+    "family_specific_fact_tokens_mentioned": [
+      "03:11",
+      "03:17",
+      "503",
+      "above",
+      "alerting",
+      "all",
+      "baseline",
+      "downstream",
+      "email-only",
+      "far",
+      "gateway",
+      "healthy",
+      "log",
+      "one",
+      "plus",
+      "queue-depth",
+      "retry",
+      "service",
+      "sustained",
+      "then",
+      "threshold",
+      "without"
+    ],
+    "criterion_names_mentioned": 12,
+    "criterion_names_total": 16
+  }
+}

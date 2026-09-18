@@ -1,0 +1,74 @@
+{
+  "run_id": "gepa-retry",
+  "optimizer": "gepa",
+  "budget": "light",
+  "train_family": "retry-storm-backlog",
+  "train_ids": [
+    "03-copied-evidence-logs",
+    "04-subtly-wrong-cause-deploy",
+    "05-right-cause-useless-actions-tbd",
+    "08-correct-config-led",
+    "09-correct-compact",
+    "10-correct-slot-focus",
+    "13-subtly-wrong-cause-capacity",
+    "14-subtly-wrong-cause-gateway-only",
+    "16-right-cause-useless-actions-drain-only",
+    "19-fabricated-evidence-vendor-rca",
+    "20-fabricated-evidence-metrics",
+    "22-style-only-fluent-runbook"
+  ],
+  "val_ids": [
+    "02-style-only-fluent-generic",
+    "07-correct-retry-math",
+    "12-subtly-wrong-cause-schema-index",
+    "17-right-cause-useless-actions-process"
+  ],
+  "heldout_ids_never_shown": [
+    "01-empty",
+    "06-correct-oracle",
+    "11-subtly-wrong-cause-db-cpu",
+    "15-right-cause-useless-actions-generic",
+    "18-fabricated-evidence-warroom",
+    "21-style-only-fluent-executive"
+  ],
+  "task_model": "zai/glm-5.3-flash",
+  "reflection_model": "zai/glm-5.3-flash",
+  "elapsed_s": 3116.0,
+  "task_lm_usage": {
+    "calls": 149,
+    "prompt_tokens": 392192,
+    "completion_tokens": 146636,
+    "litellm_estimated_cost_usd": 0.151132
+  },
+  "reflection_lm_usage": {
+    "calls": 12,
+    "prompt_tokens": 100693,
+    "completion_tokens": 21212,
+    "litellm_estimated_cost_usd": 0.027558
+  },
+  "compiled_instructions": {
+    "judge.predict": "You are a postmortem rubric judge. Given a family (e.g., retry-storm-backlog), a rubric_json, and a document (an incident postmortem), judge the document against every criterion and output a reasoning summary plus a judgments object.\n\nInputs:\n- rubric_json: contains \"criteria\" (grouped into dimensions, e.g., action_quality, causal_reasoning, evidence_fidelity), \"negated\" (criterion names for which a YES means the flaw IS present), and \"reference_facts\" (the ground-truth facts about the incident).\n- document: the postmortem to judge.\n- An evidence pack at /app/evidence (logs, config files, metrics.csv, tickets, alerts, deploys, chat logs, dashboards) backs the reference facts \u2014 consult it when judging evidence-fidelity criteria.\n\nProcedure:\n1. Read reference_facts and the document carefully; consult /app/evidence when judging evidence-fidelity criteria.\n2. For each dimension and criterion, answer the criterion's question with a raw yes/no.\n3. Negated criteria ask whether a flaw is PRESENT; answer yes when the flaw is present. Do not invert any answer. Negated evidence-fidelity criteria are frequently all NO (flaw absent) even for very poor documents \u2014 poor causal reasoning must not leak into evidence-fidelity verdicts. A template-only or evidence-dump document that asserts no wrong mechanism, embraces neither decoy, cites nothing fabricated, and misstates no supplied fact scores NO on blames_the_deploy, treats_db_cpu_as_cause, asserts_unsupported_cause, misstates_a_fact, and invents_evidence.\n\nFamily-specific notes (family: retry-storm-backlog):\n\nThe canonical true mechanism: unlimited, fixed-one-second retries with no backoff or jitter sharing all 64 worker slots with first attempts (no retry budget or lane), which filled the workers and sustained a multi-hour backlog after the SMS gateway's six-minute 503 window (03:11\u201303:17 UTC) recovered. Delivery resumed only after a 07:01 drain plus max_attempts=6 with backoff and jitter. The two decoys are the v2.8.1 log-format-only deploy (02:47, followed by 24 minutes of healthy service) and the later database CPU warning at 86% (below its 95% page threshold, downstream). Queue-depth alerting was email-only with a far-too-high threshold (500,000 vs ~2,100 baseline).\n\nGeneral document-structure rule:\n- Judge the document as a WHOLE but attend to section structure. Mislabeled or garbled sections (e.g., a \"Contributing Factors\" section containing resolution chat, a \"Corrective Actions\" section pasting current config with only \"should be reviewed\", an \"Open Questions\" section that is a paste of alert/deploy logs) do NOT satisfy the criteria those sections nominally exist for. Content must do the semantic work.\n\nCriterion decision rules:\n\n- actions_are_actionable: YES if actions name concrete, specific changes \u2014 config keys, rollback targets, alert routes, thresholds (including lowering queue-depth to a specific number), a DLQ, a benchmark with a condition, a second provider behind a feature flag \u2014 even without named owners/dates. Terse-but-concrete actions qualify (\"Bound retries\", \"DLQ\", \"Page on delivery lag\"). NO only for vague (\"improve reliability\"), checklist filler, or unbounded actions. If the corrective-action section is literally absent or \"TBD\", ALL action-quality criteria are NO.\n\n- actions_trace_to_findings: The action set as a whole must address causes or contributing factors stated earlier in the document. Judge tracing against the document's OWN stated findings, even if wrong \u2014 actions following from a wrong-but-stated cause still trace. One or more substantive actions that follow from nothing stated make this NO; no substantive actions means NO.\n\n- rules_out_the_decoys: Requires a brief, explicit rejection of each decoy in the document's own voice. A bare \"v2.8.1 is unrelated\" plus never embracing the DB CPU warning counts as YES (full timing argument not required). NO if either decoy is explicitly embraced, or the deploy is never addressed. Chatter buried in a timeline/chat-log dump does not count; the ruling-out must appear as the document's own reasoning (e.g., in a Root Cause section). Pasting raw logs/metrics/deploy tables is not ruling out a decoy.\n\n- asserts_unsupported_cause: Concerns only the stated PRIMARY causal mechanism. YES only if that mechanism is contradicted by or absent from the reference facts (e.g., \"sustained gateway outage past 03:17\" contradicts the recovery fact). A fabricated secondary claim not adopted as root cause belongs under invents_evidence. A bare vague cause (\"queue backup\") is consistent with the facts and is NOT unsupported.\n\n- invents_evidence: YES only when the document cites a metric, ticket, log line, email, dashboard, meeting, or observation that does NOT exist in /app/evidence or the reference facts. Citing real evidence-pack artifacts is NOT invention even if not enumerated in reference_facts \u2014 this explicitly includes deploys.csv rows, metrics.csv values (retry_share_pct 95, peak depth 812,400, lag 13,920s), the 03:20 86% CPU warning, alerts.log thresholds (500,000), ticket.md, worker-config.yaml contents, notify-worker.log lines like m-8841207, and oncall-chat.txt. Self-disclosed fabrications still count. A document citing no evidence gets NO.\n\n- misstates_a_fact: YES when a supplied fact is materially mischaracterized, including causally recasting it \u2014 e.g., describing the 03:11 gateway 503 window as a v2.8.1 deploy \"taking effect under load\", or recasting the confirmed six-minute window as a sustained multi-hour outage, counts. Plainly wrong times/counts/versions count. Extra details consistent with the evidence pack do NOT count. A document stating no supplied facts gets NO. The 07:01 drain with 07:03 resolution is not a misstatement.\n\n- proposes_unsupported_work: YES only for material corrective work grounded in causes the reference facts do not support (e.g., rollback of v2.8.1 for a logging theory, vendor replacement / second provider tied to a sustained-outage theory, DB resizing tied to the CPU decoy, work committed to a fabricated metric). Minor housekeeping (filing an email, runbook tweaks, status-page templates) does NOT count.\n\n- closes_the_detection_gap: YES if an action adds paging on delivery lag, retry share, or slot saturation, or lowers/sets an appropriately bounded queue-depth threshold (e.g., 500,000 \u2192 50,000 counts). A dashboard graph alone or \"clarify the runbook detection step\" does not count. Paging on vendor-status/delivery-lag disagreement is NOT the missing lag/slot/queue page and does not count.\n\n- bounds_the_amplification: YES if an action caps attempts, adds backoff/jitter, isolates retry capacity (lane/budget), or adds a DLQ. \"Bound retries\" qualifies; a bare \"consider retries\" checkbox does not. Describing the historical fix in the timeline/chat does not count \u2014 the corrective-action section must propose it.\n\n- grounded_in_evidence: YES when causal claims are tied to multiple specific facts (config keys, log lines, timeline rows, deploy rows, metric values, ticket contents) from the reference facts or evidence pack. Grounding is judged independently of whether the mechanism is CORRECT \u2014 a wrong mechanism tied to multiple real, specific supplied facts still scores YES. Generic retry advice or bare assertion with no specific cited facts scores NO. An evidence dump with only \"visible in the logs\" and no own-voice prose tying specific facts to a mechanism scores NO.\n\n- separates_trigger_from_cause / identifies_the_mechanism: Require the document's own prose (not pasted evidence or chatter) to distinguish the six-minute gateway 503 trigger (03:11\u201303:17) from the cause of the multi-hour backlog, and to name unbounded one-second retries on shared 64 slots as the amplification mechanism. Dismissing the gateway window as coincidental, or calling retry configuration an \"implementation detail\", is NO on both. Template-only or evidence-dump documents that never state these in their own voice are NO.\n\n- separates_contributing_factors: YES when contributing factors are genuinely distinct from the document's stated primary mechanism (they need not be the \"true\" ones \u2014 email-only alerting, too-high threshold, missing DLQ/retry isolation, single-vendor dependence, status-page trust all count when separable). NO only when the section merely restates the primary mechanism, is absent, or is filler (e.g., resolution chat pasted in).\n\n- uncertainty_is_genuine: Open questions about quantities/outcomes the reference facts and evidence pack do not settle count as genuine \u2014 per-message logging overhead, message loss during drain, duplicate-delivery counts, distinct customer counts, vendor/external-party RCA (\"why did the vendor report recovery at 03:17?\" is genuine). NO when the section is empty, filler, a log dump, asks questions already answered by the document or reference facts (e.g., \"the drain resolved it\"), or template meta-questions (\"who owns runbook edits?\").\n\nOutput format: a \"reasoning\" summary plus a \"judgments\" object mapping each dimension and criterion to a verdict ('yes'/'no') with a one-sentence rationale grounded in the document and reference facts. Use the raw pre-inversion yes/no answers per the verdict convention."
+  },
+  "compiled_demo_counts": {
+    "judge.predict": 0
+  },
+  "program": "research/experiments/dspy/judge/artifacts/gepa-retry/program.json",
+  "dspy_version": "3.3.1",
+  "gepa_val_aggregate_scores": [
+    0.796875,
+    0.890625,
+    0.859375,
+    0.828125,
+    0.765625,
+    0.84375,
+    0.90625,
+    0.9375,
+    0.90625,
+    0.953125,
+    0.9375
+  ],
+  "gepa_best_idx": 9,
+  "gepa_num_candidates": 11,
+  "segments": 3,
+  "usage_note": "Sum of segment 2 (resumed after the Z.ai quota reset, iterations 2-14) and the no-op segment 3; segment 1 (iterations 0-1, killed by the quota stop) wrote no summary and is uncounted."
+}

@@ -1,0 +1,25 @@
+{
+    "reasoning": "The postmortem correctly identifies the worker/pool mismatch mechanism and rejects the vendor hypothesis using timing and flat latency. However, its corrective actions are vague (no owners, targets, or checkable conditions), none trace to the root cause in a concrete way, and there is no detection improvement or capacity-coupling fix. It cites artifacts not present in the supplied reference facts (metrics.csv, exact timeline times, impact figures). Contributing factors are separated from the causal mechanism, and open questions are genuinely unsettled. Negated criteria are answered as flaw-present when applicable.",
+    "judgments": {
+        "action_quality": {
+            "actions_are_actionable": "JudgeCriterionVerdict(verdict='no', rationale=\"All four actions are vague (workshop, values document, 'be more mindful', newsletter) with no owners, targets, or checkable completion conditions.\")",
+            "actions_trace_to_findings": "JudgeCriterionVerdict(verdict='no', rationale='None of the substantive actions concretely address the established worker/pool mismatch; the newsletter and workshop do not derive from the root cause.')",
+            "closes_the_detection_gap": "JudgeCriterionVerdict(verdict='no', rationale='No action adds pool-saturation or connection-acquire-wait detection, despite the known missing alert.')",
+            "fixes_the_capacity_coupling": "JudgeCriterionVerdict(verdict='no', rationale='No action couples pool sizing to worker count or fails startup on an unsafe mismatch.')",
+            "proposes_unsupported_work": "JudgeCriterionVerdict(verdict='yes', rationale='The workshop, comms, and review actions rest on contributing-factor gaps (communication, review, mindfulness) that the supplied reference facts do not establish.')"
+        },
+        "causal_reasoning": {
+            "grounded_in_evidence": "JudgeCriterionVerdict(verdict='yes', rationale='It grounds the mechanism in multiple supplied facts: the v4.19.0 deploy at 14:02, workers=32 vs pool max=10 with 5000ms timeout, and rollback at 15:31 restoring health.')",
+            "identifies_the_mechanism": "JudgeCriterionVerdict(verdict='yes', rationale='It identifies the 32-worker vs 10-connection mismatch causing 5000ms checkout timeouts and 5xx responses.')",
+            "rules_out_the_decoy": "JudgeCriterionVerdict(verdict='yes', rationale='It explicitly rejects the vendor hypothesis using the flat ~130ms latency and timing (vendor hypothesis came later, 14:20\u201314:41).')",
+            "separates_contributing_factors": "JudgeCriterionVerdict(verdict='yes', rationale='It lists review, canary, and comms process gaps as separate contributing factors distinct from the worker/pool mechanism.')",
+            "uncertainty_is_genuine": "JudgeCriterionVerdict(verdict='yes', rationale='Open questions (reconciliation numbers, other services sharing the assumption) are not settled by the supplied facts.')"
+        },
+        "evidence_fidelity": {
+            "asserts_unsupported_cause": "JudgeCriterionVerdict(verdict='no', rationale='The stated causal mechanism matches the supplied reference facts.')",
+            "blames_payments_vendor": "JudgeCriterionVerdict(verdict='no', rationale='The vendor is explicitly stated not to be the cause.')",
+            "invents_evidence": "JudgeCriterionVerdict(verdict='yes', rationale='It cites artifacts and data points not in the supplied facts: metrics.csv wait p99 4\u21923104, specific page/first-500 times, and impact figures (94 minutes, ~7,000 failures, 38.1% peak 5xx).')",
+            "misstates_a_fact": "JudgeCriterionVerdict(verdict='no', rationale='The supplied facts that are cited (workers=32, pool=10, 5000ms, 130ms vendor latency, 14:02 deploy, 15:31 rollback) are stated accurately.')"
+        }
+    }
+}

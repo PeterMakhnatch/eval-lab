@@ -1,0 +1,26 @@
+{
+    "reasoning": "The postmortem is generic and omits nearly all incident specifics. It never mentions workers, pool sizes, timeouts, the payments vendor, or any supplied fact, so most affirmative criteria fail. Negated criteria (flaw-present) mostly pass because the document makes no false or invented claims.",
+    "judgments": {
+        "action_quality": {
+            "actions_are_actionable": "JudgeCriterionVerdict(verdict='no', rationale=\"Actions are generic ('improve monitoring', 'review deployment process') with no owners, targets, or checkable completion conditions.\")",
+            "actions_trace_to_findings": "JudgeCriterionVerdict(verdict='no', rationale='Root cause is stated only abstractly; actions do not address a specific established mechanism (worker/pool mismatch).')",
+            "closes_the_detection_gap": "JudgeCriterionVerdict(verdict='no', rationale='Monitoring improvements are generic; no detection of pool saturation or connection-acquire wait is specifically added.')",
+            "fixes_the_capacity_coupling": "JudgeCriterionVerdict(verdict='no', rationale='No action couples pool sizing to worker count or fails startup on a mismatch.')",
+            "proposes_unsupported_work": "JudgeCriterionVerdict(verdict='no', rationale='Actions are vague and do not propose material work based on unsupported causes.')"
+        },
+        "causal_reasoning": {
+            "grounded_in_evidence": "JudgeCriterionVerdict(verdict='no', rationale='No specific supplied facts are cited; the root cause is described in fluent generalities.')",
+            "identifies_the_mechanism": "JudgeCriterionVerdict(verdict='no', rationale='The document never identifies contention between 32 workers and a 10-connection pool or the 5000ms acquire timeouts.')",
+            "rules_out_the_decoy": "JudgeCriterionVerdict(verdict='no', rationale='The payments-vendor advisory is never mentioned or rejected.')",
+            "separates_contributing_factors": "JudgeCriterionVerdict(verdict='yes', rationale='Contributing factors (monitoring, testing, deployment, response) are listed separately from the root cause mechanism.')",
+            "uncertainty_is_genuine": "JudgeCriterionVerdict(verdict='yes', rationale='Open questions concern impact breadth and alerting policy, matters not settled by the supplied facts.')"
+        },
+        "evidence_fidelity": {
+            "asserts_unsupported_cause": "JudgeCriterionVerdict(verdict='no', rationale='The stated cause is vague but not contradicted by the reference facts; nothing specific is asserted beyond the facts given.')",
+            "blames_payments_vendor": "JudgeCriterionVerdict(verdict='no', rationale='The payments vendor is never mentioned at all.')",
+            "invents_evidence": "JudgeCriterionVerdict(verdict='no', rationale='No dashboards, tickets, logs, or metrics beyond the reference facts are cited.')",
+            "misstates_a_fact": "JudgeCriterionVerdict(verdict='no', rationale='Timeline times (15:31 mitigation) match the reference facts; no supplied fact is misstated.')",
+            "invents_evidence_extra": "JudgeCriterionVerdict(verdict='no', rationale='No fabricated evidence is present.')"
+        }
+    }
+}

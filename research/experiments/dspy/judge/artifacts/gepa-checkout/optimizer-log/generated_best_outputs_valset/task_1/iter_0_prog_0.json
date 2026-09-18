@@ -1,0 +1,25 @@
+{
+    "reasoning": "The document correctly identifies the 32-workers-vs-10-pool mechanism, rejects the vendor decoy with timing/latency/200s evidence, and separates contributing factors (alerting, review, canary). Its corrective actions are concrete and trace to the findings, adding pool detection and worker/pool coupling. However, it cites artifacts and numbers not present in the reference facts (metrics.csv with 7,021 failures, 38.1% peak, alerts.log, service-config.yaml, startup line, canary=false), so invented evidence is present. Times and counts that do overlap with the facts are stated accurately, and the vendor is treated as rejected, not causal. Open questions are appropriately limited to unsupplied matters.",
+    "judgments": {
+        "action_quality": {
+            "actions_are_actionable": "CriterionVerdict(verdict='yes', rationale='Actions name concrete changes such as failing startup when workers > max_connections and paging on db_pool_active >= db_pool_max for 5 minutes.')",
+            "actions_trace_to_findings": "CriterionVerdict(verdict='yes', rationale='Each action maps to an established finding: sizing coupled to workers, detection of saturation, canary rollout.')",
+            "closes_the_detection_gap": "CriterionVerdict(verdict='yes', rationale='Action 3 adds alerts on db_pool_active >= db_pool_max and db_pool_wait_p99_ms.')",
+            "fixes_the_capacity_coupling": "CriterionVerdict(verdict='yes', rationale='Action 1 couples pool max_connections to workers or fails startup on mismatch.')",
+            "proposes_unsupported_work": "CriterionVerdict(verdict='no', rationale='All four actions address causes and gaps established by the supplied facts (worker/pool mismatch, no alert, no canary).')"
+        },
+        "causal_reasoning": {
+            "grounded_in_evidence": "CriterionVerdict(verdict='yes', rationale='The mechanism is grounded in multiple supplied facts: active connections pinned at 10, 5000ms timeout, rollback restoring errors within minutes.')",
+            "identifies_the_mechanism": "CriterionVerdict(verdict='yes', rationale='The Root Cause section explicitly states workers=32 against a pool of 10 caused acquire timeouts and 500s.')",
+            "rules_out_the_decoy": "CriterionVerdict(verdict='yes', rationale='It explicitly rejects the vendor advisory using flat 127\u2013134ms latency, 200 responses, and error timing before and after the advisory.')",
+            "separates_contributing_factors": "CriterionVerdict(verdict='yes', rationale='Contributing factors section distinguishes alerting, review/coupling, canary, and hypothesis-holding gaps from the causal mechanism.')",
+            "uncertainty_is_genuine": "CriterionVerdict(verdict='yes', rationale='Open questions concern reconciliation, the reason for the worker raise, and other services\u2014all not settled by the supplied facts.')"
+        },
+        "evidence_fidelity": {
+            "asserts_unsupported_cause": "CriterionVerdict(verdict='no', rationale='Every causal claim advanced is supported by the supplied reference facts; no unsupported mechanism is asserted as fact.')",
+            "blames_payments_vendor": "CriterionVerdict(verdict='no', rationale='The document explicitly states the payments-vendor advisory is not the cause.')",
+            "invents_evidence": "CriterionVerdict(verdict='yes', rationale='The document cites artifacts and figures absent from the reference facts, such as metrics.csv with 7,021 failures, alerts.log, service-config.yaml, and the startup line.')",
+            "misstates_a_fact": "CriterionVerdict(verdict='no', rationale='Times, worker counts, pool size, timeout, latency range, and rollback timing all match the supplied reference facts.')"
+        }
+    }
+}

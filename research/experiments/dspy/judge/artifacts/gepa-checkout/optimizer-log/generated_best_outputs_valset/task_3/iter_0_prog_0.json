@@ -1,0 +1,25 @@
+{
+    "reasoning": "The document correctly identifies the worker/pool mismatch mechanism and rejects the vendor hypothesis, and its open questions are outside the supplied facts. However, it cites logs, metrics files, and incident metrics not present in the reference facts (invents evidence), and its corrective actions are vague with no owners, no detection addition, and no fix coupling pool sizing to worker count.",
+    "judgments": {
+        "action_quality": {
+            "actions_are_actionable": "CriterionVerdict(verdict='no', rationale=\"Actions like 'hold a blameless workshop', 'ask teams to be more mindful', and a newsletter mention lack owners, targets, or checkable completion conditions.\")",
+            "actions_trace_to_findings": "CriterionVerdict(verdict='no', rationale='None of the four actions (workshop, values document, mindfulness, newsletter) address the worker/pool coupling or detection gaps established in the root cause.')",
+            "closes_the_detection_gap": "CriterionVerdict(verdict='no', rationale='No action adds alerting for pool saturation or connection-acquire wait despite the reference facts noting no such alert existed.')",
+            "fixes_the_capacity_coupling": "CriterionVerdict(verdict='no', rationale='No corrective action couples pool sizing to worker count or fails startup on an unsafe workers/pool mismatch.')",
+            "proposes_unsupported_work": "CriterionVerdict(verdict='no', rationale='The proposed work is vague but not premised on any cause unsupported by the reference facts.')"
+        },
+        "causal_reasoning": {
+            "grounded_in_evidence": "CriterionVerdict(verdict='yes', rationale='It cites the workers=32/db_pool_max=10 startup line, the 5000ms pool-exhausted TimeoutError, and metrics.csv wait p99 rising 4\u21923104, matching the supplied facts.')",
+            "identifies_the_mechanism": "CriterionVerdict(verdict='yes', rationale='The root cause states workers=32 with max_connections=10 caused connection-wait timeouts and 500s, matching the reference facts.')",
+            "rules_out_the_decoy": "CriterionVerdict(verdict='yes', rationale='It explicitly discards the vendor hypothesis using flat ~130ms latency, consistent with the reference facts.')",
+            "separates_contributing_factors": "CriterionVerdict(verdict='yes', rationale='It lists review, canary, and incident-comms gaps as contributing factors distinct from the worker/pool mechanism.')",
+            "uncertainty_is_genuine": "CriterionVerdict(verdict='yes', rationale=\"Open questions (reconciliation numbers, other services' assumptions) are not settled by the supplied facts.\")"
+        },
+        "evidence_fidelity": {
+            "asserts_unsupported_cause": "CriterionVerdict(verdict='no', rationale='The stated causal mechanism matches the supplied facts and no unsupported cause is asserted.')",
+            "blames_payments_vendor": "CriterionVerdict(verdict='no', rationale=\"The document explicitly rejects the vendor: 'The vendor is not the cause.'\")",
+            "invents_evidence": "CriterionVerdict(verdict='yes', rationale='It cites a startup line, a TimeoutError log, metrics.csv, and impact figures (94 minutes, ~7,000 failed checkouts, 38.1% peak 5xx, 14:18 complaints) none of which appear in the reference facts.')",
+            "misstates_a_fact": "CriterionVerdict(verdict='no', rationale='Stated times and values (14:02 deploy, 15:31 rollback, 130ms vendor latency, 32/10 config) match the reference facts.')"
+        }
+    }
+}

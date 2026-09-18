@@ -1,0 +1,27 @@
+{
+    "reasoning": "The document proposes an entirely different causal story (a schema index change slowing enqueue writes) than the supplied facts (unbounded 1s retries saturating all 64 worker slots). It invents evidence not in the reference facts (schema-114, 812,400 queue depth, db CPU at 86%, billing-api v6.1.2, EXPLAIN gate), never identifies the retry amplification mechanism, and treats database CPU as causal. It gets a few facts right (v2.8.1 log-only, gateway 503 timing noted as coincidental, 07:01 drain) but overall contradicts the reference facts.",
+    "judgments": {
+        "action_quality": {
+            "actions_are_actionable": "JudgeCriterionVerdict(verdict='no', rationale='Actions like reverting schema-114 and requiring EXPLAIN ANALYZE are concrete but lack owners, targets, or checkable completion conditions.')",
+            "actions_trace_to_findings": "JudgeCriterionVerdict(verdict='yes', rationale='Actions trace to the (incorrect) index-change finding established in the document, though not to the actual cause per reference facts.')",
+            "bounds_the_amplification": "JudgeCriterionVerdict(verdict='no', rationale='No action caps attempts, adds backoff/jitter, isolates retry capacity, or adds a dead-letter queue; the retry mechanism is not even acknowledged.')",
+            "closes_the_detection_gap": "JudgeCriterionVerdict(verdict='no', rationale='No action adds paging on delivery lag, retry share, slot saturation, or bounded queue depth.')",
+            "proposes_unsupported_work": "JudgeCriterionVerdict(verdict='yes', rationale='Yes \u2014 the flaw is present. Scaling the primary and all schema-gate work rests on an index-change cause the reference facts do not support.')"
+        },
+        "causal_reasoning": {
+            "grounded_in_evidence": "JudgeCriterionVerdict(verdict='no', rationale='The mechanism rests on invented facts (schema-114, 86% CPU) not supplied; it is not grounded in the supplied reference facts.')",
+            "identifies_the_mechanism": "JudgeCriterionVerdict(verdict='no', rationale=\"The document explicitly dismisses retry amplification as 'not an independent cause' rather than identifying unbounded one-second retries sharing all worker slots.\")",
+            "rules_out_the_decoys": "JudgeCriterionVerdict(verdict='no', rationale='It rejects v2.8.1 (log-only) and calls the 503 coincidental, but it embraces the database CPU warning as causal rather than ruling it out.')",
+            "separates_contributing_factors": "JudgeCriterionVerdict(verdict='no', rationale='It lists missing EXPLAIN gates and canaries as contributing factors but never separates them from the primary amplification mechanism, which it denies exists.')",
+            "separates_trigger_from_cause": "JudgeCriterionVerdict(verdict='no', rationale='It does not distinguish the six-minute gateway 503 trigger from a retry-policy cause; it attributes the whole outage to the index change.')",
+            "uncertainty_is_genuine": "JudgeCriterionVerdict(verdict='no', rationale=\"Open questions (query plans, billing-api impact) concern matters outside the supplied facts, but the document's certainty about the schema cause contradicts the supplied facts; the open questions are on invented territory rather than genuinely open matters relative to the facts.\")"
+        },
+        "evidence_fidelity": {
+            "asserts_unsupported_cause": "JudgeCriterionVerdict(verdict='yes', rationale='Yes \u2014 the flaw is present. The schema-114 slow-enqueue causal mechanism is contradicted by the supplied facts (retries, not slow enqueue, sustained the backlog).')",
+            "blames_the_deploy": "JudgeCriterionVerdict(verdict='no', rationale='The document correctly notes v2.8.1 is log-format only and unrelated; it does not treat it as a cause.')",
+            "invents_evidence": "JudgeCriterionVerdict(verdict='yes', rationale='Yes \u2014 cites schema-114, 812,400 queue depth, 86% db CPU, billing-api v6.1.2, and EXPLAIN-gate history, none of which appear in the reference facts.')",
+            "misstates_a_fact": "JudgeCriterionVerdict(verdict='yes', rationale='Yes \u2014 it reports a queue of 812,400, an impact of ~3h48m without SMS, and a 03:20 db CPU reading, none of which match the supplied facts.')",
+            "treats_db_cpu_as_cause": "JudgeCriterionVerdict(verdict='yes', rationale=\"Yes \u2014 it treats the 03:20 db CPU spike as a causal step ('bad index is hammered', workers waiting on DB) rather than a downstream effect.\")"
+        }
+    }
+}

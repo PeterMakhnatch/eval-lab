@@ -1,0 +1,1662 @@
+{
+  "schema_version": 1,
+  "family": "retry-storm-backlog",
+  "judge_backend": "dspy-gepa-checkout",
+  "judge_model": "glm-5.3-flash",
+  "judge_engine_version": "dspy 3.3.1",
+  "rubric_digest": "sha256:6ef6fa6b00b6ffd996c0cf3015c4b3b41e2cc805810f72415d9aaf611b48f57f",
+  "corpus_digest": "sha256:e05b4fda9f460984b7708bed1550b8d64d1bad996a80c10f393c438c312e7dcb",
+  "generated_at": "2026-09-16T07:03:59.101542Z",
+  "predictions": [
+    {
+      "document_id": "01-empty",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "no",
+            "rationale": "The document is empty; it never identifies unbounded one-second retries sharing all worker slots as the self-sustaining amplification mechanism."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "no",
+            "rationale": "The document is empty; the six-minute gateway 503 trigger is not distinguished from the retry-policy cause."
+          },
+          "grounded_in_evidence": {
+            "verdict": "no",
+            "rationale": "The document is empty; the mechanism is not grounded in any supplied facts (e.g., the 03:11–03:17 gateway 503, unlimited one-second retries, 64 worker slots, 07:01 drain)."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "no",
+            "rationale": "The document is empty; it neither rejects nor mentions the v2.8.1 log-format deploy or the database CPU warning."
+          },
+          "separates_contributing_factors": {
+            "verdict": "no",
+            "rationale": "The document is empty; there is no distinction of alert routing, thresholds, or missing dead-letter/retry isolation from the primary mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "no",
+            "rationale": "The document is empty; there are no open questions at all, genuine or otherwise."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "no",
+            "rationale": "The document is empty; no action caps attempts, adds backoff/jitter, isolates retry capacity, or adds a dead-letter queue."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "The document is empty; no action pages on delivery lag, retry share, slot saturation, or bounded queue depth."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "The document is empty; there is no corrective-action section naming concrete changes with owners, targets, or checkable completion conditions."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "no",
+            "rationale": "The document is empty; no substantive actions exist to trace to findings."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "Negated criterion: the flaw is 'material work premised on unsupported causes'. The document is empty, so no unsupported work is proposed."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "Negated criterion: flaw is 'treats v2.8.1 as a cause'. The document is empty; the deploy is never blamed."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "Negated criterion: flaw is 'treats the later database CPU warning as a cause'. The document is empty; the warning is never mentioned."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "Negated criterion: flaw is 'states a causal mechanism contradicted by or absent from reference facts'. The document is empty and states no causal mechanism."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Negated criterion: flaw is 'materially misstates a supplied fact'. The document is empty and makes no factual claims."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "Negated criterion: flaw is 'cites fabricated artifacts not in the evidence'. The document is empty and cites nothing."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "02-style-only-fluent-generic",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "no",
+            "rationale": "The document never mentions retries, worker slots, or amplification; no mechanism of unbounded one-second retries filling all slots is identified."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "no",
+            "rationale": "No gateway 503 trigger or six-minute window is mentioned; no trigger/cause distinction exists."
+          },
+          "grounded_in_evidence": {
+            "verdict": "no",
+            "rationale": "The Root Cause says only 'a change that interacted badly with an existing constraint' with no times, counts, or config values — pure generic assertion."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "no",
+            "rationale": "Neither the log-format deploy nor the database CPU warning is mentioned, let alone rejected with timing or behavior evidence."
+          },
+          "separates_contributing_factors": {
+            "verdict": "no",
+            "rationale": "The Contributing Factors are generic filler ('Insufficient monitoring', 'Limited automated testing coverage') that never touch alert routing, thresholds, or missing retry isolation/dead-letter."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "no",
+            "rationale": "Open questions are generic ('What is the full customer impact?', 'Should we revisit our alerting thresholds more broadly?') rather than incident-specific matters unsettled by the facts; impact scope is arguably supplied."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "no",
+            "rationale": "No mention of retry caps, backoff, jitter, dead-letter queues, or retry isolation anywhere in the document."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "'Improve monitoring and alerting across the platform' does not name delivery lag, retry share, slot saturation, or bounded queue depth paging."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "Actions are generic: 'Improve monitoring and alerting across the platform', 'Increase test coverage' — no owners, targets, or checkable completion conditions."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "no",
+            "rationale": "The actions map only to vague filler contributing factors ('Insufficient monitoring'); no substantive findings are established in the document to trace to."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "No material work is premised on any specific cause; actions are generic, so no unsupported-cause work is present."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "The v2.8.1 deploy is never mentioned; the abstract 'change' is not identified as any specific deploy."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "The database CPU warning is never mentioned in the document."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The document states only a vague change-vs-constraint mechanism, not a specific causal claim contradicted by or absent from the reference facts."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "The document's timeline (14:09 page, 15:31 mitigation, 15:38 closure) uses generic content not tied to reference facts; no supplied time, count, version, or config value is contradicted."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "No dashboards, tickets, log files, meetings, or named artifacts are cited at all."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "03-copied-evidence-logs",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "Explicitly identifies unbounded one-second retries sharing all slots: config comments state 'First attempts and retries are drawn from the same slot pool... no separate retry lane and no per-class concurrency budget' with unlimited attempts at 1000ms; chat adds 'the workers are all retrying'."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "yes",
+            "rationale": "Explicitly separates the six-minute gateway 503 trigger from the cause of the prolonged outage: 'six minutes. we have been broken for three hours'."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "Grounds the mechanism in specific supplied facts: gateway 503s 03:11–03:17, '12,904 messages in retry state, all consuming worker slots', '64/64 busy', and retry config 'max_attempts: unlimited, delay_ms: 1000, jitter: none'."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "yes",
+            "rationale": "Rejects both decoys explicitly: 'the queue was completely healthy from 02:47 to 03:11' and 'diffed v2.8.1 — it is a logging change only... not it'; for db CPU, 'pages at 95 so it never woke anyone, and it came after the queue grew'."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Distinguishes contributing factors from the amplification mechanism: email-only queue-depth alerting, the high threshold (queue alert at 500k vs ~2k baseline), no dead-letter queue, and no retry lane/isolation."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "no",
+            "rationale": "The 'Open Questions' section contains alert/deploy log lines rather than any genuine open questions about matters unsettled by the facts; no real open questions are asked."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "no",
+            "rationale": "Although the root cause is unbounded retries, no action is proposed to cap attempts, add backoff/jitter, or add a dead-letter queue; only a note that these settings 'should be reviewed'."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "The email-only queue-depth alert is identified in the timeline ('it only goes to email'), but no action proposes paging on lag, retry share, slot saturation, or bounded queue depth."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "The Corrective Actions section only lists existing configuration with 'should be reviewed'; no concrete changes, owners, or checkable completion conditions are named."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "no",
+            "rationale": "No substantive corrective actions exist to trace; the section only presents current config (e.g., 'max_attempts: unlimited', 'dead_letter_queue: null') with a review note."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "Negated: no material work is proposed at all, let alone work premised on a cause unsupported by the reference facts."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "Negated: the document explicitly clears v2.8.1 — 'it is a logging change only, text to JSON. not it' — and notes healthy service for 24 minutes after deploy."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "Negated: the document treats db CPU as downstream — 'pages at 95 so it never woke anyone, and it came after the queue grew'."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "Negated: the stated mechanism (unbounded 1s retries sharing all slots after a 503 window) matches the reference facts; no unsupported cause is asserted."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Negated: all times and values align with the reference facts (503s 03:11–03:17, 64 slots, 1000ms delay, drain/resolution ~07:01, v2.8.1 log-only at 02:47)."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "Negated: cited artifacts (logs, config, metrics buckets, alert log lines) are consistent with the supplied evidence pack; no clearly fabricated named ticket, dashboard, or file is cited."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "04-subtly-wrong-cause-deploy",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "no",
+            "rationale": "The document never identifies unbounded one-second retries sharing all worker slots as the amplification mechanism; it attributes the backlog to JSON-logging throughput cost instead."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "no",
+            "rationale": "It explicitly denies the trigger's role: 'The gateway's brief 503 window was a coincidental external event... and did not itself cause the backlog', failing to distinguish the six-minute 503 trigger from the retry-policy cause."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "The document grounds its (wrong) mechanism in multiple specific facts: '02:47 deployed', '03:11... 03:17', '86% CPU at 03:20', '64 worker slots', '812,400 messages', '806,114 messages drained at 07:01' — grounded even though the mechanism is wrong."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "no",
+            "rationale": "It rejects the gateway 503 ('a coincidental external event') but embraces the log-format deploy as root cause and treats database CPU as a compounding cause, rather than rejecting both as the facts require."
+          },
+          "separates_contributing_factors": {
+            "verdict": "no",
+            "rationale": "The Contributing Factors list ('db was already close to its capacity limits', threshold too high, no canary) does not distinguish alert routing, threshold, and missing dead-letter/retry isolation from the true primary amplification mechanism, which the document never identifies; several items are also tied to the wrong causal story."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions ('Exactly how much per-message overhead does JSON logging add?', 'Did any messages get lost during the drain at 07:01?', 'How many distinct customers were affected?') concern matters the supplied facts do not settle."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "no",
+            "rationale": "No action caps retries, adds backoff/jitter, isolates retry capacity, or adds a dead-letter queue; retry amplification is never even identified."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "The only detection action lowers a queue-depth threshold to 50,000 — still ~25x the ~2,100 healthy baseline — and does not add paging, delivery-lag, retry-share, or slot-saturation alerting; the reference facts' email-only alerting gap is not addressed."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Concrete actions: 'Roll back notify-worker to v2.8.0', 'Benchmark structured logging under production message rates', 'Lower the notify-queue-depth alert threshold from 500,000 to 50,000', 'Introduce a canary stage' — all objectively checkable."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Each action maps to a stated finding (rollback/benchmark/canary to the logging regression, db scaling to the 86% CPU claim, threshold lowering to 'too high to catch the problem early') — though the findings themselves are wrong, the actions do trace to what the document established."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "yes",
+            "rationale": "Material work ('Scale up notifications-db so that it has headroom above 86% CPU, and review the schema-114 index') is premised on the db-CPU cause, which the reference facts contradict (the CPU warning was below page threshold and downstream)."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "yes",
+            "rationale": "'The root cause was the notify-worker v2.8.1 release' — the deploy is treated as the cause despite its log-only change and the facts showing healthy service for 24 minutes after deployment."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "yes",
+            "rationale": "'The database CPU warning at 03:20 corroborates this... pushing CPU to 86% and further reducing delivery throughput. The two effects compounded each other.' — treats it as a cause rather than a downstream effect."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "yes",
+            "rationale": "The stated causal mechanism — v2.8.1 JSON logging reducing per-slot throughput and compounded by db CPU — is contradicted by the reference facts, which establish unlimited one-second retries sharing 64 slots as the mechanism."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Supplied times align: 03:11–03:17 gateway 503s, 07:01 drain, 64 worker slots, resolution shortly after the drain. No material contradiction of a supplied time, count, version, or config value."
+          },
+          "invents_evidence": {
+            "verdict": "yes",
+            "rationale": "Cites observations absent from the reference facts: 'schema-114 index added on 2026-07-21', 'CPU climbs to 86%', alert 'threshold of 500,000', and exact queue figures like 812,400/806,114 not supplied."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "05-right-cause-useless-actions-tbd",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "Explicitly names 'unbounded, non-backoff, non-isolated retry policy' with 'retries occupy the same worker slots as first attempts' filling all 64 slots as the self-sustaining amplification ('metastable failure')."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "yes",
+            "rationale": "'The gateway's six minutes are the **trigger**; the retry policy is the **cause**' — explicitly distinguishes the 6-minute 503 from the multi-hour retry-policy outage."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "Grounds the mechanism in many specifics: 03:11–03:17 503s, 'retry.max_attempts: unlimited, delay_ms: 1000', 64-slot shared pool, m-8841207 reaching attempt=351, 12,904 retries by 03:13, retry_share_pct 3→95."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "yes",
+            "rationale": "Explicitly rejects v2.8.1 via log-only diff and 24 minutes of healthy service, and the 03:20 db CPU warning as 'a downstream effect of retry traffic, not a cause' (86% vs 95% threshold, resolves before incident)."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Contributing Factors distinguish email-only routing, 500,000 threshold vs ~2,100 baseline, missing lag/retry-share/slot alerts, null dead-letter queue, shared slot pool, and the 17-minute deploy-hypothesis cost from the primary retry-policy mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions cover matters the facts don't settle: gateway behavior on repeated idempotency keys, fate of the 806,114 drained messages, vendor RCA, distinct customer counts."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "no",
+            "rationale": "The section is 'TBD', so no action bounding retry amplification (the 07:01 drain was a mitigation, not a proposed action)."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "No actions exist; the contributing factors name detection gaps but no corrective action addresses them."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "Corrective Actions section is 'TBD'; no actions with owners or checkable conditions."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "no",
+            "rationale": "No substantive actions exist; section is 'TBD'."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "With 'TBD' actions, the document proposes no work based on unsupported causes; negated criterion answered as flaw absent."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "The document explicitly rules out v2.8.1, citing the log-format-only diff and the 24 minutes of healthy service post-deploy."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "The db CPU warning is explicitly called 'a downstream effect of retry traffic, not a cause', below page threshold and appearing only after retry volume rose."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated mechanism (unbounded retries saturating shared slots) matches the reference facts; no unsupported cause asserted."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Times and values match reference facts: 03:11–03:17 gateway 503s, 07:01 drain with max_attempts=6 and backoff+jitter, 07:03 resume, unlimited 1-second retries, 64 shared slots, email-only queue alerting."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "All cited artifacts (metrics.csv, notify-worker.log, deploys.csv, alerts.log, ticket.md, oncall-chat.txt, worker-config.yaml) are consistent evidence-pack material; no clearly fabricated artifact absent from the pack can be identified."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "06-correct-oracle",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "Explicitly: 'Retries failed deliveries with no attempt cap, a fixed one-second delay and no backoff, and retries occupy the same worker slots as first attempts... the backlog sustained itself.'"
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "yes",
+            "rationale": "Explicit distinction: 'The gateway's six minutes are the trigger; the retry policy is the cause.'"
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "The mechanism is grounded in many specific facts: 'm-8841207' reaching attempt=351, '12,904 messages are in retry state', '0 free worker slots, 64/64 busy', retry_share_pct climbing from 3 to 95, and worker-config values."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "yes",
+            "rationale": "The deploy is rejected via the log-only diff and 'queue depth and delivery lag were at baseline for the 24 minutes between the deploy and the gateway fault'; db CPU is rejected as 'a downstream effect of retry traffic, not a cause' (86% vs 95% page threshold)."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Genuine contributing factors distinct from the mechanism: email-only alert routing, 500,000 threshold vs ~2,100 baseline, no alerts on lag/retry share/slot saturation, no DLQ, shared slot pool, and 17 minutes lost on the deploy hypothesis."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions (duplicate deliveries given idempotency_key, whether drained messages were lost, the gateway's own RCA, distinct-customer counts) are all matters the supplied facts cannot settle."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "yes",
+            "rationale": "Actions cap attempts ('max_attempts=6', 'backoff=exponential', 'jitter=full'), add a dead-letter queue, isolate retry capacity ('Cap retry traffic at a fraction of the 64 slots or run a separate retry lane'), and add a circuit breaker."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "yes",
+            "rationale": "'Page on delivery lag. Add a paging alert on delivery lag above 300 seconds for 5 minutes' plus routing notify-queue-depth to the pager and lowering its threshold directly address the detection gap."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Each action has an objectively checkable completion condition, e.g. 'Done when the alert fires against a replay of this incident's metrics' and 'Done when dead_letter_queue is configured, alarmed on non-zero depth, and has a documented replay procedure.'"
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Actions map directly to established findings: DLQ to 'dead_letter_queue: null', retry budget to 'first attempts and retries are drawn from the same 64-slot pool', paging alerts to email-only routing and the 500,000 threshold."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "No action rests on an unsupported cause; all work traces to the retry-policy, slot-sharing, and alerting findings established in the document."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "The document explicitly rules out v2.8.1 as a cause, citing the log-formatting-only change and the 24 healthy minutes after deployment."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "The db CPU warning is explicitly treated as a downstream effect: 'a downstream effect of retry traffic, not a cause.'"
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated mechanism (unbounded one-second retries sharing all 64 slots sustaining the backlog) matches the reference facts exactly; nothing contradicted or absent is asserted as causal."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "All supplied facts align: 03:11–03:17 gateway 503, unlimited one-second retries, 64 shared slots, 07:01 drain with max_attempts=6 and backoff/jitter, v2.8.1 log-only deploy 24 minutes before onset, db CPU below page threshold, email-only queue alert. No time, count, version, or config value is contradicted."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "Cited artifacts (metrics.csv, deploys.csv, notify-worker.log, alerts.log, worker-config.yaml) carry values consistent with the supplied reference facts; no fabricated artifact contradicts the evidence pack."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "07-correct-retry-math",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "Explicitly names 'Unbounded, non-backoff, non-isolated retries' on 'the same 64 slots as first attempts' that 'filled the workers and sustained the backlog after recovery' — the self-sustaining amplification mechanism."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "yes",
+            "rationale": "Explicitly: 'Gateway 503 is the trigger; the policy is the cause (~38× longer)' — six-minute trigger vs multi-hour backlog."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "Grounds the mechanism in multiple specific facts: 'retry.max_attempts=unlimited retry.delay_ms=1000', shared 64-slot pool, 'm-8841207' at attempt=351, 'retry_share_pct 3→95', '0 free worker slots', and the ~38× duration ratio."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "yes",
+            "rationale": "Rejects both: 'v2.8.1 is a log-format change and the queue was healthy 02:47–03:11' (timing), and 'DB CPU 86% is downstream of retry volume' (behavior)."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Contributing factors are substantive and distinct from the mechanism: email-only alert at 500,000, 'no lag/retry/slot alerts', 'no DLQ', shared slot pool, and '17 minutes on the deploy hypothesis'."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions concern matters the facts do not settle: idempotency-key behavior, whether drained messages were re-queued or dropped, the gateway's own RCA, and distinct-customer counts."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "yes",
+            "rationale": "'Commit max_attempts=6, exponential backoff, full jitter', DLQ for exhausted messages, and 'Give retries their own concurrency budget' all bound retry amplification."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "yes",
+            "rationale": "'Page on delivery lag >300s' plus routing queue-depth to the pager with a lowered threshold concretely addresses the email-only, far-above-baseline alerting gap."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Actions name concrete changes: 'Commit max_attempts=6, exponential backoff, full jitter', 'Add a dead-letter queue', 'Page on delivery lag >300s', 'Route notify-queue-depth to the pager and lower the threshold' — all objectively checkable."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Each action maps to established findings: retry policy → backoff/attempts cap; shared slots → dedicated concurrency budget; no DLQ → DLQ; email-only/threshold alerting → paging on lag and rerouting queue-depth."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "Circuit-breaking the gateway client is plausible given the gateway 503 trigger is fact-supported, and all other actions trace to the retry-policy findings; no work is premised on contradicted causes like the deploy or DB CPU."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "The document explicitly diffs out v2.8.1 and notes its log-only nature and the healthy 02:47–03:11 interval; it is not treated as a cause."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "The document explicitly labels the 03:20 db CPU at 86% a downstream symptom, not a cause."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated causal mechanism (unbounded shared-slot retries) matches the reference facts; nothing asserts a cause absent from or contradicted by them."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Times and values (503 at 03:11–03:17, 07:01 drain with capped backoff, 64 slots, unlimited/1000ms policy) match the reference facts; resolution at 07:03 is consistent with recovery after the 07:01 drain."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "Cited items (worker-config.yaml retry block, attempt counts, queue figures, alert threshold, timeline events) align with the reference facts; no clearly fabricated named artifact outside the evidence is relied upon."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "08-correct-config-led",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "Explicitly identifies unlimited fixed-1s retries sharing one 64-slot pool with first attempts as 'a self-sustaining retry storm' that 'filled the workers and sustained the backlog after recovery'."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "yes",
+            "rationale": "'The retry policy, not the six-minute outage, explains a 3h52m customer outage' explicitly distinguishes the 03:11–03:17 trigger from the multi-hour cause."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "The mechanism is grounded in multiple specific supplied facts: 'gateway returned 503 from 03:11 to 03:17', the config block 'retry.max_attempts: unlimited, delay_ms: 1000, backoff: none', '64/64 busy' at 03:18, retry counts 12,904→771,240, and retry_share_pct to 95."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "yes",
+            "rationale": "Rejects both: 'v2.8.1 is not the cause (log formatting, healthy queue for 24 minutes)' and 'notifications-db CPU 86% is a symptom'."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Contributing Factors are substantive and distinct from the amplification mechanism: 'Email-only 500k alert; no lag/slot alerts; dead_letter_queue: null; shared slots.'"
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions — duplicate message_ids under retries, 'fate of drained messages', gateway RCA, customer cardinality — are all matters the reference facts do not settle."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "yes",
+            "rationale": "Actions persist max_attempts=6 with exponential backoff and full jitter, cap retry concurrency, and add a DLQ — directly bounding retry amplification."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "yes",
+            "rationale": "'Page on delivery lag and on worker-slot saturation' plus lowering/re-routing queue-depth alerting directly addresses the email-only, far-above-baseline detection failure."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Actions name concrete changes: 'Persist the 07:01 retry bounds in source control', 'Configure a DLQ with replay', 'Cap retry concurrency', 'Page on delivery lag and on worker-slot saturation', 'Lower and re-route notify-queue-depth' — all objectively checkable."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Each action maps to established findings: retry bounds to the unbounded retry policy, cap and DLQ to shared slots/'dead_letter_queue: null', paging to 'no lag/slot alerts' and the email-only queue alert."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "All five actions trace to the retry-storm findings; no work is premised on the deploy, DB CPU, or other unsupported causes."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "The document explicitly clears the deploy: 'v2.8.1 is not the cause (log formatting, healthy queue for 24 minutes)'."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "The DB CPU warning is explicitly labeled a symptom: 'notifications-db CPU 86% is a symptom'."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated causal mechanism (retry storm from unbounded 1s retries on shared slots) matches the reference facts; no contradicted or unsupported cause is asserted."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Times and values match the facts (02:47 deploy, 03:11–03:17 window, 64 slots, 07:01 drain, max_attempts=6); the ~3h48m vs 3h52m wording difference is not a material misstatement of a supplied fact."
+          },
+          "invents_evidence": {
+            "verdict": "yes",
+            "rationale": "The document cites named artifacts absent from the supplied reference facts: `ticket.md`, `worker-config.yaml`, attempt id `m-8841207`, the `gateway_503` metrics bucket, and the `notify-queue-depth` alert."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "09-correct-compact",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "'unlimited 1s retries on 64 shared slots produced a self-sustaining backlog' and 'The retry population filled the workers and sustained the backlog after recovery' explicitly names the amplification mechanism."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "yes",
+            "rationale": "Document states 'Trigger ≠ cause', distinguishing the six-minute gateway 503 from the retry-policy cause."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "Mechanism is grounded in specific facts: 'startup retry.max_attempts=unlimited', attempt=351, retry_share 3→95%, 64 shared slots, 0 free slots at 03:18."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "yes",
+            "rationale": "'v2.8.1 ruled out (format-only, healthy 02:47–03:11)' uses timing/behavior; 'DB CPU 86% is a symptom' rejects DB CPU as cause."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Distinct, substantive factors: 'Email alert at 500k; no lag/slot alerts; no DLQ; shared pool' — alert routing/threshold and missing isolation, separate from the primary mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions — 'Duplicates; lost vs delayed; gateway RCA; customer count' — are incident matters the reference facts do not settle."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "yes",
+            "rationale": "'Bound retries with jitter; DLQ; separate retry budget' directly caps attempts and isolates retry capacity."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "yes",
+            "rationale": "'Page on lag; page queue-depth at a sane threshold' plus slot paging concretely addresses the email-only, far-above-baseline queue-depth alerting."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Actions name concrete changes: 'Bound retries with jitter; DLQ; separate retry budget; page on lag; page queue-depth at a sane threshold' — all objectively checkable."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Retry caps/jitter/DLQ/retry budget trace to 'Unlimited retries, fixed 1000ms, no jitter, shared 64 slots'; paging actions trace to 'Email alert at 500k; no lag/slot alerts'."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "The gateway circuit breaker traces to the documented gateway 503 trigger (03:11–03:17); no work is premised on unsupported causes like the deploy or DB CPU."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "The deploy is explicitly ruled out: 'v2.8.1 ruled out (format-only, healthy 02:47–03:11)'."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "DB CPU is treated as downstream: 'DB CPU 86% is a symptom.'"
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated mechanism (unbounded 1s retries sharing worker slots) matches the reference facts; no unsupported causal claim."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Timeline aligns with reference facts: 02:47 deploy, 03:11–03:17 gateway 503, 07:01 drain, 07:03 resolution after backoff caps; versions and configs match."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "Cited artifacts (worker-config.yaml, m-8841207, retry_share_pct) are consistent evidence-pack-style material and metrics; no clearly fabricated named artifact contradicts the supplied facts."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "10-correct-slot-focus",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "Explicitly states 'unlimited 1s retries' filling all 64 shared worker slots, sustaining the backlog after the 03:17 recovery — the self-sustaining amplification loop."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "yes",
+            "rationale": "'Gateway fault is the trigger' while the root cause is the retry policy sharing 64 slots — the six-minute 503 vs multi-hour backlog distinction is explicit."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "Mechanism is grounded in multiple specifics: 03:11–03:17 503 window, '64/64 busy' slots, 07:01 drain, 12,904 in retry at 03:13, shared-slot statement."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "yes",
+            "rationale": "Rejects both: '02:47 — v2.8.1 log format; slots not saturated' and 'v2.8.1 and db CPU are not causes', explaining db CPU 86% as 'retry write volume' (downstream)."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Contributing Factors distinguishes 'No slot-saturation alert; email-only depth alert; no DLQ; 17 minutes on the deploy hypothesis' from the primary amplification mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions ('Gateway idempotency on repeated message_id; drain fate; gateway RCA') are matters the reference facts cannot settle; no meta-navel-gazing."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "yes",
+            "rationale": "'Cap attempts and add exponential backoff with jitter' plus 'Separate retry lane or per-class budget' directly bound retry amplification."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "yes",
+            "rationale": "'Page on worker_slots_busy == 64 and on delivery lag' and 'Re-route queue-depth to pager' concretely address slot saturation, delivery lag, and bounded queue-depth alerting."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Actions name concrete, checkable changes: 'Cap attempts and add exponential backoff with jitter', 'Page on worker_slots_busy == 64', DLQ, re-route depth alerting; no named owners but objectively checkable."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Each action maps to an established finding: caps/backoff/jitter to unlimited 1s retries, retry lane to shared slots, paging to the missing slot-saturation alert, DLQ/re-route to email-only alerting."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "All actions (caps, backoff, lane, DLQ, paging) trace to the retry-pool findings; no vendor failover, TLS, or unrelated work is proposed."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "The document explicitly exonerates v2.8.1, noting the log-only change and healthy interval: '02:47 — v2.8.1 log format; slots not saturated'; 'v2.8.1 ... not causes'."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "The document explicitly treats db CPU as a downstream effect ('db CPU 86% (retry write volume)'; 'db CPU are not causes')."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated mechanism (unbounded retries filling shared slots) matches the reference facts; no cause is contradicted by or absent from the facts."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Supplied times and values match the facts: 03:11–03:17 503s, 64 slots, 1s retries, 07:01 drain, v2.8.1 log-only, email-only depth alert; no material contradiction."
+          },
+          "invents_evidence": {
+            "verdict": "yes",
+            "rationale": "The document cites artifacts absent from the supplied reference facts: the config file `worker-config.yaml`, ticket/monitor `m-8841207`, and a `retry_share_pct` metric — named evidence not in the evidence pack."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "11-subtly-wrong-cause-db-cpu",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "no",
+            "rationale": "It calls retry counters 'a consequence of the database not keeping up' and never identifies unbounded one-second retries sharing all 64 worker slots as the self-sustaining amplification."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "yes",
+            "rationale": "It treats the six-minute 503 as 'a sideshow' and 'too short to explain a four-hour queue', separating trigger from the prolonged outage cause."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "The document cites specific supplied facts — 86% CPU at 03:20, the 95% page threshold, the 03:11–03:17 gateway window, 07:01 drain — though the mechanism it grounds is wrong."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "no",
+            "rationale": "It rejects v2.8.1 ('log format only') and the gateway ('too short to explain a four-hour queue'), but embraces DB CPU as the root cause rather than rejecting it as a downstream effect."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Genuine list: 'DB page threshold 95% is too high', 'No read-replica', 'Queue-depth alert is email-only' — distinct from the stated mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Questions ('Which query burned CPU? Not in the evidence'; Redis replacement) address matters the supplied facts do not settle."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "no",
+            "rationale": "No action caps attempts, adds backoff/jitter, isolates retry capacity, or adds a dead-letter queue; the retry policy is never addressed."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "'Lower `notify-queue-depth` to 50,000' only adjusts a threshold; the alert remains email-only and no action pages on delivery lag, retry share, or slot saturation."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Concrete, checkable changes: 'lower the CPU page to 70%', 'Move retry state off the primary', 'Lower `notify-queue-depth` to 50,000'."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Actions address items established earlier in the document (DB CPU, page threshold, queue-depth email alert, drain runbook), even though the DB finding itself is wrong."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "yes",
+            "rationale": "Material work (scaling notifications-db, read replica for state writes, 'replace notifications-db with Redis') is premised on the DB-CPU cause, which the reference facts contradict — DB CPU was downstream."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "Document states 'v2.8.1 is not the cause (log format only)'; the deploy is not treated as a cause."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "yes",
+            "rationale": "The Root Cause section names 'Database CPU saturation' as the cause of the backlog, whereas the facts establish the DB CPU warning was downstream and below its page threshold."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "yes",
+            "rationale": "The stated mechanism ('Database CPU saturation... messages piled up and were retried') is contradicted by the reference facts, which identify the retry policy as the cause and the DB CPU warning as downstream."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Timeline values (02:47 deploy, 03:11–03:17 gateway, 06:00 email, 07:01 drain) match or are consistent with the reference facts; no supplied value is materially contradicted."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "No named fabricated artifact (dashboard, ticket, log file, evidence file, or meeting) is cited; numeric details are plausible pack material."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "12-subtly-wrong-cause-schema-index",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "no",
+            "rationale": "The document explicitly denies the mechanism: 'Retry amplification is what a slow enqueue path looks like, not an independent cause.' It never identifies unbounded one-second retries sharing 64 slots as the self-sustaining amplification."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "no",
+            "rationale": "It calls the 503 'coincidental' but never identifies the retry-policy cause of the multi-hour outage, so it cannot separate the six-minute trigger from the actual sustaining cause."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "The document grounds its (wrong) mechanism in multiple specific cited facts: schema-114 at 22:30, queue at 812,400, 'workers spent their 64 slots waiting on the database', 03:20 db CPU 86%, 07:01 drain."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "yes",
+            "rationale": "It rejects the gateway 503 as 'coincidental' using timing, dismisses v2.8.1 as 'unrelated log format', and treats db CPU 86% as a downstream symptom ('as the bad index is hammered') rather than a cause."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "It lists substantive, distinct contributing factors — 'Index change had no EXPLAIN gate. No canary on schema changes.' — separate from the stated primary mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions ('What was the query plan before vs after schema-114? Not in the pack.' and 'Did billing-api also suffer?') concern matters the supplied facts do not settle."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "no",
+            "rationale": "No action adds attempt caps, backoff/jitter, retry isolation, or a dead-letter queue; retry amplification is denied as a cause and never addressed."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "No action pages on delivery lag, retry share, slot saturation, or bounded queue depth; the email-only queue-depth alerting gap is never mentioned or fixed."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Actions like 'Revert schema-114', 'Require EXPLAIN ANALYZE on notification-db DDL', and 'Add a canary replica for index builds' are concrete with objectively checkable completion conditions."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Each action (revert, EXPLAIN gate, canary) addresses the index-change cause established in the document's Root Cause and Contributing Factors sections."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "yes",
+            "rationale": "Material work (reverting schema-114, 'Scale the primary as a precaution') is premised on the index-regression cause, which the supplied reference facts do not support; the real mechanism was unbounded one-second retries."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "The document treats v2.8.1 as unrelated: 'v2.8.1 is log format only.'"
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "The document treats the db CPU warning as a downstream effect ('03:20 — db CPU 86% as the bad index is hammered'), not as a cause."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "yes",
+            "rationale": "The stated causal mechanism — schema-114 index change regressing enqueue writes — is contradicted by and absent from the reference facts, which attribute the outage to unbounded retries filling worker slots after the 503 recovery."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "The shared reference times are stated correctly (03:11–03:17 gateway 503, 07:01 drain, v2.8.1 log-only); no supplied time, count, version, or config value is materially contradicted."
+          },
+          "invents_evidence": {
+            "verdict": "yes",
+            "rationale": "The document cites observations not present in the supplied facts: the notifications-db schema-114 index change, billing-api v6.1.2 at 04:10, db CPU at 86%, and queue figures like 812,400 and 806,114 drained."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "13-subtly-wrong-cause-capacity",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "no",
+            "rationale": "It never identifies unbounded one-second retries sharing all 64 worker slots as the self-sustaining amplification; retries are dismissed as 'a secondary annoyance' and the primary cause is claimed as insufficient capacity."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "no",
+            "rationale": "It conflates trigger and cause: it frames the six-minute 503 window as exposing 'the shortage' and never distinguishes the brief gateway trigger from the retry-policy cause of the multi-hour outage."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "It cites specific supplied facts: '64 slots,' the six-minute 503 window ('03:11' to '03:17'), and the 07:01 drain, rather than pure assertion, even though the mechanism is wrong."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "no",
+            "rationale": "It rejects the deploy ('v2.8.1 is not the cause') but never mentions or rejects the later database CPU warning using timing or behavior."
+          },
+          "separates_contributing_factors": {
+            "verdict": "no",
+            "rationale": "'No autoscaling. Queue alert too late. No overflow region.' is a bare list that does not distinguish alert routing, threshold, and missing dead-letter/retry isolation from the primary mechanism; the retry policy is wrongly demoted to secondary."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "'What slot count would have drained the 03:17 leftover without a human?' is not settled by the supplied facts and is a substantive open question."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "no",
+            "rationale": "No action caps attempts, adds backoff/jitter, isolates retry capacity, or adds a dead-letter queue; autoscaling to 256 slots does not bound retry amplification."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "'Lower the email threshold' is not a page on delivery lag, retry share, slot saturation, or appropriately bounded queue depth; the reference facts note queue-depth alerting was email-only and far above baseline, and this action does not concretely fix that with a paging alert."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "'Autoscale notify-worker to 256 slots' and 'Lower the email threshold' are concrete, checkable changes, though none has a named owner."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Actions trace to factors the document establishes: autoscaling addresses its claimed capacity finding and the threshold change addresses 'Queue alert too late.'"
+          },
+          "proposes_unsupported_work": {
+            "verdict": "yes",
+            "rationale": "A second region and standing overflow queue cluster are material work premised on the capacity-shortage cause, which the supplied facts do not support (the retry policy, not missing capacity, sustained the backlog)."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "The document explicitly rejects the deploy: 'v2.8.1 is not the cause. The gateway recovered in six minutes.'"
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "The database CPU warning is never mentioned, so it is not treated as a cause."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "yes",
+            "rationale": "The stated mechanism — 'Insufficient worker capacity' requiring autoscaling, with retries a 'secondary annoyance' — is contradicted by the reference facts, which show the retry population, not capacity shortage, sustained the backlog."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Supplied times (03:11, 03:17, 07:01) and the 64-slot count are stated correctly; no supplied value is materially contradicted."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "No dashboard, ticket, log file, or meeting artifact is cited; the 02:47 deploy time is consistent with the 24-minute healthy interval, and 'INC-2307' is the document's own incident ID."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "14-subtly-wrong-cause-gateway-only",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "no",
+            "rationale": "The document never identifies unbounded one-second retries sharing all worker slots as the amplification mechanism; it says 'Retry configuration is an implementation detail' and attributes the backlog to a sustained gateway outage."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "no",
+            "rationale": "The document explicitly collapses the two: 'A sustained gateway outage, not a six-minute blip', treating the six-minute 503 as the sustained cause rather than distinguishing the trigger from the retry-policy cause."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "The document ties its (wrong) sustained-outage mechanism to multiple specific facts: 'It said 03:11–03:17 but our queue did not recover until 07:03', the 07:01 drain, and peak depth figures — even though the mechanism is wrong, it is grounded."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "no",
+            "rationale": "It dismisses the deploy ('v2.8.1 is unrelated') but never mentions the database CPU warning at all, so both decoys are not rejected using timing or behavior."
+          },
+          "separates_contributing_factors": {
+            "verdict": "no",
+            "rationale": "The Contributing Factors list ('Single SMS vendor. No secondary gateway. Status-page trust.') does not distinguish alert routing, threshold, or missing dead-letter/retry isolation from the primary mechanism, and the actual amplification mechanism is never established."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "'Why did the vendor report 03:17 recovery?' and 'How many customers saw duplicates after we retried?' are matters the reference facts do not settle — they are genuine incident open questions."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "no",
+            "rationale": "No action caps attempts, adds backoff/jitter, isolates retry capacity, or adds a dead-letter queue; retry configuration is explicitly dismissed: 'Retry configuration is an implementation detail.'"
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "The only alerting action pages on a disagreement between the vendor status page and delivery lag, not on delivery lag thresholds, retry share, slot saturation, or bounded queue depth directly; it does not address the email-only, baseline-far queue-depth alerting."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Actions are concrete: 'Add a second provider behind a feature flag' has an objectively checkable completion condition, and 'Page when the vendor status page and our delivery lag disagree' is an implementable alert, though none name owners."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "no",
+            "rationale": "The actions trace to a sustained vendor outage and status-page trust, but the document never establishes the real contributing factors (retry amplification, email-only queue-depth alerting) — e.g., no action addresses retry policy, which it dismissed as 'an implementation detail.'"
+          },
+          "proposes_unsupported_work": {
+            "verdict": "yes",
+            "rationale": "Negated criterion: flaw present. 'Replace the SMS gateway vendor' and 'Add a second provider' are premised on a sustained vendor outage, but the reference facts state the gateway recovered in six minutes; the multi-hour outage was self-sustained retries, so the vendor work is unsupported."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "Negated criterion: flaw absent. The document explicitly rejects the deploy: 'v2.8.1 is unrelated,' consistent with the healthy 24-minute interval."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "Negated criterion: flaw absent — the database CPU warning is never mentioned in the document at all."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "yes",
+            "rationale": "Negated criterion: flaw present. The stated causal mechanism ('A sustained gateway outage, not a six-minute blip') is contradicted by the reference fact that the gateway returned 503 only 03:11–03:17 and then recovered."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Supplied times are used correctly (03:11–03:17 outage, 07:01 drain, v2.8.1 deploy); '~3h 48m' matches 03:11→07:03; the document's framing of the outage as sustained is a reasoning error, not a misstated reference fact."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "No fabricated named dashboards, tickets, log files, or meetings are cited; figures like 812,400 peak depth and 806,114 drained are plausible internal metrics consistent with the supplied facts, and the drain/mitigation facts align with the timeline."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "15-right-cause-useless-actions-generic",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "Explicitly: 'Unlimited retries, fixed 1000ms, no jitter, shared 64 slots... produced a self-sustaining backlog until the 07:01 drain' — the shared-slot retry amplification is named directly."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "yes",
+            "rationale": "Explicitly stated: 'Trigger is the gateway; cause is the policy' — the six-minute 503 trigger is distinguished from the retry policy sustaining the multi-hour outage."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "The mechanism is grounded in specific facts: 'Gateway 503s for six minutes (03:11–03:17) plus unlimited 1s retries on 64 shared slots', the 03:18 '64/64 busy' observation, and the 07:01 drain."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "yes",
+            "rationale": "Both decoys are rejected: 'v2.8.1 and db CPU 86% are not causes', with the timeline showing v2.8.1 at 02:47 followed by a healthy queue ('02:47 — v2.8.1; queue healthy') and the db CPU warning later and below page threshold per facts."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "'Contributing Factors: Email-only 500k alert; no lag/slot alerts; no DLQ' — these are substantive, incident-specific factors distinct from the primary retry mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "'Duplicates; drain fate; gateway RCA; customer count' — all are matters the supplied facts do not settle (gateway's own RCA, customer impact counts, fate of drained messages)."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "no",
+            "rationale": "The drain/backoff at 07:01 was mitigation, not a corrective action; the action list contains no attempt caps, backoff/jitter, retry isolation, or DLQ work."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "'Improve monitoring' never names paging on delivery lag, retry share, slot saturation, or bounded queue depth; the document notes 'no lag/slot alerts' but proposes nothing concrete to close the gap."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "Actions are vague filler: 'Improve monitoring', 'Review retry best practices as a team', 'Schedule a workshop' — no owners, targets, or objectively checkable completion conditions anywhere."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "no",
+            "rationale": "No substantive action addresses the established retry-policy cause, the shared 64-slot design, or the email-only queue-depth alerting; only generic team-education items are listed."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "The flaw is absent: no material work is premised on any cause or risk the facts do not support; the actions are generic, not fact-contradicted."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "The document explicitly rejects the deploy: 'v2.8.1 and db CPU 86% are not causes', consistent with its log-only change and 24 minutes of healthy service."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "The db CPU warning is explicitly dismissed as a cause ('db CPU 86%... not causes'), consistent with it being downstream and below page threshold."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated causal mechanism (unbounded 1s retries sharing 64 slots) matches the reference facts; no contradicted or unsupported cause is asserted."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "All supplied facts are correctly stated: 03:11–03:17 gateway 503s, 64 slots, unlimited 1s retries, 07:01 drain, 02:47 v2.8.1; even the lag figure (13,920s) matches 03:11–07:03."
+          },
+          "invents_evidence": {
+            "verdict": "yes",
+            "rationale": "The document cites 'worker-config.yaml', a startup line, metric 'm-8841207 attempt=351', and 'retry_share_pct 3→95' — none of these files, metrics, or observations appear in the supplied reference facts."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "16-right-cause-useless-actions-drain-only",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "Root Cause states 'Retry amplification: unlimited attempts, 1000ms, no backoff, 64 shared slots' and the timeline shows 'retries continue' after 503s ended with '0 free slots' — the self-sustaining amplification is explicitly identified."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "yes",
+            "rationale": "The summary distinguishes 'a 03:11–03:17 gateway 503' (trigger) from 'Unlimited 1s retries on shared slots' (cause) that 'turned' the trigger into a multi-hour backlog."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "The mechanism is grounded in specific facts: 'unlimited attempts, 1000ms, no backoff, 64 shared slots', the 03:11–03:17 503 window, 03:18 '0 free slots', and the 07:01 drain."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "no",
+            "rationale": "The document says 'v2.8.1 ruled out' but never mentions the database CPU warning at all; it does not reject both decoys using timing or behavior."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Contributing Factors lists 'Late email alert; no DLQ' — items that are substantive, incident-specific, and distinct from the primary amplification mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions ('Duplicates; whether drained messages were dropped') concern matters the supplied reference facts cannot settle, not template navel-gazing."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "no",
+            "rationale": "No action caps attempts, adds backoff/jitter, isolates retry capacity, adds a DLQ, or otherwise bounds retry amplification; the 'no DLQ' factor is never converted into an action."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "The only detection action is 'Add a queue-depth graph to the existing dashboard' — a graph, not a page on delivery lag, retry share, slot saturation, or bounded queue depth, and it does not fix the email-only threshold gap."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Actions 1–2 name concrete changes with checkable completion conditions ('Keep the drain script in the on-call gist', 'Add a queue-depth graph to the existing dashboard'), though actions 3–4 ('Remember to drain sooner next time', 'Write a status-page template') are vague."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "The queue-depth graph traces to the established contributing factor 'Late email alert' and the drain script traces to the 07:01 drain finding, though 'status-page template' and 'drain sooner' are filler."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "All proposed work (drain script, queue-depth graph, status page) traces to the retry/backlog findings; nothing is premised on an unsupported cause like the deploy or DB CPU."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "The document explicitly says 'v2.8.1 ruled out' and the timeline shows 'v2.8.1 healthy' at 02:47; the deploy is not treated as a cause."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "The database CPU warning is never mentioned in the document, so it is never treated as a cause."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated causal mechanism (unbounded 1s retries on shared slots) matches the reference facts; no contradicted or absent cause is asserted."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "All supplied times align with the reference facts: 03:11–03:17 503s, 07:01 drain, v2.8.1 at 02:47, 64 worker slots, 1s retries; no materially contradicted value."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "Cited evidence ('config, startup line, attempt counters, retry_share_pct') are generic evidence types, not named fabricated artifacts; impact figures (806,114 drained, 812,400 queue, 13,920s lag) are plausible pack material."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "17-right-cause-useless-actions-process",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "It explicitly names the amplification: 'The retry policy (unlimited / 1000ms / no jitter / shared 64 slots) turned a six-minute gateway fault into a four-hour outage' and 'The retry population filled the workers and sustained the backlog'."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "yes",
+            "rationale": "The document distinguishes 'a six-minute gateway fault' (03:11–03:17 trigger) from the retry-policy cause that 'turned a six-minute gateway fault into a four-hour outage'."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "The document grounds its mechanism in specific facts: 'startup retry.max_attempts=unlimited', 1000ms/no jitter/shared 64 slots, 'retry_share_pct' 95, timeline times 03:11–03:17 and 07:01 drain — multiple concrete citations rather than generic advice."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "no",
+            "rationale": "It states 'Not v2.8.1. Not db CPU.' but offers no timing or behavioral reasoning (e.g., the 24-minute healthy interval after deploy, or db CPU being below threshold and downstream) — bare assertion only."
+          },
+          "separates_contributing_factors": {
+            "verdict": "no",
+            "rationale": "The Contributing Factors section is a single vague sentence: 'Detection and comms process, not just config.' No specific items like email-only alerting or the threshold level are enumerated, so there is no genuine separation of contributing factors."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions — 'Customer count; gateway RCA' — concern matters the reference facts do not settle; neither is filler or meta-commentary about the template."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "no",
+            "rationale": "No action caps attempts, adds backoff/jitter, isolates retry lanes, or adds a dead-letter queue; the Corrective Actions contain nothing on bounding retries."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "Despite the contributing-factor nod to detection ('Detection and comms process'), no action pages on delivery lag, retry share, slot saturation, or bounded queue depth."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "Actions are 'Hold a blameless conversation', 'Add INC-2307 to the reliability reading list', 'Ask people to be more careful', and checklist prose 'with no owner or done-when' — none has an owner, target, or checkable completion condition."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "no",
+            "rationale": "No substantive action connects to the retry-mechanism or contributing-factor findings; all four items are generic process fillers unrelated to the established causes."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "No material work is proposed at all, let alone work premised on unsupported causes; the flaw is absent."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "The document explicitly rejects the deploy: 'Not v2.8.1.' It lists the deploy in the timeline without treating it as causal."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "The document explicitly rejects db CPU: 'Not db CPU.' No downstream effect is treated as a cause."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated causal mechanism (unbounded shared-slot retries) matches the reference facts; no contradicted or absent mechanism is asserted."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Times and values match the facts: 02:47 deploy, 03:11–03:17 gateway 503, 07:01 drain, unlimited/1000ms/shared 64 slots; impact figures are not contradicted by any supplied fact."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "Cited artifacts ('worker-config.yaml', metric 'retry_share_pct' 95, 'm-8841207') are plausible pack material — config files and metrics consistent with the supplied facts — and none is a clearly fabricated named artifact like a meeting or nonexistent dashboard contradicting the evidence."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "18-fabricated-evidence-warroom",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "The document states 'Unlimited 1s retries on 64 shared slots amplified a 03:11–03:17 gateway 503' and 'Retry policy, not the six-minute outage', naming the unbounded 1s retries on shared slots as the self-sustaining mechanism."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "yes",
+            "rationale": "'Retry policy, not the six-minute outage' explicitly distinguishes the six-minute 503 trigger from the retry-policy cause of the multi-hour backlog."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "The mechanism is grounded in specific facts: 'Unlimited 1s retries on 64 shared slots', 03:11–03:17 gateway 503, '03:18 — 64/64 busy', and the 07:01 drain — multiple times and configuration details."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "yes",
+            "rationale": "It explicitly rejects both decoys: 'v2.8.1 and db CPU 86% are not causes', with the timeline showing the 02:47 deploy followed by healthy queue (~2,100) before the 03:11 503s."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Contributing Factors lists 'Email-only alert; no DLQ; shared slots' — substantive, incident-specific items distinct from the retry-policy mechanism, matching the reference facts about email-only queue-depth alerting."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions ('Duplicates; drain fate; whether Honeycomb 2.4M is real') concern matters the reference facts do not settle — message duplication, disposition of the drained backlog — not template navel-gazing."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "yes",
+            "rationale": "'Commit capped exponential backoff', 'DLQ', and 'Separate retry budget' cap attempts, add backoff, and isolate retry capacity, bounding amplification."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "No action adds alerting on delivery lag, retry share, slot saturation, or bounded queue depth; the only monitoring-adjacent action is exporting the board, which does not add paging."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Actions name concrete changes: 'Commit capped exponential backoff', 'DLQ', 'Separate retry budget' — each with an objectively checkable completion condition, even without named owners."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Backoff, DLQ, and retry budget directly address the established mechanism of 'Unlimited 1s retries on 64 shared slots' and the contributing factors 'no DLQ; shared slots'."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "All material work (backoff, DLQ, retry budget) traces to the supported retry-amplification mechanism; the board export is housekeeping, not cause-premised work."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "The document explicitly says 'v2.8.1 ... [is] not causes', consistent with the log-only change and the healthy 24-minute interval after deployment."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "The document states 'db CPU 86% are not causes', correctly treating the later, below-threshold CPU warning as non-causal."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated causal mechanism — unbounded 1s retries sharing worker slots sustaining the backlog — is exactly the mechanism in the reference facts; no contradicted or absent cause is asserted."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Times and counts match the reference facts: 03:11–03:17 503s, 03:18 workers busy, 07:01 drain; the 02:47 deploy time and db CPU 86% are not contradicted by the supplied facts."
+          },
+          "invents_evidence": {
+            "verdict": "yes",
+            "rationale": "The document cites a private Honeycomb board 'retry-amp-prod', a '#inc-2307 Zoom' meeting with 'Priya Natarajan', and an estimated '2.4 million push+SMS recipients' — artifacts explicitly noted as 'not in the supplied files' and absent from the reference facts."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "19-fabricated-evidence-vendor-rca",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "Root Cause states 'Unlimited retries / 1000ms / no jitter / shared 64 slots' — explicitly the self-sustaining amplification mechanism of unbounded one-second retries filling all worker slots."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "yes",
+            "rationale": "Summary: 'Our retry policy amplified a six-minute 503' — clearly distinguishes the six-minute gateway 503 trigger from the retry-policy cause of the multi-hour outage."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "Grounds the mechanism in specific facts: config, startup line, 'attempt=351', 'retry_share_pct 95', the 03:11–03:17 window, and 64 shared slots."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "no",
+            "rationale": "Rejects the log-format deploy ('v2.8.1 is not the cause'), but the document never mentions the later database CPU warning at all; only one of the two decoys is addressed."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Contributing Factors lists 'Email alert; no DLQ' — substantive items (alert routing, missing dead-letter/retry isolation) distinct from the amplification mechanism, though brief."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions (duplicate messages, whether the BGP claim can be verified) concern matters the supplied facts do not settle, not template meta-navel-gazing."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "yes",
+            "rationale": "'Cap retries with jitter' directly bounds retry amplification, the identified root cause."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "yes",
+            "rationale": "'Page on delivery lag' concretely addresses the email-only, high-threshold alerting gap by paging on delivery lag."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Actions include 'Cap retries with jitter', 'Circuit-break the gateway', and 'Page on delivery lag' — concrete, objectively checkable changes, though without named owners."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Retries capping/jitter traces to the retry-amplification root cause; 'Page on delivery lag' traces to the email-only alerting contributing factor."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "The gateway circuit breaker traces to the real 6-minute 503 trigger confirmed by the facts; filing the BGP email is evidence hygiene, not material work premised on an unsupported cause."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "The document explicitly denies it: 'v2.8.1 is not the cause'; the deploy is treated as healthy-before and unrelated."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "The database CPU warning is never mentioned in the document, so it cannot be treated as a cause."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "yes",
+            "rationale": "The document states 'The BGP story is presented as fact' — a causal mechanism (BGP flap) absent from the supplied reference facts."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Timeline values (02:47 deploy healthy, 03:11–03:17 503s, 07:01 drain, resolution) are consistent with the reference facts; no supplied time, count, or version is materially contradicted."
+          },
+          "invents_evidence": {
+            "verdict": "yes",
+            "rationale": "Cites a vendor RCA email from 'sre@sms-gateway.example' naming a BGP flap — a specific artifact not present in the evidence pack (the document itself concedes it 'is not in /app/evidence'), yet presents it as fact."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "20-fabricated-evidence-metrics",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "yes",
+            "rationale": "'Retry amplification' with unlimited retries filling all 64 shared worker slots is explicitly named as the self-sustaining mechanism after the 503s recovered."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "yes",
+            "rationale": "'Unlimited retries amplified a 03:11–03:17 503' distinguishes the six-minute gateway 503 trigger from the retry-policy cause of the multi-hour backlog resolved 07:03."
+          },
+          "grounded_in_evidence": {
+            "verdict": "yes",
+            "rationale": "Grounds the mechanism in multiple specific supplied facts: the 03:11–03:17 503 window, 64/64 busy slots at 03:18, worker-config.yaml, and retry_share_pct — even though some cited evidence is fabricated, per calibration a wrong/fabricated-evidence story tied to specifics is still grounded."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "yes",
+            "rationale": "'v2.8.1 and db CPU are not causes' — the document explicitly rejects both the log-format deploy (which was followed by 24 healthy minutes) and the later db CPU warning."
+          },
+          "separates_contributing_factors": {
+            "verdict": "yes",
+            "rationale": "Contributing factors — 'Email-only 500k alert; no DLQ; shared slots' — are substantive and distinct from the primary amplification mechanism (alert routing, missing dead-letter/retry isolation)."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "yes",
+            "rationale": "Open questions — 'Duplicates; drain fate; customer count' — are incident matters the reference facts do not settle, not template navel-gazing."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "yes",
+            "rationale": "Action 1 'Bound retries' directly caps retry amplification, and the DLQ isolates retries."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "yes",
+            "rationale": "Action 3 'Page on delivery lag' pages on delivery lag, directly addressing the email-only queue-depth alert gap."
+          },
+          "actions_are_actionable": {
+            "verdict": "yes",
+            "rationale": "Actions include 'Page on delivery lag' (a concrete alerting change with a checkable condition), adding a DLQ, and bounding retries; these are concrete changes even without named owners."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "yes",
+            "rationale": "Bounding retries and the DLQ trace to the shared-slots and no-DLQ contributing factors ('Email-only 500k alert; no DLQ; shared slots'), and paging on lag traces to the weak email-only alerting."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "yes",
+            "rationale": "Negated criterion asks if the flaw is present: yes — Action 4 commits to 'Check the invented `notify-slo` burn rate into the next dashboard,' material work premised on a fabricated monitor not in the supplied evidence."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "'v2.8.1 and db CPU are not causes' — the deploy is explicitly rejected despite its log-only change and the healthy 24-minute interval."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "'db CPU' is explicitly listed as 'not causes,' consistent with the facts that it was downstream and below its page threshold."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "The stated causal mechanism (unbounded retries sharing worker slots) matches the reference facts exactly; the fabricated evidence supports a correct mechanism, judged under invents_evidence instead."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Supplied facts are consistent: 02:47 v2.8.1, 03:11–03:17 503s, 64/64 busy, 07:03 resolution vs the 07:01 drain are not material contradictions; the '500k' alert reference is an unstated detail but no supplied time/count/config is contradicted."
+          },
+          "invents_evidence": {
+            "verdict": "yes",
+            "rationale": "Flaw present: the document cites `retry_in_flight{le=\"64\"}` on Prometheus job `notify-slo` 'a metric and job that do not appear in metrics.csv' and admits 'A claimed SLO burn of 14.2x is not in the supplied metrics' — fabricated artifacts."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "21-style-only-fluent-executive",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "no",
+            "rationale": "The document never mentions retries, worker slots, or the one-second retry policy; it explicitly declines detail: 'The details are less important.'"
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "no",
+            "rationale": "The document gives no distinction between the six-minute gateway 503 trigger and any ongoing cause; 'partner disruption interacted with our architecture' conflates both without timing."
+          },
+          "grounded_in_evidence": {
+            "verdict": "no",
+            "rationale": "The root cause is pure assertion: 'A partner disruption interacted with our architecture in a way that prevented self-recovery. The details are less important than the customer promise we missed.' No times, counts, or config values ground the mechanism."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "no",
+            "rationale": "Neither the v2.8.1 log-format deploy nor the later database CPU warning is mentioned anywhere, so neither is rejected using timing or behavior."
+          },
+          "separates_contributing_factors": {
+            "verdict": "no",
+            "rationale": "The Contributing Factors list ('Single-vendor concentration', 'Detection that waited on customers', 'Escalation paths that assume a page will fire') is generic and never touches the retry isolation, dead-letter, or threshold specifics that would distinguish factors from the mechanism."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "no",
+            "rationale": "Open questions are 'How should we describe this externally?' and 'What spend is justified to avoid a repeat?' — communications and budgeting questions, not incident open questions the facts cannot settle."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "no",
+            "rationale": "No action caps attempts, adds backoff/jitter, isolates retry capacity, or adds a dead-letter queue; the retry mechanism is never even identified."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "No action pages on delivery lag, retry share, slot saturation, or bounded queue depth; nothing in the actions addresses detection specifics."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "Actions are vague ('Brief the exec team on vendor concentration', 'Improve our customer-apology template', 'Revisit SLAs at the next QBR') with no owners, targets, or objectively checkable completion conditions."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "no",
+            "rationale": "The only substantive finding is a vague 'partner disruption interacted with our architecture'; the actions (exec briefings, apology templates, QBR SLA reviews) do not address any established cause or factor."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "The proposed work (vendor resilience funding, exec briefing) is premised on vendor concentration, which is broadly consistent with the supplied 503 gateway outage; no material work is premised on a contradicted or unsupported cause."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "The v2.8.1 deploy is never mentioned, so it is not treated as a cause."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "The later database CPU warning is never mentioned, so it is not treated as a cause."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "yes",
+            "rationale": "The stated causal mechanism — a partner disruption interacting with 'our architecture' to prevent self-recovery — is asserted with no mechanism grounded in or supported by the supplied facts; the actual cause (unbounded 1s retries filling 64 worker slots) is absent from the document."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "Timeline times (03:11, 07:01) match the reference facts; no supplied time, count, version, or config value is materially contradicted."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "No dashboards, tickets, logs, metrics, meetings, or observations are cited beyond timeline events consistent with the reference facts (03:11 trouble, 07:01 mitigation); no fabricated artifacts appear."
+          }
+        }
+      }
+    },
+    {
+      "document_id": "22-style-only-fluent-runbook",
+      "criteria": {
+        "causal_reasoning": {
+          "identifies_the_mechanism": {
+            "verdict": "no",
+            "rationale": "The mechanism of unlimited one-second retries sharing all 64 worker slots is never named; the root cause is just 'queue backup'."
+          },
+          "separates_trigger_from_cause": {
+            "verdict": "no",
+            "rationale": "The six-minute gateway 503 trigger is never mentioned, so it cannot be distinguished from the retry-policy cause."
+          },
+          "grounded_in_evidence": {
+            "verdict": "no",
+            "rationale": "The document offers only 'a backlog formed and did not drain on its own' with no times, counts, or config values from the facts."
+          },
+          "rules_out_the_decoys": {
+            "verdict": "no",
+            "rationale": "Neither the v2.8.1 log-format deploy nor the database CPU warning is mentioned at all, let alone rejected with timing or behavior."
+          },
+          "separates_contributing_factors": {
+            "verdict": "no",
+            "rationale": "The contributing factors list ('Runbook assumes a page', 'Drain step has no preventive twin', 'Template allows a one-sentence cause') is generic filler touching no incident-specific factors like email-only queue-depth alerting or missing retry isolation."
+          },
+          "uncertainty_is_genuine": {
+            "verdict": "no",
+            "rationale": "Open questions ('Should the template require a mechanism?', 'Who owns runbook edits?') are meta-navel-gazing about the template, not incident matters the facts leave unsettled."
+          }
+        },
+        "action_quality": {
+          "bounds_the_amplification": {
+            "verdict": "no",
+            "rationale": "No action caps attempts, adds backoff/jitter, isolates retry lanes, or adds a dead-letter queue; the retry checkbox explicitly says nothing about what to change."
+          },
+          "closes_the_detection_gap": {
+            "verdict": "no",
+            "rationale": "No action pages on delivery lag, retry share, slot saturation, or bounded queue depth; 'clarify the detection step' is generic."
+          },
+          "actions_are_actionable": {
+            "verdict": "no",
+            "rationale": "Actions like 'Clarify the runbook's detection step' and 'Add a checkbox for consider retries without saying what to change' have no owners, targets, or checkable completion conditions."
+          },
+          "actions_trace_to_findings": {
+            "verdict": "no",
+            "rationale": "The only findings are generic template fillers ('Runbook assumes a page', 'Template allows a one-sentence cause'); no action addresses the retry amplification mechanism."
+          },
+          "proposes_unsupported_work": {
+            "verdict": "no",
+            "rationale": "Actions are vague template work, not material work premised on an unsupported cause; nothing ties to vendor, log-format deploy, or DB CPU."
+          }
+        },
+        "evidence_fidelity": {
+          "blames_the_deploy": {
+            "verdict": "no",
+            "rationale": "The v2.8.1 deploy is never mentioned; the document does not treat it as a cause."
+          },
+          "treats_db_cpu_as_cause": {
+            "verdict": "no",
+            "rationale": "The database CPU warning is never mentioned, so it is not treated as a cause."
+          },
+          "asserts_unsupported_cause": {
+            "verdict": "no",
+            "rationale": "No causal mechanism is asserted beyond the vacuous 'queue backup', so nothing contradicts or exceeds the reference facts."
+          },
+          "misstates_a_fact": {
+            "verdict": "no",
+            "rationale": "The 07:01 drain matches the reference facts; no supplied time, count, version, or config value is contradicted, since most are simply not mentioned."
+          },
+          "invents_evidence": {
+            "verdict": "no",
+            "rationale": "No named dashboard, ticket, log file, meeting, or evidence artifact is cited; the 'metrics appendix' is referenced as absent, not fabricated with content."
+          }
+        }
+      }
+    }
+  ]
+}

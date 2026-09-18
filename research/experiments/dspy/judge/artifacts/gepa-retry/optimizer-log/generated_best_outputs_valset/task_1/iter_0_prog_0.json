@@ -1,0 +1,27 @@
+{
+    "reasoning": "The postmortem correctly identifies the unlimited fixed-interval retries sharing 64 slots as the amplification mechanism, cleanly separates the 03:11\u201303:17 gateway 503 trigger from the retry-policy cause, and rejects the v2.8.1 deploy (log-only, healthy 02:47\u201303:11) and the downstream DB CPU warning as causes. Actions are concrete and trace back to established findings; bounding (max_attempts=6, backoff/jitter, DLQ, separate concurrency budget) and detection (lag paging, pager-routed queue-depth alert) gaps are both closed. Contributing factors (email-only alert, no DLQ, shared slots) are distinguished from the primary mechanism, and open questions are limited to genuinely unsettleable matters. One fidelity concern: the document cites artifacts and metrics not present in the supplied reference facts (worker-config.yaml, retry_share_pct 3\u219295, the attempt=351 log line, the 12,904 retry-state count, support escalation timing), so the negated invents_evidence criterion answers yes (flaw present). No material misstatement of supplied facts was found (drain at 07:01 with 806,114 messages matches).",
+    "judgments": {
+        "action_quality": {
+            "actions_are_actionable": "JudgeCriterionVerdict(verdict='yes', rationale='Actions name concrete changes (max_attempts=6, jitter, DLQ, concurrency budget, lag paging >300s, pager routing with lowered threshold) with objectively checkable parameters.')",
+            "actions_trace_to_findings": "JudgeCriterionVerdict(verdict='yes', rationale='Each action addresses an established cause or contributing factor: retry policy, missing DLQ, shared slots, missing alerting, and the gateway 503 trigger.')",
+            "bounds_the_amplification": "JudgeCriterionVerdict(verdict='yes', rationale='Actions cap attempts (max_attempts=6), add exponential backoff with full jitter, add a DLQ, and isolate retry capacity with its own concurrency budget.')",
+            "closes_the_detection_gap": "JudgeCriterionVerdict(verdict='yes', rationale='Actions add paging on delivery lag >300s and route queue-depth to the pager with a lower threshold, addressing the email-only, too-high alert.')",
+            "proposes_unsupported_work": "JudgeCriterionVerdict(verdict='no', rationale='All proposed work, including the gateway circuit breaker, is grounded in established facts (the 503 trigger and retry amplification).')"
+        },
+        "causal_reasoning": {
+            "grounded_in_evidence": "JudgeCriterionVerdict(verdict='yes', rationale='The mechanism is grounded in multiple specific facts: unlimited fixed-second retries, shared 64 slots, backlog sustained after 03:17 recovery, and drain with capped attempts at 07:01.')",
+            "identifies_the_mechanism": "JudgeCriterionVerdict(verdict='yes', rationale='Root Cause explicitly names unbounded, non-backoff, non-isolated retries sharing all 64 slots as the self-sustaining amplification (~38x longer than the trigger).')",
+            "rules_out_the_decoys": "JudgeCriterionVerdict(verdict='yes', rationale='Rejects v2.8.1 via its log-only change and healthy 02:47-03:11 interval, and treats DB CPU 86% as downstream of retry volume.')",
+            "separates_contributing_factors": "JudgeCriterionVerdict(verdict='yes', rationale='Contributing Factors section isolates email-only alerting, no DLQ, shared slot pool, and the deploy-hypothesis detour from the primary amplification mechanism.')",
+            "separates_trigger_from_cause": "JudgeCriterionVerdict(verdict='yes', rationale='Explicitly states the gateway 503 is the trigger while the retry policy is the cause of the multi-hour outage.')",
+            "uncertainty_is_genuine": "JudgeCriterionVerdict(verdict='yes', rationale='Open questions (idempotency behavior, drained-message disposition, gateway RCA, customer count) are all matters not settled by the supplied facts.')"
+        },
+        "evidence_fidelity": {
+            "asserts_unsupported_cause": "JudgeCriterionVerdict(verdict='no', rationale='No causal claim contradicts the reference facts; the retry-policy mechanism and downstream DB CPU framing match the facts.')",
+            "blames_the_deploy": "JudgeCriterionVerdict(verdict='no', rationale='v2.8.1 is explicitly diffed out and noted as log-only with a healthy service interval after deployment.')",
+            "invents_evidence": "JudgeCriterionVerdict(verdict='yes', rationale='The document cites artifacts not present in the reference facts: worker-config.yaml, retry_share_pct 3->95, the attempt=351 log line, a 12,904 retry-state count, and the 06:04 support escalation.')",
+            "misstates_a_fact": "JudgeCriterionVerdict(verdict='no', rationale='Supplied facts (503 window 03:11-03:17, 64 slots, 07:01 drain of 806,114 messages, email-only queue alert) are consistently reproduced.')",
+            "treats_db_cpu_as_cause": "JudgeCriterionVerdict(verdict='no', rationale='The database CPU warning is explicitly labeled a downstream symptom of retry volume.')"
+        }
+    }
+}

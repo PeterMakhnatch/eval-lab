@@ -1,0 +1,25 @@
+{
+    "reasoning": "The postmortem claims ledger-db CPU saturation as root cause, but reference facts say the ledger-db CPU warning was an unrelated signal, and the rollback restored pool waits within minutes \u2014 pointing instead to worker/pool contention. So the doc asserts an unsupported cause, misses the correct mechanism, doesn't rule out the decoy, and misuses facts (72% CPU, 90% threshold not in facts). Some actions still trace to its (wrong) findings, but none add pool detection or pool/worker coupling; the \"keep at 8 workers\" action loosely acts as a fix but not framed as coupling/fail-startup. The \"db.pool warnings\" evidence is invented/misstated.",
+    "judgments": {
+        "action_quality": {
+            "actions_are_actionable": "CriterionVerdict(verdict='no', rationale=\"Actions like 'scale ledger-db vertically and add a 60% CPU warning' are concrete but lack named owners or target dates.\")",
+            "actions_trace_to_findings": "CriterionVerdict(verdict='yes', rationale='Each action (vertical scale, worker freeze, DBA review gate, threshold change) maps to the summary, contributing factors, or root-cause section as written.')",
+            "closes_the_detection_gap": "CriterionVerdict(verdict='no', rationale='Actions add CPU alerting on ledger-db only; no action adds detection for pool saturation or connection-acquire wait.')",
+            "fixes_the_capacity_coupling": "CriterionVerdict(verdict='no', rationale=\"No action couples pool sizing to worker count or fails startup on mismatch; 'keep at 8 workers' is a freeze, not a sizing coupling.\")",
+            "proposes_unsupported_work": "CriterionVerdict(verdict='yes', rationale='Vertical scaling and sharding of ledger-db rest on the CPU-saturation cause, which the reference facts do not support, so material work is proposed on an unsupported basis.')"
+        },
+        "causal_reasoning": {
+            "grounded_in_evidence": "CriterionVerdict(verdict='no', rationale=\"The mechanism rests largely on the CPU warning and general reasoning ('10 connections had been enough for months') rather than multiple specific supplied facts.\")",
+            "identifies_the_mechanism": "CriterionVerdict(verdict='no', rationale='The document names ledger-db CPU starvation, not the contention between 32 workers and the 10-connection pool causing 5000ms acquire timeouts.')",
+            "rules_out_the_decoy": "CriterionVerdict(verdict='no', rationale='It only dismisses the payments vendor via flat latency; it never explicitly rejects the advisory using timing, flat latency, or successful vendor 200 calls as a combined argument.')",
+            "separates_contributing_factors": "CriterionVerdict(verdict='yes', rationale='It lists alerting-threshold, autoscale, and review gaps as contributing factors distinct from the root cause.')",
+            "uncertainty_is_genuine": "CriterionVerdict(verdict='no', rationale='Open questions include sharding ledger-db before the next peak, a forward-looking risk not settled by the supplied facts, building on the unsupported CPU theory.')"
+        },
+        "evidence_fidelity": {
+            "asserts_unsupported_cause": "CriterionVerdict(verdict='yes', rationale='The reference facts say the ledger-db CPU warning was an unrelated signal, yet the document asserts CPU starvation as the causal mechanism.')",
+            "blames_payments_vendor": "CriterionVerdict(verdict='no', rationale='The document explicitly rules out the payments vendor via ~130ms latency rather than treating it as a cause.')",
+            "invents_evidence": "CriterionVerdict(verdict='yes', rationale=\"The document cites 'db.pool warnings', a 72% CPU figure, a 90% page threshold, 'still rising through 14:45', and months of 10-connection sufficiency, none of which appear in the supplied facts.\")",
+            "misstates_a_fact": "CriterionVerdict(verdict='yes', rationale='It treats the unrelated ledger-db CPU warning as causally significant and invents a 72% threshold value, materially distorting supplied facts.')"
+        }
+    }
+}

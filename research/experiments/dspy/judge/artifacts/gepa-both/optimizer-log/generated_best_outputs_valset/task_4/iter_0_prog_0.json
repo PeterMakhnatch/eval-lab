@@ -1,0 +1,27 @@
+{
+    "reasoning": "The postmortem is entirely generic: its timeline (14:09\u201315:38), causes, and actions bear no relation to the supplied reference facts (03:11 503s, retry storm, 07:01 drain, v2.8.1, database CPU warning). It never identifies the retry amplification mechanism, never bounds retries, and offers only vague, unowned actions. Negated flaw criteria: it does not name v2.8.1 or a database CPU warning, and its stated facts are too vague to misstate; however, its root-cause claim (a change, reverted, caused the incident) is a causal mechanism absent from the reference facts, so that flaw is present. Evidence criteria against reference facts: none are satisfied since nothing matches.",
+    "judgments": {
+        "action_quality": {
+            "actions_are_actionable": "JudgeCriterionVerdict(verdict='no', rationale=\"Actions like 'improve monitoring' and 'review the deployment process' name no owners, targets, or checkable completion conditions.\")",
+            "actions_trace_to_findings": "JudgeCriterionVerdict(verdict='no', rationale='The generic actions do not trace to any specific, established cause; the root cause itself is vague.')",
+            "bounds_the_amplification": "JudgeCriterionVerdict(verdict='no', rationale='No action caps attempts, adds backoff/jitter, isolates retry capacity, or adds a dead-letter queue.')",
+            "closes_the_detection_gap": "JudgeCriterionVerdict(verdict='no', rationale=\"The generic 'improve monitoring and alerting' action does not page on delivery lag, retry share, slot saturation, or bounded queue depth.\")",
+            "proposes_unsupported_work": "JudgeCriterionVerdict(verdict='no', rationale='The proposed work is generic and not grounded in any specific unsupported cause or risk claim.')"
+        },
+        "causal_reasoning": {
+            "grounded_in_evidence": "JudgeCriterionVerdict(verdict='no', rationale=\"The mechanism is asserted generically ('a change interacted badly with a constraint') with no specific supplied facts.\")",
+            "identifies_the_mechanism": "JudgeCriterionVerdict(verdict='no', rationale='The document never mentions unbounded one-second retries sharing worker slots as the amplification mechanism.')",
+            "rules_out_the_decoys": "JudgeCriterionVerdict(verdict='no', rationale='The document neither mentions nor rejects the log-format deploy or database CPU warning.')",
+            "separates_contributing_factors": "JudgeCriterionVerdict(verdict='no', rationale='Contributing factors are generic (monitoring, testing, rollout) and do not distinguish alert routing, thresholds, or retry isolation from an amplification mechanism.')",
+            "separates_trigger_from_cause": "JudgeCriterionVerdict(verdict='no', rationale='There is no distinction between a gateway 503 trigger and a retry-policy cause; no such elements appear.')",
+            "uncertainty_is_genuine": "JudgeCriterionVerdict(verdict='no', rationale='Open questions do not track unsettled matters relative to the supplied facts; the document ignores the actual incident.')"
+        },
+        "evidence_fidelity": {
+            "asserts_unsupported_cause": "JudgeCriterionVerdict(verdict='yes', rationale='It asserts that a reverted change caused the incident \u2014 a causal mechanism absent from and contradicted by the supplied reference facts.')",
+            "blames_the_deploy": "JudgeCriterionVerdict(verdict='no', rationale='The document never references v2.8.1 or the deploy by name, so it does not specifically treat the deploy as a cause.')",
+            "invents_evidence": "JudgeCriterionVerdict(verdict='no', rationale='It cites no dashboard, ticket, log, metric, meeting, or observation at all \u2014 invented or otherwise.')",
+            "misstates_a_fact": "JudgeCriterionVerdict(verdict='no', rationale='The document states no specific times, counts, versions, or configuration values, so no supplied fact is misstated.')",
+            "treats_db_cpu_as_cause": "JudgeCriterionVerdict(verdict='no', rationale='The database CPU warning is never mentioned.')"
+        }
+    }
+}

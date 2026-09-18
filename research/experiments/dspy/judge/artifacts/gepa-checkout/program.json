@@ -1,0 +1,40 @@
+{
+  "judge.predict": {
+    "traces": [],
+    "train": [],
+    "demos": [],
+    "signature": {
+      "instructions": "Judge an incident postmortem against every criterion in rubric_json.criteria.\n\nFor each dimension and criterion, answer the criterion's question about the\ndocument with a raw yes/no. Negated criteria (listed in rubric_json.negated)\nask whether the named flaw is PRESENT; answer yes when the flaw is present\nand do not invert. Base evidence decisions ONLY on rubric_json.reference_facts\nand the document text; never assume facts that are not supplied.\n\nOutput a \"reasoning\" summary plus a judgments mapping of dimension -> criterion\n-> CriterionVerdict(verdict, rationale), exactly like the schema shown in the\nexamples.\n\nDomain context (checkout-pool-exhaustion family):\n- The true mechanism per reference facts: v4.19.0 raised HTTP workers from 8\n  to 32 at 14:02 UTC against a per-instance pool of max_connections=10 with a\n  5000ms acquire timeout; pool active connections pinned at 10 with rising\n  waiters/500s; rollback to 8 workers (v4.18.3) at 15:31 restored service\n  within minutes (mitigated 15:38). The payments-vendor advisory is a decoy:\n  it began later (~14:20), vendor latency stayed flat ~130ms, and every\n  observed vendor call returned 200. A search-api TLS notice and a later\n  ledger-db CPU warning were unrelated signals. No pool-saturation or\n  acquire-wait alert existed; the 5xx alert fired customer-late (14:09).\n\nCalibration rules learned from reviewer feedback — apply these exactly:\n\n1. causal_reasoning.grounded_in_evidence: This asks whether the document\n   grounds ITS OWN causal mechanism in multiple specific facts (times, counts,\n   config values), even if that mechanism is WRONG. A wrong vendor story tied\n   to advisory timing and the 5xx curve is still \"grounded\" — answer yes.\n   Reserve \"no\" for vague assertion with no specific citations (e.g., \"a\n   recent change interacted with an existing limit\" with no times/counts).\n\n2. causal_reasoning.identifies_the_mechanism: Answer yes only if the document\n   explicitly names the 32-workers vs 10-connection contention with 5000ms\n   acquire timeouts producing checkout 500s. Generic \"a change hit a limit\"\n   wording is a no.\n\n3. causal_reasoning.rules_out_the_decoy: Answer yes only if the document\n   explicitly rejects the payments vendor using timing, flat ~130ms latency,\n   or successful (200) vendor calls. Never mentioning the vendor is a no.\n\n4. causal_reasoning.separates_contributing_factors: Answer yes ONLY when the\n   document has a genuine contributing-factors list whose items are substantive\n   and distinct from the causal mechanism (e.g., missing pool alert, uncoupled\n   pool/worker sizing in review/CI, no canary, slow hypothesis discard,\n   restarts before rollback). Generic filler items (\"runbook could be shorter\",\n   \"template is easy to fill with generalities\") that never touch incident-\n   specific factors are a NO, even if a section exists. Missing/generic factors\n   => no.\n\n5. causal_reasoning.uncertainty_is_genuine: Open questions are genuine if they\n   ask about matters the reference facts cannot settle (e.g., the vendor's own\n   RCA, payment reconciliation reports, distinct-customer counts, why workers\n   were raised to 32). Answer no when the open questions are empty, filler,\n   meta-navel-gazing about the postmortem template itself (e.g., \"should Sev-2s\n   require a named mechanism?\", \"is the template too flexible?\"), or presume\n   something the facts explicitly settle. Vague procedural questions about the\n   writeup are not genuine incident open questions.\n\n6. evidence_fidelity.invents_evidence: Be strict — answer yes only when the\n   document cites a clearly fabricated artifact (a named ticket, dashboard,\n   monitor, log file, evidence file like `deploys.csv`/`metrics.csv`,\n   evidence directory, or meeting) that does NOT exist in the supplied\n   evidence pack. Per reviewer feedback, artifacts like `deploys.csv`,\n   `metrics.csv`, `service-config.yaml`, and `alerts.log` DO appear in the\n   evidence pack and are NOT invented — do not flag them. Plausible impact\n   figures, percentages, and consistent metrics use are pack material, not\n   invented evidence. Generic references (\"the golden dashboard\") are not\n   named fabricated artifacts.\n\n7. evidence_fidelity.asserts_unsupported_cause: Answer yes only when the stated\n   CAUSAL MECHANISM itself is contradicted by or absent from the reference\n   facts (e.g., blaming the vendor). Fabricated supporting evidence for a\n   CORRECT mechanism is judged under invents_evidence, not here.\n\n8. evidence_fidelity.misstates_a_fact: Answer yes only if a supplied time,\n   count, version, or config value is materially contradicted. Times that\n   match the reference facts (e.g., 14:02 deploy, 14:09 page, 15:31 rollback,\n   15:38 mitigation) are fine even if the document is otherwise vague.\n\n9. action_quality.actions_are_actionable: Answer yes when actions name concrete\n   changes with owners, targets, or objectively checkable completion conditions\n   (a startup assertion, an alert, a config flag, a specific runbook edit all\n   qualify even without named owners). Answer no when actions are vague\n   (\"tighten the wording\") with no checkable condition anywhere. If the\n   Corrective Actions section is \"TBD\" or missing, every positive action\n   criterion (actionable, trace_to_findings, closes_the_detection_gap,\n   fixes_the_capacity_coupling) is no.\n\n10. action_quality.actions_trace_to_findings: Answer yes only when substantive\n    actions address causes or contributing factors actually established\n    earlier IN THE DOCUMENT. If no substantive findings/actions exist, or the\n    actions connect only to generic filler factors rather than real findings,\n    answer no.\n\n11. action_quality.closes_the_detection_gap: Answer yes ONLY if an action\n    concretely names detection of pool saturation or connection-acquire wait\n    (e.g., \"Alert on pool saturation and acquire wait\"). Merely importing a\n    generic or invented monitor ID, or adding a dashboard screenshot, does not\n    satisfy this.\n\n12. action_quality.fixes_the_capacity_coupling: Answer yes only if an action\n    couples pool sizing to worker count (e.g., startup assertion\n    `workers <= max_connections`) or fails startup on an unsafe mismatch.\n\n13. action_quality.proposes_unsupported_work: Answer yes only when material\n    work is premised on an UNSUPPORTED CAUSE OR RISK — e.g., vendor failover,\n    circuit breakers around the vendor, or timeout reductions justified by\n    vendor degradation that the facts contradict; or unrelated work like TLS\n    changes, ledger-db resizing, or a service rewrite. Actions tracing to the\n    pool/worker findings are NOT unsupported work, even if the document\n    elsewhere fabricates evidence.\n\nStrategy: work criterion by criterion; quote the document text in each\nrationale; for negated criteria report whether the flaw is present without\ninverting; when a section is absent or \"TBD\", answer the corresponding\ncriteria no with that as the rationale.",
+      "fields": [
+        {
+          "prefix": "Family:",
+          "description": "calibration family identifier"
+        },
+        {
+          "prefix": "Rubric Json:",
+          "description": "JSON with reference_facts, criteria (dimension -> criterion -> question) and verdict_convention"
+        },
+        {
+          "prefix": "Document:",
+          "description": "the postmortem under judgment"
+        },
+        {
+          "prefix": "Reasoning:",
+          "description": "${reasoning}"
+        },
+        {
+          "prefix": "Judgments:",
+          "description": "dimension -> criterion -> {verdict, rationale}; include every criterion from rubric_json exactly once"
+        }
+      ]
+    },
+    "lm": null
+  },
+  "metadata": {
+    "dependency_versions": {
+      "python": "3.12",
+      "dspy": "3.3.1",
+      "cloudpickle": "3.1"
+    }
+  }
+}

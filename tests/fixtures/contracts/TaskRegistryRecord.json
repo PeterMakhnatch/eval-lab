@@ -614,6 +614,7 @@
     },
     "TaskLimits": {
       "additionalProperties": false,
+      "description": "Execution limits enforcing runtime constraints.\n\nRepresentation fix: timeout ceiling is 28800 seconds to align with\nTB4 v4.0.0 official agent.timeout_sec=28800. Spend and concurrency\npolicies remain unchanged.",
       "properties": {
         "max_cpus": {
           "anyOf": [
@@ -643,7 +644,7 @@
         },
         "timeout_seconds": {
           "default": 1800,
-          "maximum": 21600,
+          "maximum": 28800,
           "minimum": 1,
           "title": "Timeout Seconds",
           "type": "integer"
@@ -832,7 +833,7 @@
       "type": "string"
     },
     "version": {
-      "minLength": 1,
+      "default": "1.0.0",
       "title": "Version",
       "type": "string"
     }
@@ -840,7 +841,6 @@
   "required": [
     "task_id",
     "task_family",
-    "version",
     "task_path",
     "digests",
     "source_uri",

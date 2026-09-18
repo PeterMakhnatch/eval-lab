@@ -1,0 +1,19 @@
+{
+    "job_name": "gepa-oracle-har54-toolbox-protoc-d9da1b5d31841c173c970c42",
+    "jobs_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har59-opencode-proposer-20260916/runs",
+    "agent_timeout_multiplier": 2.0,
+    "n_concurrent_trials": 1,
+    "agents": [
+        {
+            "name": "oracle",
+            "skills": [
+                "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har59-opencode-proposer-20260916/runs/.toolbox-staging/gepa-oracle-har54-toolbox-protoc-d9da1b5d31841c173c970c42/51501ba11255ddda2a9b4e11bc5a9fe4665d980ba0898bf549e227320db6fa9d/repl-tools"
+            ]
+        }
+    ],
+    "tasks": [
+        {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har59-opencode-proposer-20260916/runs/.exec-stage/gepa-oracle-har54-toolbox-protoc-d9da1b5d31841c173c970c42"
+        }
+    ]
+}

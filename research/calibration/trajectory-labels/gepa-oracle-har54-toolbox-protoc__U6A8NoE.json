@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "trial_name": "gepa-oracle-har54-toolbox-protoc__U6A8NoE",
+  "source": "research/evidence/runs/gepa-oracle-har54-toolbox-protoc-4d85283d6869379a853979ad/gepa-oracle-har54-toolbox-protoc__U6A8NoE",
+  "primary_category": "unknown",
+  "summary": "Successful no-model Oracle helper-interface control in a real OpenCode protocol chain with a declared loopback proposal fixture. Not learned improvement.",
+  "evidence": [
+    {
+      "path": "result.json",
+      "step": null,
+      "supports": "Original native grade, control identity and exception state without regrading."
+    }
+  ],
+  "agent": "oracle",
+  "reward": 1.0,
+  "review_status": "draft_pending_research_review",
+  "review_note": "Operator triage; not human gold, task certification or a model-performance claim.",
+  "labelled_by": "GEPA HAR-59, 2026-09-16",
+  "parent_trajectory_sha256": null,
+  "parent_result_sha256": "sha256:de6e243af651673c41bfaa492088cc8efe5e82472c2d89613c25261894a9c981"
+}

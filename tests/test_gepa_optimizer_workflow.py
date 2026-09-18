@@ -68,6 +68,8 @@ def test_ambiguous_model_failure_is_not_automatically_retried(tmp_path, monkeypa
     resumed = JournaledReflectionLM(model="test/model", directory=tmp_path, max_requests=2)
     with pytest.raises(ProposalUnavailable):
         resumed("development feedback")
+    with pytest.raises(ProposalUnavailable):
+        resumed("new feedback must not bypass the unresolved request")
     assert len(calls) == 1
 
 
@@ -613,12 +615,25 @@ def test_unqualified_coding_plan_proposer_never_issues_or_reserves_request(tmp_p
     assert budget.summary()["proposer"]["reserved"] == 0
 
 
-def test_unqualified_proposer_stops_campaign_before_baseline(tmp_path, monkeypatch):
+@pytest.mark.parametrize("gate", ["unsupported_provider", "unresolved_budget"])
+def test_unqualified_proposer_stops_campaign_before_baseline(tmp_path, monkeypatch, gate):
     task = _write_task(tmp_path)
     (tmp_path / "seed.txt").write_text("Competent seed.")
     config_path = _write_campaign(tmp_path, task, agent="oracle", model=None, ceilings="omit")
     config = json.loads(config_path.read_text())
-    config["proposer_model"] = "zai/glm-5.3-flash"
+    if gate == "unsupported_provider":
+        config["proposer_model"] = "zai/glm-5.3-flash"
+    else:
+        from evallab.gepa_optimizer.budget import AggregateBudget
+
+        config.update(max_target_attempts=1, max_proposer_requests=2)
+        budget = AggregateBudget(
+            tmp_path / config["output_dir"] / "budget",
+            max_target_attempts=1,
+            max_proposer_requests=2,
+            max_proposer_cost_usd=config["max_proposer_cost_usd"],
+        )
+        budget.reserve("proposer", "historical-unresolved-call")
     config_path.write_text(json.dumps(config))
     pin = {"commit": "test-pin"}
     monkeypatch.setattr(workflow, "verify_release", lambda: pin)
@@ -652,7 +667,11 @@ def test_unqualified_proposer_stops_campaign_before_baseline(tmp_path, monkeypat
         )
     )
     report = workflow.run_campaign(config_path, repo_root=tmp_path, proposer_approval_ref=approval)
-    assert report["status"] == "proposer_unavailable"
-    assert report["evidence_level"] == "proposer_preflight_only"
+    assert report["status"] == (
+        "proposer_unavailable" if gate == "unsupported_provider" else "budget_exhausted"
+    )
+    assert report["evidence_level"] == (
+        "proposer_preflight_only" if gate == "unsupported_provider" else "budget_preflight_only"
+    )
     assert report["target_evaluations"] == []
     assert report["proposer"]["calls"] == 0

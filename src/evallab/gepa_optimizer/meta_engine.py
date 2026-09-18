@@ -46,6 +46,25 @@ def check_prerequisite_facts(*, sandbox: bool = True) -> dict[str, Any]:
     """Inspect environment prerequisite facts without asserting runtime isolation as proven."""
     claude_path = shutil.which("claude")
     bwrap_path = shutil.which("bwrap")
+    fail_closed_supported = bool(not _IS_MACOS and bwrap_path is not None and sandbox)
+    if not sandbox:
+        live_blocker = (
+            "SafeMetaHarnessEngine requires sandbox=True; unsandboxed execution is prohibited"
+        )
+    elif _IS_MACOS:
+        live_blocker = (
+            "Pinned GEPA macOS settings set sandbox.failIfUnavailable=False; "
+            "live launch is refused until a fail-closed OS route is qualified"
+        )
+    elif bwrap_path is None:
+        live_blocker = (
+            "Live MetaHarnessEngine requires a working bwrap route (bwrap not found on PATH)"
+        )
+    elif claude_path is None:
+        live_blocker = "Live MetaHarnessEngine requires Claude Code CLI (claude not found on PATH)"
+    else:
+        live_blocker = None
+
     return {
         "platform": sys.platform,
         "is_macos": _IS_MACOS,
@@ -57,18 +76,13 @@ def check_prerequisite_facts(*, sandbox: bool = True) -> dict[str, Any]:
         "bwrap_path": bwrap_path,
         "runtime_isolation_tested": False,
         "isolation_status": "untested",
-        "fail_closed_os_launch_supported": not _IS_MACOS,
-        "live_launch_blocker": (
-            "Pinned GEPA macOS settings set sandbox.failIfUnavailable=False; "
-            "live launch is refused until a fail-closed OS route is qualified"
-            if _IS_MACOS
-            else None
-        ),
+        "fail_closed_os_launch_supported": fail_closed_supported,
+        "live_launch_blocker": live_blocker,
         "deny_web_tools": DENY_WEB_TOOLS,
         "file_tools_whitelisted": list(_FILE_TOOLS),
-        "permission_mode": "default (seatbelt whitelist)"
-        if _IS_MACOS
-        else "bypassPermissions (inside bwrap)",
+        "permission_mode": (
+            "default (seatbelt whitelist)" if _IS_MACOS else "bypassPermissions (inside bwrap)"
+        ),
     }
 
 
@@ -153,6 +167,11 @@ class SafeMetaHarnessEngine(MetaHarnessEngine):
     """
 
     def run(self, task: Task, server: EvalServer):
+        # Unsandboxed execution is strictly prohibited.
+        if not self.sandbox:
+            raise RuntimeError(
+                "SafeMetaHarnessEngine requires sandbox=True; unsandboxed execution is prohibited"
+            )
         # The pinned macOS route may continue without its OS sandbox. Tool
         # allowlists are not a substitute for the required OS confinement.
         if _IS_MACOS:

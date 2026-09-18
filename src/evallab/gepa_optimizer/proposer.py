@@ -10,9 +10,12 @@ import hashlib
 import json
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .budget import AggregateBudget
+
+if TYPE_CHECKING:
+    from .opencode_transport import OpenCodeTransport
 
 
 class ProposalUnavailable(BaseException):
@@ -81,12 +84,14 @@ class JournaledReflectionLM:
         max_requests: int,
         before_request: Callable[[], None] | None = None,
         budgets: tuple[AggregateBudget, ...] = (),
+        transport: OpenCodeTransport | None = None,
     ) -> None:
         self.model = model
         self.directory = directory
         self.max_requests = max_requests
         self.before_request = before_request
         self.budgets = budgets
+        self.transport = transport
         directory.mkdir(parents=True, exist_ok=True)
         self.replayed = 0
         self.new_requests = 0
@@ -109,7 +114,12 @@ class JournaledReflectionLM:
     def __call__(self, prompt: str | list[dict[str, Any]]) -> str:
         if self.before_request is not None:
             self.before_request()
-        identity = {"model": self.model, "prompt": prompt}
+        identity: dict[str, Any] = {"model": self.model, "prompt": prompt}
+        if self.transport is not None:
+            facts = self.transport.preflight()
+            if facts["model"] != self.model:
+                raise ProposalUnavailable("OpenCode transport model differs from campaign")
+            identity["transport"] = facts
         key = hashlib.sha256(
             json.dumps(identity, sort_keys=True, ensure_ascii=False).encode()
         ).hexdigest()
@@ -127,36 +137,63 @@ class JournaledReflectionLM:
             self._settle_budget(path, receipt)
             self.replayed += 1
             return receipt["response"]
-        if len(self._receipts()) >= self.max_requests:
+        receipts = self._receipts()
+        if any(row.get("status") != "completed" for row in receipts):
+            raise ProposalUnavailable("Previous proposer outcome is unknown; no new request")
+        if len(receipts) >= self.max_requests:
             raise ProposalUnavailable("Campaign proposer request ceiling reached")
-        blocker = direct_proposer_blocker(self.model)
-        if blocker:
-            raise ProposalUnavailable(blocker)
-        from gepa.lm import LM  # ty: ignore[unresolved-import]
+        if self.transport is None:
+            blocker = direct_proposer_blocker(self.model)
+            if blocker:
+                raise ProposalUnavailable(blocker)
+            from gepa.lm import LM  # ty: ignore[unresolved-import]
 
-        if self._lm is None:
-            self._lm = LM(self.model, max_tokens=4096, num_retries=0, timeout=60)
+            if self._lm is None:
+                self._lm = LM(self.model, max_tokens=4096, num_retries=0, timeout=60)
         receipt = {
             "identity": identity,
             "status": "sent_remote_outcome_unknown",
             "actual_cost_usd": None,
             "actual_usage": None,
-            "accounting_limit": "upstream LM converts missing cost/usage to zero; these are not authoritative billing receipts",
+            "accounting_limit": (
+                "Broker physical usage and API-price estimate; actual subscription billing unknown"
+                if self.transport is not None
+                else "upstream LM converts missing cost/usage to zero; these are not authoritative billing receipts"
+            ),
         }
         for budget in self.budgets:
             budget.reserve("proposer", str(path), metadata={"model": self.model})
         with path.open("x") as stream:
             json.dump(receipt, stream, indent=2)
         self.new_requests += 1
-        before = self._lm.total_cost
-        response = self._lm(prompt)
-        if not isinstance(response, str):
-            raise ProposalUnavailable("Proposer returned no text; remote outcome remains retained")
-        receipt.update(
-            status="completed",
-            response=response,
-            upstream_estimated_cost_usd=self._lm.total_cost - before,
-        )
+        if self.transport is not None:
+            try:
+                result = self.transport.request(prompt, directory=self.directory / key)
+            except Exception as exc:
+                raise ProposalUnavailable(
+                    "OpenCode proposal failed; retained outcome must be inspected before continuing"
+                ) from exc
+            response = result["response"]
+            receipt.update(
+                status="completed",
+                response=response,
+                upstream_estimated_cost_usd=result["upstream_estimated_cost_usd"],
+                actual_usage=result["usage"],
+                transport=result["transport"],
+            )
+        else:
+            assert self._lm is not None
+            before = self._lm.total_cost
+            response = self._lm(prompt)
+            if not isinstance(response, str):
+                raise ProposalUnavailable(
+                    "Proposer returned no text; remote outcome remains retained"
+                )
+            receipt.update(
+                status="completed",
+                response=response,
+                upstream_estimated_cost_usd=self._lm.total_cost - before,
+            )
         path.write_text(json.dumps(receipt, indent=2) + "\n")
         self._settle_budget(path, receipt)
         return response

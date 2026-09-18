@@ -1469,3 +1469,114 @@ def test_proxy_sse_reflected_credentials_stay_redacted(
     finally:
         proxy.shutdown()
         upstream.shutdown()
+
+
+@pytest.mark.parametrize(
+    ("headers", "status", "reason", "fact", "category"),
+    [
+        (
+            {"Content-Encoding": "gzip"},
+            200,
+            "unsupported_content_encoding",
+            "content_encoding",
+            "gzip",
+        ),
+        (
+            {"Transfer-Encoding": "compress"},
+            200,
+            "unsupported_transfer_encoding",
+            "transfer_encoding",
+            "other",
+        ),
+        (
+            {"Content-Type": "application/json; charset=iso-8859-1"},
+            200,
+            "unsupported_charset",
+            "charset",
+            "iso-8859-1",
+        ),
+        (
+            {"Content-Type": f"text/html; charset={SECRET_SENTINEL}"},
+            503,
+            "unsupported_content_type",
+            "media_type",
+            "text/html",
+        ),
+    ],
+)
+def test_rejected_response_retains_safe_diagnosis_without_refunding(
+    tmp_path, monkeypatch, headers, status, reason, fact, category
+):
+    requests = []
+
+    class DiagnosticUpstream(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_POST(self):  # noqa: N802
+            requests.append(self.rfile.read(int(self.headers["Content-Length"])))
+            body = SECRET_SENTINEL.encode()
+            self.send_response(status)
+            for name, value in {"Content-Type": "application/json", **headers}.items():
+                self.send_header(name, value)
+            self.send_header("X-Private", SECRET_SENTINEL)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    usage_file = tmp_path / "usage.json"
+    proxy, upstream, base = _setup_proxy(
+        tmp_path / "proxy",
+        monkeypatch,
+        upstream_handler=DiagnosticUpstream,
+        capability="valid-cap",
+        usage_file=usage_file,
+        max_requests=1,
+        max_output_tokens=1000,
+    )
+    try:
+        request = urllib.request.Request(
+            f"{base}/api/paas/v4/chat/completions",
+            data=b'{"model":"glm-5.3-flash","messages":[]}',
+            headers={"Authorization": "Bearer valid-cap", "Content-Type": "application/json"},
+        )
+        with pytest.raises(urllib.error.HTTPError) as failure:
+            urllib.request.urlopen(request, timeout=5)
+        assert failure.value.code == 502
+        assert SECRET_SENTINEL.encode() not in failure.value.read()
+        retained = usage_file.read_text()
+        assert SECRET_SENTINEL not in retained
+        usage = json.loads(retained)
+        call = usage["calls"][0]
+        assert call["state"] == "unresolved"
+        assert call["reason"] == reason
+        assert call["status"] == status
+        assert call["response_facts"][fact] == category
+        assert usage["totals"]["output_tokens"] == 1000
+        assert usage["unresolved_requests"] == 1
+        with pytest.raises(urllib.error.HTTPError) as retry:
+            urllib.request.urlopen(request, timeout=5)
+        assert retry.value.code == 429
+        assert len(requests) == 1
+        assert usage_file.read_text() == retained
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+
+def test_proxy_can_bind_only_loopback_from_environment(tmp_path, monkeypatch):
+    monkeypatch.setenv("EVALLAB_ZAI_PROXY_BIND_HOST", "127.0.0.1")
+    proxy, upstream, _ = _setup_proxy(tmp_path, monkeypatch)
+    try:
+        module = _load_proxy_module()
+        isolated = module.serve(port=0)
+        try:
+            assert isolated.server_address[0] == "127.0.0.1"
+        finally:
+            isolated.server_close()
+        monkeypatch.setenv("EVALLAB_ZAI_PROXY_BIND_HOST", "192.0.2.1")
+        with pytest.raises(ValueError):
+            module.serve(port=0)
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()

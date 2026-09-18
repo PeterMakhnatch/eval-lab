@@ -1,0 +1,42 @@
+{
+  "request_id": "llm-r9f8e7d6-c5b4-a3d2-e1f0-9a8b7c6d5e4f",
+  "captured_at": "2025-09-15T14:23:05Z",
+  "source": "smart-routing-llm-proxy",
+  "api_version": "3.1.0",
+  "status_code": 200,
+  "request_params": {
+    "model": "router-v2",
+    "temperature": 0.1,
+    "max_tokens": 2048,
+    "prompt": "Determine the optimal API route for a cross-chain swap between Ethereum and Solana for USDC with 1000 USD value. Consider gas costs, bridge latency, and slippage."
+  },
+  "response_metadata": {
+    "model": "router-v2",
+    "latency_ms": 1234,
+    "tokens_used": {
+      "prompt": 145,
+      "completion": 512,
+      "total": 657
+    },
+    "finish_reason": "stop"
+  },
+  "warnings": [
+    "Gas estimates are based on current network conditions and may vary.",
+    "Bridge finality times are approximate."
+  ],
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "## Route Recommendation: Ethereum -> Solana USDC Swap\n\n### Primary Route: Wormhole Portal Token Bridge\n- **Source Chain**: Ethereum Mainnet\n- **Destination Chain**: Solana Mainnet\n- **Asset**: USDC\n- **Estimated Gas Cost (ETH)**: 0.015 ETH (~$30 USD)\n- **Bridge Latency**: ~15 minutes for VAA generation + Solana finality\n- **Slippage**: <0.1% for Wormhole-wrapped USDC\n- **Overall Score**: 94/100\n\n### Alternative Route: Allbridge Classic\n- **Source Chain**: Ethereum Mainnet\n- **Destination Chain**: Solana Mainnet\n- **Estimated Gas Cost (ETH)**: 0.012 ETH (~$24 USD)\n- **Bridge Latency**: ~20 minutes\n- **Slippage**: 0.2-0.5% depending on pool depth\n- **Overall Score**: 87/100\n\n### Not Recommended: ChainHop Aggregator\n- **Reason**: Insufficient liquidity for USDC on Solana side; estimated slippage > 2%\n\n### Final Recommendation\nUse Wormhole Portal Token Bridge for the best balance of cost, speed, and reliability. Ensure the destination wallet has ~0.01 SOL for transaction fees."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 145,
+    "completion_tokens": 512,
+    "total_tokens": 657
+  }
+}

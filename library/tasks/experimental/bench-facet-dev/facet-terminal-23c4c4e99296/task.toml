@@ -1,0 +1,34 @@
+version = "1.0"
+
+[task]
+name = "FACET-Terminal"
+authors = []
+keywords = []
+
+[metadata]
+author_name = "FACET-Terminal"
+author_email = "FACET-Terminal@example.com"
+difficulty = "medium"
+category = "FACET-Terminal"
+tags = [ "EvoClone - Hive Mind (Parallel Swarm Execution)", "Mini Coder Max", "Clawlink Setup", "Hive Agent", "Adopt a Void", "SkillBoss Smart Mode (Pilot)", "FORGE \u2014 Cross-Chain Swap Agent",]
+task_name = "task_000001"
+workdir = "/task_file"
+
+[verifier]
+timeout_sec = 120.0
+
+[agent]
+timeout_sec = 120.0
+
+[environment]
+build_timeout_sec = 600.0
+cpus = 1
+memory_mb = 2048
+storage_mb = 10240
+gpus = 0
+allow_internet = true
+mcp_servers = []
+
+[verifier.env]
+
+[solution.env]

@@ -1,0 +1,16 @@
+{
+  "generated_by": "env_build",
+  "fixtures": [
+    {
+      "path": "output/.gitkeep",
+      "kind": "text",
+      "role": "empty workspace directory marker",
+      "source_strategy": "empty_directory",
+      "generation_method": "inline_build_context",
+      "reason": "prepared directory for task outputs"
+    }
+  ],
+  "empty_directories": [
+    "output"
+  ]
+}

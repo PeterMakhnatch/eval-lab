@@ -1,0 +1,45 @@
+fixture_manifest:
+  version: "1.0"
+  generated_at: "2025-09-15T14:30:00Z"
+  source_strategy: synthesized
+  generation_method: manual_curation
+  reason: "Simulate captured API responses from multiple services for integration task"
+  fixtures:
+    - path: task_file/input/flight_search_results.json
+      type: json
+      description: "Amadeus flight search results for SFO->CUN on 2025-12-18 with 12 mixed candidates"
+      quirks:
+        - "Contains sold-out, expired, and missing-price entries"
+        - "Includes non-SFO origin distractor (SJC, OAK)"
+        - "Provider envelope fields present"
+    - path: task_file/input/llm_routing_response.json
+      type: json
+      description: "LLM routing proxy response with generated markdown content recommending Wormhole bridge"
+      quirks:
+        - "Content field contains markdown-formatted text"
+        - "Includes token usage metadata"
+    - path: task_file/input/cross_chain_swap_dry_run.json
+      type: json
+      description: "Dry-run response from cross-chain swap engine for ETH->SOL USDC transfer"
+      quirks:
+        - "Contains redacted and ignored fields"
+        - "Normalized body differs from request preview"
+    - path: task_file/input/optimization_output.json
+      type: json
+      description: "Prompt optimization output with 5 platform-specific variants and billing metadata"
+      quirks:
+        - "Billing metadata included alongside prompt strings"
+        - "Multiple platforms with different prompt formats"
+    - path: task_file/input/health_check_response.json
+      type: json
+      description: "Health check aggregation response showing 8 checks with one disabled legacy service"
+      quirks:
+        - "Contains disabled service entry"
+        - "Includes probe config and dependency lists"
+    - path: task_file/code/
+      type: directory
+      description: "Project source tree for a DeFi dashboard API with health and roadmap endpoints"
+      quirks:
+        - "Flask application with blueprints"
+        - "Docstrings contain route and parameter info"
+        - "No test directories included per environment constraints"

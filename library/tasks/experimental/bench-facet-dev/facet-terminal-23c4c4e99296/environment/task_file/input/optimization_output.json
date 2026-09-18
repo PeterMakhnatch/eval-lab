@@ -1,0 +1,76 @@
+{
+  "request_id": "opt-b7c6d5e4-f3a2-b1c0-d9e8-f7a6b5c4d3e2",
+  "captured_at": "2025-09-15T14:24:02Z",
+  "source": "platform-prompt-optimizer",
+  "api_version": "1.9.3",
+  "status_code": 200,
+  "billing_metadata": {
+    "account_id": "acct-prod-8821",
+    "plan": "enterprise",
+    "cost_center": "eng-platform-tools",
+    "tokens_processed": 45200,
+    "estimated_cost_usd": "0.87"
+  },
+  "request_params": {
+    "base_prompt": "Generate a roadmap for integrating cross-chain swap functionality into a DeFi dashboard.",
+    "target_platforms": ["openai", "anthropic", "llama"],
+    "optimization_goals": ["clarity", "actionability", "technical_depth"],
+    "max_variants": 5
+  },
+  "results": [
+    {
+      "platform": "openai",
+      "variant_id": "v1",
+      "optimized_prompt": "You are a senior blockchain architect. Create a detailed technical roadmap for integrating cross-chain USDC swap functionality into an existing DeFi dashboard. Cover: 1) Architecture overview with bridge selection criteria, 2) Smart contract integration steps, 3) Frontend wallet connection flow, 4) Gas optimization strategies, 5) Testing and audit milestones. Include specific technology recommendations (e.g., Wormhole, LayerZero) and estimated timelines for each phase.",
+      "score": 0.94,
+      "metadata": {
+        "token_count": 215,
+        "estimated_latency_ms": 3200
+      }
+    },
+    {
+      "platform": "anthropic",
+      "variant_id": "v2",
+      "optimized_prompt": "Human: You are an expert DeFi product manager. I need a comprehensive integration roadmap for adding cross-chain swap capabilities to our DeFi dashboard. Please structure your response with clear phases, milestones, and technical considerations.\n\nAssistant: I'll create a detailed roadmap covering architecture, smart contracts, frontend integration, security, and deployment. Let me break this down phase by phase.",
+      "score": 0.91,
+      "metadata": {
+        "token_count": 245,
+        "estimated_latency_ms": 2800
+      }
+    },
+    {
+      "platform": "llama",
+      "variant_id": "v3",
+      "optimized_prompt": "[INST] <<SYS>>\nYou are a technical lead specializing in cross-chain DeFi infrastructure.\n<</SYS>>\n\nGenerate a phased roadmap for integrating cross-chain swap (Ethereum <-> Solana USDC) into a DeFi dashboard. Include architecture decisions, bridge evaluation, contract integration, UI/UX flow, gas optimization, testing strategy, and deployment plan. [/INST]",
+      "score": 0.89,
+      "metadata": {
+        "token_count": 178,
+        "estimated_latency_ms": 1500
+      }
+    },
+    {
+      "platform": "openai",
+      "variant_id": "v4",
+      "optimized_prompt": "Act as a DeFi integration specialist. Outline a step-by-step technical roadmap for embedding cross-chain swap functionality into our dashboard. Focus on: Wormhole bridge integration, Solana wallet adapter setup, transaction monitoring, error handling, and user experience flows. Provide code architecture patterns where relevant.",
+      "score": 0.87,
+      "metadata": {
+        "token_count": 192,
+        "estimated_latency_ms": 2900
+      }
+    },
+    {
+      "platform": "anthropic",
+      "variant_id": "v5",
+      "optimized_prompt": "Human: Draft a product requirements document section covering the cross-chain swap feature integration for our DeFi dashboard. Include technical constraints, dependencies, risk assessment, and a phased delivery plan.\n\nAssistant: I'll structure this as a formal PRD section with clear technical requirements, risk mitigation strategies, and an incremental delivery approach.",
+      "score": 0.85,
+      "metadata": {
+        "token_count": 260,
+        "estimated_latency_ms": 3100
+      }
+    }
+  ],
+  "warnings": [
+    "Llama variant may require additional system prompt tuning for consistent formatting.",
+    "Token counts are estimates; actual usage may vary by 10-15%."
+  ]
+}

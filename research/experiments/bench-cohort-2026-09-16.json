@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "cohort": "bench-dev-2026-09-16",
+  "purpose": "Existing agentic benchmark development cohort for DSPy/GEPA optimization and later SFT trajectory collection (HAR-61)",
+  "created": "2026-09-16",
+  "sources": {
+    "tb2": {
+      "route": "harbor download terminal-bench@2.0 (Harbor registry pin)",
+      "tasks_total": 89,
+      "license": "Apache-2.0",
+      "verified": "89/89 packages carry environment/Dockerfile-or-pinned-image, tests/test.sh, solution/solve.sh",
+      "note": "TB2 is development data by Peter directive; not an untouched final test"
+    },
+    "facet": {
+      "route": "local subset of FACET-Terminal-Tasks-6k (github.com/StoKou/FACET-Terminal, Apache-2.0)",
+      "tasks_local": 10,
+      "imported": 2
+    }
+  },
+  "groups": {
+    "development": {
+      "tb2": [
+        {"dir": "library/tasks/experimental/bench-tb2-dev/chess-best-move-ccf409c1a853", "package": "sha256:fc3f14862c477ed91690ef6cc5d0f39192d7eed67aceb5854211e8e2a06ef658", "category": "games"},
+        {"dir": "library/tasks/experimental/bench-tb2-dev/constraints-scheduling-d94ca4850b63", "package": "sha256:69e4b9f3111eeefcc9dfcfda06eacf09791ff19faa8a69ea1d4c72e5c4fcd30c", "category": "optimization"},
+        {"dir": "library/tasks/experimental/bench-tb2-dev/count-dataset-tokens-9900f27927c3", "package": "sha256:0db968c345669b83b685993598c146d30b41be35d30eba63a0d2adeb551fbd6f", "category": "data-processing"},
+        {"dir": "library/tasks/experimental/bench-tb2-dev/db-wal-recovery-f443b9e082b3", "package": "sha256:ce293e56ed1af10b86c6e953c41cdf451b1760b3203b41ec319c2e6b1d33cdc7", "category": "file-operations"},
+        {"dir": "library/tasks/experimental/bench-tb2-dev/filter-js-from-html-2c9d94c1a89d", "package": "sha256:7d9eaa6687501fd7ad18884475933e7335178938bb7f056f5835beefa3b8f6f2", "category": "security"},
+        {"dir": "library/tasks/experimental/bench-tb2-dev/fix-git-1ea2bb0f6d4a", "package": "sha256:f264d981302bf44f7226ebbefba6284d2e4af8e34b0714a3db9de1724fa2fd05", "category": "system-administration"}
+      ],
+      "facet": [
+        {"dir": "library/tasks/experimental/bench-facet-dev/facet-terminal-23c4c4e99296", "package": "sha256:5a328b9c57f61e210e147d56b115bf331bbca90025e3f8ac398111e51b89a19c"},
+        {"dir": "library/tasks/experimental/bench-facet-dev/facet-terminal-f56650aac757", "package": "sha256:3e3291926571fd069286b53f65d0b20a49efa3aefe996f483755adce5dd0705f"}
+      ]
+    },
+    "validation": {
+      "tb2": [
+        {"dir": "library/tasks/experimental/bench-tb2-val/cancel-async-tasks-b45af75bcc92", "package": "sha256:ce189f4e3fd5638bed9a210d488beb26cbdbfed2be3c1dc7f2b9a196278dd896", "category": "software-engineering"},
+        {"dir": "library/tasks/experimental/bench-tb2-val/configure-git-webserver-e7c1d7f3942e", "package": "sha256:d94a78bb7f8061365572762922b5743b0cb830b3ec5c8124fe6a391fd522efb4", "category": "system-administration"},
+        {"dir": "library/tasks/experimental/bench-tb2-val/dna-insert-69a2b9412ef7", "package": "sha256:415991853ac3a123bc88a8a40dd93f61b27e7763502d0e7bf5c507f3bb7688b8", "category": "scientific-computing"}
+      ]
+    }
+  },
+  "exclusions_sealed": {
+    "terminal-bench-3": "Peter directive 2026-09-16: excluded from search/optimization/data entirely",
+    "terminal-bench-4": "Peter directive 2026-09-16: excluded from search/optimization/data entirely",
+    "mle-bench": "resource-blocked: mandatory Kaggle API credentials + terms acceptance, 158 GB (Lite) to 3.3 TB (Full) datasets, ~24 h GPU runs per task (verified from openai/mle-bench repo)",
+    "swe-bench-verified": "qualified not imported this round: Harbor Hub adapter swe-bench/swe-bench-verified exists (MIT, 500 instances); deferred until repo-repair capability is a target; per-repo images are heavy"
+  },
+  "baseline_spec": {
+    "agent": "zai-opencode",
+    "model": "zai-coding-plan/glm-5.3-flash",
+    "auth": "subscription auth file (qualified route; profile zai-opencode-glm-5.3-flash)",
+    "command": "uv run evallab run --task <task-dir-above> --agent zai-opencode --model zai-coding-plan/glm-5.3-flash --name <unique> --jobs-dir runs",
+    "note": "billable: requires normal approve flow; controls (oracle/nop) are free"
+  },
+  "rules": [
+    "development group only may enter DSPy/GEPA optimizer loops",
+    "validation group is scored, never optimized on",
+    "regenerating an import from the same registry pin must reproduce identical package digests",
+    "TB2 tasks keep their upstream shared-container verifier; treat reward as terminal signal, not tamper-proof"
+  ]
+}

@@ -702,6 +702,14 @@ class GitHub:
         )
         nodes = json.loads(completed.stdout)["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
         return sum(1 for node in nodes if not node.get("isResolved"))
+
+    def commit_checks(self, sha: str) -> dict[str, str]:
+        data = self._api("GET", f"repos/{self.repo}/commits/{sha}/check-runs?per_page=100")
+        return {
+            str(item.get("name")): str(item.get("conclusion") or item.get("status") or "")
+            for item in (data or {}).get("check_runs", [])
+        }
+
     def review_status(self, sha: str) -> str | None:
         """Lowercase state of the ``independent-review`` commit status for a SHA."""
         data = self._api("GET", f"repos/{self.repo}/commits/{sha}/status")

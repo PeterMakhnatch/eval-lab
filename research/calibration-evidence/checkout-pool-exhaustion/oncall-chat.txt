@@ -1,0 +1,22 @@
+#checkout-incidents — 2026-07-14 (all times UTC)
+
+14:12 <r.okafor> paged on checkout 5xx, anyone else seeing it
+14:13 <s.lindqvist> yep, dashboard is red
+14:15 <s.lindqvist> roughly 18% of POST /v1/checkout failing, all with 500s
+14:18 <r.okafor> customers are complaining in #support too
+14:20 <r.okafor> payments vendor status page just posted "elevated latency" — probably them
+14:21 <r.okafor> opening a ticket with the vendor
+14:23 <s.lindqvist> hmm, our vendor call p99 is 130ms and flat all afternoon, doesn't look like them
+14:26 <r.okafor> keeping the vendor theory for now, it's the only thing that changed externally
+14:29 <r.okafor> anything deployed today?
+14:31 <s.lindqvist> checkout-api v4.19.0 went out at 14:02. search-api also shipped at 14:05
+14:33 <r.okafor> search-api isn't in the checkout path, ignore that one
+14:36 <s.lindqvist> the 500s are all TimeoutError, not vendor errors
+14:41 <r.okafor> vendor advisory cleared and we're still erroring, so it isn't them
+14:44 <s.lindqvist> ledger-db cpu warning fired too, but it's at 70 and pages at 90
+14:52 <r.okafor> trying a restart of two instances, no change
+15:12 <s.lindqvist> restart didn't help, errors identical after
+15:26 <r.okafor> going to roll back v4.19.0, we're out of other ideas
+15:31 <r.okafor> rollback started
+15:38 <r.okafor> errors are gone, calling it mitigated
+15:40 <s.lindqvist> we should figure out what in v4.19.0 did this, the diff is tiny

@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "record_id": "checkout-pool-exhaustion-20260916-dspy-cot-unoptimized-glm-5-3-flash-bbfcdacbd3-e2614343c",
+  "family": "checkout-pool-exhaustion",
+  "status": "measured",
+  "judge_backend": "dspy-cot-unoptimized",
+  "judge_model": "glm-5.3-flash",
+  "judge_engine_version": "dspy 3.3.1",
+  "rubric_digest": "sha256:07271a7f84bd2f085313c0b395e186b5f76e6dab7b2ea9b0190391c83e068e32",
+  "corpus_digest": "sha256:bbfcdacbd3746a5ec1554a7e8481777bebfc37b749da6a8f69901d3559991224",
+  "evidence_digest": "sha256:2614343c64ec72bd4e5096489abffd16e1ecff3bfaae4722274557e4753ba908",
+  "per_criterion_agreement": {
+    "action_quality.actions_are_actionable": {
+      "agreements": 16,
+      "total": 22,
+      "rate": 0.7272727272727273
+    },
+    "action_quality.actions_trace_to_findings": {
+      "agreements": 20,
+      "total": 22,
+      "rate": 0.9090909090909091
+    },
+    "action_quality.closes_the_detection_gap": {
+      "agreements": 21,
+      "total": 22,
+      "rate": 0.9545454545454546
+    },
+    "action_quality.fixes_the_capacity_coupling": {
+      "agreements": 21,
+      "total": 22,
+      "rate": 0.9545454545454546
+    },
+    "action_quality.proposes_unsupported_work": {
+      "agreements": 19,
+      "total": 22,
+      "rate": 0.8636363636363636
+    },
+    "causal_reasoning.grounded_in_evidence": {
+      "agreements": 17,
+      "total": 22,
+      "rate": 0.7727272727272727
+    },
+    "causal_reasoning.identifies_the_mechanism": {
+      "agreements": 22,
+      "total": 22,
+      "rate": 1.0
+    },
+    "causal_reasoning.rules_out_the_decoy": {
+      "agreements": 22,
+      "total": 22,
+      "rate": 1.0
+    },
+    "causal_reasoning.separates_contributing_factors": {
+      "agreements": 21,
+      "total": 22,
+      "rate": 0.9545454545454546
+    },
+    "causal_reasoning.uncertainty_is_genuine": {
+      "agreements": 15,
+      "total": 22,
+      "rate": 0.6818181818181818
+    },
+    "evidence_fidelity.asserts_unsupported_cause": {
+      "agreements": 22,
+      "total": 22,
+      "rate": 1.0
+    },
+    "evidence_fidelity.blames_payments_vendor": {
+      "agreements": 22,
+      "total": 22,
+      "rate": 1.0
+    },
+    "evidence_fidelity.invents_evidence": {
+      "agreements": 21,
+      "total": 22,
+      "rate": 0.9545454545454546
+    },
+    "evidence_fidelity.misstates_a_fact": {
+      "agreements": 18,
+      "total": 22,
+      "rate": 0.8181818181818182
+    }
+  },
+  "mean_agreement": 0.8993506493506493,
+  "agreement_floor": 0.9,
+  "meets_floor": false,
+  "reportable": true,
+  "document_count": 22,
+  "evaluated_on": "2026-09-16",
+  "prediction_artifact": "research/experiments/dspy/judge/artifacts/baseline-evidence/bundle-checkout-pool-exhaustion.json",
+  "pending_backends": []
+}

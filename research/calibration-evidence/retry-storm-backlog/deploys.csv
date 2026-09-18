@@ -1,0 +1,6 @@
+deployed_at_utc,service,release,change_summary,deployed_by
+2026-07-19T14:05:00Z,notify-worker,v2.8.0,add per-channel delivery counters,ci-bot
+2026-07-21T22:30:00Z,notifications-db,schema-114,add index on outbound_message.created_at,ci-bot
+2026-07-22T02:47:00Z,notify-worker,v2.8.1,change log formatting from text to JSON; no behaviour change,ci-bot
+2026-07-22T04:10:00Z,billing-api,v6.1.2,update invoice PDF template,ci-bot
+2026-07-22T07:01:00Z,notify-worker,v2.8.1,configuration change only: capped exponential backoff with jitter,d.abara

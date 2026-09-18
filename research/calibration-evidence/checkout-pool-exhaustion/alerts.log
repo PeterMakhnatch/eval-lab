@@ -1,0 +1,15 @@
+# Alert manager history, 2026-07-14 (all services).
+# PAGE = woke someone. WARN = dashboard + email only. INFO = dashboard only.
+
+2026-07-14T09:02:11Z INFO  backup-lag: nightly ledger-db backup finished 11m late
+2026-07-14T14:07:30Z INFO  search-api-cert-expiry: TLS certificate for search-api expires in 21 days
+2026-07-14T14:09:10Z PAGE  checkout-api-5xx-rate: 5xx rate 18.4% > 5% for 5m
+2026-07-14T14:24:00Z WARN  ledger-db-cpu: ledger-db CPU 70% > 70% for 10m (page threshold is 90%)
+2026-07-14T15:39:40Z INFO  checkout-api-5xx-rate: resolved
+2026-07-14T15:44:00Z INFO  ledger-db-cpu: resolved
+
+# Configured alerts for checkout-api, for reference:
+#   checkout-api-5xx-rate       PAGE   5xx rate > 5% for 5m
+#   checkout-api-latency-p99    WARN   p99 > 2000ms for 10m
+#   checkout-api-instance-down  PAGE   healthy instances < 2
+# No alert is configured on database connection pool saturation or acquire wait.

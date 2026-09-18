@@ -109,8 +109,10 @@ trial has no ATIF steps; the cited path is then `result.json`,
 - No `evallab calibrate` CLI, DSPy program, or `src/` change.
 - No answer key, expected-verdict file, or gold rubric inside any task
   `environment/`.
-- No copies of harbor-practice evidence files (documents cite them; they
-  are not vendored).
+- No copies of harbor-practice evidence files. The judge's evidence input is the
+  source-bound pack under `research/calibration-evidence/<family>/` (manifest
+  with upstream revision and per-file sha256; loaded and verified by
+  `evallab.calibrate.load_evidence_pack`), kept outside this sealed tree.
 
 ## Verification
 

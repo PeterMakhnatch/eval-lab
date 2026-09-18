@@ -56,7 +56,6 @@ TOP_LEVEL_COMMANDS = (
     "gc",
     "registry",
     "tidy",
-    "steward",
     "verdict",
     "traj",
     "regrade",

@@ -40,7 +40,7 @@ SAFE_JOB_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
 # suffixes into a cancel-marker filename.
 LEASE_GENERATION_PATTERN = re.compile(r"^[0-9a-f]{32}$")
 DEFAULT_TRIAL_TIMEOUT_SECONDS = 1_800
-MAX_TRIAL_TIMEOUT_SECONDS = 21_600
+MAX_TRIAL_TIMEOUT_SECONDS = 28_800
 DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 30.0
 SUPPORT_COMMAND_TIMEOUT_SECONDS = 10
 WATCHDOG_POLL_SECONDS = 0.1
@@ -192,6 +192,49 @@ ZAI_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
         ZAI_PROXY_GID_ENV,
     }
 )
+ZAI_OPENAPI_MODEL_SELECTOR = "zai/glm-5.3-flash"
+ZAI_OPENAPI_ALLOWED_MODELS: frozenset[str] = frozenset({ZAI_OPENAPI_MODEL_SELECTOR})
+ZAI_OPENAPI_ALLOWED_MODEL = "glm-5.3-flash"
+ZAI_OPENAPI_PROXY_HOST = "zai-openapi-secret-proxy"
+ZAI_OPENAPI_PROXY_URL = "http://zai-openapi-secret-proxy:8080"
+ZAI_OPENAPI_PROXY_TOKEN = "evallab-proxy-placeholder"
+ZAI_OPENAPI_SECRET_COMPOSE = Path("containers/zai-openapi-secret.compose.yaml")
+ZAI_OPENAPI_PROXY_SCRIPT = Path("containers/zai_openapi_secret_proxy.py")
+ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS: frozenset[str] = frozenset({"ZAI_OPENAPI_API_KEY"})
+ZAI_OPENAPI_SECRET_FILE_ENV = "EVALLAB_ZAI_OPENAPI_SECRET_FILE"
+ZAI_OPENAPI_SECRET_PATH_ENV = "EVALLAB_ZAI_OPENAPI_SECRET_PATH"
+ZAI_OPENAPI_PROXY_SCRIPT_ENV = "EVALLAB_ZAI_OPENAPI_PROXY_SCRIPT"
+ZAI_OPENAPI_PROXY_UID_ENV = "EVALLAB_PROXY_UID"
+ZAI_OPENAPI_PROXY_GID_ENV = "EVALLAB_PROXY_GID"
+ZAI_OPENAPI_PROXY_CAPABILITY_ENV = "EVALLAB_ZAI_OPENAPI_PROXY_CAPABILITY"
+ZAI_OPENAPI_CAPABILITY_EXPIRES_AT_ENV = "EVALLAB_ZAI_OPENAPI_CAPABILITY_EXPIRES_AT"
+ZAI_OPENAPI_UPSTREAM_ENV = "EVALLAB_ZAI_OPENAPI_UPSTREAM"
+ZAI_OPENAPI_PROXY_USAGE_DIR_ENV = "EVALLAB_ZAI_OPENAPI_USAGE_DIR"
+ZAI_OPENAPI_PROXY_ATTEMPT_ID_ENV = "EVALLAB_ZAI_OPENAPI_ATTEMPT_ID"
+ZAI_OPENAPI_PROXY_USAGE_FILE_ENV = "EVALLAB_ZAI_OPENAPI_USAGE_FILE"
+ZAI_OPENAPI_ALLOWED_MODEL_ENV = "EVALLAB_ZAI_OPENAPI_ALLOWED_MODEL"
+ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION = 150_000
+ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION = 500_000
+ZAI_OPENAPI_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
+    {
+        ZAI_OPENAPI_PROXY_CAPABILITY_ENV,
+        ZAI_OPENAPI_PROXY_ATTEMPT_ID_ENV,
+        ZAI_OPENAPI_PROXY_USAGE_DIR_ENV,
+        ZAI_OPENAPI_PROXY_USAGE_FILE_ENV,
+        ZAI_OPENAPI_ALLOWED_MODEL_ENV,
+        "EVALLAB_ZAI_OPENAPI_MAX_REQUESTS",
+        "EVALLAB_ZAI_OPENAPI_MAX_INPUT_TOKENS",
+        "EVALLAB_ZAI_OPENAPI_MAX_OUTPUT_TOKENS",
+        "EVALLAB_ZAI_OPENAPI_MAX_TOTAL_TOKENS",
+        "EVALLAB_ZAI_OPENAPI_MAX_COST_MICROS",
+        "EVALLAB_ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION",
+        "EVALLAB_ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION",
+        ZAI_OPENAPI_CAPABILITY_EXPIRES_AT_ENV,
+        ZAI_OPENAPI_PROXY_UID_ENV,
+        ZAI_OPENAPI_PROXY_GID_ENV,
+    }
+)
+ZAI_MINISWE_AGENT_IMPORT_PATH = "evallab.harbor_zai_miniswe:SecretSafeZaiMiniSweAgent"
 REDACTED_SECRET_VALUE = "<redacted>"
 REDACTED_SECRET_BYTES = REDACTED_SECRET_VALUE.encode()
 PRIVATE_PERSIST_MODE = 0o600
@@ -472,6 +515,28 @@ def materialize_zai_secret_file(
     persist_private_bytes(destination, f"{value}\n".encode(), secrets=(), mode=0o400)
     return destination
 
+def materialize_zai_openapi_secret_file(
+    destination: Path,
+    environment: Mapping[str, str] | None = None,
+) -> Path:
+    """Write the Z.ai OpenAPI provider key to a 0400 file for Compose secret mounting."""
+    source = os.environ if environment is None else environment
+    value = source.get("ZAI_OPENAPI_API_KEY")
+    if value == ZAI_OPENAPI_PROXY_TOKEN:
+        value = None
+    if not value:
+        existing = source.get(ZAI_OPENAPI_SECRET_FILE_ENV)
+        if existing:
+            path = Path(existing)
+            try:
+                read_owner_secret_file(path)
+            except OSError as exc:
+                raise RuntimeError("Z.ai OpenAPI provider credential is missing") from exc
+            return path
+        raise RuntimeError("Z.ai OpenAPI provider credential is missing")
+    persist_private_bytes(destination, f"{value}\n".encode(), secrets=(), mode=0o400)
+    return destination
+
 
 def proxy_runtime_identity(path: Path) -> tuple[int, int]:
     """Return the numeric uid/gid the proxy must run as to read *path*.
@@ -498,6 +563,7 @@ def collected_secret_values(
     for key, placeholder in (
         *((key, DEEPSEEK_PROXY_TOKEN) for key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, ZAI_PROXY_TOKEN) for key in ZAI_CREDENTIAL_ENVIRONMENT_KEYS),
+        *((key, ZAI_OPENAPI_PROXY_TOKEN) for key in ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS),
     ):
         value = source.get(key)
         if value and value != placeholder:
@@ -505,6 +571,7 @@ def collected_secret_values(
     for secret_file_env, placeholder in (
         (DEEPSEEK_SECRET_FILE_ENV, DEEPSEEK_PROXY_TOKEN),
         (ZAI_SECRET_FILE_ENV, ZAI_PROXY_TOKEN),
+        (ZAI_OPENAPI_SECRET_FILE_ENV, ZAI_OPENAPI_PROXY_TOKEN),
     ):
         secret_file = source.get(secret_file_env)
         if secret_file:
@@ -517,6 +584,7 @@ def collected_secret_values(
     for capability_env, placeholder in (
         (DEEPSEEK_PROXY_CAPABILITY_ENV, DEEPSEEK_PROXY_TOKEN),
         (ZAI_PROXY_CAPABILITY_ENV, ZAI_PROXY_TOKEN),
+        (ZAI_OPENAPI_PROXY_CAPABILITY_ENV, ZAI_OPENAPI_PROXY_TOKEN),
     ):
         capability = source.get(capability_env)
         if capability and capability != placeholder:
@@ -655,9 +723,9 @@ def subscription_environment(
     *,
     include_deepseek_credentials: bool = False,
     include_zai_credentials: bool = False,
+    include_zai_openapi_credentials: bool = False,
 ) -> dict[str, str]:
     """Build Harbor's environment from explicit non-secret allowlists.
-
     DeepSeek and Z.ai provider keys never enter this mapping. The metered agent
     lanes receive only the internal proxy script path and a file-mounted secret path.
     """
@@ -695,6 +763,21 @@ def subscription_environment(
         sanitized["ZAI_BASE_URL"] = ZAI_PROXY_URL
         sanitized["OPENAI_BASE_URL"] = ZAI_PROXY_URL
         sanitized["OPENAI_API_BASE"] = ZAI_PROXY_URL
+    if include_zai_openapi_credentials:
+        for key in (
+            ZAI_OPENAPI_SECRET_FILE_ENV,
+            ZAI_OPENAPI_PROXY_SCRIPT_ENV,
+            ZAI_OPENAPI_UPSTREAM_ENV,
+            *ZAI_OPENAPI_PROXY_BUDGET_KEYS,
+        ):
+            if source.get(key):
+                sanitized[key] = source[key]
+        capability = source.get(ZAI_OPENAPI_PROXY_CAPABILITY_ENV) or ZAI_OPENAPI_PROXY_TOKEN
+        sanitized[ZAI_OPENAPI_PROXY_CAPABILITY_ENV] = capability
+        sanitized["ZAI_OPENAPI_API_KEY"] = capability
+        sanitized["MSWEA_API_KEY"] = capability
+        sanitized["OPENAI_BASE_URL"] = ZAI_OPENAPI_PROXY_URL
+        sanitized["OPENAI_API_BASE"] = ZAI_OPENAPI_PROXY_URL
     sanitized["AGY_FORCE_AUTH_JSON"] = "1"
     sanitized["CODEX_FORCE_AUTH_JSON"] = "1"
     sanitized["CLAUDE_FORCE_OAUTH"] = "1"
@@ -705,7 +788,11 @@ def subscription_environment(
 def redact_environment(environment: Mapping[str, str]) -> dict[str, str]:
     """Return a log-safe copy with every admitted provider value replaced."""
     secrets = collected_secret_values(environment)
-    credential_keys = DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS | ZAI_CREDENTIAL_ENVIRONMENT_KEYS
+    credential_keys = (
+        DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS
+        | ZAI_CREDENTIAL_ENVIRONMENT_KEYS
+        | ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS
+    )
     redacted: dict[str, str] = {}
     for key, value in environment.items():
         if (key in credential_keys and value) or value in secrets:
@@ -729,7 +816,7 @@ def validate_request(request: RunRequest) -> None:
         or not 1 <= request.timeout_seconds <= MAX_TRIAL_TIMEOUT_SECONDS
     ):
         raise ValueError(
-            "Concurrency and attempts must be positive; timeout must be 1-21600 seconds"
+            f"Concurrency and attempts must be positive; timeout must be 1-{MAX_TRIAL_TIMEOUT_SECONDS} seconds"
         )
     proxy_limits = (
         request.max_requests,
@@ -820,10 +907,11 @@ def validate_request(request: RunRequest) -> None:
         validate_toolbox_source(request.toolbox_path, request.toolbox_sha256)
 
 
-def resolve_harbor_agent(agent: str) -> str:
+def resolve_harbor_agent(agent: str, model: str | None = None) -> str:
     """Use the lab-owned adapter where Harbor supports custom import paths."""
+    if agent == "mini-swe-agent" and model is not None and model.startswith("zai/"):
+        return ZAI_MINISWE_AGENT_IMPORT_PATH
     return HARBOR_AGENT_IMPORT_PATHS.get(agent, agent)
-
 
 def resolve_harbor_model(agent: str, model: str | None) -> str | None:
     """Translate a local CLI model identifier to Harbor's expected model string."""
@@ -853,7 +941,7 @@ def build_command(request: RunRequest) -> list[str]:
         "--path",
         str(request.task),
         "--agent",
-        resolve_harbor_agent(request.agent),
+        resolve_harbor_agent(request.agent, request.model),
         "--env",
         request.environment,
         "--job-name",
@@ -873,24 +961,56 @@ def build_command(request: RunRequest) -> list[str]:
     if agent_timeout_multiplier is not None:
         command.extend(["--agent-timeout-multiplier", agent_timeout_multiplier])
     if request.agent == "mini-swe-agent":
-        if harbor_model != DEEPSEEK_MODEL_SELECTOR:
-            raise ValueError(f"mini-swe-agent requires the exact model {DEEPSEEK_MODEL_SELECTOR}")
-        cost_limit = request.cost_limit_usd if request.cost_limit_usd is not None else 2.5
-        max_tokens = request.max_output_tokens if request.max_output_tokens is not None else 8192
-        command.extend(
-            [
-                "--n-concurrent-agents",
-                "1",
-                "--n-tasks",
-                "1",
-                "--max-retries",
-                "0",
-                "--agent-kwarg",
-                f"cost_limit={cost_limit}",
-                "--agent-kwarg",
-                f"max_tokens={max_tokens}",
-            ]
-        )
+        if harbor_model == DEEPSEEK_MODEL_SELECTOR:
+            cost_limit = request.cost_limit_usd if request.cost_limit_usd is not None else 2.5
+            max_tokens = request.max_output_tokens if request.max_output_tokens is not None else 8192
+            command.extend(
+                [
+                    "--n-concurrent-agents",
+                    "1",
+                    "--n-tasks",
+                    "1",
+                    "--max-retries",
+                    "0",
+                    "--agent-kwarg",
+                    f"cost_limit={cost_limit}",
+                    "--agent-kwarg",
+                    f"max_tokens={max_tokens}",
+                ]
+            )
+        elif harbor_model == ZAI_OPENAPI_MODEL_SELECTOR:
+            if request.cost_limit_usd is not None:
+                cost_limit = request.cost_limit_usd
+            elif request.max_input_tokens is not None and request.max_output_tokens is not None:
+                cost_limit = round(
+                    (
+                        request.max_input_tokens * ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION
+                        + request.max_output_tokens * ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION
+                    )
+                    / 1_000_000,
+                    4,
+                )
+            else:
+                cost_limit = 2.5
+            max_tokens = request.max_output_tokens if request.max_output_tokens is not None else 8192
+            command.extend(
+                [
+                    "--n-concurrent-agents",
+                    "1",
+                    "--n-tasks",
+                    "1",
+                    "--max-retries",
+                    "0",
+                    "--agent-kwarg",
+                    f"cost_limit={cost_limit}",
+                    "--agent-kwarg",
+                    f"max_tokens={max_tokens}",
+                ]
+            )
+        else:
+            raise ValueError(
+                f"mini-swe-agent requires model {DEEPSEEK_MODEL_SELECTOR} or {ZAI_OPENAPI_MODEL_SELECTOR}"
+            )
     if request.agent == ZAI_OPENCODE_AGENT:
         if harbor_model not in ZAI_OPENCODE_MODEL_SELECTORS:
             raise ValueError(
@@ -951,17 +1071,25 @@ def subscription_command(
             raise RuntimeError(f"Claude subscription wrapper is missing: {wrapper}")
         return [str(wrapper), *harbor_command]
     if request.agent == "mini-swe-agent":
-        if request.model != DEEPSEEK_MODEL_SELECTOR:
-            raise RuntimeError(
-                f"the mini-swe-agent execution lane is pinned to {DEEPSEEK_MODEL_SELECTOR}"
-            )
-        overlay = (repo_root / DEEPSEEK_SECRET_COMPOSE).resolve()
-        proxy = (repo_root / DEEPSEEK_PROXY_SCRIPT).resolve()
-        if not overlay.is_file():
-            raise RuntimeError(f"DeepSeek secret overlay is missing: {overlay}")
-        if not proxy.is_file():
-            raise RuntimeError(f"DeepSeek secret proxy is missing: {proxy}")
-        return [*harbor_command, "--extra-docker-compose", str(overlay)]
+        if request.model == DEEPSEEK_MODEL_SELECTOR:
+            overlay = (repo_root / DEEPSEEK_SECRET_COMPOSE).resolve()
+            proxy = (repo_root / DEEPSEEK_PROXY_SCRIPT).resolve()
+            if not overlay.is_file():
+                raise RuntimeError(f"DeepSeek secret overlay is missing: {overlay}")
+            if not proxy.is_file():
+                raise RuntimeError(f"DeepSeek secret proxy is missing: {proxy}")
+            return [*harbor_command, "--extra-docker-compose", str(overlay)]
+        if request.model == ZAI_OPENAPI_MODEL_SELECTOR:
+            overlay = (repo_root / ZAI_OPENAPI_SECRET_COMPOSE).resolve()
+            proxy = (repo_root / ZAI_OPENAPI_PROXY_SCRIPT).resolve()
+            if not overlay.is_file():
+                raise RuntimeError(f"Z.ai OpenAPI secret overlay is missing: {overlay}")
+            if not proxy.is_file():
+                raise RuntimeError(f"Z.ai OpenAPI secret proxy is missing: {proxy}")
+            return [*harbor_command, "--extra-docker-compose", str(overlay)]
+        raise RuntimeError(
+            f"the mini-swe-agent execution lane requires model {DEEPSEEK_MODEL_SELECTOR} or {ZAI_OPENAPI_MODEL_SELECTOR}"
+        )
     if request.agent == ZAI_OPENCODE_AGENT:
         if request.model not in ZAI_OPENCODE_MODEL_SELECTORS:
             raise RuntimeError(

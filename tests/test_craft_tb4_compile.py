@@ -104,7 +104,18 @@ def test_compile_tb4_produces_complete_66_task_job_plan(tmp_path: Path) -> None:
         "tb3_mixing": True,
         "floating_refs": True,
         "digest_drift": True,
+        "gpu_on_local_docker": True,
     }
+    routing = plan["environment_routing"]
+    assert routing["default"] == "docker"
+    assert routing["remote_for_gpu"] == "modal"
+    assert routing["gpu_task_refs"] == [
+        "terminal-bench/fp8-rmsnorm-gemm",
+        "terminal-bench/jax-speedrun-gpu",
+        "terminal-bench/math-eval-grader",
+    ]
+    assert routing["required_credentials"]["modal"] == ["MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET"]
+    assert "zai/glm-5.3-flash" in plan["provider"]["allowed_models"]
     assert plan["manifest_digest"].startswith("sha256:")
 
     tasks = plan["tasks"]
@@ -519,3 +530,55 @@ def test_compile_tb4_cli_execution(tmp_path: Path, capsys: pytest.CaptureFixture
     assert code_highspeed == 2
     err_highspeed = capsys.readouterr().err
     assert "invalid model selector" in err_highspeed
+
+
+def test_compile_tb4_zai_openapi_mini_swe_pair_and_routing(tmp_path: Path) -> None:
+    v4 = _v4_fixture(tmp_path / "v4")
+
+    # zai-openapi provider family: mini-SWE-agent + GLM-5.3-Flash standard API
+    plan = craft.compile_tb4(
+        v4,
+        model="zai/glm-5.3-flash",
+        agent="mini-swe-agent",
+    )
+    assert plan["provider"]["provider_family"] == "zai-openapi"
+    assert plan["provider"]["model_prefix"] == "zai/"
+    assert ["zai/glm-5.3-flash", "mini-swe-agent"] in plan["provider"]["allowed_pairs"]
+
+    # GPU tasks carry the remote environment + gpu_types; CPU tasks stay local
+    gpu_entries = [t for t in plan["tasks"] if t["task_ref"] in craft.TB4_GPU_TASK_REFS]
+    cpu_entries = [t for t in plan["tasks"] if t["task_ref"] not in craft.TB4_GPU_TASK_REFS]
+    assert len(gpu_entries) == 3
+    assert all(t["environment"] == "modal" and t["gpu_types"] == ["H100"] for t in gpu_entries)
+    assert all(t["environment"] == "docker" and "gpu_types" not in t for t in cpu_entries)
+
+    # The pair is refused with the wrong agent
+    with pytest.raises(ValueError, match="invalid model selector"):
+        craft.compile_tb4(v4, model="zai/glm-5.3-flash", agent="zai-opencode")
+
+    # Unknown remote backend refused
+    with pytest.raises(ValueError, match="invalid remote_environment"):
+        craft.compile_tb4(v4, remote_environment="skynet")
+
+
+def test_compile_tb4_docker_refuses_gpu_tasks_instead_of_degrading(tmp_path: Path) -> None:
+    v4 = _v4_fixture(tmp_path / "v4")
+
+    # Full cohort on local docker: GPU class must fail closed, never silently run
+    with pytest.raises(ValueError, match="no CUDA on this host"):
+        craft.compile_tb4(v4, remote_environment="docker")
+
+    # CPU-only selection on local docker is fine
+    inventory = craft.load_migration_record()["expected_inventory"]
+    cpu_only = [r.split("/", 1)[1] for r in inventory if r not in craft.TB4_GPU_TASK_REFS]
+    plan_cpu = craft.compile_tb4(
+        v4, remote_environment="docker", include_tasks=cpu_only[:3]
+    )
+    assert plan_cpu["selected_task_count"] == 3
+    assert all(t["environment"] == "docker" for t in plan_cpu["tasks"])
+
+    # Beam alternate backend routing is represented
+    plan_beam = craft.compile_tb4(v4, remote_environment="beam")
+    assert plan_beam["environment_routing"]["remote_for_gpu"] == "beam"
+    gpu_beam = [t for t in plan_beam["tasks"] if t["task_ref"] in craft.TB4_GPU_TASK_REFS]
+    assert all(t["environment"] == "beam" for t in gpu_beam)

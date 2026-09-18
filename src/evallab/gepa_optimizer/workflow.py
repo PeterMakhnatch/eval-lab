@@ -13,6 +13,11 @@ from pathlib import Path
 from typing import Any
 
 from evallab.cohort import write_comparison
+from evallab.execution_contracts import (
+    DEEPSEEK_MODEL_SELECTOR,
+    ZAI_OPENAPI_MODEL_SELECTOR,
+    ZAI_OPENCODE_MODEL_SELECTORS,
+)
 
 from .budget import AggregateBudget, BudgetExhausted
 from .evaluator import (
@@ -398,6 +403,20 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         raise ValueError(f"Target '{raw['agent']}' requires explicit provider_ceilings")
     if ceilings_raw is not None and raw["agent"] not in {DEEPSEEK_TARGET_AGENT, "zai-opencode"}:
         raise ValueError(f"Target '{raw['agent']}' does not support provider_ceilings")
+    if raw.get("model") is not None:
+        if raw["agent"] == DEEPSEEK_TARGET_AGENT and raw["model"] not in {
+            DEEPSEEK_MODEL_SELECTOR,
+            ZAI_OPENAPI_MODEL_SELECTOR,
+        }:
+            raise ValueError(
+                f"Target '{raw['agent']}' requires model in "
+                f"{sorted({DEEPSEEK_MODEL_SELECTOR, ZAI_OPENAPI_MODEL_SELECTOR})}"
+            )
+        if raw["agent"] == "zai-opencode" and raw["model"] not in ZAI_OPENCODE_MODEL_SELECTORS:
+            raise ValueError(
+                f"Target '{raw['agent']}' requires model in "
+                f"{sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
+            )
     if raw["engine"] == "omni" and (
         "max_target_attempts" not in raw
         or raw.get("max_proposer_requests", 1) < 4

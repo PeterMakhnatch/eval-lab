@@ -40,7 +40,11 @@ from evallab.evidence_store import (
     read_record,
     restore_evidence,
 )
-from evallab.execution_contracts import DEEPSEEK_MODEL_SELECTOR, DispatchCapacity
+from evallab.execution_contracts import (
+    DEEPSEEK_MODEL_SELECTOR,
+    ZAI_OPENAPI_MODEL_SELECTOR,
+    DispatchCapacity,
+)
 from evallab.queue import (
     MAX_TRANSIENT_RETRIES,
     Executor,
@@ -70,6 +74,7 @@ _SPEC_DIGEST_EXCLUDES = {
 _CREDENTIAL_NAMES = (
     "DEEPSEEK_API_KEY",
     "MSWEA_API_KEY",
+    "ZAI_OPENAPI_API_KEY",
 )
 
 
@@ -206,7 +211,7 @@ class TrialLimits(_FrozenContract):
     max_input_tokens: int = Field(ge=0)
     max_output_tokens: int = Field(ge=0)
     max_total_tokens: int = Field(ge=0)
-    max_wall_clock_seconds: int = Field(ge=1, le=21_600)
+    max_wall_clock_seconds: int = Field(ge=1, le=28_800)
 
     @model_validator(mode="after")
     def total_token_limit_is_coherent(self) -> TrialLimits:
@@ -379,9 +384,9 @@ class CampaignDefinitionAttempt(_FrozenContract):
                 raise ValueError(
                     "billable campaigns currently require the secret-safe mini-swe-agent adapter"
                 )
-            if self.spec.model != DEEPSEEK_MODEL_SELECTOR:
+            if self.spec.model not in {DEEPSEEK_MODEL_SELECTOR, ZAI_OPENAPI_MODEL_SELECTOR}:
                 raise ValueError(
-                    f"billable campaign model must be pinned to {DEEPSEEK_MODEL_SELECTOR}"
+                    f"billable campaign model must be pinned to {DEEPSEEK_MODEL_SELECTOR} or {ZAI_OPENAPI_MODEL_SELECTOR}"
                 )
             if self.spec.est_cost_usd <= 0:
                 raise ValueError("billable campaign specs require a positive cost estimate")

@@ -72,8 +72,8 @@ EGRESS_SERVICE = "main"
 #: Allowed compose top-level keys (matches the substrate topology validator).
 _ALLOWED_COMPOSE_TOP_KEYS = frozenset({"services", "volumes", "networks", "version"})
 
-#: The only service names a staged compose document may declare.
-_ALLOWED_SERVICES = frozenset({EGRESS_SERVICE, DEFAULT_SIDECAR_SERVICE})
+#: Default sidecar service name; arbitrary service names are supported.
+_ALLOWED_SERVICES = None
 
 #: Dockerfile lines eligible for a platform pin.
 _FROM_LINE_RE = re.compile(r"^(FROM(?:\s+--platform=(?P<platform>[^\s]+))?\s+.+)$")
@@ -149,18 +149,30 @@ def _validate_compose_shape(data: dict[str, Any], path: Path) -> None:
         raise ValueError(f"compose 'services' must be a non-empty mapping in {path}")
     if EGRESS_SERVICE not in services:
         raise ValueError(f"compose topology must declare a '{EGRESS_SERVICE}' service in {path}")
-    if len(services) > len(_ALLOWED_SERVICES):
-        raise ValueError(
-            f"compose topology admits at most {len(_ALLOWED_SERVICES)} services "
-            f"({sorted(_ALLOWED_SERVICES)}), got {sorted(services)} in {path}"
-        )
-    unknown = sorted(set(services) - _ALLOWED_SERVICES)
-    if unknown:
-        raise ValueError(f"unknown compose services {unknown} in {path}")
     for name, cfg in services.items():
+        if not isinstance(name, str) or not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", name, re.IGNORECASE):
+            raise ValueError(f"invalid compose service name {name!r} in {path}")
         if not isinstance(cfg, dict):
             raise ValueError(f"compose service {name!r} configuration must be a mapping in {path}")
-
+        # Strict rejection list for container isolation:
+        if cfg.get("network_mode") == "host":
+            raise ValueError(f"service {name!r} requests forbidden host network mode in {path}")
+        if cfg.get("privileged") is True:
+            raise ValueError(f"service {name!r} requests forbidden privileged mode in {path}")
+        if cfg.get("pid") == "host" or cfg.get("ipc") == "host":
+            raise ValueError(f"service {name!r} requests forbidden host PID/IPC namespace in {path}")
+        if cfg.get("ports"):
+            raise ValueError(f"service {name!r} publishes host ports in {path}")
+        mounts = cfg.get("volumes", [])
+        if isinstance(mounts, list):
+            for mount in mounts:
+                m_str = str(mount)
+                if "docker.sock" in m_str:
+                    raise ValueError(f"service {name!r} attempts docker socket mount {mount!r} in {path}")
+                if isinstance(mount, str) and ":" in mount:
+                    src = mount.split(":")[0].strip()
+                    if src.startswith(("/", ".", "~")) or re.match(r"^[A-Za-z]:/", src):
+                        raise ValueError(f"service {name!r} attempts forbidden host bind mount {mount!r} in {path}")
 
 def _without_staging_changes(
     data: dict[str, Any],
@@ -494,11 +506,13 @@ def _stage_task_for_host(
                 f"pins and main-service egress attachment: {compose_rel}"
             )
         main_networks = _service_networks(rewritten, EGRESS_SERVICE)
-        sidecar_networks = (
-            _service_networks(rewritten, DEFAULT_SIDECAR_SERVICE)
-            if DEFAULT_SIDECAR_SERVICE in rewritten.get("services", {})
-            else None
-        )
+        non_main = [s for s in rewritten.get("services", {}) if s != EGRESS_SERVICE]
+        if DEFAULT_SIDECAR_SERVICE in rewritten.get("services", {}):
+            sidecar_networks = _service_networks(rewritten, DEFAULT_SIDECAR_SERVICE)
+        elif non_main:
+            sidecar_networks = _service_networks(rewritten, non_main[0])
+        else:
+            sidecar_networks = None
 
     # 2. Dockerfile platform pins (environment and separate verifier).
     for rel in ("environment/Dockerfile", "tests/Dockerfile"):

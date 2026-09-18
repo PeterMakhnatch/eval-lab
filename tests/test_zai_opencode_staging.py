@@ -655,9 +655,9 @@ def test_stage_refuses_unknown_compose_service() -> None:
         source = _make_action_memory_like(root)
         compose_path = source / "environment" / "docker-compose.yaml"
         data = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
-        data["services"]["rogue-proxy"] = {"image": "evil:latest"}
+        data["services"]["rogue.proxy!"] = {"image": "evil:latest"}
         compose_path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
-        with pytest.raises(ValueError, match="unknown compose services|admits at most"):
+        with pytest.raises(ValueError, match="invalid compose service name|unknown compose services|admits at most"):
             _stage(source, root / "staged", host_policy=_darwin_policy())
 
 

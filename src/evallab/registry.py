@@ -865,6 +865,7 @@ def promote_task(
     contamination: TaskContamination | None = None,
     human_minutes: int | None = None,
     state: TaskAdmissionState = "candidate",
+    state_reason: str | None = None,
     actor: str | None = None,
     approved_at: datetime | None = None,
     jobs_roots: Sequence[Path] | None = None,
@@ -910,7 +911,19 @@ def promote_task(
 
     if not task_id:
         task_id = target_path.name
-    declared_task_family = task_family or task_table.get("family") or meta_table.get("task_family")
+    task_name = str(task_table.get("name", ""))
+    declared_task_family = (
+        task_family
+        or task_table.get("family")
+        or meta_table.get("task_family")
+        or (
+            "terminal-bench-4"
+            if task_name.startswith("terminal-bench/")
+            or "terminal-bench" in str(target_path)
+            or "terminal-bench" in str(repo_root)
+            else None
+        )
+    )
     if not isinstance(declared_task_family, str) or not declared_task_family.strip():
         raise ValueError(
             "task promotion requires an explicit task_family or task.family declaration"
@@ -955,7 +968,8 @@ def promote_task(
         timeout_seconds = int(ver_timeout + agent_timeout)
         if timeout_seconds < 1:
             timeout_seconds = 1800
-
+        elif timeout_seconds > 28_800:
+            timeout_seconds = 28_800
     if max_memory_mb is None and "memory_mb" in env_table:
         with contextlib.suppress(ValueError, TypeError):
             max_memory_mb = int(env_table["memory_mb"])
@@ -1067,7 +1081,6 @@ def promote_task(
 
             return existing_record
 
-    # Discover control evidence
     control_evidence = discover_control_evidence(
         target_path,
         repo_root,
@@ -1106,6 +1119,7 @@ def promote_task(
         control_evidence=control_evidence,
         certification=certification,
         state=state,
+        state_reason=state_reason,
         allowed_uses=allowed_uses,
         contamination=contamination,
         human_minutes=human_minutes,

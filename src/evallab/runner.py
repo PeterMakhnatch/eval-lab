@@ -54,6 +54,21 @@ from evallab.execution_contracts import (
     WATCHDOG_POLL_SECONDS,
     ZAI_CAPABILITY_EXPIRES_AT_ENV,
     ZAI_INPUT_COST_MICROS_PER_MILLION,
+    ZAI_MINISWE_AGENT_IMPORT_PATH,
+    ZAI_OPENAPI_ALLOWED_MODEL,
+    ZAI_OPENAPI_ALLOWED_MODEL_ENV,
+    ZAI_OPENAPI_CAPABILITY_EXPIRES_AT_ENV,
+    ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION,
+    ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION,
+    ZAI_OPENAPI_PROXY_ATTEMPT_ID_ENV,
+    ZAI_OPENAPI_PROXY_CAPABILITY_ENV,
+    ZAI_OPENAPI_PROXY_GID_ENV,
+    ZAI_OPENAPI_PROXY_SCRIPT,
+    ZAI_OPENAPI_PROXY_SCRIPT_ENV,
+    ZAI_OPENAPI_PROXY_UID_ENV,
+    ZAI_OPENAPI_PROXY_USAGE_DIR_ENV,
+    ZAI_OPENAPI_PROXY_USAGE_FILE_ENV,
+    ZAI_OPENAPI_SECRET_FILE_ENV,
     ZAI_OPENCODE_AGENT,
     ZAI_OUTPUT_COST_MICROS_PER_MILLION,
     ZAI_PROXY_ATTEMPT_ID_ENV,
@@ -77,6 +92,7 @@ from evallab.execution_contracts import (
     collected_secret_values,
     is_lease_generation,
     materialize_deepseek_secret_file,
+    materialize_zai_openapi_secret_file,
     materialize_zai_secret_file,
     persist_private_bytes,
     proxy_runtime_identity,
@@ -618,16 +634,30 @@ def run_harbor_process(
             "execution_cancelled",
             "campaign owner cancelled the active queue lease before Harbor launch",
         )
-    repo_imports = (*HARBOR_AGENT_IMPORT_PATHS.values(), HARBOR_STATE_JOURNAL_PLUGIN)
+    repo_imports = (
+        *HARBOR_AGENT_IMPORT_PATHS.values(),
+        ZAI_MINISWE_AGENT_IMPORT_PATH,
+        HARBOR_STATE_JOURNAL_PLUGIN,
+    )
     deepseek_adapter = HARBOR_AGENT_IMPORT_PATHS["mini-swe-agent"]
     deepseek_lane = deepseek_adapter in command
     zai_adapter = HARBOR_AGENT_IMPORT_PATHS[ZAI_OPENCODE_AGENT]
     zai_lane = zai_adapter in command
+    zai_miniswe_adapter = ZAI_MINISWE_AGENT_IMPORT_PATH
+    zai_openapi_lane = (
+        zai_miniswe_adapter in command
+        or any(
+            arg.startswith("zai/")
+            for arg in command
+            if not arg.startswith("zai-coding-plan/")
+        )
+    ) and not zai_lane
     rlm_adapter = HARBOR_AGENT_IMPORT_PATHS[RLM_AGENT]
     rlm_lane = rlm_adapter in command
     runtime_environment = subscription_environment(
         include_deepseek_credentials=deepseek_lane,
         include_zai_credentials=zai_lane,
+        include_zai_openapi_credentials=zai_openapi_lane,
     )
     secret_values = collected_secret_values()
     owned_secret_dir: Path | None = None
@@ -776,6 +806,101 @@ def run_harbor_process(
             runtime_environment["ZAI_CODING_PLAN_API_KEY"] = capability
             runtime_environment["ZAI_API_KEY"] = capability
             secret_values = collected_secret_values({**os.environ, **runtime_environment})
+        if zai_openapi_lane:
+            if proxy_attempt_id is None or proxy_limits is None:
+                raise ValueError("Z.ai OpenAPI execution requires a bound trial capability")
+            capability = secrets.token_urlsafe(32)
+            capability_id = "sha256:" + hashlib.sha256(capability.encode()).hexdigest()
+            owned_usage_dir = Path(
+                tempfile.mkdtemp(
+                    prefix="evallab-zai-openapi-usage.",
+                    dir=os.environ.get("TMPDIR") or None,
+                )
+            )
+            os.chmod(owned_usage_dir, 0o700)
+            owned_usage_path = owned_usage_dir / "zai-openapi-proxy-usage.json"
+            runtime_environment[ZAI_OPENAPI_PROXY_CAPABILITY_ENV] = capability
+            runtime_environment[ZAI_OPENAPI_PROXY_ATTEMPT_ID_ENV] = proxy_attempt_id
+            runtime_environment[ZAI_OPENAPI_PROXY_USAGE_DIR_ENV] = str(owned_usage_dir)
+            runtime_environment[ZAI_OPENAPI_PROXY_USAGE_FILE_ENV] = str(owned_usage_path)
+            runtime_environment["ZAI_OPENAPI_API_KEY"] = capability
+            runtime_environment["MSWEA_API_KEY"] = capability
+            runtime_environment[ZAI_OPENAPI_ALLOWED_MODEL_ENV] = os.environ.get(
+                ZAI_OPENAPI_ALLOWED_MODEL_ENV, ZAI_OPENAPI_ALLOWED_MODEL
+            )
+            runtime_environment["EVALLAB_ZAI_OPENAPI_MAX_REQUESTS"] = str(proxy_limits.max_requests)
+            runtime_environment["EVALLAB_ZAI_OPENAPI_MAX_INPUT_TOKENS"] = str(
+                proxy_limits.max_input_tokens
+            )
+            runtime_environment["EVALLAB_ZAI_OPENAPI_MAX_OUTPUT_TOKENS"] = str(
+                proxy_limits.max_output_tokens
+            )
+            runtime_environment["EVALLAB_ZAI_OPENAPI_MAX_TOTAL_TOKENS"] = str(
+                proxy_limits.max_total_tokens
+            )
+            runtime_environment["EVALLAB_ZAI_OPENAPI_MAX_COST_MICROS"] = str(
+                proxy_limits.max_cost_micros
+            )
+            proxy_pricing = {
+                "input_cost_micros_per_million": int(
+                    os.environ.get(
+                        "EVALLAB_ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION",
+                        str(ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION),
+                    )
+                ),
+                "output_cost_micros_per_million": int(
+                    os.environ.get(
+                        "EVALLAB_ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION",
+                        str(ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION),
+                    )
+                ),
+            }
+            runtime_environment["EVALLAB_ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION"] = str(
+                proxy_pricing["input_cost_micros_per_million"]
+            )
+            runtime_environment["EVALLAB_ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION"] = str(
+                proxy_pricing["output_cost_micros_per_million"]
+            )
+            runtime_environment[ZAI_OPENAPI_CAPABILITY_EXPIRES_AT_ENV] = str(
+                time.time() + float(timeout_seconds) + 60.0
+            )
+            existing_secret = runtime_environment.get(ZAI_OPENAPI_SECRET_FILE_ENV) or os.environ.get(
+                ZAI_OPENAPI_SECRET_FILE_ENV
+            )
+            log_root = log_path.resolve()
+            if existing_secret:
+                try:
+                    read_owner_secret_file(Path(existing_secret))
+                    existing_path = Path(existing_secret).resolve()
+                except OSError:
+                    existing_secret = None
+                else:
+                    if log_root.parent in existing_path.parents or (
+                        job_dir is not None and job_dir.resolve() in existing_path.parents
+                    ):
+                        existing_secret = None
+            if existing_secret:
+                runtime_environment[ZAI_OPENAPI_SECRET_FILE_ENV] = existing_secret
+            else:
+                owned_secret_dir = Path(
+                    tempfile.mkdtemp(
+                        prefix="evallab-zai-openapi-secret.",
+                        dir=os.environ.get("TMPDIR") or None,
+                    )
+                )
+                os.chmod(owned_secret_dir, 0o700)
+                owned_secret_path = owned_secret_dir / "key"
+                materialize_zai_openapi_secret_file(owned_secret_path)
+                runtime_environment[ZAI_OPENAPI_SECRET_FILE_ENV] = str(owned_secret_path)
+            runtime_environment[ZAI_OPENAPI_PROXY_SCRIPT_ENV] = str(
+                (_RUNTIME_ROOT / ZAI_OPENAPI_PROXY_SCRIPT).resolve()
+            )
+            proxy_uid, proxy_gid = proxy_runtime_identity(
+                Path(runtime_environment[ZAI_OPENAPI_SECRET_FILE_ENV])
+            )
+            runtime_environment[ZAI_OPENAPI_PROXY_UID_ENV] = str(proxy_uid)
+            runtime_environment[ZAI_OPENAPI_PROXY_GID_ENV] = str(proxy_gid)
+            secret_values = collected_secret_values({**os.environ, **runtime_environment})
         if rlm_lane:
             # Host-secret-file transport: the lab-owned RLM agent reads the
             # provider key from this owner-only file. No proxy URLs,
@@ -808,7 +933,7 @@ def run_harbor_process(
         ) -> HarborProcessResult:
             proxy_usage = None
             if (
-                (deepseek_lane or zai_lane)
+                (deepseek_lane or zai_lane or zai_openapi_lane)
                 and owned_usage_path is not None
                 and owned_usage_path.is_file()
                 and capability_id is not None
@@ -820,7 +945,7 @@ def run_harbor_process(
                     capability_id=capability_id,
                     attempt_id=proxy_attempt_id,
                     limits=proxy_limits,
-                    provider_label="Z.ai" if zai_lane else "DeepSeek",
+                    provider_label="Z.ai OpenAPI" if zai_openapi_lane else ("Z.ai" if zai_lane else "DeepSeek"),
                     expected_pricing=proxy_pricing,
                 )
             return HarborProcessResult(

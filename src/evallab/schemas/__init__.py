@@ -304,7 +304,7 @@ class ExperimentSpec(ContractModel):
     jobs_dir: str = EXPLORATION_JOBS_ROOT
     attempts: int = Field(default=1, ge=1)
     concurrency: int = Field(default=1, ge=1)
-    timeout_seconds: int = Field(default=1_800, ge=1, le=21_600)
+    timeout_seconds: int = Field(default=1_800, ge=1, le=28_800)
     submitted_by: str = Field(min_length=1)
     priority: int = Field(default=100, ge=0, le=1000)
     est_cost_usd: float = Field(default=0.0, ge=0)
@@ -513,7 +513,7 @@ class ExperimentMatrix(ContractModel):
     environment: str = "docker"
     jobs_dir: str = EXPLORATION_JOBS_ROOT
     concurrency: int = Field(default=1, ge=1)
-    timeout_seconds: int = Field(default=1_800, ge=1, le=21_600)
+    timeout_seconds: int = Field(default=1_800, ge=1, le=28_800)
     runs: list[MatrixRun] = Field(min_length=1)
 
     # `purpose` is deliberately NOT declared here, and the asymmetry is the
@@ -1389,9 +1389,26 @@ class TaskDigests(ContractModel):
 
 
 class TaskLimits(ContractModel):
-    timeout_seconds: int = Field(default=1_800, ge=1, le=21_600)
+    """Execution limits enforcing runtime constraints.
+
+    Representation fix: timeout ceiling is 28800 seconds to align with
+    TB4 v4.0.0 official agent.timeout_sec=28800. Spend and concurrency
+    policies remain unchanged.
+    """
+
+    timeout_seconds: int = Field(default=1_800, ge=1, le=28_800)
     max_memory_mb: int | None = Field(default=None, ge=1)
     max_cpus: float | None = Field(default=None, gt=0)
+
+    @field_validator("timeout_seconds", mode="before")
+    @classmethod
+    def _validate_timeout_seconds(cls, value: Any) -> Any:
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and not (1 <= value <= 28_800):
+            raise ValueError(
+                "timeout_seconds must be between 1 and 28800 seconds "
+                "(TB4 v4.0.0 official agent.timeout_sec=28800)"
+            )
+        return value
 
 
 DURABLE_CONTROL_EVIDENCE_PREFIX = "research/evidence/runs/"
@@ -1604,7 +1621,16 @@ class TaskRegistryRecord(ContractModel):
         min_length=1,
         pattern=r"^[a-z0-9][a-z0-9_-]+$",
     )
-    version: str = Field(min_length=1)
+    version: str = Field(default="1.0.0")
+
+    @field_validator("version", mode="before")
+    @classmethod
+    def _validate_version(cls, value: Any) -> str:
+        if value is None:
+            return "1.0.0"
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("version must be a non-empty string")
+        return value.strip()
     task_path: str = Field(min_length=1)
     digests: TaskDigests
     source_uri: str = Field(min_length=1)
@@ -2045,8 +2071,8 @@ class GridFactor(ContractModel):
                 raise ValueError(f"binding {self.binding!r} requires integer levels, got {level!r}")
             if level < 1:
                 raise ValueError(f"binding {self.binding!r} requires levels >= 1")
-            if self.binding == "timeout_seconds" and level > 21_600:
-                raise ValueError("timeout_seconds factor levels must be <= 21600")
+            if self.binding == "timeout_seconds" and level > 28_800:
+                raise ValueError("timeout_seconds factor levels must be <= 28800 (TB4 v4.0.0 official agent.timeout_sec)")
         return self
 
 
@@ -2257,7 +2283,7 @@ class GridSpec(ContractModel):
     environment: str = "docker"
     jobs_dir: str = EXPLORATION_JOBS_ROOT
     concurrency: int = Field(default=1, ge=1)
-    timeout_seconds: int = Field(default=1_800, ge=1, le=21_600)
+    timeout_seconds: int = Field(default=1_800, ge=1, le=28_800)
     submitted_by: str = Field(default="ladder-generator", min_length=1)
     priority: int = Field(default=100, ge=0, le=1000)
     hypothesis: str | None = None

@@ -106,7 +106,7 @@ def test_run_request_immutability_and_job_timeout(tmp_path: Path) -> None:
                 jobs_dir=p / "jobs",
                 timeout_seconds=0,
             ),
-            "timeout must be 1-21600",
+            "timeout must be 1-28800",
         ),
         (
             lambda r, p: RunRequest(
@@ -116,7 +116,7 @@ def test_run_request_immutability_and_job_timeout(tmp_path: Path) -> None:
                 jobs_dir=p / "jobs",
                 timeout_seconds=MAX_TRIAL_TIMEOUT_SECONDS + 1,
             ),
-            "timeout must be 1-21600",
+            "timeout must be 1-28800",
         ),
         (
             lambda r, p: RunRequest(

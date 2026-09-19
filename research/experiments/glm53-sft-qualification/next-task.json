@@ -1,0 +1,147 @@
+{
+  "issue": "HAR-66",
+  "title": "Exact GLM-5.3-Flash SFT/serving qualification packet for Helper (HAR-64)",
+  "state": "cpu_source_qualified_gpu_gated",
+  "created": "2026-09-18",
+  "model": {
+    "id": "zai-org/GLM-5.3-Flash",
+    "hf_revision": "eb9eb208eb0d988989d07a6a12d0fdeb5f52574a",
+    "architecture": "Glm5NextForConditionalGeneration (model_type glm5_next)",
+    "parameters_total": 320000000000,
+    "parameters_active_per_token": 18000000000,
+    "layers": "45 (34 KDA linear_attention + 11 deepseek_sparse_attention)",
+    "experts": "3 dense MLP layers (0-2) + 42 MoE layers (288 routed top-8 + 1 shared)",
+    "mhc_streams": 4,
+    "checkpoint_quantization": "fp8 e4m3 with 128x128 block scales",
+    "bf16_variant": "zai-org/GLM-5.3-Flash-BF16",
+    "license": "MIT",
+    "context_configured": 1048576,
+    "context_training_qualified": false,
+    "weight_bytes": 328337455672,
+    "weight_gib": 305.75,
+    "bf16_weight_bytes_arithmetic": 642600000000,
+    "bf16_weight_gib_arithmetic": 598.45,
+    "eos_token_ids": [154820, 154827, 154829]
+  },
+  "decision": {
+    "recommended_primary": "TRL SFTTrainer + PEFT LoRA (attention + dense-MLP + shared-expert targets) on transformers pinned to git commit 770e4c40",
+    "recommended_primary_rationale": "Helper charter starts with TRL/Transformers/PEFT; the smallest practical pilot envelope; mergeable 2D-linear adapters; no custom training loop",
+    "recommended_fallback": "NVIDIA NeMo AutoModel full language-backbone SFT (recipe pinned at cb60ebf5), only when multi-node budget exists",
+    "rejected": [
+      "transformers PyPI 5.16.0 wheel: observed AutoConfig ValueError, glm5_next not in CONFIG_MAPPING",
+      "Native-FP8-base training: F.linear has no FP8-weight backward; every maintained path dequantizes to BF16",
+      "target_modules LoRA on routed experts: they are 3D nn.Parameter tensors, not nn.Linear (upstream modeling_glm5_next.py:117-118)",
+      "PEFT target_parameters expert LoRA: peft>=0.20 ParamWrapper exists but unexercised for this architecture, breaks compile, incompatible with quantized base",
+      "FlashAttention-2: _supports_flash_attn=False in upstream; use sdpa",
+      "Unsloth/LLaMA-Factory: no released glm5_next training support (inference/GGUF only)"
+    ]
+  },
+  "stack_pins": {
+    "trl": ">=1.13.0",
+    "transformers": "git+https://github.com/huggingface/transformers.git@770e4c40d0436082a52dc380f07a9d3f389c99d4 (PR #48342 merged eb4d9e2; 5.16.1+ wheel when released also acceptable)",
+    "peft": ">=0.20.0",
+    "flash_linear_attention": ">=0.4.2 (fla kernels for KDA; pure-torch fallback exists but slow)",
+    "torch": ">=2.6.0",
+    "nemo_automodel_fallback": {
+      "commit": "cb60ebf540b2803e567d3a169db7b7078c179e84",
+      "transformers": "5.15.1 (NeMo ships its own Glm5NextConfig classes)",
+      "torch": "2.10.0+cu130",
+      "flash_linear_attention": "0.4.2",
+      "flashmla": "b7643bd54521f563b839b98289b5cd048c062ba2"
+    }
+  },
+  "trl_consumer_contract": {
+    "model_load_class": "AutoModelForImageTextToText (NOT AutoModelForCausalLM — glm5_next absent from causal-LM mapping; SFTTrainer defaults to CausalLM and will KeyError)",
+    "instantiate_model_explicitly": true,
+    "processing_class": "AutoTokenizer (prevents VLM-collator default for text-only traces)",
+    "dtype": "torch.bfloat16 (dequantizes FP8 checkpoint on load)",
+    "attn_implementation": "sdpa",
+    "lora_target_modules": [
+      "q_proj", "k_proj", "v_proj", "o_proj", "b_proj", "g_a_proj", "g_b_proj",
+      "q_a_proj", "q_b_proj", "kv_a_proj_with_mqa", "kv_b_proj",
+      "gate_proj", "up_proj", "down_proj"
+    ],
+    "lora_target_note": "KDA projections hit 34 layers; DSA projections hit 11; gate/up/down hit dense layers 0-2 and shared experts 3-44. Routed experts (3D parameters) are untouched.",
+    "assistant_masking": "chat_template.jinja has NO {% generation %} tags; assistant_only_loss=True yields zero supervised tokens (verified: verification.json native_assistant_mask.supervised_tokens=0). Use completion_only_loss with prompt-completion records, or a patched template validated to be render-equivalent.",
+    "gradient_checkpointing": true,
+    "packing": false
+  },
+  "serving": {
+    "recommended_engine": "SGLang purpose-built image lmsysorg/sglang:glm-5.3-flash (support not in a public release; nightly images do NOT work)",
+    "hopper_constraints": "kv-cache-dtype bfloat16 + dsa tilelang backends; FP8 KV + trtllm DSA disabled on Hopper",
+    "parsers": "--reasoning-parser glm45 --tool-call-parser glm47",
+    "dynamic_lora": "NOT supported in vLLM or SGLang glm5_next executors; adapters must be merged before serving",
+    "merged_bf16_serving_floor": "8x H200 (141GB) or 8x MI300X-class; merged BF16 ~612 GiB exceeds 8x H100 80GB usable VRAM",
+    "fp8_serving": "8x H100 serves the native FP8 base; a merged-then-requantized FP8 export is an additional unqualified step"
+  },
+  "hardware_envelope": {
+    "weight_arithmetic_only": {
+      "fp8_base_gib": 305.75,
+      "bf16_dequant_gib": 598.45,
+      "note": "Raw parameter bytes; excludes KV cache, activations, optimizer, gradients"
+    },
+    "trl_lora_pilot_floor_estimate": {
+      "nodes": "1x 8-GPU H200 (1128 GB) or 2x 8-GPU H100 (1280 GB) with FSDP/ZeRO-3",
+      "basis": "BF16 weights 598 GiB + LoRA optimizer ~2 GiB + activation estimate 50-80 GiB at S=4096 B=1 with checkpointing",
+      "status": "arithmetic_plus_estimates_not_gpu_measured"
+    },
+    "nemo_full_sft_validated": {
+      "topology": "9 nodes / 72 H100, EP72/CP2, FSDP2, packed 2K",
+      "evidence": "NVIDIA docs + recipe YAML; logit parity vs HF within KL 0.00025; NOT terminal-trajectory evidence"
+    }
+  },
+  "costed_qualification_request": {
+    "purpose": "First real GLM-5.3-Flash LoRA pilot on Helper's recipe: forward/backward/save/reload/merge/serve proof at exact target model",
+    "option_A_trl_lora_single_node_H200": {
+      "modal_rate_per_gpu_hr": 4.5396,
+      "gpus": 8,
+      "node_rate_per_hr": 36.32,
+      "estimated_hours": "4-8 (weights download ~306 GiB once into volume; 100-300 optimizer steps; save+merge)",
+      "estimated_cost_usd": "145-291",
+      "storage_volume_gib": 400,
+      "storage_usd_per_month": 36.0,
+      "assumptions": "LoRA rank 16; sequences <=4096 tokens; SGLang reload check in same job"
+    },
+    "option_B_trl_lora_two_node_H100": {
+      "modal_rate_per_gpu_hr": 3.9492,
+      "gpus": 16,
+      "node_rate_per_hr": 63.19,
+      "estimated_hours": "4-8",
+      "estimated_cost_usd": "253-506",
+      "note": "Only if H200 capacity unavailable"
+    },
+    "next_missing_qualification": "A single forward/backward smoke on the pinned git transformers build confirming activation memory fits the chosen node before any multi-hour run"
+  },
+  "gates": [
+    {"id": "model_route", "status": "cpu_qualified", "evidence": "verification.json: 17/18 checks pass on pinned revision; single failing check is the wheel-vs-source transformers registration gap, resolved by the git pin"},
+    {"id": "training_stack", "status": "source_qualified_gpu_gated", "evidence": "Upstream modeling source confirms class, gradient checkpointing, sdpa, 3D expert parameters; no GPU step executed"},
+    {"id": "serving", "status": "primary_recipe_pinned", "evidence": "SGLang purpose-built image + verified H100/H200 cells from official cookbook; merge-before-serve required"},
+    {"id": "execution_authority", "status": "not_approved", "evidence": "No GPU/weights/paid spend authorized by HAR-66; costs above are requests"}
+  ],
+  "consumer_requirements_for_har64": [
+    "Pin transformers to git commit 770e4c40 (or >=5.16.1 wheel when released); never the 5.16.0 wheel.",
+    "Instantiate AutoModelForImageTextToText explicitly and pass the object to SFTTrainer; pass AutoTokenizer as processing_class.",
+    "Load with torch_dtype=bfloat16 and attn_implementation=sdpa.",
+    "Do not use assistant_only_loss with the stock template; use prompt-completion records or a validated patched template.",
+    "Decode raw OpenAI function.arguments JSON strings to mappings before template rendering; template rejects raw strings (verified).",
+    "Pin clear_thinking and reasoning_effort to the actual rollout settings; OMP xhigh is not a GLM effort setting (falls back to Max).",
+    "Define an explicit terminal-stop policy for final assistant targets; the template does not append one.",
+    "Merge LoRA before serving; plan the BF16 serving node (H200-class) or a separate re-quantization step.",
+    "Publish dataset/config hashes and actual software identities in the training receipt."
+  ],
+  "sources": {
+    "hf_model": "https://huggingface.co/zai-org/GLM-5.3-Flash/tree/eb9eb208eb0d988989d07a6a12d0fdeb5f52574a",
+    "transformers_glm5_next": "https://github.com/huggingface/transformers/blob/770e4c40d0436082a52dc380f07a9d3f389c99d4/src/transformers/models/glm5_next/modeling_glm5_next.py",
+    "nemo_recipe": "https://github.com/NVIDIA-NeMo/Automodel/blob/cb60ebf540b2803e567d3a169db7b7078c179e84/examples/vlm_finetune/glm5_next/glm5_3_flash_medpix_packed2k_ep72_cp2_100steps.yaml",
+    "nemo_coverage": "https://docs.nvidia.com/nemo/automodel/model-coverage/vision-language-models/thudm/glm-5-3-flash.md",
+    "sglang_cookbook": "https://cookbook.sglang.io/autoregressive/GLM/GLM-5.3-Flash",
+    "vllm_recipe": "https://recipes.vllm.ai/zai-org/GLM-5.3-Flash",
+    "trl_sft_docs": "https://huggingface.co/docs/trl/sft_trainer",
+    "modal_pricing": "https://modal.com/pricing"
+  },
+  "proof": {
+    "cpu_probe": "verification.json (probe.py; transformers 5.16.0 wheel; 17/18 pass, registration gap recorded)",
+    "source_cache": "derived/har66-glm-assets (hash-pinned metadata), derived/har66-nemo (pinned NeMo sources)",
+    "scope": "No model weights downloaded, no GPU, no paid API calls, no model inference"
+  }
+}

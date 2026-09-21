@@ -29,13 +29,13 @@ from .evaluator import (
     LabEvaluator,
     ProviderCeilings,
 )
+from .intake import load_retained_spec, validate_drift
 from .proposer import (
     JournaledReflectionLM,
     ProposalUnavailable,
     ReplaySafeGepaEngine,
     direct_proposer_blocker,
 )
-from .intake import load_retained_spec, validate_drift
 from .release import verify_release
 
 

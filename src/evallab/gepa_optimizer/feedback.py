@@ -535,7 +535,17 @@ def _render_prior_runs(
             extra_sources[f"prior_run/{trial.name}/{key}"] = value
         if inner.get("truncated"):
             notices.append(f"prior run '{trial.name}' inner feedback was truncated")
-    text = _redact_full_text("\n".join(["## Prior Runs", *blocks]), secrets)
+    text = _redact_full_text(
+        "\n".join(
+            [
+                "## Prior Runs",
+                "Reference runs from other configurations; context only, "
+                "not an evaluation of the current candidate.",
+                *blocks,
+            ]
+        ),
+        secrets,
+    )
     allowance = max_chars // 4
     truncated = len(text) > allowance
     if truncated:

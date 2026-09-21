@@ -1,0 +1,74 @@
+{
+  "issue": "HAR-66",
+  "evidence_kind": "public_metadata_source_pin",
+  "model_id": "zai-org/GLM-5.3-Flash",
+  "revision": "eb9eb208eb0d988989d07a6a12d0fdeb5f52574a",
+  "assets": [
+    {
+      "name": "config.json",
+      "url": "https://huggingface.co/zai-org/GLM-5.3-Flash/resolve/eb9eb208eb0d988989d07a6a12d0fdeb5f52574a/config.json",
+      "revision": "eb9eb208eb0d988989d07a6a12d0fdeb5f52574a",
+      "size_bytes": 69416,
+      "sha256": "bb8f01c42cb92a52ca72e65afb4d5bd8d11aef083cd210e8de25dfb904f23e9f",
+      "git_blob_oid": "f93128cf7f31ca2b22e367cd63676c320c4164a7"
+    },
+    {
+      "name": "chat_template.jinja",
+      "url": "https://huggingface.co/zai-org/GLM-5.3-Flash/resolve/eb9eb208eb0d988989d07a6a12d0fdeb5f52574a/chat_template.jinja",
+      "revision": "eb9eb208eb0d988989d07a6a12d0fdeb5f52574a",
+      "size_bytes": 10950,
+      "sha256": "0c4099f3382d6c92700dfb99725025360966fd73032f0ecf32377c0d9e6309c5",
+      "git_blob_oid": "06bd89e94b96652fd5d76d9f9e11cfa15e09f49d"
+    },
+    {
+      "name": "tokenizer_config.json",
+      "url": "https://huggingface.co/zai-org/GLM-5.3-Flash/resolve/eb9eb208eb0d988989d07a6a12d0fdeb5f52574a/tokenizer_config.json",
+      "revision": "eb9eb208eb0d988989d07a6a12d0fdeb5f52574a",
+      "size_bytes": 761,
+      "sha256": "98b1271574f41abf89427ae2dda030d94dc9478f0edc5a8bd240db213c6fd5fc",
+      "git_blob_oid": "e375fa0a4e16660ce0e2026e39374d35dad4c079"
+    },
+    {
+      "name": "generation_config.json",
+      "url": "https://huggingface.co/zai-org/GLM-5.3-Flash/resolve/eb9eb208eb0d988989d07a6a12d0fdeb5f52574a/generation_config.json",
+      "revision": "eb9eb208eb0d988989d07a6a12d0fdeb5f52574a",
+      "size_bytes": 194,
+      "sha256": "230c30609ecbbb9e6583bedde8e7bdda0c6eb8fe5fad0eaeb3d1b293d751cb4f",
+      "git_blob_oid": "637ee6afa5c6ebfba4eb24bd5b9df68550143597"
+    },
+    {
+      "name": "tokenizer.json",
+      "url": "https://huggingface.co/zai-org/GLM-5.3-Flash/resolve/eb9eb208eb0d988989d07a6a12d0fdeb5f52574a/tokenizer.json",
+      "revision": "eb9eb208eb0d988989d07a6a12d0fdeb5f52574a",
+      "size_bytes": 20217442,
+      "sha256": "19e773648cb4e65de8660ea6365e10acca112d42a854923df93db4a6f333a82d",
+      "git_blob_oid": "aba40197a4cdb5607f4ab7a05fb0a4ee8054fd6d"
+    },
+    {
+      "name": "model.safetensors.index.json",
+      "url": "https://huggingface.co/zai-org/GLM-5.3-Flash/resolve/eb9eb208eb0d988989d07a6a12d0fdeb5f52574a/model.safetensors.index.json",
+      "revision": "eb9eb208eb0d988989d07a6a12d0fdeb5f52574a",
+      "size_bytes": 8406613,
+      "sha256": "3c3f40366a53c3fd7974b4eab7881a365a98c2a4329150befebab99fe7c18b05",
+      "git_blob_oid": "6e8b6ed466b916b0289a6391ef6702725017209f"
+    },
+    {
+      "name": "LICENSE",
+      "url": "https://huggingface.co/zai-org/GLM-5.3-Flash/resolve/eb9eb208eb0d988989d07a6a12d0fdeb5f52574a/LICENSE",
+      "revision": "eb9eb208eb0d988989d07a6a12d0fdeb5f52574a",
+      "size_bytes": 1070,
+      "sha256": "30b85b6b9659f2e78aa259f8faf5d920a68dee7c9ced3fa6dba1f19f2bc4fca1",
+      "git_blob_oid": "986b06fb2916b3518b82c7dcc0870723b91f2f92"
+    }
+  ],
+  "weight_inventory": {
+    "shards": 62,
+    "total_bytes": 328337455672,
+    "downloaded_bytes": 0
+  },
+  "download_policy": {
+    "max_asset_bytes": 25000000,
+    "allowlisted_metadata_only": true,
+    "weights_allowed": false
+  }
+}

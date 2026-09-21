@@ -42,8 +42,9 @@ Treat generated runs as immutable once promoted to `research/evidence/runs/`.
   in `.worktrees/` or `/tmp` worktrees — never `git switch`/`checkout` branches in
   the primary checkout. A watchdog (`eval-lab-main-watchdog`) auto-restores `main`
   within ~10s whenever the tree is clean; dirty trees are left untouched and logged.
-- The authoring agent must run the repository checks before pushing. After CI,
-  Peter or a different agent reviews the pull request before merge.
+- The authoring agent owns delivery end-to-end: running local checks, opening the PR,
+  shepherding CI to green, fixing any failures or existing concrete bugs, executing guarded
+  merge to `main`, and observing post-merge verification.
 
 ## Repository map
 

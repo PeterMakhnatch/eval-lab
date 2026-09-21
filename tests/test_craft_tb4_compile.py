@@ -582,3 +582,40 @@ def test_compile_tb4_docker_refuses_gpu_tasks_instead_of_degrading(tmp_path: Pat
     assert plan_beam["environment_routing"]["remote_for_gpu"] == "beam"
     gpu_beam = [t for t in plan_beam["tasks"] if t["task_ref"] in craft.TB4_GPU_TASK_REFS]
     assert all(t["environment"] == "beam" for t in gpu_beam)
+
+
+def test_compile_tb4_real_checkout_shape_no_dataset_toml_git_pinned(tmp_path: Path) -> None:
+    """Upstream checkouts ship no dataset.toml and carry archive/ tasks.
+
+    The exact v4.0.0 git pin establishes dataset identity on its own, and
+    discovery scopes to tasks/ so archived tasks stay out of the 66.
+    """
+    import subprocess
+
+    root = tmp_path / "tb4-real"
+    tasks = root / "tasks"
+    for ref in craft.load_migration_record()["expected_inventory"]:
+        _tb_task(tasks, ref.split("/", 1)[1])
+    # An archived task that must NOT be counted.
+    _tb_task(root / "archive", "gpt2-codegolf-old")
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "x"],
+        check=True,
+    )
+    subprocess.run(["git", "-C", str(root), "tag", craft.TB4_PIN_TAG], check=True)
+
+    plan = craft.compile_tb4(root)
+    assert plan["task_count"] == 66
+    assert plan["selected_task_count"] == 66
+    assert plan["dataset_ref"] == craft.TB4_DATASET_REF
+    assert all("gpt2-codegolf-old" not in t["task_ref"] for t in plan["tasks"])
+
+    # Unpinned + undeclared still refuses (fail-closed preserved).
+    unpinned = tmp_path / "tb4-unpinned"
+    unpinned.mkdir(parents=True)
+    for ref in craft.load_migration_record()["expected_inventory"]:
+        _tb_task(unpinned, ref.split("/", 1)[1])
+    with pytest.raises(ValueError, match="not a Terminal-Bench checkout"):
+        craft.compile_tb4(unpinned)

@@ -1,0 +1,311 @@
+{
+  "issue": "HAR-66",
+  "evidence_kind": "cpu_metadata_tokenizer_protocol_fixture",
+  "status": "probe_failed",
+  "created_at": "2026-09-18T16:34:26.386118+00:00",
+  "model_id": "zai-org/GLM-5.3-Flash",
+  "revision": "eb9eb208eb0d988989d07a6a12d0fdeb5f52574a",
+  "sources_sha256": "dd8e06191fd1cac6c88a939ad5634b57cac0b96e5b08fb261b96f9f6df6b4e64",
+  "probe_sha256": "ff01d9bf51667839adc300488aba9407ecd87ac5a90238da1a2089782b946227",
+  "runtime": {
+    "python": "3.12.11",
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "packages": {
+      "transformers": "5.16.0",
+      "tokenizers": "0.23.2",
+      "jinja2": "3.1.6",
+      "pyyaml": "6.0.3"
+    }
+  },
+  "model_weights_loaded": false,
+  "gpu_used": false,
+  "model_calls": 0,
+  "assets": [
+    {
+      "name": "config.json",
+      "sha256": "bb8f01c42cb92a52ca72e65afb4d5bd8d11aef083cd210e8de25dfb904f23e9f",
+      "size_bytes": 69416,
+      "origin": "verified_local_cache"
+    },
+    {
+      "name": "chat_template.jinja",
+      "sha256": "0c4099f3382d6c92700dfb99725025360966fd73032f0ecf32377c0d9e6309c5",
+      "size_bytes": 10950,
+      "origin": "verified_local_cache"
+    },
+    {
+      "name": "tokenizer_config.json",
+      "sha256": "98b1271574f41abf89427ae2dda030d94dc9478f0edc5a8bd240db213c6fd5fc",
+      "size_bytes": 761,
+      "origin": "verified_local_cache"
+    },
+    {
+      "name": "generation_config.json",
+      "sha256": "230c30609ecbbb9e6583bedde8e7bdda0c6eb8fe5fad0eaeb3d1b293d751cb4f",
+      "size_bytes": 194,
+      "origin": "verified_local_cache"
+    },
+    {
+      "name": "tokenizer.json",
+      "sha256": "19e773648cb4e65de8660ea6365e10acca112d42a854923df93db4a6f333a82d",
+      "size_bytes": 20217442,
+      "origin": "verified_local_cache"
+    },
+    {
+      "name": "model.safetensors.index.json",
+      "sha256": "3c3f40366a53c3fd7974b4eab7881a365a98c2a4329150befebab99fe7c18b05",
+      "size_bytes": 8406613,
+      "origin": "verified_local_cache"
+    },
+    {
+      "name": "LICENSE",
+      "sha256": "30b85b6b9659f2e78aa259f8faf5d920a68dee7c9ced3fa6dba1f19f2bc4fca1",
+      "size_bytes": 1070,
+      "origin": "verified_local_cache"
+    }
+  ],
+  "checks": [
+    {
+      "name": "exact_architecture_recognized",
+      "passed": false,
+      "observed": {
+        "recognized": false,
+        "error_type": "ValueError",
+        "error": "The checkpoint you are trying to load has model type `glm5_next` but Transformers does not recognize this architecture. This could be because of an issue with the checkpoint, or because your version of Transformers is out of date.\n\nYou can update Transformers with the command `pip install --upgrade transformers`. If this does not work, and the checkpoint is very new, then there may not be a release version that supports this model yet. In this case, you can get the most up-to-date code by installing Transformers from source with the command `pip install git+https://github.com/huggingface/transformers.git`"
+      }
+    },
+    {
+      "name": "decoder_layout",
+      "passed": true,
+      "observed": {
+        "linear_attention": 34,
+        "deepseek_sparse_attention": 11
+      }
+    },
+    {
+      "name": "expert_layout",
+      "passed": true,
+      "observed": {
+        "routed": 288,
+        "active_per_token": 8
+      }
+    },
+    {
+      "name": "released_base_is_fp8",
+      "passed": true,
+      "observed": "fp8"
+    },
+    {
+      "name": "native_bash_xml_action",
+      "passed": true,
+      "observed": "Native tool-call arguments render as GLM XML, not JSON inside tool_call"
+    },
+    {
+      "name": "observations_are_separate",
+      "passed": true,
+      "observed": "Observation is outside assistant response"
+    },
+    {
+      "name": "generation_opens_thinking",
+      "passed": true,
+      "observed": "ENT_OBSERVATION_SENTINEL</tool_response><|assistant|><think>"
+    },
+    {
+      "name": "default_retains_prior_reasoning",
+      "passed": true,
+      "observed": "clear_thinking defaults false"
+    },
+    {
+      "name": "clear_thinking_is_turn_sensitive",
+      "passed": true,
+      "observed": "Only reasoning before the latest user turn is removed"
+    },
+    {
+      "name": "effort_low",
+      "passed": true,
+      "observed": "Low"
+    },
+    {
+      "name": "effort_high",
+      "passed": true,
+      "observed": "High"
+    },
+    {
+      "name": "effort_max",
+      "passed": true,
+      "observed": "Max"
+    },
+    {
+      "name": "effort_xhigh",
+      "passed": true,
+      "observed": "Max"
+    },
+    {
+      "name": "raw_argument_string_boundary_observed",
+      "passed": true,
+      "observed": {
+        "accepted": false,
+        "error_type": "UndefinedError",
+        "error": "'str object' has no attribute 'items'"
+      }
+    },
+    {
+      "name": "native_assistant_mask_gap_detected",
+      "passed": true,
+      "observed": {
+        "mask_field_present": true,
+        "sequence_tokens": 283,
+        "supervised_tokens": 0,
+        "template_has_generation_tags": false
+      }
+    },
+    {
+      "name": "tokenizer_preserves_action_and_observation",
+      "passed": true,
+      "observed": {
+        "tokens": 283,
+        "render_sha256": "d7f9844a1bc0f5eedca25d070c16b27b1fe06ddcca9a831c1ba3dc1281034ad4"
+      }
+    },
+    {
+      "name": "stop_tokens_resolved",
+      "passed": true,
+      "observed": {
+        "154820": "<|endoftext|>",
+        "154827": "<|user|>",
+        "154829": "<|observation|>"
+      }
+    },
+    {
+      "name": "final_stop_boundary_gap_detected",
+      "passed": true,
+      "observed": {
+        "last_token_id": 2749,
+        "automatic_terminal_stop_appended": false
+      }
+    }
+  ],
+  "architecture": {
+    "model_type": "glm5_next",
+    "architectures": [
+      "Glm5NextForConditionalGeneration"
+    ],
+    "transformers_registration": {
+      "recognized": false,
+      "error_type": "ValueError",
+      "error": "The checkpoint you are trying to load has model type `glm5_next` but Transformers does not recognize this architecture. This could be because of an issue with the checkpoint, or because your version of Transformers is out of date.\n\nYou can update Transformers with the command `pip install --upgrade transformers`. If this does not work, and the checkpoint is very new, then there may not be a release version that supports this model yet. In this case, you can get the most up-to-date code by installing Transformers from source with the command `pip install git+https://github.com/huggingface/transformers.git`"
+    },
+    "configured_context_tokens": 1048576,
+    "training_context_qualified": false,
+    "layers": {
+      "linear_attention": 34,
+      "deepseek_sparse_attention": 11
+    },
+    "checkpoint_tensor_bytes": 328326771576,
+    "checkpoint_tensor_gib": 305.77813421934843,
+    "expert_checkpoint_sample": [
+      "model.language_model.layers.3.mlp.experts.0.down_proj.weight",
+      "model.language_model.layers.3.mlp.experts.0.down_proj.weight_scale_inv",
+      "model.language_model.layers.3.mlp.experts.0.gate_proj.weight",
+      "model.language_model.layers.3.mlp.experts.0.gate_proj.weight_scale_inv",
+      "model.language_model.layers.3.mlp.experts.0.up_proj.weight",
+      "model.language_model.layers.3.mlp.experts.0.up_proj.weight_scale_inv"
+    ]
+  },
+  "protocol": {
+    "reasoning_effort_rendering": {
+      "low": "Low",
+      "high": "High",
+      "max": "Max",
+      "xhigh": "Max"
+    },
+    "stop_tokens": {
+      "154820": "<|endoftext|>",
+      "154827": "<|user|>",
+      "154829": "<|observation|>"
+    },
+    "raw_argument_strings": {
+      "accepted": false,
+      "error_type": "UndefinedError",
+      "error": "'str object' has no attribute 'items'"
+    },
+    "native_assistant_mask": {
+      "mask_field_present": true,
+      "sequence_tokens": 283,
+      "supervised_tokens": 0,
+      "template_has_generation_tags": false
+    }
+  },
+  "consumer_requirements": [
+    "Decode raw OpenAI function.arguments JSON strings to mappings before this template; preserve source bytes separately.",
+    "Stock template does not supply assistant masks. Do not assume assistant_only_loss=True is usable unchanged.",
+    "HAR64 must validate explicit target-only labels or a render-equivalent annotated template; observations/system/user/padding excluded.",
+    "Pin clear_thinking and reasoning_effort to actual rollout settings. OMP xhigh is not a GLM effort setting.",
+    "Final response stop/yield tokens need an explicit source-backed policy; template alone does not append terminal EOS.",
+    "These fixture checks do not certify demonstrations, GPU backward, saved updates, serving or capability improvement."
+  ],
+  "fixture_kind": "owned_protocol_fixture_not_training_data",
+  "fixture_messages": [
+    {
+      "role": "system",
+      "content": "PROTOCOL_FIXTURE_SYSTEM: not a training example."
+    },
+    {
+      "role": "user",
+      "content": "PROTOCOL_FIXTURE_USER: inspect the workspace."
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "reasoning_content": "PRIOR_REASONING_SENTINEL: inspect before editing.",
+      "tool_calls": [
+        {
+          "id": "call_1",
+          "type": "function",
+          "function": {
+            "name": "bash",
+            "arguments": {
+              "command": "printf 'first'"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_1",
+      "content": "PRIOR_OBSERVATION_SENTINEL"
+    },
+    {
+      "role": "assistant",
+      "content": "PROTOCOL_FIXTURE_PRIOR_FINAL"
+    },
+    {
+      "role": "user",
+      "content": "PROTOCOL_FIXTURE_NEW_USER: now run the check."
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "reasoning_content": "CURRENT_REASONING_SENTINEL: verify the change.",
+      "tool_calls": [
+        {
+          "id": "call_2",
+          "type": "function",
+          "function": {
+            "name": "bash",
+            "arguments": {
+              "command": "printf 'second'"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_2",
+      "content": "CURRENT_OBSERVATION_SENTINEL"
+    }
+  ],
+  "rendered_example": "[gMASK]<sop><|system|>Reasoning Effort: Max<|system|>\n# Tools\n\nYou may call one or more functions to assist with the user query.\n\nYou are provided with function signatures within <tools></tools> XML tags:\n<tools>\n{\"name\": \"bash\", \"description\": \"Execute a bash command in the task environment.\", \"parameters\": {\"type\": \"object\", \"properties\": {\"command\": {\"type\": \"string\"}}, \"required\": [\"command\"]}}\n</tools>\n\nFor each function call, output the function name and arguments within the following XML format:\n<tool_call>{function-name}<arg_key>{arg-key-1}</arg_key><arg_value>{arg-value-1}</arg_value><arg_key>{arg-key-2}</arg_key><arg_value>{arg-value-2}</arg_value>...</tool_call><|system|>PROTOCOL_FIXTURE_SYSTEM: not a training example.<|user|>PROTOCOL_FIXTURE_USER: inspect the workspace.<|assistant|><think>PRIOR_REASONING_SENTINEL: inspect before editing.</think><tool_call>bash<arg_key>command</arg_key><arg_value>printf 'first'</arg_value></tool_call><|observation|><tool_response>PRIOR_OBSERVATION_SENTINEL</tool_response><|assistant|><think></think>PROTOCOL_FIXTURE_PRIOR_FINAL<|user|>PROTOCOL_FIXTURE_NEW_USER: now run the check.<|assistant|><think>CURRENT_REASONING_SENTINEL: verify the change.</think><tool_call>bash<arg_key>command</arg_key><arg_value>printf 'second'</arg_value></tool_call><|observation|><tool_response>CURRENT_OBSERVATION_SENTINEL</tool_response><|assistant|><think>"
+}

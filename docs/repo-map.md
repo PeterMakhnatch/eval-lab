@@ -91,7 +91,7 @@ inputs:
   - path: src/evallab/evidence_store.py
     digest: sha256:0895da2e4a79ae88fd54dce9b5a5a63f04e2dbe8c663ab0e50145e2a1d9518b7
   - path: src/evallab/execution_contracts.py
-    digest: sha256:33542765d60e979db796bb32b93776d5149ee8fcceed789a648ed72dd5d082dd
+    digest: sha256:5249fa6c0f15762358073bed260b1e16decac1aa760326939b96fad54403a826
   - path: src/evallab/explorer.py
     digest: sha256:7835237b175b6ed36e5a07851bf6c27f2f8c8a44f8c189874c04feab6914d255
   - path: src/evallab/fetch.py

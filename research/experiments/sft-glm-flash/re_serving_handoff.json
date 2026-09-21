@@ -1,0 +1,28 @@
+{
+  "target_model": "zai-org/GLM-5.3-Flash",
+  "model_selector": "zai/glm-5.3-flash",
+  "model_revision": "eb9eb208eb0d988989d07a6a12d0fdeb5f52574a",
+  "tokenizer_revision": "eb9eb208eb0d988989d07a6a12d0fdeb5f52574a",
+  "adapter_name": "glm-flash-sft-v1",
+  "adapter_path": "runs/sft-glm-flash-checkpoints/final",
+  "serving_backend": "vllm",
+  "vllm_command": "vllm serve zai-org/GLM-5.3-Flash --enable-lora --lora-modules glm-flash-sft-v1=runs/sft-glm-flash-checkpoints/final --max-model-len 32768 --tensor-parallel-size 8 --chat-template research/experiments/sft-glm-flash/chat_template.jinja",
+  "sglang_command": "python -m sglang.launch_server --model-path zai-org/GLM-5.3-Flash --enable-lora --lora-paths glm-flash-sft-v1=runs/sft-glm-flash-checkpoints/final --tp 8 --chat-template research/experiments/sft-glm-flash/chat_template.jinja",
+  "checkpoint_manifest": {
+    "path": "runs/sft-glm-flash-checkpoints/final/checkpoint_manifest.json",
+    "contract": "trainer writes checkpoint_manifest.json via evallab.sft_glm.write_checkpoint_manifest (base model id + revision, tokenizer revision, library versions, dataset path + sha256, config sha256, train_result metrics, mask receipt, timestamp); validate with evallab.sft_glm.verify_checkpoint"
+  },
+  "merge_before_serving": "Dynamic LoRA is NOT supported for glm5_next in vLLM/SGLang executors (HAR-66); merge the adapter into the base weights before serving.",
+  "hardware_qualification": "estimate-unverified: GPU counts/topology are storage arithmetic with no target-model run receipt.",
+  "pinned_inference_settings": {
+    "temperature": 0.95,
+    "top_p": 1.0,
+    "reasoning_effort": "max",
+    "clear_thinking": false
+  },
+  "evaluation_protocol": {
+    "harness": "mini-swe-agent (stock, fixed)",
+    "benchmark": "TB4 (Terminal-Bench 4)",
+    "comparison": "same-mini pre/post SFT evaluation on unseen task splits"
+  }
+}

@@ -1,0 +1,20 @@
+# Isolated SFT training environment for GLM-5.3-Flash (HAR-64).
+# Install: /tmp/test-torch/bin/python -m pip install -r requirements-sft.txt
+#   (or: python -m venv /tmp/sft-glm && /tmp/sft-glm/bin/python -m pip install -r requirements-sft.txt)
+# Heavy training deps stay OUT of the core pyproject.toml/uv.lock by mission rule.
+#
+# Pin policy: HAR-66's pins win where they overlap. All rows below match the
+# venv that verified the plumbing canary (/tmp/test-torch) EXCEPT transformers:
+# HAR-66 requires the git commit for glm5_next model support (PyPI wheels lack
+# the architecture mapping); the canary verified transformers==5.17.0, which
+# registers glm5_next config + AutoModelForImageTextToText names. Re-verify the
+# git pin on GPU before the first real training run. Do not silently pick one.
+torch==2.14.0
+transformers @ git+https://github.com/huggingface/transformers.git@770e4c40d0436082a52dc380f07a9d3f389c99d4
+trl==1.13.0
+peft==0.21.0
+accelerate==1.15.0
+datasets==5.0.1
+# bitsandbytes: required ONLY for method=qlora (BitsAndBytesConfig 4-bit load).
+# No == pin is verified on macOS in this venv (package not installed; 4-bit
+# kernels are CUDA-only). Pin at GPU qualification; qlora must not run without it.

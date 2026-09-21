@@ -1060,7 +1060,14 @@ def build_command(request: RunRequest) -> list[str]:
                 )
             else:
                 cost_limit = 2.5
-            max_tokens = request.max_output_tokens if request.max_output_tokens is not None else 8192
+            # The proxy's output allowance is cumulative across the trial.
+            # Do not request that entire allowance in each model completion.
+            completion_limit = (
+                request.inference_settings.max_tokens
+                if request.inference_settings and request.inference_settings.max_tokens is not None
+                else 8192
+            )
+            max_tokens = min(completion_limit, request.max_output_tokens or completion_limit)
             command.extend(
                 [
                     "--n-concurrent-agents",

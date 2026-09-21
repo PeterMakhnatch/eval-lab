@@ -12,7 +12,6 @@ import pytest
 from evallab.sft_glm import (
     GLM_5_3_FLASH_SPECS,
     GLM_MODEL_REVISION,
-    CheckpointManifest,
     GLMChatTemplatePatcher,
     GLMLossMasker,
     GLMSFTConfig,
@@ -450,7 +449,7 @@ def test_patched_upstream_template_masks_assistant_only() -> None:
 
     input_ids = from_patched["input_ids"]
     masks = from_patched["assistant_masks"]
-    labels = [tid if m else -100 for tid, m in zip(input_ids, masks)]
+    labels = [tid if m else -100 for tid, m in zip(input_ids, masks, strict=True)]
     receipt = GLMLossMasker.validate_loss_masks(
         tokenizer.convert_ids_to_tokens(input_ids), input_ids, labels, masks
     )

@@ -515,7 +515,7 @@ class GLMLossMasker:
         current_role: str | None = None
         preview = []
 
-        for i, (tok, tid, lbl, msk) in enumerate(zip(tokens, input_ids, labels, loss_mask, strict=True)):
+        for tok, lbl, msk in zip(tokens, labels, loss_mask, strict=True):
             # Track current role section
             if "<|system|>" in tok or tok == "<|system|>":
                 current_role = "system"
@@ -614,14 +614,13 @@ class GLMTrainingRecord(BaseModel):
             role = msg.get("role")
             if role not in ("system", "user", "assistant", "tool", "observation"):
                 return False
-            if role in ("tool", "observation"):
-                if not any(prior.get("role") == "assistant" for prior in self.messages[:i]):
-                    return False
+            if role in ("tool", "observation") and not any(
+                prior.get("role") == "assistant" for prior in self.messages[:i]
+            ):
+                return False
             if any(key in REWARD_METADATA_KEYS for key in msg):
                 return False
-        if any(key in REWARD_METADATA_KEYS for key in self.metadata):
-            return False
-        return True
+        return not any(key in REWARD_METADATA_KEYS for key in self.metadata)
 
 
 # ==============================================================================
@@ -816,7 +815,7 @@ def generate_trl_training_script(config: GLMSFTConfig) -> str:
         "",
         "",
         "def main():",
-        f'    print(f"=== Starting TRL SFT for {{MODEL_ID}} (Method: {{METHOD}}) ===")',
+        '    print(f"=== Starting TRL SFT for {MODEL_ID} (Method: {METHOD}) ===")',
         "",
         "    # 1. Tokenizer (pinned revision) + patched chat template.",
         "    tokenizer = AutoTokenizer.from_pretrained(",
@@ -966,10 +965,14 @@ def generate_remote_job_manifest(config: GLMSFTConfig) -> dict[str, Any]:
     QLoRA hardware is computed at 4-bit. All hardware numbers carry
     `"qualification": "estimate-unverified"` (see GLMHardwareEnvelope).
     """
-    precision = {"lora": "fp8", "qlora": "int4", "full_sft": "bf16"}[config.method]
+    precisions: dict[str, Literal["fp8", "bf16", "int4"]] = {
+        "lora": "fp8",
+        "qlora": "int4",
+        "full_sft": "bf16",
+    }
     hardware = compute_hardware_envelope(
         method=config.method,
-        precision=precision,  # type: ignore[arg-type]
+        precision=precisions[config.method],
         context_length=config.max_length,
     )
     gpus = hardware.recommended_min_gpus

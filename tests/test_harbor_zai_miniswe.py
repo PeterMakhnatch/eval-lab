@@ -42,8 +42,6 @@ from evallab.execution_contracts import (
     PRIVATE_PERSIST_MODE,
     ZAI_MINISWE_AGENT_IMPORT_PATH,
     ZAI_OPENAPI_MODEL_SELECTOR,
-    ZAI_OPENAPI_PROXY_TOKEN,
-    ZAI_OPENAPI_PROXY_URL,
     RunRequest,
     build_command,
     resolve_harbor_agent,

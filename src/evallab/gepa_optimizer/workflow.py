@@ -18,6 +18,7 @@ from evallab.execution_contracts import (
     ZAI_OPENAPI_MODEL_SELECTOR,
     ZAI_OPENCODE_MODEL_SELECTORS,
 )
+from evallab.registry import task_directory_digest
 
 from .budget import AggregateBudget, BudgetExhausted
 from .evaluator import (
@@ -34,6 +35,7 @@ from .proposer import (
     ReplaySafeGepaEngine,
     direct_proposer_blocker,
 )
+from .intake import load_retained_spec, validate_drift
 from .release import verify_release
 
 
@@ -289,9 +291,11 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         "candidate_kind",
         "proposer_transport",
         "proposer_ceilings",
+        "target",
     }
     if not isinstance(raw, dict) or set(raw) - allowed:
         raise ValueError("Unknown campaign fields; arbitrary engine configuration is not supported")
+    _apply_retained_target(raw, repo_root.resolve())
     for key in (
         "name",
         "engine",
@@ -457,6 +461,47 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
     return raw
 
 
+_TARGET_DERIVED_FIELDS = (
+    "agent",
+    "model",
+    "provider_ceilings",
+    "timeout_seconds",
+    "estimated_cost_usd",
+)
+
+
+def _apply_retained_target(raw: dict[str, Any], repo_root: Path) -> None:
+    """Fill agent/model/ceilings/timeout/cost from a retained spec when target is set."""
+    target = raw.get("target")
+    if target is None:
+        return
+    if not isinstance(target, dict) or set(target) != {"base_spec_path"}:
+        raise ValueError("target must be an object with exactly the key base_spec_path")
+    base_spec_path = target["base_spec_path"]
+    if not isinstance(base_spec_path, str):
+        raise ValueError("target.base_spec_path must be a repository-relative path")
+    conflicts = [key for key in _TARGET_DERIVED_FIELDS if key in raw]
+    if conflicts:
+        raise ValueError(
+            "Campaign fields conflict with retained spec target: " + ", ".join(conflicts)
+        )
+    retained = load_retained_spec(_path(repo_root, base_spec_path))
+    raw["agent"] = retained.agent
+    raw["model"] = retained.model
+    raw["timeout_seconds"] = retained.timeout_seconds
+    if retained.est_cost_usd > 0:
+        raw["estimated_cost_usd"] = retained.est_cost_usd
+    ceilings = {field: getattr(retained, field) for field in PROVIDER_CEILING_FIELDS}
+    if any(value is not None for value in ceilings.values()):
+        if any(value is None for value in ceilings.values()):
+            raise ValueError("retained spec has incomplete provider_ceilings")
+        raw["provider_ceilings"] = ceilings
+    raw["target"] = {"base_spec_path": base_spec_path}
+    validate_drift(
+        retained, task_directory_digest(_path(repo_root, retained.task_path or retained.task))
+    )
+
+
 class QualificationProposer:
     """Deterministic interface fixture, never a model or learned improvement."""
 
@@ -593,6 +638,9 @@ def _run_campaign(
         if approval.get("candidate_id") != "sha256:" + path.stem:
             raise ValueError("Candidate review identity mismatch")
         reviewed.add(approval["candidate_id"])
+    base_spec = None
+    if config.get("target") is not None:
+        base_spec = load_retained_spec(_path(repo_root, config["target"]["base_spec_path"]))
     evaluator = LabEvaluator(
         repo_root=repo_root,
         output_dir=output / "lab",
@@ -608,6 +656,7 @@ def _run_campaign(
         feedback_max_chars=config.get("feedback_max_chars", 24000),
         budgets=budgets,
         candidate_kind=candidate_kind,
+        base_spec=base_spec,
     )
     validation_ids = set(config.get("validation_task_ids", []))
     train = [row for row in config["examples"] if row["task_id"] not in validation_ids]

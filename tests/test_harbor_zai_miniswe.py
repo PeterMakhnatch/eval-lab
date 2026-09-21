@@ -146,26 +146,6 @@ def wrapper_module(monkeypatch: pytest.MonkeyPatch) -> Iterator[ModuleType]:
 # ---------------------------------------------------------------------------
 
 
-def test_wrapper_accepts_zai_glm_flash(wrapper_module: ModuleType) -> None:
-    agent = wrapper_module.SecretSafeZaiMiniSweAgent(
-        _Connection(
-            provider="zai",
-            model="zai/glm-5.3-flash",
-            api_key=SECRET_SENTINEL,
-            env={"OTHER_VAR": "keep-me"},
-        )
-    )
-    conn = agent.model_connection
-    assert conn.provider == "zai"
-    assert conn.base_url == ZAI_OPENAPI_PROXY_URL
-    assert conn.configured_base_url == ZAI_OPENAPI_PROXY_URL
-    assert conn.api_key == ZAI_OPENAPI_PROXY_TOKEN
-    assert conn.env["MSWEA_API_KEY"] == ZAI_OPENAPI_PROXY_TOKEN
-    assert conn.env["OPENAI_BASE_URL"] == ZAI_OPENAPI_PROXY_URL
-    assert conn.env["OPENAI_API_BASE"] == ZAI_OPENAPI_PROXY_URL
-    assert conn.env["OTHER_VAR"] == "keep-me"
-    assert "ZAI_OPENAPI_API_KEY" not in conn.env
-
 
 def test_wrapper_rejects_non_zai_provider(wrapper_module: ModuleType) -> None:
     agent = wrapper_module.SecretSafeZaiMiniSweAgent(

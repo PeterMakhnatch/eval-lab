@@ -48,6 +48,8 @@ def _scrubbed_connection_env(connection: ResolvedModelConnection) -> dict[str, s
     }
     token = os.environ.get(ZAI_OPENAPI_PROXY_CAPABILITY_ENV) or ZAI_OPENAPI_PROXY_TOKEN
     env["MSWEA_API_KEY"] = token
+    env["ZAI_API_KEY"] = token
+    env["ZAI_API_BASE"] = ZAI_OPENAPI_PROXY_URL
     env["OPENAI_BASE_URL"] = ZAI_OPENAPI_PROXY_URL
     env["OPENAI_API_BASE"] = ZAI_OPENAPI_PROXY_URL
     return env

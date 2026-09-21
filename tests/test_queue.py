@@ -432,6 +432,35 @@ def test_missing_credential_defers_spec_without_moving_it(
     assert deferrals and deferrals[-1].reason_code == f"missing_credential:{credential}"
 
 
+def test_tick_distinguishes_provider_credentials_for_the_same_agent(tmp_path: Path) -> None:
+    def run(request: RunRequest) -> Path:
+        destination = request.jobs_dir / request.name
+        destination.mkdir(parents=True)
+        return destination
+
+    service = executor(
+        tmp_path, runner=run, credentials=frozenset({"zai_openapi_api_environment"})
+    )
+    for name, model in (
+        ("glm-provider", "zai/glm-5.3-flash"),
+        ("deepseek-provider", "deepseek/deepseek-flash"),
+    ):
+        submit_authorized(
+            service, spec(name, agent="mini-swe-agent", model=model, est_cost_usd=1)
+        )
+
+    assert service.tick() == 1
+    assert [item.name for _, item in service.queue.list_specs("approved")] == [
+        "deepseek-provider"
+    ]
+    events = load_events(service.queue.events_path)
+    assert [
+        (event.job_name, event.reason_code)
+        for event in events
+        if event.event == "dispatch_deferred"
+    ] == [("deepseek-provider", "missing_credential:deepseek_api_environment")]
+
+
 @pytest.mark.parametrize(
     ("credentials", "missing_agent", "missing_reason"),
     [

@@ -1679,7 +1679,7 @@ class Executor:
             return False
         if self.queue.stop_path.exists():
             return False
-        missing = missing_credential_for(spec.agent, credentials)
+        missing = missing_credential_for(spec.agent, credentials, model=spec.model)
         if missing is not None:
             self.queue.append_event(
                 QueueEvent(

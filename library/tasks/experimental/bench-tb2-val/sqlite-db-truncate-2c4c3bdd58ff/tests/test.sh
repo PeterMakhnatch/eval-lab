@@ -6,6 +6,7 @@ apt-get install -y curl
 
 # Install uv
 curl -LsSf https://astral.sh/uv/0.9.5/install.sh | sh
+
 source $HOME/.local/bin/env
 
 # Check if we're in a valid working directory
@@ -13,8 +14,6 @@ if [ "$PWD" = "/" ]; then
     echo "Error: No working directory set. Please set a WORKDIR in your Dockerfile before running this script."
     exit 1
 fi
-
-cp /tests/test.py /app/test.py
 
 uvx \
   -p 3.13 \

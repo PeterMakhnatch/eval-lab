@@ -5238,16 +5238,6 @@
       "registration_state": null
     },
     {
-      "task_id": "cancel-async-tasks-b45af75bcc92",
-      "path": "library/tasks/experimental/bench-tb2-val/cancel-async-tasks-b45af75bcc92",
-      "category": "runnable_task",
-      "has_task_toml": true,
-      "has_environment": true,
-      "has_verifier": true,
-      "is_canary": false,
-      "registration_state": null
-    },
-    {
       "task_id": "configure-git-webserver-e7c1d7f3942e",
       "path": "library/tasks/experimental/bench-tb2-val/configure-git-webserver-e7c1d7f3942e",
       "category": "runnable_task",
@@ -5260,6 +5250,16 @@
     {
       "task_id": "dna-insert-69a2b9412ef7",
       "path": "library/tasks/experimental/bench-tb2-val/dna-insert-69a2b9412ef7",
+      "category": "runnable_task",
+      "has_task_toml": true,
+      "has_environment": true,
+      "has_verifier": true,
+      "is_canary": false,
+      "registration_state": null
+    },
+    {
+      "task_id": "sqlite-db-truncate-2c4c3bdd58ff",
+      "path": "library/tasks/experimental/bench-tb2-val/sqlite-db-truncate-2c4c3bdd58ff",
       "category": "runnable_task",
       "has_task_toml": true,
       "has_environment": true,

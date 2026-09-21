@@ -21,7 +21,7 @@ cards; live `harbor download`).
 | Family | Source / version | Harbor route | Tasks | License | Verdict |
 |---|---|---|---|---|---|
 | **Terminal-Bench 2** | Harbor registry pin `terminal-bench@2.0` (89 tasks; GitHub `harbor-framework/terminal-bench-2` mirror shows 51 + Apr-2026 metadata commits) | native: `harbor download terminal-bench@2.0`; packages are Harbor task.toml with pinned prebuilt images | 89 | Apache-2.0 | **runnable-now (primary)** |
-| **FACET-Terminal** | `github.com/StoKou/FACET-Terminal` + HF `FACET-Terminal/FACET-Tasks-6k` | native task.toml template; local 10-task subset already on disk | 6,020 pool (2 imported) | Apache-2.0 | **runnable-now (complementary)** |
+| **FACET-Terminal** | `github.com/StoKou/FACET-Terminal` + HF `FACET-Terminal/FACET-Terminal-Tasks-6k`; local subset of 15 tasks at `~/Developer/harbor-rl-exploration/tasks/facet` | native task.toml template | 6,020 pool (2 imported) | Apache-2.0 | **runnable-now (complementary)** |
 | SWE-bench Verified | `SWE-bench/SWE-bench_Verified` | Harbor Hub dataset `swe-bench/swe-bench-verified` (official adapter, parity-verified) | 500 | MIT | qualified, deferred (heavy per-repo images; patch-producing agents) |
 | MLE-bench | `openai/mle-bench` | none needed to exclude | 75 | MIT code | **resource-blocked** (Kaggle creds + 158 GB–3.3 TB + ~24 h GPU/task) |
 | Terminal-Bench 3/4 | — | — | — | — | **excluded by Peter directive** |
@@ -58,11 +58,14 @@ three-deliverable cross-validation variant).
 ## Cohort materialized
 
 `research/experiments/bench-cohort-2026-09-16.json` pins the immutable dev
-cohort (digests computed by the Lab registry):
+cohort (digests computed with the importer's own `package_digest` algorithm —
+the same authority as the import ledger and each destination directory's name
+suffix; categories read from each task's own `task.toml`):
 
 - **development**: 6 TB2 tasks stratified by category + 2 FACET tasks
-- **validation**: 3 TB2 tasks from disjoint categories, scored but never
-  optimized on
+- **validation**: 3 TB2 tasks whose categories are disjoint from every
+  development category (system-administration, scientific-computing,
+  debugging), scored but never optimized on
 - sealed exclusions: TB3, TB4 (directive), MLE-bench (resources),
   SWE-bench Verified (deferred with route documented)
 

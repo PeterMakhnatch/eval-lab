@@ -69,6 +69,20 @@ suffix; categories read from each task's own `task.toml`):
 - sealed exclusions: TB3, TB4 (directive), MLE-bench (resources),
   SWE-bench Verified (deferred with route documented)
 
+## Containment delta (2026-09-21, release-owner sweep)
+
+Two tasks were removed from the cohort for verifier execution hazards and
+replaced with same-category tasks whose verifiers do not execute
+agent-controlled browsers or hooks: `filter-js-from-html` (floating zip +
+`--no-sandbox --disable-web-security` Chrome on agent HTML) →
+`fix-code-vulnerability`; `configure-git-webserver` (executes the submitted
+`post-receive` hook via `git push`) → `nginx-request-logging`. Dev/val
+category-disjointness is preserved. The remaining upstream property — all
+TB2 verifiers bootstrap uv/pytest from the network at verify time — is TB2's
+own design; it needs an explicit Peter risk decision (accept for
+optimizer-loop use) or a hardened-fork conversion (pre-baked bootstrap +
+guarded test.sh per task) before graded use.
+
 Imported through the existing batch interface
 (`evallab tasks import`, resumable ledger, digest-suffixed destinations).
 

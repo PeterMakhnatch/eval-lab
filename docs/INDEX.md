@@ -85,7 +85,7 @@ inputs:
   - path: docs/research/evaluation-factory-2026-08.md
     digest: sha256:f453a2f026c5b9240e90706d78030db1747af489df79a46b172ec85932a0dde8
   - path: docs/research/existing-benchmarks-on-harbor.md
-    digest: sha256:68566b220d7f8358390be9374285a69a7eda79ffd43d3e6c09ba15812c510cec
+    digest: sha256:f48c50ffd28dfd47ae8716dc9924850649da1402b9227187d582f11f5badfe29
   - path: docs/research/external-datasets.md
     digest: sha256:58d428f613cf5cab9258c4e5ce2f057b79d16d803251b62c556b3d18f24a88a3
   - path: docs/research/harbor-ecosystem-architecture-perspective.md

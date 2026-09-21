@@ -5218,8 +5218,8 @@
       "registration_state": null
     },
     {
-      "task_id": "filter-js-from-html-2c9d94c1a89d",
-      "path": "library/tasks/experimental/bench-tb2-dev/filter-js-from-html-2c9d94c1a89d",
+      "task_id": "fix-code-vulnerability-1f031820259a",
+      "path": "library/tasks/experimental/bench-tb2-dev/fix-code-vulnerability-1f031820259a",
       "category": "runnable_task",
       "has_task_toml": true,
       "has_environment": true,
@@ -5238,8 +5238,8 @@
       "registration_state": null
     },
     {
-      "task_id": "configure-git-webserver-e7c1d7f3942e",
-      "path": "library/tasks/experimental/bench-tb2-val/configure-git-webserver-e7c1d7f3942e",
+      "task_id": "dna-insert-69a2b9412ef7",
+      "path": "library/tasks/experimental/bench-tb2-val/dna-insert-69a2b9412ef7",
       "category": "runnable_task",
       "has_task_toml": true,
       "has_environment": true,
@@ -5248,8 +5248,8 @@
       "registration_state": null
     },
     {
-      "task_id": "dna-insert-69a2b9412ef7",
-      "path": "library/tasks/experimental/bench-tb2-val/dna-insert-69a2b9412ef7",
+      "task_id": "nginx-request-logging-8ab59f37e7a9",
+      "path": "library/tasks/experimental/bench-tb2-val/nginx-request-logging-8ab59f37e7a9",
       "category": "runnable_task",
       "has_task_toml": true,
       "has_environment": true,

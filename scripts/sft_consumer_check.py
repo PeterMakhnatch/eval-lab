@@ -14,10 +14,8 @@ receipt so Helper/HAR-64 can change it explicitly):
   cases would render as ``tool`` if the template supports the role; the
   OpenCode corpus is ``unknown`` throughout, so the tool branch is exercised
   only by the mini fixture.
-* Assistant tool calls are appended to the target text in the same
-  Hermes-style ``<tool_call>`` block the GLM chat template renders for tool
-  role messages -- a consumer-side rendering choice over the record's
-  structured fields, never a claim the model emitted that text.
+* Assistant tool calls remain structured and are serialized by the pinned GLM
+  template, including its native ``<arg_key>`` / ``<arg_value>`` syntax.
 * ``reasoning_content`` is excluded from supervision per the contract's
   default policy.
 
@@ -26,7 +24,8 @@ Mask semantics checked per target:
 1. supervised span nonempty,
 2. nothing before the assistant span is supervised,
 3. no EOS token id inside the span,
-4. the rendered example ends with EOS after the span.
+The receipt separately records whether the template actually emitted a trailing
+EOS. The GLM template may omit it; absence is not a successful EOS assertion.
 
 Run isolated (production venv stays clean)::
 
@@ -45,12 +44,15 @@ from typing import Any
 
 RECORDS_FILES = ("records.decisions.jsonl", "records.full.jsonl")
 MODEL_ID = "zai-org/GLM-5.3-Flash"
+MODEL_REVISION = "eb9eb208eb0d988989d07a6a12d0fdeb5f52574a"
 
 
 def _load_tokenizer(model_id: str) -> Any:
     from transformers import AutoTokenizer
 
-    return AutoTokenizer.from_pretrained(model_id)
+    return AutoTokenizer.from_pretrained(
+        model_id, revision=MODEL_REVISION, local_files_only=True
+    )
 
 
 def _render(message: dict[str, Any]) -> dict[str, Any]:
@@ -58,21 +60,27 @@ def _render(message: dict[str, Any]) -> dict[str, Any]:
     content = message.get("content") or ""
     if role == "observation":
         if message.get("presented_as") == "tool":
-            return {"role": "tool", "content": content}
+            return {
+                "role": "tool", "content": content,
+                "tool_call_id": message.get("tool_call_id"),
+            }
         return {"role": "user", "content": content}
     if role == "assistant" and message.get("tool_calls"):
-        blocks = []
-        for call in message["tool_calls"]:
-            blocks.append(
-                "<tool_call>\n"
-                + json.dumps(
-                    {"name": call.get("name"), "arguments": call.get("arguments")},
-                    ensure_ascii=False,
-                )
-                + "\n</tool_call>"
-            )
-        text = "\n".join([content, *blocks]) if content else "\n".join(blocks)
-        return {"role": "assistant", "content": text}
+        return {
+            "role": "assistant",
+            "content": content,
+            "tool_calls": [
+                {
+                    "id": call.get("id"),
+                    "type": "function",
+                    "function": {
+                        "name": call.get("name"),
+                        "arguments": call.get("arguments"),
+                    },
+                }
+                for call in message["tool_calls"]
+            ],
+        }
     return {"role": role, "content": content}
 
 
@@ -98,12 +106,12 @@ def check_example(
     eos = tokenizer.eos_token_id
 
     # The prefix is the context rendered with the generation prompt (the
-    # assistant header the model continues); the full stream adds the target
-    # and a trailing EOS, which is stripped so the supervised span is exactly
-    # the tokens after the prefix.
+    # assistant header the model continues); the full stream adds the target.
+    # Strip a trailing EOS only if the template actually emitted one.
     prefix_ids = _ids(rendered_context, generation_prompt=True)
     full_ids = _ids(rendered_context + [rendered_target], generation_prompt=False)
-    if full_ids and full_ids[-1] == eos:
+    trailing_eos_present = bool(full_ids and full_ids[-1] == eos)
+    if trailing_eos_present:
         full_ids = full_ids[:-1]
     span_start = len(prefix_ids)
     span = full_ids[span_start:]
@@ -111,7 +119,6 @@ def check_example(
         "span_nonempty": len(span) > 0,
         "prefix_unsupervised": full_ids[:span_start] == prefix_ids,
         "no_eos_in_span": eos not in span,
-        "ends_with_eos": True,  # trailing EOS stripped above; schema keeps the slot
     }
     return {
         "prefix_tokens": len(prefix_ids),
@@ -120,6 +127,7 @@ def check_example(
         "span_head_decoded": tokenizer.decode(span[:24]),
         "tail_decoded": tokenizer.decode(full_ids[-24:]),
         "eos_token_id": eos,
+        "trailing_eos_present": trailing_eos_present,
         "checks": checks,
         "ok": all(checks.values()),
     }
@@ -158,6 +166,7 @@ def account_tokens(tokenizer: Any, records_dir: Path, out_path: Path, model_id: 
     counts = sorted(item["rendered_tokens"] for item in per_record)
     summary = {
         "model_id": model_id,
+        "tokenizer_revision": MODEL_REVISION,
         "records": len(per_record),
         "min": counts[0],
         "median": counts[len(counts) // 2],
@@ -225,7 +234,7 @@ def main(argv: list[str] | None = None) -> int:
         ok_count += result["ok"]
     rendered_policy = {
         "observation": "user (presented_as=='tool' -> tool)",
-        "assistant.tool_calls": "appended Hermes-style <tool_call> blocks (consumer-side rendering)",
+        "assistant.tool_calls": "structured calls serialized by the pinned GLM chat template",
         "reasoning_content": "excluded from supervision",
         "glm_think_boundary": (
             "GLM-5.3-Flash opens <think> in the generation prompt; the supervised "
@@ -237,6 +246,7 @@ def main(argv: list[str] | None = None) -> int:
         "consumer": "scripts/sft_consumer_check.py",
         "contract": "evallab.sft_records/1",
         "model_id": args.model_id,
+        "tokenizer_revision": MODEL_REVISION,
         "tokenizer_class": tokenizer.__class__.__name__,
         "vocab_size": tokenizer.vocab_size,
         "eos_token": tokenizer.eos_token,

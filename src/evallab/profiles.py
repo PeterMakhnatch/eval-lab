@@ -29,15 +29,19 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from evallab.execution_contracts import (
+    GLM_SELFHOSTED_BASE_MODEL_SELECTOR,
+    GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS,
+    GLM_SELFHOSTED_FT_MODEL_SELECTOR,
     OPENCODE_AUTH_RELATIVE_PATH,
     RLM_AGENT,
     ZAI_AUTH_PROVIDER,
     ZAI_OPENCODE_AGENT,
+    ProfileInferenceSettings,
     read_owner_secret_file,
 )
 
@@ -46,8 +50,13 @@ from evallab.execution_contracts import (
 _FORBIDDEN_KEY_MARKERS = ("API_KEY", "API_TOKEN", "_SECRET", "ACCESS_KEY")
 DEEPSEEK_CREDENTIAL_NAMES = frozenset({"DEEPSEEK_API_KEY", "MSWEA_API_KEY"})
 ZAI_OPENAPI_CREDENTIAL_NAMES = frozenset({"ZAI_OPENAPI_API_KEY"})
+GLM_SELFHOSTED_CREDENTIAL_NAMES = GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
 ADMITTED_ENV_SECRET_SETS: frozenset[frozenset[str]] = frozenset(
-    {DEEPSEEK_CREDENTIAL_NAMES, ZAI_OPENAPI_CREDENTIAL_NAMES}
+    {
+        DEEPSEEK_CREDENTIAL_NAMES,
+        ZAI_OPENAPI_CREDENTIAL_NAMES,
+        GLM_SELFHOSTED_CREDENTIAL_NAMES,
+    }
 )
 
 AuthMode = Literal[
@@ -107,11 +116,41 @@ class AgentProfile(BaseModel):
     capabilities: tuple[str, ...] = ()
     resources: ProfileResources = ProfileResources()
     limits: ProfileLimits = ProfileLimits()
+    requested_selector: str | None = None
+    effective_endpoint_base: str | None = None
+    provider_returned_model_id: str | None = None
+    inference_settings: ProfileInferenceSettings = Field(default_factory=ProfileInferenceSettings)
     verified_facts: tuple[str, ...] = Field(
         default=(),
         description="Independently observed evidence, one dated sentence each.",
     )
 
+    def with_inference_settings(
+        self,
+        *,
+        effort: str | int | None = None,
+        max_tokens: int | None = None,
+    ) -> AgentProfile:
+        """Record explicit inference settings at request time."""
+        settings = ProfileInferenceSettings(effort=effort, max_tokens=max_tokens)
+        return self.model_copy(update={"inference_settings": settings})
+
+    def with_identity(
+        self,
+        *,
+        requested_selector: str | None = None,
+        effective_endpoint_base: str | None = None,
+        provider_returned_model_id: str | None = None,
+    ) -> AgentProfile:
+        """Record distinct identity fields on the profile."""
+        updates: dict[str, Any] = {}
+        if requested_selector is not None:
+            updates["requested_selector"] = requested_selector
+        if effective_endpoint_base is not None:
+            updates["effective_endpoint_base"] = effective_endpoint_base
+        if provider_returned_model_id is not None:
+            updates["provider_returned_model_id"] = provider_returned_model_id
+        return self.model_copy(update=updates)
     @field_validator("required_files", "capabilities", "verified_facts")
     @classmethod
     def no_api_key_names(cls, value: tuple[str, ...]) -> tuple[str, ...]:
@@ -129,14 +168,14 @@ class AgentProfile(BaseModel):
                 raise ValueError("environment secret_source must name at least one variable")
             if frozenset(names) not in ADMITTED_ENV_SECRET_SETS:
                 raise ValueError(
-                    "environment secret_source may name only the admitted DeepSeek or Z.ai variables"
+                    "environment secret_source may name only the admitted DeepSeek or Z.ai or GLM self-hosted variables"
                 )
             return value
         _rejects_api_key_names((value,))
         if not value.startswith(("keychain:", "file:", "cli:")):
             raise ValueError(
                 "secret_source must be 'keychain:<service>', 'file:<pattern>', "
-                "'cli:<command>', or the admitted DeepSeek or Z.ai 'env:<names>' source"
+                "'cli:<command>', or the admitted DeepSeek or Z.ai or GLM self-hosted 'env:<names>' source"
             )
         return value
 
@@ -633,6 +672,44 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 verified_facts=(
                     "2026-09: mini-swe-agent with Z.ai Open Platform standard API "
                     "GLM-5.3-Flash lane added",
+                ),
+            ),
+            AgentProfile(
+                profile_id="glm-selfhosted-base",
+                adapter="mini-swe-agent",
+                model=GLM_SELFHOSTED_BASE_MODEL_SELECTOR,
+                requested_selector=GLM_SELFHOSTED_BASE_MODEL_SELECTOR,
+                effective_endpoint_base=None,
+                provider_returned_model_id=None,
+                inference_settings=ProfileInferenceSettings(effort=None, max_tokens=8192),
+                auth_mode="api-key-environment",
+                secret_source="env:GLM_SELFHOSTED_API_KEY",
+                limits=ProfileLimits(
+                    max_timeout_seconds=28_800,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-09: self-hosted GLM base checkpoint endpoint seam with mini-swe-agent added",
+                ),
+            ),
+            AgentProfile(
+                profile_id="glm-selfhosted-ft",
+                adapter="mini-swe-agent",
+                model=GLM_SELFHOSTED_FT_MODEL_SELECTOR,
+                requested_selector=GLM_SELFHOSTED_FT_MODEL_SELECTOR,
+                effective_endpoint_base=None,
+                provider_returned_model_id=None,
+                inference_settings=ProfileInferenceSettings(effort=None, max_tokens=8192),
+                auth_mode="api-key-environment",
+                secret_source="env:GLM_SELFHOSTED_API_KEY",
+                limits=ProfileLimits(
+                    max_timeout_seconds=28_800,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-09: self-hosted fine-tuned GLM checkpoint endpoint seam with mini-swe-agent added",
                 ),
             ),
             # Cursor lane. Verified in this lab on 2026-08-19: `cursor-agent status`

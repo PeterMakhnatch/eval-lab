@@ -27,10 +27,11 @@ Mask semantics checked per target:
 The receipt separately records whether the template actually emitted a trailing
 EOS. The GLM template may omit it; absence is not a successful EOS assertion.
 
-Run isolated (production venv stays clean)::
+Run isolated (``-P`` prevents scripts/profile from shadowing Python's stdlib;
+production venv stays clean)::
 
-    uv run --with transformers==4.57.1 --with 'harbor[dspy]==0.21.0' \
-        python scripts/sft_consumer_check.py runs/sft-records/real-20260918 \
+    uv run --no-project --with transformers==5.17.0 \
+        python -P scripts/sft_consumer_check.py runs/sft-records/real-20260918 \
         --limit 20 --receipt runs/sft-records/real-20260918/consumer-receipt.json
 """
 

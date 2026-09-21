@@ -244,6 +244,7 @@ def test_deepseek_credentials_are_opt_in_and_log_redacted() -> None:
 
 def test_daytona_key_is_redacted_from_persisted_executor_errors(tmp_path: Path) -> None:
     secret = "private-sandbox-api-credential"
+    assert secret not in repr(subscription_environment({"DAYTONA_API_KEY": secret}))
     destination = tmp_path / "executor.log"
     persist_private_bytes(
         destination,

@@ -698,10 +698,16 @@ def run_harbor_process(
     ) and not zai_lane
     rlm_adapter = HARBOR_AGENT_IMPORT_PATHS[RLM_AGENT]
     rlm_lane = rlm_adapter in command
+    environment_selector = (
+        command[command.index("--env") + 1] if "--env" in command else None
+    )
     runtime_environment = subscription_environment(
         include_deepseek_credentials=deepseek_lane,
         include_zai_credentials=zai_lane,
         include_zai_openapi_credentials=zai_openapi_lane,
+        include_daytona_credentials=environment_selector in {
+            "daytona", "evallab.harbor_daytona:SecretSafeDaytonaEnvironment",
+        },
     )
     secret_values = collected_secret_values()
     owned_secret_dir: Path | None = None

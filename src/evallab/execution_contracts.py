@@ -76,7 +76,6 @@ _SUBSCRIPTION_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
         "CLAUDE_FORCE_OAUTH",
         "CODEX_HOME",
         "CODEX_FORCE_AUTH_JSON",
-        "DAYTONA_API_KEY",
         "DAYTONA_API_URL",
         "DAYTONA_TARGET",
         "DOCKER_CONFIG",
@@ -762,6 +761,7 @@ def subscription_environment(
     include_zai_credentials: bool = False,
     include_zai_openapi_credentials: bool = False,
     include_glm_selfhosted_credentials: bool = False,
+    include_daytona_credentials: bool = False,
 ) -> dict[str, str]:
     """Build Harbor's environment from explicit non-secret allowlists.
     DeepSeek and Z.ai provider keys never enter this mapping. The metered agent
@@ -769,6 +769,10 @@ def subscription_environment(
     """
     source = os.environ if environment is None else environment
     sanitized = {key: source[key] for key in _SUBSCRIPTION_ENVIRONMENT_KEYS if key in source}
+    if include_daytona_credentials:
+        for key in DAYTONA_CREDENTIAL_ENVIRONMENT_KEYS:
+            if source.get(key):
+                sanitized[key] = source[key]
     if include_deepseek_credentials:
         for key in (
             DEEPSEEK_SECRET_FILE_ENV,

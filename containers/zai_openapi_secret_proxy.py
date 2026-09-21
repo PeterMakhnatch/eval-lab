@@ -49,7 +49,9 @@ HEALTHZ_PATH = "/healthz"
 MAX_REQUEST_BYTES = 4 * 1024 * 1024
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
 REQUEST_TIMEOUT_SECONDS = 15.0
-UPSTREAM_TIMEOUT_SECONDS = 120.0
+# Model generation may legitimately outlast a short HTTP request deadline.
+# The trial watchdog and pre-call token/cost reservations remain authoritative.
+UPSTREAM_TIMEOUT_SECONDS = 600.0
 MAX_CONCURRENT_WORKERS = 32
 
 PINNED_HTTPS_HOST = "api.z.ai"

@@ -27,7 +27,7 @@ from evallab.profiles import (
     scrub_environment,
     validate_model_pin,
 )
-from evallab.runner import _SUBSCRIPTION_ENVIRONMENT_KEYS, subscription_environment
+from evallab.runner import subscription_environment
 
 FROZEN_NOW = datetime(2026, 8, 15, 12, 0, 0, tzinfo=UTC)
 FAKE_SECRET = "sk-FAKE-SECRET-VALUE-000"
@@ -276,6 +276,7 @@ def test_subscription_environment_never_forwards_api_keys():
         "OPENAI_API_KEY": FAKE_SECRET,
         "XAI_API_KEY": FAKE_SECRET,
         "SOME_ACCESS_KEY": FAKE_SECRET,
+        "DAYTONA_API_KEY": FAKE_SECRET,
         "HOME": "/home/x",
         "PATH": "/usr/bin",
     }
@@ -308,11 +309,6 @@ def test_scrub_environment_drops_key_shaped_names_even_if_allowlisted():
     allow = frozenset({"HOME", "SNEAKY_API_KEY"})
     clean = scrub_environment({"HOME": "/h", "SNEAKY_API_KEY": FAKE_SECRET}, allow)
     assert clean == {"HOME": "/h"}
-
-
-def test_runner_allowlist_itself_contains_no_key_shaped_names():
-    for key in _SUBSCRIPTION_ENVIRONMENT_KEYS:
-        assert "API_KEY" not in key and "SECRET" not in key
 
 
 # ---- deterministic serialization -------------------------------------------

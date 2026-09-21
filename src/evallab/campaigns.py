@@ -2233,7 +2233,7 @@ class CampaignOrchestrator:
         except Exception as exc:
             raise CampaignError("credential preflight failed closed") from exc
         for attempt in attempts:
-            missing = missing_credential_for(attempt.spec.agent, credentials)
+            missing = missing_credential_for(attempt.spec.agent, credentials, model=attempt.spec.model)
             if missing is not None:
                 return f"missing_credential:{missing}"
         return None

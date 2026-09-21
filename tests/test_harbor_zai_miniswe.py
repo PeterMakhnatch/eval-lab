@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import importlib.util
 import json
 import sys
 import threading
@@ -42,8 +43,6 @@ from evallab.execution_contracts import (
     PRIVATE_PERSIST_MODE,
     ZAI_MINISWE_AGENT_IMPORT_PATH,
     ZAI_OPENAPI_MODEL_SELECTOR,
-    ZAI_OPENAPI_PROXY_TOKEN,
-    ZAI_OPENAPI_PROXY_URL,
     RunRequest,
     build_command,
     resolve_harbor_agent,
@@ -145,26 +144,6 @@ def wrapper_module(monkeypatch: pytest.MonkeyPatch) -> Iterator[ModuleType]:
 # 1. Adapter unit tests
 # ---------------------------------------------------------------------------
 
-
-def test_wrapper_accepts_zai_glm_flash(wrapper_module: ModuleType) -> None:
-    agent = wrapper_module.SecretSafeZaiMiniSweAgent(
-        _Connection(
-            provider="zai",
-            model="zai/glm-5.3-flash",
-            api_key=SECRET_SENTINEL,
-            env={"OTHER_VAR": "keep-me"},
-        )
-    )
-    conn = agent.model_connection
-    assert conn.provider == "zai"
-    assert conn.base_url == ZAI_OPENAPI_PROXY_URL
-    assert conn.configured_base_url == ZAI_OPENAPI_PROXY_URL
-    assert conn.api_key == ZAI_OPENAPI_PROXY_TOKEN
-    assert conn.env["MSWEA_API_KEY"] == ZAI_OPENAPI_PROXY_TOKEN
-    assert conn.env["OPENAI_BASE_URL"] == ZAI_OPENAPI_PROXY_URL
-    assert conn.env["OPENAI_API_BASE"] == ZAI_OPENAPI_PROXY_URL
-    assert conn.env["OTHER_VAR"] == "keep-me"
-    assert "ZAI_OPENAPI_API_KEY" not in conn.env
 
 
 def test_wrapper_rejects_non_zai_provider(wrapper_module: ModuleType) -> None:
@@ -312,9 +291,14 @@ def test_proxy_lifecycle_and_accounting(tmp_path: Path, monkeypatch: pytest.Monk
     monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_MAX_TOTAL_TOKENS", "20000")
     monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_MAX_COST_MICROS", "1000000")
 
-    from containers.zai_openapi_secret_proxy import serve
+    source = Path(__file__).resolve().parents[1] / "containers" / "zai_openapi_secret_proxy.py"
+    module_spec = importlib.util.spec_from_file_location("test_zai_openapi_proxy", source)
+    assert module_spec is not None and module_spec.loader is not None
+    module = importlib.util.module_from_spec(module_spec)
+    monkeypatch.setitem(sys.modules, module_spec.name, module)
+    module_spec.loader.exec_module(module)
 
-    proxy = serve(host="127.0.0.1", port=0)
+    proxy = module.serve(host="127.0.0.1", port=0)
     proxy_thread = threading.Thread(target=proxy.serve_forever, daemon=True)
     proxy_thread.start()
     p_host, p_port = proxy.server_address

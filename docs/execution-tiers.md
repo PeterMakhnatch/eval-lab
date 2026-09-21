@@ -147,18 +147,41 @@ Execution requires Docker Desktop on Apple Silicon with a kernel that supports
 Harbor's broker network allowlist; on unsupported kernels, the run fails
 closed during container network configuration before model requests can issue.
 
+### GLM mini-SWE on Daytona
+
+Use an explicitly authorized `ExperimentSpec` with `environment: "daytona"`,
+`agent: "mini-swe-agent"`, and `model: "zai/glm-5.3-flash"`. The TB4 compiler's
+GPU backend selector does not move CPU tasks off Docker. Submit, approve, and
+dispatch the exact spec through the existing queue; do not call Harbor directly.
+
+The launcher requires `DAYTONA_API_KEY` and the standard-API
+`ZAI_OPENAPI_API_KEY`. The scoped Daytona environment stages the existing proxy
+script and its private key mount on the remote VM, not in the task container.
+Harness installation uses the public network; model execution switches the task
+onto an internal network reaching only the metered proxy. Accounting is recovered
+before sandbox deletion. This transport currently admits single-container task
+packages; separate verifiers use Harbor's independent verifier environment.
+
+Task CPU/RAM/disk requests still come from `task.toml`. Each sandbox has a
+provider-side destruction deadline of the explicit execution timeout plus ten
+minutes (rounded up), five-minute inactivity stop, and immediate deletion after
+stop. These lifecycle limits are not an infrastructure dollar meter: budget the
+agent sandbox, separate verifier, and builds independently of model tokens.
+All five provider request/token/cost ceilings remain mandatory. Shorter pilot
+timeouts and budget terminations are diagnostic limits, not full TB4 results.
+
 ## Running on Modal (binding rules)
 
 **Any cloud/remote execution is `escalate_to_human` per
 `policy/standing-approvals.yaml`. This includes oracle-only sweeps** — they
 skip model APIs but still bill Modal compute (CPU/GPU-hours). Concretely:
 
-- Agents must NOT create or restore a Modal token. Token absence is the
-  enforcement mechanism, not an oversight: without `~/.modal.toml`,
-  `--env modal` fails before anything can bill.
-- When Peter approves cloud work, he creates the token himself
-  (`~/.local/share/uv/tools/harbor/bin/modal setup`, browser auth) and the
-  approved job runs through the queue like anything else.
+- Credential setup requires Peter's authorization, but authenticated clients do
+  not themselves authorize compute. Peter authorized account setup on September21.
+- Use the official `modal token new` browser flow for account configuration;
+  keep `~/.modal.toml` owner-only. Actual cloud work still requires the exact
+  queued spec's recorded authorization. Modal account setup does not qualify
+  the GLM proxy transport on Modal.
 - First run of any new suite is `-n 1` to price it before `-n 5`.
 
 Reference commands (for the approved case — copied from frontier-bench README):

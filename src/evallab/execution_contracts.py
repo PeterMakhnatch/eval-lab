@@ -76,6 +76,8 @@ _SUBSCRIPTION_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
         "CLAUDE_FORCE_OAUTH",
         "CODEX_HOME",
         "CODEX_FORCE_AUTH_JSON",
+        "DAYTONA_API_URL",
+        "DAYTONA_TARGET",
         "DOCKER_CONFIG",
         "DOCKER_CONTEXT",
         "DOCKER_HOST",
@@ -99,6 +101,8 @@ _SUBSCRIPTION_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
         "XDG_DATA_HOME",
     }
 )
+
+DAYTONA_CREDENTIAL_ENVIRONMENT_KEYS = frozenset({"DAYTONA_API_KEY"})
 
 DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
     {"DEEPSEEK_API_KEY", "MSWEA_API_KEY"}
@@ -588,6 +592,7 @@ def collected_secret_values(
     source = os.environ if environment is None else environment
     values: set[str] = set()
     for key, placeholder in (
+        *((key, "") for key in DAYTONA_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, DEEPSEEK_PROXY_TOKEN) for key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, ZAI_PROXY_TOKEN) for key in ZAI_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, ZAI_OPENAPI_PROXY_TOKEN) for key in ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS),
@@ -756,6 +761,7 @@ def subscription_environment(
     include_zai_credentials: bool = False,
     include_zai_openapi_credentials: bool = False,
     include_glm_selfhosted_credentials: bool = False,
+    include_daytona_credentials: bool = False,
 ) -> dict[str, str]:
     """Build Harbor's environment from explicit non-secret allowlists.
     DeepSeek and Z.ai provider keys never enter this mapping. The metered agent
@@ -763,6 +769,10 @@ def subscription_environment(
     """
     source = os.environ if environment is None else environment
     sanitized = {key: source[key] for key in _SUBSCRIPTION_ENVIRONMENT_KEYS if key in source}
+    if include_daytona_credentials:
+        for key in DAYTONA_CREDENTIAL_ENVIRONMENT_KEYS:
+            if source.get(key):
+                sanitized[key] = source[key]
     if include_deepseek_credentials:
         for key in (
             DEEPSEEK_SECRET_FILE_ENV,
@@ -838,6 +848,7 @@ def redact_environment(environment: Mapping[str, str]) -> dict[str, str]:
         | ZAI_CREDENTIAL_ENVIRONMENT_KEYS
         | ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS
         | GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
+        | DAYTONA_CREDENTIAL_ENVIRONMENT_KEYS
     )
     redacted: dict[str, str] = {}
     for key, value in environment.items():
@@ -984,6 +995,14 @@ def _agent_timeout_multiplier(request: RunRequest) -> str | None:
 
 def build_command(request: RunRequest) -> list[str]:
     """Build the exact Harbor CLI invocation command for a RunRequest."""
+    environment = request.environment
+    zai_daytona = (
+        environment == "daytona"
+        and request.agent == "mini-swe-agent"
+        and request.model == ZAI_OPENAPI_MODEL_SELECTOR
+    )
+    if zai_daytona:
+        environment = "evallab.harbor_daytona:SecretSafeDaytonaEnvironment"
     command = [
         "harbor",
         "run",
@@ -992,7 +1011,7 @@ def build_command(request: RunRequest) -> list[str]:
         "--agent",
         resolve_harbor_agent(request.agent, request.model),
         "--env",
-        request.environment,
+        environment,
         "--job-name",
         request.name,
         "--jobs-dir",
@@ -1002,6 +1021,10 @@ def build_command(request: RunRequest) -> list[str]:
         "--n-attempts",
         str(request.attempts),
     ]
+    if zai_daytona:
+        # Provider-side destruction still applies if the local controller dies.
+        ttl_minutes = (request.timeout_seconds + 600 + 59) // 60
+        command.extend(["--environment-kwarg", f"ttl_minutes={ttl_minutes}"])
     command.extend(["--plugin", HARBOR_STATE_JOURNAL_PLUGIN])
     harbor_model = resolve_harbor_model(request.agent, request.model)
     if harbor_model:
@@ -1041,7 +1064,14 @@ def build_command(request: RunRequest) -> list[str]:
                 )
             else:
                 cost_limit = 2.5
-            max_tokens = request.max_output_tokens if request.max_output_tokens is not None else 8192
+            # The proxy's output allowance is cumulative across the trial.
+            # Do not request that entire allowance in each model completion.
+            completion_limit = (
+                request.inference_settings.max_tokens
+                if request.inference_settings and request.inference_settings.max_tokens is not None
+                else 8192
+            )
+            max_tokens = min(completion_limit, request.max_output_tokens or completion_limit)
             command.extend(
                 [
                     "--n-concurrent-agents",

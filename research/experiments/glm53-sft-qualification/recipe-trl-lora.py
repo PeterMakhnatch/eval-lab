@@ -60,7 +60,7 @@ def build_trainer(train_dataset) -> SFTTrainer:
         gradient_accumulation_steps=8,
         learning_rate=1e-4,
         lr_scheduler_type="cosine",
-        warmup_ratio=0.03,
+        warmup_steps=0.03,  # TRL 1.13+: fractional steps express the warmup ratio.
         bf16=True,
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import importlib.util
 import json
 import sys
 import threading
@@ -290,9 +291,14 @@ def test_proxy_lifecycle_and_accounting(tmp_path: Path, monkeypatch: pytest.Monk
     monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_MAX_TOTAL_TOKENS", "20000")
     monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_MAX_COST_MICROS", "1000000")
 
-    from containers.zai_openapi_secret_proxy import serve
+    source = Path(__file__).resolve().parents[1] / "containers" / "zai_openapi_secret_proxy.py"
+    module_spec = importlib.util.spec_from_file_location("test_zai_openapi_proxy", source)
+    assert module_spec is not None and module_spec.loader is not None
+    module = importlib.util.module_from_spec(module_spec)
+    monkeypatch.setitem(sys.modules, module_spec.name, module)
+    module_spec.loader.exec_module(module)
 
-    proxy = serve(host="127.0.0.1", port=0)
+    proxy = module.serve(host="127.0.0.1", port=0)
     proxy_thread = threading.Thread(target=proxy.serve_forever, daemon=True)
     proxy_thread.start()
     p_host, p_port = proxy.server_address

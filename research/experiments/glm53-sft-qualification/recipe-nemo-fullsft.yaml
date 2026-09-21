@@ -1,0 +1,115 @@
+# HAR-66 corrected NeMo AutoModel recipe for GLM-5.3-Flash full language-backbone SFT.
+# Base: examples/vlm_finetune/glm5_next/glm5_3_flash_medpix_packed2k_ep72_cp2_100steps.yaml
+#        at NVIDIA-NeMo/Automodel commit cb60ebf540b2803e567d3a169db7b7078c179e84
+# Corrections vs published example (per HAR-66):
+#   1. checkpoint.enabled: false -> true, save_consolidated: false -> final
+#      (published YAML disables all checkpointing; ckpt_every 1000 > max_steps 100)
+#   2. dataset -> our conversation records via a local loader (placeholder; the
+#      MedPix VQA dataset is NOT our workload and its 2K packed context is not
+#      terminal-travidence evidence).
+#   3. ckpt_every_steps lowered for a bounded pilot.
+# Fallback path only: requires the validated 72xH100-class topology (EP divides 288).
+# No GPU run was executed in HAR-66.
+
+recipe: FinetuneRecipeForVLM
+seed: 1234
+
+step_scheduler:
+  global_batch_size: 144
+  local_batch_size: 1
+  ckpt_every_steps: 50        # was 1000: actually save within a bounded pilot
+  val_every_steps: 1000
+  log_remote_every_steps: 1
+  gc_every_steps: 5
+  num_epochs: 4
+  max_steps: 100
+
+dist_env:
+  backend: nccl
+  timeout_minutes: 120
+
+rng:
+  _target_: nemo_automodel.components.training.rng.StatefulRNG
+  seed: 1234
+  ranked: true
+  deterministic: true
+
+model:
+  _target_: nemo_automodel.NeMoAutoModelForImageTextToText.from_pretrained
+  pretrained_model_name_or_path: zai-org/GLM-5.3-Flash
+  torch_dtype: bfloat16       # dequantizes the FP8 checkpoint (only train path)
+  attn_implementation: sdpa   # portable reference; cudnn needs FlashMLA b7643bd5
+  use_liger_kernel: false
+  use_sdpa_patching: false
+  text_config:
+    output_hidden_states: true  # required by FusedLinearCrossEntropy
+    num_nextn_predict_layers: 0
+
+processor:
+  _target_: nemo_automodel.components.models.glm5_next.processing.build_glm5_next_processor
+  pretrained_model_name_or_path: zai-org/GLM-5.3-Flash
+  trust_remote_code: false
+
+checkpoint:
+  enabled: true               # CORRECTED: published example disabled saving
+  checkpoint_dir: checkpoints/glm53-flash-sft-har66/
+  model_save_format: safetensors
+  save_consolidated: final    # CORRECTED: produce HF-loadable weights at the end
+  dequantize_base_checkpoint: true
+
+distributed:
+  strategy: fsdp2
+  tp_size: 1                  # TP unsupported for glm5_next
+  cp_size: 2
+  pp_size: 1                  # PP unsupported for glm5_next
+  ep_size: 72                 # must divide 288; validated topology
+  sequence_parallel: false
+  activation_checkpointing: true
+  moe:
+    reshard_after_forward: false
+    wrap_outer_model: true
+    ignore_router_for_ac: true
+
+freeze_config:
+  freeze_vision_tower: true
+  freeze_audio_tower: true
+  freeze_language_model: false
+
+loss_fn:
+  _target_: nemo_automodel.components.loss.linear_ce.FusedLinearCrossEntropy
+
+dataset:
+  # PLACEHOLDER: replace with Helper's conversation-record loader.
+  # Must emit {"conversation": [...]} with assistant-target masking handled by
+  # the collater (build_labels_from_template masks non-assistant tokens).
+  _target_: null
+
+packed_sequence:
+  pretokenize: true
+  max_length: 2048            # published validation length only; not our target
+  pack_size: 2048
+  collate_max_length: 2048
+  packing_ratio: 0.9
+  drop_long_samples: true
+  packing_format: neat
+  attn_implementation: sdpa
+
+dataloader:
+  _target_: torchdata.stateful_dataloader.StatefulDataLoader
+  num_workers: 1
+  persistent_workers: true
+  pin_memory: true
+  drop_last: true
+
+optimizer:
+  _target_: torch.optim.AdamW
+  betas: [0.9, 0.95]
+  eps: 1e-8
+  lr: 5.0e-6
+  weight_decay: 0.1
+
+lr_scheduler:
+  lr_decay_style: constant
+
+clip_grad_norm:
+  max_norm: 1.0

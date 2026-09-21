@@ -35,27 +35,34 @@ Harbor jobs belong in that worktree's `runs/`, never in another worker's runtime
 
 ## Release operating path (HAR-46)
 
-For repository release management, sitting-PR delivery, and runtime adoption,
-Linear issue **HAR-46** is the single explicit release queue. This resolves the
-obsolete pickup-board claim for release work while preserving existing historical
-owner claims and boundaries in `claims/`.
+Linear issue **HAR-46** owns shared release infrastructure and runtime adoption,
+not a mandatory handoff for every PR. Each author's existing issue owns their PR
+through delivery. Historical pickup claims in `claims/` retain their lineage and
+path boundaries.
+
+Per Peter's explicit direct order, the delivery contract is author → CI/fixes → SHA-guarded
+protected merge → bounded merged-revision proof. There is no mandatory independent reviewer,
+review attestation, or RE routine merge handoff.
 
 The release operating loop assigns clear, disjoint responsibilities:
-1. **Release owner (RE - Eval Lab)**: Owns release orchestration, integration worktrees
-   and branches, PR disposition, CI/devloop repairs, guarded auto-merge opt-in, and
-   safe local/runtime adoption.
-2. **Code authors**: Original code authors own fixes and repairs within their assigned
-   paths and domains.
-3. **Independent reviewers**: Native OMP workers in separate worktrees perform independent
-   reviews of exact-head PR diffs and produce structured review receipts.
-4. **GitHub checks and guarded auto-merge**: GitHub Actions enforces the required gates
-   (`quality-required`, `typecheck-required`). Auto-merge is opted-in only after the
-   integration owner attests to a completed independent review on that exact head SHA
-   via the `independent-review` commit status.
-5. **Safe local and runtime adoption**: RE - Eval Lab adopts merged code into the active
-   runtime environment preserving all user and owner state.
-6. **Acceptance**: Research - Harbor verifies scientific alignment and accepts delivered
-   work in Linear.
+1. **Release owner (RE - Eval Lab)**: Owns release orchestration, shared integration
+   worktrees and branches, cross-mission coordination, and safe local/runtime adoption.
+   RE does not hold routine merge handoffs or act as a gatekeeper for author PR merges.
+2. **Code authors**: Original code authors are the delivery DRIs for their PRs. They build,
+   shepherd CI to green, fix all CI failures and any concrete bugs (including issues previously
+   raised by retired reviewers), execute guarded protected merges to `main`, and verify merged
+   behavior on `main`. Authors do not mark delivery complete merely for publishing a PR or opting
+   into auto-merge.
+3. **GitHub checks and guarded merge**: GitHub Actions enforces the required gates
+   (`quality-required`, `typecheck-required`). Merges (manual guarded merge or native auto-merge)
+   are executed only after every required and reported CI check succeeds on that exact head SHA.
+4. **Safe local and runtime adoption**: Merged source code and deployed runtime environments
+   remain distinct. RE - Eval Lab adopts merged code into the active runtime environment
+   preserving all user and owner state. Merging to `main` is not permission to deploy or disrupt
+   shared-runtime environments.
+5. **Acceptance**: Research - Harbor verifies scientific alignment and accepts delivered
+   work in Linear. Genuine external blockers are recorded on the existing Linear card with
+   concrete dependencies, not left as idle handoffs.
 
 ### Queue dispatch and lane boundaries
 
@@ -121,76 +128,57 @@ it does not grant ownership or authorize deletion.
    checks. Generation and installation are intentional writes; check commands are not.
 3. Push the topic branch and open a PR against its declared integration target.
    Report the exact head, verification, and any unavailable evidence honestly.
-4. The author does not self-approve. Peter or a different reviewer reviews the
-   exact head; native GitHub approval requires an eligible principal other than
-   the PR author. Merge only after the explicit core gates and every reported
-   check succeed for the current head/base pair (`agents/CHECKS.md`). Local green,
-   a different head's CI, or a merge to an integration branch is not a merge to
-   `main`.
-5. Leave the primary checkout and other workers' uncommitted files untouched during
+4. Zero reviewer approvals are required. The author executes the merge only after
+   the explicit core gates and every reported CI check succeed for the current head/base
+   pair (`agents/CHECKS.md`). Local green, a different head's CI, or a merge to an
+   integration branch is not a merge to `main`.
+5. Follow through to actual merge and post-merge verification. A PR is not delivered
+   when opened or queued for auto-merge; the author confirms the squash-merge has landed
+   on `main` and verifies the bounded merged behavior (e.g. checking merge commit CI or postmerge status).
+6. Leave the primary checkout and other workers' uncommitted files untouched during
    reconciliation. Never force-push `main` or silently resolve an ownership conflict.
-6. Update canonical topic documents in place instead of adding a new dated brief,
+7. Update canonical topic documents in place instead of adding a new dated brief,
    result, or handoff file for each iteration. Dated files are for closure records only.
 
-### Independent review and native auto-merge
+### Author-driven merge and native auto-merge
 
-An independent native OMP review is an actual review by a worker other than the
-author, with findings and disposition tied to the PR head. It is useful evidence,
-but it is not a GitHub `APPROVED` review. Multiple agents authenticated as
-`PeterMakhnatch` are one GitHub principal, not independent GitHub reviewers.
-GitHub does not let a PR author approve their own PR; changing agent/session names,
-writing an approval comment, or inventing another identity does not satisfy a
-required review. Never fabricate approval events.
+Delivery follows an author-driven CI-only model. Zero reviewer approvals are required,
+and there is no mandatory independent review gate or review attestation status (`independent-review`).
+Past `independent-review` commit statuses in repository history are not active CI gates and must
+never be faked or reset. Authors remain responsible for diagnosing and fixing all CI failures,
+as well as resolving known concrete bugs on the branch; removing the review gate does not permit
+knowingly merging broken code.
 
-Before opting a PR into native auto-merge:
+Before merging or opting a PR into native auto-merge:
 
-1. Obtain and resolve an independent review of the exact head, including CI
-   workflow changes. Record the reviewer, head SHA, findings, and disposition.
-   Publish an `independent-review` success status on that exact SHA with the
-   review receipt's GitHub URL. This attests to an actual completed review; it
-   must never be issued by the author alone or by a workflow merely because
-   tests passed. The attestor remains accountable for the review's authenticity.
-2. Verify the live target-branch protection enforces the required gates in
-   `agents/CHECKS.md`, with no admin bypass. Where required native approvals are
-   configured, obtain one from a real eligible independent reviewer.
-3. Only then may the integration owner enable repository auto-merge and opt in
-   that reviewed PR. Native auto-merge waits for configured requirements, not
-   for an agent's written process or for every optional check. If optional checks
-   remain outstanding, wait for them before opting in.
-4. A changed head/base invalidates the process review receipt. Disable auto-merge,
-   rerun/review the new combination, and opt in again only after acceptance.
-   Do not rely on GitHub to disable it for every writer: automatic disabling is
-   documented for updates by users without write permission.
+1. Verify that all required and reported GitHub Actions checks (`quality-required`,
+   `typecheck-required`, etc.) are successful for the exact PR head SHA.
+2. Confirm that there are no unresolved CI failures, test regressions, or known concrete
+   bugs.
+3. Verify the live target-branch protection enforces the required gates in
+   `agents/CHECKS.md`, with no admin bypass.
+4. With every required and reported CI check successful for the current head/base pair, the
+   author (or an integrator) executes the merge using the head-commit guard to prevent racing pushes:
 
-When all agents share the PR author's GitHub principal, use the required
-`independent-review` commit status to enforce a fresh integration-owner
-attestation of the separate OMP review. Native approving-review count is zero
-in this configuration; the independent review itself is still mandatory.
-GitHub enforces the status on the exact commit, but does not authenticate the
-identity of the reviewing OMP worker. A new head therefore blocks auto-merge
-until a new reviewed-head attestation exists. Do not create another account,
-forge a native approval, give an untrusted PR workflow status-write permission,
-or automatically turn successful CI into successful review.
+   ```bash
+   gh pr merge <PR_NUMBER> --squash --delete-branch --match-head-commit <EXACT_HEAD_SHA>
+   ```
 
-After checking the live PR head still matches the reviewed SHA, the integration
-owner records the review using the existing GitHub commit-status API:
+   Never pass `--admin` to bypass required checks or branch protections.
+5. Native auto-merge is optional, not a new delivery owner. Opt in only after all
+   reported CI checks pass; GitHub waits for configured requirements, not every
+   optional workflow. Do not merge or enable auto-merge for a draft or an explicit
+   operator-held PR. A label alone is not GitHub branch-protection enforcement.
+6. A changed head/base requires fresh combined evidence. If the PR branch is updated or rebased,
+   await fresh complete CI runs on the new head before merging.
 
-```bash
-gh api --method POST repos/PeterMakhnatch/eval-lab/statuses/REVIEWED_SHA \
-  -f state=success -f context=independent-review \
-  -f description="Independent review accepted; see exact-head receipt" \
-  -f target_url=GITHUB_REVIEW_RECEIPT_URL
-```
+Use GitHub's native protected merge or native auto-merge, not a privileged custom merger,
+fabricated check, or `pull_request_target` workflow executing PR code. Workflow tokens
+remain read-only and actions remain SHA-pinned.
 
-Use GitHub's native auto-merge, not a privileged custom merger, fabricated check,
-or `pull_request_target` workflow executing PR code. Workflow tokens remain
-read-only and actions remain SHA-pinned.
-
-See GitHub's [native auto-merge semantics](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/automatically-merging-a-pull-request)
-and [required review semantics](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches#require-pull-request-reviews-before-merging).
+See GitHub's [native auto-merge semantics](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/automatically-merging-a-pull-request).
 
 ## Integration and sunset
-
 An integration owner serializes shared mutations, final generation, and validation.
 A squash-merged branch is spent; start subsequent work from the intended current
 base rather than rebasing or pushing the old branch again.
@@ -202,3 +190,9 @@ ignored evidence and recovery commits. Use `evallab tidy --dry-run` for its
 fail-closed classification; do not reinterpret report-only retention notices as
 permission to delete evidence. Do not stop another lane's services or alter its
 credentials, environment, or dependency lock.
+
+For routine estate reduction, prefer conservative hygiene sweeps (such as `evallab tidy`)
+over ad-hoc removals: preserve every commit (unpushed branches are pushed before their worktree
+is removed), hold trees carrying ignored `runs/` job evidence for the evidence lifecycle instead
+of deleting them, and record dispositions.
+

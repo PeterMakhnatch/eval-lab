@@ -15,14 +15,13 @@ retargeting does not reuse evidence for the old base. Push runs remain limited t
 `main` and `integrate/**`; `workflow_dispatch` is diagnostic, not a substitute for
 a PR or merge-group run.
 
-Configure these exact, unique check names as required. Bind the two workflow
-gates to **GitHub Actions**; the review status is issued by the integration owner:
+Configure these exact, unique check names as required. Bind both workflow
+gates to **GitHub Actions**:
 
 | Required check | Direct prerequisites |
 |---|---|
 | `quality-required` | `lint`, `test (3.12, 1/2)`, `test (3.12, 2/2)`, `test (3.14, 1/2)`, `test (3.14, 2/2)` via the `test` matrix |
 | `typecheck-required` | `ty` |
-| `independent-review` | Integration-owner attestation of an actual independent review of this exact head |
 
 Both gate jobs use `always()` and accept only the literal prerequisite result
 `success`. They do not check out code or receive token permissions. A failed,
@@ -34,14 +33,15 @@ or neutral check conclusions; the gate's unconditional execution and explicit
 success comparisons are therefore essential. Review changes to these workflows
 as changes to the merge boundary, not just plumbing.
 
-`independent-review` is a commit status, not an Actions job or a fabricated GitHub
-approval. The integration owner records it only after resolving a different
-agent's or eligible human's review, with the PR review receipt as its target URL.
-No CI workflow may automatically issue it. New commits have no such status and
-remain blocked until reviewed again. See `agents/WORKFLOW.md`.
+All required checks originate from GitHub Actions CI runs. There is no mandatory
+independent review gate or review attestation status (`independent-review`).
+Past `independent-review` commit statuses in GitHub history are historical artifacts,
+not active CI requirements, and must never be reset or faked. Zero reviewer approvals
+are required for merge. The author owns diagnosing and fixing all CI failures, as well as
+any known concrete bugs, before merging.
 
 Auxiliary benchmark, certification, performance, and platform workflows are
-additional evidence, not substitutes for these core gates. Every check that
+additional evidence, not substitutes for these core gates. Every CI check that
 actually reports on the PR must still succeed under the merge rule below.
 Do not require path-filtered workflows globally without first making their
 trigger and dependency handling fail closed, including merge-group support.
@@ -111,20 +111,27 @@ developer happens to be authenticated is a failing test design.
 
 ## Merge rule
 
-Before any role, human, or integrator merges a PR:
+Before any role (author DRI or integrator) merges a PR:
 
 1. Fetch the current PR head and confirm the intended diff.
-2. Run `gh pr checks <number>` and require every reported check to be complete and
-   successful for that head. Explicitly confirm `quality-required` and
-   `typecheck-required` are present: an all-green list of auxiliary checks is not
-   evidence that missing core workflows ran.
-3. Inspect the corresponding workflow runs for the current head/base pair and
+2. Inspect `gh pr checks <number>` and require every reported CI check to be complete
+   and successful for that head. Explicitly confirm `quality-required` and
+   `typecheck-required` are present. The retired `independent-review` commit status
+   may still appear on older heads; it is not a CI check or a merge requirement.
+   Do not rewrite its history or substitute auxiliary green checks for missing core gates.
+3. Ensure there are no unresolved CI failures or known concrete bugs on the branch.
+   Authors own fixing concrete issues on their changes; removing the review gate does
+   not permit knowingly merging broken code.
+4. Inspect the corresponding workflow runs for the current head/base pair and
    successful `lint`, both Python `test` jobs, and `ty`. PR workflows normally
    check out GitHub's test merge commit; record both PR head and tested merge SHA
    where available. A base change requires fresh combined evidence.
-4. Do not substitute local green, an old run, a manual dispatch, mergeability, or
+5. Do not substitute local green, an old run, a manual dispatch, mergeability, or
    unavailable branch protection for these checks.
-5. Apply the independent-review and auto-merge rules in `agents/WORKFLOW.md`.
+6. Apply the guarded merge rules in `agents/WORKFLOW.md`, executing
+   with exact-head guards (`gh pr merge <n> --squash --delete-branch --match-head-commit <HEAD_SHA>`).
+   Follow with bounded merged-revision proof on `main` (confirm the merge commit, its CI,
+   or postmerge verification).
 
 A squash-merged branch is never rebased, reused, or pushed again. After your PR
 merges, delete the branch and start any follow-up from a fresh branch off
@@ -146,23 +153,17 @@ changes rather than infer enforcement from this document.
 
 Recommended protection for `main` and any branch accepting integrated work:
 require a PR, require `quality-required` and `typecheck-required` from GitHub
-Actions plus the `independent-review` commit status, require the branch to be up
-to date, require conversation resolution, block force pushes/deletion, and apply
-the rules to administrators with no bypass. When there is a real independent
-GitHub reviewer, also require their native approval and dismiss stale approvals.
-In the shared-principal workflow, the commit status enforces a fresh review
-attestation, not independently authenticated reviewer identity; do not describe
-an agent comment as a native GitHub approval.
-Use an active ruleset or explicit non-overlapping branch protections; merely
-running checks on arbitrary stack bases does not protect those bases.
+Actions, require the branch to be up to date, require conversation resolution,
+block force pushes/deletion, and apply the rules to administrators with no bypass.
+Zero reviewer approvals are required. Use an active ruleset or explicit
+non-overlapping branch protections; merely running checks on arbitrary stack
+bases does not protect those bases.
 
-Keep the native merge queue disabled. Its combined merge-group SHA is different
-from the reviewed PR head, so the required `independent-review` status would be
-missing. Queue activation requires a separately approved genuine review and
-attestation procedure for each group SHA, plus live combined-check validation.
-Never make CI synthesize review success to fill that gap. The `merge_group`
-triggers prepare the CI side only; they do not authorize or enable a queue.
-
+Draft pull requests and explicit operator holds (e.g. labels) remain honored pauses
+preventing accidental merge.
+Keep the native merge queue disabled unless explicitly authorized with live combined-check
+validation. The `merge_group` triggers prepare the CI side only; they do not authorize or
+enable a queue.
 ### Integration-owner verification
 
 After publishing the workflow change, open or update a PR against a non-`main`,

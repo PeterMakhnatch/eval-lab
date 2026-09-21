@@ -73,7 +73,8 @@ from evallab.schemas import CohortComparisonSpec, CohortSelector, ExperimentSpec
 from evallab.toolbox import compute_skill_digest, validate_toolbox_code
 
 from .budget import AggregateBudget
-from .feedback import build_feedback, validate_oracle_reference
+from .feedback import build_feedback, validate_oracle_reference, validate_prior_run_reference
+from .intake import replay_spec_for_candidate
 
 PERMITTED_CONTROLS = frozenset({"oracle", "nop"})
 DEEPSEEK_TARGET_AGENT = "mini-swe-agent"
@@ -346,6 +347,17 @@ def validate_example_dict(repo_root: Path, example: dict[str, Any]) -> dict[str,
             raise ExampleDeclarationError("Oracle reference must bind this development package")
         validated["oracle_reference"] = copy.deepcopy(reference)
         validate_oracle_reference(repo_root, Path(task_path_str), reference)
+    if "prior_run_reference" in example:
+        reference = example["prior_run_reference"]
+        if (
+            not isinstance(reference, dict)
+            or set(reference) != {"trial_path", "result_sha256", "task_package_digest"}
+            or reference.get("task_package_digest") != declared_digest
+            or not all(isinstance(value, str) for value in reference.values())
+        ):
+            raise ExampleDeclarationError("Prior run reference must bind this development package")
+        validated["prior_run_reference"] = copy.deepcopy(reference)
+        validate_prior_run_reference(repo_root, Path(task_path_str), reference)
     return validated
 
 
@@ -496,6 +508,7 @@ class LabEvaluator:
         feedback_max_chars: int = 24000,
         budgets: tuple[AggregateBudget, ...] = (),
         candidate_kind: str = "instructions",
+        base_spec: ExperimentSpec | None = None,
     ) -> None:
         self.repo_root = Path(repo_root).resolve()
         self.output_dir = _validate_in_repo_dir(self.repo_root, Path(output_dir), "output_dir")
@@ -521,6 +534,7 @@ class LabEvaluator:
         if candidate_kind not in {"instructions", "python_toolbox"}:
             raise ValueError("Unsupported candidate_kind")
         self.candidate_kind = candidate_kind
+        self.base_spec = base_spec
         if ceilings is not None and self.agent not in {DEEPSEEK_TARGET_AGENT, "zai-opencode"}:
             raise ValueError(f"the {self.agent} target does not accept provider ceilings")
 
@@ -801,6 +815,14 @@ class LabEvaluator:
 
         # Successful evaluation
         score = float(primary_reward)
+        prior_trial_paths: tuple[Path, ...] = ()
+        prior_ref = example.get("prior_run_reference")
+        if prior_ref is not None:
+            prior_trial_paths = (
+                validate_prior_run_reference(
+                    self.repo_root, Path(example["task_path"]), prior_ref
+                ),
+            )
         feedback = (
             build_feedback(
                 repo_root=self.repo_root,
@@ -808,6 +830,7 @@ class LabEvaluator:
                 trial_path=trial.path,
                 max_chars=self.feedback_max_chars,
                 oracle_reference=example.get("oracle_reference"),
+                prior_trial_paths=prior_trial_paths,
             )
             if trial is not None
             else {"feedback": "No trial evidence available."}
@@ -876,6 +899,10 @@ class LabEvaluator:
         if example.get("oracle_reference") != declared.get("oracle_reference"):
             raise ExampleDeclarationError(
                 "Oracle reference differs from frozen development declaration"
+            )
+        if example.get("prior_run_reference") != declared.get("prior_run_reference"):
+            raise ExampleDeclarationError(
+                "Prior run reference differs from frozen development declaration"
             )
 
         abs_task_path = (self.repo_root / declared["task_path"]).resolve()
@@ -967,6 +994,15 @@ class LabEvaluator:
 
         # If local control, execute directly via Executor.execute_direct
         if self.agent in CONTROL_AGENTS:
+            control_timeout = self.timeout_seconds
+            control_attempts = 1
+            control_concurrency = 1
+            control_environment = "docker"
+            if self.base_spec is not None:
+                control_timeout = self.base_spec.timeout_seconds
+                control_attempts = self.base_spec.attempts
+                control_concurrency = self.base_spec.concurrency
+                control_environment = self.base_spec.environment
             request = RunRequest(
                 task=abs_task_path,
                 agent=self.agent,
@@ -982,7 +1018,10 @@ class LabEvaluator:
                 toolbox_sha256=candidate_sha256
                 if self.candidate_kind == "python_toolbox"
                 else None,
-                timeout_seconds=self.timeout_seconds,
+                timeout_seconds=control_timeout,
+                attempts=control_attempts,
+                concurrency=control_concurrency,
+                environment=control_environment,
                 provenance=RunProvenance(
                     spec_id=f"gepa-{new_ulid()}",
                     task=declared["task_path"],
@@ -1104,31 +1143,54 @@ class LabEvaluator:
             task_id=task_id,
             candidate_sha256=candidate_sha256,
         )
-        spec_kwargs: dict[str, Any] = {
-            "spec_id": new_ulid(),
-            "name": clean_spec_name,
-            "hypothesis": f"{self.candidate_kind} candidate improves performance on {task_id}",
-            "purpose": "elicitation",
-            "task": declared["task_path"],
-            "task_path": declared["task_path"],
-            "task_id": task_id,
-            "task_package_digest": declared["task_package_digest"],
-            "agent": self.agent,
-            "model": self.model,
-            "timeout_seconds": self.timeout_seconds,
-            "est_cost_usd": self.estimated_cost_usd,
-            "submitted_by": "gepa-evaluator",
-            "jobs_dir": self.jobs_dir.relative_to(self.repo_root).as_posix(),
-        }
-        if self.candidate_kind == "python_toolbox":
-            spec_kwargs.update(toolbox_path=rel_candidate_path, toolbox_sha256=candidate_sha256)
-        else:
-            spec_kwargs.update(
-                extra_instruction_path=rel_candidate_path, extra_instruction_sha256=candidate_sha256
+        relative_jobs = self.jobs_dir.relative_to(self.repo_root).as_posix()
+        if self.base_spec is not None:
+            spec = replay_spec_for_candidate(
+                self.base_spec,
+                campaign_name=self._campaign_path,
+                candidate_path=Path(rel_candidate_path),
+                candidate_sha256=candidate_sha256,
+                jobs_dir=relative_jobs,
             )
-        if self.ceilings is not None:
-            spec_kwargs.update(self.ceilings.to_spec_kwargs())
-        spec = ExperimentSpec(**spec_kwargs)
+            spec = spec.model_copy(
+                update={
+                    "spec_id": new_ulid(),
+                    "name": clean_spec_name,
+                    "task": declared["task_path"],
+                    "task_path": declared["task_path"],
+                    "task_id": task_id,
+                    "task_package_digest": declared["task_package_digest"],
+                }
+            )
+        else:
+            spec_kwargs: dict[str, Any] = {
+                "spec_id": new_ulid(),
+                "name": clean_spec_name,
+                "hypothesis": f"{self.candidate_kind} candidate improves performance on {task_id}",
+                "purpose": "elicitation",
+                "task": declared["task_path"],
+                "task_path": declared["task_path"],
+                "task_id": task_id,
+                "task_package_digest": declared["task_package_digest"],
+                "agent": self.agent,
+                "model": self.model,
+                "timeout_seconds": self.timeout_seconds,
+                "est_cost_usd": self.estimated_cost_usd,
+                "submitted_by": "gepa-evaluator",
+                "jobs_dir": relative_jobs,
+            }
+            if self.candidate_kind == "python_toolbox":
+                spec_kwargs.update(
+                    toolbox_path=rel_candidate_path, toolbox_sha256=candidate_sha256
+                )
+            else:
+                spec_kwargs.update(
+                    extra_instruction_path=rel_candidate_path,
+                    extra_instruction_sha256=candidate_sha256,
+                )
+            if self.ceilings is not None:
+                spec_kwargs.update(self.ceilings.to_spec_kwargs())
+            spec = ExperimentSpec(**spec_kwargs)
         for budget in self.budgets:
             budget.reserve(
                 "target",

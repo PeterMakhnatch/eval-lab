@@ -76,6 +76,9 @@ _SUBSCRIPTION_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
         "CLAUDE_FORCE_OAUTH",
         "CODEX_HOME",
         "CODEX_FORCE_AUTH_JSON",
+        "DAYTONA_API_KEY",
+        "DAYTONA_API_URL",
+        "DAYTONA_TARGET",
         "DOCKER_CONFIG",
         "DOCKER_CONTEXT",
         "DOCKER_HOST",
@@ -99,6 +102,8 @@ _SUBSCRIPTION_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
         "XDG_DATA_HOME",
     }
 )
+
+DAYTONA_CREDENTIAL_ENVIRONMENT_KEYS = frozenset({"DAYTONA_API_KEY"})
 
 DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
     {"DEEPSEEK_API_KEY", "MSWEA_API_KEY"}
@@ -588,6 +593,7 @@ def collected_secret_values(
     source = os.environ if environment is None else environment
     values: set[str] = set()
     for key, placeholder in (
+        *((key, "") for key in DAYTONA_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, DEEPSEEK_PROXY_TOKEN) for key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, ZAI_PROXY_TOKEN) for key in ZAI_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, ZAI_OPENAPI_PROXY_TOKEN) for key in ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS),
@@ -838,6 +844,7 @@ def redact_environment(environment: Mapping[str, str]) -> dict[str, str]:
         | ZAI_CREDENTIAL_ENVIRONMENT_KEYS
         | ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS
         | GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
+        | DAYTONA_CREDENTIAL_ENVIRONMENT_KEYS
     )
     redacted: dict[str, str] = {}
     for key, value in environment.items():
@@ -984,6 +991,14 @@ def _agent_timeout_multiplier(request: RunRequest) -> str | None:
 
 def build_command(request: RunRequest) -> list[str]:
     """Build the exact Harbor CLI invocation command for a RunRequest."""
+    environment = request.environment
+    zai_daytona = (
+        environment == "daytona"
+        and request.agent == "mini-swe-agent"
+        and request.model == ZAI_OPENAPI_MODEL_SELECTOR
+    )
+    if zai_daytona:
+        environment = "evallab.harbor_daytona:SecretSafeDaytonaEnvironment"
     command = [
         "harbor",
         "run",
@@ -992,7 +1007,7 @@ def build_command(request: RunRequest) -> list[str]:
         "--agent",
         resolve_harbor_agent(request.agent, request.model),
         "--env",
-        request.environment,
+        environment,
         "--job-name",
         request.name,
         "--jobs-dir",
@@ -1002,6 +1017,10 @@ def build_command(request: RunRequest) -> list[str]:
         "--n-attempts",
         str(request.attempts),
     ]
+    if zai_daytona:
+        # Provider-side destruction still applies if the local controller dies.
+        ttl_minutes = (request.timeout_seconds + 600 + 59) // 60
+        command.extend(["--environment-kwarg", f"ttl_minutes={ttl_minutes}"])
     command.extend(["--plugin", HARBOR_STATE_JOURNAL_PLUGIN])
     harbor_model = resolve_harbor_model(request.agent, request.model)
     if harbor_model:

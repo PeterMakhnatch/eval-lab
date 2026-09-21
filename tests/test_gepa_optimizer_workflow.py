@@ -5,14 +5,21 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 import evallab.gepa_optimizer.workflow as workflow
-from evallab.execution_contracts import DEEPSEEK_MODEL_SELECTOR
-from evallab.gepa_optimizer.evaluator import DEEPSEEK_TARGET_AGENT
+from evallab.execution_contracts import DEEPSEEK_MODEL_SELECTOR, ZAI_OPENAPI_MODEL_SELECTOR
+from evallab.gepa_optimizer.evaluator import (
+    DEEPSEEK_TARGET_AGENT,
+    EvaluationPending,
+    LabEvaluator,
+    ProviderCeilings,
+)
+from evallab.gepa_optimizer.intake import replay_spec_for_candidate, validate_drift
 from evallab.gepa_optimizer.proposer import JournaledReflectionLM, ProposalUnavailable
 from evallab.gepa_optimizer.workflow import QualificationProposer, _EvaluationHalt, load_campaign
 from evallab.registry import task_directory_digest
@@ -675,3 +682,187 @@ def test_unqualified_proposer_stops_campaign_before_baseline(tmp_path, monkeypat
     )
     assert report["target_evaluations"] == []
     assert report["proposer"]["calls"] == 0
+
+
+_REPLAY_OVERRIDDEN = {
+    "spec_id",
+    "submitted_at",
+    "submitted_by",
+    "name",
+    "hypothesis",
+    "extra_instruction_path",
+    "extra_instruction_sha256",
+    "grid_point",
+    "campaign_ledger",
+    "campaign_cell_id",
+    "campaign_attempt_id",
+    "campaign_attempt_index",
+    "campaign_manifest_digest",
+    "campaign_spec_digest",
+    "campaign_evidence_store",
+}
+
+
+def _retained_spec(**overrides: Any) -> ExperimentSpec:
+    fields: dict[str, Any] = {
+        "spec_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "name": "retained-harbor-run",
+        "hypothesis": "original harbor run",
+        "purpose": "comparison",
+        "task": "tasks/task_1",
+        "task_path": "tasks/task_1",
+        "task_id": "task_1",
+        "task_package_digest": "sha256:" + "a" * 64,
+        "agent": DEEPSEEK_TARGET_AGENT,
+        "model": DEEPSEEK_MODEL_SELECTOR,
+        "submitted_by": "operator",
+        "submitted_at": datetime(2026, 1, 2, tzinfo=UTC),
+        "timeout_seconds": 900,
+        "attempts": 2,
+        "concurrency": 2,
+        "environment": "docker",
+        "harness_policy": "rlm-v1",
+        "est_cost_usd": 2.25,
+        "jobs_dir": "runs",
+        "question_ref": "q-harbor-17",
+        "extra_instruction_path": "old/preamble.txt",
+        "extra_instruction_sha256": "sha256:" + "1" * 64,
+        "toolbox_path": "artifacts/toolbox.py",
+        "toolbox_sha256": "sha256:" + "f" * 64,
+        "grid_point": {"point_id": "p1", "arm_id": "control"},
+        "max_requests": 7,
+        "max_input_tokens": 8000,
+        "max_output_tokens": 2000,
+        "max_total_tokens": 10000,
+        "cost_limit_usd": 0.75,
+    }
+    fields.update(overrides)
+    return ExperimentSpec(**fields)
+
+
+def test_replay_spec_for_candidate_preserves_base_fields() -> None:
+    base = _retained_spec()
+    candidate_path = Path("out/lab/candidates/candidate.txt")
+    candidate_sha256 = "sha256:" + "e" * 64
+    replayed = replay_spec_for_candidate(
+        base,
+        campaign_name="deepseek-target-path",
+        candidate_path=candidate_path,
+        candidate_sha256=candidate_sha256,
+        jobs_dir="runs",
+    )
+    base_dump = base.model_dump()
+    replayed_dump = replayed.model_dump()
+    for key, value in base_dump.items():
+        if key in _REPLAY_OVERRIDDEN:
+            continue
+        assert replayed_dump[key] == value
+    assert replayed.spec_id is None
+    assert replayed.submitted_at is None
+    assert replayed.submitted_by == "gepa-replay"
+    assert replayed.grid_point is None
+    assert replayed.campaign_ledger is None
+    assert replayed.campaign_cell_id is None
+    assert replayed.extra_instruction_path == candidate_path.as_posix()
+    assert replayed.extra_instruction_sha256 == candidate_sha256
+    assert replayed.toolbox_path == base.toolbox_path
+    assert replayed.toolbox_sha256 == base.toolbox_sha256
+    assert replayed.purpose == "comparison"
+    assert replayed.jobs_dir == "runs"
+    assert replayed.name.startswith("gepa-")
+    assert candidate_sha256[:16] in replayed.hypothesis
+    assert base.spec_id in replayed.hypothesis
+
+
+def test_load_campaign_rejects_conflicting_agent_when_replay_target_present(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    campaign = {
+        "name": "replay-conflict",
+        "engine": "gepa",
+        "agent": "oracle",
+        "target": {"base_spec_path": "specs/retained.json"},
+        "seed_candidate_path": "seed.txt",
+        "output_dir": "out",
+        "examples": [
+            {
+                "task_id": "task_1",
+                "task_path": "tasks/task_1",
+                "task_package_digest": "sha256:" + "a" * 64,
+                "split": "development",
+            }
+        ],
+        "max_evals": 2,
+    }
+    path = repo_root / "campaign.json"
+    path.write_text(json.dumps(campaign), encoding="utf-8")
+    with pytest.raises(ValueError, match="agent"):
+        load_campaign(path, repo_root)
+
+
+def test_load_campaign_rejects_unknown_replay_target_key(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    campaign = {
+        "name": "replay-unknown-target",
+        "engine": "gepa",
+        "target": {"base_spec_path": "specs/retained.json", "agent": "oracle"},
+        "seed_candidate_path": "seed.txt",
+        "output_dir": "out",
+        "examples": [
+            {
+                "task_id": "task_1",
+                "task_path": "tasks/task_1",
+                "task_package_digest": "sha256:" + "a" * 64,
+                "split": "development",
+            }
+        ],
+        "max_evals": 2,
+    }
+    path = repo_root / "campaign.json"
+    path.write_text(json.dumps(campaign), encoding="utf-8")
+    with pytest.raises(ValueError, match="base_spec_path"):
+        load_campaign(path, repo_root)
+
+
+def test_evaluator_replay_submits_spec_matching_base_model_and_ceilings(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = _write_task(repo_root)
+    base = _retained_spec(
+        task=task["task_path"],
+        task_path=task["task_path"],
+        task_id=task["task_id"],
+        task_package_digest=task["task_package_digest"],
+        model=ZAI_OPENAPI_MODEL_SELECTOR,
+    )
+    stub = _StubExecutor(repo_root)
+    evaluator = LabEvaluator(
+        repo_root=repo_root,
+        output_dir=repo_root / "out" / "lab",
+        examples=[task],
+        agent=DEEPSEEK_TARGET_AGENT,
+        model=DEEPSEEK_MODEL_SELECTOR,
+        timeout_seconds=600,
+        estimated_cost_usd=1.5,
+        ceilings=ProviderCeilings(**CEILINGS),
+        executor=stub,
+        approved_candidate_ids=None,
+        base_spec=base,
+    )
+    with pytest.raises(EvaluationPending):
+        evaluator("Study the requirements before acting.\n", task)
+    assert len(stub.submitted_specs) == 1
+    spec = stub.submitted_specs[0]
+    assert spec.model == base.model
+    assert spec.max_requests == base.max_requests
+    assert spec.max_input_tokens == base.max_input_tokens
+    assert spec.max_output_tokens == base.max_output_tokens
+    assert spec.max_total_tokens == base.max_total_tokens
+    assert spec.cost_limit_usd == base.cost_limit_usd
+
+
+def test_replay_drift_validation_raises_on_digest_mismatch() -> None:
+    base = _retained_spec()
+    with pytest.raises(ValueError, match="task_package_digest"):
+        validate_drift(base, "sha256:" + "b" * 64)

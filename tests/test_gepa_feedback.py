@@ -9,7 +9,13 @@ from typing import Any
 
 import pytest
 
-from evallab.gepa_optimizer.feedback import build_feedback, validate_oracle_reference
+from evallab.gepa_optimizer.evaluator import ExampleDeclarationError, validate_example_dict
+from evallab.gepa_optimizer.feedback import (
+    build_feedback,
+    build_prior_run_feedback,
+    validate_oracle_reference,
+    validate_prior_run_reference,
+)
 from evallab.registry import task_directory_digest
 
 
@@ -688,3 +694,313 @@ def test_oracle_reference_budget_truncation_and_redaction(tmp_path: Path) -> Non
     assert fb["max_chars"] == 400
     assert "[Truncated: feedback exceeded max_chars budget of 400 characters]" in fb["feedback"]
     assert secret not in fb["feedback"]
+
+
+# ---------------------------------------------------------------------------
+# 7. Prior-run historical trajectory intake
+# ---------------------------------------------------------------------------
+
+_CANARY_TRIAL = Path(
+    "research/evidence/runs/canary-event-summary-codex-20260815/event-summary__5E3btLv"
+)
+_CANARY_JOB = Path("research/evidence/runs/canary-event-summary-codex-20260815")
+_CANARY_TASK = Path("library/tasks/event-summary")
+_CANARY_TRAJECTORY = (
+    "research/evidence/runs/canary-event-summary-codex-20260815/"
+    "event-summary__5E3btLv/agent/trajectory.json"
+)
+
+
+def _write_history_trial(
+    root: Path,
+    *,
+    job_name: str = "history_job",
+    trial_name: str = "history_trial",
+    task_rel: str = "tasks/task_001",
+    recorded_task_path: str | None = None,
+    extra_trials: int = 0,
+    job_shaped: bool = True,
+    meta_task_path: str | None = None,
+) -> tuple[Path, Path, Path]:
+    task_dir = root / task_rel
+    task_dir.mkdir(parents=True, exist_ok=True)
+    (task_dir / "instruction.md").write_text("Do the task.", encoding="utf-8")
+    job_dir = root / "runs" / job_name
+    job_dir.mkdir(parents=True, exist_ok=True)
+    names = [trial_name, *[f"{trial_name}_{i}" for i in range(extra_trials)]]
+    first: Path | None = None
+    abs_task = recorded_task_path if recorded_task_path is not None else str(task_dir.resolve())
+    for name in names:
+        trial = job_dir / name
+        trial.mkdir(parents=True, exist_ok=True)
+        write_json(
+            trial / "result.json",
+            {
+                "task_name": "task_001",
+                "trial_name": name,
+                "status": "completed",
+                "finished_at": "2026-09-16T00:00:00Z",
+                "config": {"task": {"path": abs_task}},
+                "verifier_result": {"rewards": {"reward": 0.5}},
+                "agent_info": {"name": "codex"},
+            },
+        )
+        write_json(trial / "config.json", {"task": {"path": abs_task}})
+        write_json(
+            trial / "agent" / "trajectory.json",
+            {
+                "steps": [
+                    {
+                        "step_id": 1,
+                        "source": "agent",
+                        "tool_calls": [
+                            {
+                                "tool_call_id": "c1",
+                                "function_name": "exec",
+                                "arguments": {"cmd": "echo prior-history-marker"},
+                            }
+                        ],
+                        "observation_results": [
+                            {"source_call_id": "c1", "content": "prior-history-marker"}
+                        ],
+                    }
+                ]
+            },
+        )
+        if first is None:
+            first = trial
+    assert first is not None
+    if job_shaped:
+        write_json(
+            job_dir / "result.json",
+            {
+                "n_total_trials": len(names),
+                "stats": {"n_completed_trials": len(names)},
+                "finished_at": "2026-09-16T00:00:00Z",
+            },
+        )
+    if meta_task_path is not None:
+        write_json(
+            job_dir / "lab-metadata.json",
+            {"experiment": {"task_path": meta_task_path}},
+        )
+    return task_dir.relative_to(root), first.relative_to(root), job_dir.relative_to(root)
+
+
+def test_prior_runs_section_uses_real_fixture_trial_content() -> None:
+    """Real committed fixture trace content reaches the Prior Runs section."""
+    repo_root = Path(__file__).resolve().parent.parent
+    if not (repo_root / _CANARY_TRIAL).exists():
+        pytest.skip("canary-event-summary fixture not present")
+
+    result = build_feedback(
+        repo_root=repo_root,
+        task_path=_CANARY_TASK,
+        trial_path=_CANARY_TRIAL,
+        max_chars=32000,
+        prior_trial_paths=(_CANARY_TRIAL,),
+    )
+    feedback_text = result["feedback"]
+    prior_idx = feedback_text.find("## Prior Runs")
+    task_idx = feedback_text.find("## Task Instruction")
+    assert 0 <= prior_idx < task_idx
+    prior_section = feedback_text[prior_idx:task_idx]
+    assert "### event-summary__5E3btLv" in prior_section
+    assert "wc -l /app/input/events.jsonl" in prior_section
+    assert "Trace Status:" in prior_section
+    assert "- Status:" in prior_section
+    assert "- Primary Reward:" in prior_section
+    assert result["sources"]["trial_trajectory"] == _CANARY_TRAJECTORY
+    assert result["sources"]["prior_run/event-summary__5E3btLv/trial_trajectory"] == _CANARY_TRAJECTORY
+    assert (
+        result["sources"]["prior_run/event-summary__5E3btLv/trial_result"]
+        == "research/evidence/runs/canary-event-summary-codex-20260815/event-summary__5E3btLv/result.json"
+    )
+
+
+def test_absent_prior_run_keeps_existing_feedback_byte_identical() -> None:
+    """Omitting prior_trial_paths leaves existing fixture feedback byte-identical."""
+    repo_root = Path(__file__).resolve().parent.parent
+    if not (repo_root / _CANARY_TRIAL).exists():
+        pytest.skip("canary-event-summary fixture not present")
+
+    baseline = build_feedback(
+        repo_root=repo_root,
+        task_path=_CANARY_TASK,
+        trial_path=_CANARY_TRIAL,
+        max_chars=32000,
+    )
+    explicit_empty = build_feedback(
+        repo_root=repo_root,
+        task_path=_CANARY_TASK,
+        trial_path=_CANARY_TRIAL,
+        max_chars=32000,
+        prior_trial_paths=(),
+    )
+    assert baseline == explicit_empty
+    assert "## Prior Runs" not in baseline["feedback"]
+    assert "wc -l /app/input/events.jsonl" in baseline["feedback"]
+    assert baseline["sources"]["trial_trajectory"] == _CANARY_TRAJECTORY
+
+
+def test_build_prior_run_feedback_multi_trial_job_raises() -> None:
+    """A job directory with multiple trials is an ambiguity, not a silent pick."""
+    repo_root = Path(__file__).resolve().parent.parent
+    if not (repo_root / _CANARY_JOB).exists():
+        pytest.skip("canary-event-summary fixture not present")
+
+    with pytest.raises(ValueError, match="multiple trials.*event-summary__5E3btLv"):
+        build_prior_run_feedback(repo_root, _CANARY_JOB)
+
+
+def test_build_prior_run_feedback_resolves_single_trial_job(tmp_path: Path) -> None:
+    """A job dir with exactly one trial is resolved and delegated to build_feedback."""
+    task, trial, job = _write_history_trial(tmp_path)
+    result = build_prior_run_feedback(tmp_path, job)
+    assert "prior-history-marker" in result["feedback"]
+    assert result["sources"]["trial_trajectory"] == (trial / "agent" / "trajectory.json").as_posix()
+    # Passing the trial dir directly is equivalent for a single trial.
+    via_trial = build_prior_run_feedback(tmp_path, trial)
+    assert via_trial["feedback"] == result["feedback"]
+
+
+def test_build_prior_run_feedback_uses_lab_metadata_when_recorded_path_outside(
+    tmp_path: Path,
+) -> None:
+    """When the trial's recorded task path is outside the repo, use lab-metadata."""
+    task, trial, job = _write_history_trial(
+        tmp_path,
+        recorded_task_path="/definitely/outside/this/repo/task",
+        meta_task_path="tasks/task_001",
+    )
+    result = build_prior_run_feedback(tmp_path, job)
+    assert result["sources"]["task_instruction"] == "tasks/task_001/instruction.md"
+    assert "prior-history-marker" in result["feedback"]
+    assert trial.name in str(result["sources"]["trial_result"])
+
+
+def test_prior_run_result_sha256_mismatch_raises(tmp_path: Path) -> None:
+    """Drift of the bound prior-run result hash is a hard failure."""
+    root, task, agent, ref = _make_env(tmp_path)
+    prior_ref = {
+        "trial_path": Path(ref["trial_path"]).as_posix(),
+        "result_sha256": ref["result_sha256"],
+        "task_package_digest": ref["task_package_digest"],
+    }
+    assert validate_prior_run_reference(root, task, prior_ref) == (
+        root / prior_ref["trial_path"]
+    ).resolve()
+
+    with pytest.raises(ValueError, match="prior_run_reference result_sha256 mismatch"):
+        validate_prior_run_reference(
+            root, task, dict(prior_ref, result_sha256="0" * 64)
+        )
+
+    example = {
+        "task_id": "task_001",
+        "task_path": Path(task).as_posix(),
+        "task_package_digest": prior_ref["task_package_digest"],
+        "split": "development",
+        "prior_run_reference": dict(prior_ref, result_sha256="0" * 64),
+    }
+    with pytest.raises(ValueError, match="prior_run_reference result_sha256 mismatch"):
+        validate_example_dict(root, example)
+
+
+def test_prior_run_jail_traversal_rejected(tmp_path: Path) -> None:
+    """Prior-run paths cannot escape the repo or enter hidden tests/solution dirs."""
+    task, trial, job = _write_history_trial(tmp_path)
+
+    with pytest.raises(ValueError, match="escapes allowed root"):
+        build_feedback(
+            repo_root=tmp_path,
+            task_path=task,
+            trial_path=trial,
+            prior_trial_paths=(Path("../outside"),),
+        )
+
+    with pytest.raises(ValueError, match="escapes allowed root"):
+        build_prior_run_feedback(tmp_path, Path("../outside"))
+
+    forbidden = tmp_path / "tasks" / "task_001" / "tests" / "hidden_trial"
+    forbidden.mkdir(parents=True, exist_ok=True)
+    write_json(
+        forbidden / "result.json",
+        {
+            "task_name": "task_001",
+            "trial_name": "hidden_trial",
+            "status": "completed",
+            "finished_at": "2026-09-16T00:00:00Z",
+            "verifier_result": {"rewards": {"reward": 1.0}},
+        },
+    )
+    with pytest.raises(ValueError, match="forbidden hidden"):
+        build_feedback(
+            repo_root=tmp_path,
+            task_path=task,
+            trial_path=trial,
+            prior_trial_paths=(forbidden.relative_to(tmp_path),),
+        )
+
+    root, task2, agent, ref = _make_env(tmp_path / "oracle_root")
+    with pytest.raises(ValueError, match="escapes allowed root"):
+        validate_prior_run_reference(
+            root, task2, dict(ref, trial_path="../outside")
+        )
+
+    with pytest.raises(ValueError, match="forbidden hidden"):
+        validate_prior_run_reference(
+            tmp_path,
+            task,
+            {
+                "trial_path": forbidden.relative_to(tmp_path).as_posix(),
+                "result_sha256": "0" * 64,
+                "task_package_digest": task_directory_digest(tmp_path / task),
+            },
+        )
+
+    nested = tmp_path / "nested"
+    _write_history_trial(nested, recorded_task_path="tasks/task_001/tests")
+    with pytest.raises(ValueError, match="forbidden hidden verification"):
+        build_prior_run_feedback(nested, Path("runs/history_job"))
+
+
+def test_validate_example_dict_prior_run_reference_exact_keys(tmp_path: Path) -> None:
+    """prior_run_reference is optional, exact-keyed, deep-copied, and package-bound."""
+    task, trial, _job = _write_history_trial(tmp_path)
+    digest = task_directory_digest(tmp_path / task)
+    sha = hashlib.sha256((tmp_path / trial / "result.json").read_bytes()).hexdigest()
+    reference = {
+        "trial_path": Path(trial).as_posix(),
+        "result_sha256": sha,
+        "task_package_digest": digest,
+    }
+    example = {
+        "task_id": "task_001",
+        "task_path": Path(task).as_posix(),
+        "task_package_digest": digest,
+        "split": "development",
+        "prior_run_reference": reference,
+    }
+    validated = validate_example_dict(tmp_path, example)
+    assert validated["prior_run_reference"] == reference
+    reference["trial_path"] = "mutated"
+    assert validated["prior_run_reference"]["trial_path"] == Path(trial).as_posix()
+
+    with pytest.raises(ExampleDeclarationError, match="Prior run reference must bind"):
+        validate_example_dict(
+            tmp_path,
+            dict(example, prior_run_reference=dict(validated["prior_run_reference"], extra="bad")),
+        )
+
+    with pytest.raises(ExampleDeclarationError, match="Prior run reference must bind"):
+        validate_example_dict(
+            tmp_path,
+            dict(
+                example,
+                prior_run_reference=dict(
+                    validated["prior_run_reference"],
+                    task_package_digest="sha256:" + "ab" * 32,
+                ),
+            ),
+        )

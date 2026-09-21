@@ -126,6 +126,7 @@ class SecretSafeDaytonaEnvironment(DaytonaEnvironment):
             return capabilities.model_copy(update={
                 "network_allowlist": True,
                 "network_allowlist_hostnames": True,
+                "dynamic_network_policy": True,
             })
         return capabilities
 

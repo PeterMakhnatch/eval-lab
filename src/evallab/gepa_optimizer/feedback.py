@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +18,12 @@ from evallab.explorer import redact_text
 from evallab.registry import task_directory_digest
 from evallab.trajectory_ir import build_trajectory_ir
 
-__all__ = ["build_feedback", "validate_oracle_reference"]
+__all__ = [
+    "build_feedback",
+    "build_prior_run_feedback",
+    "validate_oracle_reference",
+    "validate_prior_run_reference",
+]
 
 _FORBIDDEN_TASK_PARTS = frozenset({"tests", "solution"})
 _MAX_OBSERVATION_CHARS = 1000
@@ -256,6 +262,288 @@ def validate_oracle_reference(repo_root: Path, task_path: Path, reference: dict)
     return trial
 
 
+def _task_path_string_from_json(data: Any) -> str | None:
+    """Pull a recorded task path string from a trial result.json or config.json object."""
+    if not isinstance(data, dict):
+        return None
+    candidates: list[Any] = []
+    cfg = data.get("config")
+    if isinstance(cfg, dict):
+        candidates.append(cfg.get("task"))
+        candidates.append(cfg.get("task_path"))
+    candidates.append(data.get("task"))
+    candidates.append(data.get("task_path"))
+    tid = data.get("task_id")
+    if isinstance(tid, dict):
+        candidates.append(tid.get("path"))
+    for item in candidates:
+        if isinstance(item, dict):
+            raw = item.get("path")
+            if isinstance(raw, str) and raw.strip():
+                return raw.strip()
+        elif isinstance(item, str) and item.strip():
+            return item.strip()
+    return None
+
+
+def _task_path_if_inside_repo(repo: Path, raw: str) -> Path | None:
+    """Return the jailed task dir when raw points inside repo_root; None if it does not."""
+    try:
+        resolved = _validate_path_jail(repo, Path(raw), label="task_path")
+    except ValueError:
+        return None
+    if not resolved.is_dir():
+        return None
+    _check_task_path_safety(resolved)
+    return resolved
+
+
+def _list_trial_dirs(job_dir: Path) -> list[Path]:
+    """Index Harbor trial subdirectories under a job dir (same shape as results.load_job)."""
+    trials: list[Path] = []
+    try:
+        children = sorted(job_dir.iterdir())
+    except OSError:
+        return []
+    for candidate in children:
+        if not candidate.is_dir() or not (candidate / "result.json").is_file():
+            continue
+        try:
+            loaded = json.loads((candidate / "result.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, UnicodeError):
+            continue
+        if isinstance(loaded, dict) and "task_name" in loaded and "trial_name" in loaded:
+            trials.append(candidate)
+    return trials
+
+
+def _resolve_single_trial_dir(resolved: Path) -> Path:
+    """Treat resolved as a trial dir, or a job dir with exactly one trial."""
+    result_file = _safe_child_file(resolved, "result.json", label="prior-run result")
+    data: dict[str, Any] = {}
+    if result_file is not None and result_file.is_file():
+        try:
+            loaded = json.loads(result_file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"result.json under '{resolved}' is unparseable: {exc}") from exc
+        if isinstance(loaded, dict):
+            data = loaded
+    is_trial = "task_name" in data and "trial_name" in data
+    is_job = "n_total_trials" in data and "stats" in data
+    if is_trial and not is_job:
+        return resolved
+    trials = _list_trial_dirs(resolved)
+    if len(trials) == 1:
+        return trials[0]
+    if len(trials) > 1:
+        names = ", ".join(trial.name for trial in trials)
+        raise ValueError(
+            f"job directory '{resolved}' contains multiple trials ({names}); "
+            "pass a single trial directory"
+        )
+    raise ValueError(f"no trial found under '{resolved}'")
+
+
+def _resolve_prior_task_path(repo: Path, trial: Path, job_dir: Path) -> Path:
+    """Resolve task_path from the trial's own records, else the job lab-metadata."""
+    for label, rel in (("trial result", "result.json"), ("trial config", "config.json")):
+        file = _safe_child_file(trial, rel, label=label)
+        if file is None or not file.is_file():
+            continue
+        try:
+            data = json.loads(file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        raw = _task_path_string_from_json(data)
+        if not raw:
+            continue
+        _check_task_path_safety(Path(raw))
+        inside = _task_path_if_inside_repo(repo, raw)
+        if inside is not None:
+            return inside
+    meta = _safe_child_file(job_dir, "lab-metadata.json", label="prior-run lab-metadata")
+    if meta is not None and meta.is_file():
+        try:
+            meta_json = json.loads(meta.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"lab-metadata.json is unparseable: {exc}") from exc
+        experiment = meta_json.get("experiment") if isinstance(meta_json, dict) else None
+        raw = experiment.get("task_path") if isinstance(experiment, dict) else None
+        if isinstance(raw, str) and raw.strip():
+            recorded = raw.strip()
+            _check_task_path_safety(Path(recorded))
+            resolved = _validate_path_jail(repo, recorded, label="lab-metadata task_path")
+            _check_task_path_safety(resolved)
+            if not resolved.is_dir():
+                raise FileNotFoundError(
+                    f"lab-metadata experiment.task_path '{recorded}' does not exist or is not a directory"
+                )
+            return resolved
+    raise ValueError(
+        f"could not resolve task_path inside repo for prior run '{trial}': "
+        "trial result/config task path is absent or outside repo_root and "
+        "lab-metadata experiment.task_path is missing"
+    )
+
+
+def validate_prior_run_reference(repo_root: Path, task_path: Path, reference: dict) -> Path:
+    """Preflight validate a prior-run reference: exact keys, jail, digest, result hash."""
+    if not isinstance(reference, dict):
+        raise ValueError("prior_run_reference must be a dictionary")
+    if set(reference.keys()) != {"trial_path", "result_sha256", "task_package_digest"}:
+        raise ValueError(
+            "prior_run_reference must contain exact keys "
+            "['result_sha256', 'task_package_digest', 'trial_path']"
+        )
+    for k, v in reference.items():
+        if not isinstance(v, (str, Path)) or not str(v).strip():
+            raise ValueError(f"prior_run_reference key '{k}' must be a non-empty string or Path")
+
+    if not repo_root.is_dir():
+        raise FileNotFoundError(f"repo_root '{repo_root}' does not exist or is not a directory")
+    repo = repo_root.resolve()
+    _check_task_path_safety(Path(task_path))
+    task = _validate_path_jail(repo, task_path, label="task_path")
+    _check_task_path_safety(task)
+    if not task.is_dir():
+        raise FileNotFoundError(f"task_path '{task_path}' does not exist or is not a directory")
+
+    raw_trial = Path(reference["trial_path"])
+    _check_task_path_safety(raw_trial)
+    trial = _validate_path_jail(repo, raw_trial, label="prior_run_reference trial_path")
+    if any(p.lower() in _FORBIDDEN_TASK_PARTS for p in trial.relative_to(repo).parts):
+        raise ValueError("prior_run_reference trial_path accesses forbidden hidden directory")
+    unresolved = raw_trial if raw_trial.is_absolute() else repo / raw_trial
+    if any(path.is_symlink() for path in (unresolved, *unresolved.parents)):
+        raise ValueError("prior_run_reference trial_path must not contain symlinks")
+    if not trial.is_dir():
+        raise FileNotFoundError(
+            f"prior_run_reference trial_path '{raw_trial}' does not exist or is not a directory"
+        )
+
+    res_file = _safe_child_file(trial, "result.json", label="prior trial result")
+    if res_file is None or not res_file.is_file():
+        raise FileNotFoundError(f"prior-run result.json not found under '{trial}'")
+    res_bytes = res_file.read_bytes()
+    actual_sha = hashlib.sha256(res_bytes).hexdigest()
+    exp_sha = str(reference["result_sha256"]).strip()
+    exp_hex = exp_sha[7:] if exp_sha.startswith("sha256:") else exp_sha
+    if actual_sha.lower() != exp_hex.lower():
+        raise ValueError(
+            f"prior_run_reference result_sha256 mismatch: expected {exp_sha}, computed {actual_sha}"
+        )
+
+    exp_pkg = str(reference["task_package_digest"]).strip()
+    comp_pkg = task_directory_digest(task)
+    if comp_pkg != exp_pkg:
+        raise ValueError(
+            f"prior_run_reference task_package_digest mismatch: expected {exp_pkg}, "
+            f"task directory computed {comp_pkg}"
+        )
+    return trial
+
+
+def _compact_prior_block(
+    trial_name: str, feedback_text: str, result_data: dict[str, Any]
+) -> list[str]:
+    """Lift Trace Status, up to 8 Action+observation lines, and result.json reward/status."""
+    lines = [f"### {trial_name}"]
+    capturing_obs = False
+    action_count = 0
+    for line in feedback_text.splitlines():
+        if line.startswith("Trace Status:"):
+            lines.append(line)
+            capturing_obs = False
+            continue
+        if line.startswith("- Step ") and "Action [" in line:
+            if action_count >= 8:
+                capturing_obs = False
+                continue
+            lines.append(line)
+            action_count += 1
+            capturing_obs = True
+            continue
+        if capturing_obs and line.startswith("  Observation:"):
+            lines.append(line)
+            continue
+        capturing_obs = False
+
+    if result_data.get("exception_info") or result_data.get("error"):
+        status = "error"
+    elif "status" in result_data and result_data["status"] is not None:
+        status = str(result_data["status"])
+    elif result_data:
+        status = "completed"
+    else:
+        status = "unknown"
+    verifier_result = result_data.get("verifier_result")
+    rewards = verifier_result.get("rewards") if isinstance(verifier_result, dict) else None
+    reward = rewards.get("reward") if isinstance(rewards, dict) else None
+    if isinstance(reward, float):
+        reward_line = f"- Primary Reward: {reward:.4f}"
+    elif isinstance(reward, int):
+        reward_line = f"- Primary Reward: {reward}"
+    else:
+        reward_line = "- Primary Reward: n/a"
+    lines.append(f"- Status: {status}")
+    lines.append(reward_line)
+    return lines
+
+
+def _render_prior_runs(
+    *,
+    repo: Path,
+    task_path: Path,
+    prior_trial_paths: Sequence[Path],
+    max_chars: int,
+    secrets: frozenset[str],
+) -> tuple[str, bool, list[str], dict[str, str]]:
+    """Build the bounded '## Prior Runs' section by reusing build_feedback on each trial."""
+    notices: list[str] = []
+    extra_sources: dict[str, str] = {}
+    blocks: list[str] = []
+    for raw in prior_trial_paths:
+        _check_task_path_safety(Path(raw))
+        trial = _validate_path_jail(repo, raw, label="prior_trial_path")
+        if any(p.lower() in _FORBIDDEN_TASK_PARTS for p in trial.relative_to(repo).parts):
+            raise ValueError("prior_trial_path accesses forbidden hidden directory")
+        if not trial.is_dir():
+            raise FileNotFoundError(
+                f"prior_trial_path '{raw}' does not exist or is not a directory"
+            )
+        inner = build_feedback(
+            repo_root=repo,
+            task_path=task_path,
+            trial_path=trial,
+            max_chars=max_chars,
+        )
+        result_data: dict[str, Any] = {}
+        result_file = _safe_child_file(trial, "result.json", label="prior trial result")
+        if result_file is not None and result_file.is_file():
+            extra_sources[f"prior_run/{trial.name}/trial_result"] = result_file.relative_to(
+                repo
+            ).as_posix()
+            try:
+                loaded = json.loads(result_file.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    result_data = loaded
+            except json.JSONDecodeError:
+                notices.append(f"prior run '{trial.name}': result.json unparseable")
+        block_lines = _compact_prior_block(trial.name, inner["feedback"], result_data)
+        blocks.append("\n".join(block_lines))
+        for key, value in inner["sources"].items():
+            extra_sources[f"prior_run/{trial.name}/{key}"] = value
+        if inner.get("truncated"):
+            notices.append(f"prior run '{trial.name}' inner feedback was truncated")
+    text = _redact_full_text("\n".join(["## Prior Runs", *blocks]), secrets)
+    allowance = max_chars // 4
+    truncated = len(text) > allowance
+    if truncated:
+        notices.append("Prior runs truncated to their allocated feedback budget")
+        text = text[:allowance]
+    return text, truncated, notices, extra_sources
+
+
 def _extract_state_transitions(
     trial: Path, repo: Path, sources: dict[str, str], prefix: str
 ) -> tuple[list[str], set[str]]:
@@ -354,6 +642,7 @@ def build_feedback(
     trial_path: Path,
     max_chars: int = 24000,
     oracle_reference: dict[str, Any] | None = None,
+    prior_trial_paths: Sequence[Path] = (),
 ) -> dict[str, Any]:
     """Build bounded, real agent-visible feedback from task and trial artifacts.
 
@@ -368,6 +657,9 @@ def build_feedback(
         max_chars: Upper character bound on returned textual feedback.
         oracle_reference: Optional dict with exact keys trial_path, result_sha256,
             and task_package_digest pointing to a completed, successful Oracle run.
+        prior_trial_paths: Optional historical trial directories. When supplied and
+            oracle_reference is absent, a bounded '## Prior Runs' section is rendered
+            before '## Task Instruction'. Absent or empty leaves existing output unchanged.
 
     Returns:
         Dictionary with single bounded 'feedback' string, sources, coverage_notices,
@@ -662,6 +954,19 @@ def build_feedback(
             coverage_notices.append("Oracle contrast truncated to its allocated feedback budget")
         lines.extend([text[:allowance], ""])
 
+    prior_truncated = False
+    if prior_trial_paths and oracle_data is None:
+        prior_text, prior_truncated, prior_notices, prior_sources = _render_prior_runs(
+            repo=resolved_repo_root,
+            task_path=resolved_task_path,
+            prior_trial_paths=prior_trial_paths,
+            max_chars=max_chars,
+            secrets=secrets,
+        )
+        coverage_notices.extend(prior_notices)
+        sources.update(prior_sources)
+        lines.extend([prior_text, ""])
+
     lines.append("## Task Instruction")
     if task_instruction:
         lines.append(task_instruction.strip())
@@ -718,7 +1023,7 @@ def build_feedback(
     redacted_text = _redact_full_text(raw_text, secrets)
 
     # 6. Honest Budget Truncation Against max_chars
-    truncated = oracle_truncated
+    truncated = oracle_truncated or prior_truncated
     if len(redacted_text) <= max_chars:
         final_text = redacted_text
     else:
@@ -741,3 +1046,48 @@ def build_feedback(
         "char_count": len(final_text),
         "max_chars": max_chars,
     }
+
+
+def build_prior_run_feedback(
+    repo_root: Path,
+    job_or_trial_dir: Path,
+    *,
+    max_chars: int = 24000,
+) -> dict[str, Any]:
+    """Build feedback from an existing Harbor job or trial directory.
+
+    Resolves a single trial (job dirs with exactly one trial are accepted; multiple
+    trials raise). Task path comes from the trial's result.json/config.json when that
+    path points inside repo_root, otherwise from the job's lab-metadata.json
+    experiment.task_path. Hidden tests/solution traversal is rejected. Never reads
+    verifier hidden inputs.
+    """
+    if max_chars <= 0:
+        raise ValueError("max_chars must be a positive integer")
+    if not repo_root.exists() or not repo_root.is_dir():
+        raise FileNotFoundError(f"repo_root '{repo_root}' does not exist or is not a directory")
+    repo = repo_root.resolve()
+    _check_task_path_safety(Path(job_or_trial_dir))
+    given = _validate_path_jail(repo, job_or_trial_dir, label="job_or_trial_dir")
+    _check_task_path_safety(given)
+    unresolved = Path(job_or_trial_dir)
+    if not unresolved.is_absolute():
+        unresolved = repo / unresolved
+    if any(path.is_symlink() for path in (unresolved, *unresolved.parents)):
+        raise ValueError("job_or_trial_dir must not contain symlinks")
+    if not given.is_dir():
+        raise FileNotFoundError(
+            f"job_or_trial_dir '{job_or_trial_dir}' does not exist or is not a directory"
+        )
+    trial = _resolve_single_trial_dir(given)
+    _check_task_path_safety(trial)
+    if any(p.lower() in _FORBIDDEN_TASK_PARTS for p in trial.relative_to(repo).parts):
+        raise ValueError("prior-run trial path accesses forbidden hidden directory")
+    job_dir = given if trial != given else given.parent
+    task_path = _resolve_prior_task_path(repo, trial, job_dir)
+    return build_feedback(
+        repo_root=repo,
+        task_path=task_path,
+        trial_path=trial,
+        max_chars=max_chars,
+    )

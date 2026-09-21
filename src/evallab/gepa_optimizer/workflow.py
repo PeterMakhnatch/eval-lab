@@ -374,11 +374,11 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
     if any(
         not isinstance(example, dict)
         or not example_fields <= set(example)
-        or set(example) - (example_fields | {"oracle_reference"})
+        or set(example) - (example_fields | {"oracle_reference", "prior_run_reference"})
         for example in raw["examples"]
     ):
         raise ValueError(
-            "Search examples require task identity, path, digest, development split and optional Oracle reference"
+            "Search examples require task identity, path, digest, development split and optional Oracle or prior-run reference"
         )
     if any(example.get("split") != "development" for example in raw["examples"]):
         raise ValueError("Only development examples may enter search; no final/test split")

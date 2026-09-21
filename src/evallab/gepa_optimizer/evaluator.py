@@ -73,7 +73,7 @@ from evallab.schemas import CohortComparisonSpec, CohortSelector, ExperimentSpec
 from evallab.toolbox import compute_skill_digest, validate_toolbox_code
 
 from .budget import AggregateBudget
-from .feedback import build_feedback, validate_oracle_reference
+from .feedback import build_feedback, validate_oracle_reference, validate_prior_run_reference
 from .intake import replay_spec_for_candidate
 
 PERMITTED_CONTROLS = frozenset({"oracle", "nop"})
@@ -347,6 +347,17 @@ def validate_example_dict(repo_root: Path, example: dict[str, Any]) -> dict[str,
             raise ExampleDeclarationError("Oracle reference must bind this development package")
         validated["oracle_reference"] = copy.deepcopy(reference)
         validate_oracle_reference(repo_root, Path(task_path_str), reference)
+    if "prior_run_reference" in example:
+        reference = example["prior_run_reference"]
+        if (
+            not isinstance(reference, dict)
+            or set(reference) != {"trial_path", "result_sha256", "task_package_digest"}
+            or reference.get("task_package_digest") != declared_digest
+            or not all(isinstance(value, str) for value in reference.values())
+        ):
+            raise ExampleDeclarationError("Prior run reference must bind this development package")
+        validated["prior_run_reference"] = copy.deepcopy(reference)
+        validate_prior_run_reference(repo_root, Path(task_path_str), reference)
     return validated
 
 
@@ -804,6 +815,14 @@ class LabEvaluator:
 
         # Successful evaluation
         score = float(primary_reward)
+        prior_trial_paths: tuple[Path, ...] = ()
+        prior_ref = example.get("prior_run_reference")
+        if prior_ref is not None:
+            prior_trial_paths = (
+                validate_prior_run_reference(
+                    self.repo_root, Path(example["task_path"]), prior_ref
+                ),
+            )
         feedback = (
             build_feedback(
                 repo_root=self.repo_root,
@@ -811,6 +830,7 @@ class LabEvaluator:
                 trial_path=trial.path,
                 max_chars=self.feedback_max_chars,
                 oracle_reference=example.get("oracle_reference"),
+                prior_trial_paths=prior_trial_paths,
             )
             if trial is not None
             else {"feedback": "No trial evidence available."}
@@ -879,6 +899,10 @@ class LabEvaluator:
         if example.get("oracle_reference") != declared.get("oracle_reference"):
             raise ExampleDeclarationError(
                 "Oracle reference differs from frozen development declaration"
+            )
+        if example.get("prior_run_reference") != declared.get("prior_run_reference"):
+            raise ExampleDeclarationError(
+                "Prior run reference differs from frozen development declaration"
             )
 
         abs_task_path = (self.repo_root / declared["task_path"]).resolve()

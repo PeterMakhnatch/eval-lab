@@ -13,6 +13,7 @@ Target model:
 from __future__ import annotations
 
 import hashlib
+import importlib.metadata
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,8 +21,58 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+# Immutable Hugging Face revision of zai-org/GLM-5.3-Flash qualified by HAR-66
+# (research/experiments/glm53-sft-qualification/next-task.json). Both the model
+# weights/config and the tokenizer (incl. chat_template.jinja) are pinned to it.
+GLM_MODEL_REVISION = "eb9eb208eb0d988989d07a6a12d0fdeb5f52574a"
+GLM_TOKENIZER_REVISION = GLM_MODEL_REVISION
+
+# Message keys that carry harness reward/verifier metadata and must never reach
+# the learner as text. Checked by GLMTrainingRecord.validate_causal_ordering and
+# by the generated trainer's HAR-65 record loader (fail closed, never stripped).
+REWARD_METADATA_KEYS = frozenset({
+    "verified_success",
+    "reward",
+    "rewards",
+    "final_reward",
+    "grade",
+    "grades",
+    "tests_passed",
+    "test_results",
+    "score",
+    "success",
+    "passed",
+    "verifier_verdict",
+    "outcome",
+})
+
+# LoRA target modules qualified by HAR-66 for glm5_next: KDA projections hit 34
+# linear-attention layers, DSA projections hit 11 sparse layers, gate/up/down
+# hit dense layers 0-2 and shared experts 3-44. Routed experts are 3D
+# nn.Parameter tensors, not nn.Linear, and are intentionally absent.
+QUALIFIED_LORA_TARGET_MODULES = (
+    "q_proj",
+    "k_proj",
+    "v_proj",
+    "o_proj",
+    "b_proj",
+    "g_a_proj",
+    "g_b_proj",
+    "q_a_proj",
+    "q_b_proj",
+    "kv_a_proj_with_mqa",
+    "kv_b_proj",
+    "gate_proj",
+    "up_proj",
+    "down_proj",
+)
+
 __all__ = [
     "GLM_5_3_FLASH_SPECS",
+    "GLM_MODEL_REVISION",
+    "GLM_TOKENIZER_REVISION",
+    "QUALIFIED_LORA_TARGET_MODULES",
+    "REWARD_METADATA_KEYS",
     "CheckpointManifest",
     "GLMChatTemplatePatcher",
     "GLMHardwareEnvelope",
@@ -34,8 +85,11 @@ __all__ = [
     "generate_re_serving_handoff",
     "generate_remote_job_manifest",
     "generate_trl_training_script",
+    "har65_record_to_messages",
+    "pinned_library_versions",
     "run_cpu_canary_smoke",
     "verify_checkpoint",
+    "write_checkpoint_manifest",
 ]
 
 
@@ -83,7 +137,12 @@ GLM_5_3_FLASH_SPECS = GLMModelSpecs()
 
 
 class GLMHardwareEnvelope(BaseModel):
-    """Estimated memory and hardware topology requirements for GLM-5.3-Flash."""
+    """Estimated memory and hardware topology requirements for GLM-5.3-Flash.
+
+    Every number here is storage arithmetic, NOT a qualified training
+    allocation: no target-model run receipt backs the GPU counts or topology.
+    The `qualification` field labels this explicitly for handoff consumers.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -101,6 +160,7 @@ class GLMHardwareEnvelope(BaseModel):
     recommended_topology: str
     is_single_node_feasible: bool
     hardware_notes: str
+    qualification: Literal["estimate-unverified"] = "estimate-unverified"
 
 
 def compute_hardware_envelope(
@@ -170,7 +230,8 @@ def compute_hardware_envelope(
         notes = (
             f"LoRA keeps 320B base weights frozen in FP8 ({weights_gb:.1f} GB). "
             f"Trainable parameters ({trainable_p / 1e6:.1f}M) require only ~{opt_gb:.2f} GB optimizer VRAM. "
-            "Fits comfortably within a single 8x H100 80GB node (640 GB total VRAM)."
+            "Estimated (unverified, no target-model run receipt) to fit a single "
+            "8x H100 80GB node (640 GB total VRAM)."
         )
 
     elif method == "qlora":
@@ -311,42 +372,75 @@ For each function call, output the function name and arguments within the follow
 
 
 class GLMChatTemplatePatcher:
-    """Validates and patches GLM chat templates with generation tags for SFT."""
+    """Validates and patches GLM chat templates with generation tags for SFT.
+
+    The patch targets the real upstream template
+    (zai-org/GLM-5.3-Flash at revision GLM_MODEL_REVISION): the assistant
+    branch opens with `{%- elif m.role == 'assistant' -%}` followed by a
+    `<|assistant|>` line, and closes with `{% endif %}` immediately before the
+    `{%- elif m.role == 'tool' -%}` branch. The `add_generation_prompt` tail
+    is never touched. Anything else fails closed with ValueError.
+    """
+
+    # Exact upstream anchors (see revision pinned above). The open anchor is
+    # the assistant branch header; the close anchor is the end of the
+    # assistant branch (its `{% endif %}`) right before the tool branch.
+    _OPEN_ANCHOR = "{%- elif m.role == 'assistant' -%}\n<|assistant|>"
+    _CLOSE_ANCHOR = "{% endif %}\n{%- elif m.role == 'tool' -%}"
+    _TAIL_ANCHOR = "{%- if add_generation_prompt -%}"
 
     @staticmethod
     def patch_template(original_template: str) -> str:
-        """Injects `{% generation %}` and `{% endgeneration %}` markers around assistant outputs."""
+        """Injects `{% generation %}` / `{% endgeneration %}` around assistant outputs.
+
+        Fails closed (ValueError) unless exactly one balanced pair is present
+        afterwards and the `add_generation_prompt` tail is untouched.
+        """
         if "{% generation %}" in original_template and "{% endgeneration %}" in original_template:
+            GLMChatTemplatePatcher._check_balanced(original_template)
             return original_template
 
-        assistant_marker = "<|assistant|>"
-        if assistant_marker not in original_template:
-            raise ValueError(f"Template does not contain expected assistant marker: {assistant_marker}")
+        if "<|assistant|>" not in original_template:
+            raise ValueError("Template does not contain expected assistant marker: <|assistant|>")
+        if GLMChatTemplatePatcher._OPEN_ANCHOR not in original_template:
+            raise ValueError(
+                "Template does not contain the upstream assistant-branch anchor "
+                "`{%- elif m.role == 'assistant' -%}` + `<|assistant|>`; refusing to guess."
+            )
+        if GLMChatTemplatePatcher._CLOSE_ANCHOR not in original_template:
+            raise ValueError(
+                "Template does not contain the upstream assistant-close anchor "
+                "`{% endif %}` before `{%- elif m.role == 'tool' -%}`; refusing to guess."
+            )
 
-        # Replace assistant start
         patched = original_template.replace(
-            "{%- elif m.role == 'assistant' -%}\n<|assistant|>",
+            GLMChatTemplatePatcher._OPEN_ANCHOR,
             "{%- elif m.role == 'assistant' -%}\n<|assistant|>{% generation %}",
+            1,
         )
-        if "{% generation %}" not in patched:
-            patched = original_template.replace(
-                "<|assistant|>",
-                "<|assistant|>{% generation %}",
-            )
-
-        # Close generation before tool / observation or user turn
-        if "{%- elif m.role == 'tool' -%}" in patched:
-            patched = patched.replace(
-                "{%- elif m.role == 'tool' -%}",
-                "{% endgeneration %}{%- elif m.role == 'tool' -%}",
-            )
-        elif "{%- elif m.role == 'user' -%}" in patched:
-            patched = patched.replace(
-                "{%- elif m.role == 'user' -%}",
-                "{% endgeneration %}{%- elif m.role == 'user' -%}",
-            )
-
+        patched = patched.replace(
+            GLMChatTemplatePatcher._CLOSE_ANCHOR,
+            "{% endif %}{% endgeneration %}\n{%- elif m.role == 'tool' -%}",
+            1,
+        )
+        GLMChatTemplatePatcher._check_balanced(patched)
         return patched
+
+    @staticmethod
+    def _check_balanced(template: str) -> None:
+        """Raises unless exactly one balanced generation pair exists and the tail is clean."""
+        opens = template.count("{% generation %}")
+        closes = template.count("{% endgeneration %}")
+        if opens != 1 or closes != 1:
+            raise ValueError(
+                f"Unbalanced generation tags after patching: {opens} opens vs {closes} closes "
+                "(expected exactly one pair)."
+            )
+        tail_index = template.find(GLMChatTemplatePatcher._TAIL_ANCHOR)
+        if tail_index != -1 and (
+            "{% generation %}" in template[tail_index:] or "{% endgeneration %}" in template[tail_index:]
+        ):
+            raise ValueError("Patch leaked into the `add_generation_prompt` tail; refusing patched template.")
 
     @staticmethod
     def get_builtin_template() -> str:
@@ -369,6 +463,7 @@ class MaskValidationReceipt(BaseModel):
     observation_supervised: bool
     delimiter_supervised: bool
     padding_supervised: bool
+    preamble_supervised: bool = False
     is_valid: bool
     audit_summary: str
     token_preview: list[dict[str, Any]] = Field(default_factory=list)
@@ -384,7 +479,22 @@ class GLMLossMasker:
         labels: list[int],
         loss_mask: list[int],
     ) -> MaskValidationReceipt:
-        """Validates that ONLY assistant target tokens are marked for loss computation."""
+        """Validates that ONLY assistant target tokens are marked for loss computation.
+
+        Exactly what is checked, per token in order:
+        1. Lengths of the four inputs agree (else ValueError).
+        2. Any token supervised (loss_mask == 1 or label != -100) before the
+           first role delimiter (`<|system|>`, `<|user|>`, `<|assistant|>`,
+           `<|observation|>`) sets `preamble_supervised` and fails.
+        3. The `<|assistant|>` / `<|observation|>` delimiters themselves, the
+           `[gMASK]` / `<sop>` / `<|endoftext|>` framing tokens, and any token
+           in a system / user / observation section must not be supervised.
+        4. The pad token id must not be supervised.
+        5. At least one token must be supervised (empty targets fail).
+        Role sections are tracked by delimiter substrings in token text; the
+        content of assistant sections (reasoning, text, tool calls) is the only
+        supervised region.
+        """
         if len(tokens) != len(input_ids) or len(input_ids) != len(labels) or len(labels) != len(loss_mask):
             raise ValueError(
                 f"Length mismatch: tokens={len(tokens)}, input_ids={len(input_ids)}, "
@@ -401,7 +511,7 @@ class GLMLossMasker:
         obs_sup = False
         delims_sup = False
         pad_sup = False
-
+        preamble_sup = False
         current_role: str | None = None
         preview = []
 
@@ -432,21 +542,8 @@ class GLMLossMasker:
                 user_sup = True
             elif current_role == "observation" and (msk == 1 or lbl != -100):
                 obs_sup = True
-
-            # Check padding token
-            if tid == GLM_5_3_FLASH_SPECS.pad_token_id and (msk == 1 or lbl != -100):
-                pad_sup = True
-
-            if i < 25 or i >= total - 10:
-                preview.append({
-                    "idx": i,
-                    "token": tok,
-                    "id": tid,
-                    "label": lbl,
-                    "loss_mask": msk,
-                    "role": current_role,
-                })
-
+            elif current_role is None and (msk == 1 or lbl != -100):
+                preamble_sup = True
         valid = (
             not has_empty
             and not system_sup
@@ -454,6 +551,7 @@ class GLMLossMasker:
             and not obs_sup
             and not delims_sup
             and not pad_sup
+            and not preamble_sup
         )
 
         ratio = round(supervised / total, 4) if total > 0 else 0.0
@@ -473,6 +571,7 @@ class GLMLossMasker:
             observation_supervised=obs_sup,
             delimiter_supervised=delims_sup,
             padding_supervised=pad_sup,
+            preamble_supervised=preamble_sup,
             is_valid=valid,
             audit_summary=summary,
             token_preview=preview,
@@ -497,16 +596,31 @@ class GLMTrainingRecord(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     def validate_causal_ordering(self) -> bool:
-        """Verifies that each assistant turn only sees preceding context and no future observations."""
+        """Verifies causal validity of the demonstration.
+
+        Exactly what is checked:
+        1. Every `tool` / `observation` message is preceded by at least one
+           `assistant` message (a tool result with no preceding tool call, at
+           any position, fails).
+        2. Every message role is one of system / user / assistant / tool /
+           observation (unknown roles fail).
+        3. No message carries reward/verifier metadata keys
+           (REWARD_METADATA_KEYS: `verified_success`, `reward`, `grade`,
+           `tests_passed`, and similar) at its top level, and neither does the
+           record-level `metadata` mapping. Leak metadata fails instead of
+           flowing into training.
+        """
         for i, msg in enumerate(self.messages):
             role = msg.get("role")
-            if role == "assistant":
-                # Ensure all prior messages are system, user, or prior tool observations
-                for prior in self.messages[:i]:
-                    if prior.get("role") not in ("system", "user", "assistant", "tool", "observation"):
-                        return False
-            elif role in ("tool", "observation") and i == 0:
+            if role not in ("system", "user", "assistant", "tool", "observation"):
                 return False
+            if role in ("tool", "observation"):
+                if not any(prior.get("role") == "assistant" for prior in self.messages[:i]):
+                    return False
+            if any(key in REWARD_METADATA_KEYS for key in msg):
+                return False
+        if any(key in REWARD_METADATA_KEYS for key in self.metadata):
+            return False
         return True
 
 
@@ -516,11 +630,17 @@ class GLMTrainingRecord(BaseModel):
 
 
 class GLMSFTConfig(BaseModel):
-    """Configuration for reproducible TRL SFTTrainer executions."""
+    """Configuration for reproducible TRL SFTTrainer executions.
+
+    Field names match TRL 1.13 `SFTConfig` (`max_length`, `warmup_steps`).
+    `target_modules` defaults to the HAR-66 qualified glm5_next list.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     model_id: str = "zai-org/GLM-5.3-Flash"
+    model_revision: str = GLM_MODEL_REVISION
+    tokenizer_revision: str = GLM_TOKENIZER_REVISION
     method: Literal["lora", "qlora", "full_sft"] = "lora"
     output_dir: str = "runs/sft-glm-flash-checkpoints"
     dataset_path: str = "research/experiments/sft-glm-flash/dataset.jsonl"
@@ -528,21 +648,13 @@ class GLMSFTConfig(BaseModel):
     lora_r: int = 16
     lora_alpha: int = 32
     lora_dropout: float = 0.05
-    target_modules: tuple[str, ...] = (
-        "q_proj",
-        "k_proj",
-        "v_proj",
-        "o_proj",
-        "gate_proj",
-        "up_proj",
-        "down_proj",
-    )
-    max_seq_length: int = 16384
+    target_modules: tuple[str, ...] = QUALIFIED_LORA_TARGET_MODULES
+    max_length: int = 4096
     per_device_train_batch_size: int = 1
     gradient_accumulation_steps: int = 8
     num_train_epochs: int = 1
     max_steps: int = 250
-    warmup_ratio: float = 0.03
+    warmup_steps: int = 8
     lr_scheduler_type: str = "cosine"
     weight_decay: float = 0.01
     logging_steps: int = 5
@@ -554,156 +666,353 @@ class GLMSFTConfig(BaseModel):
 
 
 def generate_trl_training_script(config: GLMSFTConfig) -> str:
-    """Generates a complete, reproducible training runner script using official TRL."""
-    return f'''#!/usr/bin/env python3
-"""Maintained TRL SFTTrainer runner for {config.model_id}.
+    """Generates a complete, reproducible training runner script using official TRL.
 
-Auto-generated by evallab.sft_glm.
-"""
+    The emitted script constructs under TRL 1.13: `SFTConfig` uses `max_length`
+    / `warmup_steps` (not `max_seq_length` / `warmup_ratio`), sets
+    `assistant_only_loss=True` so the patched template's `{% generation %}`
+    markers actually supervise assistant tokens only, passes `peft_config` to
+    `SFTTrainer` without a `get_peft_model` pre-wrap, pins model/tokenizer
+    revisions on every `from_pretrained`, writes `checkpoint_manifest.json`
+    via the shared writer, and finishes with a save/reload forward-pass
+    receipt. `qlora` loads the base in 4-bit (`BitsAndBytesConfig`); `full_sft`
+    passes no PEFT config.
+    """
+    model_id = json.dumps(config.model_id)
+    model_revision = json.dumps(config.model_revision)
+    tokenizer_revision = json.dumps(config.tokenizer_revision)
+    output_dir = json.dumps(config.output_dir)
+    dataset_path = json.dumps(config.dataset_path)
+    target_modules = json.dumps(list(config.target_modules))
+    config_hash = hashlib.sha256(
+        json.dumps(config.model_dump(), sort_keys=True).encode("utf-8")
+    ).hexdigest()
 
-import json
-import os
-import sys
-from pathlib import Path
-
-import torch
-from datasets import load_dataset
-from peft import LoraConfig, get_peft_model, TaskType
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
-from trl import SFTConfig, SFTTrainer
-
-from evallab.sft_glm import GLMChatTemplatePatcher, GLM_5_3_FLASH_SPECS
-
-def main():
-    print(f"=== Starting TRL SFT for {{'{config.model_id}'}} (Method: {config.method}) ===")
-    
-    # 1. Load Tokenizer & Patch Chat Template
-    tokenizer = AutoTokenizer.from_pretrained("{config.model_id}")
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-    
-    # Apply generation markers for exact assistant-only loss masking
-    tokenizer.chat_template = GLMChatTemplatePatcher.get_builtin_template()
-    print("✓ Loaded and patched chat template with exact generation markers")
-
-    # 2. Load Dataset
-    data_path = "{config.dataset_path}"
-    if not os.path.exists(data_path):
-        raise FileNotFoundError(f"Training dataset not found at {{data_path}}")
-    
-    dataset = load_dataset("json", data_files=data_path, split="train")
-    print(f"✓ Loaded training dataset: {{len(dataset)}} records")
-
-    # 3. Model & PEFT Configuration
-    model_kwargs = {{
-        "trust_remote_code": True,
-        "torch_dtype": torch.bfloat16 if {config.bf16} else torch.float16,
-        "device_map": "auto",
-    }}
-
-    print("Loading base model...")
-    model = AutoModelForCausalLM.from_pretrained("{config.model_id}", **model_kwargs)
-    
-    if "{config.method}" == "lora":
-        peft_config = LoraConfig(
-            r={config.lora_r},
-            lora_alpha={config.lora_alpha},
-            lora_dropout={config.lora_dropout},
-            target_modules={list(config.target_modules)},
-            bias="none",
-            task_type=TaskType.CAUSAL_LM,
+    if config.method == "qlora":
+        peft_imports = "from peft import LoraConfig, PeftModel, TaskType"
+        bnb_import = "from transformers import BitsAndBytesConfig"
+        quantization_block = (
+            "    bnb_config = BitsAndBytesConfig(\n"
+            "        load_in_4bit=True,\n"
+            '        bnb_4bit_quant_type="nf4",\n'
+            "        bnb_4bit_compute_dtype=torch.bfloat16,\n"
+            "        bnb_4bit_use_double_quant=True,\n"
+            "    )\n"
+            '    model_kwargs["quantization_config"] = bnb_config\n'
         )
-        model = get_peft_model(model, peft_config)
-        model.print_trainable_parameters()
-    elif "{config.method}" == "full_sft":
-        peft_config = None
-        print("Configured for full SFT across all layers")
+        peft_block = (
+            "    peft_config = LoraConfig(\n"
+            f"        r={config.lora_r},\n"
+            f"        lora_alpha={config.lora_alpha},\n"
+            f"        lora_dropout={config.lora_dropout},\n"
+            f"        target_modules={target_modules},\n"
+            '        bias="none",\n'
+            "        task_type=TaskType.CAUSAL_LM,\n"
+            "    )\n"
+        )
+        trainer_peft_arg = "peft_config=peft_config,"
+        reload_block = (
+            "    # Save/reload receipt: fresh base + adapter from disk must match.\n"
+            "    reload_base = _load_base_model(model_kwargs)\n"
+            '    reloaded = PeftModel.from_pretrained(reload_base, str(final_output))\n'
+            "    reloaded.eval()\n"
+            "    with torch.no_grad():\n"
+            "        after_logits = reloaded(probe_ids).logits.float()\n"
+        )
+    elif config.method == "lora":
+        peft_imports = "from peft import LoraConfig, PeftModel, TaskType"
+        bnb_import = ""
+        quantization_block = ""
+        peft_block = (
+            "    peft_config = LoraConfig(\n"
+            f"        r={config.lora_r},\n"
+            f"        lora_alpha={config.lora_alpha},\n"
+            f"        lora_dropout={config.lora_dropout},\n"
+            f"        target_modules={target_modules},\n"
+            '        bias="none",\n'
+            "        task_type=TaskType.CAUSAL_LM,\n"
+            "    )\n"
+        )
+        trainer_peft_arg = "peft_config=peft_config,"
+        reload_block = (
+            "    # Save/reload receipt: fresh base + adapter from disk must match.\n"
+            "    reload_base = _load_base_model(model_kwargs)\n"
+            '    reloaded = PeftModel.from_pretrained(reload_base, str(final_output))\n'
+            "    reloaded.eval()\n"
+            "    with torch.no_grad():\n"
+            "        after_logits = reloaded(probe_ids).logits.float()\n"
+        )
+    else:  # full_sft
+        peft_imports = ""
+        bnb_import = ""
+        quantization_block = ""
+        peft_block = "    peft_config = None\n"
+        trainer_peft_arg = "peft_config=None,"
+        reload_block = (
+            "    # Save/reload receipt: full weights reloaded from disk must match.\n"
+            '    reloaded_kwargs = {k: v for k, v in model_kwargs.items() if k != "quantization_config"}\n'
+            "    reloaded = _load_base_model(reloaded_kwargs, model_id=str(final_output), revision=None)\n"
+            "    reloaded.eval()\n"
+            "    with torch.no_grad():\n"
+            "        after_logits = reloaded(probe_ids).logits.float()\n"
+        )
 
-    # 4. TRL SFTConfig
-    sft_args = SFTConfig(
-        output_dir="{config.output_dir}",
-        learning_rate={config.learning_rate},
-        lr_scheduler_type="{config.lr_scheduler_type}",
-        warmup_ratio={config.warmup_ratio},
-        weight_decay={config.weight_decay},
-        per_device_train_batch_size={config.per_device_train_batch_size},
-        gradient_accumulation_steps={config.gradient_accumulation_steps},
-        max_steps={config.max_steps},
-        num_train_epochs={config.num_train_epochs},
-        logging_steps={config.logging_steps},
-        save_steps={config.save_steps},
-        bf16={config.bf16},
-        gradient_checkpointing={config.gradient_checkpointing},
-        packing={config.packing},
-        max_seq_length={config.max_seq_length},
-        dataset_text_field="{config.dataset_text_field}",
-        report_to="none",
-    )
-
-    # 5. Initialize Trainer
-    trainer = SFTTrainer(
-        model=model,
-        args=sft_args,
-        train_dataset=dataset,
-        processing_class=tokenizer,
-        peft_config=peft_config if "{config.method}" == "lora" else None,
-    )
-
-    print("=== Launching SFT Training ===")
-    train_result = trainer.train()
-    
-    # 6. Save Checkpoint
-    final_output = Path("{config.output_dir}") / "final"
-    trainer.save_model(str(final_output))
-    tokenizer.save_pretrained(str(final_output))
-    print(f"✓ Training finished. Saved checkpoint to {{final_output}}")
-
-if __name__ == "__main__":
-    main()
-'''
+    lines = [
+        "#!/usr/bin/env python3",
+        f'"""Maintained TRL SFTTrainer runner for {config.model_id}.',
+        "",
+        "Auto-generated by evallab.sft_glm. Run inside the isolated pinned",
+        "environment (research/experiments/sft-glm-flash/requirements-sft.txt).",
+        '"""',
+        "",
+        "import hashlib",
+        "import json",
+        "import os",
+        "from pathlib import Path",
+        "",
+        "import torch",
+        "from datasets import Dataset",
+        peft_imports,
+        "from transformers import AutoModelForCausalLM, AutoTokenizer",
+        bnb_import,
+        "from trl import SFTConfig, SFTTrainer",
+        "",
+        "from evallab.sft_glm import (",
+        "    GLMChatTemplatePatcher,",
+        "    GLMLossMasker,",
+        "    har65_record_to_messages,",
+        "    pinned_library_versions,",
+        "    write_checkpoint_manifest,",
+        ")",
+        "",
+        f"MODEL_ID = {model_id}",
+        f"MODEL_REVISION = {model_revision}",
+        f"TOKENIZER_REVISION = {tokenizer_revision}",
+        f"METHOD = {json.dumps(config.method)}",
+        f"OUTPUT_DIR = {output_dir}",
+        f"DATA_PATH = {dataset_path}",
+        f"CONFIG_HASH = {json.dumps(config_hash)}",
+        "",
+        "",
+        "def _revision_kwargs(path, revision):",
+        '    """Local stand-in dirs carry no Hub revision; Hub ids always pin it."""',
+        "    if os.path.isdir(path):",
+        "        return {}",
+        '    return {"revision": revision}',
+        "",
+        "",
+        "def _load_base_model(model_kwargs, model_id=MODEL_ID, revision=MODEL_REVISION):",
+        '    """HAR-66 load class first (glm5_next), CausalLM fallback for stand-ins."""',
+        "    try:",
+        "        from transformers import AutoModelForImageTextToText",
+        "",
+        "        return AutoModelForImageTextToText.from_pretrained(",
+        "            model_id, **_revision_kwargs(model_id, revision), **model_kwargs",
+        "        )",
+        "    except Exception:",
+        "        return AutoModelForCausalLM.from_pretrained(",
+        "            model_id, **_revision_kwargs(model_id, revision), **model_kwargs",
+        "        )",
+        "",
+        "",
+        "def main():",
+        f'    print(f"=== Starting TRL SFT for {{MODEL_ID}} (Method: {{METHOD}}) ===")',
+        "",
+        "    # 1. Tokenizer (pinned revision) + patched chat template.",
+        "    tokenizer = AutoTokenizer.from_pretrained(",
+        "        MODEL_ID, **_revision_kwargs(MODEL_ID, TOKENIZER_REVISION), trust_remote_code=True",
+        "    )",
+        "    if tokenizer.pad_token is None:",
+        "        tokenizer.pad_token = tokenizer.eos_token",
+        "    tokenizer.chat_template = GLMChatTemplatePatcher.get_builtin_template()",
+        '    print("Loaded tokenizer and patched chat template with generation markers")',
+        "",
+        "    # 2. HAR-65 records -> {messages} rows (reward metadata never read).",
+        "    if not os.path.exists(DATA_PATH):",
+        '        raise FileNotFoundError(f"Training dataset not found at {DATA_PATH}")',
+        "    rows = []",
+        "    with open(DATA_PATH, encoding='utf-8') as f:",
+        "        for line in f:",
+        "            line = line.strip()",
+        "            if not line:",
+        "                continue",
+        "            rows.append({'messages': har65_record_to_messages(json.loads(line))})",
+        "    if not rows:",
+        '        raise ValueError(f"No training records in {DATA_PATH}")',
+        "    dataset = Dataset.from_list(rows)",
+        '    print(f"Loaded training dataset: {len(dataset)} records")',
+        "",
+        "    # 3. Base model (pinned revision; bf16 needs CUDA, CPU falls back to fp32).",
+        f"    want_bf16 = {config.bf16}",
+        "    use_bf16 = bool(want_bf16) and torch.cuda.is_available()",
+        "    model_kwargs = {",
+        '        "trust_remote_code": True,',
+        '        "torch_dtype": torch.bfloat16 if use_bf16 else torch.float32,',
+        '        "device_map": "auto",',
+        '        "attn_implementation": "sdpa",',
+        "    }",
+        quantization_block.rstrip("\n"),
+        '    print("Loading base model...")',
+        "    model = _load_base_model(model_kwargs)",
+        peft_block.rstrip("\n"),
+        "",
+        "    # 4. TRL SFTConfig: assistant_only_loss makes the {% generation %}",
+        "    # markers supervise assistant content only.",
+        "    sft_args = SFTConfig(",
+        f"        output_dir={output_dir},",
+        f"        learning_rate={config.learning_rate},",
+        f'        lr_scheduler_type={json.dumps(config.lr_scheduler_type)},',
+        f"        warmup_steps={config.warmup_steps},",
+        f"        weight_decay={config.weight_decay},",
+        f"        per_device_train_batch_size={config.per_device_train_batch_size},",
+        f"        gradient_accumulation_steps={config.gradient_accumulation_steps},",
+        f"        max_steps={config.max_steps},",
+        f"        num_train_epochs={config.num_train_epochs},",
+        f"        logging_steps={config.logging_steps},",
+        f"        save_steps={config.save_steps},",
+        '        save_strategy="steps",',
+        "        bf16=use_bf16,",
+        "        fp16=False,",
+        f"        gradient_checkpointing={config.gradient_checkpointing},",
+        '        gradient_checkpointing_kwargs={"use_reentrant": False},',
+        f"        packing={config.packing},",
+        f"        max_length={config.max_length},",
+        f"        dataset_text_field={json.dumps(config.dataset_text_field)},",
+        "        assistant_only_loss=True,",
+        '        seed=42,',
+        '        report_to="none",',
+        "    )",
+        "",
+        "    # 5. Maintained trainer: peft_config goes to SFTTrainer only.",
+        "    trainer = SFTTrainer(",
+        "        model=model,",
+        "        args=sft_args,",
+        "        train_dataset=dataset,",
+        "        processing_class=tokenizer,",
+        f"        {trainer_peft_arg}",
+        "    )",
+        "",
+        '    print("=== Launching SFT Training ===")',
+        "    train_result = trainer.train()",
+        "    train_metrics = {k: float(v) for k, v in dict(train_result.metrics).items()}",
+        '    final_loss = float(train_metrics.get("train_loss", float("nan")))',
+        "",
+        "    # 6. Save checkpoint + manifest (verify_checkpoint accepts this).",
+        "    final_output = Path(OUTPUT_DIR) / 'final'",
+        "    trainer.save_model(str(final_output))",
+        "    tokenizer.save_pretrained(str(final_output))",
+        "    with open(DATA_PATH, 'rb') as f:",
+        "        dataset_hash = hashlib.sha256(f.read()).hexdigest()",
+        "    first_messages = rows[0]['messages']",
+        "    rendered = tokenizer.apply_chat_template(",
+        "        first_messages, tokenize=True, return_assistant_tokens_mask=True",
+        "    )",
+        '    first_ids = rendered["input_ids"]',
+        '    first_masks = rendered["assistant_masks"]',
+        "    first_labels = [tid if m else -100 for tid, m in zip(first_ids, first_masks)]",
+        "    receipt = GLMLossMasker.validate_loss_masks(",
+        "        tokenizer.convert_ids_to_tokens(first_ids), first_ids, first_labels, first_masks",
+        "    )",
+        "    mask_receipt = {",
+        '        "total_tokens": receipt.total_tokens,',
+        '        "supervised_tokens": receipt.supervised_tokens,',
+        '        "is_valid": receipt.is_valid,',
+        "    }",
+        "    manifest_path = write_checkpoint_manifest(",
+        "        final_output,",
+        "        model_id=MODEL_ID,",
+        "        base_model_revision=MODEL_REVISION,",
+        "        tokenizer_revision=TOKENIZER_REVISION,",
+        "        training_method=METHOD,",
+        "        step_count=sft_args.max_steps,",
+        "        final_loss=final_loss,",
+        '        adapter_path=str(final_output / "adapter_model.safetensors"),',
+        "        dataset_path=DATA_PATH,",
+        "        dataset_hash=dataset_hash,",
+        "        config_hash=CONFIG_HASH,",
+        "        train_metrics=train_metrics,",
+        "        mask_receipt=mask_receipt,",
+        "        library_versions=pinned_library_versions(),",
+        '        vllm_command=f"vllm serve {MODEL_ID} --enable-lora",',
+        "    )",
+        '    print(f"Training finished. Manifest: {manifest_path}")',
+        "",
+        "    # 7. Save/reload receipt: checkpoint from disk must forward-match.",
+        "    trainer.model.eval()",
+        "    device = next(trainer.model.parameters()).device",
+        '    probe_ids = tokenizer("Sanity check.", return_tensors="pt")["input_ids"][:, :32].to(device)',
+        "    with torch.no_grad():",
+        "        before_logits = trainer.model(probe_ids).logits.float()",
+        reload_block.rstrip("\n"),
+        "    assert torch.allclose(before_logits.cpu(), after_logits.cpu(), rtol=1e-3, atol=1e-3), (",
+        '        "Save/reload forward mismatch: reloaded checkpoint differs"',
+        "    )",
+        '    print("Save/reload receipt: forward pass matches")',
+        "",
+        "",
+        'if __name__ == "__main__":',
+        "    main()",
+        "",
+    ]
+    script = "\n".join(lines)
+    return script + "\n"
 
 
 def generate_remote_job_manifest(config: GLMSFTConfig) -> dict[str, Any]:
-    """Generates Slurm/batch submission script and execution manifest for remote execution."""
+    """Generates Slurm/batch submission script and execution manifest for remote execution.
+
+    Node count derives from the envelope (`ceil(gpus / 8)`), so multi-node
+    methods (full_sft) no longer emit an impossible single-node topology.
+    QLoRA hardware is computed at 4-bit. All hardware numbers carry
+    `"qualification": "estimate-unverified"` (see GLMHardwareEnvelope).
+    """
+    precision = {"lora": "fp8", "qlora": "int4", "full_sft": "bf16"}[config.method]
     hardware = compute_hardware_envelope(
         method=config.method,
-        precision="fp8" if config.method == "lora" else "bf16",
-        context_length=config.max_seq_length,
+        precision=precision,  # type: ignore[arg-type]
+        context_length=config.max_length,
     )
+    gpus = hardware.recommended_min_gpus
+    nodes = (gpus + 7) // 8
+    gpus_per_node = min(gpus, 8)
 
-    slurm_script = f"""#!/bin/bash
-#SBATCH --job-name=glm-5.3-flash-sft
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
-#SBATCH --gpus-per-node={hardware.recommended_min_gpus}
-#SBATCH --cpus-per-task=32
-#SBATCH --mem=480G
-#SBATCH --time=04:00:00
-#SBATCH --output={config.output_dir}/slurm-%j.out
-#SBATCH --error={config.output_dir}/slurm-%j.err
-
-set -euo pipefail
-
-echo "Job starting on $(hostname) at $(date)"
-echo "GPUs allocated: {hardware.recommended_min_gpus} x {hardware.recommended_gpu_type}"
-
-# Ensure environment
-source /opt/conda/bin/activate sft-glm
-mkdir -p "{config.output_dir}"
-
-# Execute training with Accelerate / TRL
-accelerate launch \\
-    --num_processes={hardware.recommended_min_gpus} \\
-    --mixed_precision=bf16 \\
-    train_glm_sft.py
-
-echo "Job completed successfully at $(date)"
-"""
+    slurm_lines = [
+        "#!/bin/bash",
+        "#SBATCH --job-name=glm-5.3-flash-sft",
+        f"#SBATCH --nodes={nodes}",
+        "#SBATCH --ntasks-per-node=1",
+        f"#SBATCH --gpus-per-node={gpus_per_node}",
+        "#SBATCH --cpus-per-task=32",
+        "#SBATCH --mem=480G",
+        "#SBATCH --time=04:00:00",
+        f"#SBATCH --output={config.output_dir}/slurm-%j.out",
+        f"#SBATCH --error={config.output_dir}/slurm-%j.err",
+        "",
+        "set -euo pipefail",
+        "",
+        'echo "Job starting on $(hostname) at $(date)"',
+        f"echo \"GPUs allocated: {gpus} x {hardware.recommended_gpu_type}\"",
+        "",
+        "# Ensure environment",
+        "source /opt/conda/bin/activate sft-glm",
+        f'mkdir -p "{config.output_dir}"',
+        "",
+        "# Execute training with Accelerate / TRL",
+        "accelerate launch \\",
+        f"    --num_processes={gpus} \\",
+        "    --mixed_precision=bf16 \\",
+        "    train_glm_sft.py",
+        "",
+        'echo "Job completed successfully at $(date)"',
+    ]
+    slurm_script = "\n".join(slurm_lines) + "\n"
 
     return {
         "job_name": "glm-5.3-flash-sft",
         "method": config.method,
         "target_model": config.model_id,
+        "model_revision": config.model_revision,
+        "tokenizer_revision": config.tokenizer_revision,
         "hardware_requirements": hardware.model_dump(),
         "slurm_submission_script": slurm_script,
         "detached_execution": True,
@@ -719,19 +1028,28 @@ echo "Job completed successfully at $(date)"
 
 
 class CheckpointManifest(BaseModel):
-    """Machine-checkable manifest for trained GLM checkpoints and adapters."""
+    """Machine-checkable manifest for trained GLM checkpoints and adapters.
+
+    Written by `write_checkpoint_manifest` (used by the generated TRL trainer
+    and the CPU plumbing canary alike) and accepted by `verify_checkpoint`.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     manifest_version: int = 1
     model_id: str = "zai-org/GLM-5.3-Flash"
     base_model_revision: str
+    tokenizer_revision: str = "unknown"
     training_method: Literal["lora", "qlora", "full_sft"]
     step_count: int
     final_loss: float
     adapter_path: str
+    dataset_path: str = ""
     dataset_hash: str
     config_hash: str
+    train_metrics: dict[str, float] = Field(default_factory=dict)
+    mask_receipt: dict[str, Any] = Field(default_factory=dict)
+    library_versions: dict[str, str] = Field(default_factory=dict)
     created_at: str
     serving_backend: Literal["vllm", "sglang"] = "vllm"
     vllm_command: str
@@ -767,6 +1085,159 @@ def verify_checkpoint(checkpoint_dir: Path) -> dict[str, Any]:
         "manifest": manifest.model_dump(),
         "checkpoint_dir": str(checkpoint_dir),
     }
+
+
+def har65_record_to_messages(record: dict[str, Any]) -> list[dict[str, Any]]:
+    """Adapts one HAR-65 record (PR #446, `evallab.sft_records`) to chat messages.
+
+    Accepts `decision_example` rows (`context` + `target`), `full_trajectory`
+    rows (`messages`), and legacy rows carrying a bare `messages` list.
+    Returns message dicts with only the keys the training chat template reads
+    (`role`, `content`, plus `reasoning_content` / `tool_calls` on assistant
+    turns). Reward/verifier outcome, lineage, split, and fidelity metadata are
+    never read, so they cannot leak into the learner. Fails closed
+    (ValueError) on redacted messages, reward-metadata keys inside a message,
+    non-string content, or tool-call arguments that do not decode to a mapping
+    (the GLM template rejects raw argument strings).
+    """
+    if not isinstance(record, dict):
+        raise ValueError(f"Record must be a JSON object, got {type(record).__name__}")
+    kind = record.get("kind")
+    if kind == "decision_example":
+        context = record.get("context")
+        target = record.get("target")
+        if not isinstance(context, list) or not isinstance(target, dict):
+            raise ValueError("decision_example must carry a `context` list and a `target` message")
+        raw_messages = [*context, target]
+    elif "messages" in record:
+        raw_messages = record["messages"]
+        if not isinstance(raw_messages, list):
+            raise ValueError("Record `messages` must be a list")
+    else:
+        raise ValueError("Record has neither `kind: decision_example` nor a `messages` list")
+
+    cleaned: list[dict[str, Any]] = []
+    for m in raw_messages:
+        if not isinstance(m, dict):
+            raise ValueError(f"Message must be a JSON object, got {type(m).__name__}")
+        if m.get("redacted"):
+            raise ValueError("Record contains a redacted message; refusing to train on redacted context")
+        leaked = [key for key in m if key in REWARD_METADATA_KEYS]
+        if leaked:
+            raise ValueError(f"Message carries reward/verifier metadata keys {leaked}; refusing to train")
+        role = m.get("role")
+        if role not in ("system", "user", "assistant", "tool", "observation"):
+            raise ValueError(f"Unknown message role: {role!r}")
+        content = m.get("content")
+        if content is None:
+            content = ""
+        if not isinstance(content, str):
+            raise ValueError(f"Message content must be a string, got {type(content).__name__}")
+        out: dict[str, Any] = {"role": role, "content": content}
+        if role == "assistant":
+            reasoning = m.get("reasoning_content")
+            if reasoning is not None:
+                if not isinstance(reasoning, str):
+                    raise ValueError("Assistant `reasoning_content` must be a string")
+                out["reasoning_content"] = reasoning
+            tool_calls = m.get("tool_calls")
+            if tool_calls is not None:
+                if not isinstance(tool_calls, list):
+                    raise ValueError("Assistant `tool_calls` must be a list")
+                out["tool_calls"] = [_normalize_tool_call(tc) for tc in tool_calls]
+        cleaned.append(out)
+    if not any(m["role"] == "assistant" for m in cleaned):
+        raise ValueError("Record has no assistant turn; nothing would be supervised")
+    return cleaned
+
+
+def _normalize_tool_call(tool_call: Any) -> dict[str, Any]:
+    """Normalizes one tool call to `{"name", "arguments", ...}` with mapping arguments."""
+    if not isinstance(tool_call, dict):
+        raise ValueError(f"Tool call must be a JSON object, got {type(tool_call).__name__}")
+    inner = tool_call.get("function") if isinstance(tool_call.get("function"), dict) else tool_call
+    name = inner.get("name")
+    if not isinstance(name, str) or not name:
+        raise ValueError(f"Tool call must carry a string `name`, got {name!r}")
+    arguments = inner.get("arguments", {})
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except ValueError:
+            import ast as _ast
+
+            try:
+                arguments = _ast.literal_eval(arguments)
+            except (ValueError, SyntaxError) as e:
+                raise ValueError(f"Tool call arguments string does not decode: {e}") from e
+    if not isinstance(arguments, dict):
+        raise ValueError(f"Tool call arguments must decode to a mapping, got {type(arguments).__name__}")
+    normalized: dict[str, Any] = {"name": name, "arguments": arguments}
+    call_id = tool_call.get("id") if isinstance(tool_call.get("id"), str) else inner.get("id")
+    if isinstance(call_id, str) and call_id:
+        normalized["id"] = call_id
+    return normalized
+
+
+def pinned_library_versions() -> dict[str, str]:
+    """Reports installed versions of the isolated training stack without importing it."""
+    versions: dict[str, str] = {}
+    for package in ("torch", "transformers", "trl", "peft", "accelerate", "datasets", "bitsandbytes"):
+        try:
+            versions[package] = importlib.metadata.version(package)
+        except importlib.metadata.PackageNotFoundError:
+            versions[package] = "not-installed"
+    return versions
+
+
+def write_checkpoint_manifest(
+    checkpoint_dir: Path,
+    *,
+    model_id: str,
+    base_model_revision: str,
+    tokenizer_revision: str,
+    training_method: Literal["lora", "qlora", "full_sft"],
+    step_count: int,
+    final_loss: float,
+    adapter_path: str,
+    dataset_path: str = "",
+    dataset_hash: str,
+    config_hash: str,
+    train_metrics: dict[str, float] | None = None,
+    mask_receipt: dict[str, Any] | None = None,
+    library_versions: dict[str, str] | None = None,
+    serving_backend: Literal["vllm", "sglang"] = "vllm",
+    vllm_command: str,
+) -> Path:
+    """Writes and returns `checkpoint_manifest.json` for a produced checkpoint.
+
+    Shared writer used by the generated TRL trainer (real training result,
+    dataset/config hashes, mask receipt) and the CPU plumbing canary alike, so
+    `verify_checkpoint` accepts both.
+    """
+    manifest = CheckpointManifest(
+        manifest_version=1,
+        model_id=model_id,
+        base_model_revision=base_model_revision,
+        tokenizer_revision=tokenizer_revision,
+        training_method=training_method,
+        step_count=step_count,
+        final_loss=final_loss,
+        adapter_path=adapter_path,
+        dataset_path=dataset_path,
+        dataset_hash=dataset_hash,
+        config_hash=config_hash,
+        train_metrics=dict(train_metrics or {}),
+        mask_receipt=dict(mask_receipt or {}),
+        library_versions=dict(library_versions or {}),
+        created_at=datetime.now(UTC).isoformat(),
+        serving_backend=serving_backend,
+        vllm_command=vllm_command,
+    )
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = checkpoint_dir / "checkpoint_manifest.json"
+    manifest_path.write_text(json.dumps(manifest.model_dump(), indent=2), encoding="utf-8")
+    return manifest_path
 
 
 # ==============================================================================
@@ -832,27 +1303,25 @@ def run_cpu_canary_smoke(output_dir: Path) -> dict[str, Any]:
     assert weight_diff > 0.0, "Weights must change after optimizer step"
     assert final_loss_val < initial_loss_val, "Loss must decrease after update"
 
-    # Step 4: Save checkpoint and manifest
+    # Step 4: Save checkpoint and manifest (shared writer, verify-compatible)
     ckpt_path = output_dir / "canary_checkpoint.pt"
     torch.save(model.state_dict(), ckpt_path)
 
-    manifest = CheckpointManifest(
-        manifest_version=1,
+    manifest_path = write_checkpoint_manifest(
+        output_dir,
         model_id="canary-tiny-causal-plumbing",
         base_model_revision="canary-rev-01",
+        tokenizer_revision="canary-rev-01",
         training_method="full_sft",
         step_count=2,
         final_loss=round(final_loss_val, 4),
         adapter_path=str(ckpt_path),
         dataset_hash=hashlib.sha256(b"canary-dataset-bytes").hexdigest(),
         config_hash=hashlib.sha256(b"canary-config-bytes").hexdigest(),
-        created_at=datetime.now(UTC).isoformat(),
         serving_backend="vllm",
         vllm_command="vllm serve --model canary-tiny",
     )
-    (output_dir / "checkpoint_manifest.json").write_text(
-        json.dumps(manifest.model_dump(), indent=2), encoding="utf-8"
-    )
+    manifest = CheckpointManifest.model_validate(json.loads(manifest_path.read_text(encoding="utf-8")))
 
     # Step 5: Reload checkpoint and verify weights match
     reloaded_model = TinyCausalLM()
@@ -906,11 +1375,26 @@ def generate_re_serving_handoff(
     return {
         "target_model": GLM_5_3_FLASH_SPECS.model_id,
         "model_selector": GLM_5_3_FLASH_SPECS.model_selector,
+        "model_revision": GLM_MODEL_REVISION,
+        "tokenizer_revision": GLM_TOKENIZER_REVISION,
         "adapter_name": adapter_name,
         "adapter_path": checkpoint_dir,
         "serving_backend": "vllm",
         "vllm_command": vllm_cmd,
         "sglang_command": sglang_cmd,
+        "checkpoint_manifest": {
+            "path": f"{checkpoint_dir}/checkpoint_manifest.json",
+            "contract": "trainer writes checkpoint_manifest.json via "
+            "evallab.sft_glm.write_checkpoint_manifest (base model id + "
+            "revision, tokenizer revision, library versions, dataset path + "
+            "sha256, config sha256, train_result metrics, mask receipt, "
+            "timestamp); validate with evallab.sft_glm.verify_checkpoint",
+        },
+        "merge_before_serving": "Dynamic LoRA is NOT supported for glm5_next "
+        "in vLLM/SGLang executors (HAR-66); merge the adapter into the base "
+        "weights before serving.",
+        "hardware_qualification": "estimate-unverified: GPU counts/topology "
+        "are storage arithmetic with no target-model run receipt.",
         "pinned_inference_settings": {
             "temperature": 0.95,
             "top_p": 1.0,

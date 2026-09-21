@@ -8,11 +8,10 @@
 # what this lab does. See docs/operations.md, "Paid execution requires a
 # recorded authorisation".
 #
-# The three dollar figures below are API-list-price *equivalents*. No dollars
-# move when a paid trial runs: paid agents authenticate from a personal
-# subscription, so the constraint that actually binds is a rate-limit window
-# (docs/quota-accounting.md). Billable dispatch is additionally refused when
-# the provider itself reports that window exhausted.
+# Dollar ceilings constrain proposed execution; API-key trials spend actual
+# provider balance, while subscription-backed trials consume provider quota.
+# Neither a list-price estimate nor a subscription quota reading substitutes
+# for the other. Preserve unknown charges and explicit per-trial limits.
 #
 # `refuse_billable_at_used_percent` is the lab's OWN threshold, below the
 # provider's limit, and it is deliberately unset. Setting it is a spend

@@ -13,7 +13,9 @@ from evallab.execution_contracts import (
     DispatchCapacity,
     PaidRunAuthorization,
     RunRequest,
+    collected_secret_values,
     new_ulid,
+    persist_private_bytes,
     redact_environment,
     subscription_environment,
     transient_provider_exception,
@@ -238,6 +240,22 @@ def test_deepseek_credentials_are_opt_in_and_log_redacted() -> None:
     redacted = redact_environment({"DEEPSEEK_API_KEY": secret, "HOME": "/home/user"})
     assert redacted["DEEPSEEK_API_KEY"] == "<redacted>"
     assert secret not in repr(redacted)
+
+
+def test_daytona_key_is_redacted_from_persisted_executor_errors(tmp_path: Path) -> None:
+    secret = "private-sandbox-api-credential"
+    destination = tmp_path / "executor.log"
+    persist_private_bytes(
+        destination,
+        f"Daytona request failed with credential {secret}".encode(),
+        secrets=tuple(
+            value.encode()
+            for value in collected_secret_values({"DAYTONA_API_KEY": secret})
+        ),
+    )
+    assert destination.read_text() == (
+        "Daytona request failed with credential <redacted>"
+    )
 
 
 def test_new_ulid_format_and_monotonicity() -> None:

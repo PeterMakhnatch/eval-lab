@@ -17,6 +17,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+import yaml
 from harbor.environments.daytona.environment import (  # ty: ignore[unresolved-import]
     DaytonaEnvironment,
     _DaytonaDinD,
@@ -45,6 +46,13 @@ def render_proxy_overlay(source: Path) -> dict[str, Any]:
     )
     config = json.loads(rendered.stdout)
     config.pop("name", None)
+    source_services = yaml.safe_load(source.read_text(encoding="utf-8"))["services"]
+    # Compose normalization emits null command/entrypoint even when omitted.
+    # Re-applying those nulls would erase Harbor's keep-alive command.
+    for name, service in config["services"].items():
+        for field in ("command", "entrypoint"):
+            if field not in source_services[name]:
+                service.pop(field, None)
     if set(config["services"]) != {"main", ZAI_OPENAPI_PROXY_HOST}:
         raise ValueError("GLM Daytona transport requires the dedicated two-service proxy overlay")
     proxy = config["services"][ZAI_OPENAPI_PROXY_HOST]
@@ -184,14 +192,6 @@ class SecretSafeDaytonaEnvironment(DaytonaEnvironment):
         identity = f"{self.session_id}:{self.environment_name}"
         params.name = "evallab-" + hashlib.sha256(identity.encode()).hexdigest()[:24]
         await super()._create_sandbox(params=params, daytona=daytona)
-
-    async def start(self, force_build: bool) -> None:
-        try:
-            await super().start(force_build)
-        except BaseException:
-            if self._sandbox is not None:
-                await self.stop(delete=True)
-            raise
 
     async def stop(self, delete: bool) -> None:
         try:

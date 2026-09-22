@@ -250,13 +250,10 @@ def test_daytona_key_is_redacted_from_persisted_executor_errors(tmp_path: Path) 
         destination,
         f"Daytona request failed with credential {secret}".encode(),
         secrets=tuple(
-            value.encode()
-            for value in collected_secret_values({"DAYTONA_API_KEY": secret})
+            value.encode() for value in collected_secret_values({"DAYTONA_API_KEY": secret})
         ),
     )
-    assert destination.read_text() == (
-        "Daytona request failed with credential <redacted>"
-    )
+    assert destination.read_text() == ("Daytona request failed with credential <redacted>")
 
 
 def test_new_ulid_format_and_monotonicity() -> None:
@@ -333,3 +330,97 @@ def test_agent_allowlist_is_execution_only_and_exact() -> None:
     assert task_toml == ('[agent]\ntimeout_sec = 60.0\n\n[environment]\nnetwork_mode = "public"\n')
     assert 'network_mode = "allowlist"' in updated
     assert 'allowed_hosts = ["api.deepseek.com"]' in updated
+
+
+def _metered_request(
+    tmp_path: Path,
+    *,
+    task: Path | None = None,
+    agent: str = "mini-swe-agent",
+    model: str | None = "zai/glm-5.3-flash",
+    environment: str = "daytona",
+    name: str = "valid-remote-check",
+) -> RunRequest:
+    """Build a ceiling-complete metered request for backend-compatibility checks."""
+    task_dir = task if task is not None else _task_dir(tmp_path)
+    return RunRequest(
+        task=task_dir,
+        agent=agent,
+        model=model,
+        name=name,
+        jobs_dir=tmp_path / "jobs",
+        environment=environment,
+        allow_billable=True,
+        concurrency=1,
+        attempts=1,
+        timeout_seconds=300,
+        max_requests=10,
+        max_input_tokens=1000,
+        max_output_tokens=1000,
+        max_total_tokens=2000,
+        cost_limit_usd=2.5,
+    )
+
+
+def test_daytona_task_compose_rejected_before_run(tmp_path: Path) -> None:
+    """Task-provided Compose fails validation before any Daytona allocation."""
+    task = _task_dir(tmp_path)
+    compose_dir = task / "environment"
+    compose_dir.mkdir(parents=True, exist_ok=True)
+    (compose_dir / "docker-compose.yaml").write_text("services:\n  main:\n    image: x\n")
+    req = _metered_request(tmp_path, task=task, environment="daytona")
+    with pytest.raises(ValueError, match="single-container"):
+        validate_request(req)
+
+
+def test_modal_metered_proxy_rejected_as_integration_gap(tmp_path: Path) -> None:
+    """Modal + metered proxy fails as a Lab integration gap with a local remedy."""
+    req = _metered_request(tmp_path, environment="modal")
+    with pytest.raises(ValueError, match="Lab integration gap"):
+        validate_request(req)
+
+
+def test_daytona_wrong_lane_requires_docker(tmp_path: Path) -> None:
+    """Daytona admits only the qualified mini lane; other metered lanes stay local."""
+    deepseek = _metered_request(tmp_path, model="deepseek/deepseek-flash", environment="daytona")
+    with pytest.raises(ValueError, match="requires.*environment='docker'"):
+        validate_request(deepseek)
+
+
+def test_remote_zai_opencode_requires_docker(tmp_path: Path) -> None:
+    """zai-opencode proxy transport is qualified only for local Docker."""
+    req = RunRequest(
+        task=_task_dir(tmp_path),
+        agent="zai-opencode",
+        model="zai-coding-plan/glm-5.3-flash",
+        name="valid-remote-check",
+        jobs_dir=tmp_path / "jobs",
+        environment="modal",
+        allow_billable=True,
+        concurrency=1,
+        attempts=1,
+        timeout_seconds=300,
+        max_requests=10,
+        max_input_tokens=1000,
+        max_output_tokens=1000,
+        max_total_tokens=2000,
+        cost_limit_usd=2.5,
+    )
+    with pytest.raises(ValueError, match="requires.*environment='docker'"):
+        validate_request(req)
+
+
+def test_docker_gpu_task_rejected_locally(tmp_path: Path) -> None:
+    """A GPU-requiring task fails on local Docker before Harbor allocates."""
+    task = tmp_path / "task"
+    task.mkdir(parents=True, exist_ok=True)
+    (task / "task.toml").write_text("[environment]\ngpus = 1\n")
+    req = RunRequest(
+        task=task,
+        agent="oracle",
+        name="valid-remote-check",
+        jobs_dir=tmp_path / "jobs",
+        environment="docker",
+    )
+    with pytest.raises(ValueError, match="does not support.*GPU allocation"):
+        validate_request(req)

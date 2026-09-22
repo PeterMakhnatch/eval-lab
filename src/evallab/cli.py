@@ -214,7 +214,7 @@ def _print_summary(jobs: Sequence[JobRecord]) -> None:
             from evallab.results import duration_seconds
 
             seconds = duration_seconds(started, finished)
-            reward = "" if trial.primary_reward is None else f"{trial.primary_reward:g}"
+            reward = "ungraded" if trial.primary_reward is None else f"{trial.primary_reward:g}"
             print(
                 f"| {job.name} | {result.get('task_name', '')} | "
                 f"{agent_info.get('name', '')} | "
@@ -456,18 +456,20 @@ def _submit_command(
 def _tick_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    # if args.command == "tick": the preflight is rendered exactly once here,
-    # before the guarded executor performs any dispatch.
-    print(
-        render_preflight(
-            build_preflight_report(
-                root,
-                now=datetime.now(UTC),
-                refusal=provider_reported_exhaustion,
-                refuse_at_used_percent=_configured_quota_ceiling(root),
+    if args.spec_id and args.canary_suite:
+        raise ValueError("--spec-id cannot be combined with --canary-suite")
+    # A selected run still uses all dispatch gates, without an unrelated account-wide report.
+    if not args.spec_id:
+        print(
+            render_preflight(
+                build_preflight_report(
+                    root,
+                    now=datetime.now(UTC),
+                    refusal=provider_reported_exhaustion,
+                    refuse_at_used_percent=_configured_quota_ceiling(root),
+                )
             )
         )
-    )
     agent_caps: dict[str, int] = {}
     for raw in args.agent_capacity:
         agent, separator, value = raw.partition("=")
@@ -488,6 +490,20 @@ def _tick_command(
         progress=print,
         capacity=capacity,
     )
+    for spec_id in args.spec_id:
+        selected_path = executor.queue.locate(spec_id)
+        selected = executor.queue.load(selected_path)
+        if selected.spec_id != spec_id:
+            raise ValueError("--spec-id requires an exact queued spec ID")
+        if selected_path.parent.name != "approved":
+            raise ValueError(
+                f"{spec_id} is {selected_path.parent.name}, not approved; "
+                "inspect or explicitly approve this spec before dispatch"
+            )
+        print(
+            f"selected: {spec_id} {selected.name} — {selected.agent} / "
+            f"{selected.model or 'control'} / {selected.environment}"
+        )
     canary_enqueuer = None
     if getattr(args, "canary_suite", None) is not None:
         suite_path = _resolve(root, args.canary_suite)
@@ -505,7 +521,7 @@ def _tick_command(
         doctor=HeadlessDoctor(root, executor=executor),
         executor=executor,
         canary_enqueuer=canary_enqueuer.enqueue_due if canary_enqueuer is not None else None,
-    ).run()
+    ).run(spec_ids=args.spec_id or None)
     is_quarantined = not result.report.healthy or result.quarantined
     print(f"dispatched {result.dispatched} experiment(s)")
     if result.enqueued:
@@ -513,7 +529,25 @@ def _tick_command(
     print(f"quarantined: {'yes' if is_quarantined else 'no'}")
     if result.quarantine_reason:
         print(f"quarantine reason: {result.quarantine_reason}", file=sys.stderr)
-    return 1 if is_quarantined else 0
+    if executor.last_tick_reason:
+        print(f"dispatch reason: {executor.last_tick_reason}")
+    selected_incomplete = False
+    for spec_id in args.spec_id:
+        selected_path = executor.queue.locate(spec_id)
+        selected = executor.queue.load(selected_path)
+        state = selected_path.parent.name
+        print(f"spec: {spec_id} state: {state}")
+        selected_incomplete |= state != "done"
+        if state != "done":
+            reasons = sorted(executor.queue.reasons_dir.glob(f"{spec_id}-*.json"))
+            if reasons:
+                reason = json.loads(reasons[-1].read_text())
+                print(f"reason: {reason['code']}: {reason['message']}")
+        job_path = Path(selected.jobs_dir) / selected.name
+        if (root / job_path).is_dir():
+            print(f"evidence: {job_path.as_posix()}")
+            print(f"inspect: uv run evallab summarize {shlex.quote(job_path.as_posix())}")
+    return 1 if is_quarantined or selected_incomplete else 0
 
 
 def _approve_command(
@@ -565,7 +599,7 @@ def _approve_command(
         manifest_path = CAMPAIGN_STATE_ROOT / authorized.campaign_ledger.ledger_id / "manifest.json"
         print(f"next: uv run evallab campaign resume {manifest_path.as_posix()}")
     else:
-        print("next: uv run evallab tick")
+        print(f"next: uv run evallab tick --spec-id {shlex.quote(str(authorized.spec_id))}")
     return 0
 
 
@@ -991,12 +1025,16 @@ def _matrix_command(
                         any(prior.get(key) != provenance.get(key) for key in keys)
                         or prior.get("status") == "infra"
                     ):
-                        raise ValueError("existing job has no matching successful control provenance")
+                        raise ValueError(
+                            "existing job has no matching successful control provenance"
+                        )
                     state_path = executor_state_path(request)
                     if state_path.is_file():
                         state = json.loads(state_path.read_text())
                         if state.get("status") != "completed" or state.get("exit_code", 0) != 0:
-                            raise ValueError("existing job has a failed or incomplete Harbor execution")
+                            raise ValueError(
+                                "existing job has a failed or incomplete Harbor execution"
+                            )
                 elif job_dir.exists():
                     raise FileExistsError(
                         f"Refusing to reuse existing job directory: {job_dir}. "
@@ -1040,12 +1078,15 @@ def _matrix_command(
             receipt_path.write_text(json.dumps(saved_receipt, indent=2) + "\n")
         with invocation_path.open("a") as stream:
             stream.write(
-                json.dumps({
-                    "recorded_at": datetime.now(UTC).isoformat(),
-                    "matrix": matrix.model_dump(mode="json"),
-                    "reuse_existing": args.reuse_existing,
-                    "result": result,
-                }) + "\n"
+                json.dumps(
+                    {
+                        "recorded_at": datetime.now(UTC).isoformat(),
+                        "matrix": matrix.model_dump(mode="json"),
+                        "reuse_existing": args.reuse_existing,
+                        "result": result,
+                    }
+                )
+                + "\n"
             )
     _print_summary(completed)
     print(f"matrix receipt: {receipt_path}")
@@ -1594,9 +1635,7 @@ def _analyze_worker_resolve_ambiguous_command(
     from evallab.analysis_worker import default_worker
 
     worker = default_worker(root)
-    transition = worker.resolve_ambiguous(
-        args.request_id, action=args.action, actor=args.actor
-    )
+    transition = worker.resolve_ambiguous(args.request_id, action=args.action, actor=args.actor)
     print(json.dumps({"state": transition.state, "reason": transition.reason}))
     return 0
 
@@ -2225,6 +2264,65 @@ def _evidence_restore_command(
     return 0
 
 
+def _tasks_prepare_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.task_prepare import prepare_task
+
+    prepared = prepare_task(
+        root,
+        _resolve(root, args.source),
+        name=args.name,
+        agent=args.agent,
+        model=args.model,
+        environment=args.environment,
+        timeout_seconds=args.timeout_seconds,
+        cost_limit_usd=args.cost_limit_usd,
+        est_cost_usd=args.estimated_cost_usd,
+        max_requests=args.max_requests,
+        max_input_tokens=args.max_input_tokens,
+        max_output_tokens=args.max_output_tokens,
+        max_total_tokens=args.max_total_tokens,
+        output=args.output,
+        submitted_by=args.submitted_by,
+    )
+    spec_path = prepared.spec_path.relative_to(root.resolve()).as_posix()
+    next_command = f"uv run evallab submit {shlex.quote(spec_path)}"
+    payload = {
+        "spec_path": spec_path,
+        "spec": prepared.spec.model_dump(mode="json"),
+        "source": str(prepared.source),
+        "task_path": prepared.task_path.relative_to(root.resolve()).as_posix(),
+        "resources": prepared.resources,
+        "task_timeout_seconds": prepared.task_timeout_seconds,
+        "warnings": list(prepared.warnings),
+        "next_command": next_command,
+        "submitted": False,
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2))
+        return 0
+    spec = prepared.spec
+    print(f"prepared: {spec_path}")
+    print(f"task: {spec.task} @ {spec.task_version or 'unversioned'}")
+    print(f"package: {spec.task_package_digest}")
+    print(f"run: {spec.agent} / {spec.model or 'control'} / {spec.environment}")
+    print(f"resources: {json.dumps(prepared.resources, sort_keys=True)}")
+    print(f"timeout: {spec.timeout_seconds}s (task: {prepared.task_timeout_seconds}s)")
+    if spec.cost_limit_usd is not None:
+        print(
+            f"model ceilings: ${spec.cost_limit_usd:g}, {spec.max_requests} requests, "
+            f"{spec.max_input_tokens} input / {spec.max_output_tokens} output / "
+            f"{spec.max_total_tokens} total tokens"
+        )
+    print(f"estimated total cost: ${spec.est_cost_usd:g} (not an infrastructure spending cap)")
+    for warning in prepared.warnings:
+        print(f"warning: {warning}")
+    print("Not submitted or authorized; no model or sandbox was started.")
+    print(f"next: {next_command}")
+    return 0
+
+
 def _tasks_lint_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -2687,6 +2785,7 @@ def _registry_audit_command(
         print(f"[{icon}] {finding.category} -> {finding.target}")
         print(f"       {finding.message}")
     return 0 if report.passed else 1
+
 
 def _quality_audit_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
@@ -3205,6 +3304,13 @@ def parser() -> argparse.ArgumentParser:
 
     tick = commands.add_parser("tick", help="Reconcile and drain the approved experiment queue")
     tick.add_argument(
+        "--spec-id",
+        action="append",
+        default=[],
+        metavar="ID",
+        help="Dispatch only these approved specs, leaving other queued work untouched (repeatable)",
+    )
+    tick.add_argument(
         "--parallel",
         type=int,
         default=1,
@@ -3665,16 +3771,15 @@ def parser() -> argparse.ArgumentParser:
         help="Explicitly retry or quarantine one possibly-paid ambiguous invocation",
     )
     analyze_worker_resolve.add_argument("request_id")
-    analyze_worker_resolve.add_argument(
-        "--action", choices=("retry", "quarantine"), required=True
-    )
+    analyze_worker_resolve.add_argument("--action", choices=("retry", "quarantine"), required=True)
     analyze_worker_resolve.add_argument(
         "--actor", required=True, help="Operator taking responsibility for this resolution"
     )
     analyze_worker_resolve.set_defaults(func=_analyze_worker_resolve_ambiguous_command)
 
     analyze_ingest = analyze_commands.add_parser(
-        "ingest-sidecar", help="Index a durable analysis and its existing reviews without appending one"
+        "ingest-sidecar",
+        help="Index a durable analysis and its existing reviews without appending one",
     )
     analyze_ingest.add_argument("path", type=Path)
     analyze_ingest.add_argument("--database-url")
@@ -3991,6 +4096,40 @@ def parser() -> argparse.ArgumentParser:
 
     tasks_parser = commands.add_parser("tasks", help="Import and manage task corpora")
     tasks_commands = tasks_parser.add_subparsers(dest="tasks_command", required=True)
+    tasks_prepare = tasks_commands.add_parser(
+        "prepare", help="Snapshot one local Harbor task and write a bounded run spec; no execution"
+    )
+    tasks_prepare.add_argument("source", type=Path, help="Local Harbor task directory")
+    tasks_prepare.add_argument("--name", required=True, help="Unique run name")
+    tasks_prepare.add_argument("--agent", default="mini-swe-agent")
+    tasks_prepare.add_argument("--model", help="Exact model selector; required for a paid harness")
+    tasks_prepare.add_argument("--environment", default="docker")
+    tasks_prepare.add_argument(
+        "--timeout-seconds",
+        type=int,
+        help="Explicit execution limit; defaults to the task's declared agent timeout",
+    )
+    tasks_prepare.add_argument(
+        "--cost-limit-usd",
+        type=float,
+        help="Per-trial model cost ceiling; required for metered harnesses",
+    )
+    tasks_prepare.add_argument(
+        "--estimated-cost-usd",
+        type=float,
+        help="Total job estimate including cloud compute/build/verifier; required for remote runs",
+    )
+    tasks_prepare.add_argument("--max-requests", type=int, default=200)
+    tasks_prepare.add_argument("--max-input-tokens", type=int, default=5_000_000)
+    tasks_prepare.add_argument("--max-output-tokens", type=int, default=131_072)
+    tasks_prepare.add_argument(
+        "--max-total-tokens", type=int, help="Defaults to input plus output token ceilings"
+    )
+    tasks_prepare.add_argument("--submitted-by", default="operator")
+    tasks_prepare.add_argument("--output", type=Path, help="Repo-relative spec output path")
+    tasks_prepare.add_argument("--json", action="store_true")
+    tasks_prepare.set_defaults(func=_tasks_prepare_command)
+
     tasks_import = tasks_commands.add_parser(
         "import", help="Restartable batch import of local Harbor task packages"
     )
@@ -4012,7 +4151,9 @@ def parser() -> argparse.ArgumentParser:
     tasks_lint = tasks_commands.add_parser(
         "lint", help="Read-only static checks for task verifier trust boundaries"
     )
-    tasks_lint.add_argument("paths", nargs="+", type=Path, help="Task directories or task collections")
+    tasks_lint.add_argument(
+        "paths", nargs="+", type=Path, help="Task directories or task collections"
+    )
     tasks_lint.add_argument("--json", action="store_true")
     tasks_lint.set_defaults(func=_tasks_lint_command)
 

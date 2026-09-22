@@ -33,6 +33,7 @@ from evallab.schemas import (
 )
 
 CONTROL_AGENTS = frozenset({"oracle", "nop"})
+_TASK_COMPOSE_FILENAMES = ("docker-compose.yaml", "docker-compose.yml")
 SAFE_JOB_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
 # Lease generations are immutable, 32-lowercase-hex identifiers produced by
 # secrets.token_hex(16). Every durable-record reader that later turns a stored
@@ -359,6 +360,7 @@ class RunRequest:
     effective_endpoint_base: str | None = None
     provider_returned_model_id: str | None = None
     inference_settings: ProfileInferenceSettings | None = None
+
     @property
     def job_timeout_seconds(self) -> int:
         """Conservative process deadline: one wall-clock allowance per attempt."""
@@ -546,6 +548,7 @@ def materialize_zai_secret_file(
     persist_private_bytes(destination, f"{value}\n".encode(), secrets=(), mode=0o400)
     return destination
 
+
 def materialize_zai_openapi_secret_file(
     destination: Path,
     environment: Mapping[str, str] | None = None,
@@ -596,10 +599,7 @@ def collected_secret_values(
         *((key, DEEPSEEK_PROXY_TOKEN) for key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, ZAI_PROXY_TOKEN) for key in ZAI_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, ZAI_OPENAPI_PROXY_TOKEN) for key in ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS),
-        *(
-            (key, GLM_SELFHOSTED_PROXY_TOKEN)
-            for key in GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
-        ),
+        *((key, GLM_SELFHOSTED_PROXY_TOKEN) for key in GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS),
     ):
         value = source.get(key)
         if value and value != placeholder:
@@ -859,6 +859,21 @@ def redact_environment(environment: Mapping[str, str]) -> dict[str, str]:
     return redacted
 
 
+def _task_has_provided_compose(task: Path) -> bool:
+    """Return True when the source task package ships its own Compose file."""
+    environment_dir = task / "environment"
+    return any((environment_dir / name).is_file() for name in _TASK_COMPOSE_FILENAMES)
+
+
+def _task_gpu_request(task: Path) -> int | None:
+    """Read GPU requirements before attempting local Docker execution."""
+    environment = tomllib.loads((task / "task.toml").read_text()).get("environment", {})
+    if not isinstance(environment, dict):
+        raise ValueError("task.toml environment must be a table")
+    gpus = environment.get("gpus")
+    return gpus if isinstance(gpus, int) and not isinstance(gpus, bool) else None
+
+
 def validate_request(request: RunRequest) -> None:
     """Validate that a RunRequest adheres to directory, name, timeout, and billable invariants."""
     if not request.task.is_dir():
@@ -926,8 +941,7 @@ def validate_request(request: RunRequest) -> None:
             raise ValueError(f"{request.agent} capabilities bind exactly one trial")
         if request.model not in ZAI_OPENCODE_MODEL_SELECTORS:
             raise ValueError(
-                "rlm requires one of the exact models "
-                f"{sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
+                f"rlm requires one of the exact models {sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
             )
     if request.agent not in CONTROL_AGENTS and not request.allow_billable:
         raise ValueError(
@@ -938,6 +952,31 @@ def validate_request(request: RunRequest) -> None:
         raise ValueError(f"The {request.agent} control does not accept a model")
     if request.model and not request.allow_billable:
         raise ValueError("A model requires --allow-billable")
+    # The proxy's host mounts need a backend-specific transport, not --env passthrough.
+    if request.environment == "docker":
+        gpus = _task_gpu_request(request.task)
+        if gpus is not None and gpus >= 1:
+            raise ValueError(
+                f"Task requires {gpus} GPU(s) but Harbor Docker does not support GPU allocation; "
+                "select a compatible remote task/harness/backend combination"
+            )
+    elif request.agent in metered_agents or request.agent == RLM_AGENT:
+        zai_mini = request.agent == "mini-swe-agent" and request.model == ZAI_OPENAPI_MODEL_SELECTOR
+        if request.environment == "daytona" and zai_mini:
+            if _task_has_provided_compose(request.task):
+                raise ValueError(
+                    "GLM Daytona proxy transport requires a single-container task; "
+                    "task-provided Compose is not supported. Use environment='docker' "
+                    "for multi-container tasks"
+                )
+        else:
+            hint = " or environment='daytona' for single-container GLM mini-SWE" if zai_mini else ""
+            raise ValueError(
+                f"environment={request.environment!r} is not integrated for {request.agent} "
+                f"with model {request.model!r}: the provider credential transport requires "
+                f"environment='docker'{hint}. This is a Lab integration gap, not a "
+                "credential or credit issue"
+            )
     if request.toolbox_path is not None or request.toolbox_sha256 is not None:
         if request.toolbox_path is None or request.toolbox_sha256 is None:
             raise ValueError("toolbox_path and toolbox_sha256 must be provided together")
@@ -972,6 +1011,7 @@ def resolve_harbor_agent(agent: str, model: str | None = None) -> str:
         if model.startswith(("glm-selfhosted/", "glm-ft/")):
             return GLM_SELFHOSTED_MINISWE_AGENT_IMPORT_PATH
     return HARBOR_AGENT_IMPORT_PATHS.get(agent, agent)
+
 
 def resolve_harbor_model(agent: str, model: str | None) -> str | None:
     """Translate a local CLI model identifier to Harbor's expected model string."""
@@ -1035,7 +1075,9 @@ def build_command(request: RunRequest) -> list[str]:
     if request.agent == "mini-swe-agent":
         if harbor_model == DEEPSEEK_MODEL_SELECTOR:
             cost_limit = request.cost_limit_usd if request.cost_limit_usd is not None else 2.5
-            max_tokens = request.max_output_tokens if request.max_output_tokens is not None else 8192
+            max_tokens = (
+                request.max_output_tokens if request.max_output_tokens is not None else 8192
+            )
             command.extend(
                 [
                     "--n-concurrent-agents",
@@ -1095,7 +1137,8 @@ def build_command(request: RunRequest) -> list[str]:
                 if request.max_output_tokens is not None
                 else (
                     request.inference_settings.max_tokens
-                    if request.inference_settings and request.inference_settings.max_tokens is not None
+                    if request.inference_settings
+                    and request.inference_settings.max_tokens is not None
                     else 8192
                 )
             )
@@ -1114,7 +1157,9 @@ def build_command(request: RunRequest) -> list[str]:
                 ]
             )
             if request.inference_settings and request.inference_settings.effort is not None:
-                command.extend(["--agent-kwarg", f"reasoning_effort={request.inference_settings.effort}"])
+                command.extend(
+                    ["--agent-kwarg", f"reasoning_effort={request.inference_settings.effort}"]
+                )
         else:
             raise ValueError(
                 f"mini-swe-agent requires model {DEEPSEEK_MODEL_SELECTOR} or {ZAI_OPENAPI_MODEL_SELECTOR}"
@@ -1138,8 +1183,7 @@ def build_command(request: RunRequest) -> list[str]:
     if request.agent == RLM_AGENT:
         if harbor_model not in ZAI_OPENCODE_MODEL_SELECTORS:
             raise ValueError(
-                "rlm requires one of the exact models "
-                f"{sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
+                f"rlm requires one of the exact models {sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
             )
         command.extend(
             [

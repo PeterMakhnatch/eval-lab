@@ -117,7 +117,6 @@ def _reclaim_stale_staging(destination: Path) -> None:
 
 
 def _copy_package(source: Path, destination: Path) -> None:
-    _reclaim_stale_staging(destination)
     if destination.is_dir():
         return
     temporary = destination.with_name(f".{destination.name}.tmp-{os.getpid()}")
@@ -127,10 +126,11 @@ def _copy_package(source: Path, destination: Path) -> None:
             relative = source_file.relative_to(source)
             target = temporary / relative
             target.parent.mkdir(parents=True, exist_ok=True)
-            try:
-                os.link(source_file, target)
-            except OSError:
-                shutil.copy2(source_file, target)
+            # Snapshots must own their bytes: a hardlink would let later source
+            # edits mutate the retained snapshot through the shared inode and
+            # silently break the frozen digest pinned by prepared specs.
+            # copy2 keeps content independent while preserving executable modes.
+            shutil.copy2(source_file, target)
         try:
             temporary.replace(destination)
         except FileExistsError:
@@ -141,6 +141,43 @@ def _copy_package(source: Path, destination: Path) -> None:
         if temporary.exists():
             shutil.rmtree(temporary)
         raise
+
+
+def import_task_package(source: Path, destination_root: Path) -> tuple[Path, str]:
+    """Copy exactly one task package into *destination_root*.
+
+    Returns the ``(destination, source_digest)`` pair using the existing
+    content-addressed layout (``<task-name>-<digest[0:12]>``). The snapshot
+    owns its bytes, so later source edits cannot mutate it. A destination
+    that already holds identical bytes is reused; drifted bytes refuse with
+    ``FileExistsError`` instead of overwriting.
+    """
+    root = Path(source).resolve()
+    if not root.is_dir():
+        raise FileNotFoundError(f"task source directory does not exist: {source}")
+    if not (root / "task.toml").is_file():
+        raise ValueError(f"task source has no task.toml: {root}")
+    digest = package_digest(root)
+    name = _task_name(root)
+    base = Path(destination_root).resolve()
+    base.mkdir(parents=True, exist_ok=True)
+    destination = base / f"{name}-{digest[7:19]}"
+    if destination.is_symlink():
+        raise ValueError(f"import destination is a symlink, refusing overwrite: {destination}")
+    _reclaim_stale_staging(destination)
+    if destination.is_dir():
+        if package_digest(destination) != digest:
+            raise FileExistsError(
+                f"existing snapshot {destination} no longer matches source digest "
+                f"{digest}; remove the drifted directory or investigate before re-preparing"
+            )
+        return destination, digest
+    if destination.exists():
+        raise ValueError(f"import destination exists and is not a directory: {destination}")
+    _copy_package(root, destination)
+    if package_digest(destination) != digest:
+        raise RuntimeError(f"snapshot verification failed for {destination}")
+    return destination, digest
 
 
 def discover_task_packages(source_root: Path) -> list[Path]:
@@ -189,6 +226,8 @@ def import_task_batch(
                     and existing[1]
                     and Path(existing[1]).is_dir()
                 ):
+                    if package_digest(Path(existing[1])) != digest:
+                        raise FileExistsError(f"imported task bytes drifted: {existing[1]}")
                     skipped += 1
                     items.append(ImportItem(source, digest, destination, "skipped"))
                     continue
@@ -211,7 +250,9 @@ def import_task_batch(
                     (source_key, digest, IMPORTER_VERSION, str(destination), now, now),
                 )
                 connection.commit()
-                _copy_package(source, destination)
+                destination, copied_digest = import_task_package(source, destination_root)
+                if copied_digest != digest:
+                    raise ValueError(f"source task changed during import: {source}")
                 connection.execute(
                     """
                     UPDATE imports SET status = 'imported', updated_at = ?
@@ -245,8 +286,11 @@ def import_task_batch(
     finally:
         connection.close()
     return ImportReport(
-        discovered=len(packages), imported=imported, skipped=skipped,
-        failed=failed, items=tuple(items),
+        discovered=len(packages),
+        imported=imported,
+        skipped=skipped,
+        failed=failed,
+        items=tuple(items),
     )
 
 

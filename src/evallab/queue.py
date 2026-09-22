@@ -126,7 +126,7 @@ def authorization_required_message(spec: ExperimentSpec) -> str:
         "a named human authorises it.\n"
         f"  authorise: uv run evallab approve {spec_id} --actor <you>\n"
         f'  refuse:    uv run evallab reject {spec_id} --actor <you> --reason "<why>"\n'
-        "  then run:  uv run evallab tick\n"
+        f"  then run:  uv run evallab tick --spec-id {spec_id}\n"
         "The free oracle and nop controls are unaffected and still run unattended."
     )
 

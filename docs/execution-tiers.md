@@ -7,17 +7,17 @@ audience:
 
 # Execution tiers: what runs where, and what it costs
 
-Status as of 2026-08-14 (set up by Claude at Peter's direction). This is the
-reference for any agent deciding *where* a Harbor task can run and *whether it
-may run it*. The spend rules at the bottom are binding.
+Operator workflow updated 2026-09-22. Machine inventory entries retain their
+observation dates; they are not universal backend qualifications. The spend
+rules below remain binding.
 
 ## The one-line summary
 
-The lab can now execute **every task in frontier-bench (TB3) and Harbor-Index
-except 4 GPU tasks locally**, and everything including those on Modal — but
-cloud runs cost real money and are gated by `policy/standing-approvals.yaml`
-(`escalate_to_human: cloud_or_remote_environment`). Nothing about local free
-oracle/nop work changes.
+Harbor supplies the execution backends; Eval Lab prepares bounded specs and
+preserves their evidence. Compatibility belongs to a task/harness/model/backend
+combination, not just an `--env` name. GLM mini-SWE has a live-proven
+single-container Daytona path; its Modal proxy transport is not integrated.
+Cloud runs still require explicit approval under `policy/standing-approvals.yaml`.
 
 ## Machine state (verified, not aspirational)
 
@@ -27,7 +27,7 @@ oracle/nop work changes.
 | Host | 64 GB RAM, Apple Silicon (arm64) | `sysctl hw.memsize` |
 | Harbor CLI | `harbor[modal]==0.21.0` (global uv tool; version pinned during reinstall) | `harbor --version`; `modal 1.5.4` imports in the tool env |
 | Modal CLI | present at `~/.local/share/uv/tools/harbor/bin/modal` | — |
-| Modal token | **ABSENT — deliberately.** No `~/.modal.toml` | see spend rules |
+| Modal account | `p-makhnatch` authenticated, verified 2026-09-22 | `modal profile list`, `modal token info`; read-only billing API reports $0 usage for September, not a remaining credit balance |
 
 Docker settings backup (pre-change): `~/Library/Group Containers/group.com.docker/settings-store.json.bak-claude`.
 Operational note: quitting Docker Desktop from a script requires
@@ -128,7 +128,7 @@ a spec is refused by the policy gate with `paid_run_unauthorized` and parked in
 ```bash
 uv run evallab submit <spec.json>              # -> waiting, prints why
 uv run evallab approve <spec-id> --actor peter # the recorded authorisation
-uv run evallab tick
+uv run evallab tick --spec-id <spec-id>        # only this approved spec
 ```
 
 `policy/standing-approvals.yaml` cannot grant this. `auto_run` is not consulted
@@ -149,10 +149,56 @@ closed during container network configuration before model requests can issue.
 
 ### GLM mini-SWE on Daytona
 
-Use an explicitly authorized `ExperimentSpec` with `environment: "daytona"`,
-`agent: "mini-swe-agent"`, and `model: "zai/glm-5.3-flash"`. The TB4 compiler's
-GPU backend selector does not move CPU tasks off Docker. Submit, approve, and
-dispatch the exact spec through the existing queue; do not call Harbor directly.
+Prepare an ordinary spec without a Python launcher, credentials, or cloud calls:
+
+```bash
+uv run evallab tasks prepare \
+  ~/Developer/agent-evals/terminal-bench-4/tasks/fin-saccr-rwa \
+  --name tb4-finance-daytona \
+  --agent mini-swe-agent --model zai/glm-5.3-flash \
+  --environment daytona --timeout-seconds 3600 \
+  --cost-limit-usd 1 --estimated-cost-usd 1.25
+```
+
+This copies exactly one local Harbor task into `runs/.prepared-tasks/`, pins its
+package/verifier digests, and writes `derived/prepared/tb4-finance-daytona.json`.
+It neither admits a task to the registry nor submits or approves a run. The task
+can come from any local Harbor package; there is no TB4-only launcher.
+`--json` emits the spec, resources, warnings and next command.
+Repeated identical preparation reuses the snapshot/spec; source edits cannot
+mutate the snapshot, and collisions or drift refuse rather than overwrite.
+
+Without `--timeout-seconds`, preparation preserves the task's declared **agent**
+deadline. Build and verifier deadlines are not added to that agent deadline.
+Missing deadlines require an explicit value; deadlines above the Lab's eight-hour
+limit are never silently truncated. This example's one-hour override is a
+diagnostic run, **not the full eight-hour TB4 protocol**.
+
+The printed model ceilings default to 200 requests, 5,000,000 input tokens,
+131,072 output tokens and their sum; each is overridable. Model cost is explicit.
+`--estimated-cost-usd` includes model plus sandbox/build/verifier overhead, but
+is an estimate, not an infrastructure dollar meter. Unmetered harnesses are not
+given fictitious enforced token/cost limits.
+
+After reviewing the generated spec and obtaining the exact run's approval:
+
+```bash
+uv run evallab submit derived/prepared/tb4-finance-daytona.json
+# Copy the spec_id printed by submit into the next two commands:
+uv run evallab approve <spec-id> --actor peter
+uv run evallab tick --spec-id <spec-id>
+uv run evallab summarize runs/tb4-finance-daytona
+```
+
+`tick --spec-id` retains all existing health, credential, policy and quota gates.
+It leaves other approved work untouched, prints the selected spec's final state
+and failure/defer reason, and returns nonzero if the selected work did not finish.
+Do not use an unfiltered `tick` merely to launch one trial. Direct `evallab run`
+remains control-only; paid agents use the queue above.
+
+Export `DAYTONA_API_KEY` and `ZAI_OPENAPI_API_KEY` into the invoking shell before
+dispatch (for example, start a new shell after configuring your existing exports).
+Preparation does not need them; no credential values are written into the spec.
 
 The launcher requires `DAYTONA_API_KEY` and the standard-API
 `ZAI_OPENAPI_API_KEY`. The scoped Daytona environment stages the existing proxy
@@ -184,14 +230,15 @@ skip model APIs but still bill Modal compute (CPU/GPU-hours). Concretely:
   the GLM proxy transport on Modal.
 - First run of any new suite is `-n 1` to price it before `-n 5`.
 
-Reference commands (for the approved case — copied from frontier-bench README):
+Account authentication is working; it is not proof of sandbox capacity, a remaining
+credit balance, or a qualified model transport. Check account metadata without
+allocating compute using `modal profile list` and `modal token info`.
 
-```bash
-harbor run -d frontier-bench/frontier-bench -n 1 --agent oracle \
-  --n-concurrent 100 --env modal          # price-discovery pass
-harbor run -d frontier-bench/frontier-bench -n 5 --agent oracle \
-  --n-concurrent 500 --env modal          # full validation sweep
-```
+`tasks prepare --environment modal` refuses the unimplemented Lab metered-proxy
+combinations before launch and identifies the integration gap. Adding credits
+cannot fix that transport gap. Upstream-supported control runs still use an
+explicitly prepared/submitted/approved spec and selected `tick`; do not bypass
+the queue with a direct Harbor sweep.
 
 ## What agents should take from this
 

@@ -117,7 +117,6 @@ def _reclaim_stale_staging(destination: Path) -> None:
 
 
 def _copy_package(source: Path, destination: Path) -> None:
-    _reclaim_stale_staging(destination)
     if destination.is_dir():
         return
     temporary = destination.with_name(f".{destination.name}.tmp-{os.getpid()}")
@@ -143,6 +142,7 @@ def _copy_package(source: Path, destination: Path) -> None:
             shutil.rmtree(temporary)
         raise
 
+
 def import_task_package(source: Path, destination_root: Path) -> tuple[Path, str]:
     """Copy exactly one task package into *destination_root*.
 
@@ -164,6 +164,7 @@ def import_task_package(source: Path, destination_root: Path) -> tuple[Path, str
     destination = base / f"{name}-{digest[7:19]}"
     if destination.is_symlink():
         raise ValueError(f"import destination is a symlink, refusing overwrite: {destination}")
+    _reclaim_stale_staging(destination)
     if destination.is_dir():
         if package_digest(destination) != digest:
             raise FileExistsError(
@@ -225,6 +226,8 @@ def import_task_batch(
                     and existing[1]
                     and Path(existing[1]).is_dir()
                 ):
+                    if package_digest(Path(existing[1])) != digest:
+                        raise FileExistsError(f"imported task bytes drifted: {existing[1]}")
                     skipped += 1
                     items.append(ImportItem(source, digest, destination, "skipped"))
                     continue
@@ -247,7 +250,9 @@ def import_task_batch(
                     (source_key, digest, IMPORTER_VERSION, str(destination), now, now),
                 )
                 connection.commit()
-                _copy_package(source, destination)
+                destination, copied_digest = import_task_package(source, destination_root)
+                if copied_digest != digest:
+                    raise ValueError(f"source task changed during import: {source}")
                 connection.execute(
                     """
                     UPDATE imports SET status = 'imported', updated_at = ?
@@ -281,8 +286,11 @@ def import_task_batch(
     finally:
         connection.close()
     return ImportReport(
-        discovered=len(packages), imported=imported, skipped=skipped,
-        failed=failed, items=tuple(items),
+        discovered=len(packages),
+        imported=imported,
+        skipped=skipped,
+        failed=failed,
+        items=tuple(items),
     )
 
 

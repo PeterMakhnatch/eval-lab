@@ -3708,6 +3708,153 @@
       }
     ]
   },
+  "tasks prepare": {
+    "options": [
+      {
+        "choices": null,
+        "flags": [
+          "--agent"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--cost-limit-usd"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--environment"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--estimated-cost-usd"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--json"
+        ],
+        "nargs": 0,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--max-input-tokens"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--max-output-tokens"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--max-requests"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--max-total-tokens"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--model"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--name"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": true
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--output"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--submitted-by"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--timeout-seconds"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [],
+        "nargs": null,
+        "positional": "source",
+        "required": true
+      }
+    ]
+  },
   "tick": {
     "options": [
       {
@@ -3760,6 +3907,15 @@
         "choices": null,
         "flags": [
           "--parallel"
+        ],
+        "nargs": null,
+        "positional": null,
+        "required": false
+      },
+      {
+        "choices": null,
+        "flags": [
+          "--spec-id"
         ],
         "nargs": null,
         "positional": null,

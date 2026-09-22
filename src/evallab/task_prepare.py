@@ -8,8 +8,9 @@ values, or cloud calls, so preparation works without credentials.
 
 from __future__ import annotations
 
+import math
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -20,11 +21,11 @@ from evallab.execution_contracts import (
     GLM_SELFHOSTED_FT_MODEL_SELECTOR,
     MAX_TRIAL_TIMEOUT_SECONDS,
     RLM_AGENT,
+    SAFE_JOB_NAME,
     ZAI_OPENAPI_MODEL_SELECTOR,
     ZAI_OPENCODE_AGENT,
     ZAI_OPENCODE_MODEL_SELECTORS,
     RunRequest,
-    SAFE_JOB_NAME,
     validate_request,
 )
 from evallab.registry import compute_task_digests
@@ -43,12 +44,14 @@ PILOT_MAX_OUTPUT_TOKENS = 131_072
 
 MINI_SWE_AGENT = "mini-swe-agent"
 METERED_AGENTS = frozenset({MINI_SWE_AGENT, ZAI_OPENCODE_AGENT})
-MINI_SWE_MODELS = frozenset({
-    DEEPSEEK_MODEL_SELECTOR,
-    ZAI_OPENAPI_MODEL_SELECTOR,
-    GLM_SELFHOSTED_BASE_MODEL_SELECTOR,
-    GLM_SELFHOSTED_FT_MODEL_SELECTOR,
-})
+MINI_SWE_MODELS = frozenset(
+    {
+        DEEPSEEK_MODEL_SELECTOR,
+        ZAI_OPENAPI_MODEL_SELECTOR,
+        GLM_SELFHOSTED_BASE_MODEL_SELECTOR,
+        GLM_SELFHOSTED_FT_MODEL_SELECTOR,
+    }
+)
 #: Local Docker plus the TB4 remote backends (mirrors craft.TB4_REMOTE_ENVIRONMENTS).
 SUPPORTED_ENVIRONMENTS = frozenset({"docker", "modal", "beam", "daytona"})
 
@@ -85,29 +88,30 @@ def _table(payload: dict[str, Any], key: str) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _official_timeout_seconds(payload: dict[str, Any], task_dir: Path) -> int:
-    """Mirror the registry's official timeout: verifier plus agent, clamped."""
-    try:
-        verifier_timeout = float(_table(payload, "verifier").get("timeout_sec", 60.0))
-        agent_timeout = float(_table(payload, "agent").get("timeout_sec", 120.0))
-    except (TypeError, ValueError):
-        raise ValueError(
-            f"task.toml timeout_sec values must be numbers in {task_dir}"
-        ) from None
-    official = int(verifier_timeout + agent_timeout)
-    return min(max(official, 1), MAX_TRIAL_TIMEOUT_SECONDS)
+def _official_timeout_seconds(payload: dict[str, Any], task_dir: Path) -> int | None:
+    """Keep the declared agent deadline distinct from build and verification time."""
+    timeout = _table(payload, "agent").get("timeout_sec")
+    if timeout is None:
+        return None
+    if (
+        isinstance(timeout, bool)
+        or not isinstance(timeout, (int, float))
+        or not math.isfinite(timeout)
+        or timeout <= 0
+        or int(timeout) != timeout
+    ):
+        raise ValueError(f"agent.timeout_sec must be a positive whole number in {task_dir}")
+    return int(timeout)
 
 
-def _task_identity(
-    payload: dict[str, Any], task_dir: Path
-) -> tuple[str, str]:
+def _task_identity(payload: dict[str, Any], task_dir: Path) -> tuple[str, str | None]:
     task_table = _table(payload, "task")
     raw_name = task_table.get("name")
     display_name = str(raw_name).strip() if raw_name is not None else task_dir.name
     if not display_name:
         raise ValueError(f"task name is empty in {task_dir / 'task.toml'}")
-    raw_version = task_table.get("version", payload.get("version", "1.0.0"))
-    version = str(raw_version).strip() or "1.0.0"
+    raw_version = task_table.get("version", payload.get("version"))
+    version = str(raw_version).strip() if raw_version is not None else None
     return display_name, version
 
 
@@ -115,8 +119,8 @@ def _task_resources(
     payload: dict[str, Any],
     *,
     display_name: str,
-    version: str,
-    official_timeout_seconds: int,
+    version: str | None,
+    official_timeout_seconds: int | None,
 ) -> dict[str, object]:
     resources: dict[str, object] = {
         "task_name": display_name,
@@ -128,13 +132,15 @@ def _task_resources(
         "cpus",
         "memory_mb",
         "storage_mb",
+        "gpus",
+        "gpu_types",
         "os",
         "network_mode",
         "build_timeout_sec",
         "docker_image",
     ):
         value = environment.get(key)
-        if isinstance(value, (str, int, float, bool)):
+        if isinstance(value, (str, int, float, bool, list)):
             resources[key] = value
     for table_name, label in (("agent", "agent_timeout_sec"), ("verifier", "verifier_timeout_sec")):
         value = _table(payload, table_name).get("timeout_sec")
@@ -171,9 +177,7 @@ def _resolve_ceilings(
                 raise ValueError(f"{label} must be a positive integer")
         if max_total_tokens is None:
             derived = max_input_tokens + max_output_tokens
-            warnings.append(
-                f"derived max_total_tokens={derived} as input plus output ceilings"
-            )
+            warnings.append(f"derived max_total_tokens={derived} as input plus output ceilings")
             return max_requests, max_input_tokens, max_output_tokens, derived, cost_limit_usd
         if max_total_tokens < 1:
             raise ValueError("max_total_tokens must be positive")
@@ -209,6 +213,18 @@ def _resolve_ceilings(
     return None, None, None, None, cost_limit_usd if agent == RLM_AGENT else None
 
 
+def _output_path(repo: Path, path: Path) -> Path:
+    target = path if path.is_absolute() else repo / path
+    if not target.resolve().is_relative_to(repo) or target.resolve() == repo:
+        raise ValueError(f"output escapes repository or names its root: {path}")
+    for part in (target, *target.parents):
+        if part == repo:
+            break
+        if part.is_symlink():
+            raise ValueError(f"output path contains a symlink: {part}")
+    return target.resolve()
+
+
 def prepare_task(
     repo_root: Path,
     source: Path,
@@ -239,20 +255,18 @@ def prepare_task(
     if not repo.is_dir():
         raise ValueError(f"repository root is not a directory: {repo_root}")
     if not SAFE_JOB_NAME.fullmatch(name):
-        raise ValueError(
-            "job names must be 3-80 lowercase letters, numbers, or hyphens"
-        )
+        raise ValueError("job names must be 3-80 lowercase letters, numbers, or hyphens")
     if environment not in SUPPORTED_ENVIRONMENTS:
         raise ValueError(
             f"unsupported environment {environment!r}: "
             f"expected one of {sorted(SUPPORTED_ENVIRONMENTS)}"
         )
+    if agent not in CONTROL_AGENTS and not model:
+        raise ValueError("paid harness preparation requires an explicit model selector")
     if agent in CONTROL_AGENTS and model is not None:
         raise ValueError(f"the {agent} control does not accept a model")
     if agent == MINI_SWE_AGENT and model is not None and model not in MINI_SWE_MODELS:
-        raise ValueError(
-            f"mini-swe-agent requires one of {sorted(MINI_SWE_MODELS)}, got {model!r}"
-        )
+        raise ValueError(f"mini-swe-agent requires one of {sorted(MINI_SWE_MODELS)}, got {model!r}")
     if (
         agent in (ZAI_OPENCODE_AGENT, RLM_AGENT)
         and model is not None
@@ -261,11 +275,6 @@ def prepare_task(
         raise ValueError(
             f"{agent} requires one of the exact models "
             f"{sorted(ZAI_OPENCODE_MODEL_SELECTORS)}, got {model!r}"
-        )
-    if agent == RLM_AGENT and model not in ZAI_OPENCODE_MODEL_SELECTORS:
-        raise ValueError(
-            f"rlm requires one of the exact models "
-            f"{sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
         )
     if est_cost_usd is not None and est_cost_usd < 0:
         raise ValueError("est_cost_usd cannot be negative")
@@ -284,23 +293,29 @@ def prepare_task(
 
     if timeout_seconds is None:
         resolved_timeout = official_timeout
-    else:
-        if isinstance(timeout_seconds, bool) or not 1 <= timeout_seconds <= MAX_TRIAL_TIMEOUT_SECONDS:
+        if resolved_timeout is None:
             raise ValueError(
-                "timeout_seconds must be between 1 and "
-                f"{MAX_TRIAL_TIMEOUT_SECONDS} seconds"
+                "task has no declared agent.timeout_sec; pass --timeout-seconds explicitly"
+            )
+        if resolved_timeout > MAX_TRIAL_TIMEOUT_SECONDS:
+            raise ValueError(
+                f"task timeout is {resolved_timeout}s, beyond the Lab limit of "
+                f"{MAX_TRIAL_TIMEOUT_SECONDS}s; use an explicit shorter diagnostic limit"
+            )
+    else:
+        if (
+            isinstance(timeout_seconds, bool)
+            or not isinstance(timeout_seconds, int)
+            or not 1 <= timeout_seconds <= MAX_TRIAL_TIMEOUT_SECONDS
+        ):
+            raise ValueError(
+                f"timeout_seconds must be between 1 and {MAX_TRIAL_TIMEOUT_SECONDS} seconds"
             )
         resolved_timeout = int(timeout_seconds)
-        if resolved_timeout > official_timeout:
-            raise ValueError(
-                f"explicit timeout_seconds={resolved_timeout}s exceeds the official "
-                f"task timeout {official_timeout}s for {display_name!r}; refusing to "
-                "extend it — run the official timeout or a shorter diagnostic"
-            )
-        if resolved_timeout < official_timeout:
+        if official_timeout is not None and resolved_timeout != official_timeout:
             warnings.append(
-                f"diagnostic timeout {resolved_timeout}s is shorter than the official "
-                f"task timeout {official_timeout}s for {display_name!r}"
+                f"diagnostic timeout {resolved_timeout}s differs from the declared "
+                f"agent timeout {official_timeout}s for {display_name!r}"
             )
 
     ceilings = _resolve_ceilings(
@@ -313,35 +328,37 @@ def prepare_task(
         warnings=warnings,
     )
     ceiling_requests, ceiling_input, ceiling_output, ceiling_total, ceiling_cost = ceilings
+    estimated_cost = est_cost_usd if est_cost_usd is not None else (ceiling_cost or 0.0)
+    if ceiling_cost is not None and estimated_cost < ceiling_cost:
+        raise ValueError("estimated cost must cover the model cost ceiling plus any infrastructure")
 
     candidate = Path(output) if output is not None else Path(PREPARED_SPECS_REL) / f"{name}.json"
-    spec_path = (repo / candidate).resolve() if not candidate.is_absolute() else candidate.resolve()
-    if spec_path != repo and repo not in spec_path.parents:
-        raise ValueError(f"output escapes repository: {output or candidate}")
+    spec_path = _output_path(repo, candidate)
+    snapshot_root = _output_path(repo, Path(PREPARED_TASKS_REL))
 
-    # Fail on technically unsupported combinations before writing anything,
-    # using billable bypass for validation only — never authorization.
-    validate_request(
-        RunRequest(
-            task=resolved_source,
-            agent=agent,
-            name=name,
-            jobs_dir=repo / EXPLORATION_JOBS_ROOT,
-            environment=environment,
-            model=model,
-            timeout_seconds=resolved_timeout,
-            allow_billable=True,
-            max_requests=ceiling_requests,
-            max_input_tokens=ceiling_input,
-            max_output_tokens=ceiling_output,
-            max_total_tokens=ceiling_total,
-            cost_limit_usd=ceiling_cost,
+    # This validates the command contract; only the queue can authorize spending.
+    request = RunRequest(
+        task=resolved_source,
+        agent=agent,
+        name=name,
+        jobs_dir=repo / EXPLORATION_JOBS_ROOT,
+        environment=environment,
+        model=model,
+        timeout_seconds=resolved_timeout,
+        allow_billable=True,
+        max_requests=ceiling_requests,
+        max_input_tokens=ceiling_input,
+        max_output_tokens=ceiling_output,
+        max_total_tokens=ceiling_total,
+        cost_limit_usd=ceiling_cost,
+    )
+    validate_request(request)
+
+    snapshot, _source_digest = import_task_package(resolved_source, snapshot_root)
+    if _read_task_toml(snapshot) != payload:
+        raise ValueError(
+            "task configuration changed during preparation; retry with a stable source"
         )
-    )
-
-    snapshot, _source_digest = import_task_package(
-        resolved_source, repo / PREPARED_TASKS_REL
-    )
     task_rel = snapshot.relative_to(repo).as_posix()
     digests = compute_task_digests(snapshot)
     resources = _task_resources(
@@ -354,7 +371,7 @@ def prepare_task(
     spec = ExperimentSpec(
         name=name,
         hypothesis=(
-            f"Prepared {display_name!r} v{version} for {agent}"
+            f"Prepared {display_name!r} version={version or 'unspecified'} for {agent}"
             f"/{model or 'control'} on {environment} from frozen snapshot {task_rel}"
         ),
         purpose="baseline",
@@ -366,7 +383,7 @@ def prepare_task(
         jobs_dir=EXPLORATION_JOBS_ROOT,
         timeout_seconds=resolved_timeout,
         submitted_by=submitted_by,
-        est_cost_usd=float(est_cost_usd) if est_cost_usd is not None else 0.0,
+        est_cost_usd=estimated_cost,
         task_version=version,
         verifier_digest=digests.verifier,
         task_package_digest=digests.package,
@@ -377,58 +394,29 @@ def prepare_task(
         cost_limit_usd=ceiling_cost,
     )
 
-    # The snapshot path is now frozen, so validate the exact execution contract
-    # before a spec file can exist.
-    validate_request(
-        RunRequest(
-            task=snapshot,
-            agent=spec.agent,
-            name=spec.name,
-            jobs_dir=repo / EXPLORATION_JOBS_ROOT,
-            environment=spec.environment,
-            model=spec.model,
-            timeout_seconds=spec.timeout_seconds,
-            allow_billable=True,
-            max_requests=spec.max_requests,
-            max_input_tokens=spec.max_input_tokens,
-            max_output_tokens=spec.max_output_tokens,
-            max_total_tokens=spec.max_total_tokens,
-            cost_limit_usd=spec.cost_limit_usd,
-        )
-    )
+    validate_request(replace(request, task=snapshot))
 
-    if spec_path.exists():
-        if spec_path.is_dir():
-            raise ValueError(f"output is a directory: {spec_path}")
+    spec_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with spec_path.open("x", encoding="utf-8") as stream:
+            stream.write(spec.model_dump_json(indent=2) + "\n")
+    except FileExistsError:
         try:
             existing = ExperimentSpec.model_validate_json(spec_path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
             raise FileExistsError(
-                f"existing spec {spec_path} is unreadable; refusing overwrite "
-                f"({exc}). Remove it or choose another name/output"
+                f"existing spec is unreadable; refusing overwrite: {spec_path}"
             ) from exc
-        if existing == spec:
-            return PreparedTask(
-                spec=existing,
-                spec_path=spec_path,
-                source=resolved_source,
-                task_path=snapshot,
-                resources=resources,
-                task_timeout_seconds=spec.timeout_seconds,
-                warnings=tuple(warnings),
-            )
-        raise FileExistsError(
-            f"existing spec {spec_path} differs from this request; refusing "
-            "overwrite. Remove it or choose another name/output"
-        )
-    spec_path.parent.mkdir(parents=True, exist_ok=True)
-    spec_path.write_text(spec.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        if existing != spec:
+            raise FileExistsError(
+                f"existing spec differs from this request; refusing overwrite: {spec_path}"
+            ) from None
     return PreparedTask(
         spec=spec,
         spec_path=spec_path,
         source=resolved_source,
         task_path=snapshot,
         resources=resources,
-        task_timeout_seconds=spec.timeout_seconds,
+        task_timeout_seconds=official_timeout,
         warnings=tuple(warnings),
     )

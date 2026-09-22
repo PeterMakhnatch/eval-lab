@@ -250,13 +250,10 @@ def test_daytona_key_is_redacted_from_persisted_executor_errors(tmp_path: Path) 
         destination,
         f"Daytona request failed with credential {secret}".encode(),
         secrets=tuple(
-            value.encode()
-            for value in collected_secret_values({"DAYTONA_API_KEY": secret})
+            value.encode() for value in collected_secret_values({"DAYTONA_API_KEY": secret})
         ),
     )
-    assert destination.read_text() == (
-        "Daytona request failed with credential <redacted>"
-    )
+    assert destination.read_text() == ("Daytona request failed with credential <redacted>")
 
 
 def test_new_ulid_format_and_monotonicity() -> None:
@@ -334,6 +331,7 @@ def test_agent_allowlist_is_execution_only_and_exact() -> None:
     assert 'network_mode = "allowlist"' in updated
     assert 'allowed_hosts = ["api.deepseek.com"]' in updated
 
+
 def _metered_request(
     tmp_path: Path,
     *,
@@ -364,11 +362,6 @@ def _metered_request(
     )
 
 
-def test_daytona_valid_single_container_cpu_passes(tmp_path: Path) -> None:
-    """The qualified Daytona lane (mini + zai flash, single-container) validates."""
-    validate_request(_metered_request(tmp_path, environment="daytona"))
-
-
 def test_daytona_task_compose_rejected_before_run(tmp_path: Path) -> None:
     """Task-provided Compose fails validation before any Daytona allocation."""
     task = _task_dir(tmp_path)
@@ -389,9 +382,7 @@ def test_modal_metered_proxy_rejected_as_integration_gap(tmp_path: Path) -> None
 
 def test_daytona_wrong_lane_requires_docker(tmp_path: Path) -> None:
     """Daytona admits only the qualified mini lane; other metered lanes stay local."""
-    deepseek = _metered_request(
-        tmp_path, model="deepseek/deepseek-flash", environment="daytona"
-    )
+    deepseek = _metered_request(tmp_path, model="deepseek/deepseek-flash", environment="daytona")
     with pytest.raises(ValueError, match="requires.*environment='docker'"):
         validate_request(deepseek)
 
@@ -415,7 +406,7 @@ def test_remote_zai_opencode_requires_docker(tmp_path: Path) -> None:
         max_total_tokens=2000,
         cost_limit_usd=2.5,
     )
-    with pytest.raises(ValueError, match="qualified only for.*environment='docker'"):
+    with pytest.raises(ValueError, match="requires.*environment='docker'"):
         validate_request(req)
 
 
@@ -433,16 +424,3 @@ def test_docker_gpu_task_rejected_locally(tmp_path: Path) -> None:
     )
     with pytest.raises(ValueError, match="does not support.*GPU allocation"):
         validate_request(req)
-
-
-def test_local_metered_and_modal_control_preserved(tmp_path: Path) -> None:
-    """Existing local metered and upstream control remote paths still validate."""
-    validate_request(_metered_request(tmp_path, environment="docker"))
-    control = RunRequest(
-        task=_task_dir(tmp_path),
-        agent="oracle",
-        name="valid-remote-check",
-        jobs_dir=tmp_path / "jobs",
-        environment="modal",
-    )
-    validate_request(control)

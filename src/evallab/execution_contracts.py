@@ -33,6 +33,15 @@ from evallab.schemas import (
 )
 
 CONTROL_AGENTS = frozenset({"oracle", "nop"})
+LOCAL_DOCKER_ENVIRONMENT = "docker"
+_DAYTONA_ENVIRONMENTS = frozenset(
+    {"daytona", "evallab.harbor_daytona:SecretSafeDaytonaEnvironment"}
+)
+#: Task-provided multi-container signal. Mirrors host_task_staging._COMPOSE_FILENAMES
+#: and the task_workbench verifier probe: a Compose file under environment/.
+#: harbor_daytona rejects such tasks late (single-container transport only);
+#: validate_request rejects them before any cloud allocation.
+_TASK_COMPOSE_FILENAMES = ("docker-compose.yaml", "docker-compose.yml")
 SAFE_JOB_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
 # Lease generations are immutable, 32-lowercase-hex identifiers produced by
 # secrets.token_hex(16). Every durable-record reader that later turns a stored
@@ -859,6 +868,26 @@ def redact_environment(environment: Mapping[str, str]) -> dict[str, str]:
     return redacted
 
 
+def _task_has_provided_compose(task: Path) -> bool:
+    """Return True when the source task package ships its own Compose file."""
+    environment_dir = task / "environment"
+    return any((environment_dir / name).is_file() for name in _TASK_COMPOSE_FILENAMES)
+
+
+def _task_gpu_request(task: Path) -> int | None:
+    """Return the task's declared GPU count, or None when absent/unreadable."""
+    try:
+        environment = tomllib.loads((task / "task.toml").read_text()).get("environment", {})
+    except (OSError, ValueError):
+        return None
+    if not isinstance(environment, dict):
+        return None
+    gpus = environment.get("gpus")
+    if isinstance(gpus, bool) or not isinstance(gpus, int):
+        return None
+    return gpus
+
+
 def validate_request(request: RunRequest) -> None:
     """Validate that a RunRequest adheres to directory, name, timeout, and billable invariants."""
     if not request.task.is_dir():
@@ -938,6 +967,63 @@ def validate_request(request: RunRequest) -> None:
         raise ValueError(f"The {request.agent} control does not accept a model")
     if request.model and not request.allow_billable:
         raise ValueError("A model requires --allow-billable")
+    # Backend compatibility before any cloud allocation. Control agents preserve
+    # their upstream Harbor paths on every environment; the checks below cover
+    # only lanes whose credential transport is source-proven local-only.
+    # Sources: harbor_daytona.py (single-container + proxy-only Daytona transport
+    # for mini-swe-agent + zai/glm-5.3-flash), runner.py host-mount credential
+    # transport with no Modal equivalent, docs/execution-tiers.md (Modal account
+    # setup does not qualify the GLM proxy transport; [environment] gpus >= 1 is
+    # cloud-only), task_workbench.py (Harbor DockerEnvironment raises when a task
+    # requires GPUs).
+    gpus = _task_gpu_request(request.task)
+    if gpus is not None and gpus >= 1 and request.environment == LOCAL_DOCKER_ENVIRONMENT:
+        raise ValueError(
+            f"Task requires {gpus} GPU(s) but environment='docker' does not support "
+            "GPU allocation (no CUDA on the local host); use a remote Harbor backend "
+            "(e.g. environment='modal') with human approval instead of local execution"
+        )
+    if request.agent not in CONTROL_AGENTS and request.environment != LOCAL_DOCKER_ENVIRONMENT:
+        restricted = set(metered_agents) | {RLM_AGENT}
+        if request.agent in restricted:
+            is_daytona = request.environment in _DAYTONA_ENVIRONMENTS
+            if is_daytona:
+                if not (
+                    request.agent == "mini-swe-agent"
+                    and request.model == ZAI_OPENAPI_MODEL_SELECTOR
+                ):
+                    raise ValueError(
+                        "Daytona transport currently supports only mini-swe-agent with "
+                        f"{ZAI_OPENAPI_MODEL_SELECTOR} (single-container, proxy-only); "
+                        f"{request.agent} with model {request.model!r} requires "
+                        "environment='docker'"
+                    )
+                if _task_has_provided_compose(request.task):
+                    raise ValueError(
+                        "GLM Daytona proxy transport currently requires a single-container "
+                        "task; task-provided Compose (environment/docker-compose.yaml) is "
+                        "not supported on Daytona. Use environment='docker' for "
+                        "multi-container tasks"
+                    )
+            else:
+                transport = (
+                    "host-secret-file credential transport"
+                    if request.agent == RLM_AGENT
+                    else "metered proxy credential transport"
+                )
+                daytona_hint = (
+                    " or environment='daytona' for a single-container Daytona trial"
+                    if request.agent == "mini-swe-agent"
+                    and request.model == ZAI_OPENAPI_MODEL_SELECTOR
+                    else ""
+                )
+                raise ValueError(
+                    f"environment={request.environment!r} is not integrated for {request.agent} "
+                    f"with model {request.model!r}: the {transport} is qualified only for "
+                    f"environment='docker' in this lab (Lab integration gap, not a credential "
+                    f"or credit issue). Modal account setup does not qualify the GLM proxy "
+                    f"transport on Modal. Use environment='docker'{daytona_hint}"
+                )
     if request.toolbox_path is not None or request.toolbox_sha256 is not None:
         if request.toolbox_path is None or request.toolbox_sha256 is None:
             raise ValueError("toolbox_path and toolbox_sha256 must be provided together")

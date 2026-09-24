@@ -21,6 +21,7 @@ Hardening features:
 
 from __future__ import annotations
 
+import argparse
 import base64
 import contextlib
 import hashlib
@@ -1101,16 +1102,64 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(sanitized_body)
 
 
+def _write_ready_file(path: Path, host: str, port: int) -> None:
+    """Record the bound loopback endpoint for a supervising host process.
+
+    The payload carries only the address the socket bound; it never contains
+    capabilities, secrets, or budget state. The parent directory must already
+    exist inside a private trial directory.
+    """
+    payload = (json.dumps({"host": host, "port": port}, sort_keys=True) + "\n").encode(
+        "ascii"
+    )
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_CLOEXEC, 0o600)
+    try:
+        with open(descriptor, "wb", closefd=True) as destination:
+            destination.write(payload)
+            destination.flush()
+            os.fsync(destination.fileno())
+    except Exception:
+        with contextlib.suppress(OSError):
+            path.unlink()
+        raise
+
+
 def serve(
     host: str = "0.0.0.0",
     port: int | None = None,
     max_workers: int = MAX_CONCURRENT_WORKERS,
+    ready_file: Path | str | None = None,
 ) -> ThreadingHTTPServer:
     bound_port = int(os.environ.get("PORT", "8080") if port is None else port)
     server = ProxyServer((host, bound_port), Handler, max_workers=max_workers)
     server.budget = TrialBudget()
+    if ready_file is not None:
+        bound_host, bound_port_actual = server.server_address[:2]
+        _write_ready_file(Path(ready_file), str(bound_host), int(bound_port_actual))
     return server
 
 
+def _host_entrypoint_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse the host-supervised entrypoint flags.
+
+    Defaults preserve the container sidecar invocation exactly (bind all
+    interfaces, ``PORT`` env, no ready file). The host trial supervisor passes
+    explicit ``--host 127.0.0.1 --port 0 --ready-file <private path>`` so the
+    loopback instance never depends on ambient ``PORT`` state.
+    """
+    parser = argparse.ArgumentParser(
+        description="Least-privilege Z.ai OpenAPI metered proxy",
+    )
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=None)
+    parser.add_argument("--ready-file", default=None)
+    return parser.parse_args(argv)
+
+
 if __name__ == "__main__":
-    serve().serve_forever()
+    _entry_args = _host_entrypoint_args()
+    serve(
+        host=_entry_args.host,
+        port=_entry_args.port,
+        ready_file=_entry_args.ready_file,
+    ).serve_forever()

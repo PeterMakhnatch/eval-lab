@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
+from evallab import execution_contracts as _execution_contracts
 from evallab.execution_contracts import (
     _SUBSCRIPTION_ENVIRONMENT_KEYS,
     CONTROL_AGENTS,
@@ -171,6 +172,29 @@ HARBOR_COMPOSE_WORKDIR_LABEL = "com.docker.compose.project.working_dir"
 # Code and supporting assets belong to the imported release, not its data workspace.
 _RUNTIME_ROOT = Path(__file__).resolve().parents[2]
 
+# Terminus2 shared contract. The parent integration owns TERMINUS_AGENT,
+# TERMINUS_AGENT_IMPORT_PATH, and TERMINUS_PROXY_URL_ENV in
+# execution_contracts.py; read them when present so this lane tracks the
+# canonical values after merge. The literal fallbacks match that contract
+# exactly, so behavior is identical before the parent lands.
+_TERMINUS_AGENT: str = getattr(_execution_contracts, "TERMINUS_AGENT", "terminus-2")
+_TERMINUS_AGENT_IMPORT_PATH: str = getattr(
+    _execution_contracts,
+    "TERMINUS_AGENT_IMPORT_PATH",
+    "evallab.harbor_terminus:SecretSafeTerminus2",
+)
+_TERMINUS_PROXY_URL_ENV: str = getattr(
+    _execution_contracts, "TERMINUS_PROXY_URL_ENV", "EVALLAB_TERMINUS_PROXY_URL"
+)
+# Bounded Daytona lifecycle environment owned by the parent integration in
+# harbor_daytona.py / execution_contracts.py. Read it when present so the
+# Daytona credential transport admits the Terminus Daytona selector after
+# merge; the literal fallback matches that contract exactly.
+_BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH: str = getattr(
+    _execution_contracts,
+    "BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH",
+    "evallab.harbor_daytona:BoundedDaytonaEnvironment",
+)
 
 # =============================================================================
 # HARNESS CAPTURE CONTRACT
@@ -655,6 +679,196 @@ def _read_proxy_usage(
         )
     return payload
 
+# ---------------------------------------------------------------------------
+# Terminus2 host-loopback proxy supervision.
+#
+# Upstream Terminus2 runs its model client host-side inside the Harbor
+# controller process, so the metered proxy cannot be a task-container compose
+# sidecar. The runner starts one per-trial loopback instance of the existing
+# proxy (127.0.0.1, ephemeral port, private ready file), hands the Harbor
+# child only the loopback URL plus the trial capability, and quiesces the
+# proxy before the final ledger read on every exit path. Ledger accounting
+# and reconciliation reuse the standard proxy usage rules (same as mini-SWE).
+# ---------------------------------------------------------------------------
+
+_TERMINUS_PROXY_HOST = "127.0.0.1"
+_TERMINUS_PROXY_READY_TIMEOUT_SECONDS = 20.0
+_TERMINUS_PROXY_STOP_TIMEOUT_SECONDS = 10.0
+_TERMINUS_PROXY_STDERR_TAIL_BYTES = 4096
+
+
+def _terminus_proxy_env(
+    *,
+    secret_path: Path,
+    capability: str,
+    attempt_id: str,
+    usage_path: Path,
+    limits: ProxyTrialLimits,
+    timeout_seconds: float,
+) -> dict[str, str]:
+    """Build the minimal environment for the host-supervised proxy instance.
+
+    Only budget/identity knobs are passed. The real provider key is never an
+    env value: the proxy reads it from the owner-only secret file. Ambient
+    parent-process proxy state is not inherited.
+    """
+    env: dict[str, str] = {}
+    for name in ("PATH", "TMPDIR"):
+        value = os.environ.get(name)
+        if value:
+            env[name] = value
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env["PYTHONUNBUFFERED"] = "1"
+    env["EVALLAB_ZAI_OPENAPI_SECRET_PATH"] = str(secret_path)
+    upstream = os.environ.get("EVALLAB_ZAI_OPENAPI_UPSTREAM")
+    if upstream:
+        env["EVALLAB_ZAI_OPENAPI_UPSTREAM"] = upstream
+    env["EVALLAB_ZAI_OPENAPI_PROXY_CAPABILITY"] = capability
+    env["EVALLAB_ZAI_OPENAPI_ATTEMPT_ID"] = attempt_id
+    env["EVALLAB_ZAI_OPENAPI_USAGE_FILE"] = str(usage_path)
+    env["EVALLAB_ZAI_OPENAPI_ALLOWED_MODEL"] = os.environ.get(
+        ZAI_OPENAPI_ALLOWED_MODEL_ENV, ZAI_OPENAPI_ALLOWED_MODEL
+    )
+    env["EVALLAB_ZAI_OPENAPI_MAX_REQUESTS"] = str(limits.max_requests)
+    env["EVALLAB_ZAI_OPENAPI_MAX_INPUT_TOKENS"] = str(limits.max_input_tokens)
+    env["EVALLAB_ZAI_OPENAPI_MAX_OUTPUT_TOKENS"] = str(limits.max_output_tokens)
+    env["EVALLAB_ZAI_OPENAPI_MAX_TOTAL_TOKENS"] = str(limits.max_total_tokens)
+    env["EVALLAB_ZAI_OPENAPI_MAX_COST_MICROS"] = str(limits.max_cost_micros)
+    env["EVALLAB_ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION"] = os.environ.get(
+        "EVALLAB_ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION",
+        str(ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION),
+    )
+    env["EVALLAB_ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION"] = os.environ.get(
+        "EVALLAB_ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION",
+        str(ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION),
+    )
+    env[ZAI_OPENAPI_CAPABILITY_EXPIRES_AT_ENV] = str(
+        time.time() + float(timeout_seconds) + 60.0
+    )
+    return env
+
+
+def _terminus_proxy_stderr_tail(stderr_path: Path) -> str:
+    try:
+        data = stderr_path.read_bytes()[-_TERMINUS_PROXY_STDERR_TAIL_BYTES:]
+    except OSError:
+        return ""
+    return data.decode("utf-8", errors="replace").strip()
+
+
+def _start_terminus_proxy(
+    *,
+    secret_path: Path,
+    capability: str,
+    attempt_id: str,
+    usage_path: Path,
+    limits: ProxyTrialLimits,
+    timeout_seconds: float,
+    work_dir: Path,
+) -> tuple[subprocess.Popen[str], str]:
+    """Start the per-trial loopback proxy; return (process, proxy URL).
+
+    Fails closed before Harbor launches when the proxy cannot bind, exits
+    early, or withholds its ready file. The caller owns termination via
+    :func:`_stop_terminus_proxy` on every path.
+    """
+    script = (_RUNTIME_ROOT / ZAI_OPENAPI_PROXY_SCRIPT).resolve()
+    if not script.is_file():
+        raise RuntimeError(f"Z.ai OpenAPI secret proxy is missing: {script}")
+    ready_path = work_dir / "terminus-proxy-ready.json"
+    stderr_path = work_dir / "terminus-proxy-stderr.log"
+    try:
+        ready_path.unlink()
+    except OSError:
+        pass
+    env = _terminus_proxy_env(
+        secret_path=secret_path,
+        capability=capability,
+        attempt_id=attempt_id,
+        usage_path=usage_path,
+        limits=limits,
+        timeout_seconds=timeout_seconds,
+    )
+    with open(stderr_path, "wb") as stderr_handle:
+        os.chmod(stderr_path, 0o600)
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                str(script),
+                "--host",
+                _TERMINUS_PROXY_HOST,
+                "--port",
+                "0",
+                "--ready-file",
+                str(ready_path),
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=stderr_handle,
+            env=env,
+            start_new_session=True,
+        )
+    try:
+        deadline = time.monotonic() + _TERMINUS_PROXY_READY_TIMEOUT_SECONDS
+        while True:
+            if process.poll() is not None:
+                raise RuntimeError(
+                    "terminus loopback proxy exited before becoming ready; "
+                    f"inspect {stderr_path}"
+                    + (
+                        f": {_terminus_proxy_stderr_tail(stderr_path)}"
+                        if _terminus_proxy_stderr_tail(stderr_path)
+                        else ""
+                    )
+                )
+            if ready_path.is_file():
+                try:
+                    ready = json.loads(ready_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+                    raise RuntimeError(
+                        f"terminus loopback proxy ready file is invalid: {ready_path}"
+                    ) from exc
+                host = ready.get("host") if isinstance(ready, dict) else None
+                port = ready.get("port") if isinstance(ready, dict) else None
+                if (
+                    host != _TERMINUS_PROXY_HOST
+                    or isinstance(port, bool)
+                    or not isinstance(port, int)
+                    or not 1 <= port <= 65535
+                ):
+                    raise RuntimeError(
+                        "terminus loopback proxy reported an unexpected endpoint; "
+                        f"inspect {stderr_path}"
+                    )
+                return process, f"http://{_TERMINUS_PROXY_HOST}:{port}"
+            if time.monotonic() >= deadline:
+                raise RuntimeError(
+                    "terminus loopback proxy did not become ready; "
+                    f"inspect {stderr_path}"
+                    + (
+                        f": {_terminus_proxy_stderr_tail(stderr_path)}"
+                        if _terminus_proxy_stderr_tail(stderr_path)
+                        else ""
+                    )
+                )
+            time.sleep(0.05)
+    except BaseException:
+        _stop_terminus_proxy(process)
+        raise
+
+
+def _stop_terminus_proxy(process: subprocess.Popen[str] | None) -> None:
+    """Terminate a supervised loopback proxy; safe to call repeatedly."""
+    if process is None or process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=_TERMINUS_PROXY_STOP_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        with suppress(subprocess.TimeoutExpired):
+            process.wait(timeout=5)
+
 
 def run_harbor_process(
     command: list[str],
@@ -681,6 +895,7 @@ def run_harbor_process(
     repo_imports = (
         *HARBOR_AGENT_IMPORT_PATHS.values(),
         ZAI_MINISWE_AGENT_IMPORT_PATH,
+        _TERMINUS_AGENT_IMPORT_PATH,
         HARBOR_STATE_JOURNAL_PLUGIN,
     )
     deepseek_adapter = HARBOR_AGENT_IMPORT_PATHS["mini-swe-agent"]
@@ -688,6 +903,10 @@ def run_harbor_process(
     zai_adapter = HARBOR_AGENT_IMPORT_PATHS[ZAI_OPENCODE_AGENT]
     zai_lane = zai_adapter in command
     zai_miniswe_adapter = ZAI_MINISWE_AGENT_IMPORT_PATH
+    # Terminus2 runs its model client host-side inside the Harbor controller
+    # process, so it never uses the task-container compose sidecar transport.
+    # Detection keys on the lab-owned adapter import path only.
+    terminus_lane = _TERMINUS_AGENT_IMPORT_PATH in command
     zai_openapi_lane = (
         zai_miniswe_adapter in command
         or any(
@@ -695,7 +914,7 @@ def run_harbor_process(
             for arg in command
             if not arg.startswith("zai-coding-plan/")
         )
-    ) and not zai_lane
+    ) and not zai_lane and not terminus_lane
     rlm_adapter = HARBOR_AGENT_IMPORT_PATHS[RLM_AGENT]
     rlm_lane = rlm_adapter in command
     environment_selector = (
@@ -706,7 +925,9 @@ def run_harbor_process(
         include_zai_credentials=zai_lane,
         include_zai_openapi_credentials=zai_openapi_lane,
         include_daytona_credentials=environment_selector in {
-            "daytona", "evallab.harbor_daytona:SecretSafeDaytonaEnvironment",
+            "daytona",
+            "evallab.harbor_daytona:SecretSafeDaytonaEnvironment",
+            _BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH,
         },
     )
     secret_values = collected_secret_values()
@@ -716,6 +937,7 @@ def run_harbor_process(
     owned_usage_path: Path | None = None
     capability_id: str | None = None
     proxy_pricing: dict[str, int] | None = None
+    terminus_proxy: subprocess.Popen[str] | None = None
     try:
         if deepseek_lane:
             if proxy_attempt_id is None or proxy_limits is None:
@@ -951,6 +1173,78 @@ def run_harbor_process(
             runtime_environment[ZAI_OPENAPI_PROXY_UID_ENV] = str(proxy_uid)
             runtime_environment[ZAI_OPENAPI_PROXY_GID_ENV] = str(proxy_gid)
             secret_values = collected_secret_values({**os.environ, **runtime_environment})
+        if terminus_lane:
+            if proxy_attempt_id is None or proxy_limits is None:
+                raise ValueError("Terminus execution requires a bound trial capability")
+            capability = secrets.token_urlsafe(32)
+            capability_id = "sha256:" + hashlib.sha256(capability.encode()).hexdigest()
+            owned_usage_dir = Path(
+                tempfile.mkdtemp(
+                    prefix="evallab-terminus-usage.",
+                    dir=os.environ.get("TMPDIR") or None,
+                )
+            )
+            os.chmod(owned_usage_dir, 0o700)
+            owned_usage_path = owned_usage_dir / "terminus-proxy-usage.json"
+            proxy_pricing = {
+                "input_cost_micros_per_million": int(
+                    os.environ.get(
+                        "EVALLAB_ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION",
+                        str(ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION),
+                    )
+                ),
+                "output_cost_micros_per_million": int(
+                    os.environ.get(
+                        "EVALLAB_ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION",
+                        str(ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION),
+                    )
+                ),
+            }
+            existing_secret = runtime_environment.get(ZAI_OPENAPI_SECRET_FILE_ENV) or os.environ.get(
+                ZAI_OPENAPI_SECRET_FILE_ENV
+            )
+            log_root = log_path.resolve()
+            if existing_secret:
+                try:
+                    read_owner_secret_file(Path(existing_secret))
+                    existing_path = Path(existing_secret).resolve()
+                except OSError:
+                    existing_secret = None
+                else:
+                    if log_root.parent in existing_path.parents or (
+                        job_dir is not None and job_dir.resolve() in existing_path.parents
+                    ):
+                        existing_secret = None
+            if existing_secret:
+                secret_path = Path(existing_secret)
+            else:
+                owned_secret_dir = Path(
+                    tempfile.mkdtemp(
+                        prefix="evallab-terminus-secret.",
+                        dir=os.environ.get("TMPDIR") or None,
+                    )
+                )
+                os.chmod(owned_secret_dir, 0o700)
+                owned_secret_path = owned_secret_dir / "key"
+                materialize_zai_openapi_secret_file(owned_secret_path)
+                secret_path = owned_secret_path
+            # Host-side model route: the proxy runs as a loopback supervisor
+            # child, not a task-container compose sidecar. The Harbor child
+            # receives only the loopback URL plus the trial capability; the
+            # real provider key stays in the owner-only secret file.
+            terminus_proxy, terminus_proxy_url = _start_terminus_proxy(
+                secret_path=secret_path,
+                capability=capability,
+                attempt_id=proxy_attempt_id,
+                usage_path=owned_usage_path,
+                limits=proxy_limits,
+                timeout_seconds=timeout_seconds,
+                work_dir=owned_usage_dir,
+            )
+            runtime_environment[ZAI_OPENAPI_PROXY_CAPABILITY_ENV] = capability
+            runtime_environment[_TERMINUS_PROXY_URL_ENV] = terminus_proxy_url
+            secret_values = collected_secret_values({**os.environ, **runtime_environment})
+
         if rlm_lane:
             # Host-secret-file transport: the lab-owned RLM agent reads the
             # provider key from this owner-only file. No proxy URLs,
@@ -981,9 +1275,12 @@ def run_harbor_process(
             timed_out: bool,
             timed_out_trial: str | None = None,
         ) -> HarborProcessResult:
+            # Quiesce the loopback proxy before the final ledger read so no
+            # in-flight handler can tear the report this function reconciles.
+            _stop_terminus_proxy(terminus_proxy)
             proxy_usage = None
             if (
-                (deepseek_lane or zai_lane or zai_openapi_lane)
+                (deepseek_lane or zai_lane or zai_openapi_lane or terminus_lane)
                 and owned_usage_path is not None
                 and owned_usage_path.is_file()
                 and capability_id is not None
@@ -995,7 +1292,9 @@ def run_harbor_process(
                     capability_id=capability_id,
                     attempt_id=proxy_attempt_id,
                     limits=proxy_limits,
-                    provider_label="Z.ai OpenAPI" if zai_openapi_lane else ("Z.ai" if zai_lane else "DeepSeek"),
+                    provider_label="Z.ai OpenAPI"
+                    if (zai_openapi_lane or terminus_lane)
+                    else ("Z.ai" if zai_lane else "DeepSeek"),
                     expected_pricing=proxy_pricing,
                 )
             return HarborProcessResult(
@@ -1032,6 +1331,7 @@ def run_harbor_process(
                 start_new_session=True,
             )
         except BaseException:
+            _stop_terminus_proxy(terminus_proxy)
             os.close(write_fd)
             os.close(read_fd)
             writer.close()
@@ -1107,9 +1407,11 @@ def run_harbor_process(
             )
 
         finally:
+            _stop_terminus_proxy(terminus_proxy)
             _unlink_secret_dir(owned_secret_dir, owned_secret_path)
             _unlink_secret_dir(owned_usage_dir, owned_usage_path)
     finally:
+        _stop_terminus_proxy(terminus_proxy)
         _unlink_secret_dir(owned_secret_dir, owned_secret_path)
         _unlink_secret_dir(owned_usage_dir, owned_usage_path)
 
@@ -1390,6 +1692,7 @@ def _stage_task_for_host(
     staging_dir: Path,
     *,
     agent_allowed_hosts: tuple[str, ...] = (),
+    preserve_declared_network: bool = False,
     expected_package_digest: str | None = None,
 ) -> tuple[Path, NetworkAdaptation | None]:
     """Create and verify a private immutable-input snapshot before adaptation."""
@@ -1416,8 +1719,18 @@ def _stage_task_for_host(
         raise ValueError("task package changed while its execution snapshot was created")
 
     original_text = (staging_dir / "task.toml").read_text(encoding="utf-8")
-    adapted_text, adaptation = adapt_task_toml_for_host(original_text)
-    staged_text = with_agent_network_allowlist(adapted_text, agent_allowed_hosts)
+    if preserve_declared_network:
+        # Host-side model route (Terminus2): the task container never needs
+        # model API access, so the declared network/phase policy ships
+        # untouched. No controller-OS downgrade is applied and no
+        # model-host allowlist is injected; Harbor enforces or refuses the
+        # declared policy honestly, including on remote backends where the
+        # controller host cannot know the enforcement capability.
+        staged_text = original_text
+        adaptation = None
+    else:
+        adapted_text, adaptation = adapt_task_toml_for_host(original_text)
+        staged_text = with_agent_network_allowlist(adapted_text, agent_allowed_hosts)
     (staging_dir / "task.toml").write_text(staged_text, encoding="utf-8")
     manifest: dict[str, Any] = {
         "schema_version": "1.0",
@@ -1449,7 +1762,7 @@ def _sanitize_persisted_job_tree(root: Path, secrets: tuple[bytes, ...]) -> None
 
 
 def _proxy_trial_limits(request: RunRequest) -> ProxyTrialLimits | None:
-    if request.agent not in {"mini-swe-agent", ZAI_OPENCODE_AGENT}:
+    if request.agent not in {"mini-swe-agent", ZAI_OPENCODE_AGENT, _TERMINUS_AGENT}:
         return None
     if (
         request.max_requests is None
@@ -1469,7 +1782,7 @@ def _proxy_trial_limits(request: RunRequest) -> ProxyTrialLimits | None:
 
 
 def _proxy_attempt_id(request: RunRequest) -> str | None:
-    if request.agent not in {"mini-swe-agent", ZAI_OPENCODE_AGENT}:
+    if request.agent not in {"mini-swe-agent", ZAI_OPENCODE_AGENT, _TERMINUS_AGENT}:
         return None
     if request.provenance is not None:
         return request.provenance.campaign_attempt_id or request.provenance.spec_id or request.name
@@ -1478,7 +1791,7 @@ def _proxy_attempt_id(request: RunRequest) -> str | None:
 
 def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     validate_request(request)
-    if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT}:
+    if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT, _TERMINUS_AGENT}:
         decision = preflight_request(request)
         if not decision.proceed:
             raise RuntimeError(f"{request.agent} credential preflight stopped: {decision.reason}")
@@ -1500,18 +1813,27 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             request.model == ZAI_OPENAPI_MODEL_SELECTOR
             or (request.model is not None and request.model.startswith("zai/"))
         )
+        # Terminus2 runs its model client host-side: the task keeps its
+        # declared network/phase policy (no controller-OS downgrade, no
+        # model-host allowlist), and Harbor enforces or refuses it honestly.
+        is_terminus = request.agent == _TERMINUS_AGENT
         staged_task, adaptation = _stage_task_for_host(
             request.task,
             staging_dir,
             agent_allowed_hosts=(
-                (ZAI_OPENAPI_PROXY_HOST,)
-                if is_zai_openapi
+                ()
+                if is_terminus
                 else (
-                    (DEEPSEEK_PROXY_HOST,)
-                    if request.agent == "mini-swe-agent"
-                    else ((ZAI_PROXY_HOST,) if request.agent == ZAI_OPENCODE_AGENT else ())
+                    (ZAI_OPENAPI_PROXY_HOST,)
+                    if is_zai_openapi
+                    else (
+                        (DEEPSEEK_PROXY_HOST,)
+                        if request.agent == "mini-swe-agent"
+                        else ((ZAI_PROXY_HOST,) if request.agent == ZAI_OPENCODE_AGENT else ())
+                    )
                 )
             ),
+            preserve_declared_network=is_terminus,
             expected_package_digest=(
                 request.provenance.package_digest if request.provenance is not None else None
             ),
@@ -1630,10 +1952,10 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             raise ExecutionFailure(
                 f"Harbor exited with {process.returncode}; inspect {executor_log}{cleanup_detail}"
             )
-        if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT}:
+        if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT, _TERMINUS_AGENT}:
             provider_label = (
                 "Z.ai OpenAPI"
-                if is_zai_openapi
+                if (is_zai_openapi or is_terminus)
                 else ("Z.ai" if request.agent == ZAI_OPENCODE_AGENT else "DeepSeek")
             )
             if process.proxy_usage is None:

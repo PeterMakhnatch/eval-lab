@@ -210,3 +210,30 @@ def test_prepare_cannot_write_through_a_snapshot_root_symlink(tmp_path: Path) ->
 
     assert list(outside.iterdir()) == []
     assert not (repo / "derived").exists()
+
+
+@pytest.mark.parametrize(
+    ("model", "cost_limit", "reason"),
+    [
+        ("zai/glm-5.3-flash", None, "cost_limit_usd"),
+        ("zai-coding-plan/glm-5.3-flash", 0.4, "standard-API"),
+    ],
+)
+def test_terminus_prepare_refuses_unmetered_or_unentitled_routes_before_freezing(
+    tmp_path: Path, model: str, cost_limit: float | None, reason: str
+) -> None:
+    repo = _repo(tmp_path)
+    source = _task(tmp_path / "external")
+    with pytest.raises(ValueError, match=reason):
+        prepare_task(
+            repo,
+            source,
+            name="terminus-guarded",
+            agent="terminus-2",
+            model=model,
+            environment="daytona",
+            cost_limit_usd=cost_limit,
+            est_cost_usd=0.9,
+        )
+    assert not (repo / "runs").exists()
+    assert not (repo / "derived").exists()

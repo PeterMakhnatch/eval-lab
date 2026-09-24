@@ -58,7 +58,7 @@ import pyarrow.parquet as pq
 import yaml
 from pydantic import Field
 
-from evallab.execution_contracts import DEEPSEEK_MODEL_SELECTOR, new_ulid
+from evallab.execution_contracts import DEEPSEEK_MODEL_SELECTOR, TERMINUS_AGENT, new_ulid
 from evallab.schemas import ContractModel
 from evallab.storage.paths import derived_root_from_environment
 
@@ -143,12 +143,10 @@ DEEPSEEK_ALLOWED_AGENTS: frozenset[str] = frozenset(
     {"mini-swe-agent", "evallab.harbor_dsh:DeepSeekHarnessAgent"}
 )
 
-#: Z.ai Open Platform (standard API) selector for the mini-SWE-agent lane
-#: (HAR-62). Billed per-token on api.z.ai — never against Coding-Plan quota,
-#: whose devpack FAQ lists tools mini-SWE is absent from. Routed through the
-#: secret-safe zai-openapi proxy lane, not the coding-plan proxy.
+#: Z.ai Open Platform standard API for metered mini-SWE and Terminus 2.
+#: Billed per-token on api.z.ai, never against Coding Plan quota.
 ZAI_OPENAPI_MODEL_SELECTOR: str = "zai/glm-5.3-flash"
-ZAI_OPENAPI_ALLOWED_AGENTS: frozenset[str] = frozenset({"mini-swe-agent"})
+ZAI_OPENAPI_ALLOWED_AGENTS: frozenset[str] = frozenset({"mini-swe-agent", TERMINUS_AGENT})
 
 #: TB4 tasks declaring an H100 GPU (pinned v4.0.0 manifests). Local Docker on
 #: this aarch64 host has no CUDA, so these route to a remote Harbor backend.
@@ -1438,7 +1436,7 @@ def compile_tb4(
         raise ValueError(
             f"invalid model selector {model!r}: highspeed models are refused at compile time (fail closed)"
         )
-    if model in ZAI_ALLOWED_MODELS and model.startswith(ZAI_MODEL_PREFIX):
+    if model in ZAI_ALLOWED_MODELS and model.startswith(ZAI_MODEL_PREFIX) and agent == ZAI_DEFAULT_AGENT:
         provider_family = "zai"
     elif model == DEEPSEEK_MODEL_SELECTOR and agent in DEEPSEEK_ALLOWED_AGENTS:
         provider_family = "deepseek"

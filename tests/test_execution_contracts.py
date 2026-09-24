@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -424,3 +425,23 @@ def test_docker_gpu_task_rejected_locally(tmp_path: Path) -> None:
     )
     with pytest.raises(ValueError, match="does not support.*GPU allocation"):
         validate_request(req)
+
+
+@pytest.mark.parametrize(
+    ("changes", "reason"),
+    [
+        ({"model": "zai-coding-plan/glm-5.3-flash"}, "standard-API"),
+        ({"max_requests": None}, "every provider ceiling"),
+        ({"max_output_tokens": None}, "every provider ceiling"),
+        ({"cost_limit_usd": None}, "every provider ceiling"),
+        ({"attempts": 2}, "exactly one trial"),
+        ({"concurrency": 2}, "exactly one trial"),
+        ({"allow_billable": False}, "after reviewing credentials"),
+    ],
+)
+def test_terminus_cannot_escape_provider_or_authorization_bounds(
+    tmp_path: Path, changes: dict[str, Any], reason: str
+) -> None:
+    request = _metered_request(tmp_path, agent="terminus-2")
+    with pytest.raises(ValueError, match=reason):
+        validate_request(replace(request, **changes))

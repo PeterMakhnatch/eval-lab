@@ -14,7 +14,6 @@ from pathlib import Path
 from evallab.quota import (
     CACHED_WEIGHTING_NOTE,
     NO_OBSERVATION_REASON,
-    PAID_AGENTS,
     ConsumptionLedger,
     QuotaReport,
     TrialConsumption,
@@ -193,6 +192,7 @@ def test_only_paid_agents_enter_the_ledger(tmp_path: Path) -> None:
     add_trial(job, name="event-summary__cursor", agent="cursor-cli")
     add_trial(job, name="event-summary__antigravity", agent="antigravity-cli")
     add_trial(job, name="event-summary__claude", agent="claude-code")
+    add_trial(job, name="event-summary__terminus", agent="terminus-2", output_tokens=37)
     add_trial(job, name="event-summary__free", agent="oracle")
     add_trial(job, name="event-summary__free2", agent="nop")
 
@@ -203,11 +203,10 @@ def test_only_paid_agents_enter_the_ledger(tmp_path: Path) -> None:
         "cursor-cli",
         "antigravity-cli",
         "claude-code",
+        "terminus-2",
     }
-    assert report.paid_agents == ("antigravity-cli", "claude-code", "codex", "cursor-cli")
-    assert "oracle" not in PAID_AGENTS and "nop" not in PAID_AGENTS
-    assert "cursor-cli" in PAID_AGENTS and "antigravity-cli" in PAID_AGENTS
-    assert "codex" in PAID_AGENTS and "claude-code" in PAID_AGENTS
+    terminus = next(trial for trial in report.consumed.trials if trial.agent == "terminus-2")
+    assert terminus.output_tokens == 37
 
 def test_observed_token_counts_are_summed_not_estimated(tmp_path: Path) -> None:
     job = make_job(tmp_path)

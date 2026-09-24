@@ -129,6 +129,26 @@ def test_deepseek_profile_allows_only_admitted_environment_names(tmp_path: Path)
         )
 
 
+def test_terminus_preflight_requires_standard_api_not_coding_plan(tmp_path: Path) -> None:
+    profile = builtin_profiles()["terminus-2-glm-5.3-flash"]
+
+    def probe(environment: dict[str, str]):
+        return default_probe_for(
+            profile,
+            home=tmp_path,
+            security_runner=lambda argv: 1,
+            keychain_account="nobody",
+            environment=environment,
+        )
+
+    missing = preflight(profile, probe({"ZAI_API_KEY": FAKE_SECRET}))
+    assert not missing.proceed
+    assert FAKE_SECRET not in repr(missing)
+    available = preflight(profile, probe({"ZAI_OPENAPI_API_KEY": FAKE_SECRET}))
+    assert available.proceed
+    assert FAKE_SECRET not in repr(available)
+
+
 # ---- model pin discipline ---------------------------------------------------
 
 

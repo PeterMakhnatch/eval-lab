@@ -300,6 +300,16 @@ def test_compile_tb4_provider_and_model_selection(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="invalid model selector"):
         craft.compile_tb4(v4, model=DEEPSEEK_MODEL_SELECTOR, agent="codex")
 
+    # Terminus uses the standard API, never a Coding Plan entitlement.
+    terminus = craft.compile_tb4(
+        v4, model="zai/glm-5.3-flash", agent="terminus-2"
+    )
+    assert terminus["provider"]["provider_family"] == "zai-openapi"
+    with pytest.raises(ValueError, match="invalid model selector"):
+        craft.compile_tb4(
+            v4, model="zai-coding-plan/glm-5.3-flash", agent="terminus-2"
+        )
+
 
 def test_compile_tb4_official_selector_cutover(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

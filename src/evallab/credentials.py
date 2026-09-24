@@ -4,9 +4,9 @@ M003: this module is a compatibility layer over :mod:`evallab.profiles`,
 which owns agent identity, auth modes, and probe seams. Public compatibility
 names remain because queue/automation/doctor depend on them.
 
-Subscription credentials remain the default. The DeepSeek mini-swe-agent lane
-is the only API-key exception: probes report presence only, runner transport is
-agent-scoped, and values never enter logs or configuration.
+Subscription credentials remain the default. Explicitly admitted API-key
+profiles use presence-only probes and agent-scoped runner transports;
+credential values never enter logs or configuration.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ from evallab.execution_contracts import (
     GLM_SELFHOSTED_FT_MODEL_SELECTOR,
     OPENCODE_AUTH_RELATIVE_PATH,
     RLM_AGENT,
+    TERMINUS_AGENT,
     ZAI_AUTH_PROVIDER,
     ZAI_OPENCODE_AGENT,
 )
@@ -60,6 +61,7 @@ AGENT_CREDENTIAL_REQUIREMENTS: dict[str | tuple[str, str], str] = {
     ("mini-swe-agent", GLM_SELFHOSTED_FT_MODEL_SELECTOR): GLM_SELFHOSTED_API_CREDENTIAL,
     ZAI_OPENCODE_AGENT: ZAI_OPENCODE_AUTH,
     RLM_AGENT: ZAI_OPENCODE_AUTH,
+    TERMINUS_AGENT: ZAI_OPENAPI_API_CREDENTIAL,
 }
 
 _PROFILES = builtin_profiles()
@@ -261,6 +263,7 @@ DEFAULT_PROFILE_FOR_ADAPTER: dict[str | tuple[str, str], str] = {
     ("mini-swe-agent", GLM_SELFHOSTED_FT_MODEL_SELECTOR): "glm-selfhosted-ft",
     ZAI_OPENCODE_AGENT: "zai-opencode-glm-5.3-flash",
     RLM_AGENT: "rlm-glm-5.3-flash",
+    TERMINUS_AGENT: "terminus-2-glm-5.3-flash",
 }
 
 DEFAULT_AGENT_MODELS: dict[str, str] = {

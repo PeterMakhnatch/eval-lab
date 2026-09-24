@@ -42,6 +42,7 @@ from evallab.evidence_store import (
 )
 from evallab.execution_contracts import (
     DEEPSEEK_MODEL_SELECTOR,
+    TERMINUS_AGENT,
     ZAI_OPENAPI_MODEL_SELECTOR,
     DispatchCapacity,
 )
@@ -380,13 +381,18 @@ class CampaignDefinitionAttempt(_FrozenContract):
         if self.spec.timeout_seconds > self.limits.max_wall_clock_seconds:
             raise ValueError("spec timeout exceeds the trial wall-clock ceiling")
         if self.spec.billable:
-            if self.spec.agent != "mini-swe-agent":
+            if self.spec.agent not in {"mini-swe-agent", TERMINUS_AGENT}:
                 raise ValueError(
-                    "billable campaigns currently require the secret-safe mini-swe-agent adapter"
+                    "billable campaigns require a metered mini-swe-agent or terminus-2 adapter"
                 )
-            if self.spec.model not in {DEEPSEEK_MODEL_SELECTOR, ZAI_OPENAPI_MODEL_SELECTOR}:
+            allowed_models = (
+                {ZAI_OPENAPI_MODEL_SELECTOR}
+                if self.spec.agent == TERMINUS_AGENT
+                else {DEEPSEEK_MODEL_SELECTOR, ZAI_OPENAPI_MODEL_SELECTOR}
+            )
+            if self.spec.model not in allowed_models:
                 raise ValueError(
-                    f"billable campaign model must be pinned to {DEEPSEEK_MODEL_SELECTOR} or {ZAI_OPENAPI_MODEL_SELECTOR}"
+                    f"billable campaign model must be pinned to one of {sorted(allowed_models)}"
                 )
             if self.spec.est_cost_usd <= 0:
                 raise ValueError("billable campaign specs require a positive cost estimate")
@@ -1454,7 +1460,10 @@ class CampaignOrchestrator:
             capacity=DispatchCapacity(
                 max_specs_per_tick=parallel,
                 max_active_trials=parallel,
-                per_agent_active_trials={"mini-swe-agent": parallel},
+                per_agent_active_trials={
+                    "mini-swe-agent": parallel,
+                    TERMINUS_AGENT: parallel,
+                },
             ),
         )
         capacity = self.executor.capacity

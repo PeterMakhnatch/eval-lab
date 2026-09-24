@@ -351,6 +351,8 @@ class RunRequest:
     extra_instruction_path: Path | None = None
     toolbox_path: Path | None = None
     toolbox_sha256: str | None = None
+    harness_tree_path: Path | None = None
+    harness_tree_sha256: str | None = None
     skill: Path | str | Sequence[Path | str] | None = None
     skills: Sequence[Path | str] | None = None
     load_trajectory: Path | str | None = None

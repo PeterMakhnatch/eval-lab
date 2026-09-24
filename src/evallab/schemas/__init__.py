@@ -285,6 +285,18 @@ class ExperimentSpec(ContractModel):
         pattern=r"^sha256:[0-9a-f]{64}$",
         description="content digest of toolbox_path at spec generation",
     )
+    harness_tree_path: str | None = Field(
+        default=None,
+        min_length=1,
+        exclude_if=lambda value: value is None,
+        description="repo-relative Terminus settings/rules/skills tree",
+    )
+    harness_tree_sha256: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+        exclude_if=lambda value: value is None,
+        description="content digest of the complete pinned Terminus harness tree",
+    )
     agent: str = Field(min_length=1)
     model: str | None = None
     provider_routes: list[ProviderRoute] = Field(
@@ -405,6 +417,10 @@ class ExperimentSpec(ContractModel):
             raise ValueError("extra_instruction_sha256 requires extra_instruction_path")
         if bool(self.toolbox_path) != bool(self.toolbox_sha256):
             raise ValueError("toolbox_path and toolbox_sha256 must be provided together")
+        if bool(self.harness_tree_path) != bool(self.harness_tree_sha256):
+            raise ValueError("harness_tree_path and harness_tree_sha256 must be provided together")
+        if self.harness_tree_path is not None and self.agent != "terminus-2":
+            raise ValueError("harness trees are supported only by terminus-2")
         if self.provider_routes:
             if not self.billable:
                 raise ValueError("control specs cannot declare provider routes")
@@ -699,6 +715,12 @@ class RunProvenance(ContractModel):
     preamble_sha256: str | None = None
     toolbox_path: str | None = None
     toolbox_sha256: str | None = None
+    harness_tree_path: str | None = Field(default=None, exclude_if=lambda value: value is None)
+    harness_tree_sha256: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+        exclude_if=lambda value: value is None,
+    )
     task_family: str | None = None
     task_id: str | None = None
     task_instance_id: str | None = None
@@ -750,6 +772,7 @@ class CohortComparisonSpec(ContractModel):
         "factor_values_digest",
         "factor_bindings_digest",
         "bound_execution_values_digest",
+        "harness_tree_sha256",
     ]
     mode: Literal["causal", "exploratory"] = "causal"
     reward_name: str = "reward"

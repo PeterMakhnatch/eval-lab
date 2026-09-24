@@ -569,6 +569,8 @@ def trajectory_ir_to_outline(
         StepOutline,
         TrajectoryOutline,
         _analyze_loop_suspicion,
+        _authoritative_float,
+        _authoritative_int,
         _build_phases,
         _extract_command_string,
         _is_edit_action,
@@ -686,15 +688,33 @@ def trajectory_ir_to_outline(
                 reasoning_content_ref=step.reasoning_content_ref,
                 reasoning_tokens=r_tokens,
                 prompt_token_ids_ref=p_ref,
-                completion_token_ids_ref=c_ref,
-                logprobs_ref=lp_ref,
                 sample_index=step.sample_index,
                 sampling_params=asdict(step.sampling_params) if step.sampling_params else None,
+                is_copied_context=bool(step.is_copied_context),
             )
         )
 
     phases = _build_phases(steps_out)
     loop_suspicion = _analyze_loop_suspicion(steps_out)
+    # Same aggregate authority as outline_trajectory: the declared IR final_metrics
+    # stay authoritative; per-step sums remain visible as step-attributed partials.
+    declared = ir.final_metrics
+    declared_prompt = _authoritative_int(
+        declared.total_prompt_tokens if declared is not None else None
+    )
+    declared_completion = _authoritative_int(
+        declared.total_completion_tokens if declared is not None else None
+    )
+    declared_cached = _authoritative_int(
+        declared.total_cached_tokens if declared is not None else None
+    )
+    declared_cost = _authoritative_float(
+        declared.total_cost_usd if declared is not None else None
+    )
+    final_metrics_present = any(
+        value is not None
+        for value in (declared_prompt, declared_completion, declared_cached, declared_cost)
+    )
     citations = (
         SourceCitation(
             path=ir.source_path or "unknown",
@@ -731,13 +751,27 @@ def trajectory_ir_to_outline(
         step_to_first_edit=step_to_first_edit,
         time_to_first_tool_seconds=None,
         time_to_first_edit_seconds=None,
-        total_prompt_tokens=total_prompt_tokens,
-        total_completion_tokens=total_completion_tokens,
-        total_cached_tokens=total_cached_tokens,
-        total_cost_usd=round(total_cost_usd, 6),
+        total_prompt_tokens=declared_prompt
+        if declared_prompt is not None
+        else total_prompt_tokens,
+        total_completion_tokens=declared_completion
+        if declared_completion is not None
+        else total_completion_tokens,
+        total_cached_tokens=declared_cached
+        if declared_cached is not None
+        else total_cached_tokens,
+        total_cost_usd=round(
+            declared_cost if declared_cost is not None else total_cost_usd, 6
+        ),
         loop_suspicion=loop_suspicion,
         phases=tuple(phases),
         steps=tuple(steps_out),
         citations=citations,
         tool_mix=dict(tool_mix_counter),
+        final_metrics_present=final_metrics_present,
+        step_attributed_prompt_tokens=total_prompt_tokens,
+        step_attributed_completion_tokens=total_completion_tokens,
+        step_attributed_cached_tokens=total_cached_tokens,
+        step_attributed_cost_usd=round(total_cost_usd, 6),
+        continued_trajectory_ref=ir.continued_trajectory_ref,
     )

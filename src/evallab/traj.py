@@ -132,6 +132,7 @@ class StepOutline:
     sampling_params: dict[str, Any] | None = None
     is_expected_probe: bool = False
     error_category: str = "none"
+    is_copied_context: bool = False
 
 
 @dataclass(frozen=True)
@@ -223,6 +224,12 @@ class TrajectoryOutline:
     invalid_citation_reference_count: int = 0
     edit_call_count: int = 0
     state_coverage_extra: dict[str, Any] = field(default_factory=dict)
+    final_metrics_present: bool = False
+    step_attributed_prompt_tokens: int = 0
+    step_attributed_completion_tokens: int = 0
+    step_attributed_cached_tokens: int = 0
+    step_attributed_cost_usd: float = 0.0
+    continued_trajectory_ref: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -416,6 +423,72 @@ _resolve_candidate_roots = resolve_runs_roots
 
 def _safe_str(val: Any, default: str = "") -> str:
     return str(val) if val is not None else default
+
+def _authoritative_int(value: Any) -> int | None:
+    """Return a declared aggregate token count, or None when absent/invalid."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int) and value >= 0:
+        return value
+    return None
+
+
+def _authoritative_float(value: Any) -> float | None:
+    """Return a declared aggregate cost, or None when absent/invalid."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float) and value >= 0:
+        return float(value)
+    return None
+
+
+def _follow_continuation_chain(
+    traj_path: Path,
+    traj_data: dict[str, Any],
+    trial_dir: Path,
+) -> tuple[Path, dict[str, Any], list[Path]]:
+    """Walk generic ATIF ``continued_trajectory_ref`` links to the terminal document.
+
+    Upstream agents split one logical run into continuation segments (for example a
+    summarization handoff); every segment is a complete ATIF document and the terminal
+    segment carries the cumulative ``final_metrics``. Returning the terminal document
+    keeps step coverage and aggregate totals complete without summing across segments
+    (which would double-count copied context already present in the terminal file).
+    Unresolvable links stop the walk at the last loadable document.
+    """
+    segments: list[Path] = [traj_path]
+    seen = {traj_path.resolve()}
+    current_path = traj_path
+    current_data = traj_data
+    trial_root = trial_dir.resolve()
+    for _ in range(16):
+        ref = current_data.get("continued_trajectory_ref")
+        if not isinstance(ref, str) or not ref:
+            break
+        candidate = Path(ref)
+        if candidate.is_absolute():
+            candidate = trial_root / candidate.as_posix().lstrip("/")
+        else:
+            candidate = current_path.parent / candidate
+        try:
+            resolved = candidate.resolve()
+        except Exception:
+            break
+        if resolved != trial_root and trial_root not in resolved.parents:
+            break
+        if resolved in seen or not resolved.is_file():
+            break
+        try:
+            loaded = json.loads(resolved.read_text(encoding="utf-8"))
+        except Exception:
+            break
+        if not isinstance(loaded, dict):
+            break
+        seen.add(resolved)
+        segments.append(resolved)
+        current_path = resolved
+        current_data = loaded
+    return current_path, current_data, segments
 
 
 def _parse_iso_seconds(t1_str: str | None, t2_str: str | None) -> float | None:
@@ -1220,14 +1293,21 @@ def outline_trajectory(
             tool_mix={},
         )
 
-    traj_sha256 = sha256_file(traj_path)
-    citations.append(
-        SourceCitation(
-            path=str(traj_path),
-            sha256=traj_sha256,
-            kind="trajectory",
+    if isinstance(traj_data, dict):
+        traj_path, traj_data, chain_segments = _follow_continuation_chain(
+            traj_path, traj_data, trial_dir
         )
-    )
+    else:
+        chain_segments = [traj_path]
+    traj_sha256 = sha256_file(chain_segments[-1])
+    for segment_path in chain_segments:
+        citations.append(
+            SourceCitation(
+                path=str(segment_path),
+                sha256=sha256_file(segment_path),
+                kind="trajectory",
+            )
+        )
     if not isinstance(traj_data, dict):
         return _unavailable_outline(
             trial_id=trial_id,
@@ -1509,6 +1589,7 @@ def outline_trajectory(
                 sampling_params=sampling_params_dict,
                 is_expected_probe=is_probe,
                 error_category=error_classification.category.value,
+                is_copied_context=bool(raw_step.get("is_copied_context", False)),
             )
         )
 
@@ -1553,10 +1634,30 @@ def outline_trajectory(
     )
     loop_suspicion = _analyze_loop_suspicion(steps_out)
     phases = _build_phases(steps_out)
+    # Aggregate authority: the declared native final_metrics is authoritative for trial
+    # totals. Per-step metrics only attribute the calls mapped 1:1 to steps, so physical
+    # calls outside that mapping (for example summarizer/subagent usage already folded
+    # into the native total) would otherwise understate the outline. Keep both: the
+    # authoritative totals up front and the step-attributed partial sums for provenance.
+    final_metrics_value = traj_data.get("final_metrics")
+    declared_metrics = final_metrics_value if isinstance(final_metrics_value, dict) else {}
+    final_metrics_present = isinstance(final_metrics_value, dict)
+    declared_prompt = _authoritative_int(declared_metrics.get("total_prompt_tokens"))
+    declared_completion = _authoritative_int(declared_metrics.get("total_completion_tokens"))
+    declared_cached = _authoritative_int(declared_metrics.get("total_cached_tokens"))
+    declared_cost = _authoritative_float(declared_metrics.get("total_cost_usd"))
+    outline_prompt_tokens = (
+        declared_prompt if declared_prompt is not None else total_prompt_tokens
+    )
+    outline_completion_tokens = (
+        declared_completion if declared_completion is not None else total_completion_tokens
+    )
+    outline_cached_tokens = (
+        declared_cached if declared_cached is not None else total_cached_tokens
+    )
+    outline_cost_usd = declared_cost if declared_cost is not None else total_cost_usd
+    terminal_continued_ref = traj_data.get("continued_trajectory_ref")
     state_metrics = _extract_state_journal_metrics(trial_dir, steps_out, citations)
-    ref_metrics = _extract_reference_and_citation_metrics(trial_dir, steps_out, citations)
-    edit_call_count = sum(1 for s in steps_out if _is_edit_action(s.tool_name, s.tool_command))
-
     return TrajectoryOutline(
         trial_id=trial_id,
         job_id=job_id,
@@ -1584,10 +1685,10 @@ def outline_trajectory(
         step_to_first_edit=step_to_first_edit,
         time_to_first_tool_seconds=time_to_first_tool_sec,
         time_to_first_edit_seconds=time_to_first_edit_sec,
-        total_prompt_tokens=total_prompt_tokens,
-        total_completion_tokens=total_completion_tokens,
-        total_cached_tokens=total_cached_tokens,
-        total_cost_usd=round(total_cost_usd, 6),
+        total_prompt_tokens=outline_prompt_tokens,
+        total_completion_tokens=outline_completion_tokens,
+        total_cached_tokens=outline_cached_tokens,
+        total_cost_usd=round(outline_cost_usd, 6),
         loop_suspicion=loop_suspicion,
         phases=phases,
         steps=tuple(steps_out),
@@ -1624,6 +1725,14 @@ def outline_trajectory(
         invalid_citation_reference_count=ref_metrics["invalid_citation_reference_count"],
         edit_call_count=edit_call_count,
         state_coverage_extra=state_metrics["state_coverage_extra"],
+        final_metrics_present=final_metrics_present,
+        step_attributed_prompt_tokens=total_prompt_tokens,
+        step_attributed_completion_tokens=total_completion_tokens,
+        step_attributed_cached_tokens=total_cached_tokens,
+        step_attributed_cost_usd=round(total_cost_usd, 6),
+        continued_trajectory_ref=terminal_continued_ref
+        if isinstance(terminal_continued_ref, str)
+        else None,
     )
 
 
@@ -1774,6 +1883,18 @@ def render_outline(
         f"completion={outline.total_completion_tokens:,}, "
         f"cached={outline.total_cached_tokens:,} (${outline.total_cost_usd:.4f})"
     )
+    if outline.final_metrics_present:
+        unattributed_prompt = outline.total_prompt_tokens - outline.step_attributed_prompt_tokens
+        unattributed_completion = (
+            outline.total_completion_tokens - outline.step_attributed_completion_tokens
+        )
+        if unattributed_prompt != 0 or unattributed_completion != 0:
+            lines.append(
+                f"  Unattributed: prompt={unattributed_prompt:,}, "
+                f"completion={unattributed_completion:,} "
+                f"(declared final_metrics beyond step-attributed calls, "
+                f"e.g. summarizer/subagent overhead)"
+            )
 
     t_tool = f"step {outline.step_to_first_tool}" if outline.step_to_first_tool else "none"
     if outline.time_to_first_tool_seconds is not None:

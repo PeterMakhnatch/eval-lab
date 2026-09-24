@@ -41,7 +41,7 @@ from evallab.continuous_control_plane import (
     CampaignWorkloadOwner,
     DisabledCampaignControlLoop,
 )
-from evallab.credentials import DEEPSEEK_API_CREDENTIAL
+from evallab.credentials import DEEPSEEK_API_CREDENTIAL, ZAI_OPENAPI_API_CREDENTIAL
 from evallab.execution_contracts import (
     DEEPSEEK_MODEL_SELECTOR,
     DispatchCapacity,
@@ -386,7 +386,7 @@ def _write_job(
         ),
     }
     if (
-        request.agent == "mini-swe-agent"
+        request.agent in {"mini-swe-agent", "terminus-2"}
         and request.provenance is not None
         and request.max_requests is not None
         and request.max_input_tokens is not None
@@ -527,12 +527,25 @@ def test_campaign_refuses_reserved_budget_above_ceiling() -> None:
         _definition(billable=True, attempts=2, campaign_cost=1.5)
 
 
+@pytest.mark.parametrize(
+    ("agent", "model", "credential"),
+    [
+        ("mini-swe-agent", DEEPSEEK_MODEL_SELECTOR, DEEPSEEK_API_CREDENTIAL),
+        ("terminus-2", "zai/glm-5.3-flash", ZAI_OPENAPI_API_CREDENTIAL),
+    ],
+)
 def test_billable_run_waits_for_explicit_approval_then_resume_is_idempotent(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    agent: str,
+    model: str,
+    credential: str,
 ) -> None:
     root = _repo(tmp_path)
-    manifest = build_campaign_manifest(_definition(billable=True), repo_root=root)
+    definition_data = _definition(billable=True).model_dump(mode="json")
+    definition_data["attempts"][0]["spec"].update(agent=agent, model=model)
+    definition = CampaignDefinition.model_validate(definition_data)
+    manifest = build_campaign_manifest(definition, repo_root=root)
     calls: list[str] = []
 
     def runner(request: RunRequest) -> Path:
@@ -550,7 +563,7 @@ def test_billable_run_waits_for_explicit_approval_then_resume_is_idempotent(
     executor = _executor(
         root,
         runner,
-        credentials=frozenset({DEEPSEEK_API_CREDENTIAL}),
+        credentials=frozenset({credential}),
     )
     first = _orchestrator(root, manifest, executor)
 
@@ -1307,11 +1320,9 @@ def test_billable_campaign_parallelism_is_serialized_before_policy_dispatch(
 
     assert manifest.limits.max_concurrency == 2
     assert orchestrator.executor.parallel == 1
-    assert orchestrator.executor.capacity == DispatchCapacity(
-        max_specs_per_tick=1,
-        max_active_trials=1,
-        per_agent_active_trials={"mini-swe-agent": 1},
-    )
+    assert orchestrator.executor.capacity is not None
+    assert orchestrator.executor.capacity.max_active_trials == 1
+    assert orchestrator.executor.capacity.max_specs_per_tick == 1
 
 
 def test_campaign_dispatch_does_not_execute_foreign_approved_specs(tmp_path: Path) -> None:

@@ -110,18 +110,39 @@ class _ProxyDaytonaDinD(_DaytonaDinD):
         env._proxy_staged = True
 
 
-class SecretSafeDaytonaEnvironment(DaytonaEnvironment):
-    """Bounded Daytona VM with the same metered proxy used by local GLM trials."""
+class BoundedDaytonaEnvironment(DaytonaEnvironment):
+    """Native Daytona task handling with a provider-side destruction deadline."""
 
     def __init__(self, *args: Any, ttl_minutes: int, **kwargs: Any) -> None:
-        if not isinstance(ttl_minutes, int) or not 1 <= ttl_minutes <= 1440:
+        if (
+            isinstance(ttl_minutes, bool)
+            or not isinstance(ttl_minutes, int)
+            or not 1 <= ttl_minutes <= 1440
+        ):
             raise ValueError("An explicit positive Daytona lifetime is required")
         self._trial_ttl_minutes = ttl_minutes
-        self._proxy_staged = False
-        self._proxy_networks: dict[str, str] = {}
         kwargs["auto_delete_interval_mins"] = 0
         kwargs["auto_stop_interval_mins"] = 5
         super().__init__(*args, **kwargs)
+
+    async def _create_sandbox(self, params: Any, daytona: Any = None) -> None:
+        params.ttl_minutes = self._trial_ttl_minutes
+        # A retry cannot create multiple unnamed resources for the same trial.
+        identity = f"{self.session_id}:{self.environment_name}"
+        params.name = "evallab-" + hashlib.sha256(identity.encode()).hexdigest()[:24]
+        await super()._create_sandbox(params=params, daytona=daytona)
+
+    async def stop(self, delete: bool) -> None:
+        await super().stop(delete=True)
+
+
+class SecretSafeDaytonaEnvironment(BoundedDaytonaEnvironment):
+    """Bounded Daytona VM with the same metered proxy used by local GLM trials."""
+
+    def __init__(self, *args: Any, ttl_minutes: int, **kwargs: Any) -> None:
+        self._proxy_staged = False
+        self._proxy_networks: dict[str, str] = {}
+        super().__init__(*args, ttl_minutes=ttl_minutes, **kwargs)
         if self._compose_mode:
             if self._environment_docker_compose_path.exists():
                 raise ValueError("GLM Daytona proxy transport currently requires a single-container task")
@@ -185,13 +206,6 @@ class SecretSafeDaytonaEnvironment(DaytonaEnvironment):
             )
             if changed.return_code:
                 raise RuntimeError("Failed to connect task network")
-
-    async def _create_sandbox(self, params: Any, daytona: Any = None) -> None:
-        params.ttl_minutes = self._trial_ttl_minutes
-        # A retry cannot create multiple unnamed resources for the same trial.
-        identity = f"{self.session_id}:{self.environment_name}"
-        params.name = "evallab-" + hashlib.sha256(identity.encode()).hexdigest()[:24]
-        await super()._create_sandbox(params=params, daytona=daytona)
 
     async def stop(self, delete: bool) -> None:
         try:

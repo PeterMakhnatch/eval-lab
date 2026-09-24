@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from collections import Counter
 from collections.abc import Sequence
@@ -132,6 +133,10 @@ class StepOutline:
     sampling_params: dict[str, Any] | None = None
     is_expected_probe: bool = False
     error_category: str = "none"
+    is_copied_context: bool = False
+    source_path: str | None = None
+    source_sha256: str | None = None
+    source_step_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -223,6 +228,7 @@ class TrajectoryOutline:
     invalid_citation_reference_count: int = 0
     edit_call_count: int = 0
     state_coverage_extra: dict[str, Any] = field(default_factory=dict)
+    final_metrics_present: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -416,6 +422,131 @@ _resolve_candidate_roots = resolve_runs_roots
 
 def _safe_str(val: Any, default: str = "") -> str:
     return str(val) if val is not None else default
+
+def _authoritative_int(value: Any) -> int | None:
+    """Return a declared aggregate token count, or None when absent/invalid."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int) and value >= 0:
+        return value
+    return None
+
+
+def _authoritative_float(value: Any) -> float | None:
+    """Return a finite nonnegative native cost, or None when unavailable."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return float(value) if math.isfinite(value) and value >= 0 else None
+
+
+ChainSegment = tuple[Path, dict[str, Any], str]
+"""One continuation document: (path, parsed data, sha256 of the file bytes)."""
+
+
+@dataclass(frozen=True)
+class ChainResolution:
+    """A resolved continuation chain plus its completeness verdict.
+
+    ``complete`` is False when a ``continued_trajectory_ref`` could not be
+    followed; ``stopped_ref``/``stop_cause`` name it (``missing``, ``escaping``,
+    ``unparseable``, or ``cycle``). Consumers must treat an incomplete chain as
+    partial evidence, never as the complete run.
+    """
+
+    segments: tuple[ChainSegment, ...]
+    complete: bool
+    stopped_ref: str | None = None
+    stop_cause: str | None = None
+
+
+def _resolve_chain_segments(
+    traj_path: Path,
+    traj_data: dict[str, Any],
+    trial_dir: Path,
+) -> ChainResolution:
+    """Resolve generic ATIF ``continued_trajectory_ref`` links, canonical first.
+
+    Upstream agents split one logical run into continuation segments (for example
+    a summarization handoff); every segment is a complete ATIF document and the
+    terminal segment carries the cumulative native ``final_metrics``. Each hop is
+    jailed to the trial directory, content-hashed, and cycle-guarded (the seen
+    set alone bounds the walk: every hop must reach a new file, so no hop cap is
+    needed). A continued reference that cannot be followed — missing, escaping,
+    unparseable, or cyclic — ends the walk with ``complete=False`` and names the
+    stopping reference, so callers never present a stale partial head as the
+    complete run.
+    """
+    segments: list[ChainSegment] = [(traj_path, traj_data, sha256_file(traj_path))]
+    seen = {traj_path.resolve()}
+    current_path = traj_path
+    current_data = traj_data
+    trial_root = trial_dir.resolve()
+    stopped_ref: str | None = None
+    stop_cause: str | None = None
+    while True:
+        ref = current_data.get("continued_trajectory_ref")
+        if not isinstance(ref, str) or not ref:
+            break
+        candidate = Path(ref)
+        if candidate.is_absolute():
+            candidate = trial_root / candidate.as_posix().lstrip("/")
+        else:
+            candidate = current_path.parent / candidate
+        try:
+            resolved = candidate.resolve()
+        except Exception:
+            stopped_ref, stop_cause = ref, "unparseable"
+            break
+        if resolved != trial_root and trial_root not in resolved.parents:
+            stopped_ref, stop_cause = ref, "escaping"
+            break
+        if resolved in seen:
+            stopped_ref, stop_cause = ref, "cycle"
+            break
+        if not resolved.is_file():
+            stopped_ref, stop_cause = ref, "missing"
+            break
+        try:
+            loaded = json.loads(resolved.read_text(encoding="utf-8"))
+        except Exception:
+            stopped_ref, stop_cause = ref, "unparseable"
+            break
+        if not isinstance(loaded, dict):
+            stopped_ref, stop_cause = ref, "unparseable"
+            break
+        seen.add(resolved)
+        segments.append((resolved, loaded, sha256_file(resolved)))
+        current_path = resolved
+        current_data = loaded
+    return ChainResolution(
+        segments=tuple(segments),
+        complete=stopped_ref is None,
+        stopped_ref=stopped_ref,
+        stop_cause=stop_cause,
+    )
+
+
+def _chain_action_steps(segments: Sequence[ChainSegment]) -> list[tuple[int, Any]]:
+    """Non-copied raw steps across a continuation chain, canonical order.
+
+    Returns ``(segment_position, raw_step)`` pairs so views can cite each action
+    against its native document while numbering the merged view ordinally.
+    Copied context repeats history already present in an earlier segment, so it
+    is excluded from action-oriented views (counts, phases, loop/error analysis)
+    while every segment stays cited and every document stays projected. Non-dict
+    entries pass through untouched so malformed shapes still fail closed in the
+    strict consumers instead of being silently dropped here.
+    """
+    stitched: list[tuple[int, Any]] = []
+    for position, (_, data, _) in enumerate(segments):
+        raw_steps = data.get("steps")
+        if not isinstance(raw_steps, list):
+            continue
+        for raw_step in raw_steps:
+            if isinstance(raw_step, dict) and raw_step.get("is_copied_context"):
+                continue
+            stitched.append((position, raw_step))
+    return stitched
 
 
 def _parse_iso_seconds(t1_str: str | None, t2_str: str | None) -> float | None:
@@ -1220,14 +1351,59 @@ def outline_trajectory(
             tool_mix={},
         )
 
-    traj_sha256 = sha256_file(traj_path)
-    citations.append(
-        SourceCitation(
-            path=str(traj_path),
-            sha256=traj_sha256,
-            kind="trajectory",
+    chain_segments: tuple[ChainSegment, ...] = ()
+    chain_complete = True
+    chain_stopped_ref: str | None = None
+    chain_stop_cause: str | None = None
+    if isinstance(traj_data, dict):
+        resolution = _resolve_chain_segments(traj_path, traj_data, trial_dir)
+        chain_segments = resolution.segments
+        chain_complete = resolution.complete
+        chain_stopped_ref = resolution.stopped_ref
+        chain_stop_cause = resolution.stop_cause
+        traj_path = chain_segments[-1][0]
+        traj_data = chain_segments[-1][1]
+        traj_sha256 = chain_segments[-1][2]
+    else:
+        traj_sha256 = sha256_file(traj_path)
+        citations.append(
+            SourceCitation(
+                path=str(traj_path),
+                sha256=traj_sha256,
+                kind="trajectory",
+            )
         )
-    )
+    for segment_path, _, segment_sha in chain_segments:
+        citations.append(
+            SourceCitation(
+                path=str(segment_path),
+                sha256=segment_sha,
+                kind="trajectory",
+            )
+        )
+    if not chain_complete:
+        # An unfollowed continuation reference means the loaded tail is a stale
+        # partial: report it as unavailable, never as a featured complete run.
+        return _unavailable_outline(
+            trial_id=trial_id,
+            job_id=job_id,
+            trial_name=trial_name,
+            job_name=job_name,
+            task_name=task_name,
+            agent_name=agent_name,
+            agent_version=agent_version,
+            model_name=model_name,
+            reason=(
+                f"incomplete_continuation_chain: continued ref "
+                f"{chain_stopped_ref!r} is {chain_stop_cause}"
+            ),
+            source_path=str(traj_path),
+            source_sha256=traj_sha256,
+            duration_seconds=duration_seconds,
+            primary_reward=primary_reward,
+            exception_class=exception_class,
+            citations=citations,
+        )
     if not isinstance(traj_data, dict):
         return _unavailable_outline(
             trial_id=trial_id,
@@ -1247,35 +1423,48 @@ def outline_trajectory(
             citations=citations,
         )
 
+    # Root agent identity comes from the canonical segment; the terminal segment
+    # only fills gaps. Both describe the same run in practice.
+    root_section_value = chain_segments[0][1].get("agent") if chain_segments else None
+    root_section = root_section_value if isinstance(root_section_value, dict) else {}
     agent_section_value = traj_data.get("agent")
     agent_section = agent_section_value if isinstance(agent_section_value, dict) else {}
     if not agent_name or agent_name == "unknown":
-        agent_name = _safe_str(agent_section.get("name") or "unknown")
-    if not model_name or model_name == "unknown":
-        model_name = _safe_str(agent_section.get("model_name") or "unknown")
-    if agent_version is None:
-        agent_version = agent_section.get("version")
-
-    raw_steps_value = traj_data.get("steps")
-    if not isinstance(raw_steps_value, list) or not raw_steps_value:
-        return _unavailable_outline(
-            trial_id=trial_id,
-            job_id=job_id,
-            trial_name=trial_name,
-            job_name=job_name,
-            task_name=task_name,
-            agent_name=agent_name,
-            agent_version=agent_version,
-            model_name=model_name,
-            reason="missing_trajectory_steps",
-            source_path=str(traj_path),
-            source_sha256=traj_sha256,
-            duration_seconds=duration_seconds,
-            primary_reward=primary_reward,
-            exception_class=exception_class,
-            citations=citations,
+        agent_name = _safe_str(
+            root_section.get("name") or agent_section.get("name") or "unknown"
         )
-    if any(not isinstance(step, dict) for step in raw_steps_value):
+    if not model_name or model_name == "unknown":
+        model_name = _safe_str(
+            root_section.get("model_name") or agent_section.get("model_name") or "unknown"
+        )
+    if agent_version is None:
+        agent_version = root_section.get("version") or agent_section.get("version")
+
+    # Every followed segment must carry a usable steps array; a corrupt segment
+    # fails the whole chain closed instead of silently dropping its history.
+    for segment_path, segment_data, segment_sha in chain_segments:
+        segment_steps = segment_data.get("steps")
+        if not isinstance(segment_steps, list) or not segment_steps:
+            return _unavailable_outline(
+                trial_id=trial_id,
+                job_id=job_id,
+                trial_name=trial_name,
+                job_name=job_name,
+                task_name=task_name,
+                agent_name=agent_name,
+                agent_version=agent_version,
+                model_name=model_name,
+                reason="missing_trajectory_steps",
+                source_path=str(segment_path),
+                source_sha256=segment_sha,
+                duration_seconds=duration_seconds,
+                primary_reward=primary_reward,
+                exception_class=exception_class,
+                citations=citations,
+            )
+    positioned_steps = _chain_action_steps(chain_segments)
+    raw_steps = [raw_step for _, raw_step in positioned_steps]
+    if any(not isinstance(step, dict) for step in raw_steps):
         return _unavailable_outline(
             trial_id=trial_id,
             job_id=job_id,
@@ -1293,7 +1482,6 @@ def outline_trajectory(
             exception_class=exception_class,
             citations=citations,
         )
-    raw_steps = raw_steps_value
     steps_out: list[StepOutline] = []
     tool_mix_counter: Counter[str] = Counter()
 
@@ -1316,9 +1504,15 @@ def outline_trajectory(
     recovery_count = 0
     total_errors = 0
     expected_probe_count = 0
-    for idx, raw_step in enumerate(raw_steps, start=1):
-        step_id = int(raw_step.get("step_id") or idx)
+    for idx, (segment_position, raw_step) in enumerate(positioned_steps, start=1):
+        native_path, _, native_sha = chain_segments[segment_position]
+        # Chain-ordinal id: per-segment step_ids restart in every continuation
+        # segment, so the stitched view numbers actions in canonical order while
+        # each step keeps its native document, hash, and original step id.
+        step_id = idx
         source = _safe_str(raw_step.get("source") or "agent")
+        native_step_value = raw_step.get("step_id")
+        native_step_id = native_step_value if isinstance(native_step_value, int) else None
         timestamp = raw_step.get("timestamp")
         if first_step_timestamp is None and timestamp:
             first_step_timestamp = str(timestamp)
@@ -1509,6 +1703,10 @@ def outline_trajectory(
                 sampling_params=sampling_params_dict,
                 is_expected_probe=is_probe,
                 error_category=error_classification.category.value,
+                is_copied_context=bool(raw_step.get("is_copied_context", False)),
+                source_path=str(native_path),
+                source_sha256=native_sha,
+                source_step_id=native_step_id,
             )
         )
 
@@ -1553,10 +1751,34 @@ def outline_trajectory(
     )
     loop_suspicion = _analyze_loop_suspicion(steps_out)
     phases = _build_phases(steps_out)
+    # Aggregate authority: the declared native final_metrics (terminal segment) is
+    # authoritative for the NATIVE ledger trial totals. Per-step metrics only
+    # attribute the calls mapped 1:1 to steps, so natively folded usage outside
+    # that mapping (for example summarizer/subagent usage) would otherwise
+    # understate the outline. This stays the native ledger only: upstream may
+    # raise on length-truncated calls before usage is recorded, so such physical
+    # calls can be absent from both step metrics and native totals. The proxy
+    # retains physical-call accounting at uncached rates, not a provider invoice.
+    final_metrics_value = traj_data.get("final_metrics")
+    declared_metrics = final_metrics_value if isinstance(final_metrics_value, dict) else {}
+    final_metrics_present = isinstance(final_metrics_value, dict)
+    declared_prompt = _authoritative_int(declared_metrics.get("total_prompt_tokens"))
+    declared_completion = _authoritative_int(declared_metrics.get("total_completion_tokens"))
+    declared_cached = _authoritative_int(declared_metrics.get("total_cached_tokens"))
+    declared_cost = _authoritative_float(declared_metrics.get("total_cost_usd"))
+    outline_prompt_tokens = (
+        declared_prompt if declared_prompt is not None else total_prompt_tokens
+    )
+    outline_completion_tokens = (
+        declared_completion if declared_completion is not None else total_completion_tokens
+    )
+    outline_cached_tokens = (
+        declared_cached if declared_cached is not None else total_cached_tokens
+    )
+    outline_cost_usd = declared_cost if declared_cost is not None else total_cost_usd
     state_metrics = _extract_state_journal_metrics(trial_dir, steps_out, citations)
     ref_metrics = _extract_reference_and_citation_metrics(trial_dir, steps_out, citations)
-    edit_call_count = sum(1 for s in steps_out if _is_edit_action(s.tool_name, s.tool_command))
-
+    edit_call_count = sum(1 for step in steps_out if _is_edit_action(step.tool_name, step.tool_command))
     return TrajectoryOutline(
         trial_id=trial_id,
         job_id=job_id,
@@ -1584,10 +1806,10 @@ def outline_trajectory(
         step_to_first_edit=step_to_first_edit,
         time_to_first_tool_seconds=time_to_first_tool_sec,
         time_to_first_edit_seconds=time_to_first_edit_sec,
-        total_prompt_tokens=total_prompt_tokens,
-        total_completion_tokens=total_completion_tokens,
-        total_cached_tokens=total_cached_tokens,
-        total_cost_usd=round(total_cost_usd, 6),
+        total_prompt_tokens=outline_prompt_tokens,
+        total_completion_tokens=outline_completion_tokens,
+        total_cached_tokens=outline_cached_tokens,
+        total_cost_usd=round(outline_cost_usd, 6),
         loop_suspicion=loop_suspicion,
         phases=phases,
         steps=tuple(steps_out),
@@ -1624,6 +1846,7 @@ def outline_trajectory(
         invalid_citation_reference_count=ref_metrics["invalid_citation_reference_count"],
         edit_call_count=edit_call_count,
         state_coverage_extra=state_metrics["state_coverage_extra"],
+        final_metrics_present=final_metrics_present,
     )
 
 
@@ -1774,16 +1997,18 @@ def render_outline(
         f"completion={outline.total_completion_tokens:,}, "
         f"cached={outline.total_cached_tokens:,} (${outline.total_cost_usd:.4f})"
     )
-
-    t_tool = f"step {outline.step_to_first_tool}" if outline.step_to_first_tool else "none"
-    if outline.time_to_first_tool_seconds is not None:
-        t_tool += f" ({outline.time_to_first_tool_seconds:.1f}s)"
-    t_edit = f"step {outline.step_to_first_edit}" if outline.step_to_first_edit else "none"
-    if outline.time_to_first_edit_seconds is not None:
-        t_edit += f" ({outline.time_to_first_edit_seconds:.1f}s)"
-    lines.append(f"  First Action: tool={t_tool}, edit={t_edit}")
-
-    lines.append("")
+    if outline.final_metrics_present:
+        step_prompt = sum(step.prompt_tokens or 0 for step in outline.steps)
+        step_completion = sum(step.completion_tokens or 0 for step in outline.steps)
+        unattributed_prompt = outline.total_prompt_tokens - step_prompt
+        unattributed_completion = outline.total_completion_tokens - step_completion
+        if unattributed_prompt != 0 or unattributed_completion != 0:
+            lines.append(
+                f"  Unattributed (native ledger): prompt={unattributed_prompt:,}, "
+                f"completion={unattributed_completion:,} "
+                f"(native final_metrics beyond step calls, e.g. subagent overhead; "
+                f"native estimates only, not proxy evidence or billing)"
+            )
     lines.append("ORDERED PHASES:")
     for phase in outline.phases:
         tok_sum = phase.prompt_tokens + phase.completion_tokens

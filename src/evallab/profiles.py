@@ -7,9 +7,8 @@ limits, with a stable content digest.
 
 Hard rules encoded here rather than remembered:
 
-- Subscription credentials remain the default. The DeepSeek mini-swe-agent
-  lane is the sole API-key exception and may name only its two admitted
-  environment variables.
+- Subscription credentials remain the default. API-key profiles may name only
+  explicitly admitted provider environment sources.
 - Probes return availability, expiry, and reason only — no secret material —
   and run through the same injected seams execution uses.
 - Qualification is a ladder of separate states (declared → installed →
@@ -39,14 +38,14 @@ from evallab.execution_contracts import (
     GLM_SELFHOSTED_FT_MODEL_SELECTOR,
     OPENCODE_AUTH_RELATIVE_PATH,
     RLM_AGENT,
+    TERMINUS_AGENT,
     ZAI_AUTH_PROVIDER,
     ZAI_OPENCODE_AGENT,
     ProfileInferenceSettings,
     read_owner_secret_file,
 )
 
-# Substrings that identify API-key style environment variables. They remain
-# forbidden everywhere except the exact DeepSeek environment source below.
+# API-key-style variables remain forbidden outside explicitly admitted sources.
 _FORBIDDEN_KEY_MARKERS = ("API_KEY", "API_TOKEN", "_SECRET", "ACCESS_KEY")
 DEEPSEEK_CREDENTIAL_NAMES = frozenset({"DEEPSEEK_API_KEY", "MSWEA_API_KEY"})
 ZAI_OPENAPI_CREDENTIAL_NAMES = frozenset({"ZAI_OPENAPI_API_KEY"})
@@ -672,6 +671,22 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 verified_facts=(
                     "2026-09: mini-swe-agent with Z.ai Open Platform standard API "
                     "GLM-5.3-Flash lane added",
+                ),
+            ),
+            AgentProfile(
+                profile_id="terminus-2-glm-5.3-flash",
+                adapter=TERMINUS_AGENT,
+                model="zai/glm-5.3-flash",
+                auth_mode="api-key-environment",
+                secret_source="env:ZAI_OPENAPI_API_KEY",
+                capabilities=(
+                    "credential-transport:host-loopback-proxy",
+                    "structured-trajectory:atif",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=28_800,
+                    max_attempts=1,
+                    max_concurrency=1,
                 ),
             ),
             AgentProfile(

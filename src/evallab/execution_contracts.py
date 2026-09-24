@@ -148,6 +148,10 @@ DEEPSEEK_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
     }
 )
 RLM_AGENT = "rlm"
+TERMINUS_AGENT = "terminus-2"
+TERMINUS_AGENT_IMPORT_PATH = "evallab.harbor_terminus:SecretSafeTerminus2"
+TERMINUS_PROXY_URL_ENV = "EVALLAB_TERMINUS_PROXY_URL"
+BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH = "evallab.harbor_daytona:BoundedDaytonaEnvironment"
 ZAI_OPENCODE_AGENT = "zai-opencode"
 ZAI_OPENCODE_MODEL_SELECTORS: frozenset[str] = frozenset(
     {"zai-coding-plan/glm-5.3", "zai-coding-plan/glm-5.3-flash"}
@@ -281,6 +285,7 @@ HARBOR_AGENT_IMPORT_PATHS: dict[str, str] = {
     "mini-swe-agent": "evallab.harbor_deepseek:SecretSafeDeepSeekMiniSweAgent",
     "zai-opencode": "evallab.harbor_zai_opencode:SecretSafeZaiOpenCodeAgent",
     RLM_AGENT: "evallab.harbor_rlm:LabRlmAgent",
+    TERMINUS_AGENT: TERMINUS_AGENT_IMPORT_PATH,
 }
 
 DEEPSEEK_MODEL_SELECTOR = "deepseek/deepseek-flash"
@@ -901,7 +906,7 @@ def validate_request(request: RunRequest) -> None:
     # enforcing it through the secret proxy, so it is not a proxy ceiling here.
     if request.agent == RLM_AGENT:
         proxy_limits = proxy_limits[:4]
-    metered_agents = {"mini-swe-agent", ZAI_OPENCODE_AGENT}
+    metered_agents = {"mini-swe-agent", ZAI_OPENCODE_AGENT, TERMINUS_AGENT}
     if any(value is not None for value in proxy_limits):
         if request.agent not in metered_agents:
             raise ValueError("this agent cannot enforce provider request/cost/token ceilings")
@@ -934,6 +939,11 @@ def validate_request(request: RunRequest) -> None:
             raise ValueError(f"{request.agent} requires explicit provider ceilings")
         if request.attempts != 1 or request.concurrency != 1:
             raise ValueError(f"{request.agent} capabilities bind exactly one trial")
+    if request.agent == TERMINUS_AGENT and request.model != ZAI_OPENAPI_MODEL_SELECTOR:
+        raise ValueError(
+            f"terminus-2 requires the standard-API model {ZAI_OPENAPI_MODEL_SELECTOR!r}; "
+            "Coding Plan credentials are not admitted for this harness"
+        )
     if request.harness_policy is not None and request.agent != RLM_AGENT:
         raise ValueError("harness_policy is supported only by the rlm lane")
     if request.agent == RLM_AGENT:
@@ -960,7 +970,7 @@ def validate_request(request: RunRequest) -> None:
                 f"Task requires {gpus} GPU(s) but Harbor Docker does not support GPU allocation; "
                 "select a compatible remote task/harness/backend combination"
             )
-    elif request.agent in metered_agents or request.agent == RLM_AGENT:
+    elif request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT, RLM_AGENT}:
         zai_mini = request.agent == "mini-swe-agent" and request.model == ZAI_OPENAPI_MODEL_SELECTOR
         if request.environment == "daytona" and zai_mini:
             if _task_has_provided_compose(request.task):
@@ -1041,8 +1051,11 @@ def build_command(request: RunRequest) -> list[str]:
         and request.agent == "mini-swe-agent"
         and request.model == ZAI_OPENAPI_MODEL_SELECTOR
     )
+    terminus_daytona = environment == "daytona" and request.agent == TERMINUS_AGENT
     if zai_daytona:
         environment = "evallab.harbor_daytona:SecretSafeDaytonaEnvironment"
+    elif terminus_daytona:
+        environment = BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH
     command = [
         "harbor",
         "run",
@@ -1061,7 +1074,7 @@ def build_command(request: RunRequest) -> list[str]:
         "--n-attempts",
         str(request.attempts),
     ]
-    if zai_daytona:
+    if zai_daytona or terminus_daytona:
         # Provider-side destruction still applies if the local controller dies.
         ttl_minutes = (request.timeout_seconds + 600 + 59) // 60
         command.extend(["--environment-kwarg", f"ttl_minutes={ttl_minutes}"])
@@ -1180,6 +1193,31 @@ def build_command(request: RunRequest) -> list[str]:
                 "0",
             ]
         )
+    if request.agent == TERMINUS_AGENT:
+        completion_limit = (
+            request.inference_settings.max_tokens
+            if request.inference_settings and request.inference_settings.max_tokens is not None
+            else 8192
+        )
+        call_kwargs = {
+            "max_tokens": min(completion_limit, request.max_output_tokens or completion_limit)
+        }
+        command.extend(
+            [
+                "--n-concurrent-agents",
+                "1",
+                "--n-tasks",
+                "1",
+                "--max-retries",
+                "0",
+                "--agent-kwarg",
+                f"llm_call_kwargs={json.dumps(call_kwargs, separators=(',', ':'))}",
+            ]
+        )
+        if request.inference_settings and request.inference_settings.effort is not None:
+            command.extend(
+                ["--agent-kwarg", f"reasoning_effort={request.inference_settings.effort}"]
+            )
     if request.agent == RLM_AGENT:
         if harbor_model not in ZAI_OPENCODE_MODEL_SELECTORS:
             raise ValueError(

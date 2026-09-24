@@ -20,6 +20,7 @@ from typing import Any, Literal
 from evallab.evidence.atif import SUPPORTED_SCHEMA_VERSIONS
 from evallab.interpretation.trajectory_ir import build_trajectory_ir
 from evallab.interpretation.trajectory_quality import evaluate_trial_quality
+from evallab.traj import ChainResolution, _chain_action_steps, _resolve_chain_segments
 
 Verdict = Literal["interpretable", "degraded", "uninterpretable"]
 
@@ -184,16 +185,41 @@ def check_trace_readiness(
         report["reasons"] = ["invalid_trajectory_shape"]
         return report
 
-    schema_version = raw.get("schema_version")
-    agent = raw.get("agent")
+    try:
+        resolution = _resolve_chain_segments(atif_path, raw, resolved)
+    except Exception:
+        resolution = ChainResolution(
+            segments=((atif_path, raw, ""),),
+            complete=False,
+            stopped_ref="unresolvable",
+            stop_cause="unparseable",
+        )
+    chain_incomplete_reason = None
+    if not resolution.complete:
+        ref = (resolution.stopped_ref or "unresolvable")[:120]
+        chain_incomplete_reason = f"incomplete_continuation_chain:{ref}"
+    terminal = resolution.segments[-1][1] if resolution.segments else raw
+    # Stitched non-copied actions across the continuation chain; the terminal
+    # document of a COMPLETE chain carries the cumulative native totals. An
+    # incomplete chain degrades with its partial steps only: no stale partial
+    # head is ever presented as the authoritative declaration.
+    malformed_segments = sorted(
+        segment_path.name
+        for segment_path, segment_data, _ in resolution.segments
+        if not isinstance(segment_data.get("steps"), list) or not segment_data.get("steps")
+    )
+    steps = [raw_step for _, raw_step in _chain_action_steps(resolution.segments)]
+    schema_version = terminal.get("schema_version")
+    if not isinstance(schema_version, str):
+        schema_version = raw.get("schema_version")
+    agent = terminal.get("agent")
+    if not isinstance(agent, dict):
+        agent = raw.get("agent")
     agent_name = agent.get("name") if isinstance(agent, dict) else None
-    steps_value = raw.get("steps")
-    steps = steps_value if isinstance(steps_value, list) else []
     tool_calls, observations = _count_calls_and_observations(steps)
-    final_metrics = raw.get("final_metrics")
-    final_metrics_present = isinstance(final_metrics, dict)
-    metrics_map = final_metrics if isinstance(final_metrics, dict) else {}
-
+    final_metrics = terminal.get("final_metrics")
+    final_metrics_present = isinstance(final_metrics, dict) and resolution.complete
+    metrics_map = final_metrics if final_metrics_present else {}
     prompt_tokens = _as_int(metrics_map.get("total_prompt_tokens"))
     completion_tokens = _as_int(metrics_map.get("total_completion_tokens"))
     if prompt_tokens is None or completion_tokens is None:
@@ -202,7 +228,6 @@ def check_trace_readiness(
             prompt_tokens = step_prompt
         if completion_tokens is None:
             completion_tokens = step_completion
-
     result = _read_json_mapping(resolved / "result.json")
 
     report = skeleton()
@@ -239,13 +264,22 @@ def check_trace_readiness(
     quality_status = str(report["quality_status"])
     if quality_status in _FATAL_QUALITY_STATUSES:
         reasons.append(f"quality_{quality_status}")
-    if len(steps) > 0 and prompt_tokens == 0 and completion_tokens == 0:
+    if prompt_tokens == 0 and completion_tokens == 0:
         reasons.append(ZERO_TOKEN_REASON)
     if report["atif_schema_version"] not in SUPPORTED_SCHEMA_VERSIONS:
         reasons.append(f"unsupported_schema_version:{report['atif_schema_version']}")
+    if malformed_segments:
+        reasons.append(f"continuation_segment_missing_steps:{','.join(malformed_segments)}")
+    if chain_incomplete_reason is not None:
+        reasons.append(chain_incomplete_reason)
 
     verdict: Verdict = "interpretable"
-    if report["ir_error"] is not None or quality_status in _FATAL_QUALITY_STATUSES:
+    if (
+        report["ir_error"] is not None
+        or quality_status in _FATAL_QUALITY_STATUSES
+        or malformed_segments
+        or chain_incomplete_reason is not None
+    ):
         verdict = "degraded"
     return {**report, "verdict": verdict, "reasons": reasons}
 

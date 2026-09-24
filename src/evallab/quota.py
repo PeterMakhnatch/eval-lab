@@ -1,12 +1,10 @@
 """Subscription-quota accounting for paid agents, measured instead of estimated.
 
-The lab's cost model is denominated in dollars (``est_cost_usd``,
-``daily_cost_ceiling_usd``) but its paid agents authenticate from a personal
-subscription: Codex from ``~/.codex/auth.json``, Claude through
-``scripts/with-claude-auth`` and the Keychain. No dollars move when a paid
-trial runs, so every dollar figure in this repository -- including Harbor's own
-``agent_result.cost_usd`` -- is an API-list-price *equivalent*, not spend. The
-binding constraint is a subscription quota.
+The lab's policy model is denominated in dollars (``est_cost_usd``,
+``daily_cost_ceiling_usd``). Subscription-backed agents consume provider quota;
+their reported dollars are API-list-price equivalents, not subscription charges.
+API-backed agents such as Terminus 2 consume provider balance instead. Recorded
+usage and cost estimates do not establish either account's remaining allowance.
 
 This module reports that quota honestly, and its central discipline is to keep
 two different questions apart:
@@ -59,10 +57,9 @@ from pydantic import BaseModel, Field
 
 from evallab.results import discover_job_dirs
 
-#: Agents that spend a subscription allowance. ``oracle`` and ``nop`` are free
-#: local controls and are excluded from every consumption figure.
+#: Agents with a supported consumption reader. Free controls are excluded.
 PAID_AGENTS: frozenset[str] = frozenset(
-    {"codex", "claude-code", "cursor-cli", "antigravity-cli"}
+    {"codex", "claude-code", "cursor-cli", "antigravity-cli", "terminus-2"}
 )
 
 #: The account named in operator-facing billing and allowance messages. These
@@ -73,6 +70,7 @@ PROVIDER_SUBSCRIPTIONS: dict[str, str] = {
     "claude-code": "Peter's Claude subscription",
     "cursor-cli": "Cursor subscription/API-key policy state",
     "antigravity-cli": "Peter's Google subscription (Antigravity OAuth)",
+    "terminus-2": "Z.ai Open Platform standard-API balance",
 }
 
 

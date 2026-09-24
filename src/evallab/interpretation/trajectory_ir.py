@@ -34,6 +34,8 @@ from evallab.interpretation.trajectory_hydration import (
 )
 from evallab.results import sha256_file
 from evallab.traj import (
+    _chain_action_steps,
+    _resolve_chain_segments,
     outline_trajectory,
     resolve_trial_target,
 )
@@ -1032,12 +1034,31 @@ def build_trajectory_ir(
             except Exception:
                 traj_payload = None
 
-        raw_steps_map: dict[str, dict[str, Any]] = {}
-        if traj_payload and isinstance(traj_payload.get("steps"), list):
-            for s in traj_payload["steps"]:
-                if isinstance(s, dict) and s.get("step_id") is not None:
-                    raw_steps_map[str(s["step_id"])] = s
-
+        # Raw linkage follows the same stitched chain as the outline. Steps are
+        # paired by native (segment sha, original step id) so earlier-segment
+        # events cite their actual document; the positional list remains as a
+        # fallback for outlines built without native provenance.
+        positioned_raw: list[tuple[int, Any]] = []
+        native_raw: dict[tuple[str | None, int | None], tuple[str, str, dict[str, Any]]] = {}
+        if traj_path is not None and traj_payload is not None:
+            try:
+                resolution = _resolve_chain_segments(traj_path, traj_payload, trial_dir)
+                chain = resolution.segments if resolution.complete else ()
+            except Exception:
+                chain = ()
+            positioned_raw = [
+                (position, raw)
+                for position, raw in _chain_action_steps(chain)
+                if isinstance(raw, dict)
+            ]
+            for position, raw in positioned_raw:
+                raw_id = raw.get("step_id")
+                if isinstance(raw_id, int):
+                    segment_path, _, segment_sha = chain[position]
+                    native_raw.setdefault(
+                        (segment_sha, raw_id), (str(segment_path), segment_sha, raw)
+                    )
+        stitched_raw_steps = [raw for _, raw in positioned_raw]
         rel_source_path = outline.source_path
         citation_root = cas_archive_root or trial_dir
         try:
@@ -1050,8 +1071,31 @@ def build_trajectory_ir(
             rel_source_path = "agent/trajectory.json"
 
         event_ord_counter = 0
-        for step in outline.steps:
-            raw_step = raw_steps_map.get(str(step.step_id)) or {}
+        for step_index, step in enumerate(outline.steps):
+            native_hit = native_raw.get((step.source_sha256, step.source_step_id))
+            if native_hit is not None:
+                native_path_str, native_sha, raw_step = native_hit
+                step_rel_path, step_sha = native_path_str, native_sha
+                try:
+                    native_candidate = Path(native_path_str)
+                    if native_candidate.is_absolute():
+                        step_rel_path = (
+                            native_candidate.resolve()
+                            .relative_to(citation_root.resolve())
+                            .as_posix()
+                        )
+                except Exception:
+                    step_rel_path = native_path_str
+                step_native_id: int | str | None = step.source_step_id
+            else:
+                raw_candidate = (
+                    stitched_raw_steps[step_index]
+                    if step_index < len(stitched_raw_steps)
+                    else {}
+                )
+                raw_step = raw_candidate if isinstance(raw_candidate, dict) else {}
+                step_rel_path, step_sha = rel_source_path, outline.source_sha256
+                step_native_id = step.step_id
             raw_tool_calls = raw_step.get("tool_calls")
             raw_observations = raw_step.get("observations")
             raw_observation = raw_step.get("observation")
@@ -1099,11 +1143,9 @@ def build_trajectory_ir(
                         or step.tool_name
                         or "tool"
                     )
-                    tc_args = tc_dict.get("arguments") or (
-                        tc_dict.get("function", {}).get("arguments")
-                        if isinstance(tc_dict.get("function"), dict)
-                        else None
-                    )
+                    tc_args = tc_dict.get("arguments")
+                    if tc_args is None and isinstance(tc_dict.get("function"), dict):
+                        tc_args = tc_dict["function"].get("arguments")
                     tc_call_id = tc_dict.get("tool_call_id") or tc_dict.get("id")
                     raw_command = (
                         tc_args.get("cmd") or tc_args.get("command") or tc_args.get("input")
@@ -1150,10 +1192,10 @@ def build_trajectory_ir(
                     ).hexdigest()
 
                     citation = create_citation_handle(
-                        source_path=rel_source_path,
-                        source_sha256=outline.source_sha256,
+                        source_path=step_rel_path,
+                        source_sha256=step_sha,
                         raw_cas_uri=cas_uri,
-                        step_id=step.step_id,
+                        step_id=step_native_id,
                         call_index=call_idx,
                         tool_call_id=tc_call_id,
                         source_call_id=tc_call_id,
@@ -1197,10 +1239,10 @@ def build_trajectory_ir(
                         ).hexdigest()
                         observation_citation = create_citation_handle(
                             trial_id=outline.trial_id,
-                            source_path=rel_source_path,
-                            source_sha256=outline.source_sha256,
+                            source_path=step_rel_path,
+                            source_sha256=step_sha,
                             raw_cas_uri=cas_uri,
-                            step_id=step.step_id,
+                            step_id=step_native_id,
                             source_call_id=tc_call_id,
                             observation_index=matching_obs_index,
                             target_type="observation",
@@ -1254,10 +1296,10 @@ def build_trajectory_ir(
                 exit_sem, is_true_err = _classify_exit_semantics(step.exit_code, prog, step.is_error)
 
                 citation = create_citation_handle(
-                    source_path=rel_source_path,
-                    source_sha256=outline.source_sha256,
+                    source_path=step_rel_path,
+                    source_sha256=step_sha,
                     raw_cas_uri=cas_uri,
-                    step_id=step.step_id,
+                    step_id=step_native_id,
                     target_type="step",
                     redaction_profile_digest=policy.compute_digest(),
                 )

@@ -84,6 +84,27 @@ Extract facts before asking a model to interpret them. At minimum:
 Derived facts should be reproducible by rerunning the extractor. They belong in
 PostgreSQL for catalog queries and in Parquet for step-level analytical queries;
 the original ATIF remains canonical.
+
+Trial-level step, tool, failed-command, and declared LLM-call counts exclude
+ATIF steps marked `is_copied_context`: copied history is not another execution.
+The raw per-document projection retains those rows and their provenance for
+inspection. Rebuild older derived facts from the retained jobs when comparing
+counts across this convention change.
+
+Native usage totals prefer the trial result, or the terminal continuation's
+declared aggregate when the result does not supply one. Outlines use native
+aggregate fields where available, not an incomplete sum of attributed steps.
+Do not add parent and summarization-child totals: the parent can already include
+that usage. Continuation views retain earlier non-copied steps with their
+original document, hash, and step coordinates. Missing, escaping, or cyclic
+continuations are unavailable/degraded evidence, not a complete partial head.
+
+Native usage estimates, physical-call proxy accounting, and provider invoices
+are different records. Some producers omit `llm_call_count`, and some upstream
+length-interrupted calls are absent from native token totals. Neither zero
+declared calls nor missing usage proves zero actual consumption. The proxy's
+conservative uncached accounting is not an invoice.
+
 ### CLI reference: deterministic trajectory analysis
 
 The deterministic analyzer runs directly on retained raw native ATIF trajectories without invoking models, sandboxes, or tools:

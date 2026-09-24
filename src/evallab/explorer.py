@@ -50,7 +50,13 @@ from pydantic import ValidationError
 from evallab.labels import ReviewQueueItem, select_review_queue
 from evallab.registry import TaskRegistry
 from evallab.schemas import ANALYSIS_SIDECAR_FILENAME, TrialAnalysisSidecar
-from evallab.traj import TrajectoryOutline, outline_trajectory
+from evallab.traj import (
+    ChainResolution,
+    TrajectoryOutline,
+    _chain_action_steps,
+    _resolve_chain_segments,
+    outline_trajectory,
+)
 
 Provenance = Literal["observed", "derived", "draft", "withheld", "unavailable"]
 
@@ -460,44 +466,64 @@ def _trajectory_view(trial_dir: Path) -> TrajectoryView | Labeled:
     payload, error = _load_json(path)
     if payload is None:
         return unavailable(error or "trajectory missing")
-    raw_steps = payload.get("steps")
-    if not isinstance(raw_steps, list):
+    if not isinstance(payload.get("steps"), list):
         return unavailable("trajectory has no steps array")
+    try:
+        resolution = _resolve_chain_segments(path, payload, trial_dir)
+    except Exception:
+        resolution = ChainResolution(
+            segments=((path, payload, ""),),
+            complete=False,
+            stopped_ref="unresolvable",
+            stop_cause="unparseable",
+        )
+    if not resolution.complete:
+        # A partial head is not the trajectory: say so instead of rendering it.
+        ref = (resolution.stopped_ref or "unresolvable")[:120]
+        return unavailable(
+            f"incomplete continuation chain: continued ref {ref!r} "
+            f"is {resolution.stop_cause}"
+        )
+    # Stitched non-copied actions across continuations with view-ordinal ids:
+    # raw per-segment step_ids restart in every continuation segment, and the
+    # same tool_call_id may recur across segments, so observation linkage is
+    # scoped by source document, never by bare call id.
+    live = [
+        (position, step)
+        for position, step in _chain_action_steps(resolution.segments)
+        if isinstance(step, dict)
+    ]
 
     steps: list[StepRow] = []
     calls: list[ToolCallRow] = []
     signature_counts: dict[tuple[str, str], int] = {}
-    exit_by_call: dict[str, int] = {}
-    content_by_call: dict[str, Labeled] = {}
-    for step in raw_steps:
-        if not isinstance(step, dict):
-            continue
+    exit_by_call: dict[tuple[int, str], int] = {}
+    content_by_call: dict[tuple[int, str], Labeled] = {}
+    for segment_position, step in live:
         for obs in _observation_results(step):
             call_ref = obs.get("source_call_id")
             if not isinstance(call_ref, str):
                 continue
+            key = (segment_position, call_ref)
             exit_code = obs.get("command_exit_code")
             if isinstance(exit_code, int):
-                exit_by_call[call_ref] = exit_code
+                exit_by_call[key] = exit_code
             if "content" in obs:
-                content_by_call[call_ref] = content_label(
+                content_by_call[key] = content_label(
                     obs.get("content"), what=f"observation of {call_ref}"
                 )
-    for step in raw_steps:
-        if not isinstance(step, dict):
-            continue
-        step_id = step.get("step_id")
+    for view_id, (segment_position, step) in enumerate(live, start=1):
         step_calls = [c for c in (step.get("tool_calls") or []) if isinstance(c, dict)]
         results = _observation_results(step)
         steps.append(
             StepRow(
-                step_id=step_id if isinstance(step_id, int) else None,
+                step_id=view_id,
                 source=step.get("source"),
                 n_tool_calls=len(step_calls),
                 n_observations=len(results),
                 message=content_label(
                     step.get("message") if "message" in step else None,
-                    what=f"step {step_id} message",
+                    what=f"step {view_id} message",
                 ),
             )
         )
@@ -520,12 +546,12 @@ def _trajectory_view(trial_dir: Path) -> TrajectoryView | Labeled:
             call_id = str(call.get("tool_call_id") or "?")
             calls.append(
                 ToolCallRow(
-                    step_id=int(step_id) if isinstance(step_id, int) else -1,
+                    step_id=view_id,
                     tool_call_id=call_id,
                     function=function,
-                    exit_code=exit_by_call.get(call_id),
+                    exit_code=exit_by_call.get((segment_position, call_id)),
                     observation=content_by_call.get(
-                        call_id,
+                        (segment_position, call_id),
                         unavailable(f"no observation recorded for {call_id}"),
                     ),
                 )

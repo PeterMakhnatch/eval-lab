@@ -7,7 +7,7 @@ audience:
 
 # Execution tiers: what runs where, and what it costs
 
-Operator workflow updated 2026-09-22. Machine inventory entries retain their
+Operator workflow updated 2026-09-24. Machine inventory entries retain their
 observation dates; they are not universal backend qualifications. The spend
 rules below remain binding.
 
@@ -15,8 +15,9 @@ rules below remain binding.
 
 Harbor supplies the execution backends; Eval Lab prepares bounded specs and
 preserves their evidence. Compatibility belongs to a task/harness/model/backend
-combination, not just an `--env` name. GLM mini-SWE has a live-proven
-single-container Daytona path; its Modal proxy transport is not integrated.
+combination, not just an `--env` name. Terminus 2 uses a host-side metered
+model transport with native Harbor task backends. GLM mini-SWE has a live-proven
+single-container Daytona path; its container-side Modal proxy is not integrated.
 Cloud runs still require explicit approval under `policy/standing-approvals.yaml`.
 
 ## Machine state (verified, not aspirational)
@@ -147,6 +148,83 @@ Execution requires Docker Desktop on Apple Silicon with a kernel that supports
 Harbor's broker network allowlist; on unsupported kernels, the run fails
 closed during container network configuration before model requests can issue.
 
+### Terminus 2 with native Harbor tasks
+
+Use `--agent terminus-2`. Eval Lab subclasses Harbor's upstream **Terminus 2**
+only to bind its host-side model client to the existing metered proxy. Its
+terminal loop, JSON command parser, context summarization, terminal recordings,
+and ATIF writer remain upstream implementations. The admitted model route is
+`zai/glm-5.3-flash`, using the standard-API `ZAI_OPENAPI_API_KEY`, never Coding
+Plan credentials.
+
+Prepare any local Harbor task package; no task-ID allowlist or new registry
+admission is needed:
+
+```bash
+uv run evallab tasks prepare /absolute/path/to/harbor-task \
+  --name terminus-example \
+  --agent terminus-2 --model zai/glm-5.3-flash \
+  --environment docker --cost-limit-usd 0.40
+uv run evallab submit derived/prepared/terminus-example.json
+# Review the spec and authorize its printed ID:
+uv run evallab approve <spec-id> --actor peter
+uv run evallab tick --spec-id <spec-id>
+```
+
+Preparation freezes the package and verifier digests. Task-declared CPU, memory,
+storage, GPU, network, and separate-verifier requirements remain task inputs.
+The existing eight-hour Lab deadline limit still applies; larger declared
+deadlines refuse rather than being silently shortened. An explicit shorter
+`--timeout-seconds` denotes a diagnostic run, not the original benchmark protocol.
+
+Select a backend that supports those requirements. Preparation accepts `docker`,
+`daytona`, `modal`, and `beam`; remote specs also require
+`--estimated-cost-usd` for model plus infrastructure. GPU tasks require a
+compatible remote backend, and Terminus requires a Linux terminal with tmux.
+Task-provided Compose uses the backend's native multi-container support, not the
+mini-SWE proxy overlay. Upstream network/phase capability checks still apply:
+for example, Daytona DinD cannot change network policy dynamically. Unsupported
+task/backend combinations are not a promise of universal portability.
+
+The model client stays on the controller, so the task receives neither the
+provider key nor the proxy capability. Main, summarizer, and retried model calls
+share one trial's request/token/cost ceilings. The default per-response output
+limit is 8,192 tokens, separate from the cumulative output allowance. The proxy
+binds an ephemeral loopback port and stops before final accounting is collected.
+For Daytona, the reused lifecycle wrapper sets a provider TTL of execution
+timeout plus ten minutes, five-minute inactivity stop, and deletion on stop.
+Remote credentials, capacity, and explicit spending approval remain prerequisites.
+
+Completed runs are ingested into the existing PostgreSQL catalog and Parquet
+projections by the queue. Inspect them without calling another model:
+
+```bash
+uv run evallab summarize runs/terminus-example
+uv run evallab trajectories runs/terminus-example
+uv run evallab traj outline runs/terminus-example/<trial-directory>
+# Rebuild derived records from retained native evidence when needed:
+uv run evallab ingest runs/terminus-example
+```
+
+The trial's `agent/` directory retains `trajectory.json`, `recording.cast`,
+`terminus_2.pane`, and any summarization/continuation trajectories. Native
+results, verifier logs/rewards, declared task artifacts, and the physical-call
+proxy ledger in `lab-metadata.json` remain in the ordinary job directory.
+Unfinished jobs are not completed-job summaries; inspect their retained trial
+evidence directly rather than inventing a grade.
+
+Native aggregate usage and physical proxy accounting are distinct. The proxy
+uses conservative uncached pricing, not a provider invoice. Some upstream
+length-interrupted responses can be absent from native usage totals; do not
+equate ATIF step count with physical requests. See
+[the analysis loop](analysis-loop.md) for evidence validity and interpretation.
+
+Verification on September 24 used the real native Terminus/Docker/queue path
+with a **scripted loopback provider and isolated catalog**: terminal execution,
+parse-error recovery, native grading, ATIF/recording capture, and ingestion.
+This is CPU protocol proof, not a live GLM capability result or remote/GPU
+qualification. All 66 pinned TB4 task selections also compile without execution.
+
 ### GLM mini-SWE on Daytona
 
 Prepare an ordinary spec without a Python launcher, credentials, or cloud calls:
@@ -226,19 +304,21 @@ skip model APIs but still bill Modal compute (CPU/GPU-hours). Concretely:
   not themselves authorize compute. Peter authorized account setup on September21.
 - Use the official `modal token new` browser flow for account configuration;
   keep `~/.modal.toml` owner-only. Actual cloud work still requires the exact
-  queued spec's recorded authorization. Modal account setup does not qualify
-  the GLM proxy transport on Modal.
+  queued spec's recorded authorization. Account setup does not itself qualify
+  a task/harness/backend combination.
 - First run of any new suite is `-n 1` to price it before `-n 5`.
 
 Account authentication is working; it is not proof of sandbox capacity, a remaining
 credit balance, or a qualified model transport. Check account metadata without
 allocating compute using `modal profile list` and `modal token info`.
 
-`tasks prepare --environment modal` refuses the unimplemented Lab metered-proxy
-combinations before launch and identifies the integration gap. Adding credits
-cannot fix that transport gap. Upstream-supported control runs still use an
-explicitly prepared/submitted/approved spec and selected `tick`; do not bypass
-the queue with a direct Harbor sweep.
+`tasks prepare --environment modal` refuses unimplemented container-side
+metered-proxy combinations such as GLM mini-SWE before launch. Adding credits
+cannot fix that transport gap. Terminus 2's host-side model transport does not
+need that container-side bridge; it uses the native Modal task backend with its
+actual capability and credential requirements. All remote controls and model
+runs still use an explicitly prepared/submitted/approved spec and selected
+`tick`; do not bypass the queue with a direct Harbor sweep.
 
 ## What agents should take from this
 

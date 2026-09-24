@@ -34,6 +34,8 @@ from evallab.interpretation.trajectory_hydration import (
 )
 from evallab.results import sha256_file
 from evallab.traj import (
+    _chain_action_steps,
+    _resolve_chain_segments,
     outline_trajectory,
     resolve_trial_target,
 )
@@ -1032,11 +1034,16 @@ def build_trajectory_ir(
             except Exception:
                 traj_payload = None
 
-        raw_steps_map: dict[str, dict[str, Any]] = {}
-        if traj_payload and isinstance(traj_payload.get("steps"), list):
-            for s in traj_payload["steps"]:
-                if isinstance(s, dict) and s.get("step_id") is not None:
-                    raw_steps_map[str(s["step_id"])] = s
+        # Raw linkage follows the same stitched chain as the outline: positional
+        # pairing is exact because per-segment step_ids restart in continuations
+        # while the stitched order matches outline.steps one to one.
+        stitched_raw_steps: list[Any] = []
+        if traj_path is not None and traj_payload is not None:
+            try:
+                chain = _resolve_chain_segments(traj_path, traj_payload, trial_dir)
+            except Exception:
+                chain = [(traj_path, traj_payload, "")]
+            stitched_raw_steps = _chain_action_steps(chain)
 
         rel_source_path = outline.source_path
         citation_root = cas_archive_root or trial_dir
@@ -1050,8 +1057,13 @@ def build_trajectory_ir(
             rel_source_path = "agent/trajectory.json"
 
         event_ord_counter = 0
-        for step in outline.steps:
-            raw_step = raw_steps_map.get(str(step.step_id)) or {}
+        for step_index, step in enumerate(outline.steps):
+            raw_candidate = (
+                stitched_raw_steps[step_index]
+                if step_index < len(stitched_raw_steps)
+                else {}
+            )
+            raw_step = raw_candidate if isinstance(raw_candidate, dict) else {}
             raw_tool_calls = raw_step.get("tool_calls")
             raw_observations = raw_step.get("observations")
             raw_observation = raw_step.get("observation")

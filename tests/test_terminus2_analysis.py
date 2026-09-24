@@ -13,12 +13,18 @@ upstream Terminus 2 native ATIF output (``harbor/agents/terminus_2/terminus_2.py
   trajectories; each child carries copied parent steps with metrics omitted
   (``is_copied_context``) plus one response step with that call's usage;
 - the parent ``final_metrics`` already folds summarizer usage into the native
-  totals (``AgentContext`` = main chat + ``SubagentMetrics``), so consumers must
-  treat the declared totals as authoritative and must never sum ``final_metrics``
-  across parent/child/continuation documents;
-- a ``continued_trajectory_ref`` chain for the split-history mode;
+  totals (``AgentContext`` = main chat + ``SubagentMetrics``), so consumers treat
+  the declared totals as authoritative for the NATIVE ledger and never sum
+  ``final_metrics`` across parent/child/continuation documents;
+- a ``continued_trajectory_ref`` chain for the split-history mode, stitched so
+  earlier non-copied actions survive alongside the terminal aggregates;
 - a failure dump (``_dump_trajectory`` in ``run()``'s ``finally``) that stays a
   parseable, exception-bearing trace and never a verified pass.
+
+Native-ledger limit (stated, not solved): upstream raises on length-truncated
+calls before usage is recorded, so such physical calls can be absent from both
+step metrics and native totals. The physical invoice lives in the separate proxy
+ledger; nothing here infers one ledger from the other.
 """
 
 from __future__ import annotations
@@ -28,6 +34,10 @@ from pathlib import Path
 import pytest
 
 from evallab.evidence.atif import project_trial
+from evallab.evidence.facts import extract_job_facts, extract_trial_fact
+from evallab.explorer import _trajectory_view
+from evallab.interpretation.trace_readiness import check_trace_readiness
+from evallab.interpretation.trajectory_ir import build_trajectory_ir
 from evallab.results import load_job
 from evallab.traj import outline_trajectory, render_outline
 
@@ -42,7 +52,13 @@ def _trial(name: str) -> Path:
     return FIXTURE_JOB / name
 
 
-def test_outline_prefers_declared_final_metrics_over_step_sums() -> None:
+def _step_token_sums(outline) -> tuple[int, int]:
+    prompt = sum(step.prompt_tokens or 0 for step in outline.steps)
+    completion = sum(step.completion_tokens or 0 for step in outline.steps)
+    return prompt, completion
+
+
+def test_outline_prefers_declared_native_totals() -> None:
     """Summarizer usage folded into final_metrics must not be understated."""
     outline = outline_trajectory(_trial("trial-summarized"), repo_root=FIXTURE_ROOT)
 
@@ -58,12 +74,12 @@ def test_outline_prefers_declared_final_metrics_over_step_sums() -> None:
     assert outline.total_completion_tokens == 1720
     assert outline.total_cached_tokens == 4500
     assert outline.total_cost_usd == pytest.approx(0.0146)
-    # Step-attributed partial sums stay visible for provenance.
     assert outline.final_metrics_present is True
-    assert outline.step_attributed_prompt_tokens == 7350
-    assert outline.step_attributed_completion_tokens == 650
-    assert outline.step_attributed_cached_tokens == 3300
-    assert outline.step_attributed_cost_usd == pytest.approx(0.0062)
+    # Attribution provenance stays computable from the step array itself.
+    assert _step_token_sums(outline) == (7350, 650)
+    # No redundant aggregate fields beyond the existing authority convention.
+    assert not hasattr(outline, "step_attributed_prompt_tokens")
+    assert not hasattr(outline, "continued_trajectory_ref")
 
     assert outline.total_steps == 8
     assert outline.agent_steps == 5
@@ -71,7 +87,6 @@ def test_outline_prefers_declared_final_metrics_over_step_sums() -> None:
     assert outline.user_steps == 2
     assert outline.total_tool_calls == 5
     assert outline.tool_mix == {"bash_command": 4, "mark_task_complete": 1}
-    assert outline.continued_trajectory_ref is None
     assert all(step.is_copied_context is False for step in outline.steps)
 
     # The parse-error step keeps its metrics and observation without tool calls.
@@ -81,7 +96,7 @@ def test_outline_prefers_declared_final_metrics_over_step_sums() -> None:
 
     rendered = render_outline(outline)
     assert "METRICS SUMMARY:" in rendered
-    assert "Unattributed:" in rendered
+    assert "Unattributed (native ledger):" in rendered
 
 
 def test_children_cover_copied_context_without_double_count() -> None:
@@ -156,33 +171,98 @@ def test_children_cover_copied_context_without_double_count() -> None:
     assert parse_step.observation_count == 1
 
 
-def test_continuation_terminal_is_authoritative_without_summing() -> None:
-    """The outline follows the continuation chain; totals come from the terminal."""
+def test_trial_fact_counts_exclude_copied_duplicates() -> None:
+    """Copied steps are not new actions; every document stays addressable."""
+    job = load_job(FIXTURE_JOB)
+    summarized = next(t for t in job.trials if t.path.name == "trial-summarized")
+    fact = extract_trial_fact(job, summarized)
+
+    # 8 parent actions + 2 live steps per child (prompt + response); the 12
+    # copied steps are excluded, and the 4 projected documents are all retained.
+    assert fact.step_count == 14
+    assert fact.tool_call_count == 5
+    assert fact.trajectory_count == 4
+    assert fact.invalid_trajectory_count == 0
+    assert fact.input_tokens == 18150
+    assert fact.output_tokens == 1720
+    assert fact.cache_tokens == 4500
+    assert fact.cost_usd == pytest.approx(0.0146)
+
+    usage = {
+        row.function_name: row.call_count
+        for row in extract_job_facts(job).tool_usage
+        if row.trial_id == fact.trial_id
+    }
+    assert usage == {"bash_command": 4, "mark_task_complete": 1}
+
+
+def test_continuation_stitch_preserves_earlier_actions() -> None:
+    """Stitched outline keeps pre-split actions with terminal aggregates."""
     outline = outline_trajectory(_trial("trial-continued"), repo_root=FIXTURE_ROOT)
 
     assert outline.status == "featured"
     assert outline.source_path.endswith("agent/trajectory.cont-1.json")
-    # Terminal cumulative totals, not segment-0 + terminal summed (7500).
+    # Earlier non-copied segment-0 actions survive alongside terminal work.
+    assert outline.total_steps == 6
+    assert [step.step_id for step in outline.steps] == [1, 2, 3, 4, 5, 6]
+    assert all(step.is_copied_context is False for step in outline.steps)
+    assert outline.tool_mix == {"bash_command": 3, "mark_task_complete": 1}
+    assert outline.total_tool_calls == 4
+    # Terminal cumulative totals, not segment finals summed (7500).
     assert outline.total_prompt_tokens == 4500
     assert outline.total_completion_tokens == 490
     assert outline.total_cached_tokens == 600
     assert outline.total_cost_usd == pytest.approx(0.0029)
-    # Only the new (non-copied) steps attribute usage.
-    assert outline.step_attributed_prompt_tokens == 1500
-    assert [s.is_copied_context for s in outline.steps] == [
-        True,
-        True,
-        True,
-        False,
-        False,
-        False,
-    ]
-    assert outline.continued_trajectory_ref is None
-    assert outline.tool_mix == {"bash_command": 1, "mark_task_complete": 1}
+    assert _step_token_sums(outline) == (4500, 490)
     cited = [c.path for c in outline.citations if c.kind == "trajectory"]
     assert len(cited) == 2
     assert cited[0].endswith("agent/trajectory.json")
     assert cited[1].endswith("agent/trajectory.cont-1.json")
+
+
+def test_continuation_fact_and_readiness_agree_with_outline() -> None:
+    """Facts, readiness, and explorer resolve the same chain, not stale roots."""
+    job = load_job(FIXTURE_JOB)
+    continued = next(t for t in job.trials if t.path.name == "trial-continued")
+
+    fact = extract_trial_fact(job, continued)
+    assert fact.step_count == 6
+    assert fact.tool_call_count == 4
+    assert fact.input_tokens == 4500
+    assert fact.output_tokens == 490
+    assert fact.cache_tokens == 600
+
+    readiness = check_trace_readiness(_trial("trial-continued"), repo_root=FIXTURE_ROOT)
+    assert readiness["steps"] == 6
+    assert readiness["prompt_tokens"] == 4500
+    assert readiness["verdict"] in {"interpretable", "degraded"}
+
+    view = _trajectory_view(_trial("trial-continued"))
+    assert [s.step_id for s in view.steps] == [1, 2, 3, 4, 5, 6]
+    assert len(view.tool_calls) == 4
+
+    report = check_trace_readiness(_trial("trial-summarized"), repo_root=FIXTURE_ROOT)
+    assert report["steps"] == 8
+    assert report["prompt_tokens"] == 18150
+
+
+def test_continuation_events_span_both_segments() -> None:
+    """Interpretation events pair raw calls from each segment, not just the root."""
+    trial_dir = _trial("trial-continued")
+    ir = build_trajectory_ir(trial_dir, repo_root=FIXTURE_ROOT)
+
+    programs = {event.status_owning_program for event in ir.events}
+    assert "bash_command" in programs
+    assert "mark_task_complete" in programs
+    bash_steps = {
+        event.step_id for event in ir.events if event.status_owning_program == "bash_command"
+    }
+    assert {2, 3, 5} <= bash_steps
+    assert {
+        event.step_id
+        for event in ir.events
+        if event.status_owning_program == "mark_task_complete"
+    } == {6}
 
 
 def test_failure_dump_is_parseable_but_never_a_pass() -> None:

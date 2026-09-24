@@ -4,7 +4,7 @@ import hashlib
 import json
 import subprocess
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,6 +20,7 @@ from pydantic import ValidationError
 from evallab.evidence.atif import (
     ExportedTable,
     ExportResult,
+    TrajectoryFact,
     TrialTrajectoryProjection,
     export_trajectories,
     project_trial,
@@ -412,6 +413,74 @@ def _state_change_fact(
         journal_status=journal_status,
     )
 
+def _terminal_root_trajectory(
+    trajectories: Sequence[TrajectoryFact],
+) -> TrajectoryFact | None:
+    """Select the usage-authoritative root document without filesystem access.
+
+    All projected documents already resolved inside the trial directory, so the
+    generic ATIF continuation chain is followed in projection space: start from
+    the canonical ``trajectory.json`` root document (or the first root document),
+    follow ``continued_trajectory_ref`` links between sibling source paths, and
+    stop at the terminal document whose ``final_metrics`` carry the cumulative
+    native totals. Cycles, dangling, and escaping references stop the walk.
+    Every document stays projected and addressable; only the aggregate source
+    moves from the first root to the terminal one.
+    """
+    roots = [item for item in trajectories if item.embedded_path is None]
+    if not roots:
+        return None
+    by_source: dict[str, TrajectoryFact] = {}
+    for item in roots:
+        by_source.setdefault(item.source_path, item)
+    current = next(
+        (item for item in roots if item.source_path.split("/")[-1] == "trajectory.json"),
+        roots[0],
+    )
+    seen = {current.source_path}
+    for _ in range(16):
+        ref = current.continued_trajectory_ref
+        if not ref:
+            break
+        parent, _, _ = current.source_path.rpartition("/")
+        candidate = ref.lstrip("/") if ref.startswith("/") else (
+            f"{parent}/{ref}" if parent else ref
+        )
+        parts: list[str] = []
+        escaped = False
+        for part in candidate.split("/"):
+            if part in ("", "."):
+                continue
+            if part == "..":
+                if not parts:
+                    escaped = True
+                    break
+                parts.pop()
+            else:
+                parts.append(part)
+        if escaped:
+            break
+        nxt = by_source.get("/".join(parts))
+        if nxt is None or nxt.source_path in seen:
+            break
+        seen.add(nxt.source_path)
+        current = nxt
+    return current
+
+
+def _live_step_keys(projection: TrialTrajectoryProjection) -> set[tuple[str, int]]:
+    """Steps that represent new actions, excluding copied-context duplicates.
+
+    Copied context repeats history already present in an earlier document, so it
+    must not inflate action counts. Every document (root, continuation, child)
+    stays projected and addressable in the step/tool/observation tables.
+    """
+    return {
+        (step.document_id, step.step_id)
+        for step in projection.steps
+        if not step.is_copied_context
+    }
+
 
 def extract_trial_fact(
     job: JobRecord,
@@ -428,8 +497,7 @@ def extract_trial_fact(
     raw_model_info = agent_info.get("model_info")
     model_info = raw_model_info if isinstance(raw_model_info, dict) else {}
     raw_agent_result = _agent_result(result)
-    root_trajectories = [item for item in projection.trajectories if item.embedded_path is None]
-    root_metrics = root_trajectories[0] if root_trajectories else None
+    root_metrics = _terminal_root_trajectory(projection.trajectories)
     input_tokens = _integer(raw_agent_result.get("n_input_tokens"))
     cache_tokens = _integer(raw_agent_result.get("n_cache_tokens"))
     output_tokens = _integer(raw_agent_result.get("n_output_tokens"))
@@ -442,14 +510,23 @@ def extract_trial_fact(
         )
         cost_usd = cost_usd if cost_usd is not None else root_metrics.cost_usd
 
+    live_step_keys = _live_step_keys(projection)
+    live_steps = [step for step in projection.steps if not step.is_copied_context]
+    live_tool_calls = [
+        call
+        for call in projection.tool_calls
+        if (call.document_id, call.step_id) in live_step_keys
+    ]
     failed_call_ids = {
         (item.document_id, item.step_id, item.source_call_id)
         for item in projection.observations
-        if item.command_exit_code not in (None, 0) and item.source_call_id is not None
+        if (item.document_id, item.step_id) in live_step_keys
+        and item.command_exit_code not in (None, 0)
+        and item.source_call_id is not None
     }
     failed_argument_digests = [
         item.arguments_sha256
-        for item in projection.tool_calls
+        for item in live_tool_calls
         if (item.document_id, item.step_id, item.tool_call_id) in failed_call_ids
     ]
     failed_digest_counts = Counter(failed_argument_digests)
@@ -546,9 +623,9 @@ def extract_trial_fact(
         invalid_trajectory_count=sum(
             item.validation_status != "valid" for item in projection.trajectories
         ),
-        step_count=len(projection.steps),
-        llm_call_count=sum(item.llm_call_count for item in projection.steps),
-        tool_call_count=len(projection.tool_calls),
+        step_count=len(live_steps),
+        llm_call_count=sum(item.llm_call_count for item in live_steps),
+        tool_call_count=len(live_tool_calls),
         command_failure_count=len(failed_argument_digests),
         repeated_failed_command_count=sum(
             count - 1 for count in failed_digest_counts.values() if count > 1
@@ -627,7 +704,12 @@ def extract_job_facts(
                 key=lambda value: (value.source, value.destination or ""),
             )
         )
-        counts = Counter(item.function_name for item in projection.tool_calls)
+        live_keys = _live_step_keys(projection)
+        counts = Counter(
+            item.function_name
+            for item in projection.tool_calls
+            if (item.document_id, item.step_id) in live_keys
+        )
         tool_usage.extend(
             ToolUseFact(
                 experiment_id=association,

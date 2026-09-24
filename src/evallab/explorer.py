@@ -50,7 +50,12 @@ from pydantic import ValidationError
 from evallab.labels import ReviewQueueItem, select_review_queue
 from evallab.registry import TaskRegistry
 from evallab.schemas import ANALYSIS_SIDECAR_FILENAME, TrialAnalysisSidecar
-from evallab.traj import TrajectoryOutline, outline_trajectory
+from evallab.traj import (
+    TrajectoryOutline,
+    _chain_action_steps,
+    _resolve_chain_segments,
+    outline_trajectory,
+)
 
 Provenance = Literal["observed", "derived", "draft", "withheld", "unavailable"]
 
@@ -460,9 +465,15 @@ def _trajectory_view(trial_dir: Path) -> TrajectoryView | Labeled:
     payload, error = _load_json(path)
     if payload is None:
         return unavailable(error or "trajectory missing")
-    raw_steps = payload.get("steps")
-    if not isinstance(raw_steps, list):
+    if not isinstance(payload.get("steps"), list):
         return unavailable("trajectory has no steps array")
+    try:
+        chain = _resolve_chain_segments(path, payload, trial_dir)
+    except Exception:
+        chain = [(path, payload, "")]
+    # Stitched non-copied actions across continuations with view-ordinal ids:
+    # raw per-segment step_ids restart in every continuation segment.
+    raw_steps = [step for step in _chain_action_steps(chain) if isinstance(step, dict)]
 
     steps: list[StepRow] = []
     calls: list[ToolCallRow] = []
@@ -470,8 +481,6 @@ def _trajectory_view(trial_dir: Path) -> TrajectoryView | Labeled:
     exit_by_call: dict[str, int] = {}
     content_by_call: dict[str, Labeled] = {}
     for step in raw_steps:
-        if not isinstance(step, dict):
-            continue
         for obs in _observation_results(step):
             call_ref = obs.get("source_call_id")
             if not isinstance(call_ref, str):
@@ -483,21 +492,18 @@ def _trajectory_view(trial_dir: Path) -> TrajectoryView | Labeled:
                 content_by_call[call_ref] = content_label(
                     obs.get("content"), what=f"observation of {call_ref}"
                 )
-    for step in raw_steps:
-        if not isinstance(step, dict):
-            continue
-        step_id = step.get("step_id")
+    for view_id, step in enumerate(raw_steps, start=1):
         step_calls = [c for c in (step.get("tool_calls") or []) if isinstance(c, dict)]
         results = _observation_results(step)
         steps.append(
             StepRow(
-                step_id=step_id if isinstance(step_id, int) else None,
+                step_id=view_id,
                 source=step.get("source"),
                 n_tool_calls=len(step_calls),
                 n_observations=len(results),
                 message=content_label(
                     step.get("message") if "message" in step else None,
-                    what=f"step {step_id} message",
+                    what=f"step {view_id} message",
                 ),
             )
         )
@@ -520,7 +526,7 @@ def _trajectory_view(trial_dir: Path) -> TrajectoryView | Labeled:
             call_id = str(call.get("tool_call_id") or "?")
             calls.append(
                 ToolCallRow(
-                    step_id=int(step_id) if isinstance(step_id, int) else -1,
+                    step_id=view_id,
                     tool_call_id=call_id,
                     function=function,
                     exit_code=exit_by_call.get(call_id),

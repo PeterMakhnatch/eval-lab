@@ -769,9 +769,4 @@ def trajectory_ir_to_outline(
         citations=citations,
         tool_mix=dict(tool_mix_counter),
         final_metrics_present=final_metrics_present,
-        step_attributed_prompt_tokens=total_prompt_tokens,
-        step_attributed_completion_tokens=total_completion_tokens,
-        step_attributed_cached_tokens=total_cached_tokens,
-        step_attributed_cost_usd=round(total_cost_usd, 6),
-        continued_trajectory_ref=ir.continued_trajectory_ref,
     )

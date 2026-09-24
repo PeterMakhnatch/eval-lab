@@ -36,6 +36,7 @@ import pytest
 from evallab import runner as runner_module
 from evallab.execution_contracts import (
     PRIVATE_PERSIST_MODE,
+    TERMINUS_PROXY_URL_ENV,
     ProxyTrialLimits,
     RunRequest,
     ZAI_OPENAPI_MODEL_SELECTOR,
@@ -112,7 +113,7 @@ def terminus_module(monkeypatch: pytest.MonkeyPatch) -> Any:
 
 @pytest.fixture
 def trial_transport(monkeypatch: pytest.MonkeyPatch, terminus_module: Any) -> Any:
-    monkeypatch.setenv(terminus_module.TERMINUS_PROXY_URL_ENV, "http://127.0.0.1:9")
+    monkeypatch.setenv(TERMINUS_PROXY_URL_ENV, "http://127.0.0.1:9")
     monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_PROXY_CAPABILITY", CAPABILITY_SENTINEL)
     monkeypatch.setenv("ZAI_API_KEY", "fixture-original-key")
     return terminus_module
@@ -187,6 +188,10 @@ def test_adapter_rejects_transport_overrides(
             model_name="zai/glm-5.3-flash",
             llm_backend="tinker",
         )
+    with pytest.raises(ValueError, match="at most logs_dir positionally"):
+        trial_transport.SecretSafeTerminus2(
+            tmp_path, "zai/glm-5.3-flash", model_name="zai/glm-5.3-flash"
+        )
 
 
 def test_adapter_requires_runner_loopback_endpoint(
@@ -200,11 +205,12 @@ def test_adapter_requires_runner_loopback_endpoint(
         "http://localhost:8080",
         "https://127.0.0.1:8080",
         "http://127.0.0.1/",
+        "http://127.0.0.1:0",
         "http://user:pass@127.0.0.1:8080",
         "http://127.0.0.1:8080/extra/path",
         "http://192.168.1.10:8080",
     ):
-        monkeypatch.setenv(terminus_module.TERMINUS_PROXY_URL_ENV, bad)
+        monkeypatch.setenv(TERMINUS_PROXY_URL_ENV, bad)
         with pytest.raises(ValueError, match="127.0.0.1"):
             terminus_module.SecretSafeTerminus2(
                 logs_dir=tmp_path, model_name="zai/glm-5.3-flash"
@@ -214,7 +220,7 @@ def test_adapter_requires_runner_loopback_endpoint(
 def test_adapter_requires_bound_capability(
     terminus_module: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv(terminus_module.TERMINUS_PROXY_URL_ENV, "http://127.0.0.1:9")
+    monkeypatch.setenv(TERMINUS_PROXY_URL_ENV, "http://127.0.0.1:9")
     monkeypatch.setenv("ZAI_API_KEY", "fixture-original-key")
     for bad in ("", "evallab-proxy-placeholder"):
         monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_PROXY_CAPABILITY", bad)
@@ -533,15 +539,6 @@ def _terminus_request(tmp_path: Path, **overrides: Any) -> RunRequest:
     }
     values.update(overrides)
     return RunRequest(**values)
-
-
-def test_terminus_proxy_binding_helpers() -> None:
-    assert runner_module._TERMINUS_AGENT == "terminus-2"
-    assert (
-        runner_module._TERMINUS_AGENT_IMPORT_PATH
-        == "evallab.harbor_terminus:SecretSafeTerminus2"
-    )
-    assert runner_module._TERMINUS_PROXY_URL_ENV == "EVALLAB_TERMINUS_PROXY_URL"
 
 
 def test_terminus_trial_limits_and_attempt(tmp_path: Path) -> None:

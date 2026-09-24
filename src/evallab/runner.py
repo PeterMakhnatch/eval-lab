@@ -25,9 +25,9 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
-from evallab import execution_contracts as _execution_contracts
 from evallab.execution_contracts import (
     _SUBSCRIPTION_ENVIRONMENT_KEYS,
+    BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH,
     CONTROL_AGENTS,
     DEEPSEEK_ALLOWED_MODEL,
     DEEPSEEK_ALLOWED_MODEL_ENV,
@@ -52,6 +52,9 @@ from evallab.execution_contracts import (
     REDACTED_SECRET_VALUE,
     RLM_AGENT,
     SUPPORT_COMMAND_TIMEOUT_SECONDS,
+    TERMINUS_AGENT,
+    TERMINUS_AGENT_IMPORT_PATH,
+    TERMINUS_PROXY_URL_ENV,
     WATCHDOG_POLL_SECONDS,
     ZAI_CAPABILITY_EXPIRES_AT_ENV,
     ZAI_INPUT_COST_MICROS_PER_MILLION,
@@ -172,29 +175,6 @@ HARBOR_COMPOSE_WORKDIR_LABEL = "com.docker.compose.project.working_dir"
 # Code and supporting assets belong to the imported release, not its data workspace.
 _RUNTIME_ROOT = Path(__file__).resolve().parents[2]
 
-# Terminus2 shared contract. The parent integration owns TERMINUS_AGENT,
-# TERMINUS_AGENT_IMPORT_PATH, and TERMINUS_PROXY_URL_ENV in
-# execution_contracts.py; read them when present so this lane tracks the
-# canonical values after merge. The literal fallbacks match that contract
-# exactly, so behavior is identical before the parent lands.
-_TERMINUS_AGENT: str = getattr(_execution_contracts, "TERMINUS_AGENT", "terminus-2")
-_TERMINUS_AGENT_IMPORT_PATH: str = getattr(
-    _execution_contracts,
-    "TERMINUS_AGENT_IMPORT_PATH",
-    "evallab.harbor_terminus:SecretSafeTerminus2",
-)
-_TERMINUS_PROXY_URL_ENV: str = getattr(
-    _execution_contracts, "TERMINUS_PROXY_URL_ENV", "EVALLAB_TERMINUS_PROXY_URL"
-)
-# Bounded Daytona lifecycle environment owned by the parent integration in
-# harbor_daytona.py / execution_contracts.py. Read it when present so the
-# Daytona credential transport admits the Terminus Daytona selector after
-# merge; the literal fallback matches that contract exactly.
-_BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH: str = getattr(
-    _execution_contracts,
-    "BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH",
-    "evallab.harbor_daytona:BoundedDaytonaEnvironment",
-)
 
 # =============================================================================
 # HARNESS CAPTURE CONTRACT
@@ -895,7 +875,7 @@ def run_harbor_process(
     repo_imports = (
         *HARBOR_AGENT_IMPORT_PATHS.values(),
         ZAI_MINISWE_AGENT_IMPORT_PATH,
-        _TERMINUS_AGENT_IMPORT_PATH,
+        TERMINUS_AGENT_IMPORT_PATH,
         HARBOR_STATE_JOURNAL_PLUGIN,
     )
     deepseek_adapter = HARBOR_AGENT_IMPORT_PATHS["mini-swe-agent"]
@@ -906,7 +886,7 @@ def run_harbor_process(
     # Terminus2 runs its model client host-side inside the Harbor controller
     # process, so it never uses the task-container compose sidecar transport.
     # Detection keys on the lab-owned adapter import path only.
-    terminus_lane = _TERMINUS_AGENT_IMPORT_PATH in command
+    terminus_lane = TERMINUS_AGENT_IMPORT_PATH in command
     zai_openapi_lane = (
         zai_miniswe_adapter in command
         or any(
@@ -927,7 +907,7 @@ def run_harbor_process(
         include_daytona_credentials=environment_selector in {
             "daytona",
             "evallab.harbor_daytona:SecretSafeDaytonaEnvironment",
-            _BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH,
+            BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH,
         },
     )
     secret_values = collected_secret_values()
@@ -1242,7 +1222,7 @@ def run_harbor_process(
                 work_dir=owned_usage_dir,
             )
             runtime_environment[ZAI_OPENAPI_PROXY_CAPABILITY_ENV] = capability
-            runtime_environment[_TERMINUS_PROXY_URL_ENV] = terminus_proxy_url
+            runtime_environment[TERMINUS_PROXY_URL_ENV] = terminus_proxy_url
             secret_values = collected_secret_values({**os.environ, **runtime_environment})
 
         if rlm_lane:
@@ -1762,7 +1742,7 @@ def _sanitize_persisted_job_tree(root: Path, secrets: tuple[bytes, ...]) -> None
 
 
 def _proxy_trial_limits(request: RunRequest) -> ProxyTrialLimits | None:
-    if request.agent not in {"mini-swe-agent", ZAI_OPENCODE_AGENT, _TERMINUS_AGENT}:
+    if request.agent not in {"mini-swe-agent", ZAI_OPENCODE_AGENT, TERMINUS_AGENT}:
         return None
     if (
         request.max_requests is None
@@ -1782,7 +1762,7 @@ def _proxy_trial_limits(request: RunRequest) -> ProxyTrialLimits | None:
 
 
 def _proxy_attempt_id(request: RunRequest) -> str | None:
-    if request.agent not in {"mini-swe-agent", ZAI_OPENCODE_AGENT, _TERMINUS_AGENT}:
+    if request.agent not in {"mini-swe-agent", ZAI_OPENCODE_AGENT, TERMINUS_AGENT}:
         return None
     if request.provenance is not None:
         return request.provenance.campaign_attempt_id or request.provenance.spec_id or request.name
@@ -1791,7 +1771,7 @@ def _proxy_attempt_id(request: RunRequest) -> str | None:
 
 def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     validate_request(request)
-    if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT, _TERMINUS_AGENT}:
+    if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT, TERMINUS_AGENT}:
         decision = preflight_request(request)
         if not decision.proceed:
             raise RuntimeError(f"{request.agent} credential preflight stopped: {decision.reason}")
@@ -1816,7 +1796,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
         # Terminus2 runs its model client host-side: the task keeps its
         # declared network/phase policy (no controller-OS downgrade, no
         # model-host allowlist), and Harbor enforces or refuses it honestly.
-        is_terminus = request.agent == _TERMINUS_AGENT
+        is_terminus = request.agent == TERMINUS_AGENT
         staged_task, adaptation = _stage_task_for_host(
             request.task,
             staging_dir,
@@ -1952,7 +1932,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             raise ExecutionFailure(
                 f"Harbor exited with {process.returncode}; inspect {executor_log}{cleanup_detail}"
             )
-        if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT, _TERMINUS_AGENT}:
+        if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT, TERMINUS_AGENT}:
             provider_label = (
                 "Z.ai OpenAPI"
                 if (is_zai_openapi or is_terminus)

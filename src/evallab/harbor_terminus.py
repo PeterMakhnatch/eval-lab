@@ -29,40 +29,18 @@ from typing import Any
 
 from harbor.agents.terminus_2.terminus_2 import Terminus2  # ty: ignore[unresolved-import]
 
-from evallab import execution_contracts as _contracts
+from evallab.execution_contracts import (
+    TERMINUS_PROXY_URL_ENV,
+    ZAI_OPENAPI_ALLOWED_MODELS,
+    ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS,
+    ZAI_OPENAPI_MODEL_SELECTOR,
+    ZAI_OPENAPI_PROXY_CAPABILITY_ENV,
+    ZAI_OPENAPI_PROXY_TOKEN,
+    collected_secret_values,
+)
 from evallab.harbor_common import sanitize_native_trajectory
 
-__all__ = [
-    "REQUIRED_MODEL_SELECTOR",
-    "SecretSafeTerminus2",
-    "TERMINUS_AGENT",
-    "TERMINUS_AGENT_IMPORT_PATH",
-    "TERMINUS_PROXY_URL_ENV",
-]
-
-#: Canonical agent selector. Read from the shared contracts when the parent
-#: integration has landed; the literal fallback matches it exactly.
-TERMINUS_AGENT: str = getattr(_contracts, "TERMINUS_AGENT", "terminus-2")
-
-#: Import path the Harbor CLI uses to construct this adapter.
-TERMINUS_AGENT_IMPORT_PATH: str = getattr(
-    _contracts,
-    "TERMINUS_AGENT_IMPORT_PATH",
-    "evallab.harbor_terminus:SecretSafeTerminus2",
-)
-
-#: Runner-bound loopback proxy endpoint consumed by this adapter.
-TERMINUS_PROXY_URL_ENV: str = getattr(
-    _contracts, "TERMINUS_PROXY_URL_ENV", "EVALLAB_TERMINUS_PROXY_URL"
-)
-
-#: The only admitted model route: qualified exact GLM standard-API selector.
-REQUIRED_MODEL_SELECTOR: str = _contracts.ZAI_OPENAPI_MODEL_SELECTOR
-
-_ALLOWED_MODELS: frozenset[str] = _contracts.ZAI_OPENAPI_ALLOWED_MODELS
-_CAPABILITY_ENV: str = _contracts.ZAI_OPENAPI_PROXY_CAPABILITY_ENV
-_PROXY_TOKEN_PLACEHOLDER: str = _contracts.ZAI_OPENAPI_PROXY_TOKEN
-_CREDENTIAL_ENV_KEYS: frozenset[str] = _contracts.ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS
+__all__ = ["SecretSafeTerminus2"]
 
 #: litellm resolves the ``zai`` provider key from this process-environment name.
 _PROVIDER_KEY_ENV = "ZAI_API_KEY"
@@ -70,6 +48,16 @@ _PROVIDER_KEY_ENV = "ZAI_API_KEY"
 #: The loopback interface the runner binds the trial proxy to. Hostnames that
 #: merely resolve to loopback (``localhost``) are rejected: the binding must be
 #: the literal runner-owned endpoint.
+_LOOPBACK_HOST = "127.0.0.1"
+
+#: Substrings that mark a caller-supplied LLM kwarg as a transport/credential
+#: override (covers ``api_key``, ``OPENAI_API_KEY``, ``api_base``,
+#: ``OPENAI_BASE_URL``, ``base_url``, ``AZURE_API_BASE``, ...).
+_FORBIDDEN_KWARG_SUBSTRINGS = ("api_key", "api_base", "base_url")
+
+#: Extra task-container environment names that are never admitted. ``extra_env``
+#: is exported into the task's tmux session, so anything credential-shaped or
+#: proxy-shaped fails closed here.
 _FORBIDDEN_EXTRA_ENV_KEYS = frozenset(
     {
         "mswea_api_key",
@@ -80,7 +68,10 @@ _FORBIDDEN_EXTRA_ENV_KEYS = frozenset(
         "openai_api_base",
         "anthropic_api_key",
         "anthropic_base_url",
-        *(str(key).casefold() for key in _CREDENTIAL_ENV_KEYS),
+        *(
+            str(key).casefold()
+            for key in ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS
+        ),
     }
 )
 _FORBIDDEN_EXTRA_ENV_PREFIXES = ("evallab_zai_openapi", "evallab_terminus", "evallab_zai_")
@@ -88,10 +79,10 @@ _FORBIDDEN_EXTRA_ENV_PREFIXES = ("evallab_zai_openapi", "evallab_terminus", "eva
 
 def _require_exact_model(model_name: str | None) -> str:
     """Return ``model_name`` only when it is the qualified exact GLM route."""
-    if model_name != REQUIRED_MODEL_SELECTOR or model_name not in _ALLOWED_MODELS:
+    if model_name != ZAI_OPENAPI_MODEL_SELECTOR or model_name not in ZAI_OPENAPI_ALLOWED_MODELS:
         raise ValueError(
             "SecretSafeTerminus2 requires the qualified exact model "
-            f"{REQUIRED_MODEL_SELECTOR!r}, got {model_name!r}"
+            f"{ZAI_OPENAPI_MODEL_SELECTOR!r}, got {model_name!r}"
         )
     return model_name
 
@@ -101,6 +92,7 @@ def _require_loopback_proxy_url() -> str:
     raw = os.environ.get(TERMINUS_PROXY_URL_ENV, "")
     try:
         parsed = urllib.parse.urlsplit(raw)
+        port = parsed.port
     except ValueError as exc:
         raise ValueError(
             f"{TERMINUS_PROXY_URL_ENV} is not a valid proxy endpoint"
@@ -108,7 +100,8 @@ def _require_loopback_proxy_url() -> str:
     if (
         parsed.scheme != "http"
         or parsed.hostname != _LOOPBACK_HOST
-        or parsed.port is None
+        or port is None
+        or not 1 <= port <= 65535
         or parsed.username is not None
         or parsed.password is not None
         or parsed.path not in {"", "/"}
@@ -119,15 +112,16 @@ def _require_loopback_proxy_url() -> str:
             f"{TERMINUS_PROXY_URL_ENV} must be an http://127.0.0.1:<port> "
             f"trial endpoint, got {raw!r}"
         )
-    return f"http://{_LOOPBACK_HOST}:{parsed.port}"
+    return f"http://{_LOOPBACK_HOST}:{port}"
 
 
 def _require_capability() -> str:
     """Return the trial capability, failing closed on absence or placeholder."""
-    capability = os.environ.get(_CAPABILITY_ENV, "")
-    if not capability or capability == _PROXY_TOKEN_PLACEHOLDER:
+    capability = os.environ.get(ZAI_OPENAPI_PROXY_CAPABILITY_ENV, "")
+    if not capability or capability == ZAI_OPENAPI_PROXY_TOKEN:
         raise ValueError(
-            f"SecretSafeTerminus2 requires a bound trial capability in {_CAPABILITY_ENV}"
+            "SecretSafeTerminus2 requires a bound trial capability in "
+            f"{ZAI_OPENAPI_PROXY_CAPABILITY_ENV}"
         )
     return capability
 
@@ -150,7 +144,7 @@ def _reject_kwarg_overrides(
 def _scrubbed_extra_env(extra_env: dict[str, str] | None, *, capability: str) -> dict[str, str]:
     """Reject secret-bearing task-container environment; pass through the rest."""
     env = dict(extra_env or {})
-    secrets = _contracts.collected_secret_values() | {capability}
+    secrets = collected_secret_values() | {capability}
     for key, value in env.items():
         folded = str(key).casefold()
         if folded in _FORBIDDEN_EXTRA_ENV_KEYS or folded.startswith(
@@ -176,9 +170,13 @@ class SecretSafeTerminus2(Terminus2):
     the model transport is pinned: ``api_base`` points at the runner-owned
     loopback proxy and the trial capability is exposed to litellm's ``zai``
     provider lookup via the controller process environment. No provider
-    secret ever enters ``llm_kwargs`` (persisted into the trajectory),
-    ``llm_call_kwargs``, ``extra_env`` (exported into the task container),
-    or the task exec environment.
+    secret ever enters ``llm_kwargs`` (trajectory-persisted), ``llm_call_kwargs``,
+    ``extra_env`` (exported into the task container), or the task exec
+    environment.
+
+    ``model_name`` is keyword-only: upstream binds it positionally, but this
+    adapter must validate the exact route before delegating, so a second
+    positional can never smuggle an unvalidated model past the guard.
     """
 
     def __init__(
@@ -191,13 +189,12 @@ class SecretSafeTerminus2(Terminus2):
         extra_env: dict[str, str] | None = None,
         **kwargs: Any,
     ) -> None:
-        if len(args) > 2:
+        if len(args) > 1:
             raise ValueError(
-                "SecretSafeTerminus2 accepts at most (logs_dir, model_name) "
-                "positionally: transport must be bound by keyword-free defaults"
+                "SecretSafeTerminus2 accepts at most logs_dir positionally; "
+                "pass model_name as a keyword argument"
             )
-        effective_model = model_name if model_name is not None else kwargs.get("model_name")
-        model = _require_exact_model(effective_model)
+        model = _require_exact_model(model_name)
         if api_base is not None:
             raise ValueError(
                 "SecretSafeTerminus2 rejects api_base overrides: "
@@ -238,7 +235,7 @@ class SecretSafeTerminus2(Terminus2):
         os.environ[_PROVIDER_KEY_ENV] = capability
 
     def populate_context_post_run(self, context: Any) -> None:
-        secrets = _contracts.collected_secret_values()
+        secrets = collected_secret_values()
         logs = Path(self.logs_dir)
         sanitize_native_trajectory(logs / "trajectory.json", secrets)
         for continuation in sorted(logs.glob("trajectory.cont-*.json")):

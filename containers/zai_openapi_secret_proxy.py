@@ -1107,12 +1107,18 @@ def _write_ready_file(path: Path, host: str, port: int) -> None:
 
     The payload carries only the address the socket bound; it never contains
     capabilities, secrets, or budget state. The parent directory must already
-    exist inside a private trial directory.
+    exist inside a private trial directory. Published atomically via temp file
+    plus rename (the same durable pattern as the budget ledger) so a
+    supervisor polling on existence never observes empty or partial JSON.
     """
     payload = (json.dumps({"host": host, "port": port}, sort_keys=True) + "\n").encode(
         "ascii"
     )
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_CLOEXEC, 0o600)
+    target = Path(path)
+    temporary = target.with_name(f".{target.name}.{os.getpid()}.tmp")
+    descriptor = os.open(
+        temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC, 0o600
+    )
     try:
         with open(descriptor, "wb", closefd=True) as destination:
             destination.write(payload)
@@ -1120,8 +1126,9 @@ def _write_ready_file(path: Path, host: str, port: int) -> None:
             os.fsync(destination.fileno())
     except Exception:
         with contextlib.suppress(OSError):
-            path.unlink()
+            temporary.unlink()
         raise
+    os.replace(temporary, target)
 
 
 def serve(

@@ -151,6 +151,7 @@ RLM_AGENT = "rlm"
 TERMINUS_AGENT = "terminus-2"
 TERMINUS_AGENT_IMPORT_PATH = "evallab.harbor_terminus:SecretSafeTerminus2"
 TERMINUS_PROXY_URL_ENV = "EVALLAB_TERMINUS_PROXY_URL"
+BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH = "evallab.harbor_daytona:BoundedDaytonaEnvironment"
 ZAI_OPENCODE_AGENT = "zai-opencode"
 ZAI_OPENCODE_MODEL_SELECTORS: frozenset[str] = frozenset(
     {"zai-coding-plan/glm-5.3", "zai-coding-plan/glm-5.3-flash"}
@@ -1050,8 +1051,11 @@ def build_command(request: RunRequest) -> list[str]:
         and request.agent == "mini-swe-agent"
         and request.model == ZAI_OPENAPI_MODEL_SELECTOR
     )
+    terminus_daytona = environment == "daytona" and request.agent == TERMINUS_AGENT
     if zai_daytona:
         environment = "evallab.harbor_daytona:SecretSafeDaytonaEnvironment"
+    elif terminus_daytona:
+        environment = BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH
     command = [
         "harbor",
         "run",
@@ -1070,7 +1074,7 @@ def build_command(request: RunRequest) -> list[str]:
         "--n-attempts",
         str(request.attempts),
     ]
-    if zai_daytona:
+    if zai_daytona or terminus_daytona:
         # Provider-side destruction still applies if the local controller dies.
         ttl_minutes = (request.timeout_seconds + 600 + 59) // 60
         command.extend(["--environment-kwarg", f"ttl_minutes={ttl_minutes}"])

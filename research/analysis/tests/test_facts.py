@@ -66,11 +66,23 @@ def test_trial_facts_include_atif_tokens_tools_failures_and_association(tmp_path
     assert fact.output_tokens == 5
     assert fact.cost_usd == 0.01
     assert fact.trajectory_count == 4
-    assert fact.step_count == 5
     assert fact.llm_call_count == 1
     assert fact.tool_call_count == 1
     assert fact.command_failure_count == 1
     assert fact.repeated_failed_command_count == 0
+
+    # A copied prompt remains projected evidence, not an additional action.
+    # Changing only that flag must add exactly one action, without changing
+    # model usage or the single executed tool call.
+    trajectory_path = job.trials[0].path / "agent/trajectory.json"
+    trajectory = json.loads(trajectory_path.read_text())
+    assert trajectory["steps"][0]["is_copied_context"] is True
+    trajectory["steps"][0]["is_copied_context"] = False
+    trajectory_path.write_text(json.dumps(trajectory))
+    changed = extract_trial_fact(job, job.trials[0])
+    assert changed.step_count == fact.step_count + 1
+    assert changed.tool_call_count == fact.tool_call_count
+    assert changed.input_tokens == fact.input_tokens
 
 
 def test_rebuild_from_raw_writes_joinable_fact_and_trajectory_tables(tmp_path: Path) -> None:

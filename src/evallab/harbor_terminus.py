@@ -200,7 +200,7 @@ class SecretSafeTerminus2(Terminus2):
                 "SecretSafeTerminus2 rejects api_base overrides: "
                 "model transport is bound by the trial proxy"
             )
-        backend = kwargs.get("llm_backend", None)
+        backend = kwargs.get("llm_backend")
         if backend is not None and getattr(backend, "value", backend) != "litellm":
             raise ValueError(
                 f"SecretSafeTerminus2 requires the litellm backend, got {backend!r}"

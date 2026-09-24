@@ -1042,9 +1042,10 @@ def build_trajectory_ir(
         native_raw: dict[tuple[str | None, int | None], tuple[str, str, dict[str, Any]]] = {}
         if traj_path is not None and traj_payload is not None:
             try:
-                chain = _resolve_chain_segments(traj_path, traj_payload, trial_dir)
+                resolution = _resolve_chain_segments(traj_path, traj_payload, trial_dir)
+                chain = resolution.segments if resolution.complete else ()
             except Exception:
-                chain = [(traj_path, traj_payload, "")]
+                chain = ()
             positioned_raw = [
                 (position, raw)
                 for position, raw in _chain_action_steps(chain)
@@ -1142,11 +1143,9 @@ def build_trajectory_ir(
                         or step.tool_name
                         or "tool"
                     )
-                    tc_args = tc_dict.get("arguments") or (
-                        tc_dict.get("function", {}).get("arguments")
-                        if isinstance(tc_dict.get("function"), dict)
-                        else None
-                    )
+                    tc_args = tc_dict.get("arguments")
+                    if tc_args is None and isinstance(tc_dict.get("function"), dict):
+                        tc_args = tc_dict["function"].get("arguments")
                     tc_call_id = tc_dict.get("tool_call_id") or tc_dict.get("id")
                     raw_command = (
                         tc_args.get("cmd") or tc_args.get("command") or tc_args.get("input")

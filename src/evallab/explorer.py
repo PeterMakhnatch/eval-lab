@@ -461,6 +461,7 @@ def _observation_results(step: dict[str, Any]) -> list[dict[str, Any]]:
     return [item for item in (raw or []) if isinstance(item, dict)]
 
 
+def _trajectory_view(trial_dir: Path) -> TrajectoryView | Labeled:
     path = trial_dir / "agent" / "trajectory.json"
     payload, error = _load_json(path)
     if payload is None:

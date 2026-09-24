@@ -745,7 +745,7 @@ def _start_terminus_proxy(
     limits: ProxyTrialLimits,
     timeout_seconds: float,
     work_dir: Path,
-) -> tuple[subprocess.Popen[str], str]:
+) -> tuple[subprocess.Popen[bytes], str]:
     """Start the per-trial loopback proxy; return (process, proxy URL).
 
     Fails closed before Harbor launches when the proxy cannot bind, exits
@@ -757,10 +757,8 @@ def _start_terminus_proxy(
         raise RuntimeError(f"Z.ai OpenAPI secret proxy is missing: {script}")
     ready_path = work_dir / "terminus-proxy-ready.json"
     stderr_path = work_dir / "terminus-proxy-stderr.log"
-    try:
+    with suppress(FileNotFoundError):
         ready_path.unlink()
-    except OSError:
-        pass
     env = _terminus_proxy_env(
         secret_path=secret_path,
         capability=capability,
@@ -837,7 +835,7 @@ def _start_terminus_proxy(
         raise
 
 
-def _stop_terminus_proxy(process: subprocess.Popen[str] | None) -> None:
+def _stop_terminus_proxy(process: subprocess.Popen[bytes] | None) -> None:
     """Terminate a supervised loopback proxy; safe to call repeatedly."""
     if process is None or process.poll() is not None:
         return
@@ -917,7 +915,7 @@ def run_harbor_process(
     owned_usage_path: Path | None = None
     capability_id: str | None = None
     proxy_pricing: dict[str, int] | None = None
-    terminus_proxy: subprocess.Popen[str] | None = None
+    terminus_proxy: subprocess.Popen[bytes] | None = None
     try:
         if deepseek_lane:
             if proxy_attempt_id is None or proxy_limits is None:

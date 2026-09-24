@@ -688,6 +688,8 @@ def trajectory_ir_to_outline(
                 reasoning_content_ref=step.reasoning_content_ref,
                 reasoning_tokens=r_tokens,
                 prompt_token_ids_ref=p_ref,
+                completion_token_ids_ref=c_ref,
+                logprobs_ref=lp_ref,
                 sample_index=step.sample_index,
                 sampling_params=asdict(step.sampling_params) if step.sampling_params else None,
                 is_copied_context=bool(step.is_copied_context),

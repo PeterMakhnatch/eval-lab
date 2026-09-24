@@ -264,6 +264,10 @@ def check_trace_readiness(
     quality_status = str(report["quality_status"])
     if quality_status in _FATAL_QUALITY_STATUSES:
         reasons.append(f"quality_{quality_status}")
+    if prompt_tokens == 0 and completion_tokens == 0:
+        reasons.append(ZERO_TOKEN_REASON)
+    if report["atif_schema_version"] not in SUPPORTED_SCHEMA_VERSIONS:
+        reasons.append(f"unsupported_schema_version:{report['atif_schema_version']}")
     if malformed_segments:
         reasons.append(f"continuation_segment_missing_steps:{','.join(malformed_segments)}")
     if chain_incomplete_reason is not None:

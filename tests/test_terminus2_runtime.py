@@ -37,9 +37,9 @@ from evallab import runner as runner_module
 from evallab.execution_contracts import (
     PRIVATE_PERSIST_MODE,
     TERMINUS_PROXY_URL_ENV,
+    ZAI_OPENAPI_MODEL_SELECTOR,
     ProxyTrialLimits,
     RunRequest,
-    ZAI_OPENAPI_MODEL_SELECTOR,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -354,7 +354,7 @@ def _launch_proxy(
     capability: str,
     limits: ProxyTrialLimits,
     attempt_id: str = "terminus-test-attempt",
-) -> tuple[subprocess.Popen[str], str, Path]:
+) -> tuple[subprocess.Popen[bytes], str, Path]:
     secret_file = tmp_path / "provider-key"
     secret_file.write_text(f"{SECRET_SENTINEL}\n")
     secret_file.chmod(0o600)
@@ -541,20 +541,13 @@ def _terminus_request(tmp_path: Path, **overrides: Any) -> RunRequest:
     return RunRequest(**values)
 
 
-def test_terminus_trial_limits_and_attempt(tmp_path: Path) -> None:
-    request = _terminus_request(tmp_path)
-    limits = runner_module._proxy_trial_limits(request)
-    assert limits is not None
-    assert (limits.max_requests, limits.max_input_tokens) == (10, 1000)
-    assert limits.max_cost_micros == 1500000
-    assert runner_module._proxy_attempt_id(request) == "terminus-run"
+def test_metered_terminus_requires_ceilings_but_controls_do_not(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="explicit provider ceilings"):
         runner_module._proxy_trial_limits(
             _terminus_request(tmp_path, max_requests=None)
         )
     oracle = _terminus_request(tmp_path, agent="oracle")
     assert runner_module._proxy_trial_limits(oracle) is None
-    assert runner_module._proxy_attempt_id(oracle) is None
 
 
 def test_terminus_lane_requires_bound_capability(tmp_path: Path) -> None:

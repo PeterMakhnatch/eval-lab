@@ -430,6 +430,15 @@ def _authoritative_int(value: Any) -> int | None:
     if isinstance(value, int) and value >= 0:
         return value
     return None
+
+
+def _authoritative_float(value: Any) -> float | None:
+    """Return a finite nonnegative native cost, or None when unavailable."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return float(value) if math.isfinite(value) and value >= 0 else None
+
+
 ChainSegment = tuple[Path, dict[str, Any], str]
 """One continuation document: (path, parsed data, sha256 of the file bytes)."""
 
@@ -1496,6 +1505,7 @@ def outline_trajectory(
     total_errors = 0
     expected_probe_count = 0
     for idx, (segment_position, raw_step) in enumerate(positioned_steps, start=1):
+        native_path, _, native_sha = chain_segments[segment_position]
         # Chain-ordinal id: per-segment step_ids restart in every continuation
         # segment, so the stitched view numbers actions in canonical order while
         # each step keeps its native document, hash, and original step id.
@@ -1747,8 +1757,8 @@ def outline_trajectory(
     # that mapping (for example summarizer/subagent usage) would otherwise
     # understate the outline. This stays the native ledger only: upstream may
     # raise on length-truncated calls before usage is recorded, so such physical
-    # calls can be absent from both step metrics and native totals. The physical
-    # invoice lives in the separate proxy ledger; never infer one from the other.
+    # calls can be absent from both step metrics and native totals. The proxy
+    # retains physical-call accounting at uncached rates, not a provider invoice.
     final_metrics_value = traj_data.get("final_metrics")
     declared_metrics = final_metrics_value if isinstance(final_metrics_value, dict) else {}
     final_metrics_present = isinstance(final_metrics_value, dict)
@@ -1767,6 +1777,8 @@ def outline_trajectory(
     )
     outline_cost_usd = declared_cost if declared_cost is not None else total_cost_usd
     state_metrics = _extract_state_journal_metrics(trial_dir, steps_out, citations)
+    ref_metrics = _extract_reference_and_citation_metrics(trial_dir, steps_out, citations)
+    edit_call_count = sum(1 for step in steps_out if _is_edit_action(step.tool_name, step.tool_command))
     return TrajectoryOutline(
         trial_id=trial_id,
         job_id=job_id,

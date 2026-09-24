@@ -32,6 +32,7 @@ provider billing. Nothing here infers one ledger from another.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -329,15 +330,20 @@ def test_continuation_events_cite_native_documents() -> None:
     assert by_step[5].endswith("agent/trajectory.cont-1.json")
     assert native_step[2] == 2
     assert native_step[4] == 3
-    bash_steps = {
-        event.step_index for event in ir.events if event.status_owning_program == "bash_command"
-    }
-    assert {2, 3, 4} <= bash_steps
-    assert {
-        event.step_index
-        for event in ir.events
-        if event.status_owning_program == "mark_task_complete"
-    } == {5}
+    for event in ir.events:
+        if event.event_type != "tool_call":
+            continue
+        citation = event.source_citation
+        source_bytes = (_trial("trial-continued") / citation.source_path).read_bytes()
+        assert citation.source_sha256 == hashlib.sha256(source_bytes).hexdigest()
+        source_step = next(
+            step
+            for step in json.loads(source_bytes)["steps"]
+            if step["step_id"] == citation.step_id
+        )
+        assert citation.tool_call_id in {
+            call["tool_call_id"] for call in source_step.get("tool_calls", [])
+        }
 
 
 def test_same_tool_call_id_keeps_distinct_observations() -> None:
@@ -345,7 +351,10 @@ def test_same_tool_call_id_keeps_distinct_observations() -> None:
     view = _trajectory_view(_trial("trial-continued"))
     rows = [call for call in view.tool_calls if call.tool_call_id == "call_1_1"]
     assert len(rows) == 2
-    assert {row.observation.value for row in rows} == {"2 failed, 5 passed", "7 passed"}
+    assert {row.observation.value["readable_chars"] for row in rows} == {
+        len("2 failed, 5 passed"),
+        len("7 passed"),
+    }
 
     job = load_job(FIXTURE_JOB)
     continued = next(t for t in job.trials if t.path.name == "trial-continued")

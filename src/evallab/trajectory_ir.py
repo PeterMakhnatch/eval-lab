@@ -691,6 +691,9 @@ def trajectory_ir_to_outline(
                 sample_index=step.sample_index,
                 sampling_params=asdict(step.sampling_params) if step.sampling_params else None,
                 is_copied_context=bool(step.is_copied_context),
+                source_path=ir.source_path,
+                source_sha256=ir.source_sha256,
+                source_step_id=step.step_id,
             )
         )
 

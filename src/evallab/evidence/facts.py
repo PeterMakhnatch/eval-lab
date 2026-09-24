@@ -415,7 +415,7 @@ def _state_change_fact(
 
 def _terminal_root_trajectory(
     trajectories: Sequence[TrajectoryFact],
-) -> TrajectoryFact | None:
+) -> tuple[TrajectoryFact | None, bool]:
     """Select the usage-authoritative root document without filesystem access.
 
     All projected documents already resolved inside the trial directory, so the
@@ -423,13 +423,13 @@ def _terminal_root_trajectory(
     the canonical ``trajectory.json`` root document (or the first root document),
     follow ``continued_trajectory_ref`` links between sibling source paths, and
     stop at the terminal document whose ``final_metrics`` carry the cumulative
-    native totals. Cycles, dangling, and escaping references stop the walk.
-    Every document stays projected and addressable; only the aggregate source
-    moves from the first root to the terminal one.
+    native totals. Cycles, dangling, and escaping references end the walk with
+    ``complete=False``; the caller must then not use the partial head as the
+    terminal authority. Every document stays projected and addressable either way.
     """
     roots = [item for item in trajectories if item.embedded_path is None]
     if not roots:
-        return None
+        return None, True
     by_source: dict[str, TrajectoryFact] = {}
     for item in roots:
         by_source.setdefault(item.source_path, item)
@@ -438,10 +438,10 @@ def _terminal_root_trajectory(
         roots[0],
     )
     seen = {current.source_path}
-    for _ in range(16):
+    while True:
         ref = current.continued_trajectory_ref
         if not ref:
-            break
+            return current, True
         parent, _, _ = current.source_path.rpartition("/")
         candidate = ref.lstrip("/") if ref.startswith("/") else (
             f"{parent}/{ref}" if parent else ref
@@ -459,13 +459,13 @@ def _terminal_root_trajectory(
             else:
                 parts.append(part)
         if escaped:
-            break
+            return None, False
         nxt = by_source.get("/".join(parts))
         if nxt is None or nxt.source_path in seen:
-            break
+            return None, False
         seen.add(nxt.source_path)
         current = nxt
-    return current
+    return current, True
 
 
 def _live_step_keys(projection: TrialTrajectoryProjection) -> set[tuple[str, int]]:
@@ -497,7 +497,12 @@ def extract_trial_fact(
     raw_model_info = agent_info.get("model_info")
     model_info = raw_model_info if isinstance(raw_model_info, dict) else {}
     raw_agent_result = _agent_result(result)
-    root_metrics = _terminal_root_trajectory(projection.trajectories)
+    root_metrics, _chain_complete = _terminal_root_trajectory(projection.trajectories)
+    if not _chain_complete:
+        # An unfollowed continuation reference means no projected document holds
+        # the cumulative native totals: fall back to result-native usage only and
+        # never present the stale partial head as the terminal authority.
+        root_metrics = None
     input_tokens = _integer(raw_agent_result.get("n_input_tokens"))
     cache_tokens = _integer(raw_agent_result.get("n_cache_tokens"))
     output_tokens = _integer(raw_agent_result.get("n_output_tokens"))

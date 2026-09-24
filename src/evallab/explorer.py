@@ -51,6 +51,7 @@ from evallab.labels import ReviewQueueItem, select_review_queue
 from evallab.registry import TaskRegistry
 from evallab.schemas import ANALYSIS_SIDECAR_FILENAME, TrialAnalysisSidecar
 from evallab.traj import (
+    ChainResolution,
     TrajectoryOutline,
     _chain_action_steps,
     _resolve_chain_segments,
@@ -460,7 +461,6 @@ def _observation_results(step: dict[str, Any]) -> list[dict[str, Any]]:
     return [item for item in (raw or []) if isinstance(item, dict)]
 
 
-def _trajectory_view(trial_dir: Path) -> TrajectoryView | Labeled:
     path = trial_dir / "agent" / "trajectory.json"
     payload, error = _load_json(path)
     if payload is None:
@@ -468,31 +468,50 @@ def _trajectory_view(trial_dir: Path) -> TrajectoryView | Labeled:
     if not isinstance(payload.get("steps"), list):
         return unavailable("trajectory has no steps array")
     try:
-        chain = _resolve_chain_segments(path, payload, trial_dir)
+        resolution = _resolve_chain_segments(path, payload, trial_dir)
     except Exception:
-        chain = [(path, payload, "")]
+        resolution = ChainResolution(
+            segments=((path, payload, ""),),
+            complete=False,
+            stopped_ref="unresolvable",
+            stop_cause="unparseable",
+        )
+    if not resolution.complete:
+        # A partial head is not the trajectory: say so instead of rendering it.
+        ref = (resolution.stopped_ref or "unresolvable")[:120]
+        return unavailable(
+            f"incomplete continuation chain: continued ref {ref!r} "
+            f"is {resolution.stop_cause}"
+        )
     # Stitched non-copied actions across continuations with view-ordinal ids:
-    # raw per-segment step_ids restart in every continuation segment.
-    raw_steps = [step for step in _chain_action_steps(chain) if isinstance(step, dict)]
+    # raw per-segment step_ids restart in every continuation segment, and the
+    # same tool_call_id may recur across segments, so observation linkage is
+    # scoped by source document, never by bare call id.
+    live = [
+        (position, step)
+        for position, step in _chain_action_steps(resolution.segments)
+        if isinstance(step, dict)
+    ]
 
     steps: list[StepRow] = []
     calls: list[ToolCallRow] = []
     signature_counts: dict[tuple[str, str], int] = {}
-    exit_by_call: dict[str, int] = {}
-    content_by_call: dict[str, Labeled] = {}
-    for step in raw_steps:
+    exit_by_call: dict[tuple[int, str], int] = {}
+    content_by_call: dict[tuple[int, str], Labeled] = {}
+    for segment_position, step in live:
         for obs in _observation_results(step):
             call_ref = obs.get("source_call_id")
             if not isinstance(call_ref, str):
                 continue
+            key = (segment_position, call_ref)
             exit_code = obs.get("command_exit_code")
             if isinstance(exit_code, int):
-                exit_by_call[call_ref] = exit_code
+                exit_by_call[key] = exit_code
             if "content" in obs:
-                content_by_call[call_ref] = content_label(
+                content_by_call[key] = content_label(
                     obs.get("content"), what=f"observation of {call_ref}"
                 )
-    for view_id, step in enumerate(raw_steps, start=1):
+    for view_id, (segment_position, step) in enumerate(live, start=1):
         step_calls = [c for c in (step.get("tool_calls") or []) if isinstance(c, dict)]
         results = _observation_results(step)
         steps.append(
@@ -529,9 +548,9 @@ def _trajectory_view(trial_dir: Path) -> TrajectoryView | Labeled:
                     step_id=view_id,
                     tool_call_id=call_id,
                     function=function,
-                    exit_code=exit_by_call.get(call_id),
+                    exit_code=exit_by_call.get((segment_position, call_id)),
                     observation=content_by_call.get(
-                        call_id,
+                        (segment_position, call_id),
                         unavailable(f"no observation recorded for {call_id}"),
                     ),
                 )

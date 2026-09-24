@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from collections import Counter
 from collections.abc import Sequence
@@ -133,6 +134,9 @@ class StepOutline:
     is_expected_probe: bool = False
     error_category: str = "none"
     is_copied_context: bool = False
+    source_path: str | None = None
+    source_sha256: str | None = None
+    source_step_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -426,42 +430,51 @@ def _authoritative_int(value: Any) -> int | None:
     if isinstance(value, int) and value >= 0:
         return value
     return None
-
-
-def _authoritative_float(value: Any) -> float | None:
-    """Return a declared aggregate cost, or None when absent/invalid."""
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int | float) and value >= 0:
-        return float(value)
-    return None
-
-
 ChainSegment = tuple[Path, dict[str, Any], str]
 """One continuation document: (path, parsed data, sha256 of the file bytes)."""
 
-_CHAIN_MAX_HOPS = 16
+
+@dataclass(frozen=True)
+class ChainResolution:
+    """A resolved continuation chain plus its completeness verdict.
+
+    ``complete`` is False when a ``continued_trajectory_ref`` could not be
+    followed; ``stopped_ref``/``stop_cause`` name it (``missing``, ``escaping``,
+    ``unparseable``, or ``cycle``). Consumers must treat an incomplete chain as
+    partial evidence, never as the complete run.
+    """
+
+    segments: tuple[ChainSegment, ...]
+    complete: bool
+    stopped_ref: str | None = None
+    stop_cause: str | None = None
 
 
 def _resolve_chain_segments(
     traj_path: Path,
     traj_data: dict[str, Any],
     trial_dir: Path,
-) -> list[ChainSegment]:
+) -> ChainResolution:
     """Resolve generic ATIF ``continued_trajectory_ref`` links, canonical first.
 
     Upstream agents split one logical run into continuation segments (for example
     a summarization handoff); every segment is a complete ATIF document and the
     terminal segment carries the cumulative native ``final_metrics``. Each hop is
-    jailed to the trial directory, content-hashed, and cycle-guarded; dangling,
-    escaping, or unloadable links stop the walk at the last loadable document.
+    jailed to the trial directory, content-hashed, and cycle-guarded (the seen
+    set alone bounds the walk: every hop must reach a new file, so no hop cap is
+    needed). A continued reference that cannot be followed — missing, escaping,
+    unparseable, or cyclic — ends the walk with ``complete=False`` and names the
+    stopping reference, so callers never present a stale partial head as the
+    complete run.
     """
     segments: list[ChainSegment] = [(traj_path, traj_data, sha256_file(traj_path))]
     seen = {traj_path.resolve()}
     current_path = traj_path
     current_data = traj_data
     trial_root = trial_dir.resolve()
-    for _ in range(_CHAIN_MAX_HOPS):
+    stopped_ref: str | None = None
+    stop_cause: str | None = None
+    while True:
         ref = current_data.get("continued_trajectory_ref")
         if not isinstance(ref, str) or not ref:
             break
@@ -473,42 +486,57 @@ def _resolve_chain_segments(
         try:
             resolved = candidate.resolve()
         except Exception:
+            stopped_ref, stop_cause = ref, "unparseable"
             break
         if resolved != trial_root and trial_root not in resolved.parents:
+            stopped_ref, stop_cause = ref, "escaping"
             break
-        if resolved in seen or not resolved.is_file():
+        if resolved in seen:
+            stopped_ref, stop_cause = ref, "cycle"
+            break
+        if not resolved.is_file():
+            stopped_ref, stop_cause = ref, "missing"
             break
         try:
             loaded = json.loads(resolved.read_text(encoding="utf-8"))
         except Exception:
+            stopped_ref, stop_cause = ref, "unparseable"
             break
         if not isinstance(loaded, dict):
+            stopped_ref, stop_cause = ref, "unparseable"
             break
         seen.add(resolved)
         segments.append((resolved, loaded, sha256_file(resolved)))
         current_path = resolved
         current_data = loaded
-    return segments
+    return ChainResolution(
+        segments=tuple(segments),
+        complete=stopped_ref is None,
+        stopped_ref=stopped_ref,
+        stop_cause=stop_cause,
+    )
 
 
-def _chain_action_steps(segments: Sequence[ChainSegment]) -> list[Any]:
+def _chain_action_steps(segments: Sequence[ChainSegment]) -> list[tuple[int, Any]]:
     """Non-copied raw steps across a continuation chain, canonical order.
 
+    Returns ``(segment_position, raw_step)`` pairs so views can cite each action
+    against its native document while numbering the merged view ordinally.
     Copied context repeats history already present in an earlier segment, so it
     is excluded from action-oriented views (counts, phases, loop/error analysis)
     while every segment stays cited and every document stays projected. Non-dict
     entries pass through untouched so malformed shapes still fail closed in the
     strict consumers instead of being silently dropped here.
     """
-    stitched: list[Any] = []
-    for _, data, _ in segments:
+    stitched: list[tuple[int, Any]] = []
+    for position, (_, data, _) in enumerate(segments):
         raw_steps = data.get("steps")
         if not isinstance(raw_steps, list):
             continue
         for raw_step in raw_steps:
             if isinstance(raw_step, dict) and raw_step.get("is_copied_context"):
                 continue
-            stitched.append(raw_step)
+            stitched.append((position, raw_step))
     return stitched
 
 
@@ -1314,9 +1342,16 @@ def outline_trajectory(
             tool_mix={},
         )
 
-    chain_segments: list[ChainSegment] = []
+    chain_segments: tuple[ChainSegment, ...] = ()
+    chain_complete = True
+    chain_stopped_ref: str | None = None
+    chain_stop_cause: str | None = None
     if isinstance(traj_data, dict):
-        chain_segments = _resolve_chain_segments(traj_path, traj_data, trial_dir)
+        resolution = _resolve_chain_segments(traj_path, traj_data, trial_dir)
+        chain_segments = resolution.segments
+        chain_complete = resolution.complete
+        chain_stopped_ref = resolution.stopped_ref
+        chain_stop_cause = resolution.stop_cause
         traj_path = chain_segments[-1][0]
         traj_data = chain_segments[-1][1]
         traj_sha256 = chain_segments[-1][2]
@@ -1336,6 +1371,29 @@ def outline_trajectory(
                 sha256=segment_sha,
                 kind="trajectory",
             )
+        )
+    if not chain_complete:
+        # An unfollowed continuation reference means the loaded tail is a stale
+        # partial: report it as unavailable, never as a featured complete run.
+        return _unavailable_outline(
+            trial_id=trial_id,
+            job_id=job_id,
+            trial_name=trial_name,
+            job_name=job_name,
+            task_name=task_name,
+            agent_name=agent_name,
+            agent_version=agent_version,
+            model_name=model_name,
+            reason=(
+                f"incomplete_continuation_chain: continued ref "
+                f"{chain_stopped_ref!r} is {chain_stop_cause}"
+            ),
+            source_path=str(traj_path),
+            source_sha256=traj_sha256,
+            duration_seconds=duration_seconds,
+            primary_reward=primary_reward,
+            exception_class=exception_class,
+            citations=citations,
         )
     if not isinstance(traj_data, dict):
         return _unavailable_outline(
@@ -1395,7 +1453,8 @@ def outline_trajectory(
                 exception_class=exception_class,
                 citations=citations,
             )
-    raw_steps = _chain_action_steps(chain_segments)
+    positioned_steps = _chain_action_steps(chain_segments)
+    raw_steps = [raw_step for _, raw_step in positioned_steps]
     if any(not isinstance(step, dict) for step in raw_steps):
         return _unavailable_outline(
             trial_id=trial_id,
@@ -1436,10 +1495,14 @@ def outline_trajectory(
     recovery_count = 0
     total_errors = 0
     expected_probe_count = 0
-    for idx, raw_step in enumerate(raw_steps, start=1):
+    for idx, (segment_position, raw_step) in enumerate(positioned_steps, start=1):
         # Chain-ordinal id: per-segment step_ids restart in every continuation
-        # segment, so the stitched view numbers actions in canonical order.
+        # segment, so the stitched view numbers actions in canonical order while
+        # each step keeps its native document, hash, and original step id.
         step_id = idx
+        source = _safe_str(raw_step.get("source") or "agent")
+        native_step_value = raw_step.get("step_id")
+        native_step_id = native_step_value if isinstance(native_step_value, int) else None
         timestamp = raw_step.get("timestamp")
         if first_step_timestamp is None and timestamp:
             first_step_timestamp = str(timestamp)
@@ -1631,6 +1694,9 @@ def outline_trajectory(
                 is_expected_probe=is_probe,
                 error_category=error_classification.category.value,
                 is_copied_context=bool(raw_step.get("is_copied_context", False)),
+                source_path=str(native_path),
+                source_sha256=native_sha,
+                source_step_id=native_step_id,
             )
         )
 
@@ -1929,7 +1995,7 @@ def render_outline(
                 f"  Unattributed (native ledger): prompt={unattributed_prompt:,}, "
                 f"completion={unattributed_completion:,} "
                 f"(native final_metrics beyond step calls, e.g. subagent overhead; "
-                f"not a physical invoice)"
+                f"native estimates only, not proxy evidence or billing)"
             )
     lines.append("ORDERED PHASES:")
     for phase in outline.phases:

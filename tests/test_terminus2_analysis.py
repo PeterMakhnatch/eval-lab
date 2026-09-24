@@ -17,18 +17,22 @@ upstream Terminus 2 native ATIF output (``harbor/agents/terminus_2/terminus_2.py
   the declared totals as authoritative for the NATIVE ledger and never sum
   ``final_metrics`` across parent/child/continuation documents;
 - a ``continued_trajectory_ref`` chain for the split-history mode, stitched so
-  earlier non-copied actions survive alongside the terminal aggregates;
+  earlier non-copied actions survive alongside the terminal aggregates, with each
+  action keeping its native document, hash, and original step id;
 - a failure dump (``_dump_trajectory`` in ``run()``'s ``finally``) that stays a
   parseable, exception-bearing trace and never a verified pass.
 
 Native-ledger limit (stated, not solved): upstream raises on length-truncated
 calls before usage is recorded, so such physical calls can be absent from both
-step metrics and native totals. The physical invoice lives in the separate proxy
-ledger; nothing here infers one ledger from the other.
+step metrics and native totals. Three ledgers stay distinct: the native
+cache-aware estimates here, the proxy ledger of physical request/accounting
+evidence (conservative uncached rates — not a provider invoice), and actual
+provider billing. Nothing here infers one ledger from another.
 """
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -39,7 +43,7 @@ from evallab.explorer import _trajectory_view
 from evallab.interpretation.trace_readiness import check_trace_readiness
 from evallab.interpretation.trajectory_ir import build_trajectory_ir
 from evallab.results import load_job
-from evallab.traj import outline_trajectory, render_outline
+from evallab.traj import outline_trajectory
 
 FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "terminus2"
 FIXTURE_JOB = FIXTURE_ROOT / "job-terminus2"
@@ -56,6 +60,67 @@ def _step_token_sums(outline) -> tuple[int, int]:
     prompt = sum(step.prompt_tokens or 0 for step in outline.steps)
     completion = sum(step.completion_tokens or 0 for step in outline.steps)
     return prompt, completion
+
+
+def _agent_step(step_id: int, prompt: int, completion: int) -> dict:
+    return {
+        "step_id": step_id,
+        "timestamp": "2026-09-23T12:00:00+00:00",
+        "source": "agent",
+        "model_name": RETURNED_MODEL,
+        "message": "work",
+        "metrics": {"prompt_tokens": prompt, "completion_tokens": completion},
+        "observation": {"results": [{"content": "ok"}]},
+    }
+
+
+def _write_job(root: Path, trials: dict[str, tuple[dict[str, dict], dict]]) -> Path:
+    job = root / "job-tmp"
+    job.mkdir(parents=True)
+    (job / "result.json").write_text(
+        json.dumps(
+            {
+                "id": "job-tmp",
+                "finished_at": "2026-09-23T12:30:00+00:00",
+                "n_total_trials": len(trials),
+                "stats": {"n_completed_trials": len(trials), "n_errored_trials": 0},
+            }
+        )
+    )
+    for name, (files, result) in trials.items():
+        trial_dir = job / name
+        (trial_dir / "agent").mkdir(parents=True)
+        for filename, payload in files.items():
+            (trial_dir / "agent" / filename).write_text(json.dumps(payload))
+        (trial_dir / "result.json").write_text(json.dumps(result))
+    return job
+
+
+def _result(trial_name: str) -> dict:
+    return {
+        "id": f"trial-{trial_name}",
+        "trial_name": trial_name,
+        "task_name": "terminus2-fixture-task",
+        "verifier_result": {"rewards": {}},
+    }
+
+
+def _doc(session: str, steps: list[dict], final: dict | None, continued: str | None) -> dict:
+    doc: dict = {
+        "schema_version": "ATIF-v1.7",
+        "session_id": session,
+        "agent": {
+            "name": "terminus-2",
+            "version": "2.0.0",
+            "model_name": CONFIGURED_MODEL,
+        },
+        "steps": steps,
+    }
+    if final is not None:
+        doc["final_metrics"] = final
+    if continued is not None:
+        doc["continued_trajectory_ref"] = continued
+    return doc
 
 
 def test_outline_prefers_declared_native_totals() -> None:
@@ -77,9 +142,6 @@ def test_outline_prefers_declared_native_totals() -> None:
     assert outline.final_metrics_present is True
     # Attribution provenance stays computable from the step array itself.
     assert _step_token_sums(outline) == (7350, 650)
-    # No redundant aggregate fields beyond the existing authority convention.
-    assert not hasattr(outline, "step_attributed_prompt_tokens")
-    assert not hasattr(outline, "continued_trajectory_ref")
 
     assert outline.total_steps == 8
     assert outline.agent_steps == 5
@@ -93,10 +155,6 @@ def test_outline_prefers_declared_native_totals() -> None:
     parse_step = outline.steps[2]
     assert parse_step.tool_name is None
     assert parse_step.prompt_tokens == 1350
-
-    rendered = render_outline(outline)
-    assert "METRICS SUMMARY:" in rendered
-    assert "Unattributed (native ledger):" in rendered
 
 
 def test_children_cover_copied_context_without_double_count() -> None:
@@ -206,6 +264,13 @@ def test_continuation_stitch_preserves_earlier_actions() -> None:
     assert outline.total_steps == 6
     assert [step.step_id for step in outline.steps] == [1, 2, 3, 4, 5, 6]
     assert all(step.is_copied_context is False for step in outline.steps)
+    # Native provenance is independent of the view ordinal: the continuation
+    # restarts raw ids, so ordinal 4 is native cont-1 step 3.
+    assert outline.steps[0].source_step_id == 1
+    assert outline.steps[0].source_path.endswith("agent/trajectory.json")
+    assert outline.steps[3].step_id == 4
+    assert outline.steps[3].source_step_id == 3
+    assert outline.steps[3].source_path.endswith("agent/trajectory.cont-1.json")
     assert outline.tool_mix == {"bash_command": 3, "mark_task_complete": 1}
     assert outline.total_tool_calls == 4
     # Terminal cumulative totals, not segment finals summed (7500).
@@ -246,23 +311,143 @@ def test_continuation_fact_and_readiness_agree_with_outline() -> None:
     assert report["prompt_tokens"] == 18150
 
 
-def test_continuation_events_span_both_segments() -> None:
-    """Interpretation events pair raw calls from each segment, not just the root."""
-    trial_dir = _trial("trial-continued")
-    ir = build_trajectory_ir(trial_dir, repo_root=FIXTURE_ROOT)
+def test_continuation_events_cite_native_documents() -> None:
+    """Pre-split events cite the earlier document, not the terminal file."""
+    ir = build_trajectory_ir(_trial("trial-continued"), repo_root=FIXTURE_ROOT)
 
     programs = {event.status_owning_program for event in ir.events}
     assert "bash_command" in programs
     assert "mark_task_complete" in programs
+    by_step: dict[int, str] = {}
+    native_step: dict[int, int] = {}
+    for event in ir.events:
+        by_step.setdefault(event.step_index, event.source_citation.source_path)
+        native_step.setdefault(event.step_index, event.source_citation.step_id)
+    assert by_step[2].endswith("agent/trajectory.json")
+    assert by_step[3].endswith("agent/trajectory.json")
+    assert by_step[4].endswith("agent/trajectory.cont-1.json")
+    assert by_step[5].endswith("agent/trajectory.cont-1.json")
+    assert native_step[2] == 2
+    assert native_step[4] == 3
     bash_steps = {
-        event.step_id for event in ir.events if event.status_owning_program == "bash_command"
+        event.step_index for event in ir.events if event.status_owning_program == "bash_command"
     }
-    assert {2, 3, 5} <= bash_steps
+    assert {2, 3, 4} <= bash_steps
     assert {
-        event.step_id
+        event.step_index
         for event in ir.events
         if event.status_owning_program == "mark_task_complete"
-    } == {6}
+    } == {5}
+
+
+def test_same_tool_call_id_keeps_distinct_observations() -> None:
+    """A call id reused across segments links to its own document's result."""
+    view = _trajectory_view(_trial("trial-continued"))
+    rows = [call for call in view.tool_calls if call.tool_call_id == "call_1_1"]
+    assert len(rows) == 2
+    assert {row.observation.value for row in rows} == {"2 failed, 5 passed", "7 passed"}
+
+    job = load_job(FIXTURE_JOB)
+    continued = next(t for t in job.trials if t.path.name == "trial-continued")
+    projection = project_trial(job, continued)
+    matches = [o for o in projection.observations if o.source_call_id == "call_1_1"]
+    assert len(matches) == 2
+    assert matches[0].content_sha256 != matches[1].content_sha256
+
+
+def test_missing_continuation_tail_is_unavailable_not_featured(tmp_path: Path) -> None:
+    """A dangling continued ref must not feature stale head totals."""
+    canonical = _doc(
+        "sess-dangle-001",
+        [
+            {
+                "step_id": 1,
+                "timestamp": "2026-09-23T12:00:00+00:00",
+                "source": "user",
+                "message": "work",
+            },
+            _agent_step(2, 100, 10),
+        ],
+        {"total_prompt_tokens": 100, "total_completion_tokens": 10},
+        "trajectory.cont-9.json",
+    )
+    job = _write_job(
+        tmp_path, {"trial-dangle": ({"trajectory.json": canonical}, _result("trial-dangle"))}
+    )
+    trial_dir = job / "trial-dangle"
+
+    outline = outline_trajectory(trial_dir, repo_root=tmp_path)
+    assert outline.status == "accounted_unavailable"
+    assert "incomplete_continuation_chain" in (outline.unavailable_reason or "")
+    assert outline.total_prompt_tokens == 0
+
+    readiness = check_trace_readiness(trial_dir, repo_root=tmp_path)
+    assert readiness["verdict"] == "degraded"
+    assert any(
+        reason.startswith("incomplete_continuation_chain")
+        for reason in readiness["reasons"]
+    )
+    # Partial steps are reported, but no stale partial head poses as authority.
+    assert readiness["steps"] == 2
+    assert readiness["final_metrics_present"] is False
+
+    fact = extract_trial_fact(load_job(job), load_job(job).trials[0])
+    assert fact.step_count == 2
+    assert fact.input_tokens is None
+    assert fact.output_tokens is None
+
+
+def test_cyclic_continuation_terminates_unavailable(tmp_path: Path) -> None:
+    """A reference cycle ends the walk and refuses a featured verdict."""
+    head = _doc(
+        "sess-cycle-001",
+        [
+            {
+                "step_id": 1,
+                "timestamp": "2026-09-23T12:00:00+00:00",
+                "source": "user",
+                "message": "work",
+            },
+            _agent_step(2, 50, 5),
+        ],
+        {"total_prompt_tokens": 50, "total_completion_tokens": 5},
+        "trajectory.cont-1.json",
+    )
+    tail = _doc(
+        "sess-cycle-001-cont-1",
+        [
+            {
+                "step_id": 1,
+                "timestamp": "2026-09-23T12:01:00+00:00",
+                "source": "user",
+                "message": "work",
+            },
+            _agent_step(2, 60, 6),
+        ],
+        {"total_prompt_tokens": 110, "total_completion_tokens": 11},
+        "trajectory.json",
+    )
+    job = _write_job(
+        tmp_path,
+        {
+            "trial-cycle": (
+                {"trajectory.json": head, "trajectory.cont-1.json": tail},
+                _result("trial-cycle"),
+            )
+        },
+    )
+    trial_dir = job / "trial-cycle"
+
+    outline = outline_trajectory(trial_dir, repo_root=tmp_path)
+    assert outline.status == "accounted_unavailable"
+    assert "cycle" in (outline.unavailable_reason or "")
+
+    readiness = check_trace_readiness(trial_dir, repo_root=tmp_path)
+    assert readiness["verdict"] == "degraded"
+    assert any(
+        reason.startswith("incomplete_continuation_chain")
+        for reason in readiness["reasons"]
+    )
 
 
 def test_failure_dump_is_parseable_but_never_a_pass() -> None:

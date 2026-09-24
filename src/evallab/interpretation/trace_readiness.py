@@ -20,7 +20,7 @@ from typing import Any, Literal
 from evallab.evidence.atif import SUPPORTED_SCHEMA_VERSIONS
 from evallab.interpretation.trajectory_ir import build_trajectory_ir
 from evallab.interpretation.trajectory_quality import evaluate_trial_quality
-from evallab.traj import _chain_action_steps, _resolve_chain_segments
+from evallab.traj import ChainResolution, _chain_action_steps, _resolve_chain_segments
 
 Verdict = Literal["interpretable", "degraded", "uninterpretable"]
 
@@ -186,19 +186,29 @@ def check_trace_readiness(
         return report
 
     try:
-        chain = _resolve_chain_segments(atif_path, raw, resolved)
+        resolution = _resolve_chain_segments(atif_path, raw, resolved)
     except Exception:
-        chain = [(atif_path, raw, "")]
-    terminal = chain[-1][1] if chain else raw
+        resolution = ChainResolution(
+            segments=((atif_path, raw, ""),),
+            complete=False,
+            stopped_ref="unresolvable",
+            stop_cause="unparseable",
+        )
+    chain_incomplete_reason = None
+    if not resolution.complete:
+        ref = (resolution.stopped_ref or "unresolvable")[:120]
+        chain_incomplete_reason = f"incomplete_continuation_chain:{ref}"
+    terminal = resolution.segments[-1][1] if resolution.segments else raw
     # Stitched non-copied actions across the continuation chain; the terminal
-    # document carries the cumulative native totals. A corrupt segment degrades
-    # rather than silently dropping history.
+    # document of a COMPLETE chain carries the cumulative native totals. An
+    # incomplete chain degrades with its partial steps only: no stale partial
+    # head is ever presented as the authoritative declaration.
     malformed_segments = sorted(
         segment_path.name
-        for segment_path, segment_data, _ in chain
+        for segment_path, segment_data, _ in resolution.segments
         if not isinstance(segment_data.get("steps"), list) or not segment_data.get("steps")
     )
-    steps = _chain_action_steps(chain)
+    steps = [raw_step for _, raw_step in _chain_action_steps(resolution.segments)]
     schema_version = terminal.get("schema_version")
     if not isinstance(schema_version, str):
         schema_version = raw.get("schema_version")
@@ -208,8 +218,8 @@ def check_trace_readiness(
     agent_name = agent.get("name") if isinstance(agent, dict) else None
     tool_calls, observations = _count_calls_and_observations(steps)
     final_metrics = terminal.get("final_metrics")
-    final_metrics_present = isinstance(final_metrics, dict)
-    metrics_map = final_metrics if isinstance(final_metrics, dict) else {}
+    final_metrics_present = isinstance(final_metrics, dict) and resolution.complete
+    metrics_map = final_metrics if final_metrics_present else {}
     prompt_tokens = _as_int(metrics_map.get("total_prompt_tokens"))
     completion_tokens = _as_int(metrics_map.get("total_completion_tokens"))
     if prompt_tokens is None or completion_tokens is None:
@@ -256,12 +266,15 @@ def check_trace_readiness(
         reasons.append(f"quality_{quality_status}")
     if malformed_segments:
         reasons.append(f"continuation_segment_missing_steps:{','.join(malformed_segments)}")
+    if chain_incomplete_reason is not None:
+        reasons.append(chain_incomplete_reason)
 
     verdict: Verdict = "interpretable"
     if (
         report["ir_error"] is not None
         or quality_status in _FATAL_QUALITY_STATUSES
         or malformed_segments
+        or chain_incomplete_reason is not None
     ):
         verdict = "degraded"
     return {**report, "verdict": verdict, "reasons": reasons}

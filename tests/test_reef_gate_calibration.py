@@ -16,9 +16,10 @@ import contextlib
 import http.server
 import json
 import os
+import sys
 import threading
+import types
 from pathlib import Path
-
 import pytest
 from evallab_reef_gate import calibrate
 
@@ -479,3 +480,358 @@ def test_summarize_uses_rule_alpha_consistently() -> None:
     assert "p<0.5" in sign_loose["gate"]
     assert sign_loose["p_publish"] > sign_strict["p_publish"]
     assert strict["rule"]["alpha"] == 0.05
+
+
+# -- API-proxy mode ------------------------------------------------------------------------------
+
+
+def _api_tutorial_config(model: str) -> dict:
+    return {
+        "schema-version": 2,
+        "reef": {"host": "127.0.0.1", "port": 8900, "token": "reef-local", "run-dir": "work/stack"},
+        "recipe": {
+            "implementation": "reef.recipe.cordis:CordisRecipe",
+            "config": {
+                "evolution": {
+                    "adapter": "native",
+                    "propose": "tutorial:propose",
+                    "evaluate": "tutorial:evaluate",
+                    "tasks": list(TASKS),
+                    "seed": [
+                        "reef.harness.runners.native.seed:SEED_NODES",
+                        {
+                            "id": "answer-style",
+                            "name": "skill",
+                            "config": {"name": "answer-style", "text": "starter"},
+                        },
+                    ],
+                }
+            },
+        },
+        "inference": {
+            "upstream-url": "http://127.0.0.1:11434",
+            "upstream-api-key": "${REEF_UPSTREAM_API_KEY}",
+            "upstream-model": model,
+        },
+        "execution": {"evolution": {"workers": 1}},
+        "executors": {},
+    }
+
+
+def _make_reef_root(tmp_path: Path, model: str = "proxy-model") -> tuple[Path, Path]:
+    import yaml
+
+    root = tmp_path / "reef"
+    (root / "reef").mkdir(parents=True)
+    config_path = root / calibrate.SOURCE_CONFIG_RELATIVE
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(yaml.safe_dump(_api_tutorial_config(model), sort_keys=False))
+    python = root / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True, exist_ok=True)
+    python.touch()
+    return root, python
+
+
+class _DummyServer:
+    def terminate(self) -> None:
+        return None
+
+    def wait(self, timeout: float | None = None) -> int:
+        return 0
+
+
+def _stub_campaign(monkeypatch: pytest.MonkeyPatch, *, commit: str = "abc123") -> dict:
+    seen: dict = {}
+
+    def _fake_start_reef(python, serve, port, work, reef_root, gate_config_path, *, api_capability=None):
+        seen["api_capability"] = api_capability
+        seen["serve"] = Path(serve)
+        return _DummyServer()
+
+    monkeypatch.setattr(calibrate, "reef_checkout_commit", lambda *args, **kwargs: commit)
+    monkeypatch.setattr(calibrate, "start_reef", _fake_start_reef)
+    monkeypatch.setitem(
+        sys.modules, "reef_client", types.SimpleNamespace(ReefClient=lambda *args, **kwargs: object())
+    )
+    monkeypatch.setattr(calibrate, "name_scenario", lambda client, model, scenario: None)
+    monkeypatch.setattr(
+        calibrate,
+        "run_trial",
+        lambda client, **kwargs: result_row(trial=kwargs.get("index", 1)),
+    )
+    return seen
+
+
+def test_parse_args_preserves_local_defaults_and_names_capability_env() -> None:
+    args = calibrate.parse_args(["--work-dir", "/tmp/work"])
+    assert args.ollama_url == "http://127.0.0.1:11434"
+    assert args.model == "qwen2.5:7b"
+    assert args.api_proxy_url is None
+    assert args.api_proxy_token_env == "EVALLAB_REEF_PROXY_TOKEN"
+    assert args.api_proxy_token_env == calibrate.DEFAULT_API_PROXY_TOKEN_ENV
+
+
+def test_api_proxy_rejects_ollama_url_combination(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    reef_root, python = _make_reef_root(tmp_path)
+    monkeypatch.setenv("EVALLAB_REEF_PROXY_TOKEN", "cap-123")
+    work = tmp_path / "work"
+    with pytest.raises(SystemExit, match="mutually exclusive"):
+        calibrate.main(
+            [
+                "--work-dir", str(work),
+                "--reef-root", str(reef_root),
+                "--python", str(python),
+                "--ollama-url", "http://127.0.0.1:11434",
+                "--api-proxy-url", "http://127.0.0.1:18081",
+                "--model", "proxy-model",
+            ]
+        )
+
+
+def test_api_proxy_requires_explicit_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    reef_root, python = _make_reef_root(tmp_path)
+    monkeypatch.setenv("EVALLAB_REEF_PROXY_TOKEN", "cap-123")
+    monkeypatch.setattr(
+        calibrate, "fetch_local_inventory", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("inventory must not be fetched"))
+    )
+    with pytest.raises(SystemExit, match="--model is required"):
+        calibrate.main(
+            [
+                "--work-dir", str(tmp_path / "work"),
+                "--reef-root", str(reef_root),
+                "--python", str(python),
+                "--api-proxy-url", "http://127.0.0.1:18081",
+            ]
+        )
+
+
+def test_api_proxy_rejects_remote_url(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    reef_root, python = _make_reef_root(tmp_path)
+    monkeypatch.setenv("EVALLAB_REEF_PROXY_TOKEN", "cap-123")
+    with pytest.raises(SystemExit, match="not loopback"):
+        calibrate.main(
+            [
+                "--work-dir", str(tmp_path / "work"),
+                "--reef-root", str(reef_root),
+                "--python", str(python),
+                "--api-proxy-url", "http://example.com:8080",
+                "--model", "proxy-model",
+            ]
+        )
+    assert not (tmp_path / "work" / "run-meta.json").exists()
+
+
+def test_api_proxy_rejects_credential_url(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    reef_root, python = _make_reef_root(tmp_path)
+    monkeypatch.setenv("EVALLAB_REEF_PROXY_TOKEN", "cap-123")
+    with pytest.raises(SystemExit, match="credentials"):
+        calibrate.main(
+            [
+                "--work-dir", str(tmp_path / "work"),
+                "--reef-root", str(reef_root),
+                "--python", str(python),
+                "--api-proxy-url", "http://user:pass@127.0.0.1:8080",
+                "--model", "proxy-model",
+            ]
+        )
+
+
+def test_require_api_capability_reads_only_named_env_and_never_leaks_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("EVALLAB_REEF_PROXY_TOKEN", "real-capability-abc")
+    monkeypatch.delenv("OTHER_ENV", raising=False)
+    assert calibrate.require_api_capability("EVALLAB_REEF_PROXY_TOKEN") == "real-capability-abc"
+    with pytest.raises(SystemExit) as excinfo:
+        calibrate.require_api_capability("OTHER_ENV")
+    assert "OTHER_ENV" in str(excinfo.value)
+    assert "real-capability-abc" not in str(excinfo.value)
+    with pytest.raises(SystemExit, match="must name"):
+        calibrate.require_api_capability("  ")
+
+
+def test_child_environment_passes_only_explicit_capability_and_drops_provider_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-provider")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openai")
+    monkeypatch.setenv("EVALLAB_REEF_PROXY_TOKEN", "ambient-capability")
+    monkeypatch.setenv("HTTP_PROXY", "http://corp:3128")
+    env = calibrate.child_environment(
+        reef_root=Path("/reef"),
+        work=Path("/work"),
+        gate_config_path=Path("/work/gate-config.json"),
+        python=Path("/reef/.venv/bin/python"),
+        api_capability="explicit-capability-xyz",
+    )
+    assert env["REEF_UPSTREAM_API_KEY"] == "explicit-capability-xyz"
+    assert "DEEPSEEK_API_KEY" not in env
+    assert "OPENAI_API_KEY" not in env
+    assert "EVALLAB_REEF_PROXY_TOKEN" not in env
+    assert "HTTP_PROXY" not in env
+    assert "ambient-capability" not in str(list(env.values()))
+    default = calibrate.child_environment(
+        reef_root=Path("/reef"),
+        work=Path("/work"),
+        gate_config_path=Path("/work/gate-config.json"),
+        python=Path("/reef/.venv/bin/python"),
+    )
+    assert default["REEF_UPSTREAM_API_KEY"] == "ollama"
+
+
+def test_write_configs_renamed_to_upstream_url_and_keeps_api_key_template(tmp_path: Path) -> None:
+    import yaml
+
+    reef_root, _ = _make_reef_root(tmp_path)
+    work = tmp_path / "work"
+    work.mkdir()
+    serve, _, _, tasks = calibrate.write_configs(
+        work,
+        reef_root=reef_root,
+        upstream_url="http://127.0.0.1:18081",
+        port=8911,
+        model="proxy-model",
+        workers=1,
+        repeats=1,
+        seed_entries=None,
+        selection="evallab_reef_gate.plugin:Factory",
+        condition="aa",
+    )
+    assert tasks == TASKS
+    written = yaml.safe_load(serve.read_text())
+    assert written["inference"]["upstream-url"] == "http://127.0.0.1:18081"
+    assert written["inference"]["upstream-model"] == "proxy-model"
+    assert written["inference"]["upstream-api-key"] == "${REEF_UPSTREAM_API_KEY}"
+    with pytest.raises(TypeError):
+        calibrate.write_configs(  # type: ignore[call-arg]
+            work,
+            reef_root=reef_root,
+            ollama_url="http://127.0.0.1:11434",
+            port=8911,
+            model="proxy-model",
+            workers=1,
+            repeats=1,
+            seed_entries=None,
+            selection="evallab_reef_gate.plugin:Factory",
+            condition="aa",
+        )
+
+
+def test_api_proxy_campaign_skips_inventory_and_records_truthful_meta_without_secret(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import yaml
+
+    capability = "test-proxy-capability-abc123"
+    monkeypatch.setenv("EVALLAB_REEF_PROXY_TOKEN", capability)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-provider-must-not-forward")
+    reef_root, python = _make_reef_root(tmp_path)
+
+    def _no_inventory(*args, **kwargs):
+        raise AssertionError("API mode must not fetch the Ollama inventory")
+
+    monkeypatch.setattr(calibrate, "fetch_local_inventory", _no_inventory)
+    seen = _stub_campaign(monkeypatch, commit="deadbeef")
+    work = tmp_path / "work"
+    proxy_url = "http://127.0.0.1:18081"
+    assert calibrate.main(
+        [
+            "--work-dir", str(work),
+            "--reef-root", str(reef_root),
+            "--python", str(python),
+            "--api-proxy-url", proxy_url,
+            "--model", "proxy-model",
+            "--trials", "1",
+            "--repeats", "1",
+            "--port", "18971",
+        ]
+    ) is None
+    assert seen["api_capability"] == capability
+    assert not (work / "ollama-inventory.json").exists()
+    meta = json.loads((work / "run-meta.json").read_text())
+    assert meta["inference_kind"] == "api_proxy"
+    assert meta["api_proxy_url"] == proxy_url
+    assert meta["model"] == "proxy-model"
+    assert meta["model_digest"] is None
+    assert "ollama_url" not in meta
+    assert capability not in (work / "run-meta.json").read_text()
+    serve_config = yaml.safe_load((work / "serve-aa.yaml").read_text())
+    assert serve_config["inference"]["upstream-url"] == proxy_url
+    assert serve_config["inference"]["upstream-model"] == "proxy-model"
+    assert capability not in (work / "serve-aa.yaml").read_text()
+    assert capability not in (work / "recipes" / "harness_evolve.yaml").read_text()
+    assert capability not in (work / "gate-config.json").read_text()
+    for path in work.rglob("*"):
+        if path.is_file():
+            assert capability not in path.read_text(errors="ignore")
+    summary = calibrate.analyze(work)
+    assert summary["provenance"]["inference_kind"] == "api_proxy"
+    assert summary["provenance"]["api_proxy_url"] == proxy_url
+    assert summary["denominator"] == 1
+
+
+def test_ollama_campaign_preserves_inventory_and_local_meta(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("EVALLAB_REEF_PROXY_TOKEN", raising=False)
+    reef_root, python = _make_reef_root(tmp_path)
+    entry = _valid_model_entry()
+    monkeypatch.setattr(calibrate, "fetch_local_inventory", lambda *args, **kwargs: {"models": [entry]})
+    seen = _stub_campaign(monkeypatch, commit="deadbeef")
+    work = tmp_path / "work"
+    assert calibrate.main(
+        [
+            "--work-dir", str(work),
+            "--reef-root", str(reef_root),
+            "--python", str(python),
+            "--ollama-url", "http://127.0.0.1:11434",
+            "--model", "qwen2.5:7b",
+            "--trials", "1",
+            "--repeats", "1",
+            "--port", "18972",
+        ]
+    ) is None
+    assert seen["api_capability"] is None
+    inventory = json.loads((work / "ollama-inventory.json").read_text())
+    assert inventory["url"] == "http://127.0.0.1:11434"
+    assert inventory["selected"]["digest"] == entry["digest"]
+    meta = json.loads((work / "run-meta.json").read_text())
+    assert meta["inference_kind"] == "ollama"
+    assert meta["ollama_url"] == "http://127.0.0.1:11434"
+    assert meta["model_digest"] == entry["digest"]
+    assert "api_proxy_url" not in meta
+    summary = calibrate.analyze(work)
+    assert summary["provenance"]["inference_kind"] == "ollama"
+    assert summary["provenance"]["ollama_url"] == "http://127.0.0.1:11434"
+
+
+def test_analyze_provenance_reports_api_proxy_kind(tmp_path: Path) -> None:
+    import yaml
+
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / "serve-aa.yaml").write_text(
+        yaml.safe_dump({"recipe": {"config": {"evolution": {"tasks": TASKS, "episode_repeats": 1}}}})
+    )
+    (work / "run-meta.json").write_text(
+        json.dumps(
+            {
+                "condition": "aa",
+                "selection": "evallab_reef_gate.plugin:Factory",
+                "model": "proxy-model",
+                "model_digest": None,
+                "inference_kind": "api_proxy",
+                "api_proxy_url": "http://127.0.0.1:18081",
+                "repeats": 1,
+                "trials": 1,
+                "alpha": 0.05,
+                "min_valid_pairs": 5,
+                "pass_threshold": 1.0,
+            }
+        )
+    )
+    (work / "results.jsonl").write_text(json.dumps(result_row()) + "\n")
+    summary = calibrate.analyze(work)
+    assert summary["provenance"]["inference_kind"] == "api_proxy"
+    assert summary["provenance"]["api_proxy_url"] == "http://127.0.0.1:18081"
+    assert summary["denominator"] == 1

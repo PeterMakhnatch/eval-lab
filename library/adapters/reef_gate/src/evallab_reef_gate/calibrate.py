@@ -23,10 +23,15 @@ Conditions:
 The driver refuses non-empty work dirs (state is never erased), keeps every server, recipe,
 storage, step and decision output under the owned work dir, runs the Reef subprocess with a
 small environment allowlist (no ambient credentials, model URLs or proxy variables), and before
-any inference verifies the Ollama URL is a literal plain-http loopback origin (explicit port, no
-credentials/path/query), fetches the model inventory with ambient proxies and redirects refused
-and a bounded read, and requires the model to be the unique locally installed GGUF entry with a
-valid digest and no cloud routing; it never downloads models.
+any inference verifies the upstream URL is a literal plain-http loopback origin (explicit port,
+no credentials/path/query). Ollama mode (default) fetches the model inventory with ambient
+proxies and redirects refused and a bounded read, and requires the model to be the unique
+locally installed GGUF entry with a valid digest and no cloud routing; it never downloads
+models. API-proxy mode (--api-proxy-url, mutually exclusive with --ollama-url) routes
+inference at the parent-owned loopback budget proxy instead: it requires an explicit --model,
+reads only the named capability environment (default EVALLAB_REEF_PROXY_TOKEN) in main and
+passes it as an explicit parameter to the Reef subprocess (REEF_UPSTREAM_API_KEY), persists
+no token, and records inference_kind=api_proxy with model_digest=None.
 
 Usage (Ollama running locally with the model pulled; roughly 1-3 minutes per trial at 1 repeat):
 
@@ -40,6 +45,8 @@ Usage (Ollama running locally with the model pulled; roughly 1-3 minutes per tri
         --condition aa --trials 30 --repeats 5
 
     ... --condition known-effect --trials 5 --repeats 5
+    ... --api-proxy-url http://127.0.0.1:8080 --model <proxy-model>  # parent-owned budget proxy
+    # (capability from $EVALLAB_REEF_PROXY_TOKEN; never persisted; --ollama-url must not be passed)
 
     ... --analyze-only --work-dir <existing work directory>   # no services started
 
@@ -79,6 +86,11 @@ STEP_TIMEOUT_S = 1800.0
 PASS_THRESHOLD = 1.0
 WILSON_Z = 1.959964
 REEF_BUILTIN_SELECTIONS = frozenset({"score_comparison", "floor", "always"})
+#: The environment variable naming the parent-owned proxy capability for API-proxy mode.
+DEFAULT_API_PROXY_TOKEN_ENV = "EVALLAB_REEF_PROXY_TOKEN"
+#: Truthful run-meta inference kinds: local Ollama inventory vs parent-owned loopback proxy.
+INFERENCE_KIND_OLLAMA = "ollama"
+INFERENCE_KIND_API_PROXY = "api_proxy"
 
 #: The tutorial grader's answer table (tutorials/evolve-your-harness/harness/evolution.py);
 #: used only to label failing episodes, never given to the model.
@@ -280,6 +292,18 @@ def require_local_model(inventory: dict, model: str) -> dict:
     return entry
 
 
+def require_api_capability(env_name: str) -> str:
+    """The named proxy capability, or SystemExit; the value never appears in errors."""
+    if not isinstance(env_name, str) or not env_name.strip():
+        raise SystemExit("--api-proxy-token-env must name a capability environment variable")
+    value = os.environ.get(env_name, "")
+    if not value or not value.strip():
+        raise SystemExit(
+            f"missing proxy capability in {env_name}; set it before starting the calibration"
+        )
+    return value
+
+
 def reef_checkout_commit(reef_root: Path) -> str:
     """The Reef checkout's HEAD commit, recorded as the gate config's expected revision."""
     try:
@@ -299,12 +323,15 @@ def reef_checkout_commit(reef_root: Path) -> str:
 # -- subprocess environment ---------------------------------------------------------------------
 
 
-def child_environment(*, reef_root: Path, work: Path, gate_config_path: Path, python: Path) -> dict:
+def child_environment(*, reef_root: Path, work: Path, gate_config_path: Path, python: Path, api_capability: str | None = None) -> dict:
     """The Reef server subprocess environment: allowlisted platform basics plus owned variables.
 
     ``PYTHONPATH`` is rebuilt as exactly this package's src root and the Reef checkout root;
     ``PYTHONDONTWRITEBYTECODE``/``PYTHONNOUSERSITE`` keep the read-only checkout and venv clean.
-    Ambient credentials, model URLs and proxy variables never reach the native episodes.
+    Ambient credentials, model URLs and proxy variables never reach the native episodes. The
+    only secret ever set is the explicit ``api_capability`` (the parent-owned proxy capability
+    for API-proxy mode; ``"ollama"`` for local mode): native episodes may receive that proxy
+    capability but never a provider key, which the parent proxy owns.
     """
     reef_root, work, gate_config_path = Path(reef_root), Path(work), Path(gate_config_path)
     env = {name: os.environ[name] for name in ENV_ALLOWLIST if name in os.environ}
@@ -315,7 +342,7 @@ def child_environment(*, reef_root: Path, work: Path, gate_config_path: Path, py
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["PYTHONNOUSERSITE"] = "1"
     env["REEF_RECIPE_CONFIG_DIR"] = str(work / "recipes")
-    env["REEF_UPSTREAM_API_KEY"] = "ollama"
+    env["REEF_UPSTREAM_API_KEY"] = api_capability if api_capability is not None else "ollama"
     env["EVALLAB_REEF_GATE_CONFIG"] = str(gate_config_path)
     return env
 
@@ -355,7 +382,7 @@ def write_configs(
     work: Path,
     *,
     reef_root: Path,
-    ollama_url: str,
+    upstream_url: str,
     port: int,
     model: str,
     workers: int,
@@ -364,7 +391,7 @@ def write_configs(
     selection: str,
     condition: str,
 ) -> tuple[Path, dict, dict, list[str]]:
-    """The tutorial's native serve file with absolute owned state paths, the local model, the
+    """The tutorial's native serve file with absolute owned state paths, the upstream model, the
     gate selection, a kept step record, and (known-effect only) the degraded seed skill.
 
     Returns ``(serve_path, current_entry, candidate_entry, tasks)``: the entry the current tree
@@ -377,7 +404,7 @@ def write_configs(
     state = work / ".reef"
     config["reef"]["port"] = port
     config["reef"]["run-dir"] = str(work / "stack")
-    config["inference"]["upstream-url"] = ollama_url
+    config["inference"]["upstream-url"] = upstream_url
     config["inference"]["upstream-model"] = model
     config["storage"] = {
         "agent-record-dir": str(state / "agent-record"),
@@ -440,12 +467,25 @@ def write_gate_config(
     return path
 
 
-def start_reef(python: Path, serve: Path, port: int, work: Path, reef_root: Path, gate_config_path: Path):
+def start_reef(
+    python: Path,
+    serve: Path,
+    port: int,
+    work: Path,
+    reef_root: Path,
+    gate_config_path: Path,
+    *,
+    api_capability: str | None = None,
+):
     """Start ``reef serve`` on the owned config and wait for /healthz."""
     from reef_client import ReefClient, ReefClientError
 
     env = child_environment(
-        reef_root=reef_root, work=work, gate_config_path=gate_config_path, python=python
+        reef_root=reef_root,
+        work=work,
+        gate_config_path=gate_config_path,
+        python=python,
+        api_capability=api_capability,
     )
     log = (work / "reef.log").open("w")
     server = subprocess.Popen(
@@ -1099,7 +1139,9 @@ def analyze(work: Path) -> dict:
             "selection",
             "model",
             "model_digest",
+            "inference_kind",
             "ollama_url",
+            "api_proxy_url",
             "reef_commit",
             "reef_root",
             "python",
@@ -1149,6 +1191,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--python", type=Path, default=None, help="the Reef interpreter (default <reef-root>/.venv/bin/python)"
     )
     parser.add_argument("--ollama-url", default="http://127.0.0.1:11434")
+    parser.add_argument("--api-proxy-url", default=None, help="parent-owned loopback budget-proxy base URL (mutually exclusive with --ollama-url)")
+    parser.add_argument(
+        "--api-proxy-token-env",
+        default=DEFAULT_API_PROXY_TOKEN_ENV,
+        help="names the capability environment passed as REEF_UPSTREAM_API_KEY (value never persisted)",
+    )
     parser.add_argument("--alpha", type=float, default=0.05)
     parser.add_argument("--min-valid-pairs", type=int, default=5)
     parser.add_argument("--regression-failure-threshold", type=int, default=1)
@@ -1203,31 +1251,54 @@ def main(argv: list[str] | None = None) -> None:
     python = (args.python or (args.reef_root / ".venv" / "bin" / "python")).expanduser()
     _validate(args, python)
 
-    ollama_url = require_loopback_url(args.ollama_url)
-    inventory = fetch_local_inventory(ollama_url)
-    model_entry = require_local_model(inventory, args.model)
-    (work / "ollama-inventory.json").write_text(
-        json.dumps(
-            {
-                "url": ollama_url,
-                "selected": model_entry,
-                "models": [
-                    {key: entry.get(key) for key in ("name", "model", "digest", "size") if key in entry}
-                    for entry in inventory["models"]
-                    if isinstance(entry, dict)
-                ],
-            },
-            indent=2,
-        )
-        + "\n"
+    raw_argv = argv if argv is not None else sys.argv[1:]
+    ollama_explicit = any(
+        arg == "--ollama-url" or arg.startswith("--ollama-url=") for arg in raw_argv
     )
+    api_mode = args.api_proxy_url is not None
+    if api_mode and ollama_explicit:
+        raise SystemExit("--api-proxy-url and --ollama-url are mutually exclusive; pass exactly one upstream")
+    if api_mode:
+        if not any(arg == "--model" or arg.startswith("--model=") for arg in raw_argv):
+            raise SystemExit("--model is required with --api-proxy-url; no default is assumed for proxy routing")
+        api_proxy_url = require_loopback_url(args.api_proxy_url)
+        # Only the named capability is read; the value is held in memory and passed explicitly
+        # to the Reef subprocess, never written to YAML, argv, metadata, or error text.
+        api_capability = require_api_capability(args.api_proxy_token_env)
+        upstream_url = api_proxy_url
+        ollama_url = None
+        model_entry = None
+        inference_kind = INFERENCE_KIND_API_PROXY
+    else:
+        ollama_url = require_loopback_url(args.ollama_url)
+        inventory = fetch_local_inventory(ollama_url)
+        model_entry = require_local_model(inventory, args.model)
+        (work / "ollama-inventory.json").write_text(
+            json.dumps(
+                {
+                    "url": ollama_url,
+                    "selected": model_entry,
+                    "models": [
+                        {key: entry.get(key) for key in ("name", "model", "digest", "size") if key in entry}
+                        for entry in inventory["models"]
+                        if isinstance(entry, dict)
+                    ],
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+        upstream_url = ollama_url
+        api_proxy_url = None
+        api_capability = None
+        inference_kind = INFERENCE_KIND_OLLAMA
     reef_commit = reef_checkout_commit(args.reef_root)
     seed_entries = json.loads(args.seed_entries.read_text()) if args.seed_entries else None
 
     serve, current_entry, candidate_entry, tasks = write_configs(
         work,
         reef_root=args.reef_root,
-        ollama_url=ollama_url,
+        upstream_url=upstream_url,
         port=args.port,
         model=args.model,
         workers=args.workers,
@@ -1243,40 +1314,39 @@ def main(argv: list[str] | None = None) -> None:
         regression_failure_threshold=args.regression_failure_threshold,
         reef_commit=reef_commit,
     )
-    (work / "run-meta.json").write_text(
-        json.dumps(
-            {
-                "condition": args.condition,
-                "selection": args.selection,
-                "model": args.model,
-                "model_digest": model_entry.get("digest"),
-                "ollama_url": ollama_url,
-                "reef_commit": reef_commit,
-                "reef_root": str(args.reef_root),
-                "python": str(python),
-                "plugin_src": str(PLUGIN_SRC),
-                "port": args.port,
-                "workers": args.workers,
-                "repeats": args.repeats,
-                "trials": args.trials,
-                "alpha": args.alpha,
-                "min_valid_pairs": args.min_valid_pairs,
-                "pass_threshold": PASS_THRESHOLD,
-                "regression_failure_threshold": args.regression_failure_threshold,
-                "seed_source": str(args.seed_entries) if args.seed_entries else "tutorial",
-                "current_answer_style_text": current_entry["config"]["text"],
-                "candidate_answer_style_text": candidate_entry["config"]["text"],
-                "step_timeout_s": STEP_TIMEOUT_S,
-                "started_utc": datetime.now(UTC).isoformat(),
-            },
-            indent=2,
-        )
-        + "\n"
-    )
+    run_meta = {
+        "condition": args.condition,
+        "selection": args.selection,
+        "model": args.model,
+        "model_digest": (model_entry.get("digest") if model_entry is not None else None),
+        "inference_kind": inference_kind,
+        "reef_commit": reef_commit,
+        "reef_root": str(args.reef_root),
+        "python": str(python),
+        "plugin_src": str(PLUGIN_SRC),
+        "port": args.port,
+        "workers": args.workers,
+        "repeats": args.repeats,
+        "trials": args.trials,
+        "alpha": args.alpha,
+        "min_valid_pairs": args.min_valid_pairs,
+        "pass_threshold": PASS_THRESHOLD,
+        "regression_failure_threshold": args.regression_failure_threshold,
+        "seed_source": str(args.seed_entries) if args.seed_entries else "tutorial",
+        "current_answer_style_text": current_entry["config"]["text"],
+        "candidate_answer_style_text": candidate_entry["config"]["text"],
+        "step_timeout_s": STEP_TIMEOUT_S,
+        "started_utc": datetime.now(UTC).isoformat(),
+    }
+    if api_mode:
+        run_meta["api_proxy_url"] = api_proxy_url
+    else:
+        run_meta["ollama_url"] = ollama_url
+    (work / "run-meta.json").write_text(json.dumps(run_meta, indent=2) + "\n")
 
     from reef_client import ReefClient
 
-    server = start_reef(python, serve, args.port, work, args.reef_root, gate_config)
+    server = start_reef(python, serve, args.port, work, args.reef_root, gate_config, api_capability=api_capability)
     failed = False
     try:
         client = ReefClient(f"http://127.0.0.1:{args.port}", token=TOKEN, timeout_s=300.0)

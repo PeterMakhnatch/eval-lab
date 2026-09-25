@@ -275,7 +275,7 @@ inputs:
   - path: src/evallab/recovery/wrapper.py
     digest: sha256:83a3882cf0c364b61a7865912e10c17a1b0275e86677b2279846b8ceb845f972
   - path: src/evallab/reef_traffic.py
-    digest: sha256:d66a9620a61a41f9c751f661bd8777619bbd690f707ceced72539aa11795c2d1
+    digest: sha256:551db9aec550053f2837d236b72bf7ceae9a089d51557d1fb2cdb38543e97986
   - path: src/evallab/registry.py
     digest: sha256:ccd4143f4ba0294872e18517897db9eb960884a574d2807563a51697cb5d98a1
   - path: src/evallab/regrade.py

@@ -1,0 +1,472 @@
+{
+  "schema_version": 1,
+  "generated": "2026-09-25",
+  "rule": "policy/standing-approvals.yaml auto_run local-controls (oracle, nop) on local Docker, <=2 concurrent Harbor trials",
+  "execution": "uv run evallab run in this worktree; ephemeral catalog evallab_loopool_20260925 (dropped after proof); owned derived root",
+  "verdict_rule": "valid iff the expected control reward was observed with no exception; infra-failed when any trial excepted or no trial ran",
+  "entries": [
+    {
+      "job": "loopool-nop-error-count",
+      "agent": "nop",
+      "task": "error-count",
+      "source": "exp05",
+      "package_digest": "sha256:a5b4c564161b641f627fc7dc63977f3577ad36584b41e39be5a6f8c334c433a7",
+      "at_registry_current_digest": null,
+      "trials": [
+        {
+          "trial": "loopool-nop-error-count__ZPryYge",
+          "reward": 0.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:51:36.517664Z",
+          "finished_at": "2026-09-25T05:51:43.612764Z",
+          "wall_seconds": 7.095,
+          "result_path": "runs/loopool-nop-error-count/loopool-nop-error-count__ZPryYge/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-nop-fix-median",
+      "agent": "nop",
+      "task": "fix-median",
+      "source": "exp05",
+      "package_digest": "sha256:fb59c6a33de58d665616e728d1b45050f462e64c614dd9da0fd50eb607965b37",
+      "at_registry_current_digest": null,
+      "trials": [
+        {
+          "trial": "loopool-nop-fix-median__2pShShX",
+          "reward": 0.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:50:52.591903Z",
+          "finished_at": "2026-09-25T05:50:59.633108Z",
+          "wall_seconds": 7.041,
+          "result_path": "runs/loopool-nop-fix-median/loopool-nop-fix-median__2pShShX/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-nop-fix-slugify",
+      "agent": "nop",
+      "task": "fix-slugify",
+      "source": "exp05",
+      "package_digest": "sha256:7277decc4052921cf76d373be177b72c19728b68ae0d57f88e048d26171f8eb5",
+      "at_registry_current_digest": null,
+      "trials": [
+        {
+          "trial": "loopool-nop-fix-slugify__bsJuXej",
+          "reward": 0.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:51:56.571198Z",
+          "finished_at": "2026-09-25T05:52:03.720870Z",
+          "wall_seconds": 7.15,
+          "result_path": "runs/loopool-nop-fix-slugify/loopool-nop-fix-slugify__bsJuXej/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-nop-html-js-filter",
+      "agent": "nop",
+      "task": "terminal-bench-html-js-filter",
+      "source": "library/tasks",
+      "package_digest": "sha256:36bef48eb1f5a2ed2211705ddd23dab1f98cb0158196e892fad8d3dd3a4aa956",
+      "at_registry_current_digest": true,
+      "trials": [
+        {
+          "trial": "loopool-nop-html-js-filter__dfhxnXF",
+          "reward": 0.0,
+          "exception": null,
+          "started_at": "2026-09-25T06:02:18.754716Z",
+          "finished_at": "2026-09-25T06:02:35.471207Z",
+          "wall_seconds": 16.716,
+          "result_path": "runs/loopool-nop-html-js-filter/loopool-nop-html-js-filter__dfhxnXF/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-nop-inventory-value",
+      "agent": "nop",
+      "task": "inventory-value",
+      "source": "exp05",
+      "package_digest": "sha256:1a85bd898e6f7a7885d16b294911f3f7b145d7965f5c46cfe5b105ff368503a9",
+      "at_registry_current_digest": null,
+      "trials": [
+        {
+          "trial": "loopool-nop-inventory-value__pj3ncuB",
+          "reward": 0.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:52:26.729748Z",
+          "finished_at": "2026-09-25T05:52:34.019242Z",
+          "wall_seconds": 7.289,
+          "result_path": "runs/loopool-nop-inventory-value/loopool-nop-inventory-value__pj3ncuB/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-nop-query-optimize",
+      "agent": "nop",
+      "task": "query-optimize",
+      "source": "library/tasks",
+      "package_digest": "sha256:d593fa7d67498305ebcc32605455abd16e6d5495f6f455b458c024572617bad1",
+      "at_registry_current_digest": true,
+      "trials": [
+        {
+          "trial": "loopool-nop-query-optimize__XpD7Kcu",
+          "reward": 0.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:52:54.611520Z",
+          "finished_at": "2026-09-25T06:02:16.069930Z",
+          "wall_seconds": 561.458,
+          "result_path": "runs/loopool-nop-query-optimize/loopool-nop-query-optimize__XpD7Kcu/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-nop-sales-total",
+      "agent": "nop",
+      "task": "sales-total",
+      "source": "exp05",
+      "package_digest": "sha256:5ec46523ace9ff8a4257c9b77dc03e667f8caf7387fcb9abdf8a3a34a3ce48d8",
+      "at_registry_current_digest": null,
+      "trials": [
+        {
+          "trial": "loopool-nop-sales-total__Wgfd3pm",
+          "reward": 0.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:51:46.482724Z",
+          "finished_at": "2026-09-25T05:51:53.666633Z",
+          "wall_seconds": 7.184,
+          "result_path": "runs/loopool-nop-sales-total/loopool-nop-sales-total__Wgfd3pm/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-nop-status-codes",
+      "agent": "nop",
+      "task": "status-codes",
+      "source": "exp05",
+      "package_digest": "sha256:628122f4322615641cf44bd3e8ef20d1490897b5c2e01a53ad63e0f0a366e5e7",
+      "at_registry_current_digest": null,
+      "trials": [
+        {
+          "trial": "loopool-nop-status-codes__qaZRUKK",
+          "reward": 0.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:52:16.618118Z",
+          "finished_at": "2026-09-25T05:52:23.835063Z",
+          "wall_seconds": 7.217,
+          "result_path": "runs/loopool-nop-status-codes/loopool-nop-status-codes__qaZRUKK/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-nop-top-tags",
+      "agent": "nop",
+      "task": "top-tags",
+      "source": "exp05",
+      "package_digest": "sha256:b0a8b68be20d877f1dd02dfb3c763a5f9e53a7b35e74117c9047710b7f42b0b7",
+      "at_registry_current_digest": null,
+      "trials": [
+        {
+          "trial": "loopool-nop-top-tags__BTiDxLt",
+          "reward": 0.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:52:06.568773Z",
+          "finished_at": "2026-09-25T05:52:13.835660Z",
+          "wall_seconds": 7.267,
+          "result_path": "runs/loopool-nop-top-tags/loopool-nop-top-tags__BTiDxLt/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-nop-top-words",
+      "agent": "nop",
+      "task": "top-words",
+      "source": "exp05",
+      "package_digest": "sha256:a7ece564afc74a791745c11922ea093de8c04d0d121957d8e5499d7ab668e7f9",
+      "at_registry_current_digest": null,
+      "trials": [
+        {
+          "trial": "loopool-nop-top-words__evrqiCk",
+          "reward": 0.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:51:26.412901Z",
+          "finished_at": "2026-09-25T05:51:33.715097Z",
+          "wall_seconds": 7.302,
+          "result_path": "runs/loopool-nop-top-words/loopool-nop-top-words__evrqiCk/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-nop-transaction-reconciliation",
+      "agent": "nop",
+      "task": "transaction-reconciliation",
+      "source": "library/tasks",
+      "package_digest": "sha256:f2bb698dbcb990ce1be2a6319efc1c4264da4f7394637d33f103ebb053262820",
+      "at_registry_current_digest": true,
+      "trials": [
+        {
+          "trial": "loopool-nop-transaction-reconcil__5as7aM7",
+          "reward": 0.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:52:36.815739Z",
+          "finished_at": "2026-09-25T05:52:51.781936Z",
+          "wall_seconds": 14.966,
+          "result_path": "runs/loopool-nop-transaction-reconciliation/loopool-nop-transaction-reconcil__5as7aM7/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-oracle-error-count",
+      "agent": "oracle",
+      "task": "error-count",
+      "source": "exp05",
+      "package_digest": "sha256:a5b4c564161b641f627fc7dc63977f3577ad36584b41e39be5a6f8c334c433a7",
+      "at_registry_current_digest": null,
+      "trials": [
+        {
+          "trial": "loopool-oracle-error-count__xgd9PcL",
+          "reward": 1.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:51:46.462641Z",
+          "finished_at": "2026-09-25T05:51:53.795876Z",
+          "wall_seconds": 7.333,
+          "result_path": "runs/loopool-oracle-error-count/loopool-oracle-error-count__xgd9PcL/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-oracle-fix-median",
+      "agent": "oracle",
+      "task": "fix-median",
+      "source": "exp05",
+      "package_digest": "sha256:fb59c6a33de58d665616e728d1b45050f462e64c614dd9da0fd50eb607965b37",
+      "at_registry_current_digest": null,
+      "trials": [
+        {
+          "trial": "loopool-oracle-fix-median__yATnu3k",
+          "reward": 1.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:51:26.413627Z",
+          "finished_at": "2026-09-25T05:51:33.735352Z",
+          "wall_seconds": 7.322,
+          "result_path": "runs/loopool-oracle-fix-median/loopool-oracle-fix-median__yATnu3k/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-oracle-fix-slugify",
+      "agent": "oracle",
+      "task": "fix-slugify",
+      "source": "exp05",
+      "package_digest": "sha256:7277decc4052921cf76d373be177b72c19728b68ae0d57f88e048d26171f8eb5",
+      "at_registry_current_digest": null,
+      "trials": [
+        {
+          "trial": "loopool-oracle-fix-slugify__ZoCo5Py",
+          "reward": 1.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:52:06.569001Z",
+          "finished_at": "2026-09-25T05:52:13.816575Z",
+          "wall_seconds": 7.248,
+          "result_path": "runs/loopool-oracle-fix-slugify/loopool-oracle-fix-slugify__ZoCo5Py/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-oracle-html-js-filter",
+      "agent": "oracle",
+      "task": "terminal-bench-html-js-filter",
+      "source": "library/tasks",
+      "package_digest": "sha256:36bef48eb1f5a2ed2211705ddd23dab1f98cb0158196e892fad8d3dd3a4aa956",
+      "at_registry_current_digest": true,
+      "trials": [
+        {
+          "trial": "loopool-oracle-html-js-filter__BKsbv8W",
+          "reward": 1.0,
+          "exception": null,
+          "started_at": "2026-09-25T06:02:50.769216Z",
+          "finished_at": "2026-09-25T06:05:06.846751Z",
+          "wall_seconds": 136.078,
+          "result_path": "runs/loopool-oracle-html-js-filter/loopool-oracle-html-js-filter__BKsbv8W/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-oracle-inventory-value",
+      "agent": "oracle",
+      "task": "inventory-value",
+      "source": "exp05",
+      "package_digest": "sha256:1a85bd898e6f7a7885d16b294911f3f7b145d7965f5c46cfe5b105ff368503a9",
+      "at_registry_current_digest": null,
+      "trials": [
+        {
+          "trial": "loopool-oracle-inventory-value__J4ZM3Zp",
+          "reward": 1.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:52:37.069361Z",
+          "finished_at": "2026-09-25T05:52:44.297768Z",
+          "wall_seconds": 7.228,
+          "result_path": "runs/loopool-oracle-inventory-value/loopool-oracle-inventory-value__J4ZM3Zp/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-oracle-query-optimize",
+      "agent": "oracle",
+      "task": "query-optimize",
+      "source": "library/tasks",
+      "package_digest": "sha256:d593fa7d67498305ebcc32605455abd16e6d5495f6f455b458c024572617bad1",
+      "at_registry_current_digest": true,
+      "trials": [
+        {
+          "trial": "loopool-oracle-query-optimize__3BXwALq",
+          "reward": 1.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:53:07.891787Z",
+          "finished_at": "2026-09-25T06:02:48.030446Z",
+          "wall_seconds": 580.139,
+          "result_path": "runs/loopool-oracle-query-optimize/loopool-oracle-query-optimize__3BXwALq/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-oracle-sales-total",
+      "agent": "oracle",
+      "task": "sales-total",
+      "source": "exp05",
+      "package_digest": "sha256:5ec46523ace9ff8a4257c9b77dc03e667f8caf7387fcb9abdf8a3a34a3ce48d8",
+      "at_registry_current_digest": null,
+      "trials": [
+        {
+          "trial": "loopool-oracle-sales-total__PWANwC4",
+          "reward": 1.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:51:56.627172Z",
+          "finished_at": "2026-09-25T05:52:03.843017Z",
+          "wall_seconds": 7.216,
+          "result_path": "runs/loopool-oracle-sales-total/loopool-oracle-sales-total__PWANwC4/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-oracle-status-codes",
+      "agent": "oracle",
+      "task": "status-codes",
+      "source": "exp05",
+      "package_digest": "sha256:628122f4322615641cf44bd3e8ef20d1490897b5c2e01a53ad63e0f0a366e5e7",
+      "at_registry_current_digest": null,
+      "trials": [
+        {
+          "trial": "loopool-oracle-status-codes__xtDEGGU",
+          "reward": 1.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:52:26.730008Z",
+          "finished_at": "2026-09-25T05:52:34.401062Z",
+          "wall_seconds": 7.671,
+          "result_path": "runs/loopool-oracle-status-codes/loopool-oracle-status-codes__xtDEGGU/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-oracle-top-tags",
+      "agent": "oracle",
+      "task": "top-tags",
+      "source": "exp05",
+      "package_digest": "sha256:b0a8b68be20d877f1dd02dfb3c763a5f9e53a7b35e74117c9047710b7f42b0b7",
+      "at_registry_current_digest": null,
+      "trials": [
+        {
+          "trial": "loopool-oracle-top-tags__wFz9A5F",
+          "reward": 1.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:52:16.638284Z",
+          "finished_at": "2026-09-25T05:52:23.963602Z",
+          "wall_seconds": 7.325,
+          "result_path": "runs/loopool-oracle-top-tags/loopool-oracle-top-tags__wFz9A5F/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-oracle-top-words",
+      "agent": "oracle",
+      "task": "top-words",
+      "source": "exp05",
+      "package_digest": "sha256:a7ece564afc74a791745c11922ea093de8c04d0d121957d8e5499d7ab668e7f9",
+      "at_registry_current_digest": null,
+      "trials": [
+        {
+          "trial": "loopool-oracle-top-words__XV7ra5v",
+          "reward": 1.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:51:36.493566Z",
+          "finished_at": "2026-09-25T05:51:43.767485Z",
+          "wall_seconds": 7.274,
+          "result_path": "runs/loopool-oracle-top-words/loopool-oracle-top-words__XV7ra5v/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    },
+    {
+      "job": "loopool-oracle-transaction-reconciliation",
+      "agent": "oracle",
+      "task": "transaction-reconciliation",
+      "source": "library/tasks",
+      "package_digest": "sha256:f2bb698dbcb990ce1be2a6319efc1c4264da4f7394637d33f103ebb053262820",
+      "at_registry_current_digest": true,
+      "trials": [
+        {
+          "trial": "loopool-oracle-transaction-recon__Nh4UbPH",
+          "reward": 1.0,
+          "exception": null,
+          "started_at": "2026-09-25T05:52:47.122283Z",
+          "finished_at": "2026-09-25T05:53:05.018429Z",
+          "wall_seconds": 17.896,
+          "result_path": "runs/loopool-oracle-transaction-reconciliation/loopool-oracle-transaction-recon__Nh4UbPH/result.json"
+        }
+      ],
+      "wall_seconds": null,
+      "verdict": "valid"
+    }
+  ],
+  "missing_jobs": []
+}

@@ -1,1 +1,38 @@
-{"answers":{"[csv]":"30","[fib]":"2880067194370816120","[sieve]":"9592"},"provenance":{"answers_source":"research-context/reef/experiments/04_gate_aa.py ANSWERS, citing the tutorial grader table at tutorials/evolve-your-harness/harness/evolution.py:12-15","counts_check":"research-context/reef/experiments/work/04-check/summary.json failure_flags","counts_seed":"research-context/reef/experiments/work/04/summary.json failure_flags","note":"Experiment data for evallab.evidence.reef_shift; production code takes answers and reference as file inputs and carries no experiment numbers.","recorded_by":"ReefIntake 2026-09-25"},"reference":{"check":{"assumed state persisted between tool calls":16,"called a tool with wrong arguments":19,"failed episodes":75,"had the right number in tool output, never reported it":5,"never used a tool":1,"no flag matched":7,"ran code that printed nothing":61,"right number, not alone on the last line":2},"seed":{"assumed state persisted between tool calls":25,"called a tool with wrong arguments":23,"failed episodes":169,"had the right number in tool output, never reported it":7,"never used a tool":46,"no flag matched":8,"ran code that printed nothing":71,"right number, not alone on the last line":34,"turn ended on an empty reply":68}}}
+{
+  "answers": {
+    "[csv]": "30",
+    "[fib]": "2880067194370816120",
+    "[sieve]": "9592"
+  },
+  "provenance": {
+    "answers_source": "research-context/reef/experiments/04_gate_aa.py ANSWERS, citing the tutorial grader table at tutorials/evolve-your-harness/harness/evolution.py:12-15",
+    "cli_example": "python -m evallab.evidence.reef_shift --seed derived/reef-intake/04 --check derived/reef-intake/04-check --answers research/analysis/reef-shift/exp04-reference.json --reference research/analysis/reef-shift/exp04-reference.json",
+    "counts_check": "research-context/reef/experiments/work/04-check/summary.json failure_flags",
+    "counts_seed": "research-context/reef/experiments/work/04/summary.json failure_flags",
+    "note": "Experiment data for evallab.evidence.reef_shift; production code takes answers and reference as file inputs and carries no experiment numbers.",
+    "recorded_by": "ReefIntake 2026-09-25"
+  },
+  "reference": {
+    "check": {
+      "assumed state persisted between tool calls": 16,
+      "called a tool with wrong arguments": 19,
+      "failed episodes": 75,
+      "had the right number in tool output, never reported it": 5,
+      "never used a tool": 1,
+      "no flag matched": 7,
+      "ran code that printed nothing": 61,
+      "right number, not alone on the last line": 2
+    },
+    "seed": {
+      "assumed state persisted between tool calls": 25,
+      "called a tool with wrong arguments": 23,
+      "failed episodes": 169,
+      "had the right number in tool output, never reported it": 7,
+      "never used a tool": 46,
+      "no flag matched": 8,
+      "ran code that printed nothing": 71,
+      "right number, not alone on the last line": 34,
+      "turn ended on an empty reply": 68
+    }
+  }
+}

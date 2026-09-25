@@ -1,58 +1,73 @@
-"""Plugin tests use Reef's actual value types in its separate interpreter."""
+"""Plugin tests use Reef's actual value types in its separate interpreter.
+
+The real Reef imports and the typed backend subclasses happen inside the
+``gate`` fixture at execution time, so this module stays importable -- and its
+test items stay collected -- in the Lab environment where Reef is absent;
+each test then skips instead of running against a stand-in Reef.
+"""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-pytest.importorskip("reef", reason="real Reef integration runs in the separate Reef interpreter")
 
-from evallab_reef_gate.plugin import Factory  # noqa: E402
-from evallab_reef_gate.rules import GateConfig  # noqa: E402
-from reef.core.evaluation import (  # noqa: E402
-    CandidateEvaluator,
-    EvaluationResult,
-    UpdateCandidate,
-)
-from reef.train.cordis_backend.backend import HarnessCandidate  # noqa: E402
+@pytest.fixture(scope="module")
+def gate() -> SimpleNamespace:
+    """The gate plugin and Reef's actual evaluation types, imported per run."""
+    pytest.importorskip("reef", reason="real Reef integration runs in the separate Reef interpreter")
+    from evallab_reef_gate.plugin import Factory
+    from evallab_reef_gate.rules import GateConfig
+    from reef.core.evaluation import (
+        CandidateEvaluator,
+        EvaluationResult,
+        UpdateCandidate,
+    )
+    from reef.train.cordis_backend.backend import HarnessCandidate
 
+    class ScoredBackend(CandidateEvaluator):
+        def __init__(self, candidate_scores: tuple, current_scores: tuple, repeats: int = 5) -> None:
+            self.candidate_scores = candidate_scores
+            self.current_scores = current_scores
+            self.repeats = repeats
 
-class ScoredBackend(CandidateEvaluator):
-    def __init__(self, candidate_scores: tuple, current_scores: tuple, repeats: int = 5) -> None:
-        self.candidate_scores = candidate_scores
-        self.current_scores = current_scores
-        self.repeats = repeats
+        def evaluate(self, candidate: UpdateCandidate) -> EvaluationResult:
+            return EvaluationResult(
+                evaluator="test_pairs", evaluator_version="1",
+                metrics={
+                    "candidate_scores": self.candidate_scores,
+                    "current_scores": self.current_scores,
+                    "episode_repeats": self.repeats,
+                },
+            )
 
-    def evaluate(self, candidate: UpdateCandidate) -> EvaluationResult:
-        return EvaluationResult(
-            evaluator="test_pairs", evaluator_version="1",
-            metrics={
-                "candidate_scores": self.candidate_scores,
-                "current_scores": self.current_scores,
-                "episode_repeats": self.repeats,
-            },
+    class BrokenBackend(CandidateEvaluator):
+        def evaluate(self, candidate: UpdateCandidate) -> EvaluationResult:
+            raise RuntimeError("private provider context must not become a gate record")
+
+    def candidate(identifier: str, tasks: int = 1) -> HarnessCandidate:
+        return HarnessCandidate(
+            candidate_id=identifier,
+            candidate_files={}, current_files={}, candidate_entries=(), current_entries=(),
+            mutations=(), evaluation_tasks=tuple(f"task {index}" for index in range(tasks)),
         )
 
-
-class BrokenBackend(CandidateEvaluator):
-    def evaluate(self, candidate: UpdateCandidate) -> EvaluationResult:
-        raise RuntimeError("private provider context must not become a gate record")
-
-
-def candidate(identifier: str, tasks: int = 1) -> HarnessCandidate:
-    return HarnessCandidate(
-        candidate_id=identifier,
-        candidate_files={}, current_files={}, candidate_entries=(), current_entries=(),
-        mutations=(), evaluation_tasks=tuple(f"task {index}" for index in range(tasks)),
+    return SimpleNamespace(
+        Factory=Factory,
+        GateConfig=GateConfig,
+        ScoredBackend=ScoredBackend,
+        BrokenBackend=BrokenBackend,
+        candidate=candidate,
     )
 
 
-def test_plugin_selects_only_a_recorded_significant_candidate(tmp_path: Path) -> None:
-    factory = Factory(record_dir=tmp_path / "decisions")
-    plugin = factory.build(ScoredBackend((1.0,) * 5, (0.0,) * 5))
-    proposal = candidate("five-wins")
+def test_plugin_selects_only_a_recorded_significant_candidate(gate: SimpleNamespace, tmp_path: Path) -> None:
+    factory = gate.Factory(record_dir=tmp_path / "decisions")
+    plugin = factory.build(gate.ScoredBackend((1.0,) * 5, (0.0,) * 5))
+    proposal = gate.candidate("five-wins")
     decision = plugin.decide(proposal, plugin.evaluate(proposal))
 
     assert decision.selected
@@ -75,9 +90,11 @@ def test_plugin_selects_only_a_recorded_significant_candidate(tmp_path: Path) ->
     ((None,) * 5, (0.0,) * 5),
     ((None,) * 5, (None,) * 5),
 ])
-def test_plugin_missing_scores_are_invalid_not_wins(tmp_path: Path, scores: tuple) -> None:
-    plugin = Factory(record_dir=tmp_path / "decisions").build(ScoredBackend(*scores))
-    proposal = candidate("missing-scores")
+def test_plugin_missing_scores_are_invalid_not_wins(
+    gate: SimpleNamespace, tmp_path: Path, scores: tuple
+) -> None:
+    plugin = gate.Factory(record_dir=tmp_path / "decisions").build(gate.ScoredBackend(*scores))
+    proposal = gate.candidate("missing-scores")
     decision = plugin.decide(proposal, plugin.evaluate(proposal))
 
     assert not decision.selected
@@ -88,26 +105,30 @@ def test_plugin_missing_scores_are_invalid_not_wins(tmp_path: Path, scores: tupl
     assert record["invalid_pairs"] == 5
 
 
-def test_regression_veto_overrides_significance_and_respects_threshold(tmp_path: Path) -> None:
+def test_regression_veto_overrides_significance_and_respects_threshold(
+    gate: SimpleNamespace, tmp_path: Path
+) -> None:
     scores = (0.0, 1.0, 1.0, 1.0, 1.0) + (1.0,) * 10
     current = (1.0,) * 5 + (0.0,) * 10
-    strict = Factory(record_dir=tmp_path / "strict").build(ScoredBackend(scores, current))
-    proposal = candidate("regression", tasks=3)
+    strict = gate.Factory(record_dir=tmp_path / "strict").build(gate.ScoredBackend(scores, current))
+    proposal = gate.candidate("regression", tasks=3)
     vetoed = strict.decide(proposal, strict.evaluate(proposal))
     assert not vetoed.selected
     assert vetoed.metrics["p_value"] < 0.05
     assert vetoed.metrics["reason_code"] == "regression_veto"
 
-    configured = Factory(
-        config=GateConfig(regression_failure_threshold=2), record_dir=tmp_path / "configured"
-    ).build(ScoredBackend(scores, current))
+    configured = gate.Factory(
+        config=gate.GateConfig(regression_failure_threshold=2), record_dir=tmp_path / "configured"
+    ).build(gate.ScoredBackend(scores, current))
     admitted = configured.decide(proposal, configured.evaluate(proposal))
     assert admitted.selected
 
 
-def test_evaluator_exception_rejects_without_fabricated_side_observations(tmp_path: Path) -> None:
-    plugin = Factory(record_dir=tmp_path / "decisions").build(BrokenBackend())
-    proposal = candidate("evaluator-error")
+def test_evaluator_exception_rejects_without_fabricated_side_observations(
+    gate: SimpleNamespace, tmp_path: Path
+) -> None:
+    plugin = gate.Factory(record_dir=tmp_path / "decisions").build(gate.BrokenBackend())
+    proposal = gate.candidate("evaluator-error")
     measured = plugin.evaluate(proposal)
     decision = plugin.decide(proposal, measured)
 
@@ -121,10 +142,12 @@ def test_evaluator_exception_rejects_without_fabricated_side_observations(tmp_pa
     assert "private provider context" not in record_text
 
 
-def test_configured_selector_rejects_unknown_rule_fields(tmp_path: Path, monkeypatch) -> None:
+def test_configured_selector_rejects_unknown_rule_fields(
+    gate: SimpleNamespace, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     path = tmp_path / "gate.json"
     path.write_text(json.dumps({"alpha": 0.05, "auto_publish": True}))
     monkeypatch.setenv("EVALLAB_REEF_GATE_CONFIG", str(path))
     with pytest.raises(ValueError):
-        Factory(record_dir=tmp_path / "decisions")
+        gate.Factory(record_dir=tmp_path / "decisions")
     assert not (tmp_path / "decisions").exists()

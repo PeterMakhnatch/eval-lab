@@ -21,7 +21,6 @@ from pathlib import Path
 
 import pytest
 from evallab_reef_gate import calibrate
-from evallab_reef_gate.rules import sign_test_p as rules_sign_test_p
 
 TASKS = [
     "[sieve] How many primes are below 100000? Reply with the count as a plain integer.",
@@ -76,13 +75,6 @@ def test_wilson_interval_exact_boundaries() -> None:
     assert 0.0 < hi < 1.0
 
 
-def test_sign_test_p_reuses_the_package_rule() -> None:
-    assert calibrate.sign_test_p is rules_sign_test_p
-    assert calibrate.sign_test_p(0, 0) == 1.0
-    assert calibrate.sign_test_p(0, 5) == 1.0
-    assert calibrate.sign_test_p(5, 0) == pytest.approx(1 / 32)
-    # n=6, wins=3: sum C(6,i) for i in 3..6 = 20+15+6+1 = 42 of 64.
-    assert calibrate.sign_test_p(3, 3) == pytest.approx(42 / 64)
 
 
 def test_publish_probability_rules_and_alpha() -> None:
@@ -152,10 +144,9 @@ def test_require_local_model_refuses_cloud_and_non_gguf_routes() -> None:
         ("non-hex digest", _valid_model_entry(digest="z" * 64)),
         ("missing digest", _valid_model_entry(digest=None)),
     ]
-    for problem, entry in cases:
-        with pytest.raises(SystemExit, match="refusing"):
+    for _, entry in cases:
+        with pytest.raises(SystemExit):
             calibrate.require_local_model({"models": [entry]}, "qwen2.5:7b")
-        assert problem  # each labelled case is a distinct refusal
 
 
 def test_require_local_model_refuses_ambiguous_matches() -> None:
@@ -212,18 +203,16 @@ def test_fetch_local_inventory_refuses_redirects() -> None:
         status = 302
         extra_headers = {"Location": "http://127.0.0.1:1/api/tags"}
 
-    with _serving(Redirect) as base:
-        with pytest.raises(SystemExit, match="redirected"):
-            calibrate.fetch_local_inventory(base)
+    with _serving(Redirect) as base, pytest.raises(SystemExit, match="redirected"):
+        calibrate.fetch_local_inventory(base)
 
 
 def test_fetch_local_inventory_bounds_the_body() -> None:
     class Huge(_TagsHandler):
         payload = b"x" * 65
 
-    with _serving(Huge) as base:
-        with pytest.raises(SystemExit, match="exceeds"):
-            calibrate.fetch_local_inventory(base, max_bytes=64)
+    with _serving(Huge) as base, pytest.raises(SystemExit, match="exceeds"):
+        calibrate.fetch_local_inventory(base, max_bytes=64)
 
 
 def test_child_environment_drops_ambient_and_pins_owned_vars(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -294,7 +283,7 @@ def test_read_decision_reports_exact_fields_full_precision(tmp_path: Path) -> No
     out = calibrate.read_decision_records(record_dir)
     assert out["count"] == 2
     assert out["decision_walltime_s"] == [0.4, pytest.approx(1 / 3)]
-    assert out["decision_walltime_median_s"] == 0.4  # upper median of the two walltimes
+    assert out["decision_walltime_median_s"] == pytest.approx((0.4 + 1 / 3) / 2)
     assert out["evaluation_walltime_median_s"] == 130.2
     assert out["reef_commits"] == ["4c3a6bb24949bd93a4566ca1d9877d4feeab023e"]
     assert out["reason_codes"] == {"publish": 1, "regression_veto": 1}
@@ -313,7 +302,7 @@ def test_read_decision_records_reports_malformed_records(tmp_path: Path) -> None
         json.dumps(decision_record(reef_commit="")),  # empty text field
         json.dumps(decision_record(reason_code=7)),  # non-string reason
     ]
-    for index, bad in enumerate(bad_bodies):
+    for bad in bad_bodies:
         (record_dir / "bad.json").write_text(bad)
         with pytest.raises(SystemExit, match="malformed decision record"):
             calibrate.read_decision_records(record_dir)

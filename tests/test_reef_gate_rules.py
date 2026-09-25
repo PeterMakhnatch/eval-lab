@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from evallab_reef_gate.rules import (
     REASON_INSUFFICIENT_EVIDENCE,
     REASON_NOT_SIGNIFICANT,

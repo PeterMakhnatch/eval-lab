@@ -61,6 +61,7 @@ import urllib.parse
 import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
+from statistics import median
 
 from evallab_reef_gate.rules import sign_test_p
 
@@ -306,7 +307,7 @@ def child_environment(*, reef_root: Path, work: Path, gate_config_path: Path, py
     reef_root, work, gate_config_path = Path(reef_root), Path(work), Path(gate_config_path)
     env = {name: os.environ[name] for name in ENV_ALLOWLIST if name in os.environ}
     env.update({name: value for name, value in os.environ.items() if name.startswith(ENV_LC_PREFIX)})
-    bin_dir = Path(python).resolve().parent
+    bin_dir = Path(python).absolute().parent
     env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH') or os.defpath}"
     env["PYTHONPATH"] = f"{PLUGIN_SRC}{os.pathsep}{reef_root}"
     env["PYTHONDONTWRITEBYTECODE"] = "1"
@@ -762,7 +763,8 @@ def summarize(
         base, base_note = pooled_rates, "pooled both sides (the A/A law is shared)"
     else:
         base, base_note = side_rates["current"], "current side only (the deliberately degraded skill)"
-    base_available = all(value is not None for value in base.values())
+    base_values = [value for value in base.values() if value is not None]
+    base_available = bool(labels) and len(base_values) == len(labels)
 
     wlt: dict[str, int] = {}
     for r in ran:
@@ -780,7 +782,7 @@ def summarize(
         for rule, reps in (("majority", 1), ("majority", 5), ("sign", 5), ("sign", 10)):
             p_publish = (
                 publish_probability(
-                    [pair_law(p, min(1.0, p + lift)) for p in base.values() for _ in range(reps)],
+                    [pair_law(p, min(1.0, p + lift)) for p in base_values for _ in range(reps)],
                     rule,
                     alpha,
                 )
@@ -803,16 +805,16 @@ def summarize(
     if condition == "aa":
         if base_available:
             prediction = publish_probability(
-                [pair_law(p, p) for p in base.values() for _ in range(repeats)], "sign", alpha
+                [pair_law(p, p) for p in base_values for _ in range(repeats)], "sign", alpha
             )
             prediction_basis = (
                 f"null candidate vs pooled measured per-task pass rates, sign rule at alpha={alpha:g}, "
                 f"{repeats} ep/task"
             )
     else:
-        current_values = list(side_rates["current"].values())
-        candidate_values = list(side_rates["candidate"].values())
-        if all(v is not None for v in current_values) and all(v is not None for v in candidate_values):
+        current_values = [value for value in side_rates["current"].values() if value is not None]
+        candidate_values = [value for value in side_rates["candidate"].values() if value is not None]
+        if labels and len(current_values) == len(candidate_values) == len(labels):
             prediction = publish_probability(
                 [
                     pair_law(p_current, p_candidate)
@@ -857,7 +859,7 @@ def summarize(
         "episodes_scored": sum(len(candidate_passes[label]) + len(current_passes[label]) for label in labels),
         "episodes_missing": candidate_missing + current_missing,
         "observed_trials_passing_sign_test": observed_sign,
-        "median_trial_seconds": sorted(r["seconds"] for r in ran)[n // 2] if n else None,
+        "median_trial_seconds": median(r["seconds"] for r in ran) if n else None,
         "gate_table": table,
         "predicted_publish_rate": prediction,
         "prediction_basis": prediction_basis if prediction is not None else None,
@@ -932,8 +934,8 @@ def read_decision_records(record_dir: Path) -> dict:
     return {
         "count": len(records),
         "decision_walltime_s": walltimes,
-        "decision_walltime_median_s": sorted(walltimes)[len(walltimes) // 2] if walltimes else None,
-        "evaluation_walltime_median_s": sorted(evaluations)[len(evaluations) // 2] if evaluations else None,
+        "decision_walltime_median_s": median(walltimes) if walltimes else None,
+        "evaluation_walltime_median_s": median(evaluations) if evaluations else None,
         "reef_commits": sorted({record["reef_commit"] for record in records}),
         "reason_codes": dict(sorted(reason_codes.items())),
     }
@@ -1065,6 +1067,9 @@ def main(argv: list[str] | None = None) -> None:
     sys.dont_write_bytecode = True
     args = parse_args(argv)
     work = args.work_dir.expanduser().resolve()
+    args.reef_root = args.reef_root.expanduser().resolve()
+    if work.is_relative_to(args.reef_root):
+        raise SystemExit("work-dir must not modify the Reef checkout or its environment")
 
     if args.analyze_only:
         if not work.is_dir():
@@ -1079,7 +1084,6 @@ def main(argv: list[str] | None = None) -> None:
         )
     work.mkdir(parents=True, exist_ok=True)
 
-    args.reef_root = args.reef_root.expanduser().resolve()
     python = (args.python or (args.reef_root / ".venv" / "bin" / "python")).expanduser()
     _validate(args, python)
 

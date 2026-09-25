@@ -270,7 +270,7 @@ def decide_pairs(
         # Sanitize only the refused side; an observed score on the other side stays on record.
         candidate_value = None if candidate_offenses[index] is not None else float(candidate[index])
         current_value = None if current_offenses[index] is not None else float(current[index])
-        if offenses:
+        if candidate_value is None or current_value is None:
             result = "invalid"
         elif candidate_value > current_value:
             result = "win"

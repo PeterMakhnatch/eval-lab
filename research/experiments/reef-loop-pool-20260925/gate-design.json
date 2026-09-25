@@ -1,0 +1,387 @@
+{
+  "schema_version": 1,
+  "generated_by": "research/experiments/reef-loop-pool-20260925/gate_tables.py",
+  "calculator": "evallab.power.paired_gate_publish_probability (exact; never simulated)",
+  "rules": {
+    "reef-default": "publish iff wins - losses > 0 (Reef score_comparison; backend.py ScoreComparisonMixin.decide)",
+    "har72-sign-veto1": "one-sided exact sign test at alpha=0.05 on valid pairs, ties dropped, plus per-task regression veto (current passed every repeat and >=1 candidate failure on that task)"
+  },
+  "assumptions": [
+    "Episodes are independent Bernoulli(pass) per side per repeat; the gate reads only valid episodes, and this planner assumes full validity (infra failures only shrink evidence).",
+    "Grid task counts tile the rate profile cyclically: a row's 'tasks' is a rate mix, not a claim that specific new tasks exist."
+  ],
+  "exp04_check_validation": {
+    "source": "research-context/reef/experiments/work/04-check/summary.json gate_table",
+    "rates": {
+      "[sieve]": "32/60",
+      "[fib]": "34/60",
+      "[csv]": "39/60"
+    },
+    "rows": [
+      {
+        "candidate": "null (A/A)",
+        "gate": "wins>losses, 1 ep/task",
+        "recorded_p_publish": 0.34,
+        "computed_p_publish": 0.340177,
+        "matches": true
+      },
+      {
+        "candidate": "null (A/A)",
+        "gate": "wins>losses, 5 ep/task",
+        "recorded_p_publish": 0.426,
+        "computed_p_publish": 0.426331,
+        "matches": true
+      },
+      {
+        "candidate": "null (A/A)",
+        "gate": "sign test p<0.05, 5 ep/task",
+        "recorded_p_publish": 0.019,
+        "computed_p_publish": 0.018997,
+        "matches": true
+      },
+      {
+        "candidate": "null (A/A)",
+        "gate": "sign test p<0.05, 10 ep/task",
+        "recorded_p_publish": 0.03,
+        "computed_p_publish": 0.029835,
+        "matches": true
+      },
+      {
+        "candidate": "+0.2 per task",
+        "gate": "wins>losses, 1 ep/task",
+        "recorded_p_publish": 0.543,
+        "computed_p_publish": 0.543343,
+        "matches": true
+      },
+      {
+        "candidate": "+0.2 per task",
+        "gate": "wins>losses, 5 ep/task",
+        "recorded_p_publish": 0.845,
+        "computed_p_publish": 0.844564,
+        "matches": true
+      },
+      {
+        "candidate": "+0.2 per task",
+        "gate": "sign test p<0.05, 5 ep/task",
+        "recorded_p_publish": 0.169,
+        "computed_p_publish": 0.169332,
+        "matches": true
+      },
+      {
+        "candidate": "+0.2 per task",
+        "gate": "sign test p<0.05, 10 ep/task",
+        "recorded_p_publish": 0.404,
+        "computed_p_publish": 0.404356,
+        "matches": true
+      },
+      {
+        "candidate": "+0.4 per task",
+        "gate": "wins>losses, 1 ep/task",
+        "recorded_p_publish": 0.761,
+        "computed_p_publish": 0.76104,
+        "matches": true
+      },
+      {
+        "candidate": "+0.4 per task",
+        "gate": "wins>losses, 5 ep/task",
+        "recorded_p_publish": 0.996,
+        "computed_p_publish": 0.996363,
+        "matches": true
+      },
+      {
+        "candidate": "+0.4 per task",
+        "gate": "sign test p<0.05, 5 ep/task",
+        "recorded_p_publish": 0.681,
+        "computed_p_publish": 0.681234,
+        "matches": true
+      },
+      {
+        "candidate": "+0.4 per task",
+        "gate": "sign test p<0.05, 10 ep/task",
+        "recorded_p_publish": 0.977,
+        "computed_p_publish": 0.976941,
+        "matches": true
+      }
+    ],
+    "all_match": true
+  },
+  "har72_ceiling_validation": {
+    "source": "har72-reef-gate-20260925/runs/har72-aa-deepseek-api/summary.json",
+    "observed": "0 publishes / 30 trials; pooled rates [1.0, 0.9799, 1.0]; 5 repeats x 3 tasks",
+    "computed_false_publish_rate": 2.892546549760012e-09,
+    "computed_veto_probability": 0.08684798991245316,
+    "caveat": "At a ceiling pass rate almost every pair ties, so this A/A says little about noise at mid-range pass rates; the pool needs mid-range tasks for the target model. RE's independent implementation predicted 2.94e-9 from the unrounded pooled rate 0.9799."
+  },
+  "reef_default_fpr_growth_midrange": [
+    {
+      "tasks": 4,
+      "fpr_reps1": 0.36,
+      "fpr_reps5": 0.436
+    },
+    {
+      "tasks": 8,
+      "fpr_reps1": 0.4,
+      "fpr_reps5": 0.455
+    },
+    {
+      "tasks": 12,
+      "fpr_reps1": 0.418,
+      "fpr_reps5": 0.463
+    },
+    {
+      "tasks": 16,
+      "fpr_reps1": 0.429,
+      "fpr_reps5": 0.468
+    },
+    {
+      "tasks": 24,
+      "fpr_reps1": 0.442,
+      "fpr_reps5": 0.474
+    },
+    {
+      "tasks": 32,
+      "fpr_reps1": 0.449,
+      "fpr_reps5": 0.477
+    }
+  ],
+  "requirement_grids_fpr_le_0.05_power_ge_0.8": {
+    "exp05-thin-qwen3coder30b": {
+      "rates": [
+        1.0,
+        1.0,
+        0.0,
+        0.0
+      ],
+      "lift0.2:reef-default": {
+        "requirement_met_within_16x8": true,
+        "min_tasks_by_repeats": {
+          "1": 16,
+          "2": 8,
+          "3": 7,
+          "4": 4,
+          "5": 4,
+          "6": 4,
+          "7": 4,
+          "8": 3
+        },
+        "min_cell": {
+          "tasks": 4,
+          "repeats": 4,
+          "episodes_per_side": 16
+        }
+      },
+      "lift0.2:har72-sign-veto1": {
+        "requirement_met_within_16x8": true,
+        "min_tasks_by_repeats": {
+          "5": 15,
+          "6": 12,
+          "7": 11,
+          "8": 11
+        },
+        "min_cell": {
+          "tasks": 12,
+          "repeats": 6,
+          "episodes_per_side": 72
+        }
+      },
+      "lift0.4:reef-default": {
+        "requirement_met_within_16x8": true,
+        "min_tasks_by_repeats": {
+          "1": 8,
+          "2": 4,
+          "3": 4,
+          "4": 3,
+          "5": 3,
+          "6": 3,
+          "7": 3,
+          "8": 3
+        },
+        "min_cell": {
+          "tasks": 4,
+          "repeats": 2,
+          "episodes_per_side": 8
+        }
+      },
+      "lift0.4:har72-sign-veto1": {
+        "requirement_met_within_16x8": true,
+        "min_tasks_by_repeats": {
+          "2": 16,
+          "3": 12,
+          "4": 8,
+          "5": 8,
+          "6": 7,
+          "7": 7,
+          "8": 4
+        },
+        "min_cell": {
+          "tasks": 4,
+          "repeats": 8,
+          "episodes_per_side": 32
+        }
+      }
+    },
+    "pooled-0.5": {
+      "rates": [
+        0.5,
+        0.5,
+        0.5,
+        0.5
+      ],
+      "lift0.2:reef-default": {
+        "requirement_met_within_16x8": false,
+        "min_tasks_by_repeats": {},
+        "min_cell": null
+      },
+      "lift0.2:har72-sign-veto1": {
+        "requirement_met_within_16x8": true,
+        "min_tasks_by_repeats": {
+          "7": 15,
+          "8": 12
+        },
+        "min_cell": {
+          "tasks": 12,
+          "repeats": 8,
+          "episodes_per_side": 96
+        }
+      },
+      "lift0.4:reef-default": {
+        "requirement_met_within_16x8": false,
+        "min_tasks_by_repeats": {},
+        "min_cell": null
+      },
+      "lift0.4:har72-sign-veto1": {
+        "requirement_met_within_16x8": true,
+        "min_tasks_by_repeats": {
+          "4": 6,
+          "5": 5,
+          "6": 4,
+          "7": 3,
+          "8": 3
+        },
+        "min_cell": {
+          "tasks": 3,
+          "repeats": 7,
+          "episodes_per_side": 21
+        }
+      }
+    },
+    "midrange-04check-like": {
+      "rates": [
+        0.533,
+        0.567,
+        0.65,
+        0.6
+      ],
+      "lift0.2:reef-default": {
+        "requirement_met_within_16x8": false,
+        "min_tasks_by_repeats": {},
+        "min_cell": null
+      },
+      "lift0.2:har72-sign-veto1": {
+        "requirement_met_within_16x8": false,
+        "min_tasks_by_repeats": {},
+        "min_cell": null
+      },
+      "lift0.4:reef-default": {
+        "requirement_met_within_16x8": false,
+        "min_tasks_by_repeats": {},
+        "min_cell": null
+      },
+      "lift0.4:har72-sign-veto1": {
+        "requirement_met_within_16x8": true,
+        "min_tasks_by_repeats": {
+          "2": 11,
+          "3": 7,
+          "4": 5,
+          "5": 4,
+          "6": 3,
+          "7": 3,
+          "8": 3
+        },
+        "min_cell": {
+          "tasks": 3,
+          "repeats": 6,
+          "episodes_per_side": 18
+        }
+      }
+    }
+  },
+  "first_run_cell": {
+    "design": "4 dev tasks x k=5 repeats per side",
+    "exp05-thin-empirical": {
+      "rates": [
+        1.0,
+        1.0,
+        0.0,
+        0.0
+      ],
+      "reef_default": {
+        "fpr": 0.0,
+        "power_at_+0.2": 0.893,
+        "power_at_+0.4": 0.994
+      },
+      "har72_sign_veto1": {
+        "fpr": 0.0,
+        "power_at_+0.2": 0.033,
+        "power_at_+0.4": 0.367
+      }
+    },
+    "midrange-assumption": {
+      "rates": [
+        0.533,
+        0.567,
+        0.65,
+        0.6
+      ],
+      "reef_default": {
+        "fpr": 0.436,
+        "power_at_+0.2": 0.89,
+        "power_at_+0.4": 1.0
+      },
+      "har72_sign_veto1": {
+        "fpr": 0.022,
+        "power_at_+0.2": 0.239,
+        "power_at_+0.4": 0.877
+      }
+    }
+  },
+  "decision_cost": {
+    "local-ollama-qwen3-coder-30b (exp05-observed)": {
+      "usd_per_trial": 0.0,
+      "wall_hours_by_design": {
+        "4x5": 0.85,
+        "12x8": 4.06,
+        "11x8": 3.72
+      },
+      "usd_by_design": {
+        "4x5": 0.0,
+        "12x8": 0.0,
+        "11x8": 0.0
+      },
+      "details": {
+        "seconds_per_episode_basis": "exp05 round-1 traffic seconds 60.6/56.6/91.5/119.0, median 76.05"
+      }
+    },
+    "metered-zai-glm-5.3-flash (estimate)": {
+      "usd_per_trial": 0.0038,
+      "usd_by_design": {
+        "4x5": 0.3,
+        "12x8": 1.46,
+        "11x8": 1.34
+      },
+      "details": {
+        "input_tokens_per_trial": 17000,
+        "output_tokens_per_trial": 2500,
+        "input_tokens_per_trial_basis": "HAR-71 native runs: 14.7k-20.0k in / 2.0k-3.3k out per trial",
+        "price_basis": "execution_contracts.py ZAI_OPENAPI_{INPUT,OUTPUT}_COST_MICROS_PER_MILLION = 150k/500k ($0.15/M in, $0.50/M out)",
+        "wall_time": "not yet measured on this pool [INFERENCE]"
+      }
+    },
+    "trials_per_decision": {
+      "4x5": 80,
+      "12x8": 384,
+      "11x8": 352
+    },
+    "deepseek_note": "DeepSeek V4.1 flash is wired for mini-swe-agent (container-side proxy) in main, not for Terminus 2. RE's HAR-72 A/A drove DeepSeek through Reef's own serve (31.3 s median per 30-episode gate evaluation on tutorial tasks). A Terminus 2 DeepSeek/GLM-Flash host-side route requires runner work owned by ReefTraffic."
+  }
+}

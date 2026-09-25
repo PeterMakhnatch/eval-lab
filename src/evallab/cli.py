@@ -2288,6 +2288,8 @@ def _tasks_prepare_command(
         reef_url=args.reef_url,
         reef_scenario=args.reef_scenario,
         reef_token_env=args.reef_token_env,
+        output=args.output,
+        submitted_by=args.submitted_by,
     )
     spec_path = prepared.spec_path.relative_to(root.resolve()).as_posix()
     next_command = f"uv run evallab submit {shlex.quote(spec_path)}"

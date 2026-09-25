@@ -1947,6 +1947,7 @@ class Executor:
             # Held-out refusal before any Reef call, same rule as
             # training_pool.py:120. Runs before the drift re-check below.
             from evallab.reef_traffic import (
+                HeldoutCheckError,
                 HeldoutRefusal,
                 heldout_uses_for_task,
                 refuse_if_heldout,
@@ -1955,12 +1956,15 @@ class Executor:
             registered_id = (
                 spec.task.removeprefix("registered/") if spec.task.startswith("registered/") else None
             )
-            found = heldout_uses_for_task(
-                self.repo_root,
-                task_id=registered_id or spec.task_id,
-                task_path=spec.task_path,
-                package_digest=spec.task_package_digest,
-            )
+            try:
+                found = heldout_uses_for_task(
+                    self.repo_root,
+                    task_id=registered_id or spec.task_id,
+                    task_path=spec.task_path,
+                    package_digest=spec.task_package_digest,
+                )
+            except HeldoutCheckError as exc:
+                raise ExecutionFailure("reef_heldout_check_failed", str(exc)) from exc
             if found is not None:
                 try:
                     refuse_if_heldout(found[1], task_label=spec.task)

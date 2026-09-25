@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import math
 import os
+import shutil
 import tempfile
 import tomllib
 from dataclasses import dataclass, replace
@@ -361,23 +362,43 @@ def prepare_task(
 
     reef_spec: ReefTrafficSpec | None = None
     tree = None
+    harness_snapshot = None
     if reef_url is not None:
         assert reef_scenario is not None and reef_token_env is not None
         # Held-out refusal before any Reef call, same rule as training_pool.py:120.
-        check_task_allowed(repo, task_label=display_name, task_dir=resolved_source)
+        # Source digests come first so a renamed copy still matches its
+        # registry record by package digest, not just by directory.
+        source_digests = compute_task_digests(resolved_source)
+        try:
+            source_rel = resolved_source.relative_to(repo).as_posix()
+        except ValueError:
+            source_rel = None
+        check_task_allowed(
+            repo,
+            task_label=display_name,
+            task_dir=resolved_source,
+            task_path=source_rel,
+            package_digest=source_digests.package,
+        )
         token = os.environ.get(reef_token_env)
         if not token:
             raise ValueError(
                 f"reef token env var {reef_token_env!r} is not set; "
                 "export it before preparing a reef spec"
             )
-        pulled = pull_and_pin(
-            reef_url,
-            reef_scenario,
-            token,
-            Path(tempfile.mkdtemp(prefix="reef-harness-pull.")),
-        )
-        tree = load_harness_tree(pulled.path, pulled.digest)
+        pull_dir = Path(tempfile.mkdtemp(prefix="reef-harness-pull."))
+        try:
+            pulled = pull_and_pin(reef_url, reef_scenario, token, pull_dir)
+            tree = load_harness_tree(pulled.path, pulled.digest)
+            # Stage into repo-owned prepared state now: execution must never
+            # depend on this tempdir, which is removed below.
+            harness_snapshot, _ = stage_harness_tree(
+                tree.root,
+                tree.sha256,
+                staging_root=_output_path(repo, Path(PREPARED_HARNESSES_REL)),
+            )
+        finally:
+            shutil.rmtree(pull_dir, ignore_errors=True)
         reef_spec = ReefTrafficSpec(
             url=reef_url,
             scenario=reef_scenario,
@@ -433,7 +454,7 @@ def prepare_task(
         max_output_tokens=ceiling_output,
         max_total_tokens=ceiling_total,
         cost_limit_usd=ceiling_cost,
-        harness_tree_path=tree.root if tree else None,
+        harness_tree_path=harness_snapshot if harness_snapshot is not None else (tree.root if tree else None),
         harness_tree_sha256=tree.sha256 if tree else None,
         reef=reef_binding,
     )
@@ -444,13 +465,13 @@ def prepare_task(
         raise ValueError(
             "task configuration changed during preparation; retry with a stable source"
         )
-    harness_snapshot = None
-    if tree is not None:
+    if tree is not None and harness_snapshot is None:
         harness_snapshot, _ = stage_harness_tree(
             tree.root,
             tree.sha256,
             staging_root=_output_path(repo, Path(PREPARED_HARNESSES_REL)),
         )
+    if harness_snapshot is not None:
         request = replace(request, harness_tree_path=harness_snapshot)
     task_rel = snapshot.relative_to(repo).as_posix()
     digests = compute_task_digests(snapshot)

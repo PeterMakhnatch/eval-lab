@@ -469,6 +469,8 @@ class ExperimentSpec(ContractModel):
             raise ValueError("reef specs pin the served tree: harness_tree_path and harness_tree_sha256 are required")
         if self.reef is not None and (self.reef.release_id is None or self.reef.content_id is None):
             raise ValueError("reef specs pin the served release: release_id and content_id are required")
+        if self.reef is not None and self.attempts != 1:
+            raise ValueError("reef specs carry exactly one trial: attempts must be 1")
         if self.provider_routes:
             if not self.billable:
                 raise ValueError("control specs cannot declare provider routes")

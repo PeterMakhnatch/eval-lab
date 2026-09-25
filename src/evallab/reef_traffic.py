@@ -121,7 +121,7 @@ def check_token_env(value: str) -> str:
 
 
 def check_url(value: str) -> str:
-    """Fail closed to http(s) loopback URLs; the bearer token never leaves host."""
+    """Fail closed to bare http(s) loopback URLs; the bearer token never leaves host."""
     if not isinstance(value, str):
         raise ValueError(f"reef url must be a string, got {value!r}")
     try:
@@ -130,6 +130,8 @@ def check_url(value: str) -> str:
         raise ValueError(f"reef url is invalid: {value!r}") from exc
     if parsed.scheme not in ("http", "https") or parsed.hostname not in ("127.0.0.1", "localhost"):
         raise ValueError(f"reef url must be an http(s) loopback URL, got {value!r}")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError(f"reef url must not carry credentials, got {value!r}")
     return value.rstrip("/")
 
 
@@ -270,17 +272,23 @@ def served_files_digest(files: Mapping[str, str]) -> str:
 def write_served_tree(files: Mapping[str, str], destination: Path) -> Path:
     """Write served files only: no sidecars, no rendering, no validation.
 
-    Served paths must stay inside ``destination``; an absolute or
-    parent-escaping path refuses the pull (mirrors the client's own guard).
+    Every served path is validated before anything is written, so a refused
+    pull leaves no partial tree behind. Served paths must stay inside
+    ``destination``; an absolute, parent-escaping, or bookkeeping-colliding
+    path refuses the pull (mirrors the client's own guard).
     """
-    root = Path(destination)
-    root.mkdir(parents=True, exist_ok=True)
-    for relative, text in files.items():
+    planned = list(files.items())
+    for relative, text in planned:
         parts = PurePosixPath(relative).parts
         if PurePosixPath(relative).is_absolute() or ".." in parts:
-            raise ValueError(f"served path {relative!r} escapes the destination")
+            raise ReefTrafficError(f"served path {relative!r} escapes the destination")
         if PurePosixPath(relative).name in BOOKKEEPING_NAMES:
-            raise ValueError(f"served path {relative!r} collides with Reef bookkeeping")
+            raise ReefTrafficError(f"served path {relative!r} collides with Reef bookkeeping")
+        if not isinstance(text, str):
+            raise ReefTrafficError(f"served path {relative!r} is not text")
+    root = Path(destination)
+    root.mkdir(parents=True, exist_ok=True)
+    for relative, text in planned:
         target = root / PurePosixPath(relative).as_posix()
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(text.encode("utf-8"))
@@ -389,6 +397,10 @@ def refuse_if_heldout(allowed_uses: object, *, task_label: str) -> None:
         )
 
 
+class HeldoutCheckError(ValueError):
+    """The held-out check itself failed: the registry exists but cannot be read."""
+
+
 def heldout_uses_for_task(
     repo_root: Path,
     *,
@@ -399,17 +411,25 @@ def heldout_uses_for_task(
 ) -> tuple[str, list[str]] | None:
     """Find a registry record's ``(task_id, allowed_uses)`` for a task, if any.
 
-    Matches by explicit ``task_id`` (``registered/<id>`` specs), by resolved
-    task directory, or by package digest. Returns ``None`` when no record
-    matches: local-package tasks carry no registry signal. Never raises for a
-    missing or unreadable registry; registry *errors* still raise.
+    Matches by explicit ``task_id`` (``registered/<id>`` specs), by
+    repo-relative ``task_path``, by resolved task directory, or by package
+    digest. Returns ``None`` when no record matches, or when no registry
+    exists at all: local-package tasks carry no registry signal. Raises
+    :class:`HeldoutCheckError` when registry records exist but fail to
+    parse: a corrupt registry fails closed, never open.
     """
     from evallab.registry import TaskRegistry
 
+    registry_dir = Path(repo_root) / "library" / "registry"
+    if not registry_dir.is_dir():
+        return None
     try:
         registry = TaskRegistry.from_repo(Path(repo_root))
-    except (OSError, ValueError):
-        return None
+    except (OSError, ValueError) as exc:
+        raise HeldoutCheckError(
+            f"task registry at {registry_dir} exists but cannot be read; "
+            f"refusing Reef traffic: {exc}"
+        ) from exc
     if task_id is not None:
         record = registry.get(task_id)
         if record is not None:
@@ -634,10 +654,6 @@ class ReefCaptureProxy:
             turns, self._turns = list(self._turns), []
         return turns
 
-    def receipts(self) -> list[str]:
-        """Successful (HTTP 200) inference receipts (tasks.py:311)."""
-        return [turn.receipt for turn in self.drain() if turn.status == 200 and turn.receipt]
-
 # --------------------------------------------------------------------------- #
 # Reports: one per trial, score = verifier reward (http-api.rst:542-605,
 # tasks.py:336-366). No feedback: TrialDiagnosis is unmerged, and hidden
@@ -729,10 +745,8 @@ def post_report_retrying(
             last = exc
     raise last or ReefTrafficError("report failed without an attempt")
 
-
 def trial_report_decision(
     *,
-    trial_id: str,
     result: Mapping[str, Any],
     rewards: Mapping[str, Any],
 ) -> tuple[float | None, str]:
@@ -753,7 +767,6 @@ def trial_report_decision(
         return None, "unscored: verifier wrote no reward"
     if not math_is_finite(raw):
         return None, "unscored: reward is not a finite number"
-    _ = trial_id
     return float(raw), "ok"
 
 
@@ -780,16 +793,25 @@ def report_job_trials(
     timeout_s: float = 60.0,
     max_attempts: int = 3,
 ) -> list[TrialReport]:
-    """Report every scored trial of one job; skip unscored/infra-failed ones.
+    """Report one job's single scored trial; skip unscored/infra-failed ones.
 
-    ``trials`` holds ``(trial_id, result, rewards)`` per trial. With no
-    receipts nothing is reported: the server needs at least one reference.
-    Report errors are recorded per trial, never raised: the receipts stay in
-    evidence and the retry-safe id allows a later repost.
+    ``trials`` holds ``(trial_id, result, rewards)``. Reef specs are
+    single-trial by contract (enforced at spec and request validation), so
+    more than one trial refuses loudly instead of cross-referencing every
+    report against the whole job's receipts. With no receipts nothing is
+    reported: the server needs at least one reference. Report errors are
+    recorded per trial, never raised: the receipts stay in evidence and the
+    retry-safe id allows a later repost.
     """
+    ordered = list(trials)
+    if len(ordered) > 1:
+        raise ReefTrafficError(
+            f"reef jobs carry exactly one trial, got {len(ordered)}; "
+            "refusing instead of referencing one trial's calls from another's report"
+        )
     reports: list[TrialReport] = []
-    for trial_id, result, rewards in trials:
-        score, reason = trial_report_decision(trial_id=trial_id, result=result, rewards=rewards)
+    for trial_id, result, rewards in ordered:
+        score, reason = trial_report_decision(result=result, rewards=rewards)
         if score is None:
             reports.append(TrialReport(trial_id=trial_id, status="skipped", reason=reason))
             continue

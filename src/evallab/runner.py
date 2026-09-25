@@ -2147,6 +2147,17 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                     TrialReport(trial_id=trial_id, status="skipped", reason=reason)
                     for trial_id, _, _ in trial_inputs
                 ]
+            elif len(trial_inputs) != 1:
+                # Single-trial contract (spec + request validation): never
+                # cross-reference one trial's calls from another's report.
+                reports = [
+                    TrialReport(
+                        trial_id=trial_id,
+                        status="error",
+                        reason=f"reef jobs carry exactly one trial, found {len(trial_inputs)}",
+                    )
+                    for trial_id, _, _ in trial_inputs
+                ]
             else:
                 reports = report_job_trials(
                     url=request.reef.url,

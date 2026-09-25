@@ -18,6 +18,7 @@ import pytest
 from evallab.evidence_store import evidence_tree_digest
 from evallab.execution_contracts import ReefTrafficBinding, RunRequest
 from evallab.reef_traffic import (
+    HeldoutCheckError,
     HeldoutRefusal,
     ReefCaptureProxy,
     ReefDriftError,
@@ -26,6 +27,7 @@ from evallab.reef_traffic import (
     canonical_files_digest,
     check_drift,
     check_task_allowed,
+    heldout_uses_for_task,
     post_report,
     pull_and_pin,
     pull_manifest,
@@ -298,13 +300,15 @@ def test_framing_parity_with_evidence_digest(tmp_path: Path) -> None:
     assert evidence_tree_digest(target) == served_files_digest(files)
 
 
-def test_unsafe_served_paths_refused(tmp_path: Path) -> None:
-    with pytest.raises(ValueError):
-        write_served_tree({"/abs/path": "x"}, tmp_path / "a")
-    with pytest.raises(ValueError):
-        write_served_tree({"../escape": "x"}, tmp_path / "b")
-    with pytest.raises(ValueError):
-        write_served_tree({".reef-harness-version": "{}"}, tmp_path / "c")
+def test_unsafe_served_paths_refused_atomically(tmp_path: Path) -> None:
+    dest = tmp_path / "dest"
+    with pytest.raises(ReefTrafficError):
+        write_served_tree({"ok/file.txt": "x", "../escape": "y"}, dest)
+    with pytest.raises(ReefTrafficError):
+        write_served_tree({"/abs/path": "x"}, dest)
+    with pytest.raises(ReefTrafficError):
+        write_served_tree({".reef-harness-version": "{}"}, dest)
+    assert not dest.exists() or list(dest.rglob("*")) == []
 
 
 def test_drift_release_change_is_provenance_not_drift(reef: Any, tmp_path: Path) -> None:
@@ -371,7 +375,7 @@ def test_proxy_injects_headers_overrides_auth_and_captures_receipts(reef: Any) -
     assert lowered["authorization"] == f"Bearer {TOKEN}"
 
 
-def test_proxy_receipts_only_count_http_200(reef: Any) -> None:
+def test_proxy_drain_returns_tagged_turns_and_empties(reef: Any) -> None:
     proxy = ReefCaptureProxy(_url(reef), SCENARIO, TOKEN, tags={"task": "t", "episode": "e"})
     proxy.start()
     try:
@@ -382,7 +386,9 @@ def test_proxy_receipts_only_count_http_200(reef: Any) -> None:
         )
     finally:
         proxy.stop()
-    assert len(proxy.receipts()) == 1
+    (turn,) = proxy.drain()
+    assert turn.status == 200 and turn.receipt is not None
+    assert turn.tags == {"task": "t", "episode": "e"}
     assert proxy.drain() == []
 
 
@@ -452,7 +458,7 @@ def _trial(result: dict[str, Any], rewards: dict[str, Any]) -> tuple[str, dict[s
 
 def test_trial_decision_matrix() -> None:
     ok, _ = trial_report_decision(
-        trial_id="t", result={"finished_at": "2026-09-25T00:00:00Z"}, rewards={"reward": 1.0}
+        result={"finished_at": "2026-09-25T00:00:00Z"}, rewards={"reward": 1.0}
     )
     assert ok == 1.0
     cases = [
@@ -465,34 +471,53 @@ def test_trial_decision_matrix() -> None:
         ({"finished_at": "x"}, {"reward": 0.0}, None),
     ]
     for result, rewards, expect in cases:
-        score, reason = trial_report_decision(trial_id="t", result=result, rewards=rewards)
+        score, reason = trial_report_decision(result=result, rewards=rewards)
         if expect is None:
             assert score == 0.0, reason
         else:
             assert score is None and reason.startswith(expect), (result, rewards, reason)
 
 
-def test_report_job_trials_skips_unscored_and_reports_scored(reef: Any) -> None:
+def test_report_job_trials_reports_single_scored_trial(reef: Any) -> None:
     _post(_url(reef) + "/v1/chat/completions", {"model": "m", "messages": []}, {"x-reef-scenario": SCENARIO})
     receipt = next(iter(reef.state["inference"]))  # noqa: SLF001
     digest = "sha256:" + "0" * 64
-    reports = report_job_trials(
+    (report,) = report_job_trials(
         url=_url(reef), scenario=SCENARIO, token=TOKEN,
         task_name="t", task_path="p", task_digest=digest,
-        trials=[
-            _trial({"finished_at": "x"}, {"reward": 1.0}),
-            _trial({"exception_info": {"class": "Boom"}, "finished_at": "x"}, {"reward": 1.0}),
-            _trial({"finished_at": "x"}, {}),
-        ],
+        trials=[_trial({"finished_at": "x"}, {"reward": 1.0})],
         receipts=[receipt],
     )
-    assert [(item.trial_id, item.status) for item in reports] == [
-        ("trial-1", "reported"),
-        ("trial-1", "skipped"),
-        ("trial-1", "skipped"),
-    ]
-    assert reports[0].report_id == "trial-1"
+    assert (report.trial_id, report.status, report.report_id) == ("trial-1", "reported", "trial-1")
     assert "feedback" not in json.dumps(reef.state["requests"])  # noqa: SLF001
+
+
+def test_report_job_trials_skips_single_unscored_trial(reef: Any) -> None:
+    digest = "sha256:" + "0" * 64
+    (report,) = report_job_trials(
+        url=_url(reef), scenario=SCENARIO, token=TOKEN,
+        task_name="t", task_path="p", task_digest=digest,
+        trials=[_trial({"finished_at": "x"}, {})],
+        receipts=["inference-9999"],
+    )
+    assert report.status == "skipped"
+    assert reef.state["reports"] == {}  # noqa: SLF001
+
+
+def test_report_job_trials_refuses_multi_trial_job(reef: Any) -> None:
+    digest = "sha256:" + "0" * 64
+    with pytest.raises(ReefTrafficError, match="exactly one trial"):
+        report_job_trials(
+            url=_url(reef), scenario=SCENARIO, token=TOKEN,
+            task_name="t", task_path="p", task_digest=digest,
+            trials=[
+                ("trial-a", {"finished_at": "x"}, {"reward": 1.0}),
+                ("trial-b", {"finished_at": "x"}, {"reward": 0.0}),
+            ],
+            receipts=["rc-A1", "rc-B1"],
+        )
+    posted = [entry for entry in reef.state["requests"] if entry[1] == "/reef/report"]  # noqa: SLF001
+    assert posted == []
 
 
 def test_report_job_trials_needs_receipts(reef: Any) -> None:
@@ -510,16 +535,23 @@ def test_report_job_trials_needs_receipts(reef: Any) -> None:
 # -- held-out refusal ------------------------------------------------------- #
 
 
-def _write_registry_record(root: Path, *, allowed_uses: list[str]) -> Path:
+def _write_registry_record(
+    root: Path,
+    *,
+    allowed_uses: list[str],
+    task_id: str = "heldout-demo",
+    task_path: str = "library/tasks/heldout-demo",
+    package_digest: str = "sha256:" + "1" * 64,
+) -> Path:
     record = {
         "schema_version": 2,
-        "task_id": "heldout-demo",
+        "task_id": task_id,
         "task_family": "demo",
         "version": "1.0.0",
-        "task_path": "library/tasks/heldout-demo",
+        "task_path": task_path,
         "digests": {
             "task_toml": "sha256:" + "0" * 64,
-            "package": "sha256:" + "1" * 64,
+            "package": package_digest,
             "instruction": "sha256:" + "2" * 64,
             "environment": "sha256:" + "3" * 64,
             "verifier": "sha256:" + "4" * 64,
@@ -533,7 +565,7 @@ def _write_registry_record(root: Path, *, allowed_uses: list[str]) -> Path:
     }
     registry = root / "library" / "registry"
     registry.mkdir(parents=True)
-    path = registry / "heldout-demo.json"
+    path = registry / f"{task_id}.json"
     path.write_text(json.dumps(record), encoding="utf-8")
     task_dir = root / "library" / "tasks" / "heldout-demo"
     task_dir.mkdir(parents=True)
@@ -583,3 +615,211 @@ def test_no_secret_in_evidence_blocks() -> None:
     assert token not in dumped
     assert "super-secret" not in dumped
     assert block["scenario"] == SCENARIO
+
+
+# -- single-trial contract ---------------------------------------------------- #
+
+
+def test_reef_spec_rejects_multi_attempt() -> None:
+    url = "http://127.0.0.1:18941"
+    with pytest.raises(ValueError, match="exactly one trial"):
+        ExperimentSpec(**_base_spec(url, attempts=2))
+
+
+def test_run_request_reef_rejects_multi_attempt(tmp_path: Path) -> None:
+    task = tmp_path / "task"
+    task.mkdir()
+    (task / "task.toml").write_text("[task]\nname = 't'\n", encoding="utf-8")
+    binding = ReefTrafficBinding(
+        url="http://127.0.0.1:18941",
+        scenario=SCENARIO,
+        token_env="HAR74_TEST_TOKEN",
+        release_id="rel-001",
+        content_id="content:aaa",
+    )
+    from evallab.execution_contracts import validate_request
+
+    with pytest.raises(ValueError, match="exactly one trial"):
+        validate_request(
+            RunRequest(
+                task=task,
+                agent="terminus-2",
+                name="har74-x",
+                jobs_dir=tmp_path,
+                model="ollama_chat/qwen2.5:7b",
+                allow_billable=True,
+                attempts=2,
+                reef=binding,
+            )
+        )
+
+
+# -- url userinfo ------------------------------------------------------------- #
+
+
+def test_reef_url_rejects_userinfo() -> None:
+    from evallab.reef_traffic import check_url
+
+    with pytest.raises(ValueError, match="must not carry credentials"):
+        check_url("http://user:pass@127.0.0.1:18941")
+    with pytest.raises(ValueError, match="must not carry credentials"):
+        check_url("http://token-only@127.0.0.1:18941/")
+    with pytest.raises(ValueError, match="loopback URL|not carry credentials"):
+        ReefTrafficSpec(**{**_valid_reef_kwargs("http://127.0.0.1:18941"), "url": "http://u@127.0.0.1:18941"})
+
+
+# -- registry matching and corruption ----------------------------------------- #
+
+
+def test_heldout_renamed_copy_matches_by_digest(reef: Any, tmp_path: Path) -> None:
+    import shutil
+
+    from evallab.registry import compute_task_digests
+
+    original = _demo_task(tmp_path / "original")
+    digest = compute_task_digests(original).package
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _write_registry_record(
+        repo, allowed_uses=["measurement", "heldout"], package_digest=digest
+    )
+    renamed = tmp_path / "renamed-copy"
+    shutil.copytree(original, renamed)
+    calls_before = len(reef.state["requests"])  # noqa: SLF001 - fake state
+    with pytest.raises(HeldoutRefusal):
+        check_task_allowed(repo, task_label="renamed", task_dir=renamed, package_digest=digest)
+    with pytest.raises(HeldoutRefusal):
+        check_task_allowed(repo, task_label="by-path", task_path="library/tasks/heldout-demo")
+    assert len(reef.state["requests"]) == calls_before  # noqa: SLF001 - no Reef call happened
+
+
+def test_corrupt_registry_refuses_loudly(tmp_path: Path) -> None:
+    registry = tmp_path / "library" / "registry"
+    registry.mkdir(parents=True)
+    (registry / "broken.json").write_text("{not json", encoding="utf-8")
+    with pytest.raises(HeldoutCheckError):
+        heldout_uses_for_task(tmp_path, task_id="anything")
+    with pytest.raises(HeldoutCheckError):
+        check_task_allowed(tmp_path, task_label="anything", task_dir=tmp_path)
+
+
+def test_missing_registry_dir_stays_silent(tmp_path: Path) -> None:
+    assert heldout_uses_for_task(tmp_path, task_id="anything") is None
+    check_task_allowed(tmp_path, task_label="anything", task_dir=tmp_path)
+
+
+# -- prepare staging ---------------------------------------------------------- #
+
+
+def _demo_task(root: Path) -> Path:
+    package = root / "demo-task"
+    package.mkdir(parents=True)
+    (package / "task.toml").write_text(
+        'schema_version = "1.4"\n[task]\nname = "lab/demo-task"\nversion = "1.2.0"\n'
+        "[agent]\ntimeout_sec = 120.0\n[verifier]\ntimeout_sec = 60.0\n"
+        "[environment]\ncpus = 1\nmemory_mb = 512\n",
+        encoding="utf-8",
+    )
+    (package / "instruction.md").write_text("Do the demo thing.\n", encoding="utf-8")
+    environment = package / "environment"
+    environment.mkdir()
+    (environment / "Dockerfile").write_text("FROM python:3.12\n", encoding="utf-8")
+    tests = package / "tests"
+    tests.mkdir()
+    (tests / "test_demo.py").write_text("def test_demo():\n    assert True\n", encoding="utf-8")
+    return package
+
+
+def test_prepare_stages_into_repo_and_cleans_tempdir(
+    reef: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import tempfile
+
+    from evallab.task_prepare import prepare_task
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    source = _demo_task(tmp_path / "external")
+    monkeypatch.setenv("HAR74_TEST_TOKEN", TOKEN)
+    pulled_dirs: list[str] = []
+    real_mkdtemp = tempfile.mkdtemp
+
+    def recording_mkdtemp(*args: Any, **kwargs: Any) -> str:
+        path = real_mkdtemp(*args, **kwargs)
+        pulled_dirs.append(path)
+        return path
+
+    monkeypatch.setattr(tempfile, "mkdtemp", recording_mkdtemp)
+    prepared = prepare_task(
+        repo,
+        source,
+        name="har74-staged",
+        agent="terminus-2",
+        model="ollama_chat/qwen2.5:7b",
+        environment="docker",
+        reef_url=_url(reef),
+        reef_scenario=SCENARIO,
+        reef_token_env="HAR74_TEST_TOKEN",
+    )
+    assert prepared.spec.harness_tree_path is not None
+    assert prepared.spec.harness_tree_path.startswith("runs/.prepared-harnesses/")
+    assert (repo / prepared.spec.harness_tree_path).is_dir()
+    assert prepared.spec.reef is not None and prepared.spec.reef.release_id == "rel-001"
+    assert pulled_dirs, "expected the pull to stage through a tempdir"
+    assert all(not Path(path).exists() for path in pulled_dirs)
+
+
+def test_prepare_heldout_by_digest_before_any_reef_call(
+    reef: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab.registry import compute_task_digests
+    from evallab.task_prepare import prepare_task
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    source = _demo_task(tmp_path / "external")
+    digest = compute_task_digests(source).package
+    _write_registry_record(repo, allowed_uses=["measurement", "heldout"], package_digest=digest)
+    monkeypatch.setenv("HAR74_TEST_TOKEN", TOKEN)
+    calls_before = len(reef.state["requests"])  # noqa: SLF001 - fake state
+    with pytest.raises(HeldoutRefusal):
+        prepare_task(
+            repo,
+            source,
+            name="har74-heldout",
+            agent="terminus-2",
+            model="ollama_chat/qwen2.5:7b",
+            environment="docker",
+            reef_url=_url(reef),
+            reef_scenario=SCENARIO,
+            reef_token_env="HAR74_TEST_TOKEN",
+        )
+    assert len(reef.state["requests"]) == calls_before  # noqa: SLF001 - no Reef call happened
+
+
+def test_prepare_corrupt_registry_before_any_reef_call(
+    reef: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from evallab.task_prepare import prepare_task
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    source = _demo_task(tmp_path / "external")
+    registry = repo / "library" / "registry"
+    registry.mkdir(parents=True)
+    (registry / "broken.json").write_text("{not json", encoding="utf-8")
+    monkeypatch.setenv("HAR74_TEST_TOKEN", TOKEN)
+    calls_before = len(reef.state["requests"])  # noqa: SLF001 - fake state
+    with pytest.raises(HeldoutCheckError):
+        prepare_task(
+            repo,
+            source,
+            name="har74-broken-registry",
+            agent="terminus-2",
+            model="ollama_chat/qwen2.5:7b",
+            environment="docker",
+            reef_url=_url(reef),
+            reef_scenario=SCENARIO,
+            reef_token_env="HAR74_TEST_TOKEN",
+        )
+    assert len(reef.state["requests"]) == calls_before  # noqa: SLF001 - no Reef call happened

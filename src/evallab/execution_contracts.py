@@ -1058,6 +1058,8 @@ def validate_request(request: RunRequest) -> None:
     if request.reef is not None:
         if request.agent != TERMINUS_AGENT:
             raise ValueError("reef capture/reporting is supported only by terminus-2")
+        if request.attempts != 1:
+            raise ValueError("reef execution carries exactly one trial: attempts must be 1")
         if request.model != TERMINUS_LOCAL_MODEL_SELECTOR:
             raise ValueError("reef traffic runs on the local terminus route")
         if request.harness_tree_path is None or request.harness_tree_sha256 is None:

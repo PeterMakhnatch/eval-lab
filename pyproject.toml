@@ -72,7 +72,7 @@ packages = ["src/evallab"]
 
 [tool.pytest.ini_options]
 addopts = "-q -n 4 --dist loadscope --strict-markers"
-pythonpath = ["research/analysis/harness-mechanics"]
+pythonpath = ["research/analysis/harness-mechanics", "library/adapters/reef_gate/src"]
 markers = [
     "docs_consumer: reads repository documents; supports focused local checks",
 ]

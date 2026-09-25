@@ -1,0 +1,16 @@
+[project]
+name = "evallab-reef-gate"
+version = "0.1.0"
+description = "Measured, fail-closed publication gate for Reef harness candidates"
+requires-python = ">=3.12"
+dependencies = ["reef-client==0.2.1", "PyYAML>=6,<7"]
+
+[project.scripts]
+reef-gate-calibrate = "evallab_reef_gate.calibrate:main"
+
+[build-system]
+requires = ["uv_build>=0.9.24,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "evallab_reef_gate"

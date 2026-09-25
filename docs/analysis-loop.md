@@ -192,6 +192,19 @@ local no-API-charge zero is valid cost evidence. Provider estimates remain
 estimates, not invoices. This accounting does not turn a small or invalid
 comparison into evidence of an improvement.
 
+The separate Reef publication gate (`library/adapters/reef_gate`) is a
+per-candidate selection rule, not a replacement for task-paired capability
+analysis. Its exact sign test drops ties and invalid pairs, applies a minimum
+valid-pair requirement, and vetoes regressions on tasks the current harness
+passed on every repeat. A/A calibration reports its measured false-publish
+rate with Wilson uncertainty against the gate-table prediction; the prediction
+assumes independent binary episode outcomes and is not itself a measurement.
+A known-effect control reports power separately. Repeated candidate selection
+does not acquire a family-wise error guarantee from the per-candidate alpha.
+Missing scores, failed evaluations and missing decision costs/timings remain
+explicit unknowns or refusals, never silent zero-valued successes.
+
+
 
 ## Stage 5: model-assisted trial analysis
 

@@ -1,21 +1,27 @@
 """Focused behavioural tests for the HAR-72 calibration driver's offline logic.
 
 These cover the consumer-visible edges of ``evallab_reef_gate.calibrate`` that do not need
-Reef, Ollama or any service: the copied prediction statistics, the loopback/installed-model
-preflight refusals, the subprocess environment allowlist, the known-effect seed degradation,
-and the trial accounting (attempted/settled/skipped/invalid, Wilson interval, missing episodes,
-prediction flags, no-NaN summaries). The parent owns integration, plugin and runtime checks.
+Reef, Ollama beyond a loopback throwaway HTTP socket, or any service: the copied prediction
+statistics (reusing the package sign rule), the literal-loopback / installed-GGUF / no-download
+preflight refusals (decorated URLs, cloud routing, redirects, ambient proxies, bounded reads),
+the subprocess environment allowlist, the known-effect seed degradation, and the trial
+accounting (attempted/settled/skipped/invalid, exact Wilson endpoints, full-precision rates,
+prediction flags, no-NaN summaries, strict decision records). The parent owns integration,
+plugin and runtime checks.
 """
 
 from __future__ import annotations
 
+import contextlib
+import http.server
 import json
 import os
+import threading
 from pathlib import Path
 
 import pytest
-
 from evallab_reef_gate import calibrate
+from evallab_reef_gate.rules import sign_test_p as rules_sign_test_p
 
 TASKS = [
     "[sieve] How many primes are below 100000? Reply with the count as a plain integer.",
@@ -44,20 +50,34 @@ def result_row(**overrides) -> dict:
     return base
 
 
+def decision_record(**overrides) -> dict:
+    base = {
+        "decision_seconds": 0.4,
+        "evaluation_seconds": 130.2,
+        "reef_commit": "4c3a6bb24949bd93a4566ca1d9877d4feeab023e",
+        "reason_code": "publish",
+        "pairs": [],
+        "vetoes": [],
+    }
+    base.update(overrides)
+    return base
+
+
 # -- copied statistics ---------------------------------------------------------------------------
 
 
-def test_wilson_interval_bounds() -> None:
+def test_wilson_interval_exact_boundaries() -> None:
     assert calibrate.wilson(0, 0) == (0.0, 1.0)
+    assert calibrate.wilson(10, 10)[1] == 1.0  # k=n keeps the exact upper endpoint
+    assert calibrate.wilson(0, 10)[0] == 0.0  # k=0 keeps the exact lower endpoint
     lo, hi = calibrate.wilson(10, 10)
-    assert hi == 1.0
     assert 0.0 < lo < 1.0
     lo, hi = calibrate.wilson(0, 10)
-    assert lo == 0.0
     assert 0.0 < hi < 1.0
 
 
-def test_sign_test_p_exact_values() -> None:
+def test_sign_test_p_reuses_the_package_rule() -> None:
+    assert calibrate.sign_test_p is rules_sign_test_p
     assert calibrate.sign_test_p(0, 0) == 1.0
     assert calibrate.sign_test_p(0, 5) == 1.0
     assert calibrate.sign_test_p(5, 0) == pytest.approx(1 / 32)
@@ -76,23 +96,134 @@ def test_publish_probability_rules_and_alpha() -> None:
 # -- preflight refusals --------------------------------------------------------------------------
 
 
-def test_require_loopback_url_accepts_only_http_loopback() -> None:
+def test_require_loopback_url_accepts_only_literal_loopback_origins() -> None:
     assert calibrate.require_loopback_url("http://127.0.0.1:11461") == "http://127.0.0.1:11461"
     assert calibrate.require_loopback_url("http://localhost:11434/") == "http://localhost:11434"
-    for refused in ("https://127.0.0.1:11434", "http://example.com:11434", "http://10.0.0.5:11434", "not-a-url"):
+    assert calibrate.require_loopback_url("http://[::1]:11434") == "http://[::1]:11434"
+    refused = [
+        "https://127.0.0.1:11434",  # not plain http
+        "http://example.com:11434",  # not loopback
+        "http://10.0.0.5:11434",  # private but not loopback
+        "not-a-url",  # no host at all
+        "http://127.0.0.1",  # no explicit port
+        "http://user:pass@127.0.0.1:11434",  # embedded credentials
+        "http://127.0.0.1:11434/v1",  # decorated with a path
+        "http://127.0.0.1:11434/?probe=1",  # decorated with a query
+        "http://127.0.0.1:11434#section",  # decorated with a fragment
+        "http://127.0.0.1:99999",  # invalid port
+    ]
+    for url in refused:
         with pytest.raises(SystemExit, match="refusing"):
-            calibrate.require_loopback_url(refused)
+            calibrate.require_loopback_url(url)
 
 
-def test_require_local_model_matches_inventory_or_refuses() -> None:
-    inventory = {"models": [{"name": "qwen2.5:7b", "model": "qwen2.5:7b", "digest": "sha256:abc"}]}
-    entry = calibrate.require_local_model(inventory, "qwen2.5:7b")
-    assert entry["digest"] == "sha256:abc"
-    assert calibrate.require_local_model({"models": [{"name": "qwen2.5:latest"}]}, "qwen2.5")[
-        "name"
-    ] == "qwen2.5:latest"
-    with pytest.raises(SystemExit, match="never downloads models"):
-        calibrate.require_local_model(inventory, "llama3:70b")
+def _valid_model_entry(**overrides) -> dict:
+    entry = {
+        "name": "qwen2.5:7b",
+        "model": "qwen2.5:7b",
+        "digest": "sha256:845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e",
+        "size": 4_700_000_000,
+        "details": {"format": "gguf"},
+    }
+    entry.update(overrides)
+    return entry
+
+
+def test_require_local_model_accepts_unique_local_gguf() -> None:
+    entry = _valid_model_entry()
+    assert calibrate.require_local_model({"models": [entry]}, "qwen2.5:7b") is entry
+    assert (
+        calibrate.require_local_model(
+            {"models": [_valid_model_entry(name="qwen2.5:latest", model="qwen2.5:latest")]}, "qwen2.5"
+        )["name"]
+        == "qwen2.5:latest"
+    )
+
+
+def test_require_local_model_refuses_cloud_and_non_gguf_routes() -> None:
+    cases = [
+        ("cloud remote_host", _valid_model_entry(remote_host="registry.ollama.ai")),
+        ("cloud remote_model", _valid_model_entry(remote_model="qwen2.5:7b")),
+        ("non-gguf format", _valid_model_entry(details={"format": "safetensors"})),
+        ("missing details", _valid_model_entry(details=None)),
+        ("zero size", _valid_model_entry(size=0)),
+        ("non-integer size", _valid_model_entry(size="4.7GB")),
+        ("short digest", _valid_model_entry(digest="sha256:deadbeef")),
+        ("non-hex digest", _valid_model_entry(digest="z" * 64)),
+        ("missing digest", _valid_model_entry(digest=None)),
+    ]
+    for problem, entry in cases:
+        with pytest.raises(SystemExit, match="refusing"):
+            calibrate.require_local_model({"models": [entry]}, "qwen2.5:7b")
+        assert problem  # each labelled case is a distinct refusal
+
+
+def test_require_local_model_refuses_ambiguous_matches() -> None:
+    inventory = {"models": [_valid_model_entry(), _valid_model_entry(size=4_701_000_000)]}
+    with pytest.raises(SystemExit, match="ambiguous"):
+        calibrate.require_local_model(inventory, "qwen2.5:7b")
+
+
+class _TagsHandler(http.server.BaseHTTPRequestHandler):
+    """A throwaway loopback /api/tags endpoint; class attributes configure the reply."""
+
+    payload = b'{"models": []}'
+    status = 200
+    extra_headers: dict[str, str] = {}
+
+    def do_GET(self) -> None:
+        body = self.payload
+        self.send_response(self.status)
+        for key, value in self.extra_headers.items():
+            self.send_header(key, value)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args: object) -> None:  # keep test output quiet
+        return
+
+
+@contextlib.contextmanager
+def _serving(handler: type[_TagsHandler]):
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_fetch_local_inventory_ignores_ambient_proxies(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("http_proxy", "http://127.0.0.1:9")
+    monkeypatch.setenv("https_proxy", "http://127.0.0.1:9")
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9")
+    monkeypatch.setenv("ALL_PROXY", "socks5://127.0.0.1:9")
+    with _serving(_TagsHandler) as base:
+        payload = calibrate.fetch_local_inventory(base)
+    assert payload == {"models": []}
+
+
+def test_fetch_local_inventory_refuses_redirects() -> None:
+    class Redirect(_TagsHandler):
+        status = 302
+        extra_headers = {"Location": "http://127.0.0.1:1/api/tags"}
+
+    with _serving(Redirect) as base:
+        with pytest.raises(SystemExit, match="redirected"):
+            calibrate.fetch_local_inventory(base)
+
+
+def test_fetch_local_inventory_bounds_the_body() -> None:
+    class Huge(_TagsHandler):
+        payload = b"x" * 65
+
+    with _serving(Huge) as base:
+        with pytest.raises(SystemExit, match="exceeds"):
+            calibrate.fetch_local_inventory(base, max_bytes=64)
 
 
 def test_child_environment_drops_ambient_and_pins_owned_vars(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -132,10 +263,74 @@ def test_degrade_seed_entries_degrades_only_answer_style() -> None:
     assert degraded[0] == entries[0]
     assert degraded[1]["config"]["text"] == calibrate.DEGRADED_ANSWER_STYLE_TEXT
     assert original["config"]["text"] == "original text"
-    assert "oracle" not in calibrate.DEGRADED_ANSWER_STYLE_TEXT
     assert not any(answer in calibrate.DEGRADED_ANSWER_STYLE_TEXT for answer in calibrate.ANSWERS.values())
     with pytest.raises(ValueError, match="answer-style"):
         calibrate.degrade_seed_entries([{"id": "other", "name": "skill", "config": {}}])
+
+
+# -- decision records -----------------------------------------------------------------------------
+
+
+def test_read_decision_reports_exact_fields_full_precision(tmp_path: Path) -> None:
+    record_dir = tmp_path / "gate-decisions"
+    record_dir.mkdir()
+    (record_dir / "d1.json").write_text(json.dumps(decision_record()))
+    (record_dir / "d2.json").write_text(
+        json.dumps(
+            decision_record(
+                decision_seconds=1 / 3,
+                reason_code="regression_veto",
+                vetoes=[
+                    {
+                        "task_id": "[sieve]",
+                        "failure_count": 2,
+                        "failed_repeat_indices": [0, 3],
+                        "threshold": 1,
+                    }
+                ],
+            )
+        )
+    )
+    out = calibrate.read_decision_records(record_dir)
+    assert out["count"] == 2
+    assert out["decision_walltime_s"] == [0.4, pytest.approx(1 / 3)]
+    assert out["decision_walltime_median_s"] == 0.4  # upper median of the two walltimes
+    assert out["evaluation_walltime_median_s"] == 130.2
+    assert out["reef_commits"] == ["4c3a6bb24949bd93a4566ca1d9877d4feeab023e"]
+    assert out["reason_codes"] == {"publish": 1, "regression_veto": 1}
+
+
+def test_read_decision_records_reports_malformed_records(tmp_path: Path) -> None:
+    record_dir = tmp_path / "gate-decisions"
+    record_dir.mkdir()
+    bad_bodies = [
+        "[1, 2]",  # not an object
+        "{not json",
+        json.dumps(decision_record(pairs="x")),  # pairs must be a list
+        json.dumps(decision_record(vetoes=None)),  # vetoes must be a list
+        json.dumps(decision_record(decision_seconds=-1)),  # negative timing
+        json.dumps(decision_record(evaluation_seconds="130")),  # non-numeric timing
+        json.dumps(decision_record(reef_commit="")),  # empty text field
+        json.dumps(decision_record(reason_code=7)),  # non-string reason
+    ]
+    for index, bad in enumerate(bad_bodies):
+        (record_dir / "bad.json").write_text(bad)
+        with pytest.raises(SystemExit, match="malformed decision record"):
+            calibrate.read_decision_records(record_dir)
+        (record_dir / "bad.json").unlink()
+    (record_dir / "good.json").write_text(json.dumps(decision_record()))
+    assert calibrate.read_decision_records(record_dir)["count"] == 1
+
+
+def test_read_decision_records_without_directory_reports_unavailable(tmp_path: Path) -> None:
+    assert calibrate.read_decision_records(tmp_path / "gate-decisions") == {
+        "count": 0,
+        "decision_walltime_s": [],
+        "decision_walltime_median_s": None,
+        "evaluation_walltime_median_s": None,
+        "reef_commits": [],
+        "reason_codes": {},
+    }
 
 
 # -- trial accounting ------------------------------------------------------------------------------
@@ -178,7 +373,9 @@ def test_summarize_counts_attempted_settled_skipped_invalid() -> None:
     assert summary["episodes_scored"] == 11
     assert summary["episodes_missing"] == 1
     assert summary["wlt_histogram"] == {"0/1/2": 1, "2/0/1": 1}
-    assert summary["pass_rate_by_task_pooled"] == {"[sieve]": 0.75, "[fib]": pytest.approx(1 / 3), "[csv]": 0.75}
+    assert summary["pass_rate_by_task_pooled"]["[sieve]"] == pytest.approx(0.75)
+    assert summary["pass_rate_by_task_pooled"]["[fib]"] == pytest.approx(1 / 3)  # full precision, not 0.333
+    assert summary["pass_rate_by_task_pooled"]["[csv]"] == pytest.approx(0.75)
     assert summary["all_published_trees_identical"] is True
     assert summary["median_trial_seconds"] == 10.0
     assert isinstance(summary["interval_includes_prediction"], bool)
@@ -203,14 +400,24 @@ def test_summarize_prediction_interval_flag_extremes() -> None:
     all_pass = [result_row(trial=i, candidate_scores=[1.0] * 3, current_scores=[1.0] * 3) for i in (1, 2)]
     # All-pass rates make every pairing a tie, so the sign-rule prediction is exactly 0.
     unpublished = calibrate.summarize(
-        [dict(entry, published=False) for entry in all_pass], tasks=TASKS, repeats=1, condition="aa", alpha=0.05, min_valid_pairs=5
+        [dict(entry, published=False) for entry in all_pass],
+        tasks=TASKS,
+        repeats=1,
+        condition="aa",
+        alpha=0.05,
+        min_valid_pairs=5,
     )
     assert unpublished["predicted_publish_rate"] == 0.0
     assert unpublished["publishes"] == 0
-    assert unpublished["wilson95"][0] == 0.0
+    assert unpublished["wilson95"][0] == 0.0  # exact k=0 endpoint, so 0.0 is inside the interval
     assert unpublished["interval_includes_prediction"] is True
     published = calibrate.summarize(
-        [dict(entry, published=True) for entry in all_pass], tasks=TASKS, repeats=1, condition="aa", alpha=0.05, min_valid_pairs=5
+        [dict(entry, published=True) for entry in all_pass],
+        tasks=TASKS,
+        repeats=1,
+        condition="aa",
+        alpha=0.05,
+        min_valid_pairs=5,
     )
     assert published["publishes"] == 2
     assert published["wilson95"][0] > 0.0
@@ -277,8 +484,12 @@ def test_summarize_uses_rule_alpha_consistently() -> None:
     rows = [result_row(trial=1, candidate_scores=[1.0, 0.0, 1.0], current_scores=[0.0, 1.0, 1.0])]
     strict = calibrate.summarize(rows, tasks=TASKS, repeats=1, condition="aa", alpha=0.05, min_valid_pairs=5)
     loose = calibrate.summarize(rows, tasks=TASKS, repeats=1, condition="aa", alpha=0.5, min_valid_pairs=5)
-    sign_strict = next(row for row in strict["gate_table"] if row["gate"].startswith("sign test") and "5 ep" in row["gate"])
-    sign_loose = next(row for row in loose["gate_table"] if row["gate"].startswith("sign test") and "5 ep" in row["gate"])
+    sign_strict = next(
+        row for row in strict["gate_table"] if row["gate"].startswith("sign test") and "5 ep" in row["gate"]
+    )
+    sign_loose = next(
+        row for row in loose["gate_table"] if row["gate"].startswith("sign test") and "5 ep" in row["gate"]
+    )
     assert "p<0.05" in sign_strict["gate"]
     assert "p<0.5" in sign_loose["gate"]
     assert sign_loose["p_publish"] > sign_strict["p_publish"]

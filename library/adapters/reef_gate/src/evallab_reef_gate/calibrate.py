@@ -22,8 +22,10 @@ Conditions:
 The driver refuses non-empty work dirs (state is never erased), keeps every server, recipe,
 storage, step and decision output under the owned work dir, runs the Reef subprocess with a
 small environment allowlist (no ambient credentials, model URLs or proxy variables), and before
-any inference verifies the Ollama endpoint is plain-http loopback with the requested model
-already installed locally (GGUF inventory); it never downloads models.
+any inference verifies the Ollama URL is a literal plain-http loopback origin (explicit port, no
+credentials/path/query), fetches the model inventory with ambient proxies and redirects refused
+and a bounded read, and requires the model to be the unique locally installed GGUF entry with a
+valid digest and no cloud routing; it never downloads models.
 
 Usage (Ollama running locally with the model pulled; roughly 1-3 minutes per trial at 1 repeat):
 
@@ -57,8 +59,10 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+
+from evallab_reef_gate.rules import sign_test_p
 
 #: This package's src root, so the Reef subprocess can import the selection plugin.
 PLUGIN_SRC = Path(__file__).resolve().parents[1]
@@ -68,7 +72,7 @@ SOURCE_CONFIG_RELATIVE = Path("tutorials/evolve-your-harness/configs/serve-nativ
 TOKEN = "reef-local"
 SCENARIO_AA = "aa-gate"
 KNOWN_EFFECT_SCENARIO_PREFIX = "known-effect"
-STEP_TIMEOUT_S = 3600.0  # the original harness used 1800 s at 1 repeat; 5 repeats needs headroom
+STEP_TIMEOUT_S = 1800.0
 PASS_THRESHOLD = 1.0
 WILSON_Z = 1.959964
 REEF_BUILTIN_SELECTIONS = frozenset({"score_comparison", "floor", "always"})
@@ -93,33 +97,26 @@ DEGRADED_ANSWER_STYLE_TEXT = (
 ENV_ALLOWLIST = ("PATH", "HOME", "USER", "TMPDIR", "LANG")
 ENV_LC_PREFIX = "LC_"
 
-#: Where the parent plugin's decision records keep their elapsed seconds: the plugin's own
-#: metric names first (decision_seconds = decision computation only, record persistence
-#: excluded; evaluation_seconds = the backend evaluation); records without any of them
-#: simply report no walltime.
-_DECISION_WALLTIME_KEYS = ("decision_seconds", "decision_elapsed_s", "decision_walltime_s")
-_EVALUATION_WALLTIME_KEYS = ("evaluation_seconds", "evaluation_elapsed_s", "evaluation_walltime_s")
-_DECISION_REVISION_KEYS = ("reef_commit", "revision")
+#: The exact fields the parent plugin writes into each per-candidate decision record; the
+#: calibration reader validates them and reports malformed records rather than guessing aliases.
+_DECISION_NUMBER_KEYS = ("decision_seconds", "evaluation_seconds")
+_DECISION_TEXT_KEYS = ("reef_commit", "reason_code")
+_DECISION_LIST_KEYS = ("pairs", "vetoes")
 
 
-# -- statistics (copied from 04_gate_aa.py; the prediction machinery, not the gate rule) --------
+# -- statistics (the original gate_table machinery; sign_test_p is the package rule) ------------
 
 
 def wilson(k: int, n: int, z: float = WILSON_Z) -> tuple[float, float]:
+    """The Wilson score interval, exact at the boundaries: k=0 gives lower 0, k=n gives upper 1."""
     if n == 0:
         return (0.0, 1.0)
     p = k / n
     centre = (p + z * z / (2 * n)) / (1 + z * z / n)
     half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / (1 + z * z / n)
-    return (max(0.0, centre - half), min(1.0, centre + half))
-
-
-def sign_test_p(wins: int, losses: int) -> float:
-    """One-sided exact sign test: P(X >= wins) for X ~ Binomial(wins + losses, 1/2); ties dropped."""
-    n = wins + losses
-    if n == 0:
-        return 1.0
-    return sum(math.comb(n, i) for i in range(wins, n + 1)) / 2**n
+    lo = 0.0 if k == 0 else max(0.0, centre - half)
+    hi = 1.0 if k == n else min(1.0, centre + half)
+    return (lo, hi)
 
 
 def pair_law(p_current: float, p_candidate: float) -> tuple[float, float]:
@@ -132,64 +129,152 @@ def publish_probability(pairs: list[tuple[float, float]], rule: str, alpha: floa
     joint = {(0, 0): 1.0}
     for p_win, p_loss in pairs:
         nxt: dict[tuple[int, int], float] = {}
-        for (w, l), mass in joint.items():
-            for (dw, dl), q in (((1, 0), p_win), ((0, 1), p_loss), ((0, 0), 1 - p_win - p_loss)):
+        for (wins, losses), mass in joint.items():
+            for (d_wins, d_losses), q in (
+                ((1, 0), p_win),
+                ((0, 1), p_loss),
+                ((0, 0), 1 - p_win - p_loss),
+            ):
                 if q > 0:
-                    nxt[(w + dw, l + dl)] = nxt.get((w + dw, l + dl), 0.0) + mass * q
+                    key = (wins + d_wins, losses + d_losses)
+                    nxt[key] = nxt.get(key, 0.0) + mass * q
         joint = nxt
     if rule == "majority":
-        return sum(mass for (w, l), mass in joint.items() if w - l > 0)
-    return sum(mass for (w, l), mass in joint.items() if sign_test_p(w, l) < alpha)
+        return sum(mass for (wins, losses), mass in joint.items() if wins - losses > 0)
+    return sum(mass for (wins, losses), mass in joint.items() if sign_test_p(wins, losses) < alpha)
 
 
 # -- preflight: loopback-only, installed-models-only, no downloads -----------------------------
 
 
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
 def require_loopback_url(url: str) -> str:
-    """A plain-http loopback base URL, or SystemExit. Remote model routing is refused outright."""
+    """A literal plain-http loopback origin -- host, explicit port, nothing else -- or SystemExit.
+
+    Credentials, paths, query strings, fragments, implicit ports and non-loopback hosts are all
+    refused, so inference can only ever be routed at the literal local endpoint.
+    """
     parsed = urllib.parse.urlsplit(url)
-    if parsed.scheme != "http" or not parsed.hostname:
+    if parsed.scheme != "http":
         raise SystemExit(f"refusing ollama url {url!r}: only plain http loopback endpoints are supported")
-    host = parsed.hostname.strip("[]").lower()
-    if host not in {"127.0.0.1", "localhost", "::1"}:
-        raise SystemExit(f"refusing ollama url {url!r}: {host!r} is not loopback; remote routing is not allowed")
-    return f"http://{parsed.netloc.rstrip('/')}"
-
-
-def fetch_local_inventory(base_url: str, timeout_s: float = 10.0) -> dict:
-    """The Ollama /api/tags inventory of locally installed GGUF models, or SystemExit."""
+    if parsed.username is not None or parsed.password is not None:
+        raise SystemExit(f"refusing ollama url {url!r}: embedded credentials are not allowed")
+    if parsed.path not in ("", "/"):
+        raise SystemExit(f"refusing ollama url {url!r}: a path is not allowed, only the bare origin")
+    if parsed.query or parsed.fragment:
+        raise SystemExit(f"refusing ollama url {url!r}: query strings and fragments are not allowed")
+    host = (parsed.hostname or "").strip("[]").lower()
+    if host not in LOOPBACK_HOSTS:
+        raise SystemExit(
+            f"refusing ollama url {url!r}: {host or 'no host'!r} is not loopback; remote routing is not allowed"
+        )
     try:
-        with urllib.request.urlopen(f"{base_url}/api/tags", timeout=timeout_s) as response:
-            payload = json.loads(response.read().decode())
-    except (OSError, json.JSONDecodeError) as exc:
-        raise SystemExit(f"cannot read the local model inventory at {base_url}/api/tags: {exc}")
+        port = parsed.port
+    except ValueError as exc:
+        raise SystemExit(f"refusing ollama url {url!r}: invalid port") from exc
+    if port is None:
+        raise SystemExit(f"refusing ollama url {url!r}: an explicit port is required")
+    authority = f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
+    return f"http://{authority}"
+
+
+#: The inventory read is bounded: /api/tags is small, and a misrouted endpoint must not be
+#: readable without a limit.
+INVENTORY_MAX_BYTES = 1_048_576
+
+
+class _NoRedirects(urllib.request.HTTPRedirectHandler):
+    """Refuse redirects: the loopback inventory endpoint must answer directly."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _inventory_opener() -> urllib.request.OpenerDirector:
+    # The explicit empty ProxyHandler drops ambient HTTP(S)_PROXY routing; _NoRedirects above
+    # keeps a decorated endpoint from bouncing the inventory read elsewhere.
+    return urllib.request.build_opener(_NoRedirects(), urllib.request.ProxyHandler({}))
+
+
+def fetch_local_inventory(
+    base_url: str, timeout_s: float = 10.0, max_bytes: int = INVENTORY_MAX_BYTES
+) -> dict:
+    """The Ollama /api/tags inventory of locally installed GGUF models, or SystemExit.
+
+    The request ignores ambient proxies, refuses redirects, and reads at most ``max_bytes``.
+    """
+    try:
+        request = urllib.request.Request(f"{base_url}/api/tags", headers={"Accept": "application/json"})
+        with _inventory_opener().open(request, timeout=timeout_s) as response:
+            body = response.read(max_bytes + 1)
+    except urllib.error.HTTPError as exc:
+        if 300 <= exc.code < 400:
+            raise SystemExit(
+                f"the inventory endpoint at {base_url}/api/tags redirected (HTTP {exc.code}); refusing"
+            ) from exc
+        raise SystemExit(
+            f"cannot read the local model inventory at {base_url}/api/tags: HTTP {exc.code}"
+        ) from exc
+    except OSError as exc:
+        raise SystemExit(f"cannot read the local model inventory at {base_url}/api/tags: {exc}") from exc
+    if len(body) > max_bytes:
+        raise SystemExit(
+            f"the inventory at {base_url}/api/tags exceeds {max_bytes} bytes; refusing an unbounded read"
+        )
+    try:
+        payload = json.loads(body.decode())
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"the inventory at {base_url}/api/tags is not valid JSON: {exc}") from exc
     if not isinstance(payload, dict) or not isinstance(payload.get("models"), list):
         raise SystemExit(f"unexpected /api/tags payload at {base_url}: expected an object with a 'models' list")
     return payload
 
 
+def _valid_digest(value: object) -> bool:
+    """A sha256 inventory digest: 64 hex characters, with or without the algorithm prefix."""
+    if not isinstance(value, str):
+        return False
+    hex_part = value.removeprefix("sha256:")
+    return len(hex_part) == 64 and all(char in "0123456789abcdefABCDEF" for char in hex_part)
+
+
 def require_local_model(inventory: dict, model: str) -> dict:
-    """The installed inventory entry for ``model``, or SystemExit listing what is installed."""
-    names: set[str] = set()
-    for entry in inventory["models"]:
-        for key in ("name", "model"):
-            value = entry.get(key) if isinstance(entry, dict) else None
-            if isinstance(value, str):
-                names.add(value)
+    """The one locally installed GGUF inventory entry for ``model``, or SystemExit.
+
+    The match must be unique, confirmed GGUF (``details.format``), carry a positive local size
+    and a valid sha256 digest, and have no cloud routing (``remote_host``/``remote_model``).
+    Nothing is ever downloaded: a missing model stops the run.
+    """
+    entries = [entry for entry in inventory["models"] if isinstance(entry, dict)]
+    names = sorted({name for entry in entries for name in (entry.get("name"), entry.get("model")) if isinstance(name, str)})
     wanted = {model}
     if ":" not in model:
         wanted.add(f"{model}:latest")
-    if not names & wanted:
+    matches = [entry for entry in entries if entry.get("name") in wanted or entry.get("model") in wanted]
+    if not matches:
         raise SystemExit(
-            f"model {model!r} is not installed locally (available: {sorted(names)}); "
+            f"model {model!r} is not installed locally (available: {names}); "
             "refusing to continue: this driver never downloads models"
         )
-    for entry in inventory["models"]:
-        if not isinstance(entry, dict):
-            continue
-        if entry.get("name") in wanted or entry.get("model") in wanted:
-            return entry
-    raise SystemExit(f"model {model!r} matched the inventory but no entry carried it")
+    if len(matches) != 1:
+        raise SystemExit(f"model {model!r} matched {len(matches)} inventory entries; refusing an ambiguous local route")
+    entry = matches[0]
+    label = entry.get("name") or entry.get("model") or model
+    if entry.get("remote_host") or entry.get("remote_model"):
+        raise SystemExit(
+            f"model {label!r} is cloud-routed (remote_host/remote_model set); refusing: only local GGUF routing is allowed"
+        )
+    details = entry.get("details")
+    if not isinstance(details, dict) or details.get("format") != "gguf":
+        raise SystemExit(f"model {label!r} is not a locally installed GGUF (details.format missing or not 'gguf')")
+    size = entry.get("size")
+    if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
+        raise SystemExit(f"model {label!r} reports no positive local size; refusing an unverifiable local route")
+    if not _valid_digest(entry.get("digest")):
+        raise SystemExit(f"model {label!r} has no valid sha256 digest in the local inventory")
+    return entry
 
 
 def reef_checkout_commit(reef_root: Path) -> str:
@@ -202,7 +287,7 @@ def reef_checkout_commit(reef_root: Path) -> str:
             timeout=30,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise SystemExit(f"cannot read the reef revision at {reef_root}: {exc}")
+        raise SystemExit(f"cannot read the reef revision at {reef_root}: {exc}") from exc
     if completed.returncode != 0:
         raise SystemExit(f"git rev-parse failed at {reef_root}: {completed.stderr.strip()}")
     return completed.stdout.strip()
@@ -429,7 +514,7 @@ def wait_for_row(client, before: int, scenario: str) -> dict | None:
     while time.monotonic() < deadline:
         try:
             rows = training_rows(client, scenario)
-        except (RuntimeError, TimeoutError, OSError):
+        except (TimeoutError, OSError):
             time.sleep(3.0)  # a step in flight holds the catalog
             continue
         if len(rows) > before:
@@ -694,13 +779,10 @@ def summarize(
     for label, lift in (("null (A/A)", 0.0), ("+0.2 per task", 0.2), ("+0.4 per task", 0.4)):
         for rule, reps in (("majority", 1), ("majority", 5), ("sign", 5), ("sign", 10)):
             p_publish = (
-                round(
-                    publish_probability(
-                        [pair_law(p, min(1.0, p + lift)) for p in base.values() for _ in range(reps)],
-                        rule,
-                        alpha,
-                    ),
-                    3,
+                publish_probability(
+                    [pair_law(p, min(1.0, p + lift)) for p in base.values() for _ in range(reps)],
+                    rule,
+                    alpha,
                 )
                 if base_available
                 else None
@@ -734,7 +816,7 @@ def summarize(
             prediction = publish_probability(
                 [
                     pair_law(p_current, p_candidate)
-                    for p_current, p_candidate in zip(current_values, candidate_values)
+                    for p_current, p_candidate in zip(current_values, candidate_values, strict=True)
                     for _ in range(repeats)
                 ],
                 "sign",
@@ -757,15 +839,15 @@ def summarize(
         "trials_invalid": len(invalid),
         "publishes": published,
         "denominator": n,
-        "publish_rate": round(published / n, 3) if n else None,
-        "wilson95": [round(lo, 3), round(hi, 3)] if n else None,
+        "publish_rate": (published / n) if n else None,
+        "wilson95": [lo, hi] if n else None,
         "wlt_histogram": dict(sorted(wlt.items())),
         "pass_rate_by_task_pooled": {
-            label: None if pooled_rates[label] is None else round(pooled_rates[label], 3) for label in labels
+            label: pooled_rates[label] for label in labels
         },
         "pass_rate_by_task_side": {
             side: {
-                label: None if rates[label] is None else round(rates[label], 3)
+                label: rates[label]
                 for label in labels
             }
             for side, rates in side_rates.items()
@@ -777,7 +859,7 @@ def summarize(
         "observed_trials_passing_sign_test": observed_sign,
         "median_trial_seconds": sorted(r["seconds"] for r in ran)[n // 2] if n else None,
         "gate_table": table,
-        "predicted_publish_rate": None if prediction is None else round(prediction, 6),
+        "predicted_publish_rate": prediction,
         "prediction_basis": prediction_basis if prediction is not None else None,
         "interval_includes_prediction": interval_includes,
         "prediction_note": (
@@ -797,77 +879,62 @@ def summarize(
     return summary
 
 
-def _first_number(record: dict, keys: tuple[str, ...]) -> float | None:
-    """The first finite numeric value under ``keys``, at the top level or in a 'timings' dict."""
-    sources = [record]
-    timings = record.get("timings")
-    if isinstance(timings, dict):
-        sources.append(timings)
-    for source in sources:
-        for key in keys:
-            value = source.get(key)
-            if (
-                isinstance(value, (int, float))
-                and not isinstance(value, bool)
-                and math.isfinite(value)
-            ):
-                return float(value)
-    return None
-
-
 def read_decision_records(record_dir: Path) -> dict:
     """What the gate plugin's per-candidate decision JSONs in ``record_dir`` show.
 
-    Walltimes are read from the plugin's elapsed-seconds metric names (decision_seconds /
-    evaluation_seconds first); records without them report no walltime rather than a fake one.
+    The record directory is dedicated to the plugin's decision records, so every ``*.json`` in
+    it must carry the exact fields (decision_seconds, evaluation_seconds, reef_commit,
+    reason_code, pairs, vetoes); a malformed record is reported as an error, never silently
+    skipped. Quantities absent because nothing was recorded stay unavailable, never zero.
     """
-    empty = {
-        "count": 0,
-        "decision_walltime_s": [],
-        "decision_walltime_median_s": None,
-        "evaluation_walltime_median_s": None,
-        "reef_commits": [],
-        "reason_codes": {},
-    }
     if not record_dir.is_dir():
-        return empty
+        return {
+            "count": 0,
+            "decision_walltime_s": [],
+            "decision_walltime_median_s": None,
+            "evaluation_walltime_median_s": None,
+            "reef_commits": [],
+            "reason_codes": {},
+        }
     records = []
     for path in sorted(record_dir.glob("*.json")):
         try:
             record = json.loads(path.read_text())
-        except (json.JSONDecodeError, OSError):
-            continue
-        if isinstance(record, dict):
-            records.append(record)
-    walltimes = [
-        value for record in records if (value := _first_number(record, _DECISION_WALLTIME_KEYS)) is not None
-    ]
-    evaluations = [
-        value for record in records if (value := _first_number(record, _EVALUATION_WALLTIME_KEYS)) is not None
-    ]
-    commits = sorted(
-        {
-            str(record[key])
-            for record in records
-            for key in _DECISION_REVISION_KEYS
-            if isinstance(record.get(key), str)
-        }
-    )
+        except (OSError, json.JSONDecodeError) as exc:
+            raise SystemExit(f"malformed decision record {path}: {exc}") from exc
+        if not isinstance(record, dict):
+            raise SystemExit(f"malformed decision record {path}: expected a JSON object")
+        for key in _DECISION_NUMBER_KEYS:
+            value = record.get(key)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or value < 0
+            ):
+                raise SystemExit(
+                    f"malformed decision record {path}: {key} must be a non-negative number, got {value!r}"
+                )
+        for key in _DECISION_TEXT_KEYS:
+            value = record.get(key)
+            if not isinstance(value, str) or not value.strip():
+                raise SystemExit(f"malformed decision record {path}: {key} must be a non-empty string")
+        for key in _DECISION_LIST_KEYS:
+            if not isinstance(record.get(key), list):
+                raise SystemExit(f"malformed decision record {path}: {key} must be a list")
+        records.append(record)
+    walltimes = [float(record["decision_seconds"]) for record in records]
+    evaluations = [float(record["evaluation_seconds"]) for record in records]
     reason_codes: dict[str, int] = {}
     for record in records:
-        code = record.get("reason_code")
-        if isinstance(code, str):
-            reason_codes[code] = reason_codes.get(code, 0) + 1
+        code = record["reason_code"]
+        reason_codes[code] = reason_codes.get(code, 0) + 1
     return {
         "count": len(records),
-        "decision_walltime_s": [round(value, 3) for value in walltimes],
-        "decision_walltime_median_s": round(sorted(walltimes)[len(walltimes) // 2], 3)
-        if walltimes
-        else None,
-        "evaluation_walltime_median_s": round(sorted(evaluations)[len(evaluations) // 2], 3)
-        if evaluations
-        else None,
-        "reef_commits": commits,
+        "decision_walltime_s": walltimes,
+        "decision_walltime_median_s": sorted(walltimes)[len(walltimes) // 2] if walltimes else None,
+        "evaluation_walltime_median_s": sorted(evaluations)[len(evaluations) // 2] if evaluations else None,
+        "reef_commits": sorted({record["reef_commit"] for record in records}),
         "reason_codes": dict(sorted(reason_codes.items())),
     }
 
@@ -1080,7 +1147,7 @@ def main(argv: list[str] | None = None) -> None:
                 "current_answer_style_text": current_entry["config"]["text"],
                 "candidate_answer_style_text": candidate_entry["config"]["text"],
                 "step_timeout_s": STEP_TIMEOUT_S,
-                "started_utc": datetime.now(timezone.utc).isoformat(),
+                "started_utc": datetime.now(UTC).isoformat(),
             },
             indent=2,
         )

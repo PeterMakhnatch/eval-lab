@@ -12,7 +12,7 @@
 
 | Reef flag | Diagnosis mode | 04-check (75 failed) | 04 seed (169 failed) |
 |---|---|---|---|
-| ran code that printed nothing (61 / —) | `silent_tool_output` | 55/61, P 1.00 | 57/71, P 1.00 |
+| ran code that printed nothing (61 / 71) | `silent_tool_output` | 55/61, P 1.00 | 57/71, P 1.00 |
 | called a tool with wrong arguments (19 / —) | `wrong_tool_arguments` | 19/19, P 1.00 | 23/23, P 1.00 |
 | assumed state persisted (16 / —) | `state_persistence_assumption` | 16/16, P 1.00 | 25/25, P 1.00 |
 | turn ended on an empty reply (— / 68) | `empty_terminal_reply` | n/a (0) | 68/68, P 1.00 |
@@ -43,6 +43,12 @@ shell trials (0/46 mode changes) and aggregate shell counts are unchanged:
 - 6/61 + 14/71 silent residue: single `exit 0` with zero error context, or
   `exit 0` from expected-silent writes (`echo … > file`). Flagging those
   would trade the current 1.00 precision for recall on weak evidence.
+- exp05 `error-count` moved `unclassified_failure` → `malformed_artifact`
+  (detector v2): it wrote right counts as invalid JSON, matching the README
+  ground truth. `top-words` stays unclassified (wrong aggregation needs
+  task knowledge). A `har71-local-baseline` false positive during
+  development (awk program read as JSON) was fixed by excluding write
+  segments; the merged v1 audit record is unchanged.
 - 13 episodes carry `planning_no_edit` with no writes at all; the advice is
   file-repair-oriented and weak for compute tasks. Same trade.
 - Reef's `had the right number in tool output, never reported it` and

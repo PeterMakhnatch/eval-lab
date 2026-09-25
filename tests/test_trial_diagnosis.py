@@ -244,6 +244,63 @@ def test_run_bash_redirect_counts_as_edit(tmp_path: Path) -> None:
     assert "planning_no_edit" not in _modes(trial)
 
 
+def test_malformed_json_read_back_is_a_mode(tmp_path: Path) -> None:
+    trial = _write_trial(
+        tmp_path / "trial",
+        [
+            _agent_step(
+                "write", command="echo -n '{' > errors.json", output="ok"
+            ),
+            _agent_step(
+                "read",
+                command="cat errors.json",
+                output="New Terminal Output: root@x:/w# cat errors.json "
+                "{auth: 3, payments: 4}root@x:/w#",
+            ),
+        ],
+    )
+    modes = _modes(trial)
+    assert "malformed_artifact" in modes
+
+
+def test_write_with_embedded_cat_is_not_a_read_back(tmp_path: Path) -> None:
+    # Mirrors the har71-local-baseline false positive: an awk program span in
+    # the output of an echo-write (with an embedded $(cat)) is not a
+    # malformed JSON artifact.
+    trial = _write_trial(
+        tmp_path / "trial",
+        [
+            _agent_step(
+                "write",
+                command="echo 'v $(cat /tmp/a.txt)' >> /tmp/summary.json",
+                output="root@x:/w# echo 'v 1' >> /tmp/summary.json "
+                "awk '{for(i=1;i<=NR;i++) print}' root@x:/w#",
+            ),
+        ],
+    )
+    assert "malformed_artifact" not in _modes(trial)
+
+
+def test_valid_json_read_back_is_not_a_mode(tmp_path: Path) -> None:
+    trial = _write_trial(
+        tmp_path / "trial",
+        [
+            _agent_step(
+                "read",
+                command="cat package.json",
+                output='{"name": "x", "version": 1}',
+            ),
+            _agent_step(
+                "fail",
+                command="pytest -q",
+                output="1 failed",
+                returncode=1,
+            ),
+        ],
+    )
+    assert "malformed_artifact" not in _modes(trial)
+
+
 def test_expected_silence_is_not_a_mode(tmp_path: Path) -> None:
     trial = _write_trial(
         tmp_path / "trial",
@@ -542,6 +599,56 @@ def test_traceback_outputs_are_not_wrong_tool_arguments(tmp_path: Path) -> None:
         ],
     )
     assert "wrong_tool_arguments" not in [mode.mode for mode in diagnose_trial(trial).modes]
+
+
+def test_diagnose_atif_matches_trial_dir(tmp_path: Path) -> None:
+    from evallab.trial_diagnosis import diagnose_atif, diagnose_trial
+
+    steps = [
+        _agent_step(
+            "run",
+            command="pytest --bad-flag",
+            output="error: unrecognized argument --bad-flag",
+            returncode=2,
+        ),
+    ]
+    trial = _write_trial(tmp_path / "trial", steps)
+    from_dir = diagnose_trial(trial)
+    trajectory = json.loads((trial / "agent" / "trajectory.json").read_text())
+    from_doc = diagnose_atif(
+        trajectory,
+        trial_id="fixture-id",
+        trial_name="fixture-trial",
+        task_name="fixture-task",
+        agent_name="fixture",
+        model_name="fixture-model",
+        reward=0.0,
+    )
+    assert from_doc.outcome == "scored"
+    assert [mode.mode for mode in from_doc.modes] == [
+        mode.mode for mode in from_dir.modes
+    ]
+    assert json.dumps(from_doc.to_dict())
+
+
+def test_diagnose_atif_outcome_branches() -> None:
+    from evallab.trial_diagnosis import diagnose_atif
+
+    trajectory: dict[str, Any] = {"steps": []}
+    assert (
+        diagnose_atif(trajectory, trial_id="t", trial_name="t", reward=1.0).modes
+        == ()
+    )
+    assert (
+        diagnose_atif(trajectory, trial_id="t", trial_name="t").outcome == "unscored"
+    )
+    assert (
+        diagnose_atif(
+            trajectory, trial_id="t", trial_name="t", reward=0.0,
+            exception_class="Boom",
+        ).outcome
+        == "infra_failed"
+    )
 
 
 def test_cli_text_and_json_round_trip(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

@@ -50,6 +50,13 @@ mode is missing:
   Reef's ``assumed state persisted between tool calls`` flag (``NameError``
   in the REPL harness; bare ``cd`` followed by a relative-path failure in a
   shell harness).
+* ``malformed_artifact`` (new, detector v2) -- the agent reads back a
+  ``*.json`` file whose displayed content does not parse. Reef's own
+  proposer independently invented this rule on exp05 ("validate JSON
+  before finishing"), which is the external evidence it earns its
+  keep: exp05 ``error-count`` wrote right counts as invalid JSON.
+  Read-backs only -- writes with embedded reads (``echo … $(cat f) >>
+  out.json``) never count, so awk programs in transcripts are safe.
 * ``unclassified_failure`` (fallback) -- a scored failure no detector
   matched; mirrors Reef's ``no flag matched`` bucket. Keeps the output
   honest instead of forcing a wrong mode.
@@ -72,6 +79,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -88,7 +96,7 @@ from evallab.traj import (
 )
 
 TRIAL_DIAGNOSIS_TAXONOMY = "trial_diagnosis/failure_mode/v1"
-DETECTOR_VERSION = "trial_diagnosis/v1"
+DETECTOR_VERSION = "trial_diagnosis/v2"
 PASS_THRESHOLD = 1.0
 DEFAULT_MAX_CHARS = 2000
 EXCERPT_CHARS = 160
@@ -105,6 +113,7 @@ MODE_ORDER = (
     "state_persistence_assumption",
     "planning_no_edit",
     "unrecovered_error",
+    "malformed_artifact",
     "unclassified_failure",
 )
 
@@ -139,6 +148,10 @@ _SUGGESTIONS: dict[str, str] = {
     "unrecovered_error": (
         "The run ends on an error with no recovery; "
         "the harness should prompt for diagnosis before the turn budget ends."
+    ),
+    "malformed_artifact": (
+        "A structured artifact the agent read back does not parse; "
+        "the harness should validate JSON (or declared formats) before finishing."
     ),
     "unclassified_failure": (
         "No detector matched; read the cited terminal step before changing the harness."
@@ -285,6 +298,10 @@ _DEFINITION_RES = (
     re.compile(r"(?m)^\s*(def|class)\s+NAME\b"),
     re.compile(r"(?m)^\s*for\s+NAME\s+in\b"),
     re.compile(r"(?m)\bwith\b.*\bas\s+NAME\b"),
+)
+_JSON_READ_RE = re.compile(
+    r"\b(cat|type|more|less|head|tail|jq|python\s+-m\s+json\.tool)\b[^;&|]*?\.json\b",
+    re.IGNORECASE,
 )
 _MIN_SILENT_OUTPUTS = 2
 _MAX_EVIDENCE_STEPS = 3
@@ -525,6 +542,43 @@ def _step_views(raw_steps: list[dict[str, Any]]) -> list[_StepView]:
     return views
 
 
+def _try_json(span: str) -> bool:
+    """True when a candidate span parses as JSON (bounded attempts only)."""
+    try:
+        json.loads(span)
+    except (json.JSONDecodeError, ValueError):
+        return False
+    return True
+
+
+def _json_spans(text: str) -> list[str]:
+    """Balanced ``{...}``/``[...]`` spans, longest first, quote-aware."""
+    opens = {"{": "}", "[": "]"}
+    spans: list[tuple[int, int]] = []
+    stack: list[tuple[str, int]] = []
+    in_string = False
+    escaped = False
+    for index, char in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char in opens:
+            stack.append((opens[char], index))
+        elif stack and char == stack[-1][0]:
+            _, start = stack.pop()
+            if not stack:
+                spans.append((start, index + 1))
+    candidates = sorted((text[s:e] for s, e in spans), key=len, reverse=True)
+    return candidates[:5]
+
+
 def _mode(name: str, step_ids: list[int], excerpt: str) -> FailureMode:
     """Build one mode with de-duplicated, ordered, bounded step evidence."""
     ordered = sorted({step for step in step_ids if isinstance(step, int)})
@@ -595,12 +649,22 @@ def _defined_names(tool_views: list[_StepView]) -> set[str]:
     return names
 
 
-def _detect(outline: TrajectoryOutline, views: list[_StepView]) -> list[FailureMode]:
+@dataclass(frozen=True)
+class _DetectContext:
+    """Outline signals for detectors, or view-derived equivalents."""
+
+    total_tool_calls: int
+    step_to_first_tool: int | None
+    step_to_first_edit: int | None
+    loop_detected: bool
+
+
+def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
     agent_views = [view for view in views if view.source.lower() in _AGENT_SOURCES]
     tool_views = [view for view in agent_views if view.tool_name]
     modes: list[FailureMode] = []
 
-    if outline.total_tool_calls == 0:
+    if ctx.total_tool_calls == 0:
         # Multi-label like Reef's flags: a tool-less run can still end on an
         # empty reply, so record and continue instead of returning early.
         anchor = agent_views[-1] if agent_views else None
@@ -612,7 +676,7 @@ def _detect(outline: TrajectoryOutline, views: list[_StepView]) -> list[FailureM
             )
         )
 
-    if outline.loop_suspicion.detected or _message_run(agent_views):
+    if ctx.loop_detected or _message_run(agent_views):
         run_ids, run_cmd = _longest_command_run(tool_views)
         if run_ids:
             excerpt = run_cmd or "repeated tool calls"
@@ -767,7 +831,7 @@ def _detect(outline: TrajectoryOutline, views: list[_StepView]) -> list[FailureM
     if state_ids:
         modes.append(_mode("state_persistence_assumption", state_ids, state_excerpt))
 
-    outline_edit = outline.step_to_first_edit is not None
+    outline_edit = ctx.step_to_first_edit is not None
     local_edit = any(
         _is_edit_call(view.tool_name, cmd)
         for view in tool_views
@@ -783,11 +847,11 @@ def _detect(outline: TrajectoryOutline, views: list[_StepView]) -> list[FailureM
     if (
         not outline_edit
         and not local_edit
-        and outline.total_tool_calls > 0
+        and ctx.total_tool_calls > 0
         and _task_involves_files(agent_views)
         and shell_harness
     ):
-        first_tool = outline.step_to_first_tool
+        first_tool = ctx.step_to_first_tool
         last_tool = tool_views[-1].step_id if tool_views else None
         excerpt = ""
         if tool_views:
@@ -824,6 +888,34 @@ def _detect(outline: TrajectoryOutline, views: list[_StepView]) -> list[FailureM
                 error_ids[-_MAX_EVIDENCE_STEPS:],
                 excerpt or "run ends on an error with no recovery",
             )
+        )
+
+    artifact_ids: list[int] = []
+    artifact_excerpt = ""
+    for view in tool_views:
+        # A read-back, never a write: commands like `echo ... $(cat f) >>
+        # out.json` embed reads inside writes and must not count.
+        reads_json = any(
+            _JSON_READ_RE.search(segment)
+            for cmd in (*view.all_commands, view.command or "")
+            if cmd
+            for segment in _CHAIN_SPLIT_RE.split(cmd)
+            if not (
+                _REDIRECT_RE.search(segment) or _HEREDOC_RE.search(segment)
+            )
+        )
+        if not reads_json:
+            continue
+        for out in view.outputs:
+            spans = _json_spans(out)
+            if spans and not any(_try_json(span) for span in spans):
+                artifact_ids.append(view.step_id)
+                if not artifact_excerpt:
+                    artifact_excerpt = spans[0]
+                break
+    if artifact_ids:
+        modes.append(
+            _mode("malformed_artifact", artifact_ids, artifact_excerpt)
         )
 
     if not modes:
@@ -907,9 +999,13 @@ def diagnose_trial(
         if not views:
             notices.append("trajectory steps unreadable; no modes proposed")
         else:
-            detected = _detect(outline, views)
-            order = {name: index for index, name in enumerate(MODE_ORDER)}
-            modes = tuple(sorted(detected, key=lambda item: order.get(item.mode, 99)))
+            ctx = _DetectContext(
+                total_tool_calls=outline.total_tool_calls,
+                step_to_first_tool=outline.step_to_first_tool,
+                step_to_first_edit=outline.step_to_first_edit,
+                loop_detected=outline.loop_suspicion.detected,
+            )
+            modes = _order_modes(_detect(ctx, views))
     return TrialDiagnosis(
         trial_id=outline.trial_id,
         trial_name=outline.trial_name,
@@ -920,6 +1016,97 @@ def diagnose_trial(
         reward=outline.primary_reward,
         exception_class=None,
         heuristic_label=heuristic_label,
+        modes=modes,
+        notices=tuple(notices),
+    )
+
+
+def _order_modes(detected: list[FailureMode]) -> tuple[FailureMode, ...]:
+    """Sort modes into the stable MODE_ORDER for deterministic output."""
+    order = {name: index for index, name in enumerate(MODE_ORDER)}
+    return tuple(sorted(detected, key=lambda item: order.get(item.mode, 99)))
+
+
+def diagnose_atif(
+    trajectory: Mapping[str, Any],
+    *,
+    trial_id: str,
+    trial_name: str,
+    task_name: str = "unknown",
+    agent_name: str = "unknown",
+    model_name: str = "unknown",
+    reward: float | None = None,
+    exception_class: str | None = None,
+) -> TrialDiagnosis:
+    """Diagnose one ATIF trajectory document without a Harbor trial directory.
+
+    Document-level entry point for imported trajectories (for example Reef
+    episodes via ``evallab.evidence.reef_intake``): the caller supplies the
+    recorded outcome alongside the trajectory. Outcome semantics match
+    :func:`diagnose_trial` (infra/unscored never carry modes). Without a
+    trial directory there is no outline, so view-derived equivalents feed
+    the detectors and no heuristic label is proposed. Signature stability:
+    keep this entry point alongside :func:`render_diagnosis_text`, which
+    ReefTraffic attaches to Reef reports.
+    """
+    raw_steps = trajectory.get("steps")
+    steps = (
+        [step for step in raw_steps if isinstance(step, dict)]
+        if isinstance(raw_steps, list)
+        else []
+    )
+    identity = {
+        "trial_id": trial_id,
+        "trial_name": trial_name,
+        "task_name": task_name,
+        "agent_name": agent_name,
+        "model_name": model_name,
+    }
+    if exception_class is not None:
+        return TrialDiagnosis(
+            **identity,
+            outcome="infra_failed",
+            reward=reward,
+            exception_class=str(exception_class),
+            heuristic_label=None,
+            modes=(),
+            notices=("trial raised; never labeled as a task failure",),
+        )
+    if reward is None:
+        return TrialDiagnosis(
+            **identity,
+            outcome="unscored",
+            reward=None,
+            exception_class=None,
+            heuristic_label=None,
+            modes=(),
+            notices=("no numeric reward recorded; never labeled as a task failure",),
+        )
+    notices: list[str] = [
+        "document-level diagnosis (no trial dir); heuristic label unavailable"
+    ]
+    views = _step_views(steps)
+    modes: tuple[FailureMode, ...] = ()
+    if reward >= PASS_THRESHOLD:
+        notices.append("scored pass; no failure modes proposed")
+    elif not views:
+        notices.append("trajectory steps unreadable; no modes proposed")
+    else:
+        tool_views = [view for view in views if view.tool_name]
+        first_tool = next((view.step_id for view in tool_views), None)
+        ctx = _DetectContext(
+            total_tool_calls=sum(len(view.all_commands) for view in tool_views),
+            step_to_first_tool=first_tool,
+            step_to_first_edit=None,
+            loop_detected=bool(_longest_command_run(tool_views)[0]),
+        )
+        modes = _order_modes(_detect(ctx, views))
+    return TrialDiagnosis(
+        **identity,
+        outcome="scored",
+        reward=reward,
+        exception_class=None,
+        heuristic_label=None,
         modes=modes,
         notices=tuple(notices),
     )

@@ -102,14 +102,18 @@ key file was removed. Partial local-Qwen campaigns remain separate.
   used conservative peak cache-miss rates of $0.30/M input and $1.20/M output
   from the [current pricing documentation](https://api-docs.deepseek.com/quick_start/pricing),
   not the repository's stale $0.28/$0.42 defaults.
-- Incoming [PR #456](https://github.com/PeterMakhnatch/eval-lab/pull/456) adds
-  `evallab.evidence.reef_gate`. Its single-scenario intake successfully consumed
-  all 900 A/A episodes with score/pair agreement. **Multi-scenario intake is
-  unsafe:** a real control diagnostic reports 150 episodes but writes only 30
+- [PR #456](https://github.com/PeterMakhnatch/eval-lab/pull/456) introduced the
+  evidence reader; [PR #458](https://github.com/PeterMakhnatch/eval-lab/pull/458)
+  renamed it to **`evallab.evidence.reef_intake`** and added captured-traffic
+  intake. These are data readers, not HAR-73/HAR-74 execution integration.
+  The original single-scenario intake consumed all 900 A/A episodes with
+  score/pair agreement. **Multi-scenario intake remains unsafe at `03893a42`:**
+  a real control diagnostic reports 150 episodes but writes only 30
   trajectory files because `trajectories/<step>/<episode>.json` omits scenario.
   The step-only trial-metadata join also needs review. See
   `derived/har72/incoming-intake-boundary.json`; do not consume
-  `control-atif-intake-diagnostic` as valid evidence. Raw control records and the
+  `control-atif-intake-diagnostic` or its `-03893` reproduction as valid evidence.
+  Raw control records and the
   HAR-72 gate package are unaffected. This dependency is handed off, not an
   expansion into HAR-73 implementation here.
 

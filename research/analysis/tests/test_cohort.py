@@ -970,12 +970,18 @@ def _terminus_job(
     job = root / name
     record = _write_retained_tree(job, config=config, rules=rules, skills=skills)
     tree = job / "harness-tree"
+    # The run-time staging directory is deliberately never created: the
+    # comparator must verify rendered paths lexically from staged_root and
+    # read content only from the retained copy under the job.
+    staged_root = str(root / "staging" / f"{name}-tree")
     rendered_kwargs = _rendered_kwargs(base_kwargs, config)
-    rendered_skill_paths = list(record["skill_roots"])
+    rendered_skill_paths = [
+        f"{staged_root}/{skill_root}" for skill_root in record["skill_roots"]
+    ]
     frozen_skills = [
         {
             "name": skill_name,
-            "source": f"harness-tree/terminus/skills/{skill_name}",
+            "source": f"{staged_root}/terminus/skills/{skill_name}",
             "digest": _skill_directory_digest(tree / "terminus/skills" / skill_name),
         }
         for skill_name in sorted(skills)
@@ -992,7 +998,7 @@ def _terminus_job(
         rules_bytes = (tree / "terminus/AGENTS.md").read_bytes()
         extra_instructions.append(
             {
-                "path": "harness-tree/terminus/AGENTS.md",
+                "path": f"{staged_root}/terminus/AGENTS.md",
                 "digest": "sha256:" + hashlib.sha256(rules_bytes).hexdigest(),
             }
         )
@@ -1076,10 +1082,13 @@ def _terminus_job(
             }
         record.update(
             {
+                "staged_root": staged_root,
                 "base_agent_kwargs": base_kwargs,
                 "rendered_agent_kwargs": rendered_kwargs,
                 "rendered_rule_paths": (
-                    [record["rules_path"]] if record["rules_path"] is not None else []
+                    [f"{staged_root}/{record['rules_path']}"]
+                    if record["rules_path"] is not None
+                    else []
                 ),
                 "rendered_skill_paths": rendered_skill_paths,
                 "execution_settings": settings,

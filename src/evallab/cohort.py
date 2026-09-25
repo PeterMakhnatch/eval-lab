@@ -365,11 +365,14 @@ def _recorded_harness_binding(job: JobRecord) -> tuple[HarnessTreeBinding | None
     """Verify one job's recorded harness-tree binding from immutable evidence.
 
     Only the job's retained bytes (``harness-tree/``) and ``lab-metadata.json``
-    are consulted; the present-day candidate tree never relabels a completed
-    job. ``(None, None)`` means the job pinned no tree. A problem string means
-    a binding was recorded but cannot be trusted — unknown schema, missing
-    runner-recorded fields, tampered retained bytes, or incoherent rendered
-    bindings — and such a job can never join a harness-tree comparison.
+    are consulted; the present-day candidate tree and the run-time staging
+    directory (recorded as ``staged_root`` but never read — rendered paths
+    verify by lexical ``staged_root``/relative joins) cannot relabel a
+    completed job. ``(None, None)`` means the job pinned no tree. A problem
+    string means a binding was recorded but cannot be trusted — unknown
+    schema, missing runner-recorded fields, tampered retained bytes, or
+    incoherent rendered bindings — and such a job can never join a
+    harness-tree comparison.
     """
     recorded = job.metadata.get(HARNESS_TREE_METADATA_KEY)
     if recorded is None:
@@ -387,6 +390,9 @@ def _recorded_harness_binding(job: JobRecord) -> tuple[HarnessTreeBinding | None
         return None, (
             f"harness_tree artifact_path {recorded.get('artifact_path')!r} is not the retained tree"
         )
+    staged_root = recorded.get("staged_root")
+    if not isinstance(staged_root, str) or not PurePosixPath(staged_root).is_absolute():
+        return None, "harness_tree staged_root is not an absolute path"
     config = recorded.get("config")
     if not isinstance(config, dict):
         return None, "harness_tree config is not an object"
@@ -463,12 +469,20 @@ def _recorded_harness_binding(job: JobRecord) -> tuple[HarnessTreeBinding | None
             "rendered agent kwargs do not equal the base kwargs overridden by the tree config"
         )
 
-    expected_rule_paths = [RULES_PATH] if tree.rules_path is not None else []
+    expected_rule_paths = (
+        [str(PurePosixPath(staged_root) / RULES_PATH)] if tree.rules_path is not None else []
+    )
     if list(rendered_rule_paths) != expected_rule_paths:
-        return None, "rendered rule paths do not match the retained tree rules"
-    if sorted(rendered_skill_paths) != sorted(skill_roots):
-        return None, "rendered skill paths do not match the skill roots in the retained tree"
-    skill_identities = _tree_skill_identities(tree.root, tuple(rendered_skill_paths))
+        return None, "rendered rule paths do not match the staged tree rules argv"
+    expected_rendered_roots = sorted(
+        str(PurePosixPath(staged_root) / root) for root in skill_roots
+    )
+    if sorted(rendered_skill_paths) != expected_rendered_roots:
+        return None, "rendered skill paths do not match the staged skill root argv"
+    # Skill content identities come from the retained bytes under the job,
+    # never from the (possibly cleaned up or archived) staging directory,
+    # and iterate the recorded root order to mirror Harbor's argv resolution.
+    skill_identities = _tree_skill_identities(tree.root, tuple(skill_roots))
     if skill_identities is None:
         return None, "retained tree skill roots are malformed"
     rules_bytes = tree.rules_path.read_bytes() if tree.rules_path is not None else b""

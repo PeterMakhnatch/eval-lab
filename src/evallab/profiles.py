@@ -526,7 +526,7 @@ def scrub_environment(environment: Mapping[str, str], allowlist: frozenset[str])
     return clean
 
 
-_MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9./_-]*$")
+_MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9./_-]*(?::[A-Za-z0-9][A-Za-z0-9._-]*)?$")
 
 
 def validate_model_pin(profile: AgentProfile, model: str | None) -> None:

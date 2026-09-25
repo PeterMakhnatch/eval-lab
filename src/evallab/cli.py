@@ -572,7 +572,7 @@ def _approve_command(
         # The dollar figure is an API-list-price equivalent; the provider
         # allowance or policy state is the binding account-side signal.
         headroom = _headroom_for(root, agent=authorized.agent)
-        print(render_headroom_notice(headroom, agent=authorized.agent))
+        print(render_headroom_notice(headroom, agent=authorized.agent, model=authorized.model))
         # The threshold is policy, not code: `refuse_billable_at_used_percent`
         # in `policy/standing-approvals.yaml`, committed unset. Loaded
         # inline here, as `_digest_renderer` does at cli.py:1526.

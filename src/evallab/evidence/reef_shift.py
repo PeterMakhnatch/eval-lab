@@ -8,7 +8,17 @@ the exp04 reference counts; it never re-runs Reef, calls models, or applies
 gate decision rules.
 
 Run with ``python -m evallab.evidence.reef_shift --seed <dir> --check <dir>
-[--answers PATH] [--json-out PATH]``.
+--answers PATH [--reference PATH] [--json-out PATH]``.
+
+The exp04 invocation reads both inputs from the combined artifact, whose
+``answers`` and ``reference`` keys feed the two flags:
+
+.. code-block:: text
+
+  python -m evallab.evidence.reef_shift \
+    --seed derived/reef-intake/04 --check derived/reef-intake/04-check \
+    --answers research/analysis/reef-shift/exp04-reference.json \
+    --reference research/analysis/reef-shift/exp04-reference.json
 """
 
 from __future__ import annotations
@@ -205,18 +215,31 @@ def compare_failure_shift(
 
 
 def _load_string_map(path: Path, kind: str) -> dict[str, str]:
+    """Load a ``{task label: expected number}`` map, or its key of a combined artifact."""
     loaded = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(loaded, dict):
         raise ValueError(f"{kind} file must hold a JSON object: {path}")
-    return {str(key): str(value) for key, value in loaded.items()}
+    inner = loaded.get("answers")
+    mapping = inner if isinstance(inner, dict) else loaded
+    result: dict[str, str] = {}
+    for key, value in mapping.items():
+        if isinstance(value, bool) or not isinstance(value, str | int | float):
+            raise ValueError(
+                f"{kind} file maps {key!r} to a non-scalar value, not an expected number: {path}"
+            )
+        result[str(key)] = str(value)
+    return result
 
 
 def _load_reference(path: Path) -> dict[str, dict[str, int]]:
+    """Load a ``{arm: {flag: count}}`` reference, or its key of a combined artifact."""
     loaded = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(loaded, dict):
         raise ValueError(f"reference file must hold a JSON object: {path}")
+    inner = loaded.get("reference")
+    mapping = inner if isinstance(inner, dict) else loaded
     reference: dict[str, dict[str, int]] = {}
-    for arm, counts in loaded.items():
+    for arm, counts in mapping.items():
         if not isinstance(counts, dict) or not all(
             isinstance(count, int) and not isinstance(count, bool) for count in counts.values()
         ):
@@ -234,13 +257,14 @@ def main(argv: list[str] | None = None) -> int:
         "--answers",
         type=Path,
         required=True,
-        help="JSON {task label: expected number} map; answer-dependent flags need it",
+        help="JSON {task label: expected number} map, or a combined artifact holding it under 'answers'",
     )
     parser.add_argument(
         "--reference",
         type=Path,
         default=None,
-        help="JSON {arm: {flag: count}} reference; without it the report carries observed counts only",
+        help="JSON {arm: {flag: count}} reference (or a combined artifact holding it under 'reference'); "
+        "without it the report carries observed counts only",
     )
     parser.add_argument("--json-out", type=Path, default=None, help="Write the report to a new file")
     args = parser.parse_args(argv)

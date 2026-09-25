@@ -14,10 +14,11 @@ Conditions:
   has, so the candidate tree is byte-identical to the current one and every publish is a false
   positive.
 * ``known-effect`` -- the seed's ``answer-style`` skill is deliberately degraded (prose-only
-  answers, never a bare number; no oracle answers), each trial runs in a fresh scenario so the
-  current tree always starts degraded, and the proposal restores the original tutorial skill
-  text. Published candidates cannot erase the contrast because their scenario is abandoned.
-  This condition is labelled NOT A/A in its summary.
+  answers, never a bare number; no oracle answers), every trial scenario is created before
+  the first trial so each one forks the pre-campaign degraded seed, and the proposal restores
+  the original tutorial skill text. Published candidates cannot erase the contrast because
+  each scenario's tree is abandoned after its trial. This condition is labelled NOT A/A in
+  its summary.
 
 The driver refuses non-empty work dirs (state is never erased), keeps every server, recipe,
 storage, step and decision output under the owned work dir, runs the Reef subprocess with a
@@ -49,6 +50,7 @@ run-meta.json, the step records and the gate decision records.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import math
 import os
@@ -320,20 +322,27 @@ def child_environment(*, reef_root: Path, work: Path, gate_config_path: Path, py
 
 # -- condition seed handling --------------------------------------------------------------------
 
-
 def degrade_seed_entries(entries: list) -> tuple[list, dict]:
     """The seed with its ``answer-style`` entry's text replaced by the degraded skill.
 
     Returns ``(degraded_entries, original_entry)`` where ``original_entry`` is the untouched
-    pre-degradation entry: the known-effect candidate restores exactly it.
+    pre-degradation entry: the known-effect candidate restores exactly it. Both sides are
+    deep copies, so later mutation of the degraded seed cannot leak into the candidate
+    (and vice versa) through a shared config mapping.
     """
     degraded: list = []
     original: dict | None = None
     for entry in entries:
         if isinstance(entry, dict) and entry.get("id") == "answer-style":
-            original = entry
-            entry = {**entry, "config": {**entry.get("config", {}), "text": DEGRADED_ANSWER_STYLE_TEXT}}
-        degraded.append(entry)
+            original = copy.deepcopy(entry)
+            replacement = copy.deepcopy(entry)
+            replacement["config"] = {
+                **replacement.get("config", {}),
+                "text": DEGRADED_ANSWER_STYLE_TEXT,
+            }
+            degraded.append(replacement)
+        else:
+            degraded.append(copy.deepcopy(entry))
     if original is None:
         raise ValueError("the seed has no 'answer-style' entry to degrade for the known-effect condition")
     return degraded, original
@@ -493,6 +502,28 @@ def name_scenario(client, model: str, scenario: str) -> None:
         "/v1/chat/completions",
         {"model": model, "messages": [{"role": "user", "content": "Reply with one word."}], "max_tokens": 1},
     )
+
+def trial_scenario(condition: str, index: int) -> str:
+    """The scenario a trial runs in: the shared scenario for ``aa``, one fresh scenario per trial otherwise."""
+    if condition == "known-effect":
+        return f"{KNOWN_EFFECT_SCENARIO_PREFIX}-{index:02d}"
+    return SCENARIO_AA
+
+
+def name_known_effect_scenarios(client, model: str, trials: int) -> list[str]:
+    """Create every known-effect trial scenario before the first trial publishes.
+
+    A fresh Reef scenario forks the shared head at creation, and every published training
+    commit advances that head -- so a scenario created after an earlier trial published
+    would start from the published (restored) tree instead of the degraded seed. Naming
+    all scenarios upfront pins each trial's current tree to the pre-campaign degraded seed;
+    later publishes advance only their own scenario's tree plus the shared head, which no
+    remaining trial still needs to fork from.
+    """
+    scenarios = [trial_scenario("known-effect", index) for index in range(1, trials + 1)]
+    for scenario in scenarios:
+        name_scenario(client, model, scenario)
+    return scenarios
 
 
 def trigger(client, model: str, tag: str, scenario: str) -> None:
@@ -1166,16 +1197,14 @@ def main(argv: list[str] | None = None) -> None:
         client = ReefClient(f"http://127.0.0.1:{args.port}", token=TOKEN, timeout_s=300.0)
         if args.condition == "aa":
             name_scenario(client, args.model, SCENARIO_AA)
+        else:
+            # Every trial scenario is created before the first trial publishes, so each one
+            # forks the pre-campaign degraded seed: a scenario created later would fork the
+            # shared head after earlier publishes instead. Published candidates then advance
+            # only their own scenario's tree, which the next trial never touches.
+            name_known_effect_scenarios(client, args.model, args.trials)
         for index in range(1, args.trials + 1):
-            scenario = (
-                SCENARIO_AA
-                if args.condition == "aa"
-                else f"{KNOWN_EFFECT_SCENARIO_PREFIX}-{index:02d}"
-            )
-            if args.condition == "known-effect":
-                # A fresh scenario resets the trial to the degraded seed: a published candidate
-                # changes only this scenario's tree, which the next trial abandons.
-                name_scenario(client, args.model, scenario)
+            scenario = trial_scenario(args.condition, index)
             result = run_trial(
                 client,
                 model=args.model,

@@ -9,7 +9,10 @@ from evallab.evidence import reef_intake, reef_shift
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures/reef_intake"
 STEPS = FIXTURES / "steps"
-ANSWERS = {"[toy]": "7"}
+ANSWERS = json.loads((FIXTURES / "shift/answers.json").read_text(encoding="utf-8"))
+ARTIFACT = (
+    Path(__file__).resolve().parent.parent / "research/analysis/reef-shift/exp04-reference.json"
+)
 
 
 def _documents() -> dict[tuple[int, str], dict]:
@@ -67,17 +70,50 @@ def test_shift_report_marks_agreement_and_disagreement() -> None:
     assert report["all_agree"] is False
 
 
+def test_shift_report_without_reference_carries_observed_only() -> None:
+    documents = list(_documents().values())
+    report = reef_shift.compare_failure_shift(documents, documents, ANSWERS)
+    assert report["observed"]["seed"]["failed episodes"] == 3
+    assert report["reference"] == {}
+    assert report["agreement"] == {}
+    assert report["disagreements"] == {}
+    assert report["all_agree"] is None
+
+
+def test_exp04_reference_artifact_is_provenance_stamped() -> None:
+    artifact = json.loads(ARTIFACT.read_text(encoding="utf-8"))
+    assert set(artifact) == {"provenance", "answers", "reference"}
+    assert "04/summary.json" in artifact["provenance"]["counts_seed"]
 def test_module_cli_compares_imported_corpora(tmp_path: Path, capsys) -> None:
     seed = tmp_path / "seed"
     reef_intake.import_reef_gate_run(
         STEPS, seed, run_label="fixture", results_path=FIXTURES / "results.jsonl"
     )
-    answers_file = tmp_path / "answers.json"
-    answers_file.write_text(json.dumps(ANSWERS), encoding="utf-8")
     assert (
-        reef_shift.main(["--seed", str(seed), "--check", str(seed), "--answers", str(answers_file)])
+        reef_shift.main(
+            ["--seed", str(seed), "--check", str(seed), "--answers", str(FIXTURES / "shift/answers.json")]
+        )
         == 0
     )
     report = json.loads(capsys.readouterr().out)
     assert report["observed"]["seed"]["failed episodes"] == 3
+    assert report["all_agree"] is None
+    reference_file = tmp_path / "reference.json"
+    reference_file.write_text(json.dumps({"seed": {"failed episodes": 3}}), encoding="utf-8")
+    assert (
+        reef_shift.main(
+            [
+                "--seed",
+                str(seed),
+                "--check",
+                str(seed),
+                "--answers",
+                str(FIXTURES / "shift/answers.json"),
+                "--reference",
+                str(reference_file),
+            ]
+        )
+        == 0
+    )
+    report = json.loads(capsys.readouterr().out)
     assert report["all_agree"] is False

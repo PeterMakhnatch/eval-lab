@@ -19,38 +19,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-#: The tutorial grader's answer table (``04_gate_aa.py`` ``ANSWERS``, citing
-#: ``tutorials/evolve-your-harness/harness/evolution.py:12-15``). Used only
-#: to locate the expected number in recorded text, never as hidden grading
-#: logic: pass/fail still comes from the recorded episode score.
-EXP04_ANSWERS = {"[sieve]": "9592", "[fib]": "2880067194370816120", "[csv]": "30"}
-
-#: Reference failure-flag counts from the exp04 ``summary.json`` files, kept
-#: beside the comparison so agreement is checked, never assumed.
-EXP04_REFERENCE = {
-    "seed": {
-        "failed episodes": 169,
-        "ran code that printed nothing": 71,
-        "turn ended on an empty reply": 68,
-        "never used a tool": 46,
-        "right number, not alone on the last line": 34,
-        "assumed state persisted between tool calls": 25,
-        "called a tool with wrong arguments": 23,
-        "no flag matched": 8,
-        "had the right number in tool output, never reported it": 7,
-    },
-    "check": {
-        "failed episodes": 75,
-        "ran code that printed nothing": 61,
-        "called a tool with wrong arguments": 19,
-        "assumed state persisted between tool calls": 16,
-        "no flag matched": 7,
-        "had the right number in tool output, never reported it": 5,
-        "right number, not alone on the last line": 2,
-        "never used a tool": 1,
-    },
-}
-
 JsonObject = dict[str, Any]
 
 
@@ -86,13 +54,15 @@ def _step_results(step: JsonObject) -> list[JsonObject]:
     return [result for result in results if isinstance(result, dict)]
 
 
-def episode_flags(payload: JsonObject, answers: dict[str, str] = EXP04_ANSWERS) -> set[str]:
+def episode_flags(payload: JsonObject, answers: dict[str, str]) -> set[str]:
     """Failure-mode flags for one imported ATIF document.
 
     Mirrors ``04_gate_aa.py`` ``episode_flags`` flag for flag: a recorded
     pass (``extra.reef.episode_score >= 1.0``) is ``{"pass"}``; otherwise the
-    expected number is located in the recorded agent replies and tool
-    outputs. Multi-label: several flags may apply to one episode.
+    expected number for the episode's task label is located in the recorded
+    agent replies and tool outputs. ``answers`` maps task label to expected
+    number; a task label absent from it skips the number-placement flags.
+    Multi-label: several flags may apply to one episode.
     """
     reef_meta = payload.get("extra", {}).get("reef", {}) if isinstance(payload.get("extra"), dict) else {}
     score = reef_meta.get("episode_score") if isinstance(reef_meta, dict) else None
@@ -144,7 +114,7 @@ def episode_flags(payload: JsonObject, answers: dict[str, str] = EXP04_ANSWERS) 
 
 
 def failure_flag_counts(
-    documents: list[JsonObject], answers: dict[str, str] = EXP04_ANSWERS
+    documents: list[JsonObject], answers: dict[str, str]
 ) -> dict[str, int]:
     """Multi-label flag counts over every failed document, mirroring ``failure_flags``."""
     counts: dict[str, int] = {}
@@ -179,19 +149,29 @@ def load_imported_trajectories(corpus_dir: Path) -> list[JsonObject]:
 def compare_failure_shift(
     seed_documents: list[JsonObject],
     check_documents: list[JsonObject],
-    answers: dict[str, str] = EXP04_ANSWERS,
-    reference: dict[str, dict[str, int]] = EXP04_REFERENCE,
+    answers: dict[str, str],
+    reference: dict[str, dict[str, int]] | None = None,
 ) -> dict[str, Any]:
-    """Count failure modes per corpus and check them against the reference.
+    """Count failure modes per corpus, optionally checking them against a reference.
 
-    Returns observed counts plus per-flag agreement (observed == reference)
-    and disagreement lists. No significance or calibration claims: HAR-72
-    owns gate decisions; this is descriptive data over recorded evidence.
+    Returns observed counts and, when ``reference`` is given, per-flag
+    agreement (observed == reference) and disagreement lists. Without a
+    reference the report carries observed counts only. No significance or
+    calibration claims: HAR-72 owns gate decisions; this is descriptive
+    data over recorded evidence.
     """
     observed = {
         "seed": failure_flag_counts(seed_documents, answers),
         "check": failure_flag_counts(check_documents, answers),
     }
+    if reference is None:
+        return {
+            "observed": observed,
+            "reference": {},
+            "agreement": {},
+            "disagreements": {},
+            "all_agree": None,
+        }
     agreement: dict[str, dict[str, bool]] = {}
     disagreements: dict[str, list[dict[str, Any]]] = {}
     for arm in ("seed", "check"):
@@ -224,25 +204,52 @@ def compare_failure_shift(
     }
 
 
+def _load_string_map(path: Path, kind: str) -> dict[str, str]:
+    loaded = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(loaded, dict):
+        raise ValueError(f"{kind} file must hold a JSON object: {path}")
+    return {str(key): str(value) for key, value in loaded.items()}
+
+
+def _load_reference(path: Path) -> dict[str, dict[str, int]]:
+    loaded = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(loaded, dict):
+        raise ValueError(f"reference file must hold a JSON object: {path}")
+    reference: dict[str, dict[str, int]] = {}
+    for arm, counts in loaded.items():
+        if not isinstance(counts, dict) or not all(
+            isinstance(count, int) and not isinstance(count, bool) for count in counts.values()
+        ):
+            raise ValueError(f"reference arm {arm!r} must map flags to integer counts: {path}")
+        reference[str(arm)] = {str(flag): count for flag, count in counts.items()}
+    return reference
+
+
 def main(argv: list[str] | None = None) -> int:
     """Module CLI: ``python -m evallab.evidence.reef_shift ...``."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
     parser.add_argument("--seed", type=Path, required=True, help="Imported seed corpus directory")
     parser.add_argument("--check", type=Path, required=True, help="Imported check corpus directory")
-    parser.add_argument("--answers", type=Path, default=None, help="JSON {task label: number} map")
+    parser.add_argument(
+        "--answers",
+        type=Path,
+        required=True,
+        help="JSON {task label: expected number} map; answer-dependent flags need it",
+    )
+    parser.add_argument(
+        "--reference",
+        type=Path,
+        default=None,
+        help="JSON {arm: {flag: count}} reference; without it the report carries observed counts only",
+    )
     parser.add_argument("--json-out", type=Path, default=None, help="Write the report to a new file")
     args = parser.parse_args(argv)
     try:
-        answers = dict(EXP04_ANSWERS)
-        if args.answers is not None:
-            loaded = json.loads(args.answers.read_text(encoding="utf-8"))
-            if not isinstance(loaded, dict):
-                raise ValueError("answers file must hold a JSON object")
-            answers = {str(key): str(value) for key, value in loaded.items()}
         report = compare_failure_shift(
             load_imported_trajectories(args.seed),
             load_imported_trajectories(args.check),
-            answers,
+            _load_string_map(args.answers, "answers"),
+            _load_reference(args.reference) if args.reference is not None else None,
         )
         output = json.dumps(report, indent=2, sort_keys=True) + "\n"
         if args.json_out is not None:

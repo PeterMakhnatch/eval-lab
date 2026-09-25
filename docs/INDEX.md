@@ -23,7 +23,7 @@ inputs:
   - path: docs/agent-profiles.md
     digest: sha256:25a39ca8addc9a13867db38340b7bd3606ca87b733a54dd0facb101d7ef8c5cc
   - path: docs/analysis-loop.md
-    digest: sha256:c8190a94d808200e8e6f313f1b6bb2bc9dbec0fdca914aeea62005e88e03fea5
+    digest: sha256:762bb002ab0322a7f6b7e9aa100d82b4aec27ee8220865dfb38b821bf9984702
   - path: docs/analysis-worker.md
     digest: sha256:e371abf23361ab2a2f75408801e57c57c7332267ad787bfd3996dddb5f48e966
   - path: docs/architecture.md
@@ -57,7 +57,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:b2d3ea278827fb0cbf0f7cd5b2bf3441dad7417d063a9475c353e4388422cd63
+    digest: sha256:8b7b1ad68ada0f8461d8e06caba4612995ae327afe40e0f278109b3b73d6c280
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md

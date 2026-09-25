@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+
 from evallab.cohort import (
     NOT_COMPARABLE,
     _skill_directory_digest,
@@ -962,7 +962,7 @@ def _terminus_job(
     base_agent_kwargs: dict[str, object] | None = None,
     with_binding: bool = True,
     frozen_kwargs: dict[str, object] | None = None,
-    independent_instruction: bytes | None = None,
+    base_preamble: bytes | None = None,
 ) -> Path:
     """One synthetic terminus-2 job pinned to a retained harness tree."""
     skills = _SKILL_BUNDLES if skills is None else skills
@@ -972,29 +972,28 @@ def _terminus_job(
     tree = job / "harness-tree"
     rendered_kwargs = _rendered_kwargs(base_kwargs, config)
     rendered_skill_paths = list(record["skill_roots"])
-    staged_skill_paths = [str(tree / skill_root) for skill_root in rendered_skill_paths]
     frozen_skills = [
         {
             "name": skill_name,
-            "source": str(tree / "terminus/skills" / skill_name),
+            "source": f"harness-tree/terminus/skills/{skill_name}",
             "digest": _skill_directory_digest(tree / "terminus/skills" / skill_name),
         }
         for skill_name in sorted(skills)
     ]
     extra_instructions: list[dict[str, str]] = []
+    if base_preamble is not None:
+        extra_instructions.append(
+            {
+                "path": "base-preamble.md",
+                "digest": "sha256:" + hashlib.sha256(base_preamble).hexdigest(),
+            }
+        )
     if record["rules_path"] is not None:
         rules_bytes = (tree / "terminus/AGENTS.md").read_bytes()
         extra_instructions.append(
             {
-                "path": str(tree / "terminus/AGENTS.md"),
+                "path": "harness-tree/terminus/AGENTS.md",
                 "digest": "sha256:" + hashlib.sha256(rules_bytes).hexdigest(),
-            }
-        )
-    if independent_instruction is not None:
-        extra_instructions.append(
-            {
-                "path": str(job.parent / "independent-preamble.md"),
-                "digest": "sha256:" + hashlib.sha256(independent_instruction).hexdigest(),
             }
         )
     trial_index = 0
@@ -1019,7 +1018,7 @@ def _terminus_job(
                         "kwargs": (
                             rendered_kwargs if frozen_kwargs is None else frozen_kwargs
                         ),
-                        "skills": staged_skill_paths,
+                        "skills": rendered_skill_paths,
                     },
                     "skills": frozen_skills,
                     "extra_instructions": extra_instructions or None,
@@ -1067,6 +1066,14 @@ def _terminus_job(
         },
     )
     if with_binding:
+        settings = _EXECUTION_SETTINGS if execution_settings is None else execution_settings
+        if base_preamble is not None and "extra_instruction_sha256" not in settings:
+            settings = {
+                **settings,
+                "extra_instruction_sha256": (
+                    "sha256:" + hashlib.sha256(base_preamble).hexdigest()
+                ),
+            }
         record.update(
             {
                 "base_agent_kwargs": base_kwargs,
@@ -1075,12 +1082,18 @@ def _terminus_job(
                     [record["rules_path"]] if record["rules_path"] is not None else []
                 ),
                 "rendered_skill_paths": rendered_skill_paths,
-                "execution_settings": (
-                    _EXECUTION_SETTINGS if execution_settings is None else execution_settings
-                ),
+                "execution_settings": settings,
             }
         )
-        _write_file(job / "lab-metadata.json", {"harness_tree": record})
+        metadata: dict[str, object] = {"harness_tree": record}
+        if base_preamble is not None:
+            metadata["experiment"] = {
+                "preamble_path": "base-preamble.md",
+                "preamble_sha256": (
+                    "sha256:" + hashlib.sha256(base_preamble).hexdigest()
+                ),
+            }
+        _write_file(job / "lab-metadata.json", metadata)
     return job
 
 
@@ -1090,30 +1103,20 @@ def _write_file(path: Path, value: object) -> None:
 
 
 def _harness_spec(left: str, right: str) -> CohortComparisonSpec:
-    payload = {
-        "schema_version": 1,
-        "comparison_id": "harness-tree-comparison",
-        "experiment_id": "harness-tree-experiment",
-        "declared_variable": "harness_tree_sha256",
-        "pass_k": [1],
-        "pairing_key": "task_digest",
-        "cohorts": [
-            {"label": "baseline", "paths": [left]},
-            {"label": "candidate", "paths": [right]},
-        ],
-    }
-    try:
-        return CohortComparisonSpec.model_validate(payload)
-    except ValidationError as exc:
-        if "declared_variable" not in str(exc):
-            raise
-        # The parent-owned schema adds the harness_tree_sha256 literal on the
-        # integration branch; until then construct the identical spec without
-        # re-validating that one literal.
-        spec = CohortComparisonSpec.model_validate(
-            {**payload, "declared_variable": "model_name"}
-        )
-        return spec.model_copy(update={"declared_variable": "harness_tree_sha256"})
+    return CohortComparisonSpec.model_validate(
+        {
+            "schema_version": 1,
+            "comparison_id": "harness-tree-comparison",
+            "experiment_id": "harness-tree-experiment",
+            "declared_variable": "harness_tree_sha256",
+            "pass_k": [1],
+            "pairing_key": "task_digest",
+            "cohorts": [
+                {"label": "baseline", "paths": [left]},
+                {"label": "candidate", "paths": [right]},
+            ],
+        }
+    )
 
 
 def _tree_pair(tmp_path: Path, **candidate_overrides: object) -> tuple[str, str]:
@@ -1212,7 +1215,7 @@ def test_tampered_retained_tree_is_not_comparable(tmp_path: Path) -> None:
 
     assert any(
         "harness binding is missing or unverified" in warning
-        and "digest does not match" in warning
+        and "digest mismatch" in warning
         for warning in report["validity_warnings"]
     )
     assert all(
@@ -1266,16 +1269,110 @@ def test_frozen_kwargs_mismatch_is_not_comparable(tmp_path: Path) -> None:
     )
 
 
-def test_independent_preamble_is_not_comparable(tmp_path: Path) -> None:
-    left, right = _tree_pair(
-        tmp_path,
-        independent_instruction=b"independent queue preamble\n",
+def test_fixed_independent_preamble_stays_comparable(tmp_path: Path) -> None:
+    preamble = b"fixed queue preamble\n"
+    _terminus_job(
+        tmp_path / "baseline",
+        name="terminus-job",
+        suffix=1,
+        config={"temperature": 0.2},
+        rules="Baseline rules\n",
+        task_rewards={"task-a": [1.0], "task-b": [0.0]},
+        base_preamble=preamble,
+    )
+    _terminus_job(
+        tmp_path / "candidate",
+        name="terminus-job",
+        suffix=2,
+        config={"temperature": 0.7},
+        rules="Candidate rules\n",
+        task_rewards={"task-a": [0.0], "task-b": [1.0]},
+        base_preamble=preamble,
     )
 
-    report = compare(_harness_spec(left, right), repo_root=tmp_path)
+    report = compare(
+        _harness_spec("baseline/terminus-job", "candidate/terminus-job"),
+        repo_root=tmp_path,
+    )
+
+    assert report["validity_warnings"] == []
+    refusal_reasons = report["paired"][0]["refusal_reasons"]
+    assert not any("harness" in reason for reason in refusal_reasons)
+    assert not any("undeclared" in reason for reason in refusal_reasons)
+
+
+def test_changed_independent_preamble_is_not_comparable(tmp_path: Path) -> None:
+    _terminus_job(
+        tmp_path / "baseline",
+        name="terminus-job",
+        suffix=1,
+        config={"temperature": 0.2},
+        rules="Baseline rules\n",
+        task_rewards={"task-a": [1.0], "task-b": [0.0]},
+        base_preamble=b"baseline queue preamble\n",
+    )
+    _terminus_job(
+        tmp_path / "candidate",
+        name="terminus-job",
+        suffix=2,
+        config={"temperature": 0.7},
+        rules="Candidate rules\n",
+        task_rewards={"task-a": [0.0], "task-b": [1.0]},
+        base_preamble=b"candidate queue preamble\n",
+    )
+
+    report = compare(
+        _harness_spec("baseline/terminus-job", "candidate/terminus-job"),
+        repo_root=tmp_path,
+    )
 
     assert any(
-        "retained preamble does not equal the rendered tree rules" in warning
+        "undeclared consequential variable differs: harness_execution_settings_digest"
+        in warning
+        for warning in report["validity_warnings"]
+    )
+    assert report["paired"][0]["statement"].startswith(NOT_COMPARABLE)
+
+
+def test_unbound_independent_preamble_is_not_comparable(tmp_path: Path) -> None:
+    # An extra instruction the execution settings never bound: the effective
+    # preamble is not base-plus-tree, so the binding cannot be trusted.
+    _terminus_job(
+        tmp_path / "baseline",
+        name="terminus-job",
+        suffix=1,
+        config={"temperature": 0.2},
+        rules="Baseline rules\n",
+        task_rewards={"task-a": [1.0], "task-b": [0.0]},
+    )
+    job = _terminus_job(
+        tmp_path / "candidate",
+        name="terminus-job",
+        suffix=2,
+        config={"temperature": 0.7},
+        rules="Candidate rules\n",
+        task_rewards={"task-a": [0.0], "task-b": [1.0]},
+    )
+    for trial_dir in sorted(path for path in job.iterdir() if path.is_dir()):
+        lock_path = trial_dir / "lock.json"
+        lock = json.loads(lock_path.read_text())
+        lock["extra_instructions"] = [
+            {
+                "path": "unbound-preamble.md",
+                "digest": "sha256:" + hashlib.sha256(b"unbound\n").hexdigest(),
+            },
+            *lock["extra_instructions"],
+        ]
+        lock_path.write_text(json.dumps(lock))
+
+    report = compare(
+        _harness_spec("baseline/terminus-job", "candidate/terminus-job"),
+        repo_root=tmp_path,
+    )
+
+    assert any(
+        "retained preamble does not equal the base preamble plus the rendered tree rules"
+        in warning
         for warning in report["validity_warnings"]
     )
 

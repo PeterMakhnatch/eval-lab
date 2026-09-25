@@ -1,0 +1,2 @@
+{"losses":0,"proposal":{"id":"prop-a"},"published":true,"release_id":"rel-a","skipped":null,"ties":0,"trial":1,"wins":1,"scenario":"alpha"}
+{"losses":0,"proposal":{"id":"prop-b"},"published":false,"release_id":"rel-b","skipped":null,"ties":1,"trial":1,"wins":0,"scenario":"beta"}

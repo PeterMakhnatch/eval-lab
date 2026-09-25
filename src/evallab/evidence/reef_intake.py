@@ -447,18 +447,57 @@ def iter_gate_episodes(steps_root: Path) -> list[dict[str, Any]]:
     return found
 
 
-def load_trial_results(results_path: Path | None) -> dict[int, JsonObject]:
-    """Map trial number to its recorded ``results.jsonl`` row."""
+def load_trial_results(results_path: Path | None) -> list[JsonObject]:
+    """Load recorded ``results.jsonl`` rows in file order."""
     if results_path is None:
-        return {}
-    rows: dict[int, JsonObject] = {}
+        return []
+    rows: list[JsonObject] = []
     for line in Path(results_path).read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
         row = json.loads(line)
         if isinstance(row, dict) and isinstance(row.get("trial"), int):
-            rows[row["trial"]] = row
+            rows.append(row)
     return rows
+
+
+def match_trial_row(rows: list[JsonObject], scenario: str, step: int) -> JsonObject:
+    """Join one (scenario, step) episode group to its recorded results row.
+
+    An exact (scenario, trial) row wins; else the single row naming this
+    scenario; else a scenario-less row for this trial (the exp04 shape).
+    Zero or several matches at the winning level is a loud error rather
+    than a misattribution.
+    """
+    exact = [
+        row
+        for row in rows
+        if row.get("trial") == step and row.get("scenario") == scenario
+    ]
+    if len(exact) > 1:
+        raise ReefGateError(f"several results rows match scenario {scenario!r} trial {step}")
+    if exact:
+        return exact[0]
+    named = [row for row in rows if row.get("scenario") == scenario]
+    if len(named) == 1:
+        return named[0]
+    if len(named) > 1:
+        narrowed = [row for row in named if row.get("trial") == step]
+        if len(narrowed) == 1:
+            return narrowed[0]
+        raise ReefGateError(
+            f"several results rows name scenario {scenario!r} with no single trial-{step} row"
+        )
+    fallback = [
+        row
+        for row in rows
+        if row.get("trial") == step and row.get("scenario") is None
+    ]
+    if len(fallback) > 1:
+        raise ReefGateError(f"several scenario-less results rows match trial {step}")
+    if fallback:
+        return fallback[0]
+    return {}
 
 
 def episode_passed(score: Any) -> bool | None:
@@ -480,30 +519,30 @@ def pair_outcome(candidate_pass: bool | None, current_pass: bool | None) -> str 
 
 def build_paired_view(
     episodes: list[dict[str, Any]],
-    trial_results: dict[int, JsonObject] | None = None,
+    trial_rows: list[JsonObject] | None = None,
 ) -> list[dict[str, Any]]:
-    """Pair candidate and current episodes by step, task, and repeat.
+    """Pair candidate and current episodes by scenario, step, task, and repeat.
 
     Each entry carries the recorded publish outcome and the recorded
     wins/losses/ties alongside the observed pair outcomes. No decision
     rules: this is data for HAR-72, not a gate verdict.
     """
-    trial_results = trial_results or {}
-    by_key: dict[tuple[int, str, int, int], dict[str, dict[str, Any]]] = {}
+    rows = trial_rows or []
+    by_key: dict[tuple[str, int, int, int], dict[str, dict[str, Any]]] = {}
     for record in episodes:
-        key = (record["step"], str(record["scenario"]), record["task_index"], record["repeat"])
+        key = (str(record["scenario"]), record["step"], record["task_index"], record["repeat"])
         sides = by_key.setdefault(key, {})
         sides[record["side"]] = record
 
     view: list[dict[str, Any]] = []
     for key in sorted(by_key):
-        step_no, scenario, task_index, repeat = key
+        scenario, step_no, task_index, repeat = key
         sides = by_key[key]
         candidate = sides.get("candidate")
         current = sides.get("current")
         candidate_pass = episode_passed(candidate["score"] if candidate else None)
         current_pass = episode_passed(current["score"] if current else None)
-        recorded = trial_results.get(step_no, {})
+        recorded = match_trial_row(rows, scenario, step_no)
         view.append(
             {
                 "step": step_no,
@@ -552,12 +591,13 @@ def import_reef_gate_run(
     episodes = iter_gate_episodes(steps_root)
     if not episodes:
         raise ReefGateError(f"no gate episodes under {steps_root}")
-    trial_results = load_trial_results(results_path)
+    trial_rows = load_trial_results(results_path)
 
     documents: list[tuple[Path, JsonObject]] = []
     records: list[dict[str, Any]] = []
+    seen_paths: set[str] = set()
     for entry in episodes:
-        recorded = trial_results.get(entry["step"], {})
+        recorded = match_trial_row(trial_rows, entry["scenario"], entry["step"])
         proposal_raw = recorded.get("proposal")
         proposal: JsonObject = proposal_raw if isinstance(proposal_raw, dict) else {}
         proposal_id_raw = proposal.get("id")
@@ -571,7 +611,12 @@ def import_reef_gate_run(
             release_id=release_id_raw if isinstance(release_id_raw, str) else None,
         )
         reef_meta = payload["extra"]["reef"]
-        relative = Path("trajectories") / str(entry["step"]) / f"{entry['episode_dir'].name}.json"
+        relative = (
+            Path("trajectories") / entry["scenario"] / str(entry["step"]) / f"{entry['episode_dir'].name}.json"
+        )
+        if relative.as_posix() in seen_paths:
+            raise ReefGateError(f"two episodes map to the same output path: {relative}")
+        seen_paths.add(relative.as_posix())
         documents.append((relative, payload))
         try:
             episode_source = json.loads((entry["episode_dir"] / "episode.json").read_text())
@@ -587,21 +632,29 @@ def import_reef_gate_run(
                 "episode": entry["episode_dir"].name,
                 "task": episode_source.get("task") if isinstance(episode_source, dict) else None,
                 "score": episode_source.get("score") if isinstance(episode_source, dict) else None,
+                "trial_matched": bool(recorded),
                 "relative_path": relative.as_posix(),
             }
         )
 
-    pairs = build_paired_view(records, trial_results)
+    pairs = build_paired_view(records, trial_rows)
     scored = [record for record in records if _finite_number(record["score"]) is not None]
     passes = sum(1 for record in scored if (record["score"] or 0.0) >= PASS_THRESHOLD)
-    trials = sorted(trial_results) if trial_results else sorted({record["step"] for record in records})
-    published = sum(1 for trial in trials if trial_results.get(trial, {}).get("published") is True)
-    wins = sum(trial_results.get(trial, {}).get("wins") or 0 for trial in trials)
-    losses = sum(trial_results.get(trial, {}).get("losses") or 0 for trial in trials)
-    ties = sum(trial_results.get(trial, {}).get("ties") or 0 for trial in trials)
+    matched_keys = sorted(
+        {(record["scenario"], record["step"]) for record in records if record["trial_matched"]}
+    )
+    trial_keys = matched_keys or sorted({(record["scenario"], record["step"]) for record in records})
+    matched_rows = {
+        key: match_trial_row(trial_rows, key[0], key[1]) for key in matched_keys
+    }
+    published = sum(1 for row in matched_rows.values() if row.get("published") is True)
+    wins = sum(row.get("wins") or 0 for row in matched_rows.values())
+    losses = sum(row.get("losses") or 0 for row in matched_rows.values())
+    ties = sum(row.get("ties") or 0 for row in matched_rows.values())
     observed_wins = sum(1 for pair in pairs if pair["outcome"] == "W")
     observed_losses = sum(1 for pair in pairs if pair["outcome"] == "L")
     observed_ties = sum(1 for pair in pairs if pair["outcome"] == "T")
+    trials = len(trial_keys)
     summary: dict[str, Any] = {
         "origin": "reef",
         "run": run_label,
@@ -611,7 +664,7 @@ def import_reef_gate_run(
         "episodes_scored": len(scored),
         "episodes_unscored": len(records) - len(scored),
         "episode_pass": passes,
-        "trials": len(trials),
+        "trials": trials,
         "published": published,
         "wins_total": wins,
         "losses_total": losses,
@@ -671,7 +724,11 @@ def _publish_layout(
         for relative, payload in documents:
             target = staging / relative
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+            try:
+                with target.open("x", encoding="utf-8") as handle:
+                    handle.write(json.dumps(payload, indent=2) + "\n")
+            except FileExistsError as exc:
+                raise ReefGateError(f"two episodes map to the same output path: {relative}") from exc
         for name, sidecar in sidecars.items():
             (staging / name).write_text(json.dumps(sidecar, indent=2) + "\n", encoding="utf-8")
         staging.rename(out_dir)

@@ -290,6 +290,7 @@ _MISSING_FILE_RE = re.compile(
     r"No such file or directory|not found|can't open|does not exist",
     re.IGNORECASE,
 )
+_COMMAND_NOT_FOUND_RE = re.compile(r"command not found", re.IGNORECASE)
 _BARE_CD_RE = re.compile(r"^\s*cd(\s+[^;&|]+)?\s*$")
 _NAME_ERROR_RE = re.compile(r"NameError:\s*name\s*'(\w+)'\s*is not defined")
 _TRACEBACK_RE = re.compile(r"Traceback \(most recent call last\)")
@@ -375,6 +376,7 @@ class _StepView:
     command: str | None
     all_commands: tuple[str, ...]
     all_tools: tuple[str, ...]
+    call_count: int
     outputs: list[str]
     is_error: bool
 
@@ -489,6 +491,7 @@ def _step_views(raw_steps: list[dict[str, Any]]) -> list[_StepView]:
         command: str | None = None
         all_commands: list[str] = []
         all_tools: list[str] = []
+        call_count = sum(1 for call in call_list if isinstance(call, dict))
         for call in call_list:
             if not isinstance(call, dict):
                 continue
@@ -535,6 +538,7 @@ def _step_views(raw_steps: list[dict[str, Any]]) -> list[_StepView]:
                 command=command,
                 all_commands=tuple(all_commands),
                 all_tools=tuple(all_tools),
+                call_count=call_count,
                 outputs=outputs,
                 is_error=step_error,
             )
@@ -580,11 +584,17 @@ def _json_spans(text: str) -> list[str]:
 
 
 def _mode(name: str, step_ids: list[int], excerpt: str) -> FailureMode:
-    """Build one mode with de-duplicated, ordered, bounded step evidence."""
+    """Build one mode with de-duplicated, ordered, bounded step evidence.
+
+    Step ids are mandatory: callers must supply real evidence or skip the
+    mode. Emitting step 0 or a zero-count excerpt is never allowed.
+    """
     ordered = sorted({step for step in step_ids if isinstance(step, int)})
+    if not ordered:
+        raise TrajectoryError("refusing to emit a mode without step evidence")
     return FailureMode(
         mode=name,
-        step_ids=tuple(ordered[:_MAX_EVIDENCE_STEPS]) or (0,),
+        step_ids=tuple(ordered[:_MAX_EVIDENCE_STEPS]),
         excerpt=sanitize_excerpt(excerpt) if excerpt else "",
         suggestion=_SUGGESTIONS[name],
     )
@@ -657,9 +667,12 @@ class _DetectContext:
     step_to_first_tool: int | None
     step_to_first_edit: int | None
     loop_detected: bool
+    loop_reasons: tuple[str, ...] = ()
 
 
 def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
+    if not views:
+        return []
     agent_views = [view for view in views if view.source.lower() in _AGENT_SOURCES]
     tool_views = [view for view in agent_views if view.tool_name]
     modes: list[FailureMode] = []
@@ -668,11 +681,14 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
         # Multi-label like Reef's flags: a tool-less run can still end on an
         # empty reply, so record and continue instead of returning early.
         anchor = agent_views[-1] if agent_views else None
+        anchor_id = anchor.step_id if anchor else views[0].step_id
         modes.append(
             _mode(
                 "no_tool_use",
-                [anchor.step_id] if anchor else [],
-                anchor.message if anchor and anchor.message.strip() else "no tool calls recorded",
+                [anchor_id],
+                anchor.message
+                if anchor and anchor.message.strip()
+                else "no tool calls recorded",
             )
         )
 
@@ -691,18 +707,33 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
             )
         else:
             message_ids = _message_run(agent_views)
-            excerpt = ""
             if message_ids:
-                first = next(view for view in agent_views if view.step_id == message_ids[0])
-                excerpt = first.message
-            modes.append(
-                _mode(
-                    "tool_use_loop",
-                    message_ids,
-                    f"{len(message_ids)}x identical agent replies"
-                    + (f": {excerpt}" if excerpt else ""),
+                excerpt = ""
+                first = next(
+                    view for view in agent_views if view.step_id == message_ids[0]
                 )
-            )
+                excerpt = first.message
+                modes.append(
+                    _mode(
+                        "tool_use_loop",
+                        message_ids,
+                        f"{len(message_ids)}x identical agent replies"
+                        + (f": {excerpt}" if excerpt else ""),
+                    )
+                )
+            else:
+                failing: dict[tuple[str, str], list[int]] = {}
+                for view in tool_views:
+                    if view.is_error and (view.command or view.tool_name):
+                        key = (view.tool_name or "", view.command or "")
+                        failing.setdefault(key, []).append(view.step_id)
+                if failing:
+                    top_key, top_ids = sorted(
+                        failing.items(), key=lambda item: (-len(item[1]), item[1])
+                    )[0]
+                    reason = next(iter(ctx.loop_reasons), "")
+                    excerpt = reason or f"{len(top_ids)}x {top_key[1] or top_key[0]}"
+                    modes.append(_mode("tool_use_loop", top_ids, excerpt))
 
     if agent_views and not any(view.message.strip() for view in agent_views):
         # Reef parity (04_gate_aa.py): the flag is the absence of any
@@ -814,7 +845,9 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
     if cd_ids:
         for view in tool_views:
             if view.step_id > cd_ids[0] and any(
-                _MISSING_FILE_RE.search(out) for out in view.outputs
+                _MISSING_FILE_RE.search(out)
+                and not _COMMAND_NOT_FOUND_RE.search(out)
+                for out in view.outputs
             ):
                 state_ids.extend([cd_ids[0], view.step_id])
                 if not state_excerpt:
@@ -857,13 +890,16 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
         if tool_views:
             excerpt = tool_views[-1].command or tool_views[-1].tool_name or ""
         ids = [step for step in (first_tool, last_tool) if isinstance(step, int)]
-        modes.append(
-            _mode(
-                "planning_no_edit",
-                ids or [tool_views[0].step_id] if tool_views else [],
-                excerpt or "tool calls ran but no file edit was recorded",
+        if not ids and tool_views:
+            ids = [tool_views[0].step_id]
+        if ids:
+            modes.append(
+                _mode(
+                    "planning_no_edit",
+                    ids,
+                    excerpt or "tool calls ran but no file edit was recorded",
+                )
             )
-        )
 
     # The outline's error taxonomy does not unwrap mini-swe-agent returncode
     # envelopes, so failed shell trials report zero outline errors; the
@@ -1000,10 +1036,11 @@ def diagnose_trial(
             notices.append("trajectory steps unreadable; no modes proposed")
         else:
             ctx = _DetectContext(
-                total_tool_calls=outline.total_tool_calls,
+                total_tool_calls=sum(view.call_count for view in views),
                 step_to_first_tool=outline.step_to_first_tool,
                 step_to_first_edit=outline.step_to_first_edit,
                 loop_detected=outline.loop_suspicion.detected,
+                loop_reasons=tuple(outline.loop_suspicion.reasons),
             )
             modes = _order_modes(_detect(ctx, views))
     return TrialDiagnosis(
@@ -1095,7 +1132,7 @@ def diagnose_atif(
         tool_views = [view for view in views if view.tool_name]
         first_tool = next((view.step_id for view in tool_views), None)
         ctx = _DetectContext(
-            total_tool_calls=sum(len(view.all_commands) for view in tool_views),
+            total_tool_calls=sum(view.call_count for view in views),
             step_to_first_tool=first_tool,
             step_to_first_edit=None,
             loop_detected=bool(_longest_command_run(tool_views)[0]),

@@ -89,9 +89,9 @@ inputs:
   - path: src/evallab/evidence/parquet_io.py
     digest: sha256:5f7790ea1999f79f6666cc9c698e087ed93e147855f28e79facc8a170447c1cd
   - path: src/evallab/evidence/reef_intake.py
-    digest: sha256:d9e8526e50246eb7546631dbd472262f5de23301f6b3a120fe664b8add4fa386
+    digest: sha256:dbf0e0d6da8a16beba2210a454ca4129a39043e82b5a996ec0f4215df03f7e62
   - path: src/evallab/evidence/reef_shift.py
-    digest: sha256:02258fbe137ad060fec8ac2c897156e89a28e3708de06a534cfe6cc3b2054934
+    digest: sha256:37bcea316b8eab88761adf2274d90edc15f2630db165ad5e797833e233504346
   - path: src/evallab/evidence_store.py
     digest: sha256:0895da2e4a79ae88fd54dce9b5a5a63f04e2dbe8c663ab0e50145e2a1d9518b7
   - path: src/evallab/execution_contracts.py

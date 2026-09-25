@@ -34,6 +34,7 @@ __all__ = [
     "GateConfig",
     "GatePair",
     "GateResult",
+    "GateVeto",
     "decide_pairs",
     "sign_test_p",
 ]
@@ -52,9 +53,10 @@ class GateConfig:
     ``alpha`` is the strict one-sided sign-test level (publish requires
     ``p < alpha``, equality rejects). ``min_valid_pairs`` is the least number
     of usable pairs the gate will read as evidence. ``pass_threshold`` is the
-    fraction score a task episode must reach to count as passing.
-    ``regression_failure_threshold`` is how many below-threshold candidate
-    episodes on otherwise-perfect tasks trigger a veto.
+    finite score an episode must reach to count as passing; scores are general
+    finite numbers, not restricted to fractions. ``regression_failure_threshold``
+    is how many below-threshold candidate episodes a single protected task may
+    accumulate before it vetoes the decision.
     """
 
     alpha: float = 0.05
@@ -70,8 +72,6 @@ class GateConfig:
             object.__setattr__(self, name, float(value))
         if not 0.0 < self.alpha < 1.0:
             raise ValueError("alpha must lie strictly between 0 and 1")
-        if not 0.0 < self.pass_threshold <= 1.0:
-            raise ValueError("pass_threshold must lie in (0, 1] for fraction scores")
         for name in ("min_valid_pairs", "regression_failure_threshold"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int):
@@ -108,9 +108,11 @@ def sign_test_p(wins: int, losses: int) -> float:
 class GatePair:
     """One positional candidate/current pairing and how the gate judged it.
 
-    ``candidate_score``/``current_score`` are normalized floats for valid
-    pairs and ``None`` for anything the gate refused to read; ``invalid_reason``
-    names every refused side (``missing``, ``not_numeric``, ``not_finite``).
+    ``candidate_score``/``current_score`` are normalized floats for the sides
+    the gate could read and ``None`` only for a side it refused (``None``,
+    bool, non-number, or non-finite); a usable score on one side of an invalid
+    pair is preserved, not discarded. ``invalid_reason`` names every refused
+    side (``missing``, ``not_numeric``, ``not_finite``).
     """
 
     index: int
@@ -136,11 +138,35 @@ class GatePair:
 
 
 @dataclass(frozen=True)
+class GateVeto:
+    """One protected task whose candidate regressions reached the veto threshold.
+
+    ``failed_repeat_indices`` are the task-local repeat positions (not global
+    pair indices) whose valid candidate scores fell below ``pass_threshold``.
+    """
+
+    task_id: str
+    failure_count: int
+    failed_repeat_indices: tuple[int, ...]
+    threshold: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "task_id": self.task_id,
+            "failure_count": self.failure_count,
+            "failed_repeat_indices": list(self.failed_repeat_indices),
+            "threshold": self.threshold,
+        }
+
+
+@dataclass(frozen=True)
 class GateResult:
     """The complete evidence and verdict for one gate decision.
 
-    ``vetoes`` counts below-threshold candidate episodes on protected tasks;
-    the decision compares it against ``config.regression_failure_threshold``.
+    ``vetoes`` holds one :class:`GateVeto` per protected task whose valid
+    below-threshold candidate episodes reached that task's
+    ``regression_failure_threshold``; it is non-empty exactly when the
+    ``regression_veto`` reason applies.
     """
 
     selected: bool
@@ -152,7 +178,7 @@ class GateResult:
     losses: int
     ties: int
     p_value: float
-    vetoes: int
+    vetoes: tuple[GateVeto, ...]
     config: GateConfig
 
     def to_dict(self) -> dict[str, Any]:
@@ -166,7 +192,7 @@ class GateResult:
             "losses": self.losses,
             "ties": self.ties,
             "p_value": self.p_value,
-            "vetoes": self.vetoes,
+            "vetoes": [veto.to_dict() for veto in self.vetoes],
             "config": self.config.to_dict(),
         }
 
@@ -180,6 +206,13 @@ def _score_offense(side: str, value: object) -> str | None:
     if not math.isfinite(value):
         return f"{side}_score_not_finite"
     return None
+
+
+def _as_tuple(value: object, name: str) -> tuple[Any, ...]:
+    """Accept a real sequence (never str/bytes) so element-wise checks see items, not characters."""
+    if isinstance(value, (str, bytes, bytearray)) or not isinstance(value, Sequence):
+        raise ValueError(f"{name} must be a sequence, not {type(value).__name__}")
+    return tuple(value)
 
 
 def decide_pairs(
@@ -196,10 +229,11 @@ def decide_pairs(
     Reef's pairing order (task-major, ``episode_repeats`` contiguous positions
     per task); ``task_ids`` names each task group once. ``None`` marks an
     episode that could not run; bools, non-numbers, and non-finite floats are
-    refused rather than coerced. A usable zero is an ordinary score.
+    refused rather than coerced. A usable zero is an ordinary score, and a
+    usable score survives on the valid side of an otherwise invalid pair.
 
     Precedence, after all evidence is computed: fewer valid pairs than
-    ``config.min_valid_pairs`` -> ``insufficient_evidence``; any regression
+    ``config.min_valid_pairs`` -> ``insufficient_evidence``; any task-level
     veto -> ``regression_veto``; ``p < alpha`` -> ``publish``; otherwise
     ``losses > wins`` -> ``worse``, else ``not_significant``.
     """
@@ -207,9 +241,9 @@ def decide_pairs(
         raise ValueError("config must be a GateConfig")
     if isinstance(episode_repeats, bool) or not isinstance(episode_repeats, int) or episode_repeats < 1:
         raise ValueError("episode_repeats must be an integer of at least 1")
-    candidate = tuple(candidate_scores)
-    current = tuple(current_scores)
-    tasks = tuple(task_ids)
+    candidate = _as_tuple(candidate_scores, "candidate_scores")
+    current = _as_tuple(current_scores, "current_scores")
+    tasks = _as_tuple(task_ids, "task_ids")
     for task_id in tasks:
         if not isinstance(task_id, str) or not task_id:
             raise ValueError("task_ids must be non-empty strings")
@@ -233,23 +267,12 @@ def decide_pairs(
         offenses = [
             offense for offense in (candidate_offenses[index], current_offenses[index]) if offense is not None
         ]
+        # Sanitize only the refused side; an observed score on the other side stays on record.
+        candidate_value = None if candidate_offenses[index] is not None else float(candidate[index])
+        current_value = None if current_offenses[index] is not None else float(current[index])
         if offenses:
-            pairs.append(
-                GatePair(
-                    index=index,
-                    task_id=task_id,
-                    repeat_index=repeat_index,
-                    candidate_score=None,
-                    current_score=None,
-                    valid=False,
-                    result="invalid",
-                    invalid_reason="; ".join(offenses),
-                )
-            )
-            continue
-        candidate_value = float(candidate[index])
-        current_value = float(current[index])
-        if candidate_value > current_value:
+            result = "invalid"
+        elif candidate_value > current_value:
             result = "win"
         elif candidate_value < current_value:
             result = "loss"
@@ -262,9 +285,9 @@ def decide_pairs(
                 repeat_index=repeat_index,
                 candidate_score=candidate_value,
                 current_score=current_value,
-                valid=True,
+                valid=not offenses,
                 result=result,
-                invalid_reason=None,
+                invalid_reason="; ".join(offenses) if offenses else None,
             )
         )
 
@@ -275,27 +298,38 @@ def decide_pairs(
     invalid_pairs = len(pairs) - valid_pairs
 
     # Veto accounting works per task group over the raw vectors: protection
-    # depends only on the current side, and an invalid candidate episode is
-    # missing evidence, never a fabricated below-threshold failure.
-    vetoes = 0
-    for task_index in range(len(tasks)):
-        positions = range(task_index * episode_repeats, (task_index + 1) * episode_repeats)
+    # depends only on the current side, an invalid candidate episode is
+    # missing evidence rather than a fabricated failure, and the failure
+    # threshold applies within one protected task, never pooled across tasks.
+    vetoes: list[GateVeto] = []
+    for task_index, task_id in enumerate(tasks):
+        start = task_index * episode_repeats
+        positions = range(start, start + episode_repeats)
         protected = all(
             current_offenses[position] is None and float(current[position]) >= config.pass_threshold
             for position in positions
         )
         if not protected:
             continue
-        vetoes += sum(
-            1
+        failed_repeats = tuple(
+            position - start
             for position in positions
             if candidate_offenses[position] is None and float(candidate[position]) < config.pass_threshold
         )
+        if len(failed_repeats) >= config.regression_failure_threshold:
+            vetoes.append(
+                GateVeto(
+                    task_id=task_id,
+                    failure_count=len(failed_repeats),
+                    failed_repeat_indices=failed_repeats,
+                    threshold=config.regression_failure_threshold,
+                )
+            )
 
     p_value = sign_test_p(wins, losses)
     if valid_pairs < config.min_valid_pairs:
         selected, reason_code = False, REASON_INSUFFICIENT_EVIDENCE
-    elif vetoes >= config.regression_failure_threshold:
+    elif vetoes:
         selected, reason_code = False, REASON_REGRESSION_VETO
     elif p_value < config.alpha:
         selected, reason_code = True, REASON_PUBLISH
@@ -314,6 +348,6 @@ def decide_pairs(
         losses=losses,
         ties=ties,
         p_value=p_value,
-        vetoes=vetoes,
+        vetoes=tuple(vetoes),
         config=config,
     )

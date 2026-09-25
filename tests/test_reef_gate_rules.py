@@ -13,6 +13,7 @@ from evallab_reef_gate.rules import (
     REASON_REGRESSION_VETO,
     REASON_WORSE,
     GateConfig,
+    GateVeto,
     decide_pairs,
     sign_test_p,
 )
@@ -49,6 +50,7 @@ class TestSignTestP:
         assert sign_test_p(4, 1) == 6 / 32
         assert sign_test_p(5, 1) == 7 / 64
         assert sign_test_p(10, 1) == 12 / 2048
+        assert sign_test_p(10, 2) == 79 / 4096
 
     def test_rejects_negative_or_non_integer_counts(self) -> None:
         for wins, losses in ((-1, 0), (0, -1), (1.5, 0), (True, 0), (0, "2")):
@@ -80,8 +82,8 @@ class TestSignBoundary:
         assert result.p_value == pytest.approx(1 / 32)
 
     def test_sign_boundary_above_alpha_rejects(self) -> None:
-        # Four decisive wins: p = 1/16 = 0.0625 > 0.05, enough valid evidence,
-        # so the decision falls through to not_significant rather than publish.
+        # Four decisive wins: p = 1/16 = 0.0625 > 0.05, with enough valid
+        # evidence, so the decision falls through to not_significant.
         config = GateConfig(min_valid_pairs=4)
         result = _decide([1.0] * 4, [0.0] * 4, tasks=("t",), repeats=4, config=config)
         assert result.reason_code == REASON_NOT_SIGNIFICANT
@@ -129,7 +131,7 @@ class TestMissingScores:
         result = _decide(candidate, [1.0] * 5, tasks=("t",), repeats=5)
         assert result.invalid_pairs == 1
         assert (result.wins, result.losses, result.ties) == (0, 0, 4)
-        assert result.vetoes == 0
+        assert result.vetoes == ()
         assert result.reason_code == REASON_INSUFFICIENT_EVIDENCE
 
 
@@ -144,13 +146,17 @@ class TestValidZero:
         assert result.valid_pairs == 2
         assert result.reason_code == REASON_WORSE
 
-    def test_stored_scores_are_none_only_for_invalid_pairs(self) -> None:
+    def test_invalid_pairs_keep_the_readable_side_on_record(self) -> None:
         candidate = [0.0, None]
         result = _decide(candidate, [1.0, 1.0], tasks=("t",), repeats=2)
-        assert result.pairs[0].candidate_score == 0.0
-        assert result.pairs[0].current_score == 1.0
-        assert result.pairs[1].candidate_score is None
-        assert result.pairs[1].current_score is None
+        assert (result.pairs[0].candidate_score, result.pairs[0].current_score) == (0.0, 1.0)
+        assert (result.pairs[1].candidate_score, result.pairs[1].current_score) == (None, 1.0)
+        assert result.pairs[1].invalid_reason == "candidate_score_missing"
+
+    def test_current_side_missing_keeps_the_candidate_score(self) -> None:
+        result = _decide([0.9], [None], tasks=("t",), repeats=1)
+        assert (result.pairs[0].candidate_score, result.pairs[0].current_score) == (0.9, None)
+        assert result.pairs[0].invalid_reason == "current_score_missing"
 
 
 class TestNonFiniteScores:
@@ -171,15 +177,20 @@ class TestNonFiniteScores:
             "current_score_not_finite",
         ]
 
-    def test_nonfinite_never_reaches_a_comparison_or_the_record(self) -> None:
+    def test_nonfinite_sanitizes_only_the_offending_side(self) -> None:
         result = _decide([NAN, INF, 0.5], [1.0, 1.0, NAN], tasks=("t",), repeats=3)
-        assert all(pair.candidate_score is None and pair.current_score is None for pair in result.pairs)
+        assert [(pair.candidate_score, pair.current_score) for pair in result.pairs] == [
+            (None, 1.0),
+            (None, 1.0),
+            (0.5, None),
+        ]
 
 
 class TestMinimumEvidence:
     def test_four_all_wins_lack_required_evidence_and_never_select(self) -> None:
         result = _decide([1.0] * 4, [0.0] * 4, tasks=("t",), repeats=4)
-        # p = 1/16 would beat alpha, but evidence comes first.
+        # Four valid pairs are below the default min evidence of five, and
+        # p = 1/16 = 0.0625 also misses alpha = 0.05; both reasons reject.
         assert result.reason_code == REASON_INSUFFICIENT_EVIDENCE
         assert result.selected is False
         assert result.valid_pairs == 4
@@ -188,7 +199,7 @@ class TestMinimumEvidence:
         # One valid below-threshold loss on a perfect current task would veto,
         # but a single valid pair is below the required evidence.
         result = _decide([0.0, None], [1.0, 1.0], tasks=("t",), repeats=2)
-        assert result.vetoes == 1
+        assert result.vetoes == (GateVeto(task_id="t", failure_count=1, failed_repeat_indices=(0,), threshold=1),)
         assert result.reason_code == REASON_INSUFFICIENT_EVIDENCE
         assert result.selected is False
 
@@ -204,23 +215,52 @@ class TestRegressionVeto:
         result = _decide(candidate, [1.0] * 5, tasks=("t",), repeats=5)
         assert result.valid_pairs == 5
         assert (result.wins, result.losses, result.ties) == (0, 1, 4)
-        assert result.vetoes == 1
+        assert result.vetoes == (
+            GateVeto(task_id="t", failure_count=1, failed_repeat_indices=(4,), threshold=1),
+        )
         assert result.reason_code == REASON_REGRESSION_VETO
         assert result.selected is False
         assert result.p_value == 1.0
+
+    def test_veto_threshold_is_per_task_not_pooled(self) -> None:
+        # Two protected tasks with one failure each never reach a threshold of
+        # two, so otherwise-significant evidence still publishes.
+        spread_candidate = [1.0, 1.0, 1.0, 1.0, 0.0] * 2 + [1.0] * 10
+        spread_current = [1.0] * 10 + [0.0] * 10
+        config = GateConfig(regression_failure_threshold=2)
+        spread = _decide(spread_candidate, spread_current, tasks=("a", "b", "w1", "w2"), repeats=5, config=config)
+        assert (spread.wins, spread.losses, spread.ties) == (10, 2, 8)
+        assert spread.p_value == pytest.approx(79 / 4096)
+        assert spread.vetoes == ()
+        assert spread.reason_code == REASON_PUBLISH
+        assert spread.selected is True
+
+        # The same aggregate record with both failures on one task vetoes.
+        concentrated_candidate = [1.0, 1.0, 1.0, 0.0, 0.0] + [1.0] * 5 + [1.0] * 10
+        concentrated_current = [1.0] * 10 + [0.0] * 10
+        concentrated = _decide(
+            concentrated_candidate, concentrated_current, tasks=("a", "b", "w1", "w2"), repeats=5, config=config
+        )
+        assert (concentrated.wins, concentrated.losses, concentrated.ties) == (10, 2, 8)
+        assert concentrated.p_value == pytest.approx(79 / 4096)
+        assert concentrated.vetoes == (
+            GateVeto(task_id="a", failure_count=2, failed_repeat_indices=(3, 4), threshold=2),
+        )
+        assert concentrated.reason_code == REASON_REGRESSION_VETO
+        assert concentrated.selected is False
 
     def test_failure_threshold_is_configurable(self) -> None:
         candidate = [1.0, 1.0, 1.0, 1.0, 0.9]
         config = GateConfig(regression_failure_threshold=2)
         result = _decide(candidate, [1.0] * 5, tasks=("t",), repeats=5, config=config)
-        assert result.vetoes == 1
+        assert result.vetoes == ()
         assert result.reason_code == REASON_WORSE
 
     def test_current_below_threshold_leaves_the_task_unprotected(self) -> None:
         # The current tree already fails this task, so a candidate failure
         # there is not a regression of a protected capability.
         result = _decide([0.0] * 5, [0.9] * 5, tasks=("t",), repeats=5)
-        assert result.vetoes == 0
+        assert result.vetoes == ()
         assert result.reason_code == REASON_WORSE
 
     def test_current_missing_leaves_the_task_unprotected(self) -> None:
@@ -228,7 +268,7 @@ class TestRegressionVeto:
         # unproven; it neither protects the task nor fabricates failures.
         current = [1.0, None, 1.0, 1.0, 1.0]
         result = _decide([0.0] * 5, current, tasks=("t",), repeats=5)
-        assert result.vetoes == 0
+        assert result.vetoes == ()
         assert result.reason_code == REASON_INSUFFICIENT_EVIDENCE
 
     def test_veto_counts_only_candidate_failures_on_protected_tasks(self) -> None:
@@ -238,7 +278,9 @@ class TestRegressionVeto:
         candidate = [1.0, 1.0, 0.0, 0.0, 1.0, 1.0]
         current = [0.0, 0.0, 1.0, 1.0, 0.0, 0.0]
         result = _decide(candidate, current, tasks=("a", "b", "c"), repeats=2)
-        assert result.vetoes == 2
+        assert result.vetoes == (
+            GateVeto(task_id="b", failure_count=2, failed_repeat_indices=(0, 1), threshold=1),
+        )
         assert (result.wins, result.losses) == (4, 2)
         assert result.reason_code == REASON_REGRESSION_VETO
 
@@ -249,7 +291,9 @@ class TestRegressionVeto:
         current = [0.0] * 5 + [1.0] * 5 + [0.0] * 5
         result = _decide(candidate, current, tasks=("a", "b", "c"), repeats=5)
         assert result.p_value == pytest.approx(12 / 2048)
-        assert result.vetoes == 1
+        assert result.vetoes == (
+            GateVeto(task_id="b", failure_count=1, failed_repeat_indices=(4,), threshold=1),
+        )
         assert result.reason_code == REASON_REGRESSION_VETO
         assert result.selected is False
 
@@ -258,6 +302,7 @@ class TestRegressionVeto:
         current = [0.0] * 5 + [1.0] * 5 + [0.0] * 5
         config = GateConfig(regression_failure_threshold=2)
         result = _decide(candidate, current, tasks=("a", "b", "c"), repeats=5, config=config)
+        assert result.vetoes == ()
         assert result.reason_code == REASON_PUBLISH
         assert result.selected is True
 
@@ -321,6 +366,20 @@ class TestMalformedShapes:
         with pytest.raises(ValueError, match="non-empty strings"):
             _decide([1.0, 1.0], [1.0, 1.0], tasks=("a", ""), repeats=1)
 
+    def test_score_and_task_arguments_must_be_real_sequences(self) -> None:
+        with pytest.raises(ValueError, match="candidate_scores must be a sequence"):
+            _decide("1.0", [1.0], tasks=("t",), repeats=1)  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="candidate_scores must be a sequence"):
+            _decide(None, [1.0], tasks=("t",), repeats=1)  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="current_scores must be a sequence"):
+            _decide([1.0], 7, tasks=("t",), repeats=1)  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="task_ids must be a sequence"):
+            _decide([1.0], [1.0], tasks="tt", repeats=1)  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="task_ids must be a sequence"):
+            _decide([1.0], [1.0], tasks=None, repeats=1)  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="candidate_scores must be a sequence"):
+            _decide((value for value in [1.0]), [1.0], tasks=("t",), repeats=1)  # type: ignore[arg-type]
+
     def test_config_must_be_a_gate_config(self) -> None:
         with pytest.raises(ValueError):
             decide_pairs(
@@ -339,9 +398,14 @@ class TestGateConfigValidation:
                 GateConfig(alpha=alpha)
 
     def test_rejects_unusable_pass_threshold(self) -> None:
-        for threshold in (0.0, 1.5, -1.0, NAN, INF):
+        for threshold in (NAN, INF, -INF, True, "1.0"):
             with pytest.raises(ValueError):
                 GateConfig(pass_threshold=threshold)
+
+    def test_pass_threshold_accepts_any_finite_number(self) -> None:
+        assert GateConfig(pass_threshold=2.5).pass_threshold == 2.5
+        assert GateConfig(pass_threshold=0.5).pass_threshold == 0.5
+        assert GateConfig(pass_threshold=-1.0).pass_threshold == -1.0
 
     def test_rejects_non_positive_integer_counts(self) -> None:
         for min_valid_pairs in (0, -1, 2.5, True):
@@ -352,11 +416,11 @@ class TestGateConfigValidation:
                 GateConfig(regression_failure_threshold=threshold)
 
     def test_accepts_boundary_configuration(self) -> None:
-        config = GateConfig(alpha=0.5, min_valid_pairs=1, pass_threshold=0.5, regression_failure_threshold=3)
+        config = GateConfig(alpha=0.5, min_valid_pairs=1, pass_threshold=2.5, regression_failure_threshold=3)
         assert config.to_dict() == {
             "alpha": 0.5,
             "min_valid_pairs": 1,
-            "pass_threshold": 0.5,
+            "pass_threshold": 2.5,
             "regression_failure_threshold": 3,
         }
 
@@ -394,11 +458,23 @@ class TestSerialization:
             "pass_threshold",
             "regression_failure_threshold",
         }
+        assert record["vetoes"] == []
         assert json.dumps(record)  # strict: any NaN or inf would raise
+
+    def test_vetoes_serialize_as_per_task_records(self) -> None:
+        candidate = [1.0, 1.0, 1.0, 1.0, 0.9]
+        result = _decide(candidate, [1.0] * 5, tasks=("t",), repeats=5)
+        record = result.to_dict()
+        assert record["vetoes"] == [
+            {"task_id": "t", "failure_count": 1, "failed_repeat_indices": [4], "threshold": 1}
+        ]
+        assert json.dumps(record)
 
     def test_invalid_scores_serialize_without_nan(self) -> None:
         result = _decide([NAN, 1.0], [1.0, None], tasks=("t",), repeats=2)
         record = result.to_dict()
         assert json.dumps(record)
         assert record["pairs"][0]["invalid_reason"] == "candidate_score_not_finite"
+        assert (record["pairs"][0]["candidate_score"], record["pairs"][0]["current_score"]) == (None, 1.0)
         assert record["pairs"][1]["invalid_reason"] == "current_score_missing"
+        assert (record["pairs"][1]["candidate_score"], record["pairs"][1]["current_score"]) == (1.0, None)

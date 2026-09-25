@@ -729,12 +729,7 @@ def _side_passes(
             missing += expected_per_row
             continue
         for position, score in enumerate(scores):
-            if (
-                score is None
-                or isinstance(score, bool)
-                or not isinstance(score, (int, float))
-                or not math.isfinite(score)
-            ):
+            if not _is_usable_score(score):
                 missing += 1
                 continue
             index = position // repeats if repeats else 0
@@ -757,13 +752,18 @@ _CALIBRATION_ERROR_REASONS = frozenset(
 )
 
 
-def _settled_row_is_valid(row: dict, *, expected_len: int | None = None) -> bool:
-    """A settled, non-skipped row counts toward the denominator only with full flat evidence.
+def _is_usable_score(value: object) -> bool:
+    """A score that counts as observed evidence: numeric, non-bool, finite (zero counts)."""
+    if value is None or isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return math.isfinite(value)
 
-    Validity needs numeric wins/losses/ties tallies plus nonempty equal score vectors whose
-    length matches the expected task_count * repeats shape when it is known. Evaluator-error
-    rows (empty vectors with zeroed tallies) and explicit evaluator_error /
-    invalid_evaluation / decision_record_error reasons are invalid, never resolved zeros.
+
+def _settled_row_is_valid(row: dict, *, expected_len: int | None = None) -> bool:
+    """Count resolved comparisons, not outages or insufficient-evidence holds.
+
+    Score vectors must have the expected shape and at least one usable pair.
+    Gate-accepted partial evidence stays valid; missing episodes remain missing.
     """
     for key in ("wins", "losses", "ties"):
         value = row.get(key)
@@ -776,6 +776,8 @@ def _settled_row_is_valid(row: dict, *, expected_len: int | None = None) -> bool
     gate_reason = gate.get("reason_code") if isinstance(gate, dict) else None
     if reason in _CALIBRATION_ERROR_REASONS or gate_reason in _CALIBRATION_ERROR_REASONS:
         return False
+    if reason == "insufficient_evidence" or gate_reason == "insufficient_evidence":
+        return False
     candidate = row.get("candidate_scores")
     current = row.get("current_scores")
     if isinstance(candidate, (str, bytes, bytearray)) or not isinstance(candidate, (list, tuple)):
@@ -786,7 +788,12 @@ def _settled_row_is_valid(row: dict, *, expected_len: int | None = None) -> bool
         return False
     if len(candidate) != len(current):
         return False
-    return expected_len is None or len(candidate) == expected_len
+    if expected_len is not None and len(candidate) != expected_len:
+        return False
+    return any(
+        _is_usable_score(candidate_score) and _is_usable_score(current_score)
+        for candidate_score, current_score in zip(candidate, current, strict=True)
+    )
 
 
 def summarize(

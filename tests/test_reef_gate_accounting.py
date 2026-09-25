@@ -293,3 +293,63 @@ def test_analyze_rejects_contradictory_retained_tasks(tmp_path: Path) -> None:
     (work / "results.jsonl").write_text("")
     with pytest.raises(SystemExit, match="contradictory tasks"):
         calibrate.analyze(work)
+
+
+def test_insufficient_evidence_outage_excluded_but_partial_pairs_count() -> None:
+    valid = result_row(
+        trial=1,
+        published=True,
+        wins=2,
+        losses=0,
+        ties=1,
+        candidate_scores=[1.0, 0.0, 1.0],
+        current_scores=[0.0, 0.0, 1.0],
+    )
+    outage_gate_hold = result_row(
+        trial=2, published=False, wins=0, losses=0, ties=0,
+        candidate_scores=[None, None, None],
+        current_scores=[None, None, None],
+        gate={"reason_code": "insufficient_evidence"},
+    )
+    outage_no_reason = result_row(
+        trial=3, published=False, wins=0, losses=0, ties=0,
+        candidate_scores=[None, None, None],
+        current_scores=[None, None, None],
+    )
+    held_with_some_evidence = result_row(
+        trial=4, published=False, wins=1, losses=0, ties=0,
+        candidate_scores=[1.0, None, None],
+        current_scores=[0.0, 0.0, None],
+        reason_code="insufficient_evidence",
+    )
+    partial_accepted = result_row(
+        trial=5, published=False, wins=1, losses=0, ties=1,
+        candidate_scores=[1.0, None, 0.0],
+        current_scores=[0.0, 0.0, 0.0],
+        gate={"reason_code": "not_significant"},
+    )
+    # Direct predicate: reason holds and vector outage exclude, partial stays eligible.
+    assert calibrate._settled_row_is_valid(outage_gate_hold, expected_len=3) is False
+    assert calibrate._settled_row_is_valid(outage_no_reason, expected_len=3) is False
+    assert calibrate._settled_row_is_valid(held_with_some_evidence, expected_len=3) is False
+    assert calibrate._settled_row_is_valid(partial_accepted, expected_len=3) is True
+    assert calibrate._is_usable_score(0.0) is True
+    assert calibrate._is_usable_score(None) is False
+    summary = calibrate.summarize(
+        [valid, outage_gate_hold, outage_no_reason, held_with_some_evidence, partial_accepted],
+        tasks=TASKS, repeats=1, condition="aa", alpha=0.05, min_valid_pairs=5,
+    )
+    # The outage/hold rows stay in invalid counts but never dilute the Wilson denominator
+    # as resolved negatives; the gate-accepted partial trial counts with its usable pairs.
+    assert summary["trials_attempted"] == 5
+    assert summary["trials_settled"] == 5
+    assert summary["trials_invalid"] == 3
+    assert summary["denominator"] == 2
+    assert summary["publishes"] == 1
+    assert summary["publish_rate"] == pytest.approx(0.5)
+    # No imputation: the partial trial contributes its 5 observed episodes, with the one
+    # None pair missing rather than scored as a failure.
+    assert summary["episodes_expected"] == 2 * len(TASKS) * 1 * 2
+    assert summary["episodes_scored"] == 6 + 5
+    assert summary["episodes_missing"] == 1
+    assert summary["wlt_histogram"] == {"1/0/1": 1, "2/0/1": 1}

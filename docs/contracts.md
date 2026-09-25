@@ -57,9 +57,14 @@ serialization when the optional harness binding is absent. A Terminus harness
 path and digest must appear together; non-Terminus consumers reject them.
 Adding a field does not justify repinning unrelated titles, descriptions, or
 incidental generated-schema details.
+
 `CapabilityCurveSpec` likewise relies on the behavioral curve tests: a nested
 comparison enum can grow without changing the curve's admissible factor
 treatment, pairing, and primary-contrast rules. Those rules remain enforced.
+
+CLI compatibility follows the same rule: exercise commands and their meaningful
+refusal/authorization boundaries, rather than freeze a copy of argparse's
+command tree. New flags and subcommands do not require repinning a parser dump.
 
 ## Intentional regeneration (only deliberate changes)
 

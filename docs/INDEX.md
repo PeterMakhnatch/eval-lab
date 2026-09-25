@@ -43,7 +43,7 @@ inputs:
   - path: docs/continuous-loop-operator.md
     digest: sha256:b4e12204ffbf46d27b7ee00e2a3c69904f2b5fd6be2572b6ff3beaa29a310e6a
   - path: docs/contracts.md
-    digest: sha256:036ccbcb09930e361421346db123161be04a74d052ccc9043ef38e6bb96f59fc
+    digest: sha256:0b03b979664d0c3157d7a45887c388fe7aff1661230b4a150ae43f7a336f2786
   - path: docs/craft.md
     digest: sha256:ee111e3a975bfb4ed3390c58bc2e86b666299e94964cf985b0a52f90edfa4424
   - path: docs/dashboard.md

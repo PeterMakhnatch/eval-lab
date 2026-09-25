@@ -86,6 +86,11 @@ _RUNTIME_EXCEPTION_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
+# A harness rejection message leads its result; the same words deeper inside a
+# long output are data the agent read (for example source code that raises
+# "Invalid JSON"), not a rejection of the call.
+_REJECTION_HEAD_CHARS = 400
+
 
 @dataclass(frozen=True)
 class ErrorClassification:
@@ -102,11 +107,12 @@ def split_envelope(content: Any) -> tuple[int | None, str]:
     """Split a mini-swe-agent result envelope from its output text.
 
     The agent transport wraps tool output as ``{"returncode": N, "output":
-    ...}`` (extra keys allowed). Returns ``(returncode, output_text)`` when
-    the content parses as such an envelope, else ``(None, text)`` with the
-    content passed through untouched. Callers keep the harness
-    ``extra.exit_code`` authoritative: the envelope code fills only when
-    extra carries none.
+    ...}`` (extra keys allowed); long outputs arrive truncated as
+    ``output_head``/``output_tail`` instead of ``output``. Returns
+    ``(returncode, output_text)`` when the content parses as such an envelope,
+    else ``(None, text)`` with the content passed through untouched. Callers
+    keep the harness ``extra.exit_code`` authoritative: the envelope code fills
+    only when extra carries none.
     """
     text = content if isinstance(content, str) else str(content or "")
     stripped = text.strip()
@@ -119,9 +125,15 @@ def split_envelope(content: Any) -> tuple[int | None, str]:
     if not isinstance(payload, dict):
         return None, text
     code = payload.get("returncode")
-    if not isinstance(code, int) or "output" not in payload:
+    if not isinstance(code, int):
         return None, text
-    return code, str(payload["output"] or "")
+    if "output" in payload:
+        return code, str(payload["output"] or "")
+    if "output_head" in payload or "output_tail" in payload:
+        head = str(payload.get("output_head") or "")
+        tail = str(payload.get("output_tail") or "")
+        return code, f"{head}\n[... output truncated by the harness ...]\n{tail}"
+    return None, text
 
 
 def is_probe_command(tool_name: str | None, tool_command: str | None) -> bool:
@@ -152,8 +164,11 @@ def classify_step_error(
     r_type = (result_type or "").lower()
     r_status = (result_status or "").lower()
 
-    # 1. Check for Harness Schema Rejections (tool argument parsing or validation failures)
-    if _SCHEMA_REJECTION_PATTERNS.search(output) or r_type in {"schema_error", "validation_error"}:
+    # 1. Check for Harness Schema Rejections (tool argument parsing or validation failures).
+    # A call that ran and exited 0 was accepted by the harness.
+    if r_type in {"schema_error", "validation_error"} or (
+        exit_code != 0 and _SCHEMA_REJECTION_PATTERNS.search(output[:_REJECTION_HEAD_CHARS])
+    ):
         return ErrorClassification(
             is_error=True,
             is_expected_probe=False,

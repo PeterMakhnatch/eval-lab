@@ -105,6 +105,40 @@ length-interrupted calls are absent from native token totals. Neither zero
 declared calls nor missing usage proves zero actual consumption. The proxy's
 conservative uncached accounting is not an invoice.
 
+### Per-run report
+
+`uv run evallab report run <trial_dir | job_dir> [--json] [--output-dir DIR]`
+renders one deterministic report per trial (schema `evallab.run_report/v1`) and,
+for a job directory, a rollup (`evallab.job_report/v1`). The Markdown is rendered
+from the JSON, so people and models read the same facts. It never writes into
+the run directory; `--output-dir` writes `<trial>.run_report.{json,md}` and
+`job.run_report.{json,md}`. Sections: outcome, Harbor phase timing and gaps
+between agent steps, tokens and cost, tools, revisits, subagents, context
+events, errors, a bounded timeline (`--full-timeline` lists every step), and
+data-quality notes.
+
+Definitions the report applies:
+
+- Step numbers are 1-based positions in the stitched trajectory (continuations
+  included, copied context excluded), not native ATIF `step_id`s.
+- Tokens and cost follow the precedence above, field by field, then step sums;
+  each total names its source. Cost from partial step sums is flagged as a lower
+  bound, and missing cost is `null` with a data-quality note, never zero.
+- Tool status is `ok`, `error`, or `unknown`. `evidence` names the channel:
+  exit code, mini-swe-agent envelope, Codex code-mode script status, harness
+  error flag, structured payload status, leading harness rejection text, or
+  strong output-text patterns (`output_text`, inferred). Codex code-mode `exec`
+  calls are reported as the inner tool (`exec_command`, `apply_patch`).
+- An action's signature is its tool plus normalized command or arguments.
+  A repeated action reuses an earlier signature; it is a *return* when other
+  actions came between and an *immediate repeat* otherwise. An *exact revisit*
+  also got an identical normalized result (volatile wall-time lines removed):
+  the agent was back at the same spot and nothing had changed. Empty-input
+  polls are excluded.
+- Subagents come from ATIF subagent references (embedded or file), Claude Code
+  sidechain steps, and delegation tool calls. `none_observed` is not proof of
+  absence for harnesses whose converters drop child threads.
+
 ### CLI reference: deterministic trajectory analysis
 
 The deterministic analyzer runs directly on retained raw native ATIF trajectories without invoking models, sandboxes, or tools:

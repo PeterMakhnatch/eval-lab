@@ -1558,6 +1558,45 @@ def _report_card_command(
     return 0
 
 
+def _report_run_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.interpretation.run_report import (
+        DEFAULT_TIMELINE_LIMIT,
+        build_job_report,
+        build_run_report,
+        is_trial_dir,
+        render_job_report_markdown,
+        render_run_report_markdown,
+        write_reports,
+    )
+
+    target = _resolve(root, args.target)
+    if not target.is_dir():
+        print(f"error: {target} is not a directory", file=sys.stderr)
+        return 1
+    limit = None if args.full_timeline else DEFAULT_TIMELINE_LIMIT
+    job_report: dict[str, Any] | None = None
+    if is_trial_dir(target):
+        reports = [build_run_report(target, timeline_limit=limit)]
+        rendered = render_run_report_markdown(reports[0])
+    else:
+        job_report, reports = build_job_report(target, timeline_limit=limit)
+        if not reports:
+            print(f"error: no Harbor trial directories under {target}", file=sys.stderr)
+            return 1
+        rendered = render_job_report_markdown(job_report)
+    if args.json:
+        payload = {**job_report, "trial_reports": reports} if job_report else reports[0]
+        print(json.dumps(payload, indent=2))
+    else:
+        print(rendered, end="")
+    if args.output_dir is not None:
+        for path in write_reports(reports, _resolve(root, args.output_dir), job_report):
+            print(f"wrote: {path}", file=sys.stderr)
+    return 0
+
+
 def _analyze_plan_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -3757,6 +3796,28 @@ def parser() -> argparse.ArgumentParser:
         help="write the eval card (default: render without writing)",
     )
     report_card.set_defaults(func=_report_card_command)
+
+    report_run = report_commands.add_parser(
+        "run",
+        help="Comprehensive report for one Harbor trial or every trial in a job (JSON + Markdown)",
+    )
+    report_run.add_argument(
+        "target", type=Path, help="Harbor trial directory, or a job directory to report every trial"
+    )
+    report_run.add_argument(
+        "--json", action="store_true", help="Emit the JSON report instead of Markdown"
+    )
+    report_run.add_argument(
+        "--output-dir",
+        type=Path,
+        help="Also write <trial>.run_report.{json,md} (plus job.run_report.* for a job)",
+    )
+    report_run.add_argument(
+        "--full-timeline",
+        action="store_true",
+        help="List every step (default: first and last steps plus notable ones)",
+    )
+    report_run.set_defaults(func=_report_run_command)
 
     analyze = commands.add_parser("analyze", help="Plan or index bounded trial analyses")
     analyze_commands = analyze.add_subparsers(dest="analyze_command", required=True)

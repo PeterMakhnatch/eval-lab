@@ -35,6 +35,7 @@ from evallab.storage.paths import (
 from evallab.trajectory_error_taxonomy import (
     classify_intervention_provenance,
     classify_step_error,
+    split_envelope,
 )
 
 PhaseType = Literal["setup", "prompt", "work", "verifier", "unknown"]
@@ -1568,7 +1569,9 @@ def outline_trajectory(
             extra = extra_value if isinstance(extra_value, dict) else {}
             if "exit_code" in extra and isinstance(extra["exit_code"], int):
                 exit_code = extra["exit_code"]
-            content = str(res.get("content") or "")
+            envelope_code, content = split_envelope(res.get("content"))
+            if exit_code is None and envelope_code is not None:
+                exit_code = envelope_code
             result_type = str(res.get("type") or "").lower()
             result_status = str(res.get("status") or "").lower()
             if exit_code is not None and exit_code != 0:
@@ -1581,7 +1584,10 @@ def outline_trajectory(
                 is_error = True
                 error_msg = error_msg or content[:120].strip() or "tool result reported an error"
         # Deterministic error taxonomy and expected negative probe classification
-        primary_content = results[0].get("content") if results else error_msg
+        _, primary_text = split_envelope(
+            results[0].get("content") if results else None
+        )
+        primary_content = primary_text or error_msg
         error_classification = classify_step_error(
             tool_name=primary_tool_name,
             tool_command=primary_tool_cmd,

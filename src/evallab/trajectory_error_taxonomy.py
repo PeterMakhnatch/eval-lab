@@ -8,9 +8,11 @@ Provides zero-LLM classification of trajectory errors, separating:
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
 
 class ErrorCategory(StrEnum):
@@ -94,6 +96,32 @@ class ErrorClassification:
     category: ErrorCategory
     exit_code: int | None
     error_message: str | None
+
+
+def split_envelope(content: Any) -> tuple[int | None, str]:
+    """Split a mini-swe-agent result envelope from its output text.
+
+    The agent transport wraps tool output as ``{"returncode": N, "output":
+    ...}`` (extra keys allowed). Returns ``(returncode, output_text)`` when
+    the content parses as such an envelope, else ``(None, text)`` with the
+    content passed through untouched. Callers keep the harness
+    ``extra.exit_code`` authoritative: the envelope code fills only when
+    extra carries none.
+    """
+    text = content if isinstance(content, str) else str(content or "")
+    stripped = text.strip()
+    if not stripped.startswith("{"):
+        return None, text
+    try:
+        payload = json.loads(stripped)
+    except (json.JSONDecodeError, ValueError):
+        return None, text
+    if not isinstance(payload, dict):
+        return None, text
+    code = payload.get("returncode")
+    if not isinstance(code, int) or "output" not in payload:
+        return None, text
+    return code, str(payload["output"] or "")
 
 
 def is_probe_command(tool_name: str | None, tool_command: str | None) -> bool:

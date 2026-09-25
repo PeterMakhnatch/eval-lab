@@ -31,9 +31,13 @@ mode is missing:
   with step-level evidence; the outline's edit pattern is OR-ed with a local
   heredoc/redirect matcher it misses.
 * ``unrecovered_error`` -- the outline's ``unrecovered_at_terminal`` idea,
-  recomputed locally because the outline's error taxonomy does not unwrap
-  mini-swe-agent returncode envelopes (real failed shell trials report zero
-  outline errors).
+  recomputed locally so document-level diagnoses (which have no outline)
+  and REPL ``exit N`` conventions share one path. The outline itself is
+  envelope-aware (traj.py unwraps agent transports); the local walk is
+  retained for uniformity, not for a gap. Detector v3: modes unchanged
+  by the outline fix; ``heuristic_label`` strings follow the corrected
+  outline (shell fails read ``unrecovered_error``, recovered passes read
+  ``recovered_success``).
 * ``no_tool_use`` (new) -- the heuristic taxonomy has ``setup_failure`` for
   zero agent steps but no mode for an agent that responds without ever
   calling a tool; mirrors Reef's ``never used a tool`` flag.
@@ -94,9 +98,10 @@ from evallab.traj import (
     outline_trajectory,
     resolve_trial_target,
 )
+from evallab.trajectory_error_taxonomy import split_envelope
 
 TRIAL_DIAGNOSIS_TAXONOMY = "trial_diagnosis/failure_mode/v1"
-DETECTOR_VERSION = "trial_diagnosis/v2"
+DETECTOR_VERSION = "trial_diagnosis/v3"
 PASS_THRESHOLD = 1.0
 DEFAULT_MAX_CHARS = 2000
 EXCERPT_CHARS = 160
@@ -452,18 +457,7 @@ def _raw_steps(trial_dir: Path) -> list[dict[str, Any]]:
 
 def _envelope_returncode(content: Any) -> int | None:
     """Return the mini-swe-agent JSON envelope returncode, if present."""
-    if not isinstance(content, str):
-        return None
-    stripped = content.strip()
-    if not stripped.startswith("{"):
-        return None
-    try:
-        payload = json.loads(stripped)
-    except (json.JSONDecodeError, ValueError):
-        return None
-    if isinstance(payload, dict) and isinstance(payload.get("returncode"), int):
-        return payload["returncode"]
-    return None
+    return split_envelope(content)[0]
 
 
 def _result_is_error(result: dict[str, Any]) -> bool:
@@ -901,10 +895,9 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
                 )
             )
 
-    # The outline's error taxonomy does not unwrap mini-swe-agent returncode
-    # envelopes, so failed shell trials report zero outline errors; the
-    # terminal-error state is recomputed here from envelope-aware views with
-    # the outline's own last-was-error semantics.
+    # Terminal-error state is recomputed here from envelope-aware views with
+    # the outline's own last-was-error semantics, so the document entry
+    # point (no outline) and REPL exit-N conventions share one path.
     error_ids = [view.step_id for view in agent_views if view.is_error]
     last_was_error = False
     for view in agent_views:

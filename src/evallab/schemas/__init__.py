@@ -219,6 +219,40 @@ class PowerSpec(ContractModel):
     )
 
 
+class ReefTrafficSpec(ContractModel):
+    """Opt-in Reef capture/report binding for one terminus-2 spec (HAR-74).
+
+    ``url``/``scenario``/``token_env`` name the Reef service, the workload the
+    records belong to, and the environment variable holding the bearer token.
+    ``release_id``/``content_id`` are pinned at prepare time beside the
+    HAR-71 harness-tree digest, so ``evallab approve`` authorizes one exact
+    served tree. The token value itself is never stored here.
+    """
+
+    url: str = Field(min_length=1, max_length=256)
+    scenario: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+    token_env: str = Field(min_length=1, max_length=64, pattern=r"^[A-Z][A-Z0-9_]+$")
+    release_id: str | None = Field(default=None, min_length=1, max_length=256)
+    content_id: str | None = Field(default=None, min_length=1, max_length=256)
+
+    @field_validator("url")
+    @classmethod
+    def url_is_http(cls, value: str) -> str:
+        if not re.fullmatch(r"https?://127\.0\.0\.1(:\d+)?(/.*)?", value) and not re.fullmatch(
+            r"https?://localhost(:\d+)?(/.*)?", value
+        ):
+            raise ValueError("reef url must be an http(s) loopback URL")
+        return value.rstrip("/")
+
+    @model_validator(mode="after")
+    def release_and_content_are_pinned_together(self) -> ReefTrafficSpec:
+        if bool(self.release_id) != bool(self.content_id):
+            raise ValueError("reef release_id and content_id must be pinned together")
+        return self
+
+
+
+
 class ProviderRoute(ContractModel):
     """One pre-authorized provider route for the same logical treatment."""
 
@@ -296,6 +330,10 @@ class ExperimentSpec(ContractModel):
         pattern=r"^sha256:[0-9a-f]{64}$",
         exclude_if=lambda value: value is None,
         description="content digest of the complete pinned Terminus harness tree",
+    )
+    reef: ReefTrafficSpec | None = Field(
+        default=None,
+        description="opt-in Reef capture/report binding; pins the served release beside the harness tree",
     )
     agent: str = Field(min_length=1)
     model: str | None = None
@@ -421,6 +459,16 @@ class ExperimentSpec(ContractModel):
             raise ValueError("harness_tree_path and harness_tree_sha256 must be provided together")
         if self.harness_tree_path is not None and self.agent != "terminus-2":
             raise ValueError("harness trees are supported only by terminus-2")
+        if self.reef is not None and self.agent != "terminus-2":
+            raise ValueError("reef capture/reporting is supported only by terminus-2")
+        if self.reef is not None and self.model != "ollama_chat/qwen2.5:7b":
+            # Literal mirrors execution_contracts.TERMINUS_LOCAL_MODEL_SELECTOR
+            # (that module imports this one, so the constant cannot be shared).
+            raise ValueError("reef traffic runs on the local terminus route")
+        if self.reef is not None and self.harness_tree_sha256 is None:
+            raise ValueError("reef specs pin the served tree: harness_tree_path and harness_tree_sha256 are required")
+        if self.reef is not None and (self.reef.release_id is None or self.reef.content_id is None):
+            raise ValueError("reef specs pin the served release: release_id and content_id are required")
         if self.provider_routes:
             if not self.billable:
                 raise ValueError("control specs cannot declare provider routes")

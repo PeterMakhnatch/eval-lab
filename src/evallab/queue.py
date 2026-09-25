@@ -37,6 +37,7 @@ from evallab.execution_contracts import (
     ZAI_OPENCODE_MODEL_SELECTORS,
     DispatchCapacity,
     PaidRunAuthorization,
+    ReefTrafficBinding,
     is_lease_generation,
     load_policy,
     new_ulid,
@@ -1942,6 +1943,34 @@ class Executor:
                 "provider route constraints require a route-aware executor; "
                 "this executor cannot dispatch them as an unconstrained single route",
             )
+        if spec.reef is not None:
+            # Held-out refusal before any Reef call, same rule as
+            # training_pool.py:120. Runs before the drift re-check below.
+            from evallab.reef_traffic import (
+                HeldoutRefusal,
+                heldout_uses_for_task,
+                refuse_if_heldout,
+            )
+
+            registered_id = (
+                spec.task.removeprefix("registered/") if spec.task.startswith("registered/") else None
+            )
+            found = heldout_uses_for_task(
+                self.repo_root,
+                task_id=registered_id or spec.task_id,
+                task_path=spec.task_path,
+                package_digest=spec.task_package_digest,
+            )
+            if found is not None:
+                try:
+                    refuse_if_heldout(found[1], task_label=spec.task)
+                except HeldoutRefusal as exc:
+                    raise ExecutionFailure("reef_heldout_refused", str(exc)) from exc
+            if spec.reef.release_id is None or spec.reef.content_id is None:
+                raise ExecutionFailure(
+                    "reef_pin_missing",
+                    "reef specs must pin release_id and content_id at prepare time",
+                )
         task_path = self._safe_repo_path(spec.executable_task_path)
         task_version = spec.task_version
         verifier_digest = spec.verifier_digest
@@ -2158,6 +2187,17 @@ class Executor:
             max_total_tokens=spec.max_total_tokens,
             cost_limit_usd=spec.cost_limit_usd,
             harness_policy=spec.harness_policy,
+            reef=(
+                ReefTrafficBinding(
+                    url=spec.reef.url,
+                    scenario=spec.reef.scenario,
+                    token_env=spec.reef.token_env,
+                    release_id=spec.reef.release_id or "",
+                    content_id=spec.reef.content_id or "",
+                )
+                if spec.reef is not None
+                else None
+            ),
             lease_path=self.queue.lease_path(spec),
             lease_generation=lease_generation,
             experiment_spec=spec.model_copy(deep=True),

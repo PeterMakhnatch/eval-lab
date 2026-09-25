@@ -32,6 +32,7 @@ from typing import Any
 from harbor.agents.terminus_2.terminus_2 import Terminus2  # ty: ignore[unresolved-import]
 
 from evallab.execution_contracts import (
+    REEF_SCENARIO_ENV,
     TERMINUS_LOCAL_MODEL_SELECTOR,
     TERMINUS_PROXY_URL_ENV,
     ZAI_OPENAPI_ALLOWED_MODELS,
@@ -196,6 +197,7 @@ class SecretSafeTerminus2(Terminus2):
                 "pass model_name as a keyword argument"
             )
         self._local_binding: OllamaBinding | None = None
+        self._reef_scenario: str | None = None
         if model_name == TERMINUS_LOCAL_MODEL_SELECTOR:
             self._local_binding = resolve_ollama_binding(model_name)
             model = model_name
@@ -225,7 +227,15 @@ class SecretSafeTerminus2(Terminus2):
         if self._local_binding is not None:
             if kwargs.get("model_info") is not None:
                 raise ValueError("local model context/pricing is runtime-bound, not a harness override")
-            proxy_url = self._local_binding.endpoint
+            reef_scenario = os.environ.get(REEF_SCENARIO_ENV)
+            if reef_scenario:
+                # HAR-74: the same HAR-70 loopback proxy slot, forwarding
+                # through Reef's capture proxy. The bearer token lives in the
+                # runner process; this child holds only the proxy URL.
+                self._reef_scenario = reef_scenario
+                proxy_url = _require_loopback_proxy_url()
+            else:
+                proxy_url = self._local_binding.endpoint
             capability = None
             kwargs["model_info"] = {
                 "max_input_tokens": self._local_binding.context_budget_tokens,
@@ -259,13 +269,23 @@ class SecretSafeTerminus2(Terminus2):
             await super().run(instruction, environment, context)
         finally:
             if self._local_binding is not None:
-                # Installed local inference has no provider API charge. This is
-                # a billing fact, not invented missing token or call telemetry.
-                context.cost_usd = 0.0
-                context.metadata = {
-                    **(context.metadata or {}),
-                    "local_ollama": self._local_binding.to_dict(),
-                }
+                if self._reef_scenario is None:
+                    # Installed local inference has no provider API charge. This is
+                    # a billing fact, not invented missing token or call telemetry.
+                    context.cost_usd = 0.0
+                    context.metadata = {
+                        **(context.metadata or {}),
+                        "local_ollama": self._local_binding.to_dict(),
+                    }
+                else:
+                    # HAR-74: Reef owns metering server-side; Eval Lab claims no
+                    # cost here and records the scenario instead. Weight
+                    # provenance still comes from the qualified local binding.
+                    context.metadata = {
+                        **(context.metadata or {}),
+                        "local_ollama": self._local_binding.to_dict(),
+                        "reef_traffic": {"scenario": self._reef_scenario},
+                    }
 
     def populate_context_post_run(self, context: Any) -> None:
         secrets = collected_secret_values()

@@ -383,17 +383,17 @@ inputs:
   - path: src/evallab/training_pool.py
     digest: sha256:64a25ca6ff005c8e51a5cc92329392c768bd9b970d632d6abf784627708e75f4
   - path: src/evallab/traj.py
-    digest: sha256:a9d8be8f33b1d6db67ef5797e642e7a53025a0a779e18e16d3bdaa9be1812114
+    digest: sha256:6d3207ad02d61172eb2110f9abf75dae2cc54cd3cff0661c5c78255f43642a3a
   - path: src/evallab/trajectory_action_taxonomy.py
     digest: sha256:7480e6e809f617002afae2b363c9c861ec38e890f2b5760adba2d197564d72e0
   - path: src/evallab/trajectory_error_taxonomy.py
-    digest: sha256:fb6990588c647357facf8b091bedd43d097f2d526cdb1a0f6f17b0d68127e6f2
+    digest: sha256:5218230e99b27e54e2f027bceb88844924c49c8a4a1a22ab0141e92f33e483c7
   - path: src/evallab/trajectory_ir.py
     digest: sha256:28736db76b746d0b7b2eb0d770c2115c1d03bfa4e6b35dfc947ea3eeb5079863
   - path: src/evallab/trajectory_loss_manifest.py
     digest: sha256:9b94bbf60d2ae917340d67294223ea6e7caa8dbbe768cfb81306d118ef2cb228
   - path: src/evallab/trial_diagnosis.py
-    digest: sha256:2fd3bbd6c9e7c065c904707bb8d683ad3958f1ab3e21b23c28da402f5e2fd9d9
+    digest: sha256:c50a035631c973084c188b65becb957e855a340ddc7ae07a94b618df385d6eba
   - path: src/evallab/upstream_adapter.py
     digest: sha256:7ecf5e66b3e99887465bada34fcc09729dbffdc4346f95d79cb793bdd9bb82fb
   - path: src/evallab/verdicts.py

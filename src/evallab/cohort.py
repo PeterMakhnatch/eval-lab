@@ -856,6 +856,17 @@ def _member(
     harness_fields = _harness_member_fields(
         job, trial, agent_lock, model_settings, toolset, preamble_hash
     )
+    if harness_fields["harness_tree_sha256"] is not None and toolset is not None:
+        # Job-specific staging paths are locations, not new tool capabilities.
+        # Only verified retained content may replace the native path identity.
+        frozen_skills = _frozen_skill_identities(trial)
+        assert frozen_skills is not None
+        toolset = {
+            **toolset,
+            "skills": [{"name": name, "digest": digest} for name, digest in frozen_skills],
+        }
+        toolset_digest = digest_json(toolset)
+        model_settings.pop("skills", None)
     try:
         source_path = trial.path.resolve().relative_to(root.resolve()).as_posix()
     except ValueError:
@@ -2254,8 +2265,8 @@ def render_markdown(report: dict[str, Any]) -> str:
             "## Outcomes",
             "",
             "| cohort | total | capability denominator | exceptions | pass-any-first-k "
-            "| cost per solved task |",
-            "|---|---:|---:|---:|---|---|",
+            "| cost per solved task | missing/invalid cost trials |",
+            "|---|---:|---:|---:|---|---|---:|",
         ]
     )
     for cohort in report["cohorts"]:
@@ -2281,7 +2292,8 @@ def render_markdown(report: dict[str, Any]) -> str:
         lines.append(
             f"| {cohort['label']} | {cohort['n_total']} | "
             f"{cohort['capability_denominator']} | {cohort['exception_count']} | "
-            f"{'<br>'.join(pass_cells)} | {cost_cell} |"
+            f"{'<br>'.join(pass_cells)} | {cost_cell} | "
+            f"{cost['missing_or_invalid_cost_trial_count']} |"
         )
     lines.extend(
         [
@@ -2294,6 +2306,17 @@ def render_markdown(report: dict[str, Any]) -> str:
             "",
         ]
     )
+    if report["declared_variable"] == "harness_tree_sha256":
+        lines.extend(["## Verified harness treatment", "", "| cohort | tree digest |", "|---|---|"])
+        for cohort in report["cohorts"]:
+            digests = sorted({
+                member["harness_tree_sha256"]
+                for member in cohort["members"]
+                if member["harness_tree_sha256"] is not None
+            })
+            identities = "<br>".join(f"`{digest}`" for digest in digests) or "unverified"
+            lines.append(f"| {cohort['label']} | {identities} |")
+        lines.append("")
     lines.extend(["## Paired by task", ""])
     for paired in report["paired"]:
         lines.append(

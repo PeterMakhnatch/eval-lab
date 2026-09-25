@@ -15,9 +15,9 @@ rules below remain binding.
 
 Harbor supplies the execution backends; Eval Lab prepares bounded specs and
 preserves their evidence. Compatibility belongs to a task/harness/model/backend
-combination, not just an `--env` name. Terminus 2 uses a host-side metered
-model transport with native Harbor task backends. GLM mini-SWE has a live-proven
-single-container Daytona path; its container-side Modal proxy is not integrated.
+combination, not just an `--env` name. Terminus 2 uses a host-side metered or
+explicitly local model transport with native Harbor task backends. GLM mini-SWE
+has a live-proven single-container Daytona path; its container-side Modal proxy is not integrated.
 Cloud runs still require explicit approval under `policy/standing-approvals.yaml`.
 
 ## Machine state (verified, not aspirational)
@@ -151,11 +151,11 @@ closed during container network configuration before model requests can issue.
 ### Terminus 2 with native Harbor tasks
 
 Use `--agent terminus-2`. Eval Lab subclasses Harbor's upstream **Terminus 2**
-only to bind its host-side model client to the existing metered proxy. Its
-terminal loop, JSON command parser, context summarization, terminal recordings,
-and ATIF writer remain upstream implementations. The admitted model route is
-`zai/glm-5.3-flash`, using the standard-API `ZAI_OPENAPI_API_KEY`, never Coding
-Plan credentials.
+only to bind its host-side model client. Its terminal loop, JSON command parser,
+context summarization, terminal recordings, and ATIF writer remain upstream
+implementations. The metered route is `zai/glm-5.3-flash`, using the standard-API
+`ZAI_OPENAPI_API_KEY`, never Coding Plan credentials. A separate local route,
+`ollama_chat/qwen2.5:7b`, uses an explicitly selected local Ollama service.
 
 Prepare any local Harbor task package; no task-ID allowlist or new registry
 admission is needed:
@@ -187,10 +187,11 @@ for example, Daytona DinD cannot change network policy dynamically. Unsupported
 task/backend combinations are not a promise of universal portability.
 
 The model client stays on the controller, so the task receives neither the
-provider key nor the proxy capability. Main, summarizer, and retried model calls
-share one trial's request/token/cost ceilings. The default per-response output
-limit is 8,192 tokens, separate from the cumulative output allowance. The proxy
-binds an ephemeral loopback port and stops before final accounting is collected.
+provider key nor the proxy capability. On the metered route, main, summarizer,
+and retried model calls share one trial's request/token/cost ceilings. The
+default per-response output limit is 8,192 tokens, separate from the cumulative
+output allowance. The proxy binds an ephemeral loopback port and stops before
+final accounting is collected.
 For Daytona, the reused lifecycle wrapper sets a provider TTL of execution
 timeout plus ten minutes, five-minute inactivity stop, and deletion on stop.
 Remote credentials, capacity, and explicit spending approval remain prerequisites.
@@ -224,6 +225,78 @@ with a **scripted loopback provider and isolated catalog**: terminal execution,
 parse-error recovery, native grading, ATIF/recording capture, and ingestion.
 This is CPU protocol proof, not a live GLM capability result or remote/GPU
 qualification. All 66 pinned TB4 task selections also compile without execution.
+
+#### Pinned settings, rules, and skills
+
+`--harness-tree` freezes a directory with this layout:
+
+```text
+harness/
+  terminus/config.json
+  terminus/AGENTS.md
+  terminus/skills/<skill>/SKILL.md
+  terminus-commands/<command>/SKILL.md
+```
+
+The optional config object accepts `enable_summarize`, `interleaved_thinking`,
+`llm_call_kwargs`, `max_thinking_tokens`, `max_turns`, `parser_name`,
+`proactive_summarization_threshold`, `reasoning_effort`, and `temperature`.
+An absent config uses stock settings; nonblank rules become a native extra
+instruction, and populated skill roots become native `--skill` arguments.
+`llm_call_kwargs` merges over the Lab's per-call defaults, without exceeding
+an enforced cumulative output cap. Model/transport/credential overrides,
+unknown knobs, `terminus/context` code extensions, symlinks, special files,
+and digest drift refuse before execution. Tree bytes are not rewritten.
+
+Preparation records `harness_tree_path` and `harness_tree_sha256`, using the
+existing evidence-tree digest over sorted relative paths and file bytes.
+It freezes an independent copy under `runs/.prepared-harnesses/`. Execution
+rechecks the pin and retains `harness-tree/`, exact rendered arguments, base
+settings, and `experiment-spec.json` in the ordinary job directory. A retained
+run can therefore be inspected or replayed after temporary staging is removed.
+This mirrors Reef's tree layout without importing Reef.
+
+For local execution, first start your own **cloud-disabled** Ollama service
+with an already installed `qwen2.5:7b` GGUF. The Lab does not download weights
+or start a server. Point it at a literal loopback endpoint:
+
+```bash
+export EVALLAB_TERMINUS_OLLAMA_URL=http://127.0.0.1:11461
+uv run evallab tasks prepare library/tasks/event-summary \
+  --name local-baseline --agent terminus-2 --model ollama_chat/qwen2.5:7b \
+  --environment docker --harness-tree /absolute/path/to/baseline-harness
+uv run evallab submit derived/prepared/local-baseline.json
+uv run evallab approve <baseline-spec-id> --actor peter
+uv run evallab tick --spec-id <baseline-spec-id>
+
+# Change only the candidate harness; reuse the executed task/model/limits.
+uv run evallab tasks replay runs/local-baseline/experiment-spec.json \
+  --name local-candidate --harness-tree /absolute/path/to/candidate-harness
+uv run evallab submit derived/prepared/local-candidate.json
+uv run evallab approve <candidate-spec-id> --actor peter
+uv run evallab tick --spec-id <candidate-spec-id>
+```
+
+Local qualification reads Ollama's installed-model inventory, rejects cloud
+models, and records the weight digest and endpoint. The controller uses an
+8,192-token context budget. Native token counts remain observed telemetry;
+zero provider API charge is recorded explicitly, not used to fill missing
+usage. No provider-proxy request/token/cost ceilings are claimed for this
+route. Task deadlines and native harness settings still apply, and every
+non-control spec still requires recorded approval. Replay never inherits an
+old approval or changes the retained task; task drift refuses.
+
+Set `declared_variable` to `harness_tree_sha256` in a normal comparison spec,
+then run `evallab compare <comparison-spec.json>`. Comparison verifies retained
+tree bytes against native kwargs, rules, and skill locks before treating them
+as one treatment. Non-tree model/tool settings remain consequential. Full
+base execution settings must match within each paired task, even when
+different tasks have different limits. Cost per solved task uses all selected
+attempt costs and reports missing-cost counts; no solved tasks or incomplete
+cost evidence yields **unavailable**, never a fabricated zero. Native provider
+estimates are not invoices, and zero local API charge is not a hardware-cost
+estimate.
+
 
 ### GLM mini-SWE on Daytona
 

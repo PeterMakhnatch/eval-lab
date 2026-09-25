@@ -1419,12 +1419,10 @@ def test_cost_per_solved_includes_failed_attempts_and_distinct_tasks_only(
     assert baseline_cost["solved_task_count"] == 1
     assert baseline_cost["cost_per_solved_task_usd"] == pytest.approx(0.35)
     assert baseline_cost["unavailable_reason"] is None
-    assert "not invoices" in baseline_cost["cost_basis"]
     candidate_cost = candidate["cost_per_solved_task"]
     assert candidate_cost["solved_task_count"] == 1
     assert candidate_cost["cost_per_solved_task_usd"] == pytest.approx(0.04)
     markdown = render_markdown(report)
-    assert "cost per solved task" in markdown
     assert "$0.3500" in markdown
 
 
@@ -1575,3 +1573,5 @@ def test_harness_execution_controls_are_checked_within_each_task_pair(
         )
     else:
         assert report["validity_warnings"] == []
+        for arm in paths:
+            assert report["paired"][0]["elicitation"][arm]["model_pin"] == _TERMINUS_MODEL

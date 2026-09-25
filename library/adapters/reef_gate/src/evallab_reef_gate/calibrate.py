@@ -786,9 +786,7 @@ def _settled_row_is_valid(row: dict, *, expected_len: int | None = None) -> bool
         return False
     if len(candidate) != len(current):
         return False
-    if expected_len is not None and (len(candidate) != expected_len or len(current) != expected_len):
-        return False
-    return True
+    return expected_len is None or len(candidate) == expected_len
 
 
 def summarize(

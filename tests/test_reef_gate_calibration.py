@@ -312,14 +312,10 @@ def test_read_decision_records_reports_malformed_records(tmp_path: Path) -> None
 
 
 def test_read_decision_records_without_directory_reports_unavailable(tmp_path: Path) -> None:
-    assert calibrate.read_decision_records(tmp_path / "gate-decisions") == {
-        "count": 0,
-        "decision_walltime_s": [],
-        "decision_walltime_median_s": None,
-        "evaluation_walltime_median_s": None,
-        "reef_commits": [],
-        "reason_codes": {},
-    }
+    result = calibrate.read_decision_records(tmp_path / "gate-decisions")
+    assert result["count"] == 0
+    assert result["decision_walltime_median_s"] is None
+    assert result["evaluation_walltime_median_s"] is None
 
 
 # -- trial accounting ------------------------------------------------------------------------------

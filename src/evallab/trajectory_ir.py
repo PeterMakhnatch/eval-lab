@@ -161,6 +161,10 @@ def _extract_reasoning_tokens(
             val = extra.get(k)
             if isinstance(val, int):
                 return val
+        # LiteLLM usage shape (mini-swe-agent): extra.completion_tokens_details.reasoning_tokens
+        details = extra.get("completion_tokens_details")
+        if isinstance(details, dict) and isinstance(details.get("reasoning_tokens"), int):
+            return details["reasoning_tokens"]
     direct_val = metrics_data.get("reasoning_tokens")
     if isinstance(direct_val, int):
         return direct_val

@@ -138,6 +138,7 @@ uv run evallab gc
 
 # Trajectory Interpretation & Analysis
 uv run evallab analyze batch <manifest.json>
+uv run evallab report run <trial_or_job_dir>
 uv run evallab traj outline <trial_path>
 uv run evallab traj ir <trial_path>
 uv run evallab traj pack <trial_path>

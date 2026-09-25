@@ -34,6 +34,13 @@ def test_split_envelope_passes_through_non_envelopes() -> None:
     assert split_envelope("{not json") == (None, "{not json")
 
 
+def test_split_envelope_unwraps_truncated_output() -> None:
+    content = json.dumps({"returncode": 1, "output_head": "start of log", "output_tail": "boom"})
+    code, text = split_envelope(content)
+    assert code == 1
+    assert text.startswith("start of log") and text.endswith("boom")
+
+
 def test_envelope_exit_drives_classification() -> None:
     code, text = split_envelope(json.dumps({"returncode": 1, "output": "boom"}))
     classification = classify_step_error(
@@ -53,6 +60,26 @@ def test_envelope_probe_miss_stays_a_probe() -> None:
     )
     assert classification.is_error is False
     assert classification.is_expected_probe is True
+
+
+def test_rejection_words_inside_read_output_are_not_a_rejection() -> None:
+    # A successful read of source code that raises "Invalid JSON" deep in its body.
+    source_listing = "def load(body):\n    pass\n" * 40 + "    raise HTTPError(400, 'Invalid JSON')\n"
+    for exit_code in (None, 0):
+        classification = classify_step_error(
+            tool_name="exec", tool_command="sed -n '1,200p' bottle.py", exit_code=exit_code,
+            output_content=source_listing,
+        )
+        assert classification.is_error is False
+
+
+def test_leading_harness_rejection_is_still_classified() -> None:
+    classification = classify_step_error(
+        tool_name="bash", tool_command=None, exit_code=None,
+        output_content="Invalid parameters: missing required argument 'command'",
+    )
+    assert classification.is_error is True
+    assert classification.category == ErrorCategory.HARNESS_SCHEMA_REJECTION
 
 
 def _trial(path: Path, steps: list[dict[str, Any]]) -> Path:

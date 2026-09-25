@@ -167,7 +167,15 @@ _WS_RE = re.compile(r"\s+")
 _HIDDEN_PATH_RE = re.compile(r"(^|[\s/\\>\"'(\[])(tests|solution)([/\\]|$)")
 _SECRET_RES = (
     re.compile(r"\bsk-[A-Za-z0-9_-]{8,}\b"),
+    re.compile(r"\b(?:ghp|gho|ghs|ghu|ghr)_[A-Za-z0-9]{20,}\b|\bgithub_pat_[A-Za-z0-9_]{20,}"),
+    re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),
+    re.compile(r"\bxox[abpr]-[A-Za-z0-9-]{10,}"),
+    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)", re.S),
     re.compile(r"(?i)\b(bearer\s+[A-Za-z0-9._~+/-]{8,}|api[_-]?key\s*[:=]\s*\S+)"),
+    re.compile(
+        r"(?i)\b(?:password|passwd|secret|access[_-]?token|auth[_-]?token|client[_-]?secret)"
+        r"\s*[:=]\s*[\"']?[^\s\"']{4,}"
+    ),
 )
 _ARGUMENT_ERROR_RE = re.compile(
     r"unrecognized argument|unexpected.*argument|takes .*positional argument|"
@@ -433,6 +441,9 @@ def _output_text(content: Any) -> str:
                 detail = note or "no output"
                 return f"[returncode {returncode}: {detail}]"
             return output
+        envelope_code, envelope_text = split_envelope(text)
+        if envelope_code is not None:
+            return envelope_text
     return text
 
 

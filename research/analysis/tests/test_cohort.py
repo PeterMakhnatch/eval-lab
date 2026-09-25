@@ -1191,8 +1191,7 @@ def test_base_execution_settings_change_is_not_comparable(tmp_path: Path) -> Non
     report = compare(_harness_spec(left, right), repo_root=tmp_path)
 
     assert any(
-        "undeclared consequential variable differs: harness_execution_settings_digest"
-        in warning
+        "harness_execution_settings_digest" in warning
         for warning in report["validity_warnings"]
     )
     assert report["paired"][0]["statement"].startswith(NOT_COMPARABLE)
@@ -1336,8 +1335,7 @@ def test_changed_independent_preamble_is_not_comparable(tmp_path: Path) -> None:
     )
 
     assert any(
-        "undeclared consequential variable differs: harness_execution_settings_digest"
-        in warning
+        "harness_execution_settings_digest" in warning
         for warning in report["validity_warnings"]
     )
     assert report["paired"][0]["statement"].startswith(NOT_COMPARABLE)
@@ -1527,3 +1525,53 @@ def test_recorded_zero_api_charge_is_complete_cost_evidence(tmp_path: Path) -> N
     assert baseline_cost["cost_per_solved_task_usd"] == 0.0
     assert baseline_cost["unavailable_reason"] is None
 
+
+
+def test_harness_treatment_does_not_waive_other_native_model_settings(tmp_path: Path) -> None:
+    left, right = _tree_pair(tmp_path)
+    for lock_path in sorted((tmp_path / right).glob("*/lock.json")):
+        lock = json.loads(lock_path.read_text())
+        lock["agent"]["n_concurrent"] = 2
+        lock_path.write_text(json.dumps(lock))
+
+    report = compare(_harness_spec(left, right), repo_root=tmp_path)
+
+    assert any("model_settings_digest" in warning for warning in report["validity_warnings"])
+
+
+@pytest.mark.parametrize("changed_task_limit", [False, True])
+def test_harness_execution_controls_are_checked_within_each_task_pair(
+    tmp_path: Path, changed_task_limit: bool
+) -> None:
+    paths: dict[str, list[str]] = {"baseline": [], "candidate": []}
+    for arm_index, arm in enumerate(paths):
+        for task_index, task_name in enumerate(("task-a", "task-b")):
+            settings = {
+                **_EXECUTION_SETTINGS,
+                "task_path": f"tasks/{task_name}",
+                "timeout_seconds": 120 if task_name == "task-a" else 240,
+            }
+            if changed_task_limit and arm == "candidate" and task_name == "task-b":
+                settings["timeout_seconds"] = 300
+            relative = f"{arm}/{task_name}"
+            paths[arm].append(relative)
+            _terminus_job(
+                tmp_path / arm,
+                name=task_name,
+                suffix=10 + arm_index * 2 + task_index,
+                config={"temperature": 0.2},
+                rules=f"{arm} rules\n",
+                task_rewards={task_name: [1.0]},
+                execution_settings=settings,
+            )
+    raw_spec = _harness_spec(paths["baseline"][0], paths["candidate"][0]).model_dump(mode="json")
+    raw_spec["cohorts"] = [{"label": arm, "paths": values} for arm, values in paths.items()]
+    report = compare(CohortComparisonSpec.model_validate(raw_spec), repo_root=tmp_path)
+
+    if changed_task_limit:
+        assert any(
+            "harness_execution_settings_digest" in warning
+            for warning in report["validity_warnings"]
+        )
+    else:
+        assert report["validity_warnings"] == []

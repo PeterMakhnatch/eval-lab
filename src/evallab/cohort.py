@@ -1023,9 +1023,9 @@ def _validate_comparability(spec: CohortComparisonSpec, members: list[CohortMemb
         "factor_bindings_digest",
         "preamble_content_sha256",
         "harness_tree_sha256",
-        "harness_execution_settings_digest",
-        "harness_base_agent_kwargs_digest",
     }
+    if spec.declared_variable == "harness_tree_sha256":
+        treatment_fields.add("harness_base_agent_kwargs_digest")
     differing_fields = [field for field in treatment_fields if len(observed[field]) > 1]
     warnings: list[str] = []
     if spec.declared_variable in {
@@ -1080,9 +1080,7 @@ def _validate_comparability(spec: CohortComparisonSpec, members: list[CohortMemb
     elif spec.declared_variable == "preamble_content_sha256":
         allowed_differences.add("preamble_hash")
     elif spec.declared_variable == "harness_tree_sha256":
-        allowed_differences.update(
-            {"model_settings_digest", "preamble_hash", "preamble_content_sha256", "toolset_digest"}
-        )
+        allowed_differences.update({"preamble_hash", "preamble_content_sha256"})
         unverified = sorted(
             {
                 member.harness_binding_problem or "no harness_tree binding is recorded"
@@ -1109,6 +1107,10 @@ def _validate_comparability(spec: CohortComparisonSpec, members: list[CohortMemb
     invariants = {"task_digest", "verifier_digest"}
     if spec.declared_variable != "environment_digest":
         invariants.add("environment_digest")
+    if spec.declared_variable == "harness_tree_sha256":
+        # A spec also binds the task and its task-specific limits. Those may
+        # vary across task blocks, but never across arms of the same block.
+        invariants.add("harness_execution_settings_digest")
     for task_key, task_members in sorted(by_task.items()):
         for field in sorted(invariants):
             values = sorted(

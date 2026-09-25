@@ -387,6 +387,8 @@ records the route and model, with no fabricated local-weight digest. Retain
 proxy usage separately and never pool calibration cohorts across model changes.
 The native Reef process is not an OS sandbox: an owner-only provider-key file
 outside its work directory does not isolate that key from same-user tool code.
+Reef may retain the resolved proxy capability in its own runtime configuration;
+keep that configuration private and terminate the proxy when the campaign ends.
 
 ### GLM mini-SWE on Daytona
 

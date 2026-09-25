@@ -46,7 +46,7 @@ Usage (Ollama running locally with the model pulled; roughly 1-3 minutes per tri
 
     ... --condition known-effect --trials 5 --repeats 5
     ... --api-proxy-url http://127.0.0.1:8080 --model <proxy-model>  # parent-owned budget proxy
-    # (capability from $EVALLAB_REEF_PROXY_TOKEN; never persisted; --ollama-url must not be passed)
+    # (capability from $EVALLAB_REEF_PROXY_TOKEN; --ollama-url must not be passed)
 
     ... --analyze-only --work-dir <existing work directory>   # no services started
 
@@ -1272,7 +1272,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--api-proxy-token-env",
         default=DEFAULT_API_PROXY_TOKEN_ENV,
-        help="names the capability environment passed as REEF_UPSTREAM_API_KEY (value never persisted)",
+        help="names the proxy capability environment passed as REEF_UPSTREAM_API_KEY",
     )
     parser.add_argument("--alpha", type=float, default=0.05)
     parser.add_argument("--min-valid-pairs", type=int, default=5)
@@ -1337,8 +1337,8 @@ def main(argv: list[str] | None = None) -> None:
                 "--model is required with --api-proxy-url; no default is assumed for proxy routing"
             )
         api_proxy_url = require_loopback_url(args.api_proxy_url)
-        # Only the named capability is read; the value is held in memory and passed explicitly
-        # to the Reef subprocess, never written to YAML, argv, metadata, or error text.
+        # Only the named capability is passed to Reef. Campaign inputs retain the env
+        # placeholder; Reef itself may persist the resolved capability in runtime.yaml.
         api_capability = require_api_capability(args.api_proxy_token_env)
         upstream_url = api_proxy_url
         ollama_url = None

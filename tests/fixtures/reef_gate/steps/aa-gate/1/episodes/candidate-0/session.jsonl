@@ -1,0 +1,12 @@
+{"data":{"agent":"root","base_url":"http://127.0.0.1:11434","capabilities":{"execute":["exec","write","network"]},"cwd":"/tmp/reef-workspace","enforcement":"none","hooks":{"loop_guard":"post_execute"},"model":"qwen2.5:7b","task":"[toy] Reply with the integer 7 alone on the last line.","tools":["execute"],"tree":"tree.json","turn":1},"seq":0,"time":1700000000000,"type":"session"}
+{"data":{"turn":1},"seq":1,"time":1700000000001,"type":"turn/start"}
+{"data":{"step":1,"turn":1},"seq":2,"time":1700000000002,"type":"step/start"}
+{"data":{"model":"qwen2.5:7b","system":"Starter skill.","tools":[]},"seq":3,"time":1700000000003,"type":"request/header"}
+{"data":{"content":"","finish":"tool-calls","step":1,"tool_calls":[{"function":{"arguments":"{\"code\": \"print(7)\"}","name":"execute"},"id":"call_a1","index":0,"type":"function"}],"usage":{"input_tokens":100,"output_tokens":20}},"seq":4,"time":1700000000004,"type":"assistant/message"}
+{"data":{"arguments":"{\"code\": \"print(7)\"}","call_id":"call_a1","name":"execute","step":1},"seq":5,"time":1700000000005,"type":"tool/call"}
+{"data":{"arguments":{"code":"print(7)"},"call_id":"call_a1","content":"7","enforcement":{"denied":[],"mode":"none"},"is_error":false,"name":"execute","step":1},"seq":6,"time":1700000000006,"type":"tool/result"}
+{"data":{"step":1,"turn":1},"seq":7,"time":1700000000007,"type":"step/end"}
+{"data":{"step":2,"turn":1},"seq":8,"time":1700000000008,"type":"step/start"}
+{"data":{"content":"7","finish":"stop","step":2,"tool_calls":[],"usage":{"input_tokens":120,"output_tokens":5}},"seq":9,"time":1700000000009,"type":"assistant/message"}
+{"data":{"step":2,"turn":1},"seq":10,"time":1700000000010,"type":"step/end"}
+{"data":{"reason":{"kind":"completed"},"turn":1},"seq":11,"time":1700000000011,"type":"turn/end"}

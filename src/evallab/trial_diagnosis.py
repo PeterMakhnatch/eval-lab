@@ -158,8 +158,19 @@ _ARGUMENT_ERROR_RE = re.compile(
     re.IGNORECASE,
 )
 _SHELL_TOOLS = frozenset(
-    {"bash", "bash_command", "shell", "sh", "dash", "zsh", "powershell", "cmd"}
+    {
+        "bash",
+        "bash_command",
+        "shell",
+        "sh",
+        "dash",
+        "zsh",
+        "powershell",
+        "cmd",
+        "run_bash",
+    }
 )
+_NON_SHELL_TOOLS = frozenset({"execute", "exec", "wait"})
 _EXPECTED_SILENT_FIRST_TOKENS = frozenset(
     {
         "cd",
@@ -201,13 +212,18 @@ def _segment_expected(segment: str) -> bool:
 
 
 _GIT_RESTORE_RE = re.compile(r"git\s+(checkout|restore|stash|add|rm|mv|clean|reset)\b")
+_EXIT_ZERO_RE = re.compile(r"^\s*exit 0\s*$")
+_EXIT_CODE_RE = re.compile(r"^exit ([1-9]\d*)\b")
 
 
-def _silence_is_expected(command: str | None) -> bool:
+def _silence_is_expected(command: str | None, tool_name: str | None = None) -> bool:
     """File writes, in-place edits, and bare mutations are silent by design.
 
     Chained commands are expected-silent only when every segment is; a quiet
-    ``mkdir`` must not excuse a silent test run chained behind it.
+    ``mkdir`` must not excuse a silent test run chained behind it. The
+    heredoc/redirect/in-place patterns are shell constructs: Reef's REPL
+    ``execute`` tool runs code where ``>`` is a comparison, so they do not
+    apply there (a bare ``exit 0`` stays silence).
     """
     if not command:
         return False
@@ -219,6 +235,8 @@ def _silence_is_expected(command: str | None) -> bool:
         for segment in _CHAIN_SPLIT_RE.split(code)
     ):
         return True
+    if (tool_name or "").lower() == "execute":
+        return False
     if _HEREDOC_RE.search(code) or _REDIRECT_RE.search(code):
         return True
     return bool(_INPLACE_EDIT_RE.search(code))
@@ -339,6 +357,7 @@ class _StepView:
     tool_name: str | None
     command: str | None
     all_commands: tuple[str, ...]
+    all_tools: tuple[str, ...]
     outputs: list[str]
     is_error: bool
 
@@ -359,7 +378,7 @@ def _command_string(call_args: Any) -> str | None:
         stripped = call_args.strip()
         return stripped or None
     if isinstance(call_args, dict):
-        for key in ("command", "keystrokes", "cmd", "script", "input"):
+        for key in ("command", "keystrokes", "cmd", "script", "input", "code"):
             value = call_args.get(key)
             if isinstance(value, str) and value.strip():
                 return value.strip()
@@ -452,10 +471,13 @@ def _step_views(raw_steps: list[dict[str, Any]]) -> list[_StepView]:
         tool_name: str | None = None
         command: str | None = None
         all_commands: list[str] = []
+        all_tools: list[str] = []
         for call in call_list:
             if not isinstance(call, dict):
                 continue
             name = call.get("function_name")
+            if isinstance(name, str) and name.strip():
+                all_tools.append(name.strip())
             if tool_name is None and isinstance(name, str) and name.strip():
                 tool_name = name.strip()
             text = _command_string(call.get("arguments"))
@@ -473,14 +495,20 @@ def _step_views(raw_steps: list[dict[str, Any]]) -> list[_StepView]:
         extra_results = raw.get("observation_results")
         if isinstance(extra_results, list):
             results.extend(extra_results)
+        # The REPL harness prefixes tool outputs with "exit N"; a nonzero
+        # exit there is the error signal (mini-swe-agent envelopes and
+        # result flags are checked separately).
         step_error = bool(raw.get("is_error"))
         for result in results:
+            content = result.get("content") if isinstance(result, dict) else result
+            text = content if isinstance(content, str) else ""
             if isinstance(result, dict):
                 outputs.append(_output_text(result.get("content")))
                 step_error = step_error or _result_is_error(result)
             elif isinstance(result, str):
                 outputs.append(_output_text(result))
                 step_error = step_error or (_envelope_returncode(result) not in (None, 0))
+            step_error = step_error or bool(_EXIT_CODE_RE.match(text.strip()))
         views.append(
             _StepView(
                 step_id=position,
@@ -489,6 +517,7 @@ def _step_views(raw_steps: list[dict[str, Any]]) -> list[_StepView]:
                 tool_name=tool_name,
                 command=command,
                 all_commands=tuple(all_commands),
+                all_tools=tuple(all_tools),
                 outputs=outputs,
                 is_error=step_error,
             )
@@ -572,6 +601,8 @@ def _detect(outline: TrajectoryOutline, views: list[_StepView]) -> list[FailureM
     modes: list[FailureMode] = []
 
     if outline.total_tool_calls == 0:
+        # Multi-label like Reef's flags: a tool-less run can still end on an
+        # empty reply, so record and continue instead of returning early.
         anchor = agent_views[-1] if agent_views else None
         modes.append(
             _mode(
@@ -580,7 +611,6 @@ def _detect(outline: TrajectoryOutline, views: list[_StepView]) -> list[FailureM
                 anchor.message if anchor and anchor.message.strip() else "no tool calls recorded",
             )
         )
-        return modes
 
     if outline.loop_suspicion.detected or _message_run(agent_views):
         run_ids, run_cmd = _longest_command_run(tool_views)
@@ -610,26 +640,52 @@ def _detect(outline: TrajectoryOutline, views: list[_StepView]) -> list[FailureM
                 )
             )
 
-    if agent_views:
+    if agent_views and not any(view.message.strip() for view in agent_views):
+        # Reef parity (04_gate_aa.py): the flag is the absence of any
+        # non-empty assistant reply in the episode, not the shape of the
+        # terminal step. A run of tool calls with no text back is the signal.
         terminal = agent_views[-1]
-        if not terminal.message.strip() and terminal.tool_name is None:
-            modes.append(
-                _mode(
-                    "empty_terminal_reply",
-                    [terminal.step_id],
-                    "terminal agent step has no message and no tool call",
-                )
+        modes.append(
+            _mode(
+                "empty_terminal_reply",
+                [terminal.step_id],
+                "no non-empty agent reply in the episode",
             )
+        )
+
+    def _output_is_silent(text: str) -> bool:
+        # Reef parity: the REPL harness prints a bare "exit 0" when code
+        # prints nothing, so that marker is silence, not output.
+        return not text.strip() or bool(_EXIT_ZERO_RE.match(text))
+
+    def _step_is_silent(view: _StepView) -> bool:
+        # Reef parity: ANY bare "exit 0" marks the step (multi-output steps
+        # pair confirmations with the marker). A merely blank output only
+        # counts when every output is blank: shell steps routinely trail
+        # whitespace.
+        if any(_EXIT_ZERO_RE.match(out) for out in view.outputs):
+            return True
+        return all(not out.strip() for out in view.outputs)
 
     silent_views = [
         view
         for view in tool_views
         if not view.is_error
         and view.outputs
-        and all(not out.strip() for out in view.outputs)
-        and not _silence_is_expected(view.command)
+        and _step_is_silent(view)
+        and not _silence_is_expected(view.command, view.tool_name)
     ]
-    if len(silent_views) >= _MIN_SILENT_OUTPUTS:
+    # A single quiet shell command (mkdir, cd) is routine traffic, hence the
+    # two-silence minimum -- but a stateful REPL whose only feedback is a
+    # bare "exit 0" tells the agent nothing, so one suffices there.
+    tool_names = {
+        tool.lower() for view in tool_views for tool in view.all_tools
+    } | {(view.tool_name or "").lower() for view in tool_views}
+    repl_protocols = {"execute", "run_bash", "read_file"}
+    silent_min = (
+        1 if tool_names and tool_names <= repl_protocols else _MIN_SILENT_OUTPUTS
+    )
+    if len(silent_views) >= silent_min:
         silent_cmds = [
             view.command or view.tool_name or "" for view in silent_views[:_MAX_EVIDENCE_STEPS]
         ]
@@ -667,15 +723,21 @@ def _detect(outline: TrajectoryOutline, views: list[_StepView]) -> list[FailureM
     state_ids: list[int] = []
     state_excerpt = ""
     defined_names = _defined_names(tool_views)
+    repl_tools = {"execute", "run_bash"}
     for view in tool_views:
         if not view.is_error:
             continue
         for out in view.outputs:
             name_match = _NAME_ERROR_RE.search(out)
             # A bare NameError also names the bug under test (repro scripts) or
-            # words inside displayed source; only a name the agent itself
-            # defined earlier signals assumed-persistent state.
-            if name_match and name_match.group(1) in defined_names:
+            # words inside displayed source; on shell trials only a name the
+            # agent itself defined earlier signals assumed-persistent state.
+            # On REPL tools every exec call is a fresh cell, so any NameError
+            # in a failing exec is the state signal directly.
+            repl_cell = any(
+                tool.lower() in repl_tools for tool in view.all_tools
+            ) or (view.tool_name or "").lower() in repl_tools
+            if name_match and (repl_cell or name_match.group(1) in defined_names):
                 state_ids.append(view.step_id)
                 if not state_excerpt:
                     state_excerpt = out
@@ -712,12 +774,18 @@ def _detect(outline: TrajectoryOutline, views: list[_StepView]) -> list[FailureM
         for cmd in view.all_commands or (None,)
     )
     # 'Never edited a file' is vacuous for MCP-app tasks with no file
-    # evidence, so the mode is gated on file-task signals.
+    # evidence, and for REPL harnesses whose files are scratch rather than
+    # the repair target, so the mode is a shell-harness mode: it needs
+    # file-task signals plus a shell (or unknown) tool protocol. Known
+    # non-shell tools (Reef REPL ``execute``, MCP ``exec``/``wait``) opt out.
+    tool_names = {(view.tool_name or "").lower() for view in tool_views}
+    shell_harness = bool(tool_names & _SHELL_TOOLS) or not (tool_names <= _NON_SHELL_TOOLS)
     if (
         not outline_edit
         and not local_edit
         and outline.total_tool_calls > 0
         and _task_involves_files(agent_views)
+        and shell_harness
     ):
         first_tool = outline.step_to_first_tool
         last_tool = tool_views[-1].step_id if tool_views else None

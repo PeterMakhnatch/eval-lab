@@ -146,11 +146,102 @@ def test_empty_terminal_reply(tmp_path: Path) -> None:
     trial = _write_trial(
         tmp_path / "trial",
         [
-            _agent_step("trying", command="pytest -q", output="1 failed"),
+            {"source": "user", "message": "Solve"},
+            _agent_step("", command="pytest -q", output="exit 0"),
             {"source": "agent", "message": "   "},
         ],
     )
     assert "empty_terminal_reply" in _modes(trial)
+
+
+def test_any_nonempty_reply_suppresses_empty_reply(tmp_path: Path) -> None:
+    trial = _write_trial(
+        tmp_path / "trial",
+        [
+            _agent_step("trying", command="pytest -q", output="1 failed"),
+            {"source": "agent", "message": "   "},
+        ],
+    )
+    assert "empty_terminal_reply" not in _modes(trial)
+
+
+def test_repl_exit_zero_counts_as_silence(tmp_path: Path) -> None:
+    def repl_step(code: str) -> dict[str, Any]:
+        return {
+            "source": "agent",
+            "message": "",
+            "tool_calls": [{"function_name": "execute", "arguments": {"code": code}}],
+            "observation": {"results": [{"content": "exit 0\n"}]},
+        }
+
+    trial = _write_trial(
+        tmp_path / "trial",
+        [repl_step("print('hi')"), repl_step("print('again')")],
+    )
+    assert "silent_tool_output" in _modes(trial)
+
+
+def test_planning_skipped_for_repl_tools(tmp_path: Path) -> None:
+    trial = _write_trial(
+        tmp_path / "trial",
+        [
+            {
+                "source": "agent",
+                "message": "",
+                "tool_calls": [
+                    {
+                        "function_name": "execute",
+                        "arguments": {"code": "open('/tmp/x.csv').read()"},
+                    }
+                ],
+                "observation": {"results": [{"content": "exit 0\n"}]},
+            },
+        ],
+    )
+    assert "planning_no_edit" not in _modes(trial)
+
+
+def test_multi_output_exit_zero_step_is_silent(tmp_path: Path) -> None:
+    trial = _write_trial(
+        tmp_path / "trial",
+        [
+            {
+                "source": "agent",
+                "message": "",
+                "tool_calls": [
+                    {"function_name": "execute", "arguments": {"code": "f()"}},
+                    {"function_name": "execute", "arguments": {"code": "g()"}},
+                ],
+                "observation": {
+                    "results": [
+                        {"content": "wrote 321 characters to f.py"},
+                        {"content": "exit 0\n"},
+                    ]
+                },
+            },
+        ],
+    )
+    assert "silent_tool_output" in _modes(trial)
+
+
+def test_run_bash_redirect_counts_as_edit(tmp_path: Path) -> None:
+    trial = _write_trial(
+        tmp_path / "trial",
+        [
+            {
+                "source": "agent",
+                "message": "",
+                "tool_calls": [
+                    {
+                        "function_name": "run_bash",
+                        "arguments": {"command": "echo 'a,b' > /tmp/data.csv"},
+                    }
+                ],
+                "observation": {"results": [{"content": "exit 0\n"}]},
+            },
+        ],
+    )
+    assert "planning_no_edit" not in _modes(trial)
 
 
 def test_expected_silence_is_not_a_mode(tmp_path: Path) -> None:

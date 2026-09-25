@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from evallab.cli import run_cli
-from evallab.interpretation.run_report import build_job_report, build_run_report
+from evallab.interpretation.run_report import build_job_report, build_run_report, write_reports
 
 FIXTURES = Path(__file__).parent / "fixtures" / "terminus2" / "job-terminus2"
 
@@ -187,6 +187,59 @@ def test_codex_code_mode_is_unwrapped_and_script_status_drives_errors(tmp_path: 
     assert report["errors"]["ended_in_error"] is True
 
 
+def test_trailing_harness_notice_keeps_every_call_and_is_surfaced(tmp_path: Path) -> None:
+    step = _bash(1, 5, "ls", "a")
+    step["tool_calls"].append(
+        {"tool_call_id": "second", "function_name": "bash", "arguments": {"command": "pwd"}}
+    )
+    step["observation"]["results"] = [
+        {"content": json.dumps({"returncode": 0, "output": "a b c"})},
+        {"content": json.dumps({"returncode": 2, "output": "pwd: bad option"})},
+        {"content": "Your previous response reached the output token limit (finish_reason=length)."},
+    ]
+    report = build_run_report(_trial(tmp_path, [step]))
+
+    assert report["tools"]["total_calls"] == 2
+    assert report["errors"]["tool_errors"] == 1
+    assert [e["kind"] for e in report["context"]["events"]] == ["harness_notice"]
+
+
+def test_payload_status_wrapping_an_error_value_is_an_error(tmp_path: Path) -> None:
+    def mcp(step_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "step_id": step_id,
+            "timestamp": f"2026-09-01T00:02:{step_id:02d}Z",
+            "source": "agent",
+            "message": "",
+            "tool_calls": [{"tool_call_id": f"m{step_id}", "function_name": "memory_get",
+                            "arguments": {"chunk_id": f"c{step_id}"}}],
+            "observation": {"results": [{"source_call_id": f"m{step_id}", "content": json.dumps(payload)}]},
+        }
+
+    steps = [
+        mcp(1, {"status": "ok", "value": {"text": "chunk body"}}),
+        mcp(2, {"status": "ok", "value": {"error": "not_found"}}),
+    ]
+    row = build_run_report(_trial(tmp_path, steps))["tools"]["by_tool"][0]
+
+    assert (row["ok"], row["errors"], row["unknown"]) == (1, 1, 0)
+
+
+def test_expected_probe_miss_is_ok_but_counted(tmp_path: Path) -> None:
+    steps = [_bash(1, 5, "grep -r TODO src", "", code=1)]
+    errors = build_run_report(_trial(tmp_path, steps))["errors"]
+
+    assert errors["tool_errors"] == 0
+    assert errors["expected_probe_misses"] == 1
+
+
+def test_usage_not_attributed_to_steps_is_flagged(tmp_path: Path) -> None:
+    # result.json declares 300 output tokens; the two steps only carry 200.
+    report = build_run_report(_trial(tmp_path, [_bash(1, 5, "ls", "x"), _bash(2, 9, "pwd", "/app")]))
+
+    assert any("100 output tokens" in q for q in report["data_quality"])
+
+
 def test_intercepted_submit_action_is_not_an_error(tmp_path: Path) -> None:
     submit = _bash(2, 10, "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT", "")
     submit["observation"]["results"][0]["content"] = json.dumps(
@@ -234,8 +287,13 @@ def test_token_disagreement_between_sources_is_reported(tmp_path: Path) -> None:
     assert any("input tokens disagree" in q for q in report["data_quality"])
 
 
-def test_phase_timing_and_step_gaps(tmp_path: Path) -> None:
-    steps = [_bash(1, 5, "ls", "x"), _bash(2, 50, "pwd", "/app"), _bash(3, 55, "id", "root")]
+def test_phase_timing_and_gaps_between_agent_steps(tmp_path: Path) -> None:
+    steps = [
+        _bash(1, 5, "ls", "x"),
+        {"step_id": 2, "source": "user", "message": "keep going", "timestamp": "2026-09-01T00:02:40Z"},
+        _bash(3, 50, "pwd", "/app"),
+        _bash(4, 55, "id", "root"),
+    ]
     timing = build_run_report(_trial(tmp_path, steps))["timing"]
 
     assert timing["total_seconds"] == 600
@@ -243,7 +301,23 @@ def test_phase_timing_and_step_gaps(tmp_path: Path) -> None:
     assert timing["phases"]["verifier"]["starts_at_offset_seconds"] == 540
     assert timing["unaccounted_seconds"] == 30
     assert timing["offset_origin"] == "agent_execution.started_at"
-    assert timing["slowest_steps"][0] == {"step": 3, "seconds": 45.0, "action": "bash: pwd"}
+    assert timing["first_agent_step_offset_seconds"] == 5
+    # The user step in the middle does not split the agent's 45s gap into 35s + 10s.
+    assert timing["step_gap_seconds"]["count"] == 2
+    assert timing["step_gap_seconds"]["max"] == 45
+
+
+def test_overlapping_phases_are_flagged_not_negative(tmp_path: Path) -> None:
+    skewed = _result(
+        environment_setup={
+            "started_at": "2026-09-01T00:00:00Z",
+            "finished_at": "2026-09-01T00:06:00Z",
+        },
+    )
+    report = build_run_report(_trial(tmp_path, [_bash(1, 5, "ls", "x")], result=skewed))
+
+    assert report["timing"]["unaccounted_seconds"] == 0
+    assert any("overlap" in q for q in report["data_quality"])
 
 
 def test_summarization_subagents_are_timelined(tmp_path: Path) -> None:
@@ -314,30 +388,83 @@ def test_job_rollup_and_cli_outputs(tmp_path: Path, capsys: Any) -> None:
     _trial(job, [_bash(1, 5, "ls", "x")], name="passed-trial")
     failed = _result(verifier_result={"rewards": {"reward": 0.0}}, agent_result={})
     _trial(job, [_bash(1, 5, "ls", "x")], name="failed-trial", result=failed)
-    (job / "result.json").write_text(json.dumps({"n_total_trials": 2}))
+    multi = _result(verifier_result={"rewards": {"tests": 1.0, "style": 0.0}}, agent_result={})
+    _trial(job, [_bash(1, 5, "ls", "x")], name="multi-metric-trial", result=multi)
+    (job / "result.json").write_text(json.dumps({"n_total_trials": 3}))
 
     rollup, reports = build_job_report(job)
-    assert len(reports) == 2
-    assert (rollup["passed"], rollup["scored"], rollup["pass_rate"]) == (1, 2, 0.5)
+    assert len(reports) == 3
+    # Several metrics without a primary `reward` still score the trial (here: partial).
+    assert (rollup["passed"], rollup["scored"]) == (1, 3)
+    assert rollup["verdicts"] == {"passed": 1, "failed": 1, "partial": 1}
     assert rollup["total_cost_usd"] == 0.5
-    assert rollup["trials_without_cost"] == 1
+    assert rollup["trials_without_cost"] == 2
     assert rollup["cost_per_pass_usd"] == 0.5
 
     out_dir = tmp_path / "out"
     code = run_cli(["report", "run", str(job), "--output-dir", str(out_dir)], workspace=tmp_path)
     assert code == 0
-    assert "# Job report: job" in capsys.readouterr().out
-    assert sorted(p.name for p in out_dir.iterdir()) == [
-        "failed-trial.run_report.json",
-        "failed-trial.run_report.md",
-        "job.run_report.json",
-        "job.run_report.md",
-        "passed-trial.run_report.json",
-        "passed-trial.run_report.md",
-    ]
+    capsys.readouterr()
+    written = json.loads((out_dir / "job.run_report.json").read_text())
+    assert written["schema"] == "evallab.job_report/v1"
+    assert (out_dir / "passed-trial.run_report.md").is_file()
 
     code = run_cli(["report", "run", str(job / "passed-trial"), "--json"], workspace=tmp_path)
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["schema"] == "evallab.run_report/v1"
     assert payload["outcome"]["verdict"] == "passed"
+
+
+def test_report_files_cannot_escape_the_output_directory(tmp_path: Path) -> None:
+    report = build_run_report(_trial(tmp_path / "runs", [_bash(1, 5, "ls", "x")]))
+    report["identity"]["trial_dir"] = str(tmp_path / "runs" / "..")  # hostile directory name
+    report["identity"]["trial_name"] = "../../evil"
+
+    out_dir = tmp_path / "out"
+    written = write_reports([report], out_dir)
+
+    assert all(path.resolve().parent == out_dir.resolve() for path in written)
+
+
+def test_subagent_reference_outside_the_trial_is_not_read(tmp_path: Path) -> None:
+    outside = tmp_path / "secret.json"
+    outside.write_text(json.dumps({"steps": [{"step_id": 1, "source": "agent", "message": "x"}]}))
+    step = _bash(1, 5, "summarize", "done")
+    step["observation"]["results"][0]["subagent_trajectory_ref"] = [
+        {"trajectory_path": "../../secret.json"}
+    ]
+    item = build_run_report(_trial(tmp_path / "runs", [step]))["subagents"]["items"][0]
+
+    assert item["location"] == "escaping"
+    assert item["captured"] is False
+
+
+def test_status_channels_beyond_exit_codes(tmp_path: Path) -> None:
+    def raw(step_id: int, name: str, args: dict[str, Any], content: str, **call: Any) -> dict[str, Any]:
+        return {
+            "step_id": step_id,
+            "timestamp": f"2026-09-01T00:02:{step_id:02d}Z",
+            "source": "agent",
+            "message": "",
+            "tool_calls": [{"tool_call_id": f"c{step_id}", "function_name": name, "arguments": args, **call}],
+            "observation": {"results": [{"source_call_id": f"c{step_id}", "content": content}]},
+        }
+
+    wait_timeout = str(
+        [
+            {"type": "input_text", "text": "Script completed\nWall time 300.0 seconds\nOutput:\n"},
+            {"type": "input_text", "text": json.dumps({"isError": True, "content": "timed out"})},
+        ]
+    )
+    steps = [
+        raw(1, "execute", {"code": "print(1)"}, "exit 0\n1"),
+        raw(2, "execute", {"code": "boom()"}, "exit 1\nNameError: boom"),
+        raw(3, "exec", {"input": 'await tools.wait({"ms": 1})'}, wait_timeout),
+        raw(4, "Read", {"file_path": "a.py"}, "contents", extra={"tool_result_is_error": True}),
+    ]
+    report = build_run_report(_trial(tmp_path, steps))
+    evidence = {(e["step"], e["evidence"]) for e in report["errors"]["examples"]}
+
+    assert evidence == {(3, "exit_prefix"), (4, "result_payload"), (5, "error_flag")}
+    assert report["tools"]["by_tool"][0] == {**report["tools"]["by_tool"][0], "ok": 1, "errors": 1}

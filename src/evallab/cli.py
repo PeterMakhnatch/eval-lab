@@ -1583,7 +1583,13 @@ def _report_run_command(
     else:
         job_report, reports = build_job_report(target, timeline_limit=limit)
         if not reports:
-            print(f"error: no Harbor trial directories under {target}", file=sys.stderr)
+            reason = (
+                "it looks like a trial, but its result.json is missing, unreadable, "
+                "or has no trial_name"
+                if (target / "agent").is_dir()
+                else "no Harbor trial directories found under it"
+            )
+            print(f"error: cannot report on {target}: {reason}", file=sys.stderr)
             return 1
         rendered = render_job_report_markdown(job_report)
     if args.json:

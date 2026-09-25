@@ -125,7 +125,7 @@ def split_envelope(content: Any) -> tuple[int | None, str]:
     if not isinstance(payload, dict):
         return None, text
     code = payload.get("returncode")
-    if not isinstance(code, int):
+    if isinstance(code, bool) or not isinstance(code, int):
         return None, text
     if "output" in payload:
         return code, str(payload["output"] or "")
@@ -165,7 +165,9 @@ def classify_step_error(
     r_status = (result_status or "").lower()
 
     # 1. Check for Harness Schema Rejections (tool argument parsing or validation failures).
-    # A call that ran and exited 0 was accepted by the harness.
+    # An explicit schema/validation result type always counts. Rejection wording counts only
+    # when it leads the output of a call that did not exit 0: a call that ran and exited 0
+    # was accepted, and the same words deeper in an output are data the agent read.
     if r_type in {"schema_error", "validation_error"} or (
         exit_code != 0 and _SCHEMA_REJECTION_PATTERNS.search(output[:_REJECTION_HEAD_CHARS])
     ):

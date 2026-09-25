@@ -61,7 +61,9 @@ MIN_STEPS_FOR_WINDOWS = 20
 MIN_REPEATED_OUTPUT_CHARS = 32
 PASS_REWARD = 1.0
 
-_COMMAND_KEYS = ("command", "cmd", "keystrokes", "script", "code", "input")
+# Argument keys that carry the command text, compared case-insensitively.
+_COMMAND_KEYS = ("command", "cmd", "keystrokes", "commandline", "script", "code", "input")
+_SHELL_KEYS = frozenset({"command", "cmd", "keystrokes", "commandline"})
 _DELEGATION_TOOLS = frozenset(
     {"task", "agent", "spawn_agent", "delegate", "subagent", "dispatch_agent", "new_task"}
 )
@@ -71,6 +73,7 @@ _PATCH_FILE_RE = re.compile(r"\*\*\* (?:Update|Add|Delete) File: ([^\n\\\"']+)")
 _CODE_MODE_STATUS_RE = re.compile(r"^\s*Script (completed|failed)\b")
 _WALL_TIME_RE = re.compile(r"Wall time:?\s*[\d.]+\s*(?:seconds|s)\b", re.IGNORECASE)
 _WS_RE = re.compile(r"\s+")
+_EXIT_PREFIX_RE = re.compile(r"^\s*exit (-?\d+)\b")
 _STRONG_ERROR_TEXT_RE = re.compile(
     r"Traceback \(most recent call last\)|command not found|No such file or directory"
     r"|Permission denied|SyntaxError:|ModuleNotFoundError:"
@@ -129,6 +132,7 @@ class _Action:
     excerpt: str | None
     inner_tools: tuple[str, ...]
     shell: bool = False
+    call_count: int = 1
 
 
 @dataclass(frozen=True)
@@ -151,6 +155,7 @@ class _Step:
     context_event: str | None
     subagent_refs: tuple[dict[str, Any], ...]
     actions: tuple[_Action, ...]
+    notices: tuple[str, ...] = ()
 
 
 # --------------------------------------------------------------------------- #
@@ -244,34 +249,61 @@ def _normalized_output(text: str) -> str:
 
 
 def _target_of(args: Any) -> str:
+    """Command text of a call (first non-blank command field) or its canonical arguments.
+
+    A call whose only command fields are blank (terminal keystrokes ``""``) has an
+    empty target: it is a wait, not an action.
+    """
     if isinstance(args, str):
         return args.strip()
     if isinstance(args, dict):
-        for key in _COMMAND_KEYS:
-            value = args.get(key)
-            # An empty command field (terminal keystrokes "") is a wait, not an action.
-            if isinstance(value, str):
+        lowered = {str(key).lower(): value for key, value in args.items()}
+        present = [lowered[key] for key in _COMMAND_KEYS if isinstance(lowered.get(key), str)]
+        for value in present:
+            if value.strip():
                 return value.strip()
+        if present:
+            return ""
         return json.dumps(args, sort_keys=True, separators=(",", ":"), default=str)
     return "" if args is None else json.dumps(args, sort_keys=True, default=str)
 
 
+_WRAPPER_PROGRAMS = frozenset({"sudo", "doas", "env", "nice", "nohup", "time", "timeout", "stdbuf"})
+
+
+_PROGRAM_NAME_RE = re.compile(r"^[A-Za-z_][\w.+-]*$")
+
+
 def _program_of(command: str) -> str | None:
-    """First program of a shell command, skipping ``cd x &&`` and env assignments."""
+    """First program of a shell command, skipping ``cd x &&``, env assignments, and wrappers.
+
+    A segment that only assigns a command substitution (``tmp=$(mktemp)``) names no
+    program of its own; a head that is not a plausible program name is skipped.
+    """
     for segment in re.split(r"&&|\|\||;|\n", command):
         tokens = segment.strip().split()
-        while tokens and "=" in tokens[0] and not tokens[0].startswith(("-", "/", ".")):
+        if tokens and re.match(r"^[A-Za-z_]\w*=(\$\(|`)", tokens[0]):
+            continue
+        while tokens and (
+            ("=" in tokens[0] and not tokens[0].startswith(("-", "/", ".")))
+            or tokens[0] in _WRAPPER_PROGRAMS
+            or (tokens[0].startswith("-") and len(tokens) > 1)
+            or tokens[0].replace(".", "").isdigit()
+        ):
             tokens = tokens[1:]
         if not tokens or tokens[0] in {"cd", "set", "export", "source", "."}:
             continue
         head = tokens[0].rsplit("/", 1)[-1]
-        return head[:40] if head else None
+        if _PROGRAM_NAME_RE.match(head):
+            return head[:40]
     return None
 
 
 def _is_shell_args(args: dict[str, Any]) -> bool:
     """Arguments that carry a shell command line (not code or structured fields)."""
-    return any(isinstance(args.get(key), str) for key in ("command", "cmd", "keystrokes"))
+    return any(
+        str(key).lower() in _SHELL_KEYS and isinstance(value, str) for key, value in args.items()
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -342,7 +374,11 @@ _PAYLOAD_ERROR = frozenset({"error", "failed", "failure"})
 
 
 def _payload_failed(text: str) -> bool | None:
-    """Status of a structured tool payload (MCP ``isError``, ``{"status": ...}``)."""
+    """Status of a structured tool payload (MCP ``isError``, ``{"status": ...}``).
+
+    A transport-level success that wraps an error value (``{"status": "ok",
+    "value": {"error": "not_found"}}``) is a failed call for the agent.
+    """
     stripped = text.strip()
     if not stripped.startswith("{") or len(stripped) > 1_000_000:
         return None
@@ -355,12 +391,14 @@ def _payload_failed(text: str) -> bool | None:
     for key in ("isError", "is_error"):
         if isinstance(payload.get(key), bool):
             return payload[key]
+    value = payload.get("value")
+    wrapped_error = isinstance(value, dict) and bool(value.get("error"))
     status = payload.get("status")
     if isinstance(status, str) and status.lower() in _PAYLOAD_OK | _PAYLOAD_ERROR:
-        return status.lower() in _PAYLOAD_ERROR
+        return status.lower() in _PAYLOAD_ERROR or wrapped_error
     if isinstance(payload.get("ok"), bool):
-        return not payload["ok"]
-    if payload.get("error"):
+        return not payload["ok"] or wrapped_error
+    if payload.get("error") or wrapped_error:
         return True
     return None
 
@@ -395,6 +433,11 @@ def _decode_result(result: dict[str, Any], call_extra: dict[str, Any]) -> _Outpu
             # sentinel): nothing ran, so there is no success or failure to report.
             note = _envelope_note(raw_text) or ""
             return _Output(note, None, None, None, None, "not_executed")
+    if exit_code is None:
+        # REPL-style harnesses lead the output with ``exit N``.
+        prefix = _EXIT_PREFIX_RE.match(text)
+        if prefix:
+            exit_code, signal = int(prefix.group(1)), "exit_prefix"
     failed: bool | None = None if exit_code is None else exit_code != 0
     parts = _code_mode_parts(text)
     if parts is not None:
@@ -403,6 +446,9 @@ def _decode_result(result: dict[str, Any], call_extra: dict[str, Any]) -> _Outpu
             parts = parts[1:]
             if failed is None:
                 failed, signal = status.group(1) == "failed", "script_status"
+        # The script can complete while a tool inside it returned an error payload.
+        if failed is not True and any(_payload_failed(part) for part in parts):
+            failed, signal = True, "result_payload"
         text = "\n".join(parts)
     for flags in (extra, call_extra):
         for key in ("tool_result_is_error", "is_error"):
@@ -421,35 +467,46 @@ def _decode_result(result: dict[str, Any], call_extra: dict[str, Any]) -> _Outpu
     return _Output(text, exit_code, failed, result_type, result_status, signal)
 
 
-def _merge_outputs(outputs: Sequence[_Output]) -> _Output:
-    flags = [o.failed for o in outputs]
-    # Several calls, one observation: any failure fails the step; any success with no
-    # failure makes it ok; otherwise the status stays unknown.
-    failed = True if True in flags else (False if False in flags else None)
-    codes = [o.exit_code for o in outputs if o.exit_code is not None]
+def _merge_outputs(outputs: Sequence[_Output], call_extras: Sequence[dict[str, Any]]) -> _Output:
+    """One observation for several calls: the decisive output names the code and channel.
+
+    Any failure fails the batch; otherwise any success makes it ok; otherwise unknown.
+    A per-call error flag fails the batch even when the shared observation is silent.
+    """
+    decisive = next((o for o in outputs if o.failed is True), None) or next(
+        (o for o in outputs if o.failed is False), None
+    )
+    flagged = any(
+        extra.get(key) is True for extra in call_extras for key in ("tool_result_is_error", "is_error")
+    )
     return _Output(
         text="\n".join(o.text for o in outputs),
-        exit_code=next((c for c in codes if c != 0), codes[0] if codes else None),
-        failed=failed,
-        result_type=next((o.result_type for o in outputs if o.result_type), None),
-        result_status=next((o.result_status for o in outputs if o.result_status), None),
-        signal=next((o.signal for o in outputs if o.signal), None),
+        exit_code=decisive.exit_code if decisive else None,
+        failed=True if flagged else (decisive.failed if decisive else None),
+        result_type=decisive.result_type if decisive else None,
+        result_status=decisive.result_status if decisive else None,
+        signal="error_flag" if flagged and not (decisive and decisive.failed) else (
+            decisive.signal if decisive else None
+        ),
     )
 
 
 def _status(call: _Call, output: _Output | None) -> tuple[str, str | None, str, str | None]:
     """Return (status, evidence, error_category, excerpt); evidence names the status channel."""
     if output is None:
-        return "unknown", None, "none", None
+        return "unknown", "no_result", "none", None
     if output.signal == "not_executed":
         return "unknown", "not_executed", "not_executed", _clip(output.text, 120)
+    # Only a real exit code can make a call an expected probe miss (grep exiting 1);
+    # an explicit error flag without a code stays an error.
     classification = classify_step_error(
         tool_name=call.tool,
         tool_command=call.target,
-        exit_code=output.exit_code if output.exit_code is not None else (1 if output.failed else None),
+        exit_code=output.exit_code,
         output_content=output.text,
         result_type=output.result_type,
-        result_status=output.result_status or ("failed" if output.failed else None),
+        result_status=output.result_status
+        or ("failed" if output.failed and output.exit_code is None else None),
     )
     if classification.is_expected_probe:
         return "ok", output.signal, "expected_probe_miss", None
@@ -470,16 +527,18 @@ def _status(call: _Call, output: _Output | None) -> tuple[str, str | None, str, 
 
 
 def _make_action(
-    index: int, step: int, timestamp: datetime | None, call: _Call, output: _Output | None
+    index: int,
+    step: int,
+    timestamp: datetime | None,
+    call: _Call,
+    output: _Output | None,
+    call_count: int = 1,
 ) -> _Action:
     status, evidence, category, excerpt = _status(call, output)
     normalized = _normalized_output(output.text) if output is not None else None
-    output_hash = (
-        _digest(normalized)
-        if normalized is not None and len(normalized) >= MIN_REPEATED_OUTPUT_CHARS
-        else None
-    )
-    is_poll = call.tool.lower() in _POLL_TOOLS or not call.key.strip()
+    output_hash = _digest(normalized) if normalized is not None else None
+    # Polls are wait tools and blank terminal/command input, never no-argument calls.
+    is_poll = call.tool.lower() in _POLL_TOOLS or (call.shell and not call.key.strip())
     return _Action(
         index=index,
         step=step,
@@ -497,6 +556,7 @@ def _make_action(
         excerpt=excerpt,
         inner_tools=call.inner_tools,
         shell=call.shell,
+        call_count=call_count,
     )
 
 
@@ -512,10 +572,11 @@ def _observation_results(raw_step: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _step_actions(
     raw_step: dict[str, Any], step: int, timestamp: datetime | None, start_index: int
-) -> list[_Action]:
+) -> tuple[list[_Action], list[str]]:
+    """Pair a step's tool calls with its results; return (actions, unpaired harness notices)."""
     raw_calls = [c for c in raw_step.get("tool_calls") or [] if isinstance(c, dict)]
     if not raw_calls:
-        return []
+        return [], []
     calls = [_call_from_raw(c) for c in raw_calls]
     call_extras = [_dict(c.get("extra")) for c in raw_calls]
     results = _observation_results(raw_step)
@@ -524,11 +585,18 @@ def _step_actions(
     paired: list[dict[str, Any] | None]
     if by_id and all(isinstance(cid, str) for cid in call_ids):
         paired = [by_id.get(str(cid)) for cid in call_ids]
-    elif len(results) == len(calls):
-        paired = list(results)
+        extras = [r for r in results if r.get("source_call_id") not in set(call_ids)]
+    elif len(results) >= len(calls):
+        # Positional pairing; trailing results are harness notices (for example a
+        # length-limit warning appended after the tool outputs).
+        paired = [result for result in results[: len(calls)]]
+        extras = results[len(calls) :]
     else:
-        # One observation for several calls (terminal harnesses): the step is the action.
-        merged = _merge_outputs([_decode_result(r, {}) for r in results]) if results else None
+        # Fewer observations than calls (terminal harnesses send several keystroke
+        # batches and read one screen): the step is the action.
+        merged = (
+            _merge_outputs([_decode_result(r, {}) for r in results], call_extras) if results else None
+        )
         joined = _Call(
             tool=calls[0].tool if len({c.tool for c in calls}) == 1 else "+".join(
                 dict.fromkeys(c.tool for c in calls)
@@ -539,8 +607,8 @@ def _step_actions(
             inner_tools=tuple(t for c in calls for t in c.inner_tools),
             shell=any(c.shell for c in calls),
         )
-        return [_make_action(start_index, step, timestamp, joined, merged)]
-    return [
+        return [_make_action(start_index, step, timestamp, joined, merged, len(calls))], []
+    actions = [
         _make_action(
             start_index + offset,
             step,
@@ -550,6 +618,7 @@ def _step_actions(
         )
         for offset, (call, result) in enumerate(zip(calls, paired, strict=True))
     ]
+    return actions, [_content_text(r.get("content")) for r in extras]
 
 
 def _cache_write(metrics: dict[str, Any]) -> int | None:
@@ -566,17 +635,18 @@ def _build_steps(
 ) -> list[_Step]:
     steps: list[_Step] = []
     action_index = 0
-    for ordinal, (segment, raw) in enumerate(positioned, start=1):
-        if not isinstance(raw, dict):
-            continue
+    # Number only well-formed steps so ordinals stay contiguous.
+    well_formed = [(segment, raw) for segment, raw in positioned if isinstance(raw, dict)]
+    for ordinal, (segment, raw) in enumerate(well_formed, start=1):
         timestamp = _parse_ts(raw.get("timestamp"))
         metrics = _dict(raw.get("metrics"))
         extra = _dict(raw.get("extra"))
-        actions = _step_actions(raw, ordinal, timestamp, action_index)
+        actions, notices = _step_actions(raw, ordinal, timestamp, action_index)
         action_index += len(actions)
         refs: list[dict[str, Any]] = []
         for result in _observation_results(raw):
-            for ref in result.get("subagent_trajectory_ref") or []:
+            refs_value = result.get("subagent_trajectory_ref")
+            for ref in [refs_value] if isinstance(refs_value, dict) else refs_value or []:
                 if isinstance(ref, dict):
                     refs.append(ref)
         context = _dict(extra.get("context_management"))
@@ -600,6 +670,7 @@ def _build_steps(
                 context_event=str(context.get("type")) if context.get("type") else None,
                 subagent_refs=tuple(refs),
                 actions=tuple(actions),
+                notices=tuple(notices),
             )
         )
     return steps
@@ -632,7 +703,8 @@ def _phase_timing(result: dict[str, Any]) -> tuple[dict[str, Any], datetime | No
         "finished_at": _iso(finished),
         "total_seconds": total,
         "phases": phases,
-        "unaccounted_seconds": round(total - known, 3) if total is not None else None,
+        "unaccounted_seconds": round(max(total - known, 0.0), 3) if total is not None else None,
+        "phases_overlap": total is not None and known > total + 1.0,
     }, started
 
 
@@ -664,12 +736,16 @@ def _timing(result: dict[str, Any], steps: Sequence[_Step]) -> tuple[dict[str, A
     agent_start = _parse_ts(_dict(result.get("agent_execution")).get("started_at"))
     stamped = [s for s in steps if s.timestamp is not None]
     origin = agent_start or (stamped[0].timestamp if stamped else None) or trial_start
+    # Gaps between consecutive agent steps: the model's turn plus the tool time of the
+    # previous action. Time spent before the first agent step is reported separately.
+    agent_steps = [s for s in stamped if s.source == "agent"]
     gaps: list[tuple[float, _Step]] = []
-    previous: _Step | None = None
-    for step in stamped:
-        if previous is not None and step.source == "agent" and previous.timestamp and step.timestamp:
+    for previous, step in zip(agent_steps, agent_steps[1:], strict=False):
+        if previous.timestamp and step.timestamp:
             gaps.append(((step.timestamp - previous.timestamp).total_seconds(), step))
-        previous = step
+    section["first_agent_step_offset_seconds"] = (
+        _seconds(origin, agent_steps[0].timestamp) if agent_steps else None
+    )
     section["offset_origin"] = "agent_execution.started_at" if agent_start else (
         "first_step_timestamp" if stamped else "trial.started_at"
     )
@@ -803,6 +879,17 @@ def _tokens_and_cost(
         warnings.append(
             f"token usage recorded on {len(metered)} of {len(llm_steps)} agent steps"
         )
+    for field in ("input", "output"):
+        total_value, step_value = chosen[field], step_sums[field]
+        if total_value and step_value is not None and sources[field] != "step_sum":
+            gap = total_value - step_value
+            if abs(gap) > 0.05 * total_value:
+                warnings.append(
+                    f"{gap:,} {field} tokens ({gap / total_value:.1%}) of the run total are not "
+                    "attributed to any step; per-step and per-window figures undercount"
+                    if gap > 0
+                    else f"per-step {field} tokens exceed the run total by {-gap:,}"
+                )
     if not metered and chosen["input"] is None:
         warnings.append("no token usage recorded anywhere for this run")
 
@@ -855,8 +942,13 @@ def _tools(actions: Sequence[_Action]) -> dict[str, Any]:
                 "last_step": action.step,
             },
         )
-        row["calls"] += 1
-        row[{"ok": "ok", "error": "errors"}.get(action.status, "unknown")] += 1
+        # A batch of calls sharing one observation fails once, not once per call.
+        row["calls"] += action.call_count
+        if action.status == "error":
+            row["errors"] += 1
+        elif action.status == "ok":
+            row["ok"] += action.call_count
+        row["unknown"] = row["calls"] - row["ok"] - row["errors"]
         row["output_chars"] += action.output_chars or 0
         row["last_step"] = action.step
         if action.wrapper:
@@ -867,9 +959,11 @@ def _tools(actions: Sequence[_Action]) -> dict[str, Any]:
     table = sorted(rows.values(), key=lambda r: (-r["calls"], r["tool"]))
     for row in table:
         judged = row["ok"] + row["errors"]
+        row["judged"] = judged
         row["error_rate"] = round(row["errors"] / judged, 4) if judged else None
     return {
-        "total_calls": len(actions),
+        "total_calls": sum(a.call_count for a in actions),
+        "actions": len(actions),
         "distinct_tools": len(rows),
         "polls": sum(1 for a in actions if a.is_poll),
         "by_tool": table,
@@ -880,6 +974,18 @@ def _tools(actions: Sequence[_Action]) -> dict[str, Any]:
 
 def _window_of(step: int, total_steps: int) -> int:
     return min(WINDOW_COUNT - 1, (step - 1) * WINDOW_COUNT // max(total_steps, 1))
+
+
+def _repeated_outputs(group: Sequence[_Action]) -> int:
+    """Occurrences whose result equals an earlier occurrence's result (exact revisits)."""
+    seen: set[str] = set()
+    count = 0
+    for action in group:
+        if action.output_hash in seen:
+            count += 1
+        elif action.output_hash:
+            seen.add(action.output_hash)
+    return count
 
 
 def _revisits(
@@ -897,6 +1003,15 @@ def _revisits(
     revisit_steps: list[int] = []
     for action in counted:
         groups[action.signature].append(action)
+        state = (action.signature, action.output_hash) if action.output_hash else None
+        # Cross-action matches need substantial output: many unrelated commands print nothing.
+        substantial = action.output_hash is not None and (
+            (action.output_chars or 0) >= MIN_REPEATED_OUTPUT_CHARS
+        )
+        other_producer = substantial and outputs.get(action.output_hash or "") not in (
+            None,
+            action.signature,
+        )
         if action.signature in seen:
             repeats += 1
             revisit_steps.append(action.step)
@@ -904,14 +1019,17 @@ def _revisits(
                 consecutive += 1
             else:
                 returns += 1
-            if action.output_hash and (action.signature, action.output_hash) in states:
+            if state in states:
                 exact += 1
+            elif other_producer:
+                same_output += 1
         else:
             seen.add(action.signature)
-            if action.output_hash and outputs.get(action.output_hash) not in (None, action.signature):
+            if other_producer:
                 same_output += 1
-        if action.output_hash:
-            states.add((action.signature, action.output_hash))
+        if state is not None:
+            states.add(state)
+        if substantial and action.output_hash:
             outputs.setdefault(action.output_hash, action.signature)
         run = [*run, action.step] if previous == action.signature else [action.step]
         if len(run) > len(longest):
@@ -947,9 +1065,7 @@ def _revisits(
                 "target": _clip(g[0].target),
                 "count": len(g),
                 "steps": list(dict.fromkeys(a.step for a in g))[:20],
-                "identical_results": sum(
-                    1 for a in g[1:] if a.output_hash and a.output_hash == g[0].output_hash
-                ),
+                "identical_results": _repeated_outputs(g),
             }
             for g in repeated_groups[:TOP_N]
         ],
@@ -1013,7 +1129,9 @@ def _child_summary(doc: dict[str, Any]) -> dict[str, Any]:
     return {
         "model": agent.get("model_name"),
         "steps": len(raw_steps),
-        "tool_calls": sum(len(s.get("tool_calls") or []) for s in raw_steps),
+        "tool_calls": sum(
+            len(s["tool_calls"]) for s in raw_steps if isinstance(s.get("tool_calls"), list)
+        ),
         "input_tokens": _first(
             _int(final.get("total_prompt_tokens")), _sum(_int(m.get("prompt_tokens")) for m in metrics)
         ),
@@ -1157,6 +1275,8 @@ def _context(
             events.append({"step": step.step, "kind": "continuation_segment", "detail": name})
         if step.context_event:
             events.append({"step": step.step, "kind": "context_management", "detail": step.context_event})
+        for notice in step.notices:
+            events.append({"step": step.step, "kind": "harness_notice", "detail": _clip(notice, 160)})
         if (
             previous is not None
             and previous.prompt_tokens is not None
@@ -1200,7 +1320,12 @@ def _errors(
         "tool_errors": len(errors),
         "harness_signalled": sum(1 for a in errors if a.evidence not in (None, "output_text")),
         "inferred_from_output": sum(1 for a in errors if a.evidence == "output_text"),
-        "status_unknown_calls": sum(1 for a in actions if a.status == "unknown"),
+        "status_unknown_calls": sum(a.call_count for a in actions)
+        - sum(a.call_count for a in actions if a.status == "ok")
+        - len(errors),
+        "calls_without_result": sum(a.call_count for a in actions if a.evidence == "no_result"),
+        "not_executed_calls": sum(a.call_count for a in actions if a.evidence == "not_executed"),
+        "expected_probe_misses": sum(1 for a in actions if a.category == "expected_probe_miss"),
         "by_category": dict(sorted(categories.items(), key=lambda kv: (-kv[1], kv[0]))),
         "first_error": {
             "step": errors[0].step,
@@ -1232,16 +1357,21 @@ def _errors(
 
 def _outcome(result: dict[str, Any], steps: Sequence[_Step], trial_dir: Path) -> dict[str, Any]:
     verifier = _dict(result.get("verifier_result"))
-    rewards = {k: v for k, v in _dict(verifier.get("rewards")).items() if _float(v) is not None}
-    reward = _float(rewards.get("reward")) if "reward" in rewards else (
-        _float(next(iter(rewards.values()))) if len(rewards) == 1 else None
+    rewards = {
+        str(k): float(v) for k, v in _dict(verifier.get("rewards")).items() if _float(v) is not None
+    }
+    # The primary reward is `reward` (or the only metric). Several metrics without a
+    # primary still score the trial: all at 1 passes, all at 0 fails, anything else is partial.
+    reward = rewards.get("reward") if "reward" in rewards else (
+        next(iter(rewards.values())) if len(rewards) == 1 else None
     )
+    judged = [reward] if reward is not None else list(rewards.values())
     exception = _dict(result.get("exception_info"))
-    if reward is None:
+    if not judged:
         verdict = "errored" if exception else "not_scored"
-    elif reward >= PASS_REWARD:
+    elif all(value >= PASS_REWARD for value in judged):
         verdict = "passed"
-    elif reward <= 0:
+    elif all(value <= 0 for value in judged):
         verdict = "failed"
     else:
         verdict = "partial"
@@ -1429,12 +1559,13 @@ def _summary_line(report: dict[str, Any]) -> str:
         spend = _fmt_tokens(tokens["total"])
         money = f"${cost['total_usd']:.4f}" if cost["total_usd"] is not None else "cost unavailable"
         parts.append(
-            f"{report['timeline']['total_steps']} steps, {tools['total_calls']} tool calls, "
-            f"{report['errors']['tool_errors']} errors, {spend} tokens, {money}"
+            f"{_plural(report['timeline']['total_steps'], 'step')}, "
+            f"{_plural(tools['total_calls'], 'tool call')}, "
+            f"{_plural(report['errors']['tool_errors'], 'error')}, {spend} tokens, {money}"
         )
         parts.append(
-            f"{revisits['repeated_actions']} repeated actions "
-            f"({revisits['exact_revisits']} exact revisits)"
+            f"{_plural(revisits['repeated_actions'], 'repeated action')} "
+            f"({_plural(revisits['exact_revisits'], 'exact revisit')})"
         )
         parts.append(
             "no subagents observed"
@@ -1504,12 +1635,17 @@ def build_run_report(
     if availability["trajectory"] != "present":
         quality.append(f"trajectory {availability['trajectory']}: {availability['reason']}")
 
-    steps = _build_steps(_chain_action_steps(segments)) if segments else []
+    positioned = _chain_action_steps(segments) if segments else []
+    steps = _build_steps(positioned)
+    if len(steps) < len(positioned):
+        quality.append(f"{len(positioned) - len(steps)} malformed (non-object) steps skipped")
     actions = [a for s in steps for a in s.actions]
     root_doc = segments[0][1] if segments else {}
     terminal_doc = segments[-1][1] if segments else {}
 
     timing, origin = _timing(result, steps)
+    if timing["phases_overlap"]:
+        quality.append("Harbor phase timestamps overlap or exceed the trial wall time")
     tokens, cost, token_warnings = _tokens_and_cost(result, terminal_doc, steps)
     if availability["reason"] != _CONTROL_REASON:
         quality.extend(token_warnings)
@@ -1518,7 +1654,7 @@ def build_run_report(
     subagents, subagent_events = _subagents(steps, segments, trial, origin)
     context = _context(steps, segments, subagent_events, trial)
     errors = _errors(actions, result, origin)
-    if actions and errors["status_unknown_calls"] == len(actions):
+    if actions and all(a.evidence in (None, "output_text", "no_result") for a in actions):
         quality.append(
             "harness reports no per-call status (no exit codes or error flags): tool errors "
             "are only inferred from output text"
@@ -1596,14 +1732,15 @@ def build_job_report(
     walls = [row["wall_seconds"] for row in rows if row["wall_seconds"] is not None]
     agents = [row["agent_seconds"] for row in rows if row["agent_seconds"] is not None]
     passed = sum(1 for row in rows if row["verdict"] == "passed")
+    scored = sum(1 for row in rows if row["verdict"] in {"passed", "failed", "partial"})
     job_report = {
         "schema": JOB_REPORT_SCHEMA,
         "job": job.name,
         "job_dir": str(job),
         "trials": len(rows),
-        "scored": len(rewards),
+        "scored": scored,
         "passed": passed,
-        "pass_rate": round(passed / len(rewards), 4) if rewards else None,
+        "pass_rate": round(passed / scored, 4) if scored else None,
         "mean_reward": round(sum(rewards) / len(rewards), 4) if rewards else None,
         "total_cost_usd": round(sum(costs), 6) if costs else None,
         "trials_without_cost": len(rows) - len(costs),
@@ -1653,6 +1790,10 @@ def _fmt_usd(value: float | None) -> str:
 
 def _fmt_pct(value: float | None) -> str:
     return "n/a" if value is None else f"{value * 100:.1f}%"
+
+
+def _plural(count: int, noun: str) -> str:
+    return f"{count} {noun}" + ("" if count == 1 else "s")
 
 
 def _fmt(value: Any) -> str:
@@ -1729,12 +1870,18 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
         + [["**total wall**", _fmt_seconds(timing["total_seconds"]), "0.0s"]],
     )
     gaps = timing["step_gap_seconds"]
+    if timing["first_agent_step_offset_seconds"] is not None:
+        lines += [
+            "",
+            f"First agent step {_fmt_seconds(timing['first_agent_step_offset_seconds'])} after "
+            f"`{timing['offset_origin']}` (offsets below use the same origin).",
+        ]
     if gaps["count"]:
         lines += [
             "",
-            f"Time between agent steps (model + tool time): median {_fmt_seconds(gaps['median'])}, "
-            f"p90 {_fmt_seconds(gaps['p90'])}, max {_fmt_seconds(gaps['max'])} over {gaps['count']} steps. "
-            f"Offsets below are from `{timing['offset_origin']}`.",
+            f"Time between consecutive agent steps (model turn + previous tool time): median "
+            f"{_fmt_seconds(gaps['median'])}, p90 {_fmt_seconds(gaps['p90'])}, max "
+            f"{_fmt_seconds(gaps['max'])} over {gaps['count']} gaps.",
         ]
         if timing["slowest_steps"]:
             lines += ["", "Slowest steps:"]
@@ -1782,7 +1929,13 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
     lines += ["", "## Tools"]
     if tools["total_calls"]:
         lines.append(
-            f"{tools['total_calls']} calls across {tools['distinct_tools']} tools"
+            f"{_plural(tools['total_calls'], 'call')} across {_plural(tools['distinct_tools'], 'tool')}"
+            + (
+                f" in {_plural(tools['actions'], 'action')} (calls that share one observation "
+                "count as one action; revisits, errors, and polls count actions)"
+                if tools["actions"] != tools["total_calls"]
+                else ""
+            )
             + (f"; {tools['polls']} polls" if tools["polls"] else "")
             + (
                 "; wrapped: " + ", ".join(f"{k}×{v}" for k, v in tools["wrapped_calls"].items())
@@ -1792,9 +1945,10 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
             + "."
         )
         lines += _table(
-            ["Tool", "Calls", "OK", "Errors", "Unknown", "Error rate", "Output chars", "Steps"],
+            ["Tool", "Calls", "OK", "Errors", "Unknown", "Errors / judged", "Output chars", "Steps"],
             [
-                [r["tool"], r["calls"], r["ok"], r["errors"], r["unknown"], _fmt_pct(r["error_rate"]),
+                [r["tool"], r["calls"], r["ok"], r["errors"], r["unknown"],
+                 f"{_fmt_pct(r['error_rate'])} of {r['judged']}" if r["judged"] else "n/a",
                  f"{r['output_chars']:,}", f"{r['first_step']}–{r['last_step']}"]
                 for r in tools["by_tool"]
             ],
@@ -1874,10 +2028,26 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
     )
     lines += [f"- step {e['step']}: {e['kind']} — {e['detail']}" for e in context["events"]]
     lines += ["", "## Errors"]
+    unknown_detail = [
+        f"{errors[key]} {label}"
+        for key, label in (
+            ("calls_without_result", "without a recorded result"),
+            ("not_executed_calls", "intercepted by the harness (not executed)"),
+        )
+        if errors[key]
+    ]
     lines.append(
         f"{errors['tool_errors']} tool errors ({errors['harness_signalled']} signalled by the harness, "
         f"{errors['inferred_from_output']} inferred from output text); "
-        f"{errors['status_unknown_calls']} calls with no status signal."
+        f"{errors['status_unknown_calls']} calls with no status signal"
+        + (f" ({', '.join(unknown_detail)})" if unknown_detail else "")
+        + "."
+        + (
+            f" {errors['expected_probe_misses']} expected probe misses (for example grep finding "
+            "nothing) are counted as ok."
+            if errors["expected_probe_misses"]
+            else ""
+        )
         + (f" First error at step {errors['first_error']['step']}." if errors["first_error"] else "")
         + (" The run ended on an error." if errors["ended_in_error"] else "")
     )
@@ -1952,6 +2122,15 @@ def render_job_report_markdown(job_report: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+_UNSAFE_STEM_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _file_stem(name: str) -> str:
+    """A filename stem that cannot leave the output directory."""
+    stem = _UNSAFE_STEM_RE.sub("_", name).lstrip(".")[:120]
+    return stem or "trial"
+
+
 def write_reports(
     reports: Sequence[dict[str, Any]],
     output_dir: Path,
@@ -1961,7 +2140,7 @@ def write_reports(
     output_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     for report in reports:
-        stem = str(report["identity"]["trial_name"])
+        stem = _file_stem(Path(str(report["identity"]["trial_dir"])).name)
         json_path = output_dir / f"{stem}.run_report.json"
         md_path = output_dir / f"{stem}.run_report.md"
         json_path.write_text(json.dumps(report, indent=2, sort_keys=False) + "\n", encoding="utf-8")

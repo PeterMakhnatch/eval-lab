@@ -582,6 +582,18 @@ def test_sanitize_excerpt_redacts_secrets_and_bounds() -> None:
     assert len(excerpt) <= 63
 
 
+def test_sanitize_excerpt_redacts_common_credential_shapes() -> None:
+    secrets = [
+        "ghp_" + "a1B2c3D4e5F6g7H8i9J0k1L2",
+        "AKIA" + "ABCDEFGHIJKLMNOP",
+        "PASSWORD=" + "hunter2hunter2",
+        "client_secret: " + "s3cr3tvalue",
+    ]
+    excerpt = sanitize_excerpt("config " + " ; ".join(secrets), 400)
+    for secret in ("a1B2c3D4e5F6g7H8i9J0k1L2", "ABCDEFGHIJKLMNOP", "hunter2hunter2", "s3cr3tvalue"):
+        assert secret not in excerpt
+
+
 def test_rendering_is_bounded_and_marked(tmp_path: Path) -> None:
     trial = _write_trial(
         tmp_path / "trial",

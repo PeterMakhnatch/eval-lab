@@ -722,15 +722,22 @@ def _side_passes(
     """Per-task pass booleans for one score-vector side, plus the count of missing episodes."""
     passes: dict[str, list[bool]] = {label: [] for label in labels}
     missing = 0
+    expected_per_row = len(labels) * repeats if labels and repeats else 0
     for row in rows:
         scores = row.get(side)
-        if not isinstance(scores, list):
+        if isinstance(scores, (str, bytes, bytearray)) or not isinstance(scores, (list, tuple)):
+            missing += expected_per_row
             continue
         for position, score in enumerate(scores):
-            if score is None:
+            if (
+                score is None
+                or isinstance(score, bool)
+                or not isinstance(score, (int, float))
+                or not math.isfinite(score)
+            ):
                 missing += 1
                 continue
-            index = position // repeats
+            index = position // repeats if repeats else 0
             if index < len(labels):
                 passes[labels[index]].append(score >= pass_threshold)
     return passes, missing
@@ -741,22 +748,47 @@ def _rate(observations: list[bool]) -> float | None:
     return sum(observations) / len(observations) if observations else None
 
 
-def _settled_row_is_valid(row: dict) -> bool:
+#: Settled rows carrying these gate reasons hold no calibration evidence: the evaluator never
+#: finished (evaluator_error), the decision inputs were unusable (invalid_evaluation), or the
+#: decision record itself failed to persist (decision_record_error). They stay in
+#: attempted/settled/invalid counts but never enter the publish denominator.
+_CALIBRATION_ERROR_REASONS = frozenset(
+    {"evaluator_error", "invalid_evaluation", "decision_record_error"}
+)
+
+
+def _settled_row_is_valid(row: dict, *, expected_len: int | None = None) -> bool:
     """A settled, non-skipped row counts toward the denominator only with full flat evidence.
 
-    Rows whose evaluation errored (the plugin's error wrapper leaves no score vectors) or whose
-    tallies are absent are counted invalid, never treated as resolved zeros.
+    Validity needs numeric wins/losses/ties tallies plus nonempty equal score vectors whose
+    length matches the expected task_count * repeats shape when it is known. Evaluator-error
+    rows (empty vectors with zeroed tallies) and explicit evaluator_error /
+    invalid_evaluation / decision_record_error reasons are invalid, never resolved zeros.
     """
-    return (
-        isinstance(row.get("wins"), (int, float))
-        and not isinstance(row.get("wins"), bool)
-        and isinstance(row.get("losses"), (int, float))
-        and not isinstance(row.get("losses"), bool)
-        and isinstance(row.get("ties"), (int, float))
-        and not isinstance(row.get("ties"), bool)
-        and isinstance(row.get("candidate_scores"), list)
-        and isinstance(row.get("current_scores"), list)
-    )
+    for key in ("wins", "losses", "ties"):
+        value = row.get(key)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return False
+        if isinstance(value, float) and not math.isfinite(value):
+            return False
+    reason = row.get("reason_code")
+    gate = row.get("gate")
+    gate_reason = gate.get("reason_code") if isinstance(gate, dict) else None
+    if reason in _CALIBRATION_ERROR_REASONS or gate_reason in _CALIBRATION_ERROR_REASONS:
+        return False
+    candidate = row.get("candidate_scores")
+    current = row.get("current_scores")
+    if isinstance(candidate, (str, bytes, bytearray)) or not isinstance(candidate, (list, tuple)):
+        return False
+    if isinstance(current, (str, bytes, bytearray)) or not isinstance(current, (list, tuple)):
+        return False
+    if not candidate or not current:
+        return False
+    if len(candidate) != len(current):
+        return False
+    if expected_len is not None and (len(candidate) != expected_len or len(current) != expected_len):
+        return False
+    return True
 
 
 def summarize(
@@ -771,12 +803,13 @@ def summarize(
 ) -> dict:
     """The calibration summary over recorded result rows; pure, so it is unit-testable."""
     labels = _task_labels(tasks)
+    expected_len = len(tasks) * repeats
     attempted = list(results)
     settled = [r for r in attempted if r.get("status") == "settled"]
     skipped = [r for r in settled if r.get("skipped")]
     unresolved = [r for r in settled if not r.get("skipped")]
-    invalid = [r for r in unresolved if not _settled_row_is_valid(r)]
-    ran = [r for r in unresolved if _settled_row_is_valid(r)]
+    invalid = [r for r in unresolved if not _settled_row_is_valid(r, expected_len=expected_len)]
+    ran = [r for r in unresolved if _settled_row_is_valid(r, expected_len=expected_len)]
     n, published = len(ran), sum(1 for r in ran if r["published"])
     lo, hi = wilson(published, n)
 
@@ -902,12 +935,15 @@ def summarize(
         ),
     }
     if condition == "aa":
-        summary["all_published_trees_identical"] = all(
-            r["files_identical"] for r in ran if r["published"]
+        published_rows = [r for r in ran if r["published"]]
+        # No published rows means no observed candidate-tree identity: unknown, not vacuous truth.
+        summary["all_published_trees_identical"] = (
+            all(r["files_identical"] for r in published_rows) if published_rows else None
         )
     else:
-        summary["all_published_trees_changed"] = all(
-            not r["files_identical"] for r in ran if r["published"]
+        published_rows = [r for r in ran if r["published"]]
+        summary["all_published_trees_changed"] = (
+            all(not r["files_identical"] for r in published_rows) if published_rows else None
         )
     return summary
 
@@ -916,20 +952,30 @@ def read_decision_records(record_dir: Path) -> dict:
     """What the gate plugin's per-candidate decision JSONs in ``record_dir`` show.
 
     The record directory is dedicated to the plugin's decision records, so every ``*.json`` in
-    it must carry the exact fields (decision_seconds, evaluation_seconds, reef_commit,
-    reason_code, pairs, vetoes); a malformed record is reported as an error, never silently
-    skipped. Quantities absent because nothing was recorded stay unavailable, never zero.
+    it must carry reef_commit, reason_code, pairs and vetoes; a malformed record is reported
+    as an error, never silently skipped. Timing fields (decision_seconds, evaluation_seconds)
+    may honestly be None or absent when nothing was measured -- decide() records None for an
+    externally provided measurement with no timing -- and stay unavailable, never coerced to
+    0. Medians cover only observed finite nonnegative timings; missing counts are reported.
+    Non-numeric, non-finite or negative timings stay malformed.
     """
     if not record_dir.is_dir():
         return {
             "count": 0,
             "decision_walltime_s": [],
             "decision_walltime_median_s": None,
+            "evaluation_walltime_s": [],
             "evaluation_walltime_median_s": None,
+            "decision_walltime_missing": 0,
+            "evaluation_walltime_missing": 0,
             "reef_commits": [],
             "reason_codes": {},
         }
     records = []
+    decision_observed: list[float] = []
+    evaluation_observed: list[float] = []
+    decision_missing = 0
+    evaluation_missing = 0
     for path in sorted(record_dir.glob("*.json")):
         try:
             record = json.loads(path.read_text())
@@ -939,6 +985,8 @@ def read_decision_records(record_dir: Path) -> dict:
             raise SystemExit(f"malformed decision record {path}: expected a JSON object")
         for key in _DECISION_NUMBER_KEYS:
             value = record.get(key)
+            if value is None:
+                continue
             if (
                 isinstance(value, bool)
                 or not isinstance(value, (int, float))
@@ -956,17 +1004,28 @@ def read_decision_records(record_dir: Path) -> dict:
             if not isinstance(record.get(key), list):
                 raise SystemExit(f"malformed decision record {path}: {key} must be a list")
         records.append(record)
-    walltimes = [float(record["decision_seconds"]) for record in records]
-    evaluations = [float(record["evaluation_seconds"]) for record in records]
+        decision_value = record.get("decision_seconds")
+        if decision_value is None:
+            decision_missing += 1
+        else:
+            decision_observed.append(float(decision_value))
+        evaluation_value = record.get("evaluation_seconds")
+        if evaluation_value is None:
+            evaluation_missing += 1
+        else:
+            evaluation_observed.append(float(evaluation_value))
     reason_codes: dict[str, int] = {}
     for record in records:
         code = record["reason_code"]
         reason_codes[code] = reason_codes.get(code, 0) + 1
     return {
         "count": len(records),
-        "decision_walltime_s": walltimes,
-        "decision_walltime_median_s": median(walltimes) if walltimes else None,
-        "evaluation_walltime_median_s": median(evaluations) if evaluations else None,
+        "decision_walltime_s": decision_observed,
+        "decision_walltime_median_s": median(decision_observed) if decision_observed else None,
+        "evaluation_walltime_s": evaluation_observed,
+        "evaluation_walltime_median_s": median(evaluation_observed) if evaluation_observed else None,
+        "decision_walltime_missing": decision_missing,
+        "evaluation_walltime_missing": evaluation_missing,
         "reef_commits": sorted({record["reef_commit"] for record in records}),
         "reason_codes": dict(sorted(reason_codes.items())),
     }

@@ -1,0 +1,946 @@
+{
+  "schema_version": 1,
+  "generated": "2026-09-25",
+  "history_source": "shared Eval Lab catalog (read-only SELECT on localhost:54329, trials table, task names mapped per CATALOG_TASK_NAMES); exported 2026-09-25 by the LoopPool worker",
+  "registry_tasks": [
+    {
+      "task_id": "event-summary",
+      "path": "library/tasks/event-summary",
+      "registry_state": "registered",
+      "allowed_uses": [
+        "measurement",
+        "training"
+      ],
+      "package_digest": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d",
+      "registry_limits": {
+        "timeout_seconds": 180,
+        "max_memory_mb": 512,
+        "max_cpus": 1.0
+      },
+      "control_evidence": {
+        "oracle": {
+          "reward": 1.0,
+          "observed_at": "2026-08-14T00:33:53.021226Z",
+          "at_current_package_digest": true
+        },
+        "nop": {
+          "reward": 0.0,
+          "observed_at": "2026-08-14T00:34:02.898236Z",
+          "at_current_package_digest": true
+        }
+      },
+      "source_uri": "local/event-summary@1.0.0",
+      "task_name": "local-lab/event-summary",
+      "declared_resources": {
+        "agent_timeout_s": 120.0,
+        "verifier_timeout_s": 60.0,
+        "memory_mb": 512,
+        "cpus": 1,
+        "gpus": 0
+      },
+      "image_from": [
+        "FROM python:3.13-slim-bookworm"
+      ],
+      "image_platform": "arm64-native-or-multiarch",
+      "mcp_servers": [],
+      "terminus2_fit": "plain-terminal",
+      "category": "data-processing",
+      "tags": [
+        "deterministic",
+        "negative-control",
+        "artifact-transfer"
+      ],
+      "difficulty": "easy",
+      "historical_outcomes": [
+        {
+          "agent": "oracle",
+          "model": null,
+          "n": 67,
+          "mean_reward": 1.0,
+          "median_duration_s": 8.6,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "opencode",
+          "model": "glm-5.3-flash",
+          "n": 14,
+          "mean_reward": 0.857,
+          "median_duration_s": 91.9,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "rlm",
+          "model": "glm-5.3-flash",
+          "n": 10,
+          "mean_reward": 1.0,
+          "median_duration_s": 102.3,
+          "total_cost_usd": 0.328
+        },
+        {
+          "agent": "opencode",
+          "model": "glm-5.3",
+          "n": 8,
+          "mean_reward": 0.5,
+          "median_duration_s": 47.6,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "nop",
+          "model": null,
+          "n": 6,
+          "mean_reward": 0.0,
+          "median_duration_s": 8.8,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "codex",
+          "model": "gpt-5.6-terra",
+          "n": 6,
+          "mean_reward": 1.0,
+          "median_duration_s": 99.7,
+          "total_cost_usd": 0.228
+        },
+        {
+          "agent": "antigravity-cli",
+          "model": "gemini-3.7-flash-high",
+          "n": 4,
+          "mean_reward": 1.0,
+          "median_duration_s": 45.7,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "codex",
+          "model": null,
+          "n": 3,
+          "mean_reward": null,
+          "median_duration_s": 67.7,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "antigravity-cli",
+          "model": "gemini-3.7-flash-low",
+          "n": 2,
+          "mean_reward": 0.5,
+          "median_duration_s": 31.1,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "antigravity-cli",
+          "model": "gemini-3.7-flash-medium",
+          "n": 1,
+          "mean_reward": 1.0,
+          "median_duration_s": 35.2,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "antigravity-cli",
+          "model": "gemini-3.7-flash",
+          "n": 1,
+          "mean_reward": 0.0,
+          "median_duration_s": 25.0,
+          "total_cost_usd": null
+        }
+      ]
+    },
+    {
+      "task_id": "query-optimize",
+      "path": "library/tasks/query-optimize",
+      "registry_state": "candidate",
+      "allowed_uses": [
+        "measurement",
+        "training"
+      ],
+      "package_digest": "sha256:d593fa7d67498305ebcc32605455abd16e6d5495f6f455b458c024572617bad1",
+      "registry_limits": {
+        "timeout_seconds": 2700,
+        "max_memory_mb": 2048,
+        "max_cpus": 1.0
+      },
+      "control_evidence": {},
+      "source_uri": "local/query-optimize@1.0.0",
+      "task_name": "terminal-bench/query-optimize",
+      "declared_resources": {
+        "agent_timeout_s": 900.0,
+        "verifier_timeout_s": 1800.0,
+        "memory_mb": 2048,
+        "cpus": 1,
+        "gpus": 0
+      },
+      "image_from": [
+        "FROM ubuntu:24.04"
+      ],
+      "image_platform": "arm64-native-or-multiarch",
+      "mcp_servers": [],
+      "terminus2_fit": "plain-terminal",
+      "category": "data-science",
+      "tags": [
+        "query-optimization",
+        "sql-query"
+      ],
+      "difficulty": "medium",
+      "historical_outcomes": [
+        {
+          "agent": "antigravity-cli",
+          "model": "gemini-3.7-flash-low",
+          "n": 1,
+          "mean_reward": 1.0,
+          "median_duration_s": 864.5,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "antigravity-cli",
+          "model": "gemini-3.7-flash-medium",
+          "n": 1,
+          "mean_reward": 0.0,
+          "median_duration_s": 898.5,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "nop",
+          "model": null,
+          "n": 1,
+          "mean_reward": 0.0,
+          "median_duration_s": 543.6,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "oracle",
+          "model": null,
+          "n": 1,
+          "mean_reward": 1.0,
+          "median_duration_s": 568.9,
+          "total_cost_usd": null
+        }
+      ]
+    },
+    {
+      "task_id": "syn-funcdag-easy",
+      "path": "library/tasks/experimental/syn-funcdag-easy",
+      "registry_state": "registered",
+      "allowed_uses": [
+        "measurement"
+      ],
+      "package_digest": "sha256:a0523d926254bb7025eed41ece31f66cf8974c20839ad1f9647e0224c35568f5",
+      "registry_limits": {
+        "timeout_seconds": 60,
+        "max_memory_mb": 512,
+        "max_cpus": 1.0
+      },
+      "control_evidence": {
+        "oracle": {
+          "reward": 1.0,
+          "observed_at": "2026-08-28T01:50:23.914237Z",
+          "at_current_package_digest": true
+        },
+        "nop": {
+          "reward": 0.0,
+          "observed_at": "2026-08-28T01:50:55.365640Z",
+          "at_current_package_digest": true
+        }
+      },
+      "source_uri": "eval-lab/synthetic/funcdag/easy",
+      "task_name": "evallab/syn-funcdag-easy",
+      "declared_resources": {
+        "agent_timeout_s": 60.0,
+        "verifier_timeout_s": 60.0,
+        "memory_mb": 512,
+        "cpus": 1,
+        "gpus": 0
+      },
+      "image_from": [
+        "FROM python:3.13-slim@sha256:bf503bb2243c5aad0aa951544dd60d165f992646441d35dea90893703fc26251"
+      ],
+      "image_platform": "arm64-native-or-multiarch",
+      "mcp_servers": [],
+      "terminus2_fit": "plain-terminal",
+      "category": "synthetic",
+      "tags": [
+        "synthetic",
+        "funcdag",
+        "cleanroom",
+        "deterministic"
+      ],
+      "difficulty": "easy",
+      "historical_outcomes": [
+        {
+          "agent": "opencode",
+          "model": "glm-5.3-flash",
+          "n": 20,
+          "mean_reward": 0.474,
+          "median_duration_s": 45.3,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "oracle",
+          "model": null,
+          "n": 12,
+          "mean_reward": 1.0,
+          "median_duration_s": 9.1,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "rlm",
+          "model": "glm-5.3-flash",
+          "n": 7,
+          "mean_reward": 0.857,
+          "median_duration_s": 150.9,
+          "total_cost_usd": 0.466
+        },
+        {
+          "agent": "opencode",
+          "model": "glm-5.3",
+          "n": 7,
+          "mean_reward": 0.857,
+          "median_duration_s": 46.2,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "nop",
+          "model": null,
+          "n": 4,
+          "mean_reward": 0.0,
+          "median_duration_s": 8.8,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "mini-swe-agent",
+          "model": "deepseek-v4-flash",
+          "n": 2,
+          "mean_reward": 0.5,
+          "median_duration_s": 91.8,
+          "total_cost_usd": 0.014
+        },
+        {
+          "agent": "codex",
+          "model": "gpt-5.6-luna",
+          "n": 1,
+          "mean_reward": 1.0,
+          "median_duration_s": 93.9,
+          "total_cost_usd": 0.002
+        }
+      ]
+    },
+    {
+      "task_id": "tau3-retail-1",
+      "path": "library/tasks/tau3-retail-1",
+      "registry_state": "candidate",
+      "allowed_uses": [
+        "canary"
+      ],
+      "package_digest": "sha256:c5a8d94c690ca514b4f2d67b9ac1b69681b1644a9899b46e724cf9c984dc9a56",
+      "registry_limits": {
+        "timeout_seconds": 3900,
+        "max_memory_mb": 8192,
+        "max_cpus": 4.0
+      },
+      "control_evidence": {
+        "oracle": {
+          "reward": 1.0,
+          "observed_at": "2026-09-03T14:41:48.823362Z",
+          "at_current_package_digest": true
+        },
+        "nop": {
+          "reward": 0.0,
+          "observed_at": "2026-09-03T14:42:16.328341Z",
+          "at_current_package_digest": true
+        }
+      },
+      "source_uri": "sierra-research/tau2-bench",
+      "task_name": "sierra-research/tau3-bench__tau3-retail-1",
+      "declared_resources": {
+        "agent_timeout_s": 3600.0,
+        "verifier_timeout_s": 300.0,
+        "memory_mb": 8192,
+        "cpus": 4,
+        "gpus": 0
+      },
+      "image_from": [
+        "FROM python:3.12-slim"
+      ],
+      "image_platform": "arm64-native-or-multiarch",
+      "mcp_servers": [
+        "tau3-runtime"
+      ],
+      "terminus2_fit": "needs-mcp-tool-services",
+      "category": "customer_service",
+      "tags": null,
+      "difficulty": "medium",
+      "historical_outcomes": [
+        {
+          "agent": "nop",
+          "model": null,
+          "n": 1,
+          "mean_reward": 0.0,
+          "median_duration_s": 18.4,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "oracle",
+          "model": null,
+          "n": 1,
+          "mean_reward": 1.0,
+          "median_duration_s": 93.0,
+          "total_cost_usd": null
+        }
+      ]
+    },
+    {
+      "task_id": "terminal-bench-html-js-filter",
+      "path": "library/tasks/terminal-bench-html-js-filter",
+      "registry_state": "candidate",
+      "allowed_uses": [
+        "measurement",
+        "training"
+      ],
+      "package_digest": "sha256:36bef48eb1f5a2ed2211705ddd23dab1f98cb0158196e892fad8d3dd3a4aa956",
+      "registry_limits": {
+        "timeout_seconds": 5400,
+        "max_memory_mb": 4096,
+        "max_cpus": 1.0
+      },
+      "control_evidence": {},
+      "source_uri": "local/terminal-bench-html-js-filter@1.0.0",
+      "task_name": "terminal-bench/html-js-filter",
+      "declared_resources": {
+        "agent_timeout_s": 3600.0,
+        "verifier_timeout_s": 1800.0,
+        "memory_mb": 4096,
+        "cpus": 1,
+        "gpus": 0
+      },
+      "image_from": [
+        "FROM python:3.12-slim-bookworm"
+      ],
+      "image_platform": "arm64-native-or-multiarch",
+      "mcp_servers": [],
+      "terminus2_fit": "plain-terminal",
+      "category": "Security",
+      "tags": [
+        "xss",
+        "html-sanitization",
+        "web-security"
+      ],
+      "difficulty": null,
+      "historical_outcomes": [
+        {
+          "agent": "codex",
+          "model": "gpt-5.6-terra",
+          "n": 9,
+          "mean_reward": 0.0,
+          "median_duration_s": 427.8,
+          "total_cost_usd": 1.483
+        },
+        {
+          "agent": "codex",
+          "model": null,
+          "n": 3,
+          "mean_reward": null,
+          "median_duration_s": 54.6,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "nop",
+          "model": null,
+          "n": 1,
+          "mean_reward": 0.0,
+          "median_duration_s": 8.8,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "oracle",
+          "model": null,
+          "n": 1,
+          "mean_reward": 1.0,
+          "median_duration_s": 128.7,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "antigravity-cli",
+          "model": "gemini-3.7-flash-low",
+          "n": 1,
+          "mean_reward": 0.0,
+          "median_duration_s": 328.5,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "antigravity-cli",
+          "model": "gemini-3.7-flash-medium",
+          "n": 1,
+          "mean_reward": 0.0,
+          "median_duration_s": 371.3,
+          "total_cost_usd": null
+        }
+      ]
+    },
+    {
+      "task_id": "transaction-reconciliation",
+      "path": "library/tasks/transaction-reconciliation",
+      "registry_state": "candidate",
+      "allowed_uses": [
+        "measurement",
+        "training"
+      ],
+      "package_digest": "sha256:f2bb698dbcb990ce1be2a6319efc1c4264da4f7394637d33f103ebb053262820",
+      "registry_limits": {
+        "timeout_seconds": 240,
+        "max_memory_mb": null,
+        "max_cpus": null
+      },
+      "control_evidence": {},
+      "source_uri": "local/transaction-reconciliation@0.1.0",
+      "task_name": "petermakhnatch/transaction-reconciliation",
+      "declared_resources": {
+        "agent_timeout_s": 120.0,
+        "verifier_timeout_s": 120.0,
+        "memory_mb": null,
+        "cpus": null,
+        "gpus": 0
+      },
+      "image_from": [
+        "FROM python:3.12-slim-bookworm"
+      ],
+      "image_platform": "arm64-native-or-multiarch",
+      "mcp_servers": [],
+      "terminus2_fit": "plain-terminal",
+      "category": "programming",
+      "tags": [
+        "local",
+        "deterministic"
+      ],
+      "difficulty": "easy",
+      "historical_outcomes": [
+        {
+          "agent": "codex",
+          "model": "gpt-5.6-terra",
+          "n": 9,
+          "mean_reward": 0.625,
+          "median_duration_s": 71.1,
+          "total_cost_usd": 0.127
+        },
+        {
+          "agent": "codex",
+          "model": null,
+          "n": 3,
+          "mean_reward": null,
+          "median_duration_s": 50.7,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "oracle",
+          "model": null,
+          "n": 2,
+          "mean_reward": 1.0,
+          "median_duration_s": 15.2,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "antigravity-cli",
+          "model": "gemini-3.7-flash-low",
+          "n": 1,
+          "mean_reward": 1.0,
+          "median_duration_s": 36.8,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "antigravity-cli",
+          "model": "gemini-3.7-flash-medium",
+          "n": 1,
+          "mean_reward": 1.0,
+          "median_duration_s": 37.2,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "nop",
+          "model": null,
+          "n": 1,
+          "mean_reward": 0.0,
+          "median_duration_s": 8.4,
+          "total_cost_usd": null
+        }
+      ]
+    },
+    {
+      "task_id": "travel-lisbon-002",
+      "path": "library/tasks/experimental/deepplanning-v1/travel-lisbon-002",
+      "registry_state": "registered",
+      "allowed_uses": [
+        "measurement",
+        "training"
+      ],
+      "package_digest": "sha256:8dec991845b4f20619581d6160440328f0ad9684dcfc6cdbebd103e83ba7e7aa",
+      "registry_limits": {
+        "timeout_seconds": 180,
+        "max_memory_mb": 512,
+        "max_cpus": 1.0
+      },
+      "control_evidence": {
+        "oracle": {
+          "reward": 1.0,
+          "observed_at": "2026-08-28T03:43:56.073506Z",
+          "at_current_package_digest": true
+        },
+        "nop": {
+          "reward": 0.0,
+          "observed_at": "2026-08-28T03:44:30.354762Z",
+          "at_current_package_digest": true
+        }
+      },
+      "source_uri": "https://huggingface.co/datasets/Qwen/DeepPlanning",
+      "task_name": "deepplanning-v1/travel-lisbon-002",
+      "declared_resources": {
+        "agent_timeout_s": 120.0,
+        "verifier_timeout_s": 60.0,
+        "memory_mb": 512,
+        "cpus": 1,
+        "gpus": 0
+      },
+      "image_from": [
+        "FROM python:3.13-slim@sha256:bf503bb2243c5aad0aa951544dd60d165f992646441d35dea90893703fc26251"
+      ],
+      "image_platform": "arm64-native-or-multiarch",
+      "mcp_servers": [],
+      "terminus2_fit": "plain-terminal",
+      "category": "Planning",
+      "tags": [
+        "deepplanning",
+        "travel",
+        "constraints",
+        "offline"
+      ],
+      "difficulty": "hard",
+      "historical_outcomes": [
+        {
+          "agent": "opencode",
+          "model": "glm-5.3",
+          "n": 10,
+          "mean_reward": 0.5,
+          "median_duration_s": 50.6,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "rlm",
+          "model": "glm-5.3-flash",
+          "n": 6,
+          "mean_reward": 0.0,
+          "median_duration_s": 231.9,
+          "total_cost_usd": 0.561
+        },
+        {
+          "agent": "nop",
+          "model": null,
+          "n": 2,
+          "mean_reward": 0.0,
+          "median_duration_s": 18.2,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "opencode",
+          "model": "glm-5.3-flash",
+          "n": 2,
+          "mean_reward": 0.0,
+          "median_duration_s": 140.0,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "oracle",
+          "model": null,
+          "n": 2,
+          "mean_reward": 1.0,
+          "median_duration_s": 22.8,
+          "total_cost_usd": null
+        },
+        {
+          "agent": "codex",
+          "model": "gpt-5.6-luna",
+          "n": 1,
+          "mean_reward": 1.0,
+          "median_duration_s": 125.7,
+          "total_cost_usd": 0.01
+        }
+      ]
+    },
+    {
+      "task_id": "exp05-search-fix-median",
+      "path": "~/Developer/research-context/reef/experiments/exp05/tasks/search/fix-median",
+      "registry_state": "unregistered-external",
+      "allowed_uses": null,
+      "package_digest": null,
+      "package_digest_note": "external Reef experiment tasks; Eval Lab pins the package digest per prepared spec (docs/execution-tiers.md Terminus 2 section)",
+      "registry_limits": null,
+      "control_evidence": {},
+      "historical_outcomes": [],
+      "task_name": null,
+      "declared_resources": {
+        "agent_timeout_s": 300.0,
+        "verifier_timeout_s": 60.0,
+        "memory_mb": 1024,
+        "cpus": 1,
+        "gpus": 0
+      },
+      "image_from": [
+        "FROM python:3.12-slim-bookworm"
+      ],
+      "image_platform": "arm64-native-or-multiarch",
+      "mcp_servers": [],
+      "terminus2_fit": "plain-terminal",
+      "category": "bugfix",
+      "tags": [
+        "python",
+        "hidden-tests"
+      ],
+      "difficulty": "easy",
+      "historical_outcomes_note": "exp05 round 1 (qwen3-coder:30b, Terminus 2 via Reef proxy): search outcomes fix-median 1/1, sales-total 1/1, error-count 0/1, top-words 0/1; see research-context/reef/experiments/work/05/summary.json"
+    },
+    {
+      "task_id": "exp05-search-sales-total",
+      "path": "~/Developer/research-context/reef/experiments/exp05/tasks/search/sales-total",
+      "registry_state": "unregistered-external",
+      "allowed_uses": null,
+      "package_digest": null,
+      "package_digest_note": "external Reef experiment tasks; Eval Lab pins the package digest per prepared spec (docs/execution-tiers.md Terminus 2 section)",
+      "registry_limits": null,
+      "control_evidence": {},
+      "historical_outcomes": [],
+      "task_name": null,
+      "declared_resources": {
+        "agent_timeout_s": 300.0,
+        "verifier_timeout_s": 60.0,
+        "memory_mb": 1024,
+        "cpus": 1,
+        "gpus": 0
+      },
+      "image_from": [
+        "FROM python:3.12-slim-bookworm"
+      ],
+      "image_platform": "arm64-native-or-multiarch",
+      "mcp_servers": [],
+      "terminus2_fit": "plain-terminal",
+      "category": "data",
+      "tags": [
+        "csv",
+        "exact-output"
+      ],
+      "difficulty": "easy",
+      "historical_outcomes_note": "exp05 round 1 (qwen3-coder:30b, Terminus 2 via Reef proxy): search outcomes fix-median 1/1, sales-total 1/1, error-count 0/1, top-words 0/1; see research-context/reef/experiments/work/05/summary.json"
+    },
+    {
+      "task_id": "exp05-search-error-count",
+      "path": "~/Developer/research-context/reef/experiments/exp05/tasks/search/error-count",
+      "registry_state": "unregistered-external",
+      "allowed_uses": null,
+      "package_digest": null,
+      "package_digest_note": "external Reef experiment tasks; Eval Lab pins the package digest per prepared spec (docs/execution-tiers.md Terminus 2 section)",
+      "registry_limits": null,
+      "control_evidence": {},
+      "historical_outcomes": [],
+      "task_name": null,
+      "declared_resources": {
+        "agent_timeout_s": 300.0,
+        "verifier_timeout_s": 60.0,
+        "memory_mb": 1024,
+        "cpus": 1,
+        "gpus": 0
+      },
+      "image_from": [
+        "FROM python:3.12-slim-bookworm"
+      ],
+      "image_platform": "arm64-native-or-multiarch",
+      "mcp_servers": [],
+      "terminus2_fit": "plain-terminal",
+      "category": "logs",
+      "tags": [
+        "logs",
+        "json"
+      ],
+      "difficulty": "easy",
+      "historical_outcomes_note": "exp05 round 1 (qwen3-coder:30b, Terminus 2 via Reef proxy): search outcomes fix-median 1/1, sales-total 1/1, error-count 0/1, top-words 0/1; see research-context/reef/experiments/work/05/summary.json"
+    },
+    {
+      "task_id": "exp05-search-top-words",
+      "path": "~/Developer/research-context/reef/experiments/exp05/tasks/search/top-words",
+      "registry_state": "unregistered-external",
+      "allowed_uses": null,
+      "package_digest": null,
+      "package_digest_note": "external Reef experiment tasks; Eval Lab pins the package digest per prepared spec (docs/execution-tiers.md Terminus 2 section)",
+      "registry_limits": null,
+      "control_evidence": {},
+      "historical_outcomes": [],
+      "task_name": null,
+      "declared_resources": {
+        "agent_timeout_s": 300.0,
+        "verifier_timeout_s": 60.0,
+        "memory_mb": 1024,
+        "cpus": 1,
+        "gpus": 0
+      },
+      "image_from": [
+        "FROM python:3.12-slim-bookworm"
+      ],
+      "image_platform": "arm64-native-or-multiarch",
+      "mcp_servers": [],
+      "terminus2_fit": "plain-terminal",
+      "category": "text",
+      "tags": [
+        "text",
+        "exact-output",
+        "ties"
+      ],
+      "difficulty": "medium",
+      "historical_outcomes_note": "exp05 round 1 (qwen3-coder:30b, Terminus 2 via Reef proxy): search outcomes fix-median 1/1, sales-total 1/1, error-count 0/1, top-words 0/1; see research-context/reef/experiments/work/05/summary.json"
+    },
+    {
+      "task_id": "exp05-holdout-fix-slugify",
+      "path": "~/Developer/research-context/reef/experiments/exp05/tasks/holdout/fix-slugify",
+      "registry_state": "unregistered-external",
+      "allowed_uses": null,
+      "package_digest": null,
+      "package_digest_note": "external Reef experiment tasks; Eval Lab pins the package digest per prepared spec (docs/execution-tiers.md Terminus 2 section)",
+      "registry_limits": null,
+      "control_evidence": {},
+      "historical_outcomes": [],
+      "task_name": null,
+      "declared_resources": {
+        "agent_timeout_s": 300.0,
+        "verifier_timeout_s": 60.0,
+        "memory_mb": 1024,
+        "cpus": 1,
+        "gpus": 0
+      },
+      "image_from": [
+        "FROM python:3.12-slim-bookworm"
+      ],
+      "image_platform": "arm64-native-or-multiarch",
+      "mcp_servers": [],
+      "terminus2_fit": "plain-terminal",
+      "category": "bugfix",
+      "tags": [
+        "python",
+        "hidden-tests"
+      ],
+      "difficulty": "easy",
+      "historical_outcomes_note": "exp05 round 1 (qwen3-coder:30b, Terminus 2 via Reef proxy): search outcomes fix-median 1/1, sales-total 1/1, error-count 0/1, top-words 0/1; see research-context/reef/experiments/work/05/summary.json"
+    },
+    {
+      "task_id": "exp05-holdout-inventory-value",
+      "path": "~/Developer/research-context/reef/experiments/exp05/tasks/holdout/inventory-value",
+      "registry_state": "unregistered-external",
+      "allowed_uses": null,
+      "package_digest": null,
+      "package_digest_note": "external Reef experiment tasks; Eval Lab pins the package digest per prepared spec (docs/execution-tiers.md Terminus 2 section)",
+      "registry_limits": null,
+      "control_evidence": {},
+      "historical_outcomes": [],
+      "task_name": null,
+      "declared_resources": {
+        "agent_timeout_s": 300.0,
+        "verifier_timeout_s": 60.0,
+        "memory_mb": 1024,
+        "cpus": 1,
+        "gpus": 0
+      },
+      "image_from": [
+        "FROM python:3.12-slim-bookworm"
+      ],
+      "image_platform": "arm64-native-or-multiarch",
+      "mcp_servers": [],
+      "terminus2_fit": "plain-terminal",
+      "category": "data",
+      "tags": [
+        "csv",
+        "exact-output"
+      ],
+      "difficulty": "easy",
+      "historical_outcomes_note": "exp05 round 1 (qwen3-coder:30b, Terminus 2 via Reef proxy): search outcomes fix-median 1/1, sales-total 1/1, error-count 0/1, top-words 0/1; see research-context/reef/experiments/work/05/summary.json"
+    },
+    {
+      "task_id": "exp05-holdout-status-codes",
+      "path": "~/Developer/research-context/reef/experiments/exp05/tasks/holdout/status-codes",
+      "registry_state": "unregistered-external",
+      "allowed_uses": null,
+      "package_digest": null,
+      "package_digest_note": "external Reef experiment tasks; Eval Lab pins the package digest per prepared spec (docs/execution-tiers.md Terminus 2 section)",
+      "registry_limits": null,
+      "control_evidence": {},
+      "historical_outcomes": [],
+      "task_name": null,
+      "declared_resources": {
+        "agent_timeout_s": 300.0,
+        "verifier_timeout_s": 60.0,
+        "memory_mb": 1024,
+        "cpus": 1,
+        "gpus": 0
+      },
+      "image_from": [
+        "FROM python:3.12-slim-bookworm"
+      ],
+      "image_platform": "arm64-native-or-multiarch",
+      "mcp_servers": [],
+      "terminus2_fit": "plain-terminal",
+      "category": "logs",
+      "tags": [
+        "logs",
+        "json"
+      ],
+      "difficulty": "easy",
+      "historical_outcomes_note": "exp05 round 1 (qwen3-coder:30b, Terminus 2 via Reef proxy): search outcomes fix-median 1/1, sales-total 1/1, error-count 0/1, top-words 0/1; see research-context/reef/experiments/work/05/summary.json"
+    },
+    {
+      "task_id": "exp05-holdout-top-tags",
+      "path": "~/Developer/research-context/reef/experiments/exp05/tasks/holdout/top-tags",
+      "registry_state": "unregistered-external",
+      "allowed_uses": null,
+      "package_digest": null,
+      "package_digest_note": "external Reef experiment tasks; Eval Lab pins the package digest per prepared spec (docs/execution-tiers.md Terminus 2 section)",
+      "registry_limits": null,
+      "control_evidence": {},
+      "historical_outcomes": [],
+      "task_name": null,
+      "declared_resources": {
+        "agent_timeout_s": 300.0,
+        "verifier_timeout_s": 60.0,
+        "memory_mb": 1024,
+        "cpus": 1,
+        "gpus": 0
+      },
+      "image_from": [
+        "FROM python:3.12-slim-bookworm"
+      ],
+      "image_platform": "arm64-native-or-multiarch",
+      "mcp_servers": [],
+      "terminus2_fit": "plain-terminal",
+      "category": "text",
+      "tags": [
+        "text",
+        "exact-output",
+        "ties"
+      ],
+      "difficulty": "medium",
+      "historical_outcomes_note": "exp05 round 1 (qwen3-coder:30b, Terminus 2 via Reef proxy): search outcomes fix-median 1/1, sales-total 1/1, error-count 0/1, top-words 0/1; see research-context/reef/experiments/work/05/summary.json"
+    }
+  ],
+  "benchmark_packages": [
+    {
+      "package": "library/benchmarks/action-memory-v1",
+      "materialized_on_demand": false,
+      "terminus2_fit": "needs-mcp-tool-services",
+      "note": "MCP sidecar benchmark family (FastMCP streamable-HTTP); excluded from the first Terminus 2 pool"
+    },
+    {
+      "package": "library/benchmarks/mcp-funcdag-v1",
+      "materialized_on_demand": true,
+      "terminus2_fit": "needs-mcp-tool-services",
+      "note": "MCP sidecar benchmark family (FastMCP streamable-HTTP); excluded from the first Terminus 2 pool"
+    },
+    {
+      "package": "library/benchmarks/mcp-recovery-v1",
+      "materialized_on_demand": true,
+      "terminus2_fit": "needs-mcp-tool-services",
+      "note": "MCP sidecar benchmark family (FastMCP streamable-HTTP); excluded from the first Terminus 2 pool"
+    }
+  ],
+  "missing_data": [
+    "exp05 tasks have no registry record or package digest until a prepared spec pins one.",
+    "Per-task pass rates for any Terminus 2 model on the exp05 pool exist only as exp05 round 1 single episodes (qwen3-coder:30b) and HAR-71's 0/4 (qwen2.5:7b on two lab tasks).",
+    "Benchmark package task counts are materialization-time facts, not committed counts."
+  ]
+}

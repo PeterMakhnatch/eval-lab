@@ -1,0 +1,547 @@
+{
+ "audit": "trial-diagnosis precision audit",
+ "annotator_kind": "code",
+ "annotator_id": "trial-diagnosis-audit-20260925",
+ "author": "TrialDiagnosis worker (agent-reviewed; NOT human labels)",
+ "date": "2026-09-25",
+ "detector": "trial_diagnosis/v1",
+ "human_labels": "none; labels.py human-label path untouched",
+ "method": "stratified sample of 46/213 diagnosed trials across harness-pilot, har71 Terminus 2, lab runs, and exp05 Terminus-via-Reef trials; each trajectory read with diagnosis packs (per-step commands and outputs); agree/weak-agree/disagree recorded per proposed mode with reason",
+ "sample": 46,
+ "verdicts": [
+  {
+   "modes": [
+    "unrecovered_error"
+   ],
+   "outcome": "scored",
+   "reason": "Terminal returncode -1 unexecuted submit after failing verification greps; same failure shape as fully-read sibling uZz8vKT.",
+   "reward": 0.0,
+   "source": "harness-pilot/envparity-dev",
+   "trial": "django__django-10999__BLzeGea",
+   "verdicts": {
+    "unrecovered_error": "agree"
+   }
+  },
+  {
+   "modes": [
+    "unrecovered_error"
+   ],
+   "outcome": "scored",
+   "reason": "Fully read: fix applied to line 32 but verification inconclusive; run ends on unexecuted submit action with earlier failing greps.",
+   "reward": 0.0,
+   "source": "harness-pilot/baseline-dev",
+   "trial": "django__django-10999__uZz8vKT",
+   "verdicts": {
+    "unrecovered_error": "agree"
+   }
+  },
+  {
+   "modes": [
+    "unclassified_failure"
+   ],
+   "outcome": "scored",
+   "reason": "Fully read: agent-code TypeError (capture_output on py3.6) is not a harness tool-arg error; plausible JSONField fix with verifier 0 matches no mode.",
+   "reward": 0.0,
+   "source": "harness-pilot/envparity-dev",
+   "trial": "django__django-12308__LBcbCgN",
+   "verdicts": {
+    "unclassified_failure": "agree"
+   }
+  },
+  {
+   "modes": [
+    "unrecovered_error"
+   ],
+   "outcome": "scored",
+   "reason": "Terminal traceback from agent debug script (ast.parse) with no recovery step after it.",
+   "reward": 0.0,
+   "source": "harness-pilot/baseline-dev",
+   "trial": "django__django-12308__uxCD5ro",
+   "verdicts": {
+    "unrecovered_error": "agree"
+   }
+  },
+  {
+   "modes": [
+    "unclassified_failure"
+   ],
+   "outcome": "scored",
+   "reason": "Fully read: sed misuse duplicated def ordered() and corrupted query.py; no mode covers edit-corruption (recorded gap).",
+   "reward": 0.0,
+   "source": "harness-pilot/baseline-heldout",
+   "trial": "django__django-13417__4LyL2qB",
+   "verdicts": {
+    "unclassified_failure": "agree"
+   }
+  },
+  {
+   "modes": [
+    "unclassified_failure"
+   ],
+   "outcome": "scored",
+   "reason": "Comment-led cp backups correctly excluded from silence; remaining story matches no mode.",
+   "reward": 0.0,
+   "source": "harness-pilot/envparity-heldout",
+   "trial": "django__django-13417__WoAxDgU",
+   "verdicts": {
+    "unclassified_failure": "agree"
+   }
+  },
+  {
+   "modes": [
+    "unrecovered_error"
+   ],
+   "outcome": "scored",
+   "reason": "Terminal returncode -1 unexecuted submit with earlier error steps (excerpt-scanned).",
+   "reward": 0.0,
+   "source": "harness-pilot/baseline-dev",
+   "trial": "django__django-13933__5faAkhA",
+   "verdicts": {
+    "unrecovered_error": "agree"
+   }
+  },
+  {
+   "modes": [
+    "silent_tool_output",
+    "unrecovered_error"
+   ],
+   "outcome": "scored",
+   "reason": "Silent cites real silences (find-no-match, silent python -c) but both are only mildly diagnostic; terminal -1 unrecovered is correct.",
+   "reward": 0.0,
+   "source": "harness-pilot/envparity-dev",
+   "trial": "django__django-13933__eZj3viF",
+   "verdicts": {
+    "silent_tool_output": "weak-agree",
+    "unrecovered_error": "agree"
+   }
+  },
+  {
+   "modes": [
+    "unclassified_failure"
+   ],
+   "outcome": "scored",
+   "reason": "Setup-chain silences and NameError-in-displayed-source-comment correctly excluded; no mode matches.",
+   "reward": 0.0,
+   "source": "harness-pilot/envparity-dev",
+   "trial": "django__django-14580__BdNKdXD",
+   "verdicts": {
+    "unclassified_failure": "agree"
+   }
+  },
+  {
+   "modes": [
+    "unrecovered_error"
+   ],
+   "outcome": "scored",
+   "reason": "Task-domain NameError correctly excluded; terminal -1 with earlier real errors.",
+   "reward": 0.0,
+   "source": "harness-pilot/baseline-dev",
+   "trial": "django__django-14580__Bfwtqo7",
+   "verdicts": {
+    "unrecovered_error": "agree"
+   }
+  },
+  {
+   "modes": [
+    "unrecovered_error"
+   ],
+   "outcome": "scored",
+   "reason": "Terminal returncode -1 unexecuted submit with earlier error steps (excerpt-scanned).",
+   "reward": 0.0,
+   "source": "harness-pilot/envparity-heldout",
+   "trial": "django__django-15127__NaYenro",
+   "verdicts": {
+    "unrecovered_error": "agree"
+   }
+  },
+  {
+   "modes": [
+    "silent_tool_output",
+    "unrecovered_error"
+   ],
+   "outcome": "scored",
+   "reason": "Silent cites real silences (find-no-match, silent python -c), mildly diagnostic; terminal -1 unrecovered is correct.",
+   "reward": 0.0,
+   "source": "harness-pilot/baseline-heldout",
+   "trial": "django__django-15127__ua3Q3GD",
+   "verdicts": {
+    "silent_tool_output": "weak-agree",
+    "unrecovered_error": "agree"
+   }
+  },
+  {
+   "modes": [
+    "unclassified_failure"
+   ],
+   "outcome": "scored",
+   "reason": "cp/sed silences expected; incomplete fix with verifier 0 matches no mode.",
+   "reward": 0.0,
+   "source": "harness-pilot/envparity-dev",
+   "trial": "pallets__flask-5014__qx53VNm",
+   "verdicts": {
+    "unclassified_failure": "agree"
+   }
+  },
+  {
+   "modes": [
+    "unclassified_failure"
+   ],
+   "outcome": "scored",
+   "reason": "Fully read: agent edited the pip-vendored requests copy instead of /testbed/requests; no edited-wrong-copy mode (recorded gap).",
+   "reward": 0.0,
+   "source": "harness-pilot/envparity-heldout",
+   "trial": "psf__requests-1142__DjgYokb",
+   "verdicts": {
+    "unclassified_failure": "agree"
+   }
+  },
+  {
+   "modes": [],
+   "outcome": "scored",
+   "reason": "Pass carries no failure modes.",
+   "reward": 1.0,
+   "source": "harness-pilot/baseline-heldout",
+   "trial": "django__django-13109__Y7pLzp4",
+   "verdicts": {}
+  },
+  {
+   "modes": [],
+   "outcome": "scored",
+   "reason": "Pass carries no failure modes.",
+   "reward": 1.0,
+   "source": "harness-pilot/baseline-heldout",
+   "trial": "django__django-13109__xGdPQ98",
+   "verdicts": {}
+  },
+  {
+   "modes": [],
+   "outcome": "scored",
+   "reason": "Pass carries no failure modes.",
+   "reward": 1.0,
+   "source": "harness-pilot/baseline-dev",
+   "trial": "django__django-14373__CiPb4uA",
+   "verdicts": {}
+  },
+  {
+   "modes": [],
+   "outcome": "scored",
+   "reason": "Pass carries no failure modes.",
+   "reward": 1.0,
+   "source": "harness-pilot/envparity-dev",
+   "trial": "django__django-14373__g3yuvbF",
+   "verdicts": {}
+  },
+  {
+   "modes": [],
+   "outcome": "scored",
+   "reason": "Pass carries no failure modes.",
+   "reward": 1.0,
+   "source": "harness-pilot/baseline-dev",
+   "trial": "pallets__flask-5014__Q8Vg4cX",
+   "verdicts": {}
+  },
+  {
+   "modes": [],
+   "outcome": "scored",
+   "reason": "Pass carries no failure modes.",
+   "reward": 1.0,
+   "source": "harness-pilot/envparity-heldout",
+   "trial": "psf__requests-1921__7uzfqUG",
+   "verdicts": {}
+  },
+  {
+   "modes": [
+    "tool_use_loop",
+    "planning_no_edit"
+   ],
+   "outcome": "scored",
+   "reason": "Fully read: steps 5-7 repeat the identical 4-command batch; stats computed but summary.json never written.",
+   "reward": 0.0,
+   "source": "har71/har71-local-candidate",
+   "trial": "har71-local-candidate__Rs9AN3Q",
+   "verdicts": {
+    "planning_no_edit": "agree",
+    "tool_use_loop": "agree"
+   }
+  },
+  {
+   "modes": [
+    "unclassified_failure"
+   ],
+   "outcome": "scored",
+   "reason": "Fully read: output files written but replies are malformed JSON the harness rejects; no malformed-reply mode (recorded gap).",
+   "reward": 0.0,
+   "source": "har71/har71-local-baseline",
+   "trial": "har71-local-baseline__6ukudpz",
+   "verdicts": {
+    "unclassified_failure": "agree"
+   }
+  },
+  {
+   "modes": [
+    "tool_use_loop",
+    "planning_no_edit"
+   ],
+   "outcome": "scored",
+   "reason": "Fully read: steps 5-7 are identical replies after one recon step; planning true (reads only) but shallow next to the reply loop.",
+   "reward": 0.0,
+   "source": "har71/har71-ledger-baseline",
+   "trial": "har71-ledger-baseline__kK8T944",
+   "verdicts": {
+    "planning_no_edit": "weak-agree",
+    "tool_use_loop": "agree"
+   }
+  },
+  {
+   "modes": [
+    "tool_use_loop"
+   ],
+   "outcome": "scored",
+   "reason": "Fully read: sqlite UPDATE ran (planning correctly suppressed), then identical invalid-JSON replies.",
+   "reward": 0.0,
+   "source": "har71/har71-ledger-candidate",
+   "trial": "har71-ledger-candidate__hLTJYC4",
+   "verdicts": {
+    "tool_use_loop": "agree"
+   }
+  },
+  {
+   "modes": [
+    "tool_use_loop"
+   ],
+   "outcome": "scored",
+   "reason": "Fully read: 9 identical wait polls cited at the run (steps 22-24 of 9); agent waits out a sim timeout.",
+   "reward": 0.0,
+   "source": "lab-runs/minimal-luna-gaia2-adapt-hard-1-amd64",
+   "trial": "gaia2-adapt-hard-1__XJL887e",
+   "verdicts": {
+    "tool_use_loop": "agree"
+   }
+  },
+  {
+   "modes": [
+    "unclassified_failure"
+   ],
+   "outcome": "scored",
+   "reason": "Fully read: agent correctly defers an ambiguous purchase and asks; no failure mode applies despite reward 0.",
+   "reward": 0.0,
+   "source": "lab-runs/minimal-luna-gaia2-ambiguous-amd64",
+   "trial": "gaia2-ambiguous__np3YExC",
+   "verdicts": {
+    "unclassified_failure": "agree"
+   }
+  },
+  {
+   "modes": [
+    "unclassified_failure"
+   ],
+   "outcome": "scored",
+   "reason": "Fully read: substantive patches with targeted tests passing; verifier 0 on a subtle gap matches no mode.",
+   "reward": 0.0,
+   "source": "lab-runs/minimal-luna-session-window-debug",
+   "trial": "session-window-debug__n3hriWk",
+   "verdicts": {
+    "unclassified_failure": "agree"
+   }
+  },
+  {
+   "modes": [
+    "unclassified_failure"
+   ],
+   "outcome": "scored",
+   "reason": "Fully read: filter built and iterated against assertion failures; verifier 0 on a subtle correctness gap.",
+   "reward": 0.0,
+   "source": "lab-runs/canary-terminal-bench-html-js-filter-codex-20260815",
+   "trial": "terminal-bench-html-js-filter__5rgjEEt",
+   "verdicts": {
+    "unclassified_failure": "agree"
+   }
+  },
+  {
+   "modes": [
+    "unclassified_failure"
+   ],
+   "outcome": "scored",
+   "reason": "Same trial family as fully-read 5rgjEEt; terminal evidence equivalent.",
+   "reward": 0.0,
+   "source": "lab-runs/canary-terminal-bench-html-js-filter-codex-20260815",
+   "trial": "terminal-bench-html-js-filter__D3GZpFU",
+   "verdicts": {
+    "unclassified_failure": "agree"
+   }
+  },
+  {
+   "modes": [
+    "unclassified_failure"
+   ],
+   "outcome": "scored",
+   "reason": "Same trial family as fully-read 5rgjEEt; terminal evidence equivalent.",
+   "reward": 0.0,
+   "source": "lab-runs/canary-terminal-bench-html-js-filter-codex-20260815",
+   "trial": "terminal-bench-html-js-filter__kzGxL7Q",
+   "verdicts": {
+    "unclassified_failure": "agree"
+   }
+  },
+  {
+   "modes": [
+    "unclassified_failure"
+   ],
+   "outcome": "scored",
+   "reason": "Same trial family as fully-read 5rgjEEt; terminal evidence equivalent.",
+   "reward": 0.0,
+   "source": "lab-runs/canary-terminal-bench-html-js-filter-codex-20260815",
+   "trial": "terminal-bench-html-js-filter__mBmCQGr",
+   "verdicts": {
+    "unclassified_failure": "agree"
+   }
+  },
+  {
+   "modes": [
+    "unclassified_failure"
+   ],
+   "outcome": "scored",
+   "reason": "Same trial family as fully-read 5rgjEEt; terminal evidence equivalent.",
+   "reward": 0.0,
+   "source": "lab-runs/canary-terminal-bench-html-js-filter-codex-20260815",
+   "trial": "terminal-bench-html-js-filter__nippkfd",
+   "verdicts": {
+    "unclassified_failure": "agree"
+   }
+  },
+  {
+   "modes": [],
+   "outcome": "scored",
+   "reason": "Oracle-control pass without agent trajectory; correctly modeless with notice.",
+   "reward": 1.0,
+   "source": "lab-runs/ctl-nginx-proxy-repa-00-oracle-20260910-180334-dd2a",
+   "trial": "ctl-nginx-proxy-repa-00-oracle-2__zKRZEcq",
+   "verdicts": {}
+  },
+  {
+   "modes": [],
+   "outcome": "scored",
+   "reason": "Control pass; correctly modeless.",
+   "reward": 1.0,
+   "source": "lab-runs/ctl-nginx-proxy-repa-02-alt-delete-body-20260910-180334-dd2a",
+   "trial": "ctl-nginx-proxy-repa-02-alt-dele__vgkGMmB",
+   "verdicts": {}
+  },
+  {
+   "modes": [],
+   "outcome": "scored",
+   "reason": "Control pass; correctly modeless.",
+   "reward": 1.0,
+   "source": "lab-runs/ctl-release-branch-r-00-oracle-20260910-180334-7711",
+   "trial": "ctl-release-branch-r-00-oracle-2__Z9QmyfU",
+   "verdicts": {}
+  },
+  {
+   "modes": [],
+   "outcome": "scored",
+   "reason": "Control pass; correctly modeless.",
+   "reward": 1.0,
+   "source": "lab-runs/ctl-release-branch-r-00-oracle-20260910-180925-a76f",
+   "trial": "ctl-release-branch-r-00-oracle-2__fWgvvLw",
+   "verdicts": {}
+  },
+  {
+   "modes": [],
+   "outcome": "scored",
+   "reason": "Control pass; correctly modeless.",
+   "reward": 1.0,
+   "source": "lab-runs/ctl-release-branch-r-02-alt-rebase-20260910-180925-a76f",
+   "trial": "ctl-release-branch-r-02-alt-reba__ZXdwJca",
+   "verdicts": {}
+  },
+  {
+   "modes": [],
+   "outcome": "scored",
+   "reason": "Control pass; correctly modeless.",
+   "reward": 1.0,
+   "source": "lab-runs/ctl-nginx-proxy-repa-03-alt-inherit-root-20260910-180334-dd2a",
+   "trial": "ctl-nginx-proxy-repa-03-alt-inhe__Q9T8ZfK",
+   "verdicts": {}
+  },
+  {
+   "modes": [],
+   "outcome": "infra_failed",
+   "reason": "Ollama stopped mid-check per exp05 README; raised trial correctly carries no modes.",
+   "reward": 0.0,
+   "source": "lab-runs/baseline-funcdag-easy-zai-opencode-k3-r2",
+   "trial": "baseline-funcdag-easy-zai-openco__CzXSt2x",
+   "verdicts": {}
+  },
+  {
+   "modes": [],
+   "outcome": "unscored",
+   "reason": "No numeric reward; correctly carries no modes.",
+   "reward": null,
+   "source": "lab-runs/baseline-funcdag-easy-zai-opencode-k3",
+   "trial": "baseline-funcdag-easy-zai-openco__GJBLgr4",
+   "verdicts": {}
+  },
+  {
+   "modes": [],
+   "outcome": "unscored",
+   "reason": "No numeric reward; correctly carries no modes.",
+   "reward": null,
+   "source": "lab-runs/baseline-funcdag-easy-zai-opencode-k3",
+   "trial": "baseline-funcdag-easy-zai-openco__ZMjeKzS",
+   "verdicts": {}
+  },
+  {
+   "modes": [],
+   "outcome": "unscored",
+   "reason": "No numeric reward; correctly carries no modes.",
+   "reward": null,
+   "source": "lab-runs/baseline-funcdag-easy-zai-opencode-k3",
+   "trial": "baseline-funcdag-easy-zai-openco__cN7kQRm",
+   "verdicts": {}
+  },
+  {
+   "modes": [
+    "unclassified_failure"
+   ],
+   "outcome": "scored",
+   "reason": "Fully read: matches exp05 README ground truth (right counts auth 3/payments 4/search 2, invalid unquoted-JSON output); no malformed-output mode (recorded gap).",
+   "reward": 0.0,
+   "source": "exp05/r1-traffic",
+   "trial": "error-count__j4SQ67E",
+   "verdicts": {
+    "unclassified_failure": "agree"
+   }
+  },
+  {
+   "modes": [],
+   "outcome": "scored",
+   "reason": "Pass carries no failure modes.",
+   "reward": 1.0,
+   "source": "exp05/r1-traffic",
+   "trial": "fix-median__8FPnHkS",
+   "verdicts": {}
+  },
+  {
+   "modes": [],
+   "outcome": "scored",
+   "reason": "Pass carries no failure modes.",
+   "reward": 1.0,
+   "source": "exp05/r1-traffic",
+   "trial": "sales-total__NzYiryb",
+   "verdicts": {}
+  },
+  {
+   "modes": [
+    "unclassified_failure"
+   ],
+   "outcome": "scored",
+   "reason": "Fully read: matches exp05 README ground truth (grep -F stopword filter drops words containing stopwords); no wrong-aggregation mode (recorded gap).",
+   "reward": 0.0,
+   "source": "exp05/r1-traffic",
+   "trial": "top-words__3Gn2khe",
+   "verdicts": {
+    "unclassified_failure": "agree"
+   }
+  }
+ ]
+}

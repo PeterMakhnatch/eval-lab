@@ -122,6 +122,11 @@ key file was removed. Partial local-Qwen campaigns remain separate.
 1. Read the full HAR-73 card. Commit dev/held-out task IDs and digests **before**
    candidate evaluation or Reef traffic. Refuse both split-held-out tasks and
    registry entries whose `allowed_uses` contains `heldout`.
+   First read the incoming
+   `research/experiments/reef-loop-pool-20260925/README.md` and split proposal
+   ([PR #461](https://github.com/PeterMakhnatch/eval-lab/pull/461)): they provide
+   an inventory, controls, exact gate-planning utilities and parked specs, but
+   explicitly are **not** registration, a committed split or execution approval.
 2. Materialize current/candidate files as valid HAR-71 pinned Terminus trees.
    The native tutorial graph is not automatically a Terminus tree; opaque Reef
    content IDs are not cryptographic tree digests. Keep model binding outside

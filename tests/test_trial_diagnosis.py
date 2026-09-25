@@ -126,6 +126,114 @@ def test_no_tool_use_points_at_terminal_agent_step(tmp_path: Path) -> None:
     assert diagnosis.modes[0].step_ids == (2,)
 
 
+def _hari_step(
+    message: str, command: str, output: str, exit_code: int
+) -> dict[str, Any]:
+    """ATIF step with harness-level exit codes (outline-visible errors)."""
+    return {
+        "source": "agent",
+        "message": message,
+        "tool_calls": [{"function_name": "bash", "arguments": {"command": command}}],
+        "observation": {
+            "results": [{"content": output, "extra": {"exit_code": exit_code}}]
+        },
+    }
+
+
+def test_interleaved_failing_commands_cite_evidence(tmp_path: Path) -> None:
+    # MergedReview repro: two distinct failing commands interleaved with
+    # filler successes trip the outline loop flag without any consecutive
+    # run; the mode must cite failing steps, never step 0 or a 0x excerpt.
+    steps = []
+    fillers = [
+        ("filling one", "ls /tmp/work", "total 0"),
+        ("filling two", "git status", "clean"),
+        ("filling three", "pwd", "/tmp/work"),
+        ("filling four", "whoami", "root"),
+    ]
+    plan = [("A", 0), ("B", 0), ("A", 1), ("B", 1), ("A", 2), ("B", 2)]
+    for which, filler in plan:
+        cmd = "pytest tests/a.py" if which == "A" else "pytest tests/b.py"
+        steps.append(_hari_step(f"running {which}", cmd, "FAILED", 1))
+        msg, fcmd, out = fillers[filler]
+        steps.append(_hari_step(msg, fcmd, out, 0))
+    trial = _write_trial(tmp_path / "trial", steps)
+    diagnosis = diagnose_trial(trial)
+    assert "tool_use_loop" in [mode.mode for mode in diagnosis.modes]
+    for mode in diagnosis.modes:
+        assert 0 not in mode.step_ids
+        assert "0x " not in mode.excerpt
+    loop = next(mode for mode in diagnosis.modes if mode.mode == "tool_use_loop")
+    assert len(loop.step_ids) > 0
+
+
+def test_command_not_found_is_not_cd_state_loss(tmp_path: Path) -> None:
+    # MergedReview repro: `py.test: command not found` (rc 127) after a bare
+    # cd names a missing binary, not a lost working directory.
+    trial = _write_trial(
+        tmp_path / "trial",
+        [
+            _agent_step("move", command="cd /tmp/workdir", output="ok"),
+            _agent_step(
+                "write",
+                command="cat <<'EOF' > check.py\nprint('hi')\nEOF",
+                output="",
+            ),
+            _agent_step(
+                "run",
+                command="py.test check.py",
+                output="py.test: command not found",
+                returncode=127,
+            ),
+            _agent_step(
+                "retry",
+                command="py.test check.py -q",
+                output="py.test: command not found",
+                returncode=127,
+            ),
+        ],
+    )
+    assert "state_persistence_assumption" not in _modes(trial)
+
+
+def test_calls_without_command_strings_are_still_tool_use(
+    tmp_path: Path,
+) -> None:
+    # Parent verification repro (exp04 extras): execute/read_file calls
+    # without a parseable command string must not read as no_tool_use.
+    trial = _write_trial(
+        tmp_path / "trial",
+        [
+            {"source": "user", "message": "Solve"},
+            {
+                "source": "agent",
+                "message": "",
+                "tool_calls": [
+                    {
+                        "tool_call_id": "call-1",
+                        "function_name": "execute",
+                        "arguments": {"limit": 100000},
+                    }
+                ],
+                "observation": {"results": [{"content": "exit 0\n"}]},
+            },
+            {
+                "source": "agent",
+                "message": "",
+                "tool_calls": [
+                    {
+                        "tool_call_id": "call-2",
+                        "function_name": "read_file",
+                        "arguments": {"path": "csv_file.csv"},
+                    }
+                ],
+                "observation": {"results": [{"content": "exit 0\n"}]},
+            },
+        ],
+    )
+    assert "no_tool_use" not in _modes(trial)
+
+
 def test_tool_use_loop_cites_repeated_command(tmp_path: Path) -> None:
     trial = _write_trial(
         tmp_path / "trial",

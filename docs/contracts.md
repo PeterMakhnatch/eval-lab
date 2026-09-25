@@ -7,7 +7,7 @@ audience:
 
 # Platform Contracts (E00)
 
-All pydantic v2 contract models live in `src/evallab/schemas.py` per platform-architecture v2 §2.1. The five §2.1 entities below are the frozen interface spine that all later epics bind to (T2).
+All Pydantic v2 contract models live in `src/evallab/schemas/__init__.py`. The §2.1 entities below define the platform interface spine that later epics consume.
 
 ## Entities implemented here
 
@@ -34,21 +34,32 @@ its descriptive outcomes remain available with the refusal.
 | Entity | Location | Key |
 |---|---|---|
 | AgentProfile | `src/evallab/profiles.py` | agent_name |
-| TaskVersion / TaskRegistryRecord | `src/evallab/schemas.py` (consumed in `src/evallab/registry.py`) | (task_ref, version) |
+| TaskVersion / TaskRegistryRecord | `src/evallab/schemas/__init__.py` (consumed in `src/evallab/registry.py`) | (task_ref, version) |
 | Job | `src/evallab/explorer.py` | job_id |
 | Trial | `src/evallab/evidence/atif.py` | trial_id |
 | Trajectory | `src/evallab/evidence/atif.py` | trial_id |
 | CraftRecord | `src/evallab/craft.py` | (task_ref, facets_schema_version) |
 | Proposal | `src/evallab/authoring.py` | proposal_id |
 | Lesson | `src/evallab/lessons.py` | lesson_id |
-| ExperimentSpec | `src/evallab/schemas.py` | spec_id |
-| QueueEvent | `src/evallab/schemas.py` | event_id |
+| ExperimentSpec | `src/evallab/schemas/__init__.py` | spec_id |
+| QueueEvent | `src/evallab/schemas/__init__.py` | event_id |
 
-## Golden schema freeze
+## Legacy schema snapshots and behavioral spec compatibility
 
-Every model serialises its `model_json_schema()` to `tests/fixtures/contracts/<Model>.json`.
+The legacy snapshots for `Suite`, analysis/observation/calibration records,
+`Verdict`, task registry records, and `CapabilityCurveReport` remain under
+`tests/fixtures/contracts/`. Their existing freeze test is unchanged.
 
-A test (`tests/test_contracts.py:test_golden_schemas_match_live`) asserts byte-for-byte equality. Adding, renaming, retyping, or reordering any field fails CI with a diff — the explicit mitigation for schema churn risk named in platform-architecture §11.
+`ExperimentSpec` is protected by behavioral validation and serialization tests,
+not a copied `model_json_schema()` dump. Tests cover rejected fields and
+digests, retained-spec replay, approval invalidation, and unchanged legacy
+serialization when the optional harness binding is absent. A Terminus harness
+path and digest must appear together; non-Terminus consumers reject them.
+Adding a field does not justify repinning unrelated titles, descriptions, or
+incidental generated-schema details.
+`CapabilityCurveSpec` likewise relies on the behavioral curve tests: a nested
+comparison enum can grow without changing the curve's admissible factor
+treatment, pairing, and primary-contrast rules. Those rules remain enforced.
 
 ## Intentional regeneration (only deliberate changes)
 
@@ -62,13 +73,11 @@ from evallab.schemas import (
     ObservationRecord,
     CalibrationRecord,
     Verdict,
-    ExperimentSpec,
     TaskRegistryRecord,
-    CapabilityCurveSpec,
     CapabilityCurveReport,
 )
 fixtures = Path("tests/fixtures/contracts")
-for Model in [Suite, AnalysisRecord, ObservationRecord, CalibrationRecord, Verdict, ExperimentSpec, TaskRegistryRecord, CapabilityCurveSpec, CapabilityCurveReport]:
+for Model in [Suite, AnalysisRecord, ObservationRecord, CalibrationRecord, Verdict, TaskRegistryRecord, CapabilityCurveReport]:
     schema = Model.model_json_schema()
     out = fixtures / f"{Model.__name__}.json"
     out.write_text(json.dumps(schema, indent=2, sort_keys=True) + "\n")

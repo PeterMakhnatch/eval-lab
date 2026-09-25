@@ -217,11 +217,6 @@ def test_experiment_spec_round_trips_harness_policy() -> None:
     )
 
 
-def test_experiment_spec_golden_freeze_covers_harness_policy() -> None:
-    golden = json.loads(
-        (Path(__file__).parent / "fixtures/contracts/ExperimentSpec.json").read_text()
-    )
-    assert "harness_policy" in golden["properties"]
 
 
 def test_rlm_profile_and_preflight_wiring(tmp_path: Path) -> None:

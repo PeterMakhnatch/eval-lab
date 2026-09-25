@@ -227,3 +227,69 @@ def test_bad_timing_fields_remain_malformed(tmp_path: Path) -> None:
         (record_dir / "bad.json").unlink()
     (record_dir / "good.json").write_text(json.dumps(decision_record()))
     assert calibrate.read_decision_records(record_dir)["count"] == 1
+
+
+def _write_producer_work_dir(work: Path, *, tasks: list[str], repeats: int) -> None:
+    """A live-producer-shaped work dir: run-meta.json without tasks plus the served recipe."""
+    import yaml
+
+    (work / "serve-aa.yaml").write_text(
+        yaml.safe_dump({"recipe": {"config": {"evolution": {"tasks": tasks, "episode_repeats": repeats}}}})
+    )
+    # Actual main() shape: every campaign field except tasks.
+    (work / "run-meta.json").write_text(
+        json.dumps(
+            {
+                "condition": "aa",
+                "selection": "evallab_reef_gate.plugin:Factory",
+                "model": "qwen2.5:7b",
+                "ollama_url": "http://127.0.0.1:11434",
+                "reef_commit": "4c3a6bb24949bd93a4566ca1d9877d4feeab023e",
+                "repeats": repeats,
+                "trials": 30,
+                "alpha": 0.05,
+                "min_valid_pairs": 5,
+                "pass_threshold": 1.0,
+                "started_utc": "2026-09-25T00:00:00+00:00",
+            }
+        )
+    )
+
+
+def test_analyze_uses_served_recipe_when_run_meta_has_no_tasks(tmp_path: Path) -> None:
+    work = tmp_path / "work"
+    work.mkdir()
+    _write_producer_work_dir(work, tasks=TASKS, repeats=1)
+    row = result_row(
+        trial=1,
+        published=False,
+        wins=0,
+        losses=0,
+        ties=3,
+        candidate_scores=[1.0, 0.0, 1.0],
+        current_scores=[1.0, 0.0, 1.0],
+    )
+    (work / "results.jsonl").write_text(json.dumps(row) + "\n")
+    meta_before = (work / "run-meta.json").read_text()
+    serve_before = (work / "serve-aa.yaml").read_text()
+    summary = calibrate.analyze(work)
+    assert summary["denominator"] == 1
+    assert summary["trials_invalid"] == 0
+    assert summary["pass_rate_by_task_pooled"]["[sieve]"] == pytest.approx(1.0)
+    assert summary["all_published_trees_identical"] is None
+    # Live inputs are untouched; only summary.json is added.
+    assert (work / "run-meta.json").read_text() == meta_before
+    assert (work / "serve-aa.yaml").read_text() == serve_before
+    assert "tasks" not in json.loads(meta_before)
+
+
+def test_analyze_rejects_contradictory_retained_tasks(tmp_path: Path) -> None:
+    work = tmp_path / "work"
+    work.mkdir()
+    _write_producer_work_dir(work, tasks=TASKS, repeats=1)
+    meta = json.loads((work / "run-meta.json").read_text())
+    meta["tasks"] = ["[other] task"]
+    (work / "run-meta.json").write_text(json.dumps(meta))
+    (work / "results.jsonl").write_text("")
+    with pytest.raises(SystemExit, match="contradictory tasks"):
+        calibrate.analyze(work)

@@ -1033,22 +1033,43 @@ def read_decision_records(record_dir: Path) -> dict:
 
 def analyze(work: Path) -> dict:
     """Summarize a work directory from its recorded artifacts alone; starts no services."""
+    import yaml
+
+    serve_path = work / "serve-aa.yaml"
+    if not serve_path.is_file():
+        raise SystemExit(f"work dir {work} has no serve-aa.yaml; tasks must come from the served recipe")
+    try:
+        served_config = yaml.safe_load(serve_path.read_text())
+        served_evolution = served_config["recipe"]["config"]["evolution"]
+        served_tasks = list(served_evolution["tasks"])
+    except Exception as exc:
+        raise SystemExit(f"malformed served recipe {serve_path}: {exc}") from exc
+    if not served_tasks or any(not isinstance(task, str) or not task for task in served_tasks):
+        raise SystemExit(f"malformed served recipe {serve_path}: tasks must be non-empty strings")
+    served_repeats = (
+        served_evolution.get("episode_repeats", 1) if isinstance(served_evolution, dict) else 1
+    )
     meta: dict = {}
     if (work / "run-meta.json").exists():
-        meta = json.loads((work / "run-meta.json").read_text())
+        loaded = json.loads((work / "run-meta.json").read_text())
+        if not isinstance(loaded, dict):
+            raise SystemExit(f"malformed run-meta.json in {work}: expected a JSON object")
+        meta = loaded
+        retained = meta.get("tasks")
+        if retained is not None and (
+            not isinstance(retained, (list, tuple)) or list(retained) != served_tasks
+        ):
+            raise SystemExit(
+                f"contradictory tasks: run-meta.json does not match serve-aa.yaml in {work}"
+            )
     else:
-        import yaml
-
-        config = yaml.safe_load((work / "serve-aa.yaml").read_text())
-        evolution = config["recipe"]["config"]["evolution"]
         meta = {
-            "tasks": list(evolution["tasks"]),
-            "repeats": evolution.get("episode_repeats", 1),
             "condition": "aa",
             "alpha": 0.05,
             "min_valid_pairs": 5,
             "pass_threshold": PASS_THRESHOLD,
         }
+    tasks = served_tasks
     results_path = work / "results.jsonl"
     results = (
         [json.loads(line) for line in results_path.read_text().splitlines() if line.strip()]
@@ -1057,8 +1078,8 @@ def analyze(work: Path) -> dict:
     )
     summary = summarize(
         results,
-        tasks=list(meta["tasks"]),
-        repeats=int(meta.get("repeats", 1)),
+        tasks=tasks,
+        repeats=int(meta.get("repeats", served_repeats)),
         condition=str(meta.get("condition", "aa")),
         alpha=float(meta.get("alpha", 0.05)),
         min_valid_pairs=int(meta.get("min_valid_pairs", 5)),

@@ -452,10 +452,15 @@ def load_trial_results(results_path: Path | None) -> list[JsonObject]:
     if results_path is None:
         return []
     rows: list[JsonObject] = []
-    for line in Path(results_path).read_text(encoding="utf-8").splitlines():
+    for line_number, line in enumerate(
+        Path(results_path).read_text(encoding="utf-8").splitlines(), start=1
+    ):
         if not line.strip():
             continue
-        row = json.loads(line)
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ReefGateError(f"torn {results_path} line {line_number}: {exc}") from exc
         if isinstance(row, dict) and isinstance(row.get("trial"), int):
             rows.append(row)
     return rows
@@ -466,8 +471,9 @@ def match_trial_row(rows: list[JsonObject], scenario: str, step: int) -> JsonObj
 
     An exact (scenario, trial) row wins; else the single row naming this
     scenario; else a scenario-less row for this trial (the exp04 shape).
-    Zero or several matches at the winning level is a loud error rather
-    than a misattribution.
+    Repeated-scenario rows require an exact trial match: with several rows
+    naming one scenario and none matching this trial, there is no safe
+    fallback, so the join fails loudly rather than misattributing.
     """
     exact = [
         row
@@ -482,11 +488,8 @@ def match_trial_row(rows: list[JsonObject], scenario: str, step: int) -> JsonObj
     if len(named) == 1:
         return named[0]
     if len(named) > 1:
-        narrowed = [row for row in named if row.get("trial") == step]
-        if len(narrowed) == 1:
-            return narrowed[0]
         raise ReefGateError(
-            f"several results rows name scenario {scenario!r} with no single trial-{step} row"
+            f"several results rows name scenario {scenario!r} with no exact trial-{step} row"
         )
     fallback = [
         row
@@ -673,7 +676,9 @@ def import_reef_gate_run(
         "observed_wins": observed_wins,
         "observed_losses": observed_losses,
         "observed_ties": observed_ties,
-        "recorded_pair_totals_agree": (wins == observed_wins and losses == observed_losses),
+        "recorded_pair_totals_agree": (
+            wins == observed_wins and losses == observed_losses and ties == observed_ties
+        ),
     }
 
     manifest = {
@@ -715,22 +720,36 @@ def _publish_layout(
     documents: list[tuple[Path, JsonObject]],
     sidecars: dict[str, Any],
 ) -> None:
-    """Write documents plus sidecar JSON files atomically into a new directory."""
+    """Write documents plus sidecar JSON files atomically into a new directory.
+
+    Every target must resolve inside the fresh staging directory, and every
+    write uses exclusive creation: nothing is overwritten, inside or
+    outside the layout.
+    """
     staging = out_dir.parent / f".tmp_{out_dir.name}_{hashlib.sha256(run_label.encode()).hexdigest()[:8]}"
     if staging.exists():
         raise ReefGateError(f"staging directory already exists: {staging}")
     staging.mkdir(parents=True)
+    staging_resolved = staging.resolve()
+
+    def _contained_write(relative: Path | str, text: str) -> None:
+        target = staging / relative
+        try:
+            target.resolve().relative_to(staging_resolved)
+        except ValueError as exc:
+            raise ReefGateError(f"output path escapes the evidence layout: {relative}") from exc
+        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with target.open("x", encoding="utf-8") as handle:
+                handle.write(text)
+        except FileExistsError as exc:
+            raise ReefGateError(f"two episodes map to the same output path: {relative}") from exc
+
     try:
         for relative, payload in documents:
-            target = staging / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            try:
-                with target.open("x", encoding="utf-8") as handle:
-                    handle.write(json.dumps(payload, indent=2) + "\n")
-            except FileExistsError as exc:
-                raise ReefGateError(f"two episodes map to the same output path: {relative}") from exc
+            _contained_write(relative, json.dumps(payload, indent=2) + "\n")
         for name, sidecar in sidecars.items():
-            (staging / name).write_text(json.dumps(sidecar, indent=2) + "\n", encoding="utf-8")
+            _contained_write(name, json.dumps(sidecar, indent=2) + "\n")
         staging.rename(out_dir)
     except Exception:
         for leftover in sorted(staging.rglob("*"), reverse=True):
@@ -1081,6 +1100,19 @@ def parse_reef_traffic_trajectory(
     return document
 
 
+def _check_output_id(report_id: str) -> None:
+    """Refuse a record id that cannot be a contained output filename."""
+    if (
+        not report_id
+        or report_id in (".", "..")
+        or report_id.startswith("/")
+        or "/" in report_id
+        or "\\" in report_id
+        or report_id.startswith("~")
+    ):
+        raise ReefGateError(f"report id {report_id!r} cannot be an output filename")
+
+
 def parse_reef_traffic_export(
     export: JsonObject,
     details: JsonObject,
@@ -1108,6 +1140,8 @@ def parse_reef_traffic_export(
         missing = sorted(record_id for record_id in reports if record_id not in listed)
         if missing:
             raise ReefGateError(f"report records missing from the list export: {missing}")
+    for report_id in reports:
+        _check_output_id(report_id)
     documents: list[tuple[str, JsonObject]] = []
     for report_id in reports:
         body = by_id[report_id]

@@ -389,3 +389,89 @@ def test_trial_join_prefers_scenario_then_scenario_only_then_trial() -> None:
     assert reef_intake.match_trial_row(rows, "beta", 1) == rows[0]
     assert reef_intake.match_trial_row(rows, "alpha", 1) == rows[1]
     assert reef_intake.match_trial_row(rows, "gamma", 9) == {}
+
+
+def test_repeated_scenario_rows_require_an_exact_trial_match() -> None:
+    rows = [
+        {"trial": 5, "scenario": "s", "release_id": "rel-5"},
+        {"trial": 6, "scenario": "s", "release_id": "rel-6"},
+    ]
+    assert reef_intake.match_trial_row(rows, "s", 5) == rows[0]
+    try:
+        reef_intake.match_trial_row(rows, "s", 99)
+    except reef_intake.ReefGateError as exc:
+        assert "exact trial" in str(exc)
+    else:
+        raise AssertionError("repeated-scenario rows without an exact trial must fail loudly")
+
+
+def test_torn_results_line_fails_with_file_and_line(tmp_path: Path) -> None:
+    results = tmp_path / "results.jsonl"
+    results.write_text(
+        '{"trial": 1, "published": true}\n{"trial": 2, "published": false}\nnot json {\n',
+        encoding="utf-8",
+    )
+    try:
+        reef_intake.load_trial_results(results)
+    except reef_intake.ReefGateError as exc:
+        assert "line 3" in str(exc)
+        assert "results.jsonl" in str(exc)
+    else:
+        raise AssertionError("a torn results line must fail loudly")
+
+
+def test_pair_totals_agreement_includes_ties(tmp_path: Path) -> None:
+    results = tmp_path / "results.jsonl"
+    results.write_text(
+        '{"trial": 1, "scenario": "alpha", "published": true, "wins": 1, "losses": 0, "ties": 99}\n'
+        '{"trial": 1, "scenario": "beta", "published": false, "wins": 0, "losses": 0, "ties": 99}\n',
+        encoding="utf-8",
+    )
+    summary = reef_intake.import_reef_gate_run(
+        MULTI / "steps", tmp_path / "out", run_label="x", results_path=results
+    )
+    assert summary["recorded_pair_totals_agree"] is False
+
+
+def _traffic_fixture_with_report(report_id: str) -> tuple[dict, dict]:
+    export = json.loads(RECORDS.read_text(encoding="utf-8"))
+    details = json.loads(DETAILS.read_text(encoding="utf-8"))
+    details[report_id] = {
+        "agent_record_id": report_id,
+        "request_type": "report",
+        "references": ["inf-1"],
+        "score": 0.0,
+        "payload": {"references": ["inf-1"], "score": 0.0},
+    }
+    export["pages"][0]["records"].append({"agent_record_id": report_id, "request_type": "report"})
+    return export, details
+
+
+def test_malicious_report_ids_never_become_paths(tmp_path: Path) -> None:
+    for report_id in ("../escape-pwn", "../../escape-pwn2", "/absolute-pwn", "sub/dir-pwn"):
+        export, details = _traffic_fixture_with_report(report_id)
+        try:
+            reef_intake.parse_reef_traffic_export(export, details)
+        except reef_intake.ReefGateError as exc:
+            assert "output filename" in str(exc)
+        else:
+            raise AssertionError(f"report id {report_id!r} must fail loudly")
+    export, details = _traffic_fixture_with_report("../../escape-pwn2")
+    try:
+        reef_intake.import_reef_traffic_run(
+            _write_json(tmp_path / "records.json", export),
+            _write_json(tmp_path / "details.json", details),
+            tmp_path / "out",
+            run_label="x",
+        )
+    except reef_intake.ReefGateError:
+        pass
+    else:
+        raise AssertionError("a path-escaping import must fail loudly")
+    assert not (tmp_path / "escape-pwn2").exists()
+    assert not (tmp_path / "out").exists()
+
+
+def _write_json(path: Path, payload: dict) -> Path:
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path

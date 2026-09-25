@@ -16,10 +16,26 @@
 | called a tool with wrong arguments (19 / —) | `wrong_tool_arguments` | 19/19, P 1.00 | 23/23, P 1.00 |
 | assumed state persisted (16 / —) | `state_persistence_assumption` | 16/16, P 1.00 | 25/25, P 1.00 |
 | turn ended on an empty reply (— / 68) | `empty_terminal_reply` | n/a (0) | 68/68, P 1.00 |
-| never used a tool | `no_tool_use` | 1/1 | 46/46, P 1.00 |
+| never used a tool | `no_tool_use` | 1/1, P 1.00 | 46/46, P 1.00 |
 
 Zero false positives on every flag in both runs. (04-check has no quoted
 empty-reply/never-tool expectations beyond the observed 0/1, both recovered.)
+
+## Correction (2026-09-25, post-merge review)
+
+The `no_tool_use` row above was an overclaim and is corrected here, not
+silently rewritten. Parent verification against `reef_shift.episode_flags`
+found the document path counted parseable *commands* instead of tool
+*calls*: seed labeled 69 vs 46 reference (P 0.67), check 3 vs 1 (P 0.33).
+23 extra seed episodes (17 also empty-reply) carry calls without a
+parseable command string (e.g. `execute` with `{"limit": …}`,
+`read_file` with `{"path": …}`), so the diagnosis wrongly told the
+proposer "the harness never got the agent to call a tool" when it had.
+Fixed by counting `tool_calls` entries per agent step
+(`_StepView.call_count`), matching the reference exactly. After the fix:
+seed 46/46, check 1/1, precision 1.00, with no change to any other row.
+The merged v1 audit is unaffected (no `no_tool_use` fired on shell
+trials either before or after).
 
 ## What the fix changed (small, protocol-scoped)
 

@@ -173,13 +173,19 @@ def require_loopback_url(url: str) -> str:
     """
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme != "http":
-        raise SystemExit(f"refusing ollama url {url!r}: only plain http loopback endpoints are supported")
+        raise SystemExit(
+            f"refusing ollama url {url!r}: only plain http loopback endpoints are supported"
+        )
     if parsed.username is not None or parsed.password is not None:
         raise SystemExit(f"refusing ollama url {url!r}: embedded credentials are not allowed")
     if parsed.path not in ("", "/"):
-        raise SystemExit(f"refusing ollama url {url!r}: a path is not allowed, only the bare origin")
+        raise SystemExit(
+            f"refusing ollama url {url!r}: a path is not allowed, only the bare origin"
+        )
     if parsed.query or parsed.fragment:
-        raise SystemExit(f"refusing ollama url {url!r}: query strings and fragments are not allowed")
+        raise SystemExit(
+            f"refusing ollama url {url!r}: query strings and fragments are not allowed"
+        )
     host = (parsed.hostname or "").strip("[]").lower()
     if host not in LOOPBACK_HOSTS:
         raise SystemExit(
@@ -221,7 +227,9 @@ def fetch_local_inventory(
     The request ignores ambient proxies, refuses redirects, and reads at most ``max_bytes``.
     """
     try:
-        request = urllib.request.Request(f"{base_url}/api/tags", headers={"Accept": "application/json"})
+        request = urllib.request.Request(
+            f"{base_url}/api/tags", headers={"Accept": "application/json"}
+        )
         with _inventory_opener().open(request, timeout=timeout_s) as response:
             body = response.read(max_bytes + 1)
     except urllib.error.HTTPError as exc:
@@ -233,7 +241,9 @@ def fetch_local_inventory(
             f"cannot read the local model inventory at {base_url}/api/tags: HTTP {exc.code}"
         ) from exc
     except OSError as exc:
-        raise SystemExit(f"cannot read the local model inventory at {base_url}/api/tags: {exc}") from exc
+        raise SystemExit(
+            f"cannot read the local model inventory at {base_url}/api/tags: {exc}"
+        ) from exc
     if len(body) > max_bytes:
         raise SystemExit(
             f"the inventory at {base_url}/api/tags exceeds {max_bytes} bytes; refusing an unbounded read"
@@ -243,7 +253,9 @@ def fetch_local_inventory(
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise SystemExit(f"the inventory at {base_url}/api/tags is not valid JSON: {exc}") from exc
     if not isinstance(payload, dict) or not isinstance(payload.get("models"), list):
-        raise SystemExit(f"unexpected /api/tags payload at {base_url}: expected an object with a 'models' list")
+        raise SystemExit(
+            f"unexpected /api/tags payload at {base_url}: expected an object with a 'models' list"
+        )
     return payload
 
 
@@ -263,18 +275,29 @@ def require_local_model(inventory: dict, model: str) -> dict:
     Nothing is ever downloaded: a missing model stops the run.
     """
     entries = [entry for entry in inventory["models"] if isinstance(entry, dict)]
-    names = sorted({name for entry in entries for name in (entry.get("name"), entry.get("model")) if isinstance(name, str)})
+    names = sorted(
+        {
+            name
+            for entry in entries
+            for name in (entry.get("name"), entry.get("model"))
+            if isinstance(name, str)
+        }
+    )
     wanted = {model}
     if ":" not in model:
         wanted.add(f"{model}:latest")
-    matches = [entry for entry in entries if entry.get("name") in wanted or entry.get("model") in wanted]
+    matches = [
+        entry for entry in entries if entry.get("name") in wanted or entry.get("model") in wanted
+    ]
     if not matches:
         raise SystemExit(
             f"model {model!r} is not installed locally (available: {names}); "
             "refusing to continue: this driver never downloads models"
         )
     if len(matches) != 1:
-        raise SystemExit(f"model {model!r} matched {len(matches)} inventory entries; refusing an ambiguous local route")
+        raise SystemExit(
+            f"model {model!r} matched {len(matches)} inventory entries; refusing an ambiguous local route"
+        )
     entry = matches[0]
     label = entry.get("name") or entry.get("model") or model
     if entry.get("remote_host") or entry.get("remote_model"):
@@ -283,10 +306,14 @@ def require_local_model(inventory: dict, model: str) -> dict:
         )
     details = entry.get("details")
     if not isinstance(details, dict) or details.get("format") != "gguf":
-        raise SystemExit(f"model {label!r} is not a locally installed GGUF (details.format missing or not 'gguf')")
+        raise SystemExit(
+            f"model {label!r} is not a locally installed GGUF (details.format missing or not 'gguf')"
+        )
     size = entry.get("size")
     if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
-        raise SystemExit(f"model {label!r} reports no positive local size; refusing an unverifiable local route")
+        raise SystemExit(
+            f"model {label!r} reports no positive local size; refusing an unverifiable local route"
+        )
     if not _valid_digest(entry.get("digest")):
         raise SystemExit(f"model {label!r} has no valid sha256 digest in the local inventory")
     return entry
@@ -323,7 +350,14 @@ def reef_checkout_commit(reef_root: Path) -> str:
 # -- subprocess environment ---------------------------------------------------------------------
 
 
-def child_environment(*, reef_root: Path, work: Path, gate_config_path: Path, python: Path, api_capability: str | None = None) -> dict:
+def child_environment(
+    *,
+    reef_root: Path,
+    work: Path,
+    gate_config_path: Path,
+    python: Path,
+    api_capability: str | None = None,
+) -> dict:
     """The Reef server subprocess environment: allowlisted platform basics plus owned variables.
 
     ``PYTHONPATH`` is rebuilt as exactly this package's src root and the Reef checkout root;
@@ -335,7 +369,9 @@ def child_environment(*, reef_root: Path, work: Path, gate_config_path: Path, py
     """
     reef_root, work, gate_config_path = Path(reef_root), Path(work), Path(gate_config_path)
     env = {name: os.environ[name] for name in ENV_ALLOWLIST if name in os.environ}
-    env.update({name: value for name, value in os.environ.items() if name.startswith(ENV_LC_PREFIX)})
+    env.update(
+        {name: value for name, value in os.environ.items() if name.startswith(ENV_LC_PREFIX)}
+    )
     bin_dir = Path(python).absolute().parent
     env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH') or os.defpath}"
     env["PYTHONPATH"] = f"{PLUGIN_SRC}{os.pathsep}{reef_root}"
@@ -348,6 +384,7 @@ def child_environment(*, reef_root: Path, work: Path, gate_config_path: Path, py
 
 
 # -- condition seed handling --------------------------------------------------------------------
+
 
 def degrade_seed_entries(entries: list) -> tuple[list, dict]:
     """The seed with its ``answer-style`` entry's text replaced by the degraded skill.
@@ -371,7 +408,9 @@ def degrade_seed_entries(entries: list) -> tuple[list, dict]:
         else:
             degraded.append(copy.deepcopy(entry))
     if original is None:
-        raise ValueError("the seed has no 'answer-style' entry to degrade for the known-effect condition")
+        raise ValueError(
+            "the seed has no 'answer-style' entry to degrade for the known-effect condition"
+        )
     return degraded, original
 
 
@@ -427,7 +466,9 @@ def write_configs(
     # The recipe registry reads named recipes from REEF_RECIPE_CONFIG_DIR (the tutorial's
     # materialize_recipe.py), so mirror the written config as the harness_evolve recipe.
     recipe = {key: config[key] for key in ("schema-version", "recipe")}
-    recipe.update({key: config[key] for key in ("inference", "execution", "executors") if key in config})
+    recipe.update(
+        {key: config[key] for key in ("inference", "execution", "executors") if key in config}
+    )
     (work / "recipes").mkdir(parents=True, exist_ok=True)
     (work / "recipes" / "harness_evolve.yaml").write_text(yaml.safe_dump(recipe, sort_keys=False))
     current_entry = next(
@@ -517,7 +558,9 @@ def manifest(client, scenario: str) -> dict:
 
 
 def training_rows(client, scenario: str) -> list[dict]:
-    rows = client.get("/reef/harness/releases", extra_headers={"x-reef-scenario": scenario})["releases"]
+    rows = client.get("/reef/harness/releases", extra_headers={"x-reef-scenario": scenario})[
+        "releases"
+    ]
     return [row for row in rows if row.get("operation") == "training"]
 
 
@@ -540,8 +583,13 @@ def name_scenario(client, model: str, scenario: str) -> None:
     client.inference_with_record(
         scenario,
         "/v1/chat/completions",
-        {"model": model, "messages": [{"role": "user", "content": "Reply with one word."}], "max_tokens": 1},
+        {
+            "model": model,
+            "messages": [{"role": "user", "content": "Reply with one word."}],
+            "max_tokens": 1,
+        },
     )
+
 
 def trial_scenario(condition: str, index: int) -> str:
     """The scenario a trial runs in: the shared scenario for ``aa``, one fresh scenario per trial otherwise."""
@@ -571,11 +619,19 @@ def trigger(client, model: str, tag: str, scenario: str) -> None:
     _, receipt = client.inference_with_record(
         scenario,
         "/v1/chat/completions",
-        {"model": model, "messages": [{"role": "user", "content": "Reply with one word."}], "max_tokens": 1},
+        {
+            "model": model,
+            "messages": [{"role": "user", "content": "Reply with one word."}],
+            "max_tokens": 1,
+        },
     )
     client.report(
         scenario,
-        {"agent_record_id": f"calibration-trigger-{tag}", "score": 0.0, "feedback": "calibration trigger"},
+        {
+            "agent_record_id": f"calibration-trigger-{tag}",
+            "score": 0.0,
+            "feedback": "calibration trigger",
+        },
         references=[receipt],
     )
 
@@ -713,7 +769,11 @@ def episode_flags(episode_dir: Path) -> set[str]:
             content = str(data.get("content") or "")
             outputs.append(content)
             bad_args = bad_args or (bool(data.get("is_error")) and "argument" in content)
-        elif kind == "assistant/message" and isinstance(data.get("content"), str) and data["content"].strip():
+        elif (
+            kind == "assistant/message"
+            and isinstance(data.get("content"), str)
+            and data["content"].strip()
+        ):
             replies.append(data["content"])
     final = replies[-1] if replies else None
     flags = set()
@@ -861,7 +921,9 @@ def summarize(
     candidate_passes, candidate_missing = _side_passes(
         ran, "candidate_scores", labels, repeats, pass_threshold
     )
-    current_passes, current_missing = _side_passes(ran, "current_scores", labels, repeats, pass_threshold)
+    current_passes, current_missing = _side_passes(
+        ran, "current_scores", labels, repeats, pass_threshold
+    )
     pooled = {label: candidate_passes[label] + current_passes[label] for label in labels}
     pooled_rates = {label: _rate(pooled[label]) for label in labels}
     side_rates = {
@@ -871,7 +933,10 @@ def summarize(
     if condition == "aa":
         base, base_note = pooled_rates, "pooled both sides (the A/A law is shared)"
     else:
-        base, base_note = side_rates["current"], "current side only (the deliberately degraded skill)"
+        base, base_note = (
+            side_rates["current"],
+            "current side only (the deliberately degraded skill)",
+        )
     base_values = [value for value in base.values() if value is not None]
     base_available = bool(labels) and len(base_values) == len(labels)
 
@@ -922,7 +987,9 @@ def summarize(
             )
     else:
         current_values = [value for value in side_rates["current"].values() if value is not None]
-        candidate_values = [value for value in side_rates["candidate"].values() if value is not None]
+        candidate_values = [
+            value for value in side_rates["candidate"].values() if value is not None
+        ]
         if labels and len(current_values) == len(candidate_values) == len(labels):
             prediction = publish_probability(
                 [
@@ -937,13 +1004,15 @@ def summarize(
                 f"measured per-side pass rates (degraded current vs original tutorial candidate), "
                 f"sign rule at alpha={alpha:g}, {repeats} ep/task"
             )
-    interval_includes = (
-        None if prediction is None or n == 0 else bool(lo <= prediction <= hi)
-    )
+    interval_includes = None if prediction is None or n == 0 else bool(lo <= prediction <= hi)
 
     summary = {
         "condition": condition if condition == "aa" else "known-effect (NOT A/A)",
-        "rule": {"alpha": alpha, "min_valid_pairs": min_valid_pairs, "pass_threshold": pass_threshold},
+        "rule": {
+            "alpha": alpha,
+            "min_valid_pairs": min_valid_pairs,
+            "pass_threshold": pass_threshold,
+        },
         "trials_attempted": len(attempted),
         "trials_settled": len(settled),
         "trials_skipped": len(skipped),
@@ -953,19 +1022,15 @@ def summarize(
         "publish_rate": (published / n) if n else None,
         "wilson95": [lo, hi] if n else None,
         "wlt_histogram": dict(sorted(wlt.items())),
-        "pass_rate_by_task_pooled": {
-            label: pooled_rates[label] for label in labels
-        },
+        "pass_rate_by_task_pooled": {label: pooled_rates[label] for label in labels},
         "pass_rate_by_task_side": {
-            side: {
-                label: rates[label]
-                for label in labels
-            }
-            for side, rates in side_rates.items()
+            side: {label: rates[label] for label in labels} for side, rates in side_rates.items()
         },
         "gate_table_base": base_note,
         "episodes_expected": 2 * len(tasks) * repeats * n,
-        "episodes_scored": sum(len(candidate_passes[label]) + len(current_passes[label]) for label in labels),
+        "episodes_scored": sum(
+            len(candidate_passes[label]) + len(current_passes[label]) for label in labels
+        ),
         "episodes_missing": candidate_missing + current_missing,
         "observed_trials_passing_sign_test": observed_sign,
         "median_trial_seconds": median(r["seconds"] for r in ran) if n else None,
@@ -1044,7 +1109,9 @@ def read_decision_records(record_dir: Path) -> dict:
         for key in _DECISION_TEXT_KEYS:
             value = record.get(key)
             if not isinstance(value, str) or not value.strip():
-                raise SystemExit(f"malformed decision record {path}: {key} must be a non-empty string")
+                raise SystemExit(
+                    f"malformed decision record {path}: {key} must be a non-empty string"
+                )
         for key in _DECISION_LIST_KEYS:
             if not isinstance(record.get(key), list):
                 raise SystemExit(f"malformed decision record {path}: {key} must be a list")
@@ -1068,7 +1135,9 @@ def read_decision_records(record_dir: Path) -> dict:
         "decision_walltime_s": decision_observed,
         "decision_walltime_median_s": median(decision_observed) if decision_observed else None,
         "evaluation_walltime_s": evaluation_observed,
-        "evaluation_walltime_median_s": median(evaluation_observed) if evaluation_observed else None,
+        "evaluation_walltime_median_s": median(evaluation_observed)
+        if evaluation_observed
+        else None,
         "decision_walltime_missing": decision_missing,
         "evaluation_walltime_missing": evaluation_missing,
         "reef_commits": sorted({record["reef_commit"] for record in records}),
@@ -1082,7 +1151,9 @@ def analyze(work: Path) -> dict:
 
     serve_path = work / "serve-aa.yaml"
     if not serve_path.is_file():
-        raise SystemExit(f"work dir {work} has no serve-aa.yaml; tasks must come from the served recipe")
+        raise SystemExit(
+            f"work dir {work} has no serve-aa.yaml; tasks must come from the served recipe"
+        )
     try:
         served_config = yaml.safe_load(serve_path.read_text())
         served_evolution = served_config["recipe"]["config"]["evolution"]
@@ -1177,7 +1248,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--condition", choices=("aa", "known-effect"), default="aa")
     parser.add_argument("--trials", type=int, default=30)
     parser.add_argument("--repeats", type=int, default=5, help="evolution.episode_repeats per task")
-    parser.add_argument("--model", default="qwen2.5:7b")
+    parser.add_argument("--model", default=None)
     parser.add_argument("--port", type=int, default=8911)
     parser.add_argument("--workers", type=int, default=3)
     parser.add_argument(
@@ -1185,13 +1256,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="evallab_reef_gate.plugin:Factory",
         help="evolution.selection: a Reef builtin name or a module:attribute plugin factory reference",
     )
-    parser.add_argument("--work-dir", type=Path, required=True, help="an explicit fresh owned directory")
+    parser.add_argument(
+        "--work-dir", type=Path, required=True, help="an explicit fresh owned directory"
+    )
     parser.add_argument("--reef-root", type=Path, default=DEFAULT_REEF_ROOT)
     parser.add_argument(
-        "--python", type=Path, default=None, help="the Reef interpreter (default <reef-root>/.venv/bin/python)"
+        "--python",
+        type=Path,
+        default=None,
+        help="the Reef interpreter (default <reef-root>/.venv/bin/python)",
     )
-    parser.add_argument("--ollama-url", default="http://127.0.0.1:11434")
-    parser.add_argument("--api-proxy-url", default=None, help="parent-owned loopback budget-proxy base URL (mutually exclusive with --ollama-url)")
+    upstream = parser.add_mutually_exclusive_group()
+    upstream.add_argument("--ollama-url", default=None)
+    upstream.add_argument("--api-proxy-url", help="parent-owned loopback budget-proxy base URL")
     parser.add_argument(
         "--api-proxy-token-env",
         default=DEFAULT_API_PROXY_TOKEN_ENV,
@@ -1201,7 +1278,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--min-valid-pairs", type=int, default=5)
     parser.add_argument("--regression-failure-threshold", type=int, default=1)
     parser.add_argument(
-        "--seed-entries", type=Path, help="JSON list of entries to seed the scenario with instead of the tutorial's"
+        "--seed-entries",
+        type=Path,
+        help="JSON list of entries to seed the scenario with instead of the tutorial's",
     )
     parser.add_argument("--analyze-only", action="store_true")
     return parser.parse_args(argv)
@@ -1251,16 +1330,12 @@ def main(argv: list[str] | None = None) -> None:
     python = (args.python or (args.reef_root / ".venv" / "bin" / "python")).expanduser()
     _validate(args, python)
 
-    raw_argv = argv if argv is not None else sys.argv[1:]
-    ollama_explicit = any(
-        arg == "--ollama-url" or arg.startswith("--ollama-url=") for arg in raw_argv
-    )
     api_mode = args.api_proxy_url is not None
-    if api_mode and ollama_explicit:
-        raise SystemExit("--api-proxy-url and --ollama-url are mutually exclusive; pass exactly one upstream")
     if api_mode:
-        if not any(arg == "--model" or arg.startswith("--model=") for arg in raw_argv):
-            raise SystemExit("--model is required with --api-proxy-url; no default is assumed for proxy routing")
+        if not args.model or not args.model.strip():
+            raise SystemExit(
+                "--model is required with --api-proxy-url; no default is assumed for proxy routing"
+            )
         api_proxy_url = require_loopback_url(args.api_proxy_url)
         # Only the named capability is read; the value is held in memory and passed explicitly
         # to the Reef subprocess, never written to YAML, argv, metadata, or error text.
@@ -1270,7 +1345,9 @@ def main(argv: list[str] | None = None) -> None:
         model_entry = None
         inference_kind = INFERENCE_KIND_API_PROXY
     else:
-        ollama_url = require_loopback_url(args.ollama_url)
+        if args.model is None:
+            args.model = "qwen2.5:7b"
+        ollama_url = require_loopback_url(args.ollama_url or "http://127.0.0.1:11434")
         inventory = fetch_local_inventory(ollama_url)
         model_entry = require_local_model(inventory, args.model)
         (work / "ollama-inventory.json").write_text(
@@ -1279,7 +1356,11 @@ def main(argv: list[str] | None = None) -> None:
                     "url": ollama_url,
                     "selected": model_entry,
                     "models": [
-                        {key: entry.get(key) for key in ("name", "model", "digest", "size") if key in entry}
+                        {
+                            key: entry.get(key)
+                            for key in ("name", "model", "digest", "size")
+                            if key in entry
+                        }
                         for entry in inventory["models"]
                         if isinstance(entry, dict)
                     ],
@@ -1346,7 +1427,9 @@ def main(argv: list[str] | None = None) -> None:
 
     from reef_client import ReefClient
 
-    server = start_reef(python, serve, args.port, work, args.reef_root, gate_config, api_capability=api_capability)
+    server = start_reef(
+        python, serve, args.port, work, args.reef_root, gate_config, api_capability=api_capability
+    )
     failed = False
     try:
         client = ReefClient(f"http://127.0.0.1:{args.port}", token=TOKEN, timeout_s=300.0)

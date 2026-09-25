@@ -357,18 +357,36 @@ nor forwards ambient provider credentials/proxies into episodes. All Reef
 storage, recipes, step records and decision records stay under `--work-dir`.
 
 For the known-effect control, use a separate fresh directory with
-`--condition known-effect --trials 5 --repeats 5`. Each trial starts a fresh
-scenario with a deliberately degraded current answer-style skill and proposes
-the original tutorial skill. This measures publication power; it is not A/A
-and does not inject reference answers into the harness.
+`--condition known-effect --trials 5 --repeats 5`. All trial scenarios are
+created before the first proposal: each forks the deliberately degraded
+answer-style skill before any publication can advance Reef's shared head.
+Each trial then proposes the original tutorial skill. This measures publication
+power; it is not A/A and does not inject reference answers into the harness.
 
 Use `--analyze-only --work-dir <existing-owned-run>` to recompute the report
-without starting a service. Reports retain attempted/settled/invalid counts,
-the publish denominator, Wilson 95% uncertainty, the original gate-table
-prediction and missing episodes. Prediction assumptions and the additional
-regression veto are explicit. `decision_seconds` measures decision computation,
-excluding record persistence; evaluation time and full trial wall time are
-reported separately.
+without starting a service. Task identities come from the retained served
+recipe; contradictory metadata is refused. Reports retain attempted/settled/
+invalid counts, the publish denominator, Wilson 95% uncertainty, the original
+gate-table prediction and missing episodes. Evaluator errors, insufficient-
+evidence holds and rows with no usable pair do not become resolved negative
+trials. Valid partial-pair comparisons retain their missing episode counts.
+With no publications, published-tree identity is unavailable, not vacuously
+true. Prediction assumptions and the additional regression veto are explicit.
+`decision_seconds` measures decision computation, excluding record persistence;
+evaluation time and full trial wall time are reported separately. Missing
+timings remain unavailable and have separate counts, never imputed zeros.
+
+An explicitly authorized API campaign can instead use
+`--api-proxy-url http://127.0.0.1:<port> --model <provider-model-id>`.
+This is mutually exclusive with `--ollama-url`; the proxy model is required,
+and no Ollama inventory request is made. `EVALLAB_REEF_PROXY_TOKEN` supplies
+only the proxy capability (rename the variable with `--api-proxy-token-env`),
+not the provider key. Use an existing supervised credential proxy with explicit
+request/token/cost ceilings and current conservative pricing. API provenance
+records the route and model, with no fabricated local-weight digest. Retain
+proxy usage separately and never pool calibration cohorts across model changes.
+The native Reef process is not an OS sandbox: an owner-only provider-key file
+outside its work directory does not isolate that key from same-user tool code.
 
 ### GLM mini-SWE on Daytona
 

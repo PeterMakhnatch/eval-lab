@@ -20,6 +20,7 @@ import sys
 import threading
 import types
 from pathlib import Path
+
 import pytest
 from evallab_reef_gate import calibrate
 
@@ -76,8 +77,6 @@ def test_wilson_interval_exact_boundaries() -> None:
     assert 0.0 < hi < 1.0
 
 
-
-
 def test_publish_probability_rules_and_alpha() -> None:
     pairs = [calibrate.pair_law(0.5, 0.5)]  # one pairing: P(win)=P(loss)=0.25, P(tie)=0.5
     assert calibrate.publish_probability(pairs, "majority", 0.05) == pytest.approx(0.25)
@@ -127,7 +126,8 @@ def test_require_local_model_accepts_unique_local_gguf() -> None:
     assert calibrate.require_local_model({"models": [entry]}, "qwen2.5:7b") is entry
     assert (
         calibrate.require_local_model(
-            {"models": [_valid_model_entry(name="qwen2.5:latest", model="qwen2.5:latest")]}, "qwen2.5"
+            {"models": [_valid_model_entry(name="qwen2.5:latest", model="qwen2.5:latest")]},
+            "qwen2.5",
         )["name"]
         == "qwen2.5:latest"
     )
@@ -216,7 +216,9 @@ def test_fetch_local_inventory_bounds_the_body() -> None:
         calibrate.fetch_local_inventory(base, max_bytes=64)
 
 
-def test_child_environment_drops_ambient_and_pins_owned_vars(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_child_environment_drops_ambient_and_pins_owned_vars(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "sk-secret")
     monkeypatch.setenv("HTTPS_PROXY", "http://corp-proxy:3128")
     monkeypatch.setenv("PYTHONPATH", "/ambient/path")
@@ -247,13 +249,19 @@ def test_child_environment_drops_ambient_and_pins_owned_vars(monkeypatch: pytest
 def test_degrade_seed_entries_degrades_only_answer_style() -> None:
     entries = [
         "reef.harness.runners.native.seed:SEED_NODES",
-        {"id": "answer-style", "name": "skill", "config": {"name": "answer-style", "text": "original text"}},
+        {
+            "id": "answer-style",
+            "name": "skill",
+            "config": {"name": "answer-style", "text": "original text"},
+        },
     ]
     degraded, original = calibrate.degrade_seed_entries(entries)
     assert degraded[0] == entries[0]
     assert degraded[1]["config"]["text"] == calibrate.DEGRADED_ANSWER_STYLE_TEXT
     assert original["config"]["text"] == "original text"
-    assert not any(answer in calibrate.DEGRADED_ANSWER_STYLE_TEXT for answer in calibrate.ANSWERS.values())
+    assert not any(
+        answer in calibrate.DEGRADED_ANSWER_STYLE_TEXT for answer in calibrate.ANSWERS.values()
+    )
     with pytest.raises(ValueError, match="answer-style"):
         calibrate.degrade_seed_entries([{"id": "other", "name": "skill", "config": {}}])
 
@@ -345,7 +353,9 @@ def test_summarize_counts_attempted_settled_skipped_invalid() -> None:
         result_row(trial=4, wins=1, losses=None, ties=None),
         {"trial": 5, "status": "refused", "proposal_response": {"admitted": False}},
     ]
-    summary = calibrate.summarize(rows, tasks=TASKS, repeats=1, condition="aa", alpha=0.05, min_valid_pairs=5)
+    summary = calibrate.summarize(
+        rows, tasks=TASKS, repeats=1, condition="aa", alpha=0.05, min_valid_pairs=5
+    )
     assert summary["trials_attempted"] == 5
     assert summary["trials_settled"] == 4
     assert summary["trials_skipped"] == 1
@@ -360,7 +370,9 @@ def test_summarize_counts_attempted_settled_skipped_invalid() -> None:
     assert summary["episodes_missing"] == 1
     assert summary["wlt_histogram"] == {"0/1/2": 1, "2/0/1": 1}
     assert summary["pass_rate_by_task_pooled"]["[sieve]"] == pytest.approx(0.75)
-    assert summary["pass_rate_by_task_pooled"]["[fib]"] == pytest.approx(1 / 3)  # full precision, not 0.333
+    assert summary["pass_rate_by_task_pooled"]["[fib]"] == pytest.approx(
+        1 / 3
+    )  # full precision, not 0.333
     assert summary["pass_rate_by_task_pooled"]["[csv]"] == pytest.approx(0.75)
     assert summary["all_published_trees_identical"] is True
     assert summary["median_trial_seconds"] == 10.0
@@ -372,7 +384,9 @@ def test_summarize_missing_rates_report_unavailable_not_nan() -> None:
         result_row(trial=1, candidate_scores=[1.0, 0.0, None], current_scores=[0.0, 1.0, None]),
         result_row(trial=2, candidate_scores=[0.0, 1.0, None], current_scores=[1.0, 0.0, None]),
     ]
-    summary = calibrate.summarize(rows, tasks=TASKS, repeats=1, condition="aa", alpha=0.05, min_valid_pairs=5)
+    summary = calibrate.summarize(
+        rows, tasks=TASKS, repeats=1, condition="aa", alpha=0.05, min_valid_pairs=5
+    )
     assert summary["pass_rate_by_task_pooled"]["[csv]"] is None
     assert all(row["p_publish"] is None for row in summary["gate_table"])
     assert summary["predicted_publish_rate"] is None
@@ -383,7 +397,9 @@ def test_summarize_missing_rates_report_unavailable_not_nan() -> None:
 
 
 def test_summarize_prediction_interval_flag_extremes() -> None:
-    all_pass = [result_row(trial=i, candidate_scores=[1.0] * 3, current_scores=[1.0] * 3) for i in (1, 2)]
+    all_pass = [
+        result_row(trial=i, candidate_scores=[1.0] * 3, current_scores=[1.0] * 3) for i in (1, 2)
+    ]
     # All-pass rates make every pairing a tie, so the sign-rule prediction is exactly 0.
     unpublished = calibrate.summarize(
         [dict(entry, published=False) for entry in all_pass],
@@ -468,13 +484,21 @@ def test_summarize_known_effect_labels_and_contrast() -> None:
 
 def test_summarize_uses_rule_alpha_consistently() -> None:
     rows = [result_row(trial=1, candidate_scores=[1.0, 0.0, 1.0], current_scores=[0.0, 1.0, 1.0])]
-    strict = calibrate.summarize(rows, tasks=TASKS, repeats=1, condition="aa", alpha=0.05, min_valid_pairs=5)
-    loose = calibrate.summarize(rows, tasks=TASKS, repeats=1, condition="aa", alpha=0.5, min_valid_pairs=5)
+    strict = calibrate.summarize(
+        rows, tasks=TASKS, repeats=1, condition="aa", alpha=0.05, min_valid_pairs=5
+    )
+    loose = calibrate.summarize(
+        rows, tasks=TASKS, repeats=1, condition="aa", alpha=0.5, min_valid_pairs=5
+    )
     sign_strict = next(
-        row for row in strict["gate_table"] if row["gate"].startswith("sign test") and "5 ep" in row["gate"]
+        row
+        for row in strict["gate_table"]
+        if row["gate"].startswith("sign test") and "5 ep" in row["gate"]
     )
     sign_loose = next(
-        row for row in loose["gate_table"] if row["gate"].startswith("sign test") and "5 ep" in row["gate"]
+        row
+        for row in loose["gate_table"]
+        if row["gate"].startswith("sign test") and "5 ep" in row["gate"]
     )
     assert "p<0.05" in sign_strict["gate"]
     assert "p<0.5" in sign_loose["gate"]
@@ -543,7 +567,9 @@ class _DummyServer:
 def _stub_campaign(monkeypatch: pytest.MonkeyPatch, *, commit: str = "abc123") -> dict:
     seen: dict = {}
 
-    def _fake_start_reef(python, serve, port, work, reef_root, gate_config_path, *, api_capability=None):
+    def _fake_start_reef(
+        python, serve, port, work, reef_root, gate_config_path, *, api_capability=None
+    ):
         seen["api_capability"] = api_capability
         seen["serve"] = Path(serve)
         return _DummyServer()
@@ -551,7 +577,9 @@ def _stub_campaign(monkeypatch: pytest.MonkeyPatch, *, commit: str = "abc123") -
     monkeypatch.setattr(calibrate, "reef_checkout_commit", lambda *args, **kwargs: commit)
     monkeypatch.setattr(calibrate, "start_reef", _fake_start_reef)
     monkeypatch.setitem(
-        sys.modules, "reef_client", types.SimpleNamespace(ReefClient=lambda *args, **kwargs: object())
+        sys.modules,
+        "reef_client",
+        types.SimpleNamespace(ReefClient=lambda *args, **kwargs: object()),
     )
     monkeypatch.setattr(calibrate, "name_scenario", lambda client, model, scenario: None)
     monkeypatch.setattr(
@@ -562,45 +590,54 @@ def _stub_campaign(monkeypatch: pytest.MonkeyPatch, *, commit: str = "abc123") -
     return seen
 
 
-def test_parse_args_preserves_local_defaults_and_names_capability_env() -> None:
-    args = calibrate.parse_args(["--work-dir", "/tmp/work"])
-    assert args.ollama_url == "http://127.0.0.1:11434"
-    assert args.model == "qwen2.5:7b"
-    assert args.api_proxy_url is None
-    assert args.api_proxy_token_env == "EVALLAB_REEF_PROXY_TOKEN"
-    assert args.api_proxy_token_env == calibrate.DEFAULT_API_PROXY_TOKEN_ENV
-
-
-def test_api_proxy_rejects_ollama_url_combination(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_api_proxy_rejects_ollama_url_combination(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     reef_root, python = _make_reef_root(tmp_path)
     monkeypatch.setenv("EVALLAB_REEF_PROXY_TOKEN", "cap-123")
     work = tmp_path / "work"
-    with pytest.raises(SystemExit, match="mutually exclusive"):
+    with pytest.raises(SystemExit) as error:
         calibrate.main(
             [
-                "--work-dir", str(work),
-                "--reef-root", str(reef_root),
-                "--python", str(python),
-                "--ollama-url", "http://127.0.0.1:11434",
-                "--api-proxy-url", "http://127.0.0.1:18081",
-                "--model", "proxy-model",
+                "--work-dir",
+                str(work),
+                "--reef-root",
+                str(reef_root),
+                "--python",
+                str(python),
+                "--ollama-url",
+                "http://127.0.0.1:11434",
+                "--api-proxy-url",
+                "http://127.0.0.1:18081",
+                "--model",
+                "proxy-model",
             ]
         )
+    assert error.value.code == 2
+    assert not work.exists()
 
 
 def test_api_proxy_requires_explicit_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     reef_root, python = _make_reef_root(tmp_path)
     monkeypatch.setenv("EVALLAB_REEF_PROXY_TOKEN", "cap-123")
     monkeypatch.setattr(
-        calibrate, "fetch_local_inventory", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("inventory must not be fetched"))
+        calibrate,
+        "fetch_local_inventory",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("inventory must not be fetched")
+        ),
     )
     with pytest.raises(SystemExit, match="--model is required"):
         calibrate.main(
             [
-                "--work-dir", str(tmp_path / "work"),
-                "--reef-root", str(reef_root),
-                "--python", str(python),
-                "--api-proxy-url", "http://127.0.0.1:18081",
+                "--work-dir",
+                str(tmp_path / "work"),
+                "--reef-root",
+                str(reef_root),
+                "--python",
+                str(python),
+                "--api-proxy-url",
+                "http://127.0.0.1:18081",
             ]
         )
 
@@ -611,11 +648,16 @@ def test_api_proxy_rejects_remote_url(tmp_path: Path, monkeypatch: pytest.Monkey
     with pytest.raises(SystemExit, match="not loopback"):
         calibrate.main(
             [
-                "--work-dir", str(tmp_path / "work"),
-                "--reef-root", str(reef_root),
-                "--python", str(python),
-                "--api-proxy-url", "http://example.com:8080",
-                "--model", "proxy-model",
+                "--work-dir",
+                str(tmp_path / "work"),
+                "--reef-root",
+                str(reef_root),
+                "--python",
+                str(python),
+                "--api-proxy-url",
+                "http://example.com:8080",
+                "--model",
+                "proxy-model",
             ]
         )
     assert not (tmp_path / "work" / "run-meta.json").exists()
@@ -627,11 +669,16 @@ def test_api_proxy_rejects_credential_url(tmp_path: Path, monkeypatch: pytest.Mo
     with pytest.raises(SystemExit, match="credentials"):
         calibrate.main(
             [
-                "--work-dir", str(tmp_path / "work"),
-                "--reef-root", str(reef_root),
-                "--python", str(python),
-                "--api-proxy-url", "http://user:pass@127.0.0.1:8080",
-                "--model", "proxy-model",
+                "--work-dir",
+                str(tmp_path / "work"),
+                "--reef-root",
+                str(reef_root),
+                "--python",
+                str(python),
+                "--api-proxy-url",
+                "http://user:pass@127.0.0.1:8080",
+                "--model",
+                "proxy-model",
             ]
         )
 
@@ -679,44 +726,6 @@ def test_child_environment_passes_only_explicit_capability_and_drops_provider_ke
     assert default["REEF_UPSTREAM_API_KEY"] == "ollama"
 
 
-def test_write_configs_renamed_to_upstream_url_and_keeps_api_key_template(tmp_path: Path) -> None:
-    import yaml
-
-    reef_root, _ = _make_reef_root(tmp_path)
-    work = tmp_path / "work"
-    work.mkdir()
-    serve, _, _, tasks = calibrate.write_configs(
-        work,
-        reef_root=reef_root,
-        upstream_url="http://127.0.0.1:18081",
-        port=8911,
-        model="proxy-model",
-        workers=1,
-        repeats=1,
-        seed_entries=None,
-        selection="evallab_reef_gate.plugin:Factory",
-        condition="aa",
-    )
-    assert tasks == TASKS
-    written = yaml.safe_load(serve.read_text())
-    assert written["inference"]["upstream-url"] == "http://127.0.0.1:18081"
-    assert written["inference"]["upstream-model"] == "proxy-model"
-    assert written["inference"]["upstream-api-key"] == "${REEF_UPSTREAM_API_KEY}"
-    with pytest.raises(TypeError):
-        calibrate.write_configs(  # type: ignore[call-arg]
-            work,
-            reef_root=reef_root,
-            ollama_url="http://127.0.0.1:11434",
-            port=8911,
-            model="proxy-model",
-            workers=1,
-            repeats=1,
-            seed_entries=None,
-            selection="evallab_reef_gate.plugin:Factory",
-            condition="aa",
-        )
-
-
 def test_api_proxy_campaign_skips_inventory_and_records_truthful_meta_without_secret(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -734,18 +743,29 @@ def test_api_proxy_campaign_skips_inventory_and_records_truthful_meta_without_se
     seen = _stub_campaign(monkeypatch, commit="deadbeef")
     work = tmp_path / "work"
     proxy_url = "http://127.0.0.1:18081"
-    assert calibrate.main(
-        [
-            "--work-dir", str(work),
-            "--reef-root", str(reef_root),
-            "--python", str(python),
-            "--api-proxy-url", proxy_url,
-            "--model", "proxy-model",
-            "--trials", "1",
-            "--repeats", "1",
-            "--port", "18971",
-        ]
-    ) is None
+    assert (
+        calibrate.main(
+            [
+                "--work-dir",
+                str(work),
+                "--reef-root",
+                str(reef_root),
+                "--python",
+                str(python),
+                "--api-proxy-url",
+                proxy_url,
+                "--model",
+                "proxy-model",
+                "--trials",
+                "1",
+                "--repeats",
+                "1",
+                "--port",
+                "18971",
+            ]
+        )
+        is None
+    )
     assert seen["api_capability"] == capability
     assert not (work / "ollama-inventory.json").exists()
     meta = json.loads((work / "run-meta.json").read_text())
@@ -776,21 +796,34 @@ def test_ollama_campaign_preserves_inventory_and_local_meta(
     monkeypatch.delenv("EVALLAB_REEF_PROXY_TOKEN", raising=False)
     reef_root, python = _make_reef_root(tmp_path)
     entry = _valid_model_entry()
-    monkeypatch.setattr(calibrate, "fetch_local_inventory", lambda *args, **kwargs: {"models": [entry]})
+    monkeypatch.setattr(
+        calibrate, "fetch_local_inventory", lambda *args, **kwargs: {"models": [entry]}
+    )
     seen = _stub_campaign(monkeypatch, commit="deadbeef")
     work = tmp_path / "work"
-    assert calibrate.main(
-        [
-            "--work-dir", str(work),
-            "--reef-root", str(reef_root),
-            "--python", str(python),
-            "--ollama-url", "http://127.0.0.1:11434",
-            "--model", "qwen2.5:7b",
-            "--trials", "1",
-            "--repeats", "1",
-            "--port", "18972",
-        ]
-    ) is None
+    assert (
+        calibrate.main(
+            [
+                "--work-dir",
+                str(work),
+                "--reef-root",
+                str(reef_root),
+                "--python",
+                str(python),
+                "--ollama-url",
+                "http://127.0.0.1:11434",
+                "--model",
+                "qwen2.5:7b",
+                "--trials",
+                "1",
+                "--repeats",
+                "1",
+                "--port",
+                "18972",
+            ]
+        )
+        is None
+    )
     assert seen["api_capability"] is None
     inventory = json.loads((work / "ollama-inventory.json").read_text())
     assert inventory["url"] == "http://127.0.0.1:11434"
@@ -803,35 +836,3 @@ def test_ollama_campaign_preserves_inventory_and_local_meta(
     summary = calibrate.analyze(work)
     assert summary["provenance"]["inference_kind"] == "ollama"
     assert summary["provenance"]["ollama_url"] == "http://127.0.0.1:11434"
-
-
-def test_analyze_provenance_reports_api_proxy_kind(tmp_path: Path) -> None:
-    import yaml
-
-    work = tmp_path / "work"
-    work.mkdir()
-    (work / "serve-aa.yaml").write_text(
-        yaml.safe_dump({"recipe": {"config": {"evolution": {"tasks": TASKS, "episode_repeats": 1}}}})
-    )
-    (work / "run-meta.json").write_text(
-        json.dumps(
-            {
-                "condition": "aa",
-                "selection": "evallab_reef_gate.plugin:Factory",
-                "model": "proxy-model",
-                "model_digest": None,
-                "inference_kind": "api_proxy",
-                "api_proxy_url": "http://127.0.0.1:18081",
-                "repeats": 1,
-                "trials": 1,
-                "alpha": 0.05,
-                "min_valid_pairs": 5,
-                "pass_threshold": 1.0,
-            }
-        )
-    )
-    (work / "results.jsonl").write_text(json.dumps(result_row()) + "\n")
-    summary = calibrate.analyze(work)
-    assert summary["provenance"]["inference_kind"] == "api_proxy"
-    assert summary["provenance"]["api_proxy_url"] == "http://127.0.0.1:18081"
-    assert summary["denominator"] == 1

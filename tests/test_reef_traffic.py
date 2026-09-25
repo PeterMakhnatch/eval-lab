@@ -668,6 +668,20 @@ def test_reef_url_rejects_userinfo() -> None:
         ReefTrafficSpec(**{**_valid_reef_kwargs("http://127.0.0.1:18941"), "url": "http://u@127.0.0.1:18941"})
 
 
+def test_reef_url_refusal_never_echoes_userinfo() -> None:
+    from evallab.reef_traffic import check_url
+
+    for bad in (
+        "http://user:s3cret@127.0.0.1:18941",
+        "http://user:s3cret@127.0.0.1:18941/v1",
+        "http://user:s3cret@example.com:8900",
+    ):
+        with pytest.raises(ValueError) as excinfo:
+            check_url(bad)
+        assert "s3cret" not in str(excinfo.value)
+        assert "user" not in str(excinfo.value)
+
+
 # -- registry matching and corruption ----------------------------------------- #
 
 

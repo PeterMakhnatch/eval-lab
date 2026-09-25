@@ -119,6 +119,24 @@ def check_token_env(value: str) -> str:
         raise ValueError(f"reef token_env must be an env-var name, got {value!r}")
     return value
 
+def _redacted_url(value: object) -> str:
+    """A Reef URL safe for errors and logs: userinfo becomes ``***``.
+
+    Refusal text can reach queue ``reasons/`` files, prepare stderr and logs,
+    so the secret a refused URL carries must never be echoed back.
+    """
+    if not isinstance(value, str):
+        return "<non-string reef url>"
+    try:
+        parsed = urllib.parse.urlsplit(value)
+        if parsed.username is None and parsed.password is None:
+            return value
+        host = parsed.hostname or ""
+        port = f":{parsed.port}" if parsed.port else ""
+        return f"{parsed.scheme}://***@{host}{port}{parsed.path}"
+    except ValueError:
+        return "<unparseable reef url>"
+
 
 def check_url(value: str) -> str:
     """Fail closed to bare http(s) loopback URLs; the bearer token never leaves host."""
@@ -127,11 +145,11 @@ def check_url(value: str) -> str:
     try:
         parsed = urllib.parse.urlsplit(value)
     except ValueError as exc:
-        raise ValueError(f"reef url is invalid: {value!r}") from exc
+        raise ValueError("reef url is invalid and omitted") from exc
     if parsed.scheme not in ("http", "https") or parsed.hostname not in ("127.0.0.1", "localhost"):
-        raise ValueError(f"reef url must be an http(s) loopback URL, got {value!r}")
+        raise ValueError(f"reef url must be an http(s) loopback URL, got {_redacted_url(value)!r}")
     if parsed.username is not None or parsed.password is not None:
-        raise ValueError(f"reef url must not carry credentials, got {value!r}")
+        raise ValueError(f"reef url must not carry credentials, got {_redacted_url(value)!r}")
     return value.rstrip("/")
 
 
@@ -179,7 +197,7 @@ def _http_json(
             body=detail,
         ) from exc
     except OSError as exc:
-        raise ReefTrafficError(f"Reef service unreachable at {url}: {exc}") from exc
+        raise ReefTrafficError(f"Reef service unreachable at {_redacted_url(url)}: {exc}") from exc
     try:
         parsed: dict[str, Any] = json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError as exc:

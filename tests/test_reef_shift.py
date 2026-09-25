@@ -84,6 +84,37 @@ def test_exp04_reference_artifact_is_provenance_stamped() -> None:
     artifact = json.loads(ARTIFACT.read_text(encoding="utf-8"))
     assert set(artifact) == {"provenance", "answers", "reference"}
     assert "04/summary.json" in artifact["provenance"]["counts_seed"]
+    assert "cli_example" in artifact["provenance"]
+
+
+def test_combined_artifact_feeds_both_cli_inputs(tmp_path: Path, capsys) -> None:
+    seed = tmp_path / "seed"
+    reef_intake.import_reef_gate_run(
+        STEPS, seed, run_label="fixture", results_path=FIXTURES / "results.jsonl"
+    )
+    combined = FIXTURES / "shift/combined-reference.json"
+    assert (
+        reef_shift.main(
+            ["--seed", str(seed), "--check", str(seed), "--answers", str(combined), "--reference", str(combined)]
+        )
+        == 0
+    )
+    report = json.loads(capsys.readouterr().out)
+    assert report["all_agree"] is True
+    assert report["disagreements"] == {"seed": [], "check": []}
+
+
+def test_nested_answers_map_fails_loudly(tmp_path: Path) -> None:
+    bad = tmp_path / "answers.json"
+    bad.write_text(json.dumps({"[toy]": {"number": 7}}), encoding="utf-8")
+    try:
+        reef_shift._load_string_map(bad, "answers")
+    except ValueError as exc:
+        assert "non-scalar" in str(exc)
+    else:
+        raise AssertionError("a nested answers map must fail loudly")
+
+
 def test_module_cli_compares_imported_corpora(tmp_path: Path, capsys) -> None:
     seed = tmp_path / "seed"
     reef_intake.import_reef_gate_run(

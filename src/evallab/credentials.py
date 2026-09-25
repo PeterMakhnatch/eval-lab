@@ -22,6 +22,8 @@ from evallab.execution_contracts import (
     OPENCODE_AUTH_RELATIVE_PATH,
     RLM_AGENT,
     TERMINUS_AGENT,
+    TERMINUS_LOCAL_ENDPOINT_ENV,
+    TERMINUS_LOCAL_MODEL_SELECTOR,
     ZAI_AUTH_PROVIDER,
     ZAI_OPENCODE_AGENT,
 )
@@ -47,6 +49,7 @@ DEEPSEEK_API_CREDENTIAL = "deepseek_api_environment"
 ZAI_OPENCODE_AUTH = "zai_opencode_auth"
 ZAI_OPENAPI_API_CREDENTIAL = "zai_openapi_api_environment"
 GLM_SELFHOSTED_API_CREDENTIAL = "glm_selfhosted_api_environment"
+LOCAL_OLLAMA_ENDPOINT = "local_ollama_endpoint"
 # Agents whose runs require a credential. Control agents (oracle, nop) are
 # deliberately absent: they must run with no credential at all.
 AGENT_CREDENTIAL_REQUIREMENTS: dict[str | tuple[str, str], str] = {
@@ -62,6 +65,7 @@ AGENT_CREDENTIAL_REQUIREMENTS: dict[str | tuple[str, str], str] = {
     ZAI_OPENCODE_AGENT: ZAI_OPENCODE_AUTH,
     RLM_AGENT: ZAI_OPENCODE_AUTH,
     TERMINUS_AGENT: ZAI_OPENAPI_API_CREDENTIAL,
+    (TERMINUS_AGENT, TERMINUS_LOCAL_MODEL_SELECTOR): LOCAL_OLLAMA_ENDPOINT,
 }
 
 _PROFILES = builtin_profiles()
@@ -221,6 +225,10 @@ def available_credentials(home: Path | None = None) -> frozenset[str]:
         found.add(ZAI_OPENAPI_API_CREDENTIAL)
     if probe_glm_selfhosted_api():
         found.add(GLM_SELFHOSTED_API_CREDENTIAL)
+    if os.environ.get(TERMINUS_LOCAL_ENDPOINT_ENV):
+        # This is configured availability only. The selected profile verifies
+        # the endpoint and installed model before an environment is created.
+        found.add(LOCAL_OLLAMA_ENDPOINT)
     return frozenset(found)
 
 
@@ -264,6 +272,7 @@ DEFAULT_PROFILE_FOR_ADAPTER: dict[str | tuple[str, str], str] = {
     ZAI_OPENCODE_AGENT: "zai-opencode-glm-5.3-flash",
     RLM_AGENT: "rlm-glm-5.3-flash",
     TERMINUS_AGENT: "terminus-2-glm-5.3-flash",
+    (TERMINUS_AGENT, TERMINUS_LOCAL_MODEL_SELECTOR): "terminus-2-qwen2.5-7b-local",
 }
 
 DEFAULT_AGENT_MODELS: dict[str, str] = {

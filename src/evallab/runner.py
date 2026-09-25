@@ -54,6 +54,8 @@ from evallab.execution_contracts import (
     SUPPORT_COMMAND_TIMEOUT_SECONDS,
     TERMINUS_AGENT,
     TERMINUS_AGENT_IMPORT_PATH,
+    TERMINUS_LOCAL_ENDPOINT_ENV,
+    TERMINUS_LOCAL_MODEL_SELECTOR,
     TERMINUS_PROXY_URL_ENV,
     WATCHDOG_POLL_SECONDS,
     ZAI_CAPABILITY_EXPIRES_AT_ENV,
@@ -108,8 +110,10 @@ from evallab.execution_contracts import (
     resolve_harbor_model,
     subscription_command,
     subscription_environment,
+    terminus_agent_kwargs,
     transient_provider_exception,
     transient_provider_reason,
+    uses_provider_proxy,
     validate_request,
 )
 from evallab.harbor_network import (
@@ -119,6 +123,7 @@ from evallab.harbor_network import (
 )
 from evallab.results import JobRecord, load_job
 from evallab.schemas import ExperimentMatrix, MatrixRun
+from evallab.terminus_local import local_ollama_endpoint, resolve_ollama_binding
 
 __all__ = [
     "_SUBSCRIPTION_ENVIRONMENT_KEYS",
@@ -884,7 +889,9 @@ def run_harbor_process(
     # Terminus2 runs its model client host-side inside the Harbor controller
     # process, so it never uses the task-container compose sidecar transport.
     # Detection keys on the lab-owned adapter import path only.
-    terminus_lane = TERMINUS_AGENT_IMPORT_PATH in command
+    terminus_client = TERMINUS_AGENT_IMPORT_PATH in command
+    local_terminus = terminus_client and TERMINUS_LOCAL_MODEL_SELECTOR in command
+    terminus_lane = terminus_client and not local_terminus
     zai_openapi_lane = (
         zai_miniswe_adapter in command
         or any(
@@ -892,7 +899,7 @@ def run_harbor_process(
             for arg in command
             if not arg.startswith("zai-coding-plan/")
         )
-    ) and not zai_lane and not terminus_lane
+    ) and not zai_lane and not terminus_client
     rlm_adapter = HARBOR_AGENT_IMPORT_PATHS[RLM_AGENT]
     rlm_lane = rlm_adapter in command
     environment_selector = (
@@ -908,6 +915,8 @@ def run_harbor_process(
             BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH,
         },
     )
+    if local_terminus:
+        runtime_environment[TERMINUS_LOCAL_ENDPOINT_ENV] = local_ollama_endpoint()
     secret_values = collected_secret_values()
     owned_secret_dir: Path | None = None
     owned_secret_path: Path | None = None
@@ -1527,6 +1536,8 @@ def _write_run_metadata(
     network_adaptation: NetworkAdaptation | None = None,
     task_staging: dict[str, Any] | None = None,
     toolbox: dict[str, Any] | None = None,
+    harness_tree: dict[str, Any] | None = None,
+    local_ollama: dict[str, Any] | None = None,
 ) -> None:
     job_dir = request.jobs_dir / request.name
     if not job_dir.exists():
@@ -1555,6 +1566,17 @@ def _write_run_metadata(
     }
     if request.provenance is not None:
         metadata["experiment"] = request.provenance.model_dump(mode="json")
+    if request.experiment_spec is not None:
+        spec_path = job_dir / "experiment-spec.json"
+        persist_private_bytes(
+            spec_path,
+            (request.experiment_spec.model_dump_json(indent=2) + "\n").encode(),
+            secrets=tuple(value.encode() for value in collected_secret_values()),
+        )
+        metadata["experiment_spec"] = {
+            "path": "experiment-spec.json",
+            "sha256": "sha256:" + hashlib.sha256(spec_path.read_bytes()).hexdigest(),
+        }
     if process.proxy_usage is not None:
         calls = process.proxy_usage.get("calls")
         totals = process.proxy_usage.get("totals", {})
@@ -1611,6 +1633,10 @@ def _write_run_metadata(
         metadata["task_staging"] = task_staging
     if toolbox is not None:
         metadata["toolbox"] = toolbox
+    if harness_tree is not None:
+        metadata["harness_tree"] = harness_tree
+    if local_ollama is not None:
+        metadata["local_ollama"] = local_ollama
     persist_private_bytes(
         job_dir / "lab-metadata.json",
         (json.dumps(metadata, indent=2, sort_keys=True) + "\n").encode(),
@@ -1740,7 +1766,7 @@ def _sanitize_persisted_job_tree(root: Path, secrets: tuple[bytes, ...]) -> None
 
 
 def _proxy_trial_limits(request: RunRequest) -> ProxyTrialLimits | None:
-    if request.agent not in {"mini-swe-agent", ZAI_OPENCODE_AGENT, TERMINUS_AGENT}:
+    if not uses_provider_proxy(request.agent, request.model):
         return None
     if (
         request.max_requests is None
@@ -1760,11 +1786,49 @@ def _proxy_trial_limits(request: RunRequest) -> ProxyTrialLimits | None:
 
 
 def _proxy_attempt_id(request: RunRequest) -> str | None:
-    if request.agent not in {"mini-swe-agent", ZAI_OPENCODE_AGENT, TERMINUS_AGENT}:
+    if not uses_provider_proxy(request.agent, request.model):
         return None
     if request.provenance is not None:
         return request.provenance.campaign_attempt_id or request.provenance.spec_id or request.name
     return request.name
+
+
+def _harness_execution_settings(
+    request: RunRequest, local_ollama: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Keep every non-treatment spec setting comparable across fresh runs."""
+    if request.experiment_spec is not None:
+        settings = request.experiment_spec.model_dump(
+            mode="json",
+            exclude={
+                "spec_id", "name", "hypothesis", "question_ref", "submitted_at",
+                "submitted_by", "policy_rule", "harness_tree_path", "harness_tree_sha256",
+                "campaign_ledger", "campaign_cell_id", "campaign_attempt_id",
+                "campaign_attempt_index", "campaign_manifest_digest", "campaign_spec_digest",
+                "campaign_evidence_store",
+            },
+        )
+    else:
+        fields = (
+            "agent", "model", "environment", "attempts", "concurrency", "timeout_seconds",
+            "max_requests", "max_input_tokens", "max_output_tokens", "max_total_tokens",
+            "cost_limit_usd", "harness_policy",
+        )
+        settings = {name: getattr(request, name) for name in fields}
+    settings["inference_settings"] = (
+        request.inference_settings.model_dump(mode="json") if request.inference_settings else None
+    )
+    settings["extra_instruction_sha256"] = (
+        "sha256:" + hashlib.sha256(request.extra_instruction_path.read_bytes()).hexdigest()
+        if request.extra_instruction_path is not None
+        else None
+    )
+    settings["toolbox_sha256"] = request.toolbox_sha256
+    settings["base_skills"] = list(request.resolved_skills)
+    settings["load_trajectory"] = str(request.load_trajectory) if request.load_trajectory else None
+    settings["export_traces"] = request.export_traces
+    settings["local_ollama"] = local_ollama
+    return settings
 
 
 def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
@@ -1773,6 +1837,11 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
         decision = preflight_request(request)
         if not decision.proceed:
             raise RuntimeError(f"{request.agent} credential preflight stopped: {decision.reason}")
+    local_binding = (
+        resolve_ollama_binding(TERMINUS_LOCAL_MODEL_SELECTOR)
+        if request.agent == TERMINUS_AGENT and request.model == TERMINUS_LOCAL_MODEL_SELECTOR
+        else None
+    )
     if not shutil.which("harbor"):
         raise RuntimeError("harbor is not installed or not on PATH")
 
@@ -1784,6 +1853,11 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
 
     request.jobs_dir.mkdir(parents=True, exist_ok=True)
     staging_dir = request.jobs_dir / ".exec-stage" / request.name
+    harness_staging_dir = (
+        request.jobs_dir / ".harness-staging" / request.name
+        if request.harness_tree_path is not None
+        else None
+    )
     executor_log = _executor_log_path(request)
     started = datetime.now(UTC)
     try:
@@ -1817,6 +1891,37 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             ),
         )
         staged_request: RunRequest = replace(request, task=staged_task)
+        staged_harness: Path | None = None
+        harness_meta: dict[str, Any] | None = None
+        if request.harness_tree_path is not None:
+            from evallab.terminus_harness import stage_harness_tree
+
+            if request.harness_tree_sha256 is None or harness_staging_dir is None:
+                raise ValueError("harness tree requires its content digest")
+            staged_harness, harness_meta = stage_harness_tree(
+                request.harness_tree_path,
+                request.harness_tree_sha256,
+                staging_root=harness_staging_dir,
+                repo_root=repo_root,
+            )
+            staged_request = replace(staged_request, harness_tree_path=staged_harness)
+            base_request = replace(staged_request, harness_tree_path=None, harness_tree_sha256=None)
+            staged_root = staged_harness.resolve()
+            harness_meta.update(
+                staged_root=staged_root.as_posix(),
+                base_agent_kwargs=terminus_agent_kwargs(base_request),
+                rendered_agent_kwargs=terminus_agent_kwargs(staged_request),
+                rendered_rule_paths=(
+                    [(staged_root / harness_meta["rules_path"]).as_posix()]
+                    if harness_meta["rules_path"] else []
+                ),
+                rendered_skill_paths=[
+                    (staged_root / relative).as_posix() for relative in harness_meta["skill_roots"]
+                ],
+                execution_settings=_harness_execution_settings(
+                    request, local_binding.to_dict() if local_binding is not None else None
+                ),
+            )
         staged_toolbox: Path | None = None
         toolbox_meta: dict[str, Any] | None = None
         if request.toolbox_path is not None:
@@ -1878,6 +1983,10 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             finished_at=finished,
             process=process,
         )
+        if staged_harness is not None and harness_meta is not None:
+            from evallab.terminus_harness import retain_harness_tree_evidence
+
+            retain_harness_tree_evidence(job_dir, staged_harness, harness_meta)
         _write_run_metadata(
             request,
             repo_root=repo_root,
@@ -1888,6 +1997,8 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             network_adaptation=adaptation,
             task_staging=_task_staging_provenance(request.task, staged_task, adaptation),
             toolbox=toolbox_meta,
+            harness_tree=harness_meta,
+            local_ollama=local_binding.to_dict() if local_binding is not None else None,
         )
         if staged_toolbox is not None and toolbox_meta is not None and job_dir.exists():
             from evallab.toolbox import retain_toolbox_evidence
@@ -1930,7 +2041,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             raise ExecutionFailure(
                 f"Harbor exited with {process.returncode}; inspect {executor_log}{cleanup_detail}"
             )
-        if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT, TERMINUS_AGENT}:
+        if uses_provider_proxy(request.agent, request.model):
             provider_label = (
                 "Z.ai OpenAPI"
                 if (is_zai_openapi or is_terminus)
@@ -2055,6 +2166,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
         return job_dir
     finally:
         _cleanup_stage(staging_dir)
+        _cleanup_stage(harness_staging_dir)
 
 
 def load_matrix(path: Path) -> ExperimentMatrix:

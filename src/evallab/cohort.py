@@ -20,6 +20,12 @@ from pydantic import ValidationError
 from evallab.evidence.facts import TrialFact, digest_json, extract_trial_fact
 from evallab.results import JobRecord, TrialRecord, load_job, load_jobs
 from evallab.schemas import CohortComparisonSpec, CohortSelector
+from evallab.terminus_harness import (
+    COMMAND_ROOT,
+    RULES_PATH,
+    SKILL_ROOT,
+    load_harness_tree,
+)
 
 CONSEQUENTIAL_FIELDS = (
     "task_digest",
@@ -35,6 +41,31 @@ CONSEQUENTIAL_FIELDS = (
     "factor_values_digest",
     "factor_bindings_digest",
     "bound_execution_values_digest",
+    "harness_tree_sha256",
+    "harness_execution_settings_digest",
+    "harness_base_agent_kwargs_digest",
+)
+
+# Retained Terminus harness-tree binding, per the HAR-71 implementation
+# contract: ``lab-metadata.json.harness_tree`` names the retained bytes under
+# ``harness-tree/`` and records the exact base/rendered bindings the runner
+# used. Comparison treats the pinned tree as the causal treatment only after
+# the retained bytes, digest, and rendered bindings all verify. Tree layout,
+# knob, and mapping validation is the canonical ``terminus_harness`` loader,
+# never re-implemented here.
+HARNESS_TREE_METADATA_KEY = "harness_tree"
+HARNESS_TREE_RETAINED_DIR = "harness-tree"
+HARNESS_TREE_SCHEMA_VERSION = 1
+HARNESS_TREE_RUNNER_FIELDS = (
+    "base_agent_kwargs",
+    "rendered_agent_kwargs",
+    "rendered_rule_paths",
+    "rendered_skill_paths",
+    "execution_settings",
+)
+COST_BASIS_RECORDED_NATIVE = (
+    "recorded execution cost from retained native evidence; "
+    "provider-reported estimates are not invoices"
 )
 
 BOOTSTRAP_RESAMPLES = 4_000
@@ -90,6 +121,12 @@ class CohortMember:
     cost_usd: float | None
     tool_call_count: int
     started_at: str | None
+    harness_tree_sha256: str | None
+    harness_binding_problem: str | None
+    harness_execution_settings_digest: str | None
+    harness_base_agent_kwargs_digest: str | None
+    harness_model_settings_digest: str | None
+    harness_toolset_digest: str | None
 
     def condition(self, field: str) -> str | None:
         value = getattr(self, field)
@@ -237,6 +274,325 @@ def _valid_content_digest(value: Any) -> bool:
 def _path_key(value: str) -> str:
     """Normalize separators and dots without resolving symlink-sensitive parents."""
     return PurePosixPath(value).as_posix()
+
+@dataclass(frozen=True)
+class HarnessTreeBinding:
+    """One job's retained harness-tree binding after full evidence verification."""
+
+    sha256: str
+    base_agent_kwargs: dict[str, Any]
+    rendered_agent_kwargs: dict[str, Any]
+    rendered_skill_paths: tuple[str, ...]
+    execution_settings: dict[str, Any]
+    rules_content_sha256: str | None
+    skill_identities: tuple[dict[str, str], ...]
+
+
+@dataclass(frozen=True)
+class VerifiedHarnessIdentities:
+    """Tree-free identities used to normalize verified inductions away."""
+
+    execution_settings_digest: str
+    base_agent_kwargs_digest: str
+    model_settings_digest: str
+    toolset_digest: str | None
+
+
+def _tree_relative_path(value: Any) -> PurePosixPath | None:
+    """A relative posix path that stays inside the retained tree, or ``None``."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    path = PurePosixPath(value)
+    if path.is_absolute() or ".." in path.parts:
+        return None
+    return path
+
+
+def _skill_directory_digest(skill_dir: Path) -> str:
+    """Harbor's native skill digest (``harbor.skills.compute_skill_digest``).
+
+    Sorted relative names and content digests, framed with NUL bytes; mirrors
+    the upstream algorithm exactly, the way ``evallab.toolbox`` mirrors the
+    two-file toolbox variant.
+    """
+    hasher = hashlib.sha256()
+    for path in sorted(item for item in skill_dir.rglob("*") if item.is_file()):
+        hasher.update(path.relative_to(skill_dir).as_posix().encode())
+        hasher.update(b"\0")
+        hasher.update(hashlib.sha256(path.read_bytes()).hexdigest().encode())
+        hasher.update(b"\0")
+    return f"sha256:{hasher.hexdigest()}"
+
+
+def _tree_skill_identities(
+    tree: Path, rendered_skill_paths: tuple[str, ...]
+) -> tuple[dict[str, str], ...] | None:
+    """``(name, digest)`` per skill Harbor loads from the retained tree.
+
+    Mirrors ``harbor.skills._find_skill_dirs``: a rendered root is itself a
+    skill when it carries ``SKILL.md``, otherwise each non-dot child directory
+    must. Duplicate names resolve last-wins in render order, and the result is
+    sorted by name. ``None`` means the retained root is malformed.
+    """
+    resolved: dict[str, str] = {}
+    try:
+        for raw_root in rendered_skill_paths:
+            root_dir = tree / Path(raw_root)
+            if (root_dir / "SKILL.md").is_file():
+                skill_dirs = [root_dir]
+            else:
+                children = sorted(
+                    (child for child in root_dir.iterdir() if child.is_dir()),
+                    key=lambda child: child.name,
+                )
+                if not children or any(
+                    not (child / "SKILL.md").is_file()
+                    for child in children
+                    if not child.name.startswith(".")
+                ):
+                    return None
+                skill_dirs = [child for child in children if not child.name.startswith(".")]
+            for skill_dir in skill_dirs:
+                resolved[skill_dir.name] = _skill_directory_digest(skill_dir)
+    except OSError:
+        return None
+    return tuple(
+        {"name": name, "digest": digest} for name, digest in sorted(resolved.items())
+    )
+
+
+def _recorded_harness_binding(job: JobRecord) -> tuple[HarnessTreeBinding | None, str | None]:
+    """Verify one job's recorded harness-tree binding from immutable evidence.
+
+    Only the job's retained bytes (``harness-tree/``) and ``lab-metadata.json``
+    are consulted; the present-day candidate tree and the run-time staging
+    directory (recorded as ``staged_root`` but never read — rendered paths
+    verify by lexical ``staged_root``/relative joins) cannot relabel a
+    completed job. ``(None, None)`` means the job pinned no tree. A problem
+    string means a binding was recorded but cannot be trusted — unknown
+    schema, missing runner-recorded fields, tampered retained bytes, or
+    incoherent rendered bindings — and such a job can never join a
+    harness-tree comparison.
+    """
+    recorded = job.metadata.get(HARNESS_TREE_METADATA_KEY)
+    if recorded is None:
+        return None, None
+    if not isinstance(recorded, dict):
+        return None, "harness_tree metadata is not an object"
+    if recorded.get("schema_version") != HARNESS_TREE_SCHEMA_VERSION:
+        return None, (
+            f"harness_tree schema_version {recorded.get('schema_version')!r} is unsupported"
+        )
+    sha256 = recorded.get("sha256")
+    if not _valid_content_digest(sha256):
+        return None, "harness_tree sha256 is missing or malformed"
+    if recorded.get("artifact_path") != HARNESS_TREE_RETAINED_DIR:
+        return None, (
+            f"harness_tree artifact_path {recorded.get('artifact_path')!r} is not the retained tree"
+        )
+    staged_root = recorded.get("staged_root")
+    if not isinstance(staged_root, str) or not PurePosixPath(staged_root).is_absolute():
+        return None, "harness_tree staged_root is not an absolute path"
+    config = recorded.get("config")
+    if not isinstance(config, dict):
+        return None, "harness_tree config is not an object"
+    rules_relative = _tree_relative_path(recorded.get("rules_path"))
+    if recorded.get("rules_path") is not None and rules_relative is None:
+        return None, f"harness_tree rules_path {recorded.get('rules_path')!r} escapes the tree"
+    if rules_relative is not None and rules_relative.as_posix() != RULES_PATH:
+        return None, (
+            f"harness_tree rules_path {rules_relative.as_posix()!r} is not the tree rules file"
+        )
+    raw_skill_roots = recorded.get("skill_roots")
+    if not isinstance(raw_skill_roots, list):
+        return None, "harness_tree skill_roots is not a list"
+    skill_roots: list[str] = []
+    for raw_root in raw_skill_roots:
+        root = _tree_relative_path(raw_root)
+        if root is None or root.as_posix() not in {SKILL_ROOT, COMMAND_ROOT}:
+            return None, f"harness_tree skill_root {raw_root!r} is not a tree skill root"
+        skill_roots.append(root.as_posix())
+    runner_values: dict[str, Any] = {}
+    for field in HARNESS_TREE_RUNNER_FIELDS:
+        value = recorded.get(field)
+        if value is None:
+            return None, f"harness_tree metadata is missing recorded {field!r}"
+        runner_values[field] = value
+    base_agent_kwargs = runner_values["base_agent_kwargs"]
+    rendered_agent_kwargs = runner_values["rendered_agent_kwargs"]
+    execution_settings = runner_values["execution_settings"]
+    rendered_rule_paths = runner_values["rendered_rule_paths"]
+    rendered_skill_paths = runner_values["rendered_skill_paths"]
+    if not isinstance(base_agent_kwargs, dict) or not isinstance(rendered_agent_kwargs, dict):
+        return None, "harness_tree agent kwargs records are not objects"
+    if not isinstance(execution_settings, dict):
+        return None, "harness_tree execution_settings is not an object"
+    if not isinstance(rendered_rule_paths, list) or any(
+        not isinstance(item, str) for item in rendered_rule_paths
+    ):
+        return None, "harness_tree rendered_rule_paths is not a list of paths"
+    if not isinstance(rendered_skill_paths, list) or any(
+        not isinstance(item, str) for item in rendered_skill_paths
+    ):
+        return None, "harness_tree rendered_skill_paths is not a list of paths"
+
+    tree_dir = job.path / HARNESS_TREE_RETAINED_DIR
+    if tree_dir.is_symlink() or not tree_dir.resolve().is_relative_to(job.path.resolve()):
+        return None, "retained harness tree is missing or escapes the job directory"
+    try:
+        # Canonical validation: digest pin (tampered bytes refuse here),
+        # symlinks/special files, unknown or binding knobs, code extensions,
+        # reserved runtime paths, and the config/rules/skills mapping. A
+        # stock tree without terminus/config.json loads with an empty config.
+        tree = load_harness_tree(tree_dir, expected_sha256=sha256)
+    except (OSError, ValueError) as exc:
+        return None, f"retained harness tree failed canonical validation: {exc}"
+    if tree.config != config:
+        return None, "retained tree config does not match the recorded config"
+    tree_rules = RULES_PATH if tree.rules_path is not None else None
+    if tree_rules != (rules_relative.as_posix() if rules_relative is not None else None):
+        return None, "retained tree rules do not match the recorded rules_path"
+    tree_skill_roots = sorted(
+        path.relative_to(tree.root).as_posix() for path in tree.skill_roots
+    )
+    if tree_skill_roots != sorted(skill_roots):
+        return None, "retained tree skill roots do not match the recorded skill_roots"
+
+    expected_kwargs = dict(base_agent_kwargs)
+    for key, value in config.items():
+        if key == "llm_call_kwargs" and isinstance(value, dict):
+            expected_kwargs[key] = {**_json_object(base_agent_kwargs.get(key)), **value}
+        else:
+            expected_kwargs[key] = value
+    if rendered_agent_kwargs != expected_kwargs:
+        return None, (
+            "rendered agent kwargs do not equal the base kwargs overridden by the tree config"
+        )
+
+    expected_rule_paths = (
+        [str(PurePosixPath(staged_root) / RULES_PATH)] if tree.rules_path is not None else []
+    )
+    if list(rendered_rule_paths) != expected_rule_paths:
+        return None, "rendered rule paths do not match the staged tree rules argv"
+    expected_rendered_roots = sorted(
+        str(PurePosixPath(staged_root) / root) for root in skill_roots
+    )
+    if sorted(rendered_skill_paths) != expected_rendered_roots:
+        return None, "rendered skill paths do not match the staged skill root argv"
+    # Skill content identities come from the retained bytes under the job,
+    # never from the (possibly cleaned up or archived) staging directory,
+    # and iterate the recorded root order to mirror Harbor's argv resolution.
+    skill_identities = _tree_skill_identities(tree.root, tuple(skill_roots))
+    if skill_identities is None:
+        return None, "retained tree skill roots are malformed"
+    rules_bytes = tree.rules_path.read_bytes() if tree.rules_path is not None else b""
+    return (
+        HarnessTreeBinding(
+            sha256=sha256,
+            base_agent_kwargs=base_agent_kwargs,
+            rendered_agent_kwargs=rendered_agent_kwargs,
+            rendered_skill_paths=tuple(rendered_skill_paths),
+            execution_settings=execution_settings,
+            rules_content_sha256=(
+                "sha256:" + hashlib.sha256(rules_bytes).hexdigest()
+                if rules_bytes.strip()
+                else None
+            ),
+            skill_identities=skill_identities,
+        ),
+        None,
+    )
+
+
+def _frozen_skill_identities(trial: TrialRecord) -> list[tuple[str, str]] | None:
+    """``(name, digest)`` pairs frozen in one trial's resolved skill locks."""
+    skills = trial.lock.get("skills")
+    if skills in (None, []):
+        return []
+    if not isinstance(skills, list):
+        return None
+    identities: list[tuple[str, str]] = []
+    for skill in skills:
+        if not isinstance(skill, dict):
+            return None
+        name = skill.get("name")
+        digest = skill.get("digest")
+        if not isinstance(name, str) or not _valid_content_digest(digest):
+            return None
+        identities.append((name, digest))
+    return sorted(identities)
+
+
+def _verified_harness_identities(
+    binding: HarnessTreeBinding,
+    trial: TrialRecord,
+    agent_lock: dict[str, Any],
+    model_settings: dict[str, Any],
+    toolset: dict[str, Any] | None,
+    preamble_hash: str | None,
+) -> tuple[VerifiedHarnessIdentities | None, str | None]:
+    """Verify the trial's frozen bindings are exactly the rendered tree.
+
+    The pinned tree may induce — and only induce — differences in agent
+    kwargs, extra instructions, and skills. Each frozen surface is compared
+    against the recorded rendering before it is normalized away. A fixed
+    independent (queue) preamble is admitted: the effective preamble must be
+    exactly the base preamble named by
+    ``execution_settings.extra_instruction_sha256`` followed by the tree
+    rules, so an unchanged base preamble compares equal while a changed or
+    unknown one still fails through the execution-settings identity or here.
+    Skills from outside the tree or kwargs the tree did not render fail
+    verification, and the caller keeps the raw consequential identities so
+    the cohorts stay not comparable.
+    """
+    if _json_object(agent_lock.get("kwargs")) != binding.rendered_agent_kwargs:
+        return None, "frozen agent kwargs do not equal the recorded rendered kwargs"
+    if "skills" in agent_lock and list(agent_lock["skills"]) != list(
+        binding.rendered_skill_paths
+    ):
+        return None, "frozen agent skills do not match the rendered skill paths"
+    frozen_skills = _frozen_skill_identities(trial)
+    expected_skills = sorted((item["name"], item["digest"]) for item in binding.skill_identities)
+    if frozen_skills is None or frozen_skills != expected_skills:
+        return None, "frozen skills do not match the retained tree skills"
+    base_preamble_sha = binding.execution_settings.get("extra_instruction_sha256")
+    if base_preamble_sha is not None and not _valid_content_digest(base_preamble_sha):
+        return None, "execution_settings extra_instruction_sha256 is malformed"
+    expected_files = []
+    if base_preamble_sha is not None:
+        expected_files.append(base_preamble_sha)
+    if binding.rules_content_sha256 is not None:
+        expected_files.append(binding.rules_content_sha256)
+    if expected_files:
+        expected_preamble = digest_json({"inline": [], "files": expected_files})
+    else:
+        expected_preamble = digest_json({"preamble": "none"})
+    if preamble_hash is None:
+        return None, "retained preamble identity is unknown"
+    if preamble_hash != expected_preamble:
+        return None, (
+            "retained preamble does not equal the base preamble plus the rendered tree rules"
+        )
+    # The frozen kwargs and skills were just verified to be exactly the
+    # rendered tree, so their (possibly differing) content is the declared
+    # treatment itself; every remaining surface must stay identical.
+    normalized_settings = {
+        key: value for key, value in model_settings.items() if key not in {"kwargs", "skills"}
+    }
+    normalized_toolset: dict[str, Any] | None = None
+    if toolset is not None:
+        normalized_toolset = {key: value for key, value in toolset.items() if key != "skills"}
+    return (
+        VerifiedHarnessIdentities(
+            execution_settings_digest=digest_json(binding.execution_settings),
+            base_agent_kwargs_digest=digest_json(binding.base_agent_kwargs),
+            model_settings_digest=digest_json(normalized_settings),
+            toolset_digest=digest_json(normalized_toolset)
+            if normalized_toolset is not None
+            else None,
+        ),
+        None,
+    )
 
 
 def _declared_instruction_files(source: dict[str, Any]) -> list[tuple[str, str | None]] | None:
@@ -496,6 +852,21 @@ def _member(
             toolset_digest = digest_json(toolset)
         else:
             toolset, toolset_digest = None, None
+    preamble_hash = _retained_preamble_hash(trial, fact)
+    harness_fields = _harness_member_fields(
+        job, trial, agent_lock, model_settings, toolset, preamble_hash
+    )
+    if harness_fields["harness_tree_sha256"] is not None and toolset is not None:
+        # Job-specific staging paths are locations, not new tool capabilities.
+        # Only verified retained content may replace the native path identity.
+        frozen_skills = _frozen_skill_identities(trial)
+        assert frozen_skills is not None
+        toolset = {
+            **toolset,
+            "skills": [{"name": name, "digest": digest} for name, digest in frozen_skills],
+        }
+        toolset_digest = digest_json(toolset)
+        model_settings.pop("skills", None)
     try:
         source_path = trial.path.resolve().relative_to(root.resolve()).as_posix()
     except ValueError:
@@ -532,7 +903,7 @@ def _member(
         agent_version=agent_version,
         model_name=model_name,
         model_settings_digest=digest_json(model_settings),
-        preamble_hash=_retained_preamble_hash(trial, fact),
+        preamble_hash=preamble_hash,
         toolset=toolset,
         toolset_digest=toolset_digest,
         harness_policy_digest=digest_json(
@@ -551,7 +922,49 @@ def _member(
         cost_usd=fact.cost_usd,
         tool_call_count=fact.tool_call_count,
         started_at=_string_or_none(trial.result.get("started_at")),
+        **harness_fields,
     )
+
+
+def _harness_member_fields(
+    job: JobRecord,
+    trial: TrialRecord,
+    agent_lock: dict[str, Any],
+    model_settings: dict[str, Any],
+    toolset: dict[str, Any] | None,
+    preamble_hash: str | None,
+) -> dict[str, Any]:
+    """CohortMember harness fields from the verified retained binding."""
+    binding, problem = _recorded_harness_binding(job)
+    if binding is None:
+        return {
+            "harness_tree_sha256": None,
+            "harness_binding_problem": problem,
+            "harness_execution_settings_digest": None,
+            "harness_base_agent_kwargs_digest": None,
+            "harness_model_settings_digest": None,
+            "harness_toolset_digest": None,
+        }
+    identities, problem = _verified_harness_identities(
+        binding, trial, agent_lock, model_settings, toolset, preamble_hash
+    )
+    if identities is None:
+        return {
+            "harness_tree_sha256": None,
+            "harness_binding_problem": problem,
+            "harness_execution_settings_digest": None,
+            "harness_base_agent_kwargs_digest": None,
+            "harness_model_settings_digest": None,
+            "harness_toolset_digest": None,
+        }
+    return {
+        "harness_tree_sha256": binding.sha256,
+        "harness_binding_problem": None,
+        "harness_execution_settings_digest": identities.execution_settings_digest,
+        "harness_base_agent_kwargs_digest": identities.base_agent_kwargs_digest,
+        "harness_model_settings_digest": identities.model_settings_digest,
+        "harness_toolset_digest": identities.toolset_digest,
+    }
 
 
 def assemble_members(root: Path, spec: CohortComparisonSpec) -> list[CohortMember]:
@@ -578,10 +991,32 @@ def assemble_members(root: Path, spec: CohortComparisonSpec) -> list[CohortMembe
     return sorted(members, key=lambda item: (item.cohort, item.task_digest or "", item.trial_id))
 
 
+def _comparability_condition(
+    member: CohortMember, field: str, declared_variable: str
+) -> str | None:
+    """Condition value with verified harness-tree inductions normalized away.
+
+    Under a declared harness-tree treatment, the raw model-settings and
+    toolset identities are replaced by their tree-free forms for members whose
+    retained binding fully verified, so only unexplained differences remain
+    consequential. Members with an unverified binding keep their raw
+    identities and can never compare equal to a verified arm.
+    """
+    if declared_variable == "harness_tree_sha256" and member.harness_tree_sha256 is not None:
+        if field == "model_settings_digest":
+            return member.harness_model_settings_digest
+        if field == "toolset_digest":
+            return member.harness_toolset_digest
+    return member.condition(field)
+
+
 def _validate_comparability(spec: CohortComparisonSpec, members: list[CohortMember]) -> list[str]:
     observed = {
         field: sorted(
-            {member.condition(field) for member in members},
+            {
+                _comparability_condition(member, field, spec.declared_variable)
+                for member in members
+            },
             key=lambda value: "" if value is None else value,
         )
         for field in CONSEQUENTIAL_FIELDS
@@ -598,7 +1033,10 @@ def _validate_comparability(spec: CohortComparisonSpec, members: list[CohortMemb
         "bound_execution_values_digest",
         "factor_bindings_digest",
         "preamble_content_sha256",
+        "harness_tree_sha256",
     }
+    if spec.declared_variable == "harness_tree_sha256":
+        treatment_fields.add("harness_base_agent_kwargs_digest")
     differing_fields = [field for field in treatment_fields if len(observed[field]) > 1]
     warnings: list[str] = []
     if spec.declared_variable in {
@@ -652,6 +1090,19 @@ def _validate_comparability(spec: CohortComparisonSpec, members: list[CohortMemb
         allowed_differences.add("preamble_content_sha256")
     elif spec.declared_variable == "preamble_content_sha256":
         allowed_differences.add("preamble_hash")
+    elif spec.declared_variable == "harness_tree_sha256":
+        allowed_differences.update({"preamble_hash", "preamble_content_sha256"})
+        unverified = sorted(
+            {
+                member.harness_binding_problem or "no harness_tree binding is recorded"
+                for member in members
+                if member.harness_tree_sha256 is None
+            }
+        )
+        if unverified:
+            warnings.append(
+                "harness binding is missing or unverified: " + "; ".join(unverified)
+            )
     undeclared = [field for field in differing_fields if field not in allowed_differences]
     if spec.declared_variable not in differing_fields:
         warnings.append(f"declared variable {spec.declared_variable!r} does not differ")
@@ -667,6 +1118,10 @@ def _validate_comparability(spec: CohortComparisonSpec, members: list[CohortMemb
     invariants = {"task_digest", "verifier_digest"}
     if spec.declared_variable != "environment_digest":
         invariants.add("environment_digest")
+    if spec.declared_variable == "harness_tree_sha256":
+        # A spec also binds the task and its task-specific limits. Those may
+        # vary across task blocks, but never across arms of the same block.
+        invariants.add("harness_execution_settings_digest")
     for task_key, task_members in sorted(by_task.items()):
         for field in sorted(invariants):
             values = sorted(
@@ -1302,6 +1757,61 @@ def _unbiased_metric(
         "task_estimates": task_estimates,
     }
 
+def _cost_per_solved_task(
+    cohort: list[CohortMember],
+    spec: CohortComparisonSpec,
+) -> dict[str, Any]:
+    """Recorded cost per solved task for one arm.
+
+    The numerator sums the recorded execution cost of every selected trial,
+    including failed and unscored attempts; the denominator counts distinct
+    pairing-key task instances with at least one valid pass, so repeated
+    successes cannot inflate it. A missing or invalid per-trial cost is never
+    zero-filled: it is counted, and it makes the ratio unavailable. Recorded
+    native costs (including an explicit recorded zero for a no-API-charge
+    local route) are evidence about recorded execution cost, not invoices.
+    """
+    recorded: list[float] = []
+    missing_or_invalid = 0
+    for member in cohort:
+        cost = member.cost_usd
+        if cost is None or not math.isfinite(cost) or cost < 0:
+            missing_or_invalid += 1
+        else:
+            recorded.append(float(cost))
+    solved_tasks: set[str] = set()
+    for member in cohort:
+        reward = _effective_reward(
+            member,
+            budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
+        )
+        if reward is None or reward < spec.pass_threshold:
+            continue
+        key = _pairing_value(member, spec.pairing_key)
+        if key is not None:
+            solved_tasks.add(key)
+    total = sum(recorded)
+    reason: str | None = None
+    if not solved_tasks:
+        reason = "no solved tasks"
+    elif missing_or_invalid:
+        reason = (
+            f"incomplete cost evidence: {missing_or_invalid} of {len(cohort)} "
+            "selected trial(s) lack a valid recorded cost"
+        )
+    return {
+        "cost_basis": COST_BASIS_RECORDED_NATIVE,
+        "recorded_cost_total_usd": total,
+        "cost_trial_count": len(recorded),
+        "missing_or_invalid_cost_trial_count": missing_or_invalid,
+        "solved_task_count": len(solved_tasks),
+        "pairing_key": spec.pairing_key,
+        "cost_per_solved_task_usd": (
+            total / len(solved_tasks) if reason is None else None
+        ),
+        "unavailable_reason": reason,
+    }
+
 
 def _summarize_cohort(
     label: str,
@@ -1381,6 +1891,7 @@ def _summarize_cohort(
         "cost_usd": _numeric_summary(
             [float(member.cost_usd) for member in capability if member.cost_usd is not None]
         ),
+        "cost_per_solved_task": _cost_per_solved_task(cohort, spec),
         "tool_call_count": _numeric_summary(
             [float(member.tool_call_count) for member in capability]
         ),
@@ -1753,8 +2264,9 @@ def render_markdown(report: dict[str, Any]) -> str:
         [
             "## Outcomes",
             "",
-            "| cohort | total | capability denominator | exceptions | pass-any-first-k |",
-            "|---|---:|---:|---:|---|",
+            "| cohort | total | capability denominator | exceptions | pass-any-first-k "
+            "| cost per solved task | missing/invalid cost trials |",
+            "|---|---:|---:|---:|---|---|---:|",
         ]
     )
     for cohort in report["cohorts"]:
@@ -1768,18 +2280,43 @@ def render_markdown(report: dict[str, Any]) -> str:
                 if interval is not None:
                     value += f" [{interval[0]:.3f}, {interval[1]:.3f}]"
             pass_cells.append(f"@{metric['k']} {value}")
+        cost = cohort["cost_per_solved_task"]
+        if cost["cost_per_solved_task_usd"] is None:
+            cost_cell = f"unavailable ({cost['unavailable_reason']})"
+        else:
+            cost_cell = (
+                f"${cost['cost_per_solved_task_usd']:.4f} "
+                f"({cost['solved_task_count']} solved, "
+                f"${cost['recorded_cost_total_usd']:.2f} recorded)"
+            )
         lines.append(
             f"| {cohort['label']} | {cohort['n_total']} | "
             f"{cohort['capability_denominator']} | {cohort['exception_count']} | "
-            f"{'<br>'.join(pass_cells)} |"
+            f"{'<br>'.join(pass_cells)} | {cost_cell} | "
+            f"{cost['missing_or_invalid_cost_trial_count']} |"
         )
     lines.extend(
         [
             "",
             "Exceptions are reported beside, and excluded from, the capability denominator.",
+            "Cost per solved task divides the recorded cost of every selected "
+            "trial, failed and unscored attempts included, by the count of "
+            "distinct solved task instances; it is withheld, never zero-filled, "
+            "when costs are incomplete or nothing was solved.",
             "",
         ]
     )
+    if report["declared_variable"] == "harness_tree_sha256":
+        lines.extend(["## Verified harness treatment", "", "| cohort | tree digest |", "|---|---|"])
+        for cohort in report["cohorts"]:
+            digests = sorted({
+                member["harness_tree_sha256"]
+                for member in cohort["members"]
+                if member["harness_tree_sha256"] is not None
+            })
+            identities = "<br>".join(f"`{digest}`" for digest in digests) or "unverified"
+            lines.append(f"| {cohort['label']} | {identities} |")
+        lines.append("")
     lines.extend(["## Paired by task", ""])
     for paired in report["paired"]:
         lines.append(

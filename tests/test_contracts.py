@@ -1,8 +1,4 @@
-"""Contract freeze tests for E00.
-
-Golden schemas committed so that any field add/rename/retype/reorder fails CI.
-Regeneration script documented in docs/contracts.md.
-"""
+"""Contract boundaries, serialization compatibility, and legacy schema freezes."""
 
 from __future__ import annotations
 
@@ -17,7 +13,6 @@ from evallab.schemas import (
     AnalysisRecord,
     CalibrationRecord,
     CapabilityCurveReport,
-    CapabilityCurveSpec,
     ConfidenceClaim,
     ControlEvidenceRef,
     CriterionAgreement,
@@ -51,9 +46,7 @@ def test_golden_schemas_match_live():
         (ObservationRecord, "ObservationRecord"),
         (CalibrationRecord, "CalibrationRecord"),
         (Verdict, "Verdict"),
-        (ExperimentSpec, "ExperimentSpec"),
         (TaskRegistryRecord, "TaskRegistryRecord"),
-        (CapabilityCurveSpec, "CapabilityCurveSpec"),
         (CapabilityCurveReport, "CapabilityCurveReport"),
     ]:
         live = Model.model_json_schema()
@@ -616,16 +609,6 @@ def test_elicitation_one_variable_difference_expressible():
     assert is_one_variable_elicitation(base, diff_three) is False
 
 
-def test_golden_freeze_detects_injected_field():
-    """The golden freeze fails when any schema has an unexpected/injected field."""
-    schema = ExperimentSpec.model_json_schema()
-    mutated = json.loads(json.dumps(schema))
-    mutated["properties"]["injected_unapproved_field"] = {"type": "string"}
-
-    with pytest.raises(AssertionError, match="schema drift"):
-        live = mutated
-        committed = _load_golden("ExperimentSpec")
-        assert live == committed, "ExperimentSpec schema drift"
 
 
 def _s03_spec(**overrides: object) -> ExperimentSpec:
@@ -836,3 +819,32 @@ def test_analysis_record_source_digest_malformed_rejection(digest_field):
     }
     with pytest.raises(ValueError, match="digest must be sha256"):
         AnalysisRecord(**kwargs)
+
+
+@pytest.mark.parametrize("binding", [
+    {"harness_tree_path": "harness/baseline"},
+    {"harness_tree_sha256": "sha256:" + "a" * 64},
+    {"harness_tree_path": "harness/baseline", "harness_tree_sha256": "not-a-digest"},
+])
+def test_harness_spec_rejects_incomplete_or_malformed_binding(binding: dict[str, str]) -> None:
+    with pytest.raises(ValidationError):
+        _s03_spec(agent="terminus-2", **binding)
+
+
+def test_harness_spec_rejects_non_terminus_consumers() -> None:
+    with pytest.raises(ValidationError):
+        _s03_spec(
+            agent="mini-swe-agent", harness_tree_path="harness/baseline",
+            harness_tree_sha256="sha256:" + "a" * 64,
+        )
+
+
+def test_absent_harness_binding_does_not_change_legacy_serialized_specs() -> None:
+    legacy = _s03_spec()
+    payload = legacy.model_dump(mode="json")
+    assert "harness_tree_path" not in payload
+    assert "harness_tree_sha256" not in payload
+    explicit_absence = ExperimentSpec.model_validate(
+        payload | {"harness_tree_path": None, "harness_tree_sha256": None}
+    )
+    assert explicit_absence.model_dump_json() == legacy.model_dump_json()

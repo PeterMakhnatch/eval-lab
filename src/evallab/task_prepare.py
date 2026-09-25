@@ -23,18 +23,22 @@ from evallab.execution_contracts import (
     RLM_AGENT,
     SAFE_JOB_NAME,
     TERMINUS_AGENT,
+    TERMINUS_LOCAL_MODEL_SELECTOR,
     ZAI_OPENAPI_MODEL_SELECTOR,
     ZAI_OPENCODE_AGENT,
     ZAI_OPENCODE_MODEL_SELECTORS,
     RunRequest,
+    uses_provider_proxy,
     validate_request,
 )
 from evallab.registry import compute_task_digests
 from evallab.schemas import EXPLORATION_JOBS_ROOT, ExperimentSpec
 from evallab.task_import import import_task_package
+from evallab.terminus_harness import load_harness_tree, stage_harness_tree
 
 #: Retained snapshots live here, repo-relative, content-addressed.
 PREPARED_TASKS_REL = "runs/.prepared-tasks"
+PREPARED_HARNESSES_REL = "runs/.prepared-harnesses"
 #: Prepared specs live here by default, named ``<job-name>.json``.
 PREPARED_SPECS_REL = "derived/prepared"
 
@@ -44,7 +48,6 @@ PILOT_MAX_INPUT_TOKENS = 5_000_000
 PILOT_MAX_OUTPUT_TOKENS = 131_072
 
 MINI_SWE_AGENT = "mini-swe-agent"
-METERED_AGENTS = frozenset({MINI_SWE_AGENT, ZAI_OPENCODE_AGENT, TERMINUS_AGENT})
 MINI_SWE_MODELS = frozenset(
     {
         DEEPSEEK_MODEL_SELECTOR,
@@ -153,6 +156,7 @@ def _task_resources(
 def _resolve_ceilings(
     *,
     agent: str,
+    model: str | None,
     max_requests: int,
     max_input_tokens: int,
     max_output_tokens: int,
@@ -161,7 +165,7 @@ def _resolve_ceilings(
     warnings: list[str],
 ) -> tuple[int | None, int | None, int | None, int | None, float | None]:
     """Resolve metered ceilings; non-metered harnesses get none, never fakes."""
-    if agent in METERED_AGENTS:
+    if uses_provider_proxy(agent, model):
         if cost_limit_usd is None:
             raise ValueError(
                 f"metered agent {agent!r} requires explicit cost_limit_usd: "
@@ -241,6 +245,8 @@ def prepare_task(
     max_input_tokens: int = PILOT_MAX_INPUT_TOKENS,
     max_output_tokens: int = PILOT_MAX_OUTPUT_TOKENS,
     max_total_tokens: int | None = None,
+    harness_tree_path: Path | None = None,
+    harness_tree_sha256: str | None = None,
     output: Path | None = None,
     submitted_by: str = "operator",
 ) -> PreparedTask:
@@ -321,6 +327,7 @@ def prepare_task(
 
     ceilings = _resolve_ceilings(
         agent=agent,
+        model=model,
         max_requests=max_requests,
         max_input_tokens=max_input_tokens,
         max_output_tokens=max_output_tokens,
@@ -332,6 +339,21 @@ def prepare_task(
     estimated_cost = est_cost_usd if est_cost_usd is not None else (ceiling_cost or 0.0)
     if ceiling_cost is not None and estimated_cost < ceiling_cost:
         raise ValueError("estimated cost must cover the model cost ceiling plus any infrastructure")
+    if harness_tree_sha256 is not None and harness_tree_path is None:
+        raise ValueError("harness_tree_sha256 requires harness_tree_path")
+    tree = None
+    if harness_tree_path is not None:
+        if agent != TERMINUS_AGENT:
+            raise ValueError("harness trees are supported only by terminus-2")
+        tree_source = Path(harness_tree_path)
+        if not tree_source.is_absolute():
+            tree_source = repo / tree_source
+        tree = load_harness_tree(tree_source, harness_tree_sha256)
+    if agent == TERMINUS_AGENT and model == TERMINUS_LOCAL_MODEL_SELECTOR:
+        warnings.append(
+            "local Ollama has no API charge; provider-proxy ceilings are omitted, "
+            "while the task deadline and native harness settings remain enforced"
+        )
 
     candidate = Path(output) if output is not None else Path(PREPARED_SPECS_REL) / f"{name}.json"
     spec_path = _output_path(repo, candidate)
@@ -352,6 +374,8 @@ def prepare_task(
         max_output_tokens=ceiling_output,
         max_total_tokens=ceiling_total,
         cost_limit_usd=ceiling_cost,
+        harness_tree_path=tree.root if tree else None,
+        harness_tree_sha256=tree.sha256 if tree else None,
     )
     validate_request(request)
 
@@ -360,6 +384,14 @@ def prepare_task(
         raise ValueError(
             "task configuration changed during preparation; retry with a stable source"
         )
+    harness_snapshot = None
+    if tree is not None:
+        harness_snapshot, _ = stage_harness_tree(
+            tree.root,
+            tree.sha256,
+            staging_root=_output_path(repo, Path(PREPARED_HARNESSES_REL)),
+        )
+        request = replace(request, harness_tree_path=harness_snapshot)
     task_rel = snapshot.relative_to(repo).as_posix()
     digests = compute_task_digests(snapshot)
     resources = _task_resources(
@@ -378,6 +410,8 @@ def prepare_task(
         purpose="baseline",
         task=task_rel,
         task_path=task_rel,
+        harness_tree_path=harness_snapshot.relative_to(repo).as_posix() if harness_snapshot else None,
+        harness_tree_sha256=tree.sha256 if tree else None,
         agent=agent,
         model=model,
         environment=environment,
@@ -397,6 +431,19 @@ def prepare_task(
 
     validate_request(replace(request, task=snapshot))
 
+    _publish_prepared_spec(spec, spec_path)
+    return PreparedTask(
+        spec=spec,
+        spec_path=spec_path,
+        source=resolved_source,
+        task_path=snapshot,
+        resources=resources,
+        task_timeout_seconds=official_timeout,
+        warnings=tuple(warnings),
+    )
+
+
+def _publish_prepared_spec(spec: ExperimentSpec, spec_path: Path) -> None:
     spec_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         with spec_path.open("x", encoding="utf-8") as stream:
@@ -412,12 +459,51 @@ def prepare_task(
             raise FileExistsError(
                 f"existing spec differs from this request; refusing overwrite: {spec_path}"
             ) from None
-    return PreparedTask(
-        spec=spec,
-        spec_path=spec_path,
-        source=resolved_source,
-        task_path=snapshot,
-        resources=resources,
-        task_timeout_seconds=official_timeout,
-        warnings=tuple(warnings),
+
+
+def replay_task(
+    repo_root: Path,
+    retained_spec_path: Path,
+    *,
+    name: str,
+    harness_tree_path: Path,
+    harness_tree_sha256: str | None = None,
+    output: Path | None = None,
+) -> tuple[ExperimentSpec, Path]:
+    """Freeze a replacement harness; preserve the retained task and run settings."""
+    from evallab.gepa_optimizer.intake import (
+        load_retained_spec,
+        replay_spec_for_candidate,
+        validate_drift,
     )
+
+    repo = Path(repo_root).resolve()
+    base = load_retained_spec(retained_spec_path)
+    if base.agent != TERMINUS_AGENT:
+        raise ValueError("harness-tree replay requires a retained terminus-2 spec")
+    task_path = (repo / (base.task_path or base.task)).resolve()
+    if not task_path.is_relative_to(repo):
+        raise ValueError("retained task path must remain inside the repository")
+    validate_drift(base, compute_task_digests(task_path).package)
+    tree_source = Path(harness_tree_path)
+    if not tree_source.is_absolute():
+        tree_source = repo / tree_source
+    tree = load_harness_tree(tree_source, harness_tree_sha256)
+    frozen, _ = stage_harness_tree(
+        tree.root,
+        tree.sha256,
+        staging_root=_output_path(repo, Path(PREPARED_HARNESSES_REL)),
+    )
+    replayed = replay_spec_for_candidate(
+        base,
+        campaign_name=name,
+        candidate_path=frozen.relative_to(repo),
+        candidate_sha256=tree.sha256,
+        jobs_dir=base.jobs_dir,
+        candidate_kind="terminus_harness",
+        name=name,
+    )
+    candidate = Path(output) if output is not None else Path(PREPARED_SPECS_REL) / f"{name}.json"
+    spec_path = _output_path(repo, candidate)
+    _publish_prepared_spec(replayed, spec_path)
+    return replayed, spec_path

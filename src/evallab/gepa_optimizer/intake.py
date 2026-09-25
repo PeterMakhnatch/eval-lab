@@ -1,4 +1,4 @@
-"""Replay a retained Harbor ExperimentSpec as GEPA candidate configuration."""
+"""Replay retained Harbor specs while changing one pinned candidate artifact."""
 
 from __future__ import annotations
 
@@ -32,11 +32,12 @@ def replay_spec_for_candidate(
     candidate_path: Path,
     candidate_sha256: str,
     jobs_dir: str | Path,
+    candidate_kind: str = "instructions",
+    name: str | None = None,
 ) -> ExperimentSpec:
-    """Copy a retained run's configuration onto a new GEPA candidate spec.
+    """Replace one candidate binding, clearing run identity and prior authorization.
 
-    Identity, submission metadata, instruction artifact, grid_point and
-    campaign provenance are replaced; every other field is copied verbatim.
+    Model, task, limits and other behavioral settings remain unchanged.
     """
     if candidate_path.is_absolute() or ".." in candidate_path.parts:
         raise ValueError("candidate_path must be repository-relative")
@@ -54,26 +55,38 @@ def replay_spec_for_candidate(
             f"Replay jobs_dir {relative_jobs!r} does not match retained spec "
             f"{base_spec.jobs_dir!r}"
         )
+    if candidate_kind == "instructions":
+        path_field, digest_field = "extra_instruction_path", "extra_instruction_sha256"
+        label, prefix = "GEPA prompt", "gepa"
+    elif candidate_kind == "python_toolbox":
+        path_field, digest_field = "toolbox_path", "toolbox_sha256"
+        label, prefix = "GEPA toolbox", "gepa"
+    elif candidate_kind == "terminus_harness":
+        path_field, digest_field = "harness_tree_path", "harness_tree_sha256"
+        label, prefix = "Terminus harness", "harness"
+    else:
+        raise ValueError(f"Unsupported candidate_kind: {candidate_kind!r}")
     update: dict[str, object] = {
         "spec_id": None,
         "submitted_at": None,
-        "submitted_by": "gepa-replay",
-        "name": _replay_spec_name(campaign_name, candidate_path, candidate_sha256),
+        "submitted_by": f"{prefix}-replay",
+        "name": name or _replay_spec_name(
+            campaign_name, candidate_path, candidate_sha256, prefix=prefix
+        ),
         "hypothesis": (
-            f"GEPA prompt candidate {candidate_sha256[:16]} "
+            f"{label} candidate {candidate_sha256[:16]} "
             f"replayed from retained spec {base_spec.spec_id or base_spec.name}"
         ),
         "jobs_dir": base_spec.jobs_dir,
-        "extra_instruction_path": relative_candidate,
-        "extra_instruction_sha256": candidate_sha256,
-        "grid_point": None,
+        path_field: relative_candidate,
+        digest_field: candidate_sha256,
+        "policy_rule": None,
     }
+    if candidate_kind != "terminus_harness":
+        update["grid_point"] = None
     for field in _CAMPAIGN_FIELDS:
         update[field] = None
-    if not (base_spec.toolbox_path and base_spec.toolbox_sha256):
-        update["toolbox_path"] = None
-        update["toolbox_sha256"] = None
-    return base_spec.model_copy(update=update)
+    return ExperimentSpec.model_validate(base_spec.model_dump(mode="json") | update)
 
 
 def validate_drift(base_spec: ExperimentSpec, current_task_digest: str) -> None:
@@ -85,15 +98,17 @@ def validate_drift(base_spec: ExperimentSpec, current_task_digest: str) -> None:
         raise ValueError("Retained spec drifted from current task: " + ", ".join(changed))
 
 
-def _replay_spec_name(campaign_name: str, candidate_path: Path, candidate_sha256: str) -> str:
+def _replay_spec_name(
+    campaign_name: str, candidate_path: Path, candidate_sha256: str, *, prefix: str = "gepa"
+) -> str:
     sanitized = re.sub(r"[^a-z0-9]+", "-", campaign_name.lower()).strip("-") or "campaign"
     path_tag = hashlib.sha256(candidate_path.as_posix().encode("utf-8")).hexdigest()[:12]
     digest_hex = candidate_sha256.split(":", 1)[-1]
     sha_tag = digest_hex[:8]
     suffix = f"{path_tag}{sha_tag}"
-    budget = 80 - len("gepa-") - 1 - len(suffix)
+    budget = 80 - len(prefix) - 2 - len(suffix)
     sanitized = sanitized[: max(budget, 1)].strip("-") or "c"
-    name = re.sub(r"-+", "-", f"gepa-{sanitized}-{suffix}").strip("-")
+    name = re.sub(r"-+", "-", f"{prefix}-{sanitized}-{suffix}").strip("-")
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{2,79}", name):
         raise ValueError(f"replay spec name {name!r} is not a valid ExperimentSpec name")
     return name

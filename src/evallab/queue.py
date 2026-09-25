@@ -31,6 +31,8 @@ from evallab.eventlog import event_log_lock, read_event_log_lines
 from evallab.evidence.atif import IngestProjectionResult, ingest_and_project
 from evallab.evidence_store import EvidenceArchive, archive_evidence
 from evallab.execution_contracts import (
+    TERMINUS_AGENT,
+    TERMINUS_LOCAL_MODEL_SELECTOR,
     ZAI_OPENCODE_AGENT,
     ZAI_OPENCODE_MODEL_SELECTORS,
     DispatchCapacity,
@@ -119,10 +121,10 @@ def approved_spec_digest(spec: ExperimentSpec) -> str:
 def authorization_required_message(spec: ExperimentSpec) -> str:
     """The refusal an operator reads — in `submit` output and in queue/reasons/."""
     spec_id = spec.spec_id or "<spec-id>"
-    subscription = provider_subscription_description(spec.agent)
+    subscription = provider_subscription_description(spec.agent, spec.model)
     return (
-        f"{spec.agent} is a billable agent. Paid execution here draws on "
-        f"{subscription}, so it never runs unattended: this spec waits until "
+        f"{spec.agent} is a non-control agent and requires named human approval. "
+        f"Cost/account basis: {subscription}. This spec waits until "
         "a named human authorises it.\n"
         f"  authorise: uv run evallab approve {spec_id} --actor <you>\n"
         f'  refuse:    uv run evallab reject {spec_id} --actor <you> --reason "<why>"\n'
@@ -307,10 +309,16 @@ def render_headroom_notice(
     headroom: Headroom,
     *,
     agent: str | None = None,
+    model: str | None = None,
 ) -> str:
     """What the operator is told about one provider's allowance."""
+    if agent == TERMINUS_AGENT and model == TERMINUS_LOCAL_MODEL_SELECTOR:
+        return (
+            f"{provider_subscription_description(agent, model)}: provider quota does not apply; "
+            "per-spec approval is still required."
+        )
     provider = (
-        f"{provider_subscription_description(agent)} allowance/policy state"
+        f"{provider_subscription_description(agent, model)} allowance/policy state"
         if agent is not None
         else "subscription quota"
     )
@@ -499,7 +507,7 @@ class PolicyGate:
                     reason_code="paid_run_unauthorized",
                     message=(
                         f"{authorization_required_message(spec)}\n"
-                        f"{render_headroom_notice(self.headroom(spec.agent), agent=spec.agent)}"
+                        f"{render_headroom_notice(self.headroom(spec.agent), agent=spec.agent, model=spec.model)}"
                     ),
                 )
             if spec.submitted_at is None:
@@ -540,7 +548,7 @@ class PolicyGate:
                         f"the provider reports the subscription exhausted: {exhausted}. "
                         "This is the provider's own account of its allowance, not a "
                         "threshold this lab invented.\n"
-                        f"{render_headroom_notice(headroom, agent=spec.agent)}\n"
+                        f"{render_headroom_notice(headroom, agent=spec.agent, model=spec.model)}\n"
                         "  override, only if you have reason to believe the reading is "
                         f"wrong: uv run evallab approve {spec.spec_id} --actor <you> "
                         "--despite-quota"
@@ -555,7 +563,7 @@ class PolicyGate:
                     reason_code="subscription_quota_ceiling",
                     message=(
                         f"{threshold_reached}.\n"
-                        f"{render_headroom_notice(headroom, agent=spec.agent)}\n"
+                        f"{render_headroom_notice(headroom, agent=spec.agent, model=spec.model)}\n"
                         f"  override: uv run evallab approve {spec.spec_id} "
                         "--actor <you> --despite-quota"
                     ),
@@ -597,7 +605,9 @@ class PolicyGate:
                 # Whoever authorised this is entitled to see, in the admission
                 # itself, the allowance they just spent against.
                 admitted_headroom = self.headroom(spec.agent)
-                notes.append(render_headroom_notice(admitted_headroom, agent=spec.agent))
+                notes.append(
+                    render_headroom_notice(admitted_headroom, agent=spec.agent, model=spec.model)
+                )
                 if authorization.quota_override and (
                     provider_reported_exhaustion(admitted_headroom)
                     or lab_threshold_reached(
@@ -2127,6 +2137,10 @@ class Executor:
             extra_instruction_path=extra_instruction_path,
             toolbox_path=toolbox_path,
             toolbox_sha256=spec.toolbox_sha256,
+            harness_tree_path=(
+                self._safe_repo_path(spec.harness_tree_path) if spec.harness_tree_path else None
+            ),
+            harness_tree_sha256=spec.harness_tree_sha256,
             agent=spec.agent,
             name=spec.name,
             jobs_dir=jobs_dir,
@@ -2146,6 +2160,7 @@ class Executor:
             harness_policy=spec.harness_policy,
             lease_path=self.queue.lease_path(spec),
             lease_generation=lease_generation,
+            experiment_spec=spec.model_copy(deep=True),
             provenance=RunProvenance(
                 spec_id=str(spec.spec_id),
                 task=spec.task,
@@ -2165,6 +2180,8 @@ class Executor:
                 preamble_sha256=actual_preamble_hash,
                 toolbox_path=spec.toolbox_path,
                 toolbox_sha256=spec.toolbox_sha256,
+                harness_tree_path=spec.harness_tree_path,
+                harness_tree_sha256=spec.harness_tree_sha256,
                 task_family=spec.task_family,
                 task_id=task_id,
                 task_instance_id=spec.task_instance_id,

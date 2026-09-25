@@ -176,6 +176,23 @@ Produce a machine-readable result before prose. Useful initial summaries are:
 Small samples are shown as small samples. A single pass or failure is a trajectory
 to inspect, not an estimate of general capability.
 
+For a pinned Terminus harness experiment, declare
+`harness_tree_sha256` as the treatment. The comparator verifies the retained
+tree and the native frozen kwargs/rules/skills rather than trusting a supplied
+digest label. It permits only the changes induced by that tree; unrelated
+model/tool settings and within-task execution-control changes still invalidate
+the comparison. Different task blocks may retain their own fixed settings.
+
+Every arm also reports **cost per solved task**: recorded cost across all
+selected trials (including failed or unscored attempts), divided by distinct
+task instances with at least one valid pass. Repeated successes do not increase
+the denominator. Missing, negative, or non-finite cost is counted and makes the
+ratio unavailable; zero solved tasks also makes it unavailable. An explicit
+local no-API-charge zero is valid cost evidence. Provider estimates remain
+estimates, not invoices. This accounting does not turn a small or invalid
+comparison into evidence of an improvement.
+
+
 ## Stage 5: model-assisted trial analysis
 
 Use Harbor's existing analysis mechanism where possible. Give the analysis agent

@@ -39,6 +39,8 @@ from evallab.execution_contracts import (
     OPENCODE_AUTH_RELATIVE_PATH,
     RLM_AGENT,
     TERMINUS_AGENT,
+    TERMINUS_LOCAL_ENDPOINT_ENV,
+    TERMINUS_LOCAL_MODEL_SELECTOR,
     ZAI_AUTH_PROVIDER,
     ZAI_OPENCODE_AGENT,
     ProfileInferenceSettings,
@@ -64,6 +66,7 @@ AuthMode = Literal[
     "subscription-auth-file",
     "subscription-keychain",
     "subscription-cli-session",
+    "local-service",
 ]
 
 CONTROL_ADAPTERS = frozenset({"oracle", "nop"})
@@ -191,8 +194,14 @@ class AgentProfile(BaseModel):
                 )
             if not self.model:
                 raise ValueError("billable profiles require an exact model pin")
-            if self.secret_source is None:
+            if self.secret_source is None and self.auth_mode != "local-service":
                 raise ValueError("billable profiles must identify their secret source")
+        if self.auth_mode == "local-service" and (
+            self.adapter != TERMINUS_AGENT
+            or self.model != TERMINUS_LOCAL_MODEL_SELECTOR
+            or self.secret_source is not None
+        ):
+            raise ValueError("local-service profiles require the admitted local Terminus model and no secret")
         if (
             self.auth_mode == "subscription-keychain"
             and self.secret_source is not None
@@ -372,6 +381,24 @@ class EnvironmentPresenceProbe:
         )
 
 
+@dataclass(frozen=True)
+class LocalOllamaProbe:
+    """Qualify an explicitly configured, already-installed local model."""
+
+    environment: Mapping[str, str]
+
+    def __call__(self, profile: AgentProfile) -> ProbeResult:
+        if not self.environment.get(TERMINUS_LOCAL_ENDPOINT_ENV):
+            return ProbeResult(ok=False, reason=f"local endpoint missing: {TERMINUS_LOCAL_ENDPOINT_ENV}")
+        from evallab.terminus_local import resolve_ollama_binding
+
+        try:
+            resolve_ollama_binding(profile.model or "", environment=self.environment)
+        except ValueError as exc:
+            return ProbeResult(ok=False, reason=str(exc))
+        return ProbeResult(ok=True)
+
+
 def _parse_expiry(value: object) -> datetime | None:
     if isinstance(value, (int, float)) and value > 0:
         return datetime.fromtimestamp(float(value), tz=UTC)
@@ -499,7 +526,7 @@ def scrub_environment(environment: Mapping[str, str], allowlist: frozenset[str])
     return clean
 
 
-_MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9./_-]*$")
+_MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9./_-]*(?::[A-Za-z0-9][A-Za-z0-9._-]*)?$")
 
 
 def validate_model_pin(profile: AgentProfile, model: str | None) -> None:
@@ -690,6 +717,18 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 ),
             ),
             AgentProfile(
+                profile_id="terminus-2-qwen2.5-7b-local",
+                adapter=TERMINUS_AGENT,
+                model=TERMINUS_LOCAL_MODEL_SELECTOR,
+                auth_mode="local-service",
+                capabilities=("billing:local-no-api-charge", "structured-trajectory:atif"),
+                limits=ProfileLimits(
+                    max_timeout_seconds=28_800,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+            ),
+            AgentProfile(
                 profile_id="glm-selfhosted-base",
                 adapter="mini-swe-agent",
                 model=GLM_SELFHOSTED_BASE_MODEL_SELECTOR,
@@ -865,6 +904,8 @@ def default_probe_for(
     """Wire the standard probe for a profile through injected seams only."""
     if profile.auth_mode == "none":
         return None
+    if profile.auth_mode == "local-service":
+        return LocalOllamaProbe(environment=os.environ if environment is None else environment)
     if profile.profile_id in DECLARED_UNAVAILABLE and not profile.verified_facts:
         return DeclaredUnavailableProbe(
             reason=f"{profile.profile_id} is declared but not independently proven in this lab"

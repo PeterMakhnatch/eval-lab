@@ -28,6 +28,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from evallab.schemas import (
+    ExperimentSpec,
     RunProvenance,
     StandingApprovalsPolicy,
 )
@@ -151,6 +152,8 @@ RLM_AGENT = "rlm"
 TERMINUS_AGENT = "terminus-2"
 TERMINUS_AGENT_IMPORT_PATH = "evallab.harbor_terminus:SecretSafeTerminus2"
 TERMINUS_PROXY_URL_ENV = "EVALLAB_TERMINUS_PROXY_URL"
+TERMINUS_LOCAL_MODEL_SELECTOR = "ollama_chat/qwen2.5:7b"
+TERMINUS_LOCAL_ENDPOINT_ENV = "EVALLAB_TERMINUS_OLLAMA_URL"
 BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH = "evallab.harbor_daytona:BoundedDaytonaEnvironment"
 ZAI_OPENCODE_AGENT = "zai-opencode"
 ZAI_OPENCODE_MODEL_SELECTORS: frozenset[str] = frozenset(
@@ -346,11 +349,14 @@ class RunRequest:
     timeout_seconds: int = DEFAULT_TRIAL_TIMEOUT_SECONDS
     allow_billable: bool = False
     provenance: RunProvenance | None = None
+    experiment_spec: ExperimentSpec | None = None
     lease_path: Path | None = None
     lease_generation: str | None = None
     extra_instruction_path: Path | None = None
     toolbox_path: Path | None = None
     toolbox_sha256: str | None = None
+    harness_tree_path: Path | None = None
+    harness_tree_sha256: str | None = None
     skill: Path | str | Sequence[Path | str] | None = None
     skills: Sequence[Path | str] | None = None
     load_trajectory: Path | str | None = None
@@ -879,6 +885,13 @@ def _task_gpu_request(task: Path) -> int | None:
     return gpus if isinstance(gpus, int) and not isinstance(gpus, bool) else None
 
 
+def uses_provider_proxy(agent: str, model: str | None) -> bool:
+    """Whether this model route can enforce the provider request/token/cost ceilings."""
+    return agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT} or (
+        agent == TERMINUS_AGENT and model != TERMINUS_LOCAL_MODEL_SELECTOR
+    )
+
+
 def validate_request(request: RunRequest) -> None:
     """Validate that a RunRequest adheres to directory, name, timeout, and billable invariants."""
     if not request.task.is_dir():
@@ -906,9 +919,9 @@ def validate_request(request: RunRequest) -> None:
     # enforcing it through the secret proxy, so it is not a proxy ceiling here.
     if request.agent == RLM_AGENT:
         proxy_limits = proxy_limits[:4]
-    metered_agents = {"mini-swe-agent", ZAI_OPENCODE_AGENT, TERMINUS_AGENT}
+    metered = uses_provider_proxy(request.agent, request.model)
     if any(value is not None for value in proxy_limits):
-        if request.agent not in metered_agents:
+        if not metered:
             raise ValueError("this agent cannot enforce provider request/cost/token ceilings")
         if any(value is None for value in proxy_limits):
             raise ValueError(f"{request.agent} requires every provider ceiling")
@@ -934,16 +947,20 @@ def validate_request(request: RunRequest) -> None:
             raise ValueError("cost_limit_usd must be positive")
         if request.max_total_tokens > request.max_input_tokens + request.max_output_tokens:
             raise ValueError("total-token ceiling exceeds input plus output ceilings")
-    if request.agent in metered_agents:
+    if metered:
         if any(value is None for value in proxy_limits):
             raise ValueError(f"{request.agent} requires explicit provider ceilings")
         if request.attempts != 1 or request.concurrency != 1:
             raise ValueError(f"{request.agent} capabilities bind exactly one trial")
-    if request.agent == TERMINUS_AGENT and request.model != ZAI_OPENAPI_MODEL_SELECTOR:
-        raise ValueError(
-            f"terminus-2 requires the standard-API model {ZAI_OPENAPI_MODEL_SELECTOR!r}; "
-            "Coding Plan credentials are not admitted for this harness"
-        )
+    if request.agent == TERMINUS_AGENT:
+        if request.model not in {ZAI_OPENAPI_MODEL_SELECTOR, TERMINUS_LOCAL_MODEL_SELECTOR}:
+            raise ValueError(
+                f"terminus-2 requires standard-API {ZAI_OPENAPI_MODEL_SELECTOR!r} "
+                f"or installed local {TERMINUS_LOCAL_MODEL_SELECTOR!r}; "
+                "Coding Plan credentials are not admitted for this harness"
+            )
+        if request.attempts != 1 or request.concurrency != 1:
+            raise ValueError("terminus-2 specs bind exactly one trial")
     if request.harness_policy is not None and request.agent != RLM_AGENT:
         raise ValueError("harness_policy is supported only by the rlm lane")
     if request.agent == RLM_AGENT:
@@ -1011,6 +1028,14 @@ def validate_request(request: RunRequest) -> None:
         from evallab.toolbox import validate_toolbox_source
 
         validate_toolbox_source(request.toolbox_path, request.toolbox_sha256)
+    if request.harness_tree_path is not None or request.harness_tree_sha256 is not None:
+        if request.harness_tree_path is None or request.harness_tree_sha256 is None:
+            raise ValueError("harness_tree_path and harness_tree_sha256 must be provided together")
+        if request.agent != TERMINUS_AGENT:
+            raise ValueError("harness trees are supported only by terminus-2")
+        from evallab.terminus_harness import load_harness_tree
+
+        load_harness_tree(request.harness_tree_path, request.harness_tree_sha256)
 
 
 def resolve_harbor_agent(agent: str, model: str | None = None) -> str:
@@ -1041,6 +1066,37 @@ def _agent_timeout_multiplier(request: RunRequest) -> str | None:
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout <= 0:
         return None
     return format(request.timeout_seconds / float(timeout), ".12g")
+
+
+def terminus_agent_kwargs(request: RunRequest) -> dict[str, Any]:
+    """Render native behavior settings without admitting transport overrides."""
+    completion_limit = (
+        request.inference_settings.max_tokens
+        if request.inference_settings and request.inference_settings.max_tokens is not None
+        else 8192
+    )
+    kwargs: dict[str, Any] = {
+        "llm_call_kwargs": {
+            "max_tokens": min(completion_limit, request.max_output_tokens or completion_limit)
+        }
+    }
+    if request.inference_settings and request.inference_settings.effort is not None:
+        kwargs["reasoning_effort"] = request.inference_settings.effort
+    if request.harness_tree_path is not None:
+        from evallab.terminus_harness import load_harness_tree
+
+        tree = load_harness_tree(request.harness_tree_path, request.harness_tree_sha256)
+        for key, value in tree.config.items():
+            if key == "llm_call_kwargs":
+                kwargs[key] = {**kwargs[key], **value}
+            else:
+                kwargs[key] = value
+    max_tokens = kwargs["llm_call_kwargs"].get("max_tokens")
+    if isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or max_tokens < 1:
+        raise ValueError("Terminus max_tokens must be a positive integer")
+    if request.max_output_tokens is not None and max_tokens > request.max_output_tokens:
+        raise ValueError("Terminus per-response max_tokens exceeds the trial output-token ceiling")
+    return kwargs
 
 
 def build_command(request: RunRequest) -> list[str]:
@@ -1194,29 +1250,12 @@ def build_command(request: RunRequest) -> list[str]:
             ]
         )
     if request.agent == TERMINUS_AGENT:
-        completion_limit = (
-            request.inference_settings.max_tokens
-            if request.inference_settings and request.inference_settings.max_tokens is not None
-            else 8192
-        )
-        call_kwargs = {
-            "max_tokens": min(completion_limit, request.max_output_tokens or completion_limit)
-        }
         command.extend(
-            [
-                "--n-concurrent-agents",
-                "1",
-                "--n-tasks",
-                "1",
-                "--max-retries",
-                "0",
-                "--agent-kwarg",
-                f"llm_call_kwargs={json.dumps(call_kwargs, separators=(',', ':'))}",
-            ]
+            ["--n-concurrent-agents", "1", "--n-tasks", "1", "--max-retries", "0"]
         )
-        if request.inference_settings and request.inference_settings.effort is not None:
+        for key, value in sorted(terminus_agent_kwargs(request).items()):
             command.extend(
-                ["--agent-kwarg", f"reasoning_effort={request.inference_settings.effort}"]
+                ["--agent-kwarg", f"{key}={json.dumps(value, separators=(',', ':'), allow_nan=False)}"]
             )
     if request.agent == RLM_AGENT:
         if harbor_model not in ZAI_OPENCODE_MODEL_SELECTORS:
@@ -1241,6 +1280,14 @@ def build_command(request: RunRequest) -> list[str]:
         command.extend(["--extra-instruction-path", str(request.extra_instruction_path)])
     for skill_path in request.resolved_skills:
         command.extend(["--skill", skill_path])
+    if request.harness_tree_path is not None:
+        from evallab.terminus_harness import load_harness_tree
+
+        tree = load_harness_tree(request.harness_tree_path, request.harness_tree_sha256)
+        if tree.rules_path is not None:
+            command.extend(["--extra-instruction-path", str(tree.rules_path)])
+        for skill_root in tree.skill_roots:
+            command.extend(["--skill", str(skill_root)])
     if request.load_trajectory is not None:
         command.extend(["--load-trajectory", str(request.load_trajectory)])
     if request.export_traces:

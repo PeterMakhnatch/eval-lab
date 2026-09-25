@@ -5,17 +5,20 @@ import json
 from pathlib import Path
 
 import pytest
-
+from pydantic import ValidationError
 from evallab.cohort import (
     NOT_COMPARABLE,
+    _skill_directory_digest,
     assemble_members,
     compare,
     pass_at_k_probability,
     pass_at_k_unbiased,
     pass_power_k_unbiased,
+    render_markdown,
     wilson_interval,
     write_comparison,
 )
+from evallab.evidence_store import evidence_tree_digest
 from evallab.schemas import CohortComparisonSpec
 
 from .test_atif import _make_job
@@ -873,3 +876,549 @@ def test_unmodeled_nested_instruction_declaration_is_not_no_preamble(tmp_path: P
 
     identity = _preamble_identities(tmp_path, ["nested/sample-job"])
     assert next(iter(identity.values())) is None
+
+# ---------------------------------------------------------------------------
+# Retained Terminus harness-tree treatments (HAR-71).
+#
+
+_TERMINUS_AGENT = "terminus-2"
+_TERMINUS_MODEL = "zai/glm-5.3-flash"
+_BASE_AGENT_KWARGS = {"llm_call_kwargs": {"max_tokens": 8192}}
+_EXECUTION_SETTINGS = {
+    "agent": _TERMINUS_AGENT,
+    "model": _TERMINUS_MODEL,
+    "attempts": 1,
+    "timeout_seconds": 1200,
+    "inference_settings": {"max_tokens": 8192},
+}
+_SKILL_BUNDLES = {
+    "shell": {
+        "SKILL.md": "---\nname: shell\ndescription: shell skill\n---\n",
+        "run.sh": "set -eu\n",
+    },
+}
+
+
+def _rendered_kwargs(
+    base: dict[str, object], config: dict[str, object]
+) -> dict[str, object]:
+    rendered = dict(base)
+    for key, value in config.items():
+        if key == "llm_call_kwargs" and isinstance(value, dict):
+            rendered[key] = {**dict(base.get("llm_call_kwargs") or {}), **value}
+        else:
+            rendered[key] = value
+    return rendered
+
+
+def _write_retained_tree(
+    job: Path,
+    *,
+    config: dict[str, object],
+    rules: str | None,
+    skills: dict[str, dict[str, str]],
+) -> dict[str, object]:
+    """Write one retained harness tree and its base metadata record."""
+    files: dict[str, bytes] = {}
+    if config:
+        files["terminus/config.json"] = json.dumps(config, sort_keys=True).encode()
+    if rules is not None:
+        files["terminus/AGENTS.md"] = rules.encode()
+    for name, bundle in skills.items():
+        for member, content in bundle.items():
+            files[f"terminus/skills/{name}/{member}"] = content.encode()
+    for relative, content in files.items():
+        destination = job / "harness-tree" / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(content)
+    rendered_rules = "terminus/AGENTS.md" if rules is not None and rules.strip() else None
+    skill_roots = sorted(
+        root
+        for root in ("terminus/skills", "terminus-commands")
+        if any(key.startswith(f"{root}/") and key.endswith("/SKILL.md") for key in files)
+    )
+    return {
+        "schema_version": 1,
+        "sha256": evidence_tree_digest(job / "harness-tree"),
+        "artifact_path": "harness-tree",
+        "config": config,
+        "rules_path": rendered_rules,
+        "skill_roots": skill_roots,
+    }
+
+
+def _terminus_job(
+    root: Path,
+    *,
+    name: str,
+    suffix: int,
+    config: dict[str, object],
+    rules: str | None,
+    skills: dict[str, dict[str, str]] | None = None,
+    task_rewards: dict[str, list[float]],
+    costs: dict[tuple[str, int], float | None] | None = None,
+    model: str = _TERMINUS_MODEL,
+    execution_settings: dict[str, object] | None = None,
+    base_agent_kwargs: dict[str, object] | None = None,
+    with_binding: bool = True,
+    frozen_kwargs: dict[str, object] | None = None,
+    independent_instruction: bytes | None = None,
+) -> Path:
+    """One synthetic terminus-2 job pinned to a retained harness tree."""
+    skills = _SKILL_BUNDLES if skills is None else skills
+    base_kwargs = _BASE_AGENT_KWARGS if base_agent_kwargs is None else base_agent_kwargs
+    job = root / name
+    record = _write_retained_tree(job, config=config, rules=rules, skills=skills)
+    tree = job / "harness-tree"
+    rendered_kwargs = _rendered_kwargs(base_kwargs, config)
+    rendered_skill_paths = list(record["skill_roots"])
+    staged_skill_paths = [str(tree / skill_root) for skill_root in rendered_skill_paths]
+    frozen_skills = [
+        {
+            "name": skill_name,
+            "source": str(tree / "terminus/skills" / skill_name),
+            "digest": _skill_directory_digest(tree / "terminus/skills" / skill_name),
+        }
+        for skill_name in sorted(skills)
+    ]
+    extra_instructions: list[dict[str, str]] = []
+    if record["rules_path"] is not None:
+        rules_bytes = (tree / "terminus/AGENTS.md").read_bytes()
+        extra_instructions.append(
+            {
+                "path": str(tree / "terminus/AGENTS.md"),
+                "digest": "sha256:" + hashlib.sha256(rules_bytes).hexdigest(),
+            }
+        )
+    if independent_instruction is not None:
+        extra_instructions.append(
+            {
+                "path": str(job.parent / "independent-preamble.md"),
+                "digest": "sha256:" + hashlib.sha256(independent_instruction).hexdigest(),
+            }
+        )
+    trial_index = 0
+    for task_name, rewards in task_rewards.items():
+        for attempt, reward in enumerate(rewards, start=1):
+            trial_index += 1
+            trial = job / f"{task_name}__{attempt:02d}"
+            trial.mkdir(parents=True, exist_ok=True)
+            trial_id = f"10000000-0000-0000-0000-{suffix * 1000 + trial_index:012d}"
+            _write_file(
+                trial / "config.json",
+                {"agent": {"name": _TERMINUS_AGENT}},
+            )
+            _write_file(
+                trial / "lock.json",
+                {
+                    "schema_version": 2,
+                    "task": {"name": task_name, "digest": f"sha256:{task_name}"},
+                    "agent": {
+                        "name": _TERMINUS_AGENT,
+                        "model_name": model,
+                        "kwargs": (
+                            rendered_kwargs if frozen_kwargs is None else frozen_kwargs
+                        ),
+                        "skills": staged_skill_paths,
+                    },
+                    "skills": frozen_skills,
+                    "extra_instructions": extra_instructions or None,
+                    "environment": {"type": "docker"},
+                    "verifier": {"environment_mode": "separate"},
+                },
+            )
+            usage: dict[str, object] = {
+                "n_input_tokens": 10,
+                "n_cache_tokens": 0,
+                "n_output_tokens": 5,
+            }
+            cost = (costs or {}).get((task_name, attempt), 0.01)
+            if cost is not None:
+                usage["cost_usd"] = cost
+            _write_file(
+                trial / "result.json",
+                {
+                    "id": trial_id,
+                    "trial_name": trial.name,
+                    "task_name": task_name,
+                    "task_checksum": task_name,
+                    "config": {},
+                    "agent_info": {
+                        "name": _TERMINUS_AGENT,
+                        "version": "2.0",
+                        "model_info": {"name": model},
+                    },
+                    "agent_result": usage,
+                    "verifier_result": {"rewards": {"reward": reward}},
+                    "exception_info": None,
+                    "started_at": f"2026-09-24T00:00:{trial_index:02d}Z",
+                    "finished_at": f"2026-09-24T00:01:{trial_index:02d}Z",
+                },
+            )
+    _write_file(job / "config.json", {"job_name": name})
+    _write_file(job / "lock.json", {"harbor": {"version": "0.21.0"}})
+    _write_file(
+        job / "result.json",
+        {
+            "id": f"00000000-0000-0000-0000-{suffix:012d}",
+            "finished_at": "2026-09-24T00:02:00Z",
+            "n_total_trials": trial_index,
+            "stats": {"n_completed_trials": trial_index, "n_errored_trials": 0},
+        },
+    )
+    if with_binding:
+        record.update(
+            {
+                "base_agent_kwargs": base_kwargs,
+                "rendered_agent_kwargs": rendered_kwargs,
+                "rendered_rule_paths": (
+                    [record["rules_path"]] if record["rules_path"] is not None else []
+                ),
+                "rendered_skill_paths": rendered_skill_paths,
+                "execution_settings": (
+                    _EXECUTION_SETTINGS if execution_settings is None else execution_settings
+                ),
+            }
+        )
+        _write_file(job / "lab-metadata.json", {"harness_tree": record})
+    return job
+
+
+def _write_file(path: Path, value: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _harness_spec(left: str, right: str) -> CohortComparisonSpec:
+    payload = {
+        "schema_version": 1,
+        "comparison_id": "harness-tree-comparison",
+        "experiment_id": "harness-tree-experiment",
+        "declared_variable": "harness_tree_sha256",
+        "pass_k": [1],
+        "pairing_key": "task_digest",
+        "cohorts": [
+            {"label": "baseline", "paths": [left]},
+            {"label": "candidate", "paths": [right]},
+        ],
+    }
+    try:
+        return CohortComparisonSpec.model_validate(payload)
+    except ValidationError as exc:
+        if "declared_variable" not in str(exc):
+            raise
+        # The parent-owned schema adds the harness_tree_sha256 literal on the
+        # integration branch; until then construct the identical spec without
+        # re-validating that one literal.
+        spec = CohortComparisonSpec.model_validate(
+            {**payload, "declared_variable": "model_name"}
+        )
+        return spec.model_copy(update={"declared_variable": "harness_tree_sha256"})
+
+
+def _tree_pair(tmp_path: Path, **candidate_overrides: object) -> tuple[str, str]:
+    _terminus_job(
+        tmp_path / "baseline",
+        name="terminus-job",
+        suffix=1,
+        config={"temperature": 0.2},
+        rules="Baseline rules\n",
+        task_rewards={"task-a": [1.0], "task-b": [0.0]},
+    )
+    _terminus_job(
+        tmp_path / "candidate",
+        name="terminus-job",
+        suffix=2,
+        config={"temperature": 0.7},
+        rules="Candidate rules\n",
+        task_rewards={"task-a": [0.0], "task-b": [1.0]},
+        **candidate_overrides,  # type: ignore[arg-type]
+    )
+    return "baseline/terminus-job", "candidate/terminus-job"
+
+
+def test_verified_digest_only_tree_arms_stay_comparable(tmp_path: Path) -> None:
+    left, right = _tree_pair(tmp_path)
+
+    report = compare(_harness_spec(left, right), repo_root=tmp_path)
+
+    assert report["validity_warnings"] == []
+    baseline, candidate = report["cohorts"]
+    baseline_member = baseline["members"][0]
+    candidate_member = candidate["members"][0]
+    assert baseline_member["harness_binding_problem"] is None
+    assert candidate_member["harness_binding_problem"] is None
+    assert (
+        baseline_member["harness_tree_sha256"] != candidate_member["harness_tree_sha256"]
+    )
+    assert (
+        baseline_member["harness_execution_settings_digest"]
+        == candidate_member["harness_execution_settings_digest"]
+    )
+    refusal_reasons = report["paired"][0]["refusal_reasons"]
+    assert not any("harness" in reason for reason in refusal_reasons)
+    assert not any("undeclared" in reason for reason in refusal_reasons)
+
+
+def test_unrelated_model_change_is_not_comparable(tmp_path: Path) -> None:
+    left, right = _tree_pair(tmp_path, model="zai/glm-5.3")
+
+    report = compare(_harness_spec(left, right), repo_root=tmp_path)
+
+    assert any(
+        "undeclared consequential variable differs: model_name" in warning
+        for warning in report["validity_warnings"]
+    )
+    assert report["paired"][0]["statement"].startswith(NOT_COMPARABLE)
+
+
+def test_base_execution_settings_change_is_not_comparable(tmp_path: Path) -> None:
+    changed_settings = {**_EXECUTION_SETTINGS, "timeout_seconds": 2400}
+    left, right = _tree_pair(tmp_path, execution_settings=changed_settings)
+
+    report = compare(_harness_spec(left, right), repo_root=tmp_path)
+
+    assert any(
+        "undeclared consequential variable differs: harness_execution_settings_digest"
+        in warning
+        for warning in report["validity_warnings"]
+    )
+    assert report["paired"][0]["statement"].startswith(NOT_COMPARABLE)
+
+
+def test_base_agent_kwargs_change_is_not_comparable(tmp_path: Path) -> None:
+    left, right = _tree_pair(
+        tmp_path,
+        base_agent_kwargs={
+            "llm_call_kwargs": {"max_tokens": 4096},
+        },
+    )
+
+    report = compare(_harness_spec(left, right), repo_root=tmp_path)
+
+    assert any(
+        "undeclared consequential variable differs: harness_base_agent_kwargs_digest"
+        in warning
+        for warning in report["validity_warnings"]
+    )
+
+
+def test_tampered_retained_tree_is_not_comparable(tmp_path: Path) -> None:
+    left, right = _tree_pair(tmp_path)
+    rules_file = tmp_path / "candidate/terminus-job/harness-tree/terminus/AGENTS.md"
+    rules_file.write_bytes(rules_file.read_bytes() + b"tampered\n")
+
+    report = compare(_harness_spec(left, right), repo_root=tmp_path)
+
+    assert any(
+        "harness binding is missing or unverified" in warning
+        and "digest does not match" in warning
+        for warning in report["validity_warnings"]
+    )
+    assert all(
+        member["harness_tree_sha256"] is None
+        for member in report["cohorts"][1]["members"]
+    )
+
+
+def test_missing_harness_binding_is_not_comparable(tmp_path: Path) -> None:
+    _terminus_job(
+        tmp_path / "baseline",
+        name="terminus-job",
+        suffix=1,
+        config={"temperature": 0.2},
+        rules="Baseline rules\n",
+        task_rewards={"task-a": [1.0], "task-b": [0.0]},
+        with_binding=False,
+    )
+    _terminus_job(
+        tmp_path / "candidate",
+        name="terminus-job",
+        suffix=2,
+        config={"temperature": 0.7},
+        rules="Candidate rules\n",
+        task_rewards={"task-a": [0.0], "task-b": [1.0]},
+    )
+
+    report = compare(
+        _harness_spec("baseline/terminus-job", "candidate/terminus-job"),
+        repo_root=tmp_path,
+    )
+
+    assert any(
+        "harness binding is missing or unverified" in warning
+        and "no harness_tree binding is recorded" in warning
+        for warning in report["validity_warnings"]
+    )
+
+
+def test_frozen_kwargs_mismatch_is_not_comparable(tmp_path: Path) -> None:
+    left, right = _tree_pair(
+        tmp_path,
+        frozen_kwargs={"temperature": 0.99, "llm_call_kwargs": {"max_tokens": 8192}},
+    )
+
+    report = compare(_harness_spec(left, right), repo_root=tmp_path)
+
+    assert any(
+        "frozen agent kwargs do not equal the recorded rendered kwargs" in warning
+        for warning in report["validity_warnings"]
+    )
+
+
+def test_independent_preamble_is_not_comparable(tmp_path: Path) -> None:
+    left, right = _tree_pair(
+        tmp_path,
+        independent_instruction=b"independent queue preamble\n",
+    )
+
+    report = compare(_harness_spec(left, right), repo_root=tmp_path)
+
+    assert any(
+        "retained preamble does not equal the rendered tree rules" in warning
+        for warning in report["validity_warnings"]
+    )
+
+
+def test_cost_per_solved_includes_failed_attempts_and_distinct_tasks_only(
+    tmp_path: Path,
+) -> None:
+    _terminus_job(
+        tmp_path / "baseline",
+        name="terminus-job",
+        suffix=1,
+        config={"temperature": 0.2},
+        rules="Baseline rules\n",
+        task_rewards={"task-a": [1.0, 1.0], "task-b": [0.0]},
+        costs={("task-a", 1): 0.10, ("task-a", 2): 0.05, ("task-b", 1): 0.20},
+    )
+    _terminus_job(
+        tmp_path / "candidate",
+        name="terminus-job",
+        suffix=2,
+        config={"temperature": 0.7},
+        rules="Candidate rules\n",
+        task_rewards={"task-a": [0.0], "task-b": [1.0]},
+        costs={("task-a", 1): 0.02, ("task-b", 1): 0.02},
+    )
+
+    report = compare(
+        _harness_spec("baseline/terminus-job", "candidate/terminus-job"),
+        repo_root=tmp_path,
+    )
+
+    baseline, candidate = report["cohorts"]
+    baseline_cost = baseline["cost_per_solved_task"]
+    assert baseline_cost["recorded_cost_total_usd"] == pytest.approx(0.35)
+    assert baseline_cost["cost_trial_count"] == 3
+    assert baseline_cost["missing_or_invalid_cost_trial_count"] == 0
+    # task-a solved twice still counts as one solved task instance.
+    assert baseline_cost["solved_task_count"] == 1
+    assert baseline_cost["cost_per_solved_task_usd"] == pytest.approx(0.35)
+    assert baseline_cost["unavailable_reason"] is None
+    assert "not invoices" in baseline_cost["cost_basis"]
+    candidate_cost = candidate["cost_per_solved_task"]
+    assert candidate_cost["solved_task_count"] == 1
+    assert candidate_cost["cost_per_solved_task_usd"] == pytest.approx(0.04)
+    markdown = render_markdown(report)
+    assert "cost per solved task" in markdown
+    assert "$0.3500" in markdown
+
+
+def test_cost_per_solved_unavailable_when_cost_evidence_is_incomplete(
+    tmp_path: Path,
+) -> None:
+    _terminus_job(
+        tmp_path / "baseline",
+        name="terminus-job",
+        suffix=1,
+        config={"temperature": 0.2},
+        rules="Baseline rules\n",
+        task_rewards={"task-a": [1.0, 0.0]},
+        costs={("task-a", 1): 0.10, ("task-a", 2): None},
+    )
+    _terminus_job(
+        tmp_path / "candidate",
+        name="terminus-job",
+        suffix=2,
+        config={"temperature": 0.7},
+        rules="Candidate rules\n",
+        task_rewards={"task-a": [1.0]},
+    )
+
+    report = compare(
+        _harness_spec("baseline/terminus-job", "candidate/terminus-job"),
+        repo_root=tmp_path,
+    )
+
+    baseline_cost = report["cohorts"][0]["cost_per_solved_task"]
+    assert baseline_cost["missing_or_invalid_cost_trial_count"] == 1
+    assert baseline_cost["cost_trial_count"] == 1
+    assert baseline_cost["recorded_cost_total_usd"] == pytest.approx(0.10)
+    assert baseline_cost["cost_per_solved_task_usd"] is None
+    assert baseline_cost["unavailable_reason"] is not None
+    assert "incomplete cost evidence" in baseline_cost["unavailable_reason"]
+    assert "unavailable (incomplete cost evidence" in render_markdown(report)
+
+
+def test_cost_per_solved_unavailable_when_nothing_is_solved(tmp_path: Path) -> None:
+    _terminus_job(
+        tmp_path / "baseline",
+        name="terminus-job",
+        suffix=1,
+        config={"temperature": 0.2},
+        rules="Baseline rules\n",
+        task_rewards={"task-a": [0.0], "task-b": [0.0]},
+        costs={("task-a", 1): 0.10, ("task-b", 1): 0.20},
+    )
+    _terminus_job(
+        tmp_path / "candidate",
+        name="terminus-job",
+        suffix=2,
+        config={"temperature": 0.7},
+        rules="Candidate rules\n",
+        task_rewards={"task-a": [1.0]},
+    )
+
+    report = compare(
+        _harness_spec("baseline/terminus-job", "candidate/terminus-job"),
+        repo_root=tmp_path,
+    )
+
+    baseline_cost = report["cohorts"][0]["cost_per_solved_task"]
+    assert baseline_cost["solved_task_count"] == 0
+    assert baseline_cost["cost_per_solved_task_usd"] is None
+    assert baseline_cost["unavailable_reason"] == "no solved tasks"
+    assert baseline_cost["recorded_cost_total_usd"] == pytest.approx(0.30)
+
+
+def test_recorded_zero_api_charge_is_complete_cost_evidence(tmp_path: Path) -> None:
+    _terminus_job(
+        tmp_path / "baseline",
+        name="terminus-job",
+        suffix=1,
+        config={"temperature": 0.2},
+        rules="Baseline rules\n",
+        task_rewards={"task-a": [1.0]},
+        costs={("task-a", 1): 0.0},
+    )
+    _terminus_job(
+        tmp_path / "candidate",
+        name="terminus-job",
+        suffix=2,
+        config={"temperature": 0.7},
+        rules="Candidate rules\n",
+        task_rewards={"task-a": [1.0]},
+        costs={("task-a", 1): 0.0},
+    )
+
+    report = compare(
+        _harness_spec("baseline/terminus-job", "candidate/terminus-job"),
+        repo_root=tmp_path,
+    )
+
+    baseline_cost = report["cohorts"][0]["cost_per_solved_task"]
+    assert baseline_cost["missing_or_invalid_cost_trial_count"] == 0
+    assert baseline_cost["cost_per_solved_task_usd"] == 0.0
+    assert baseline_cost["unavailable_reason"] is None
+

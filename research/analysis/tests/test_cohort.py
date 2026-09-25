@@ -1362,8 +1362,7 @@ def test_unbound_independent_preamble_is_not_comparable(tmp_path: Path) -> None:
         rules="Candidate rules\n",
         task_rewards={"task-a": [0.0], "task-b": [1.0]},
     )
-    for trial_dir in sorted(path for path in job.iterdir() if path.is_dir()):
-        lock_path = trial_dir / "lock.json"
+    for lock_path in sorted(job.glob("*/lock.json")):
         lock = json.loads(lock_path.read_text())
         lock["extra_instructions"] = [
             {

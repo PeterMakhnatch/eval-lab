@@ -19,10 +19,12 @@ from evallab.terminus_harness import (
 def _write_tree(
     root: Path,
     *,
-    config: Any = ({"max_turns": 5, "temperature": 0.2}),
+    config: Any = ...,
     rules: str | None = "Be concise.\n",
     skills: dict[str, str] | None = None,
 ) -> Path:
+    if config is ...:
+        config = {"max_turns": 5, "temperature": 0.2}
     if config is not None:
         config_path = root / "terminus" / "config.json"
         config_path.parent.mkdir(parents=True, exist_ok=True)

@@ -83,7 +83,10 @@ ALLOWED_KNOBS = frozenset(
 )
 
 #: Top-level keys that select model/transport instead of behavior.
-_EXPLICIT_BINDING_KEYS = frozenset({"model_name", "api_base", "llm_kwargs", "llm_backend", "model"})
+_EXPLICIT_BINDING_KEYS = frozenset(
+    {"model_name", "api_base", "llm_kwargs", "llm_backend", "model",
+     "custom_llm_provider", "provider", "extra_headers", "headers"}
+)
 #: Substrings marking a key as transport/credential binding.
 _BINDING_SUBSTRINGS = ("api_key", "api_base", "base_url", "credential", "secret")
 
@@ -100,7 +103,7 @@ def _is_binding_key(key: str) -> bool:
 
 
 def _validate_config(config: dict[str, Any]) -> None:
-    bound = sorted((str(key) for key in config if _is_binding_key(str(key))))
+    bound = sorted(str(key) for key in config if _is_binding_key(str(key)))
     if bound:
         raise ValueError(
             "terminus config "
@@ -117,7 +120,7 @@ def _validate_config(config: dict[str, Any]) -> None:
     if turns is not None and (isinstance(turns, bool) or not isinstance(turns, int) or turns < 1):
         raise ValueError("terminus config max_turns must be a positive integer")
     nested = config.get("llm_call_kwargs")
-    if nested is not None:
+    if "llm_call_kwargs" in config:
         if not isinstance(nested, dict):
             raise ValueError("terminus config llm_call_kwargs must be an object")
         nested_bound = sorted(str(key) for key in nested if _is_binding_key(str(key)))
@@ -290,8 +293,8 @@ def _publish_tree(blobs: dict[str, bytes], destination: Path) -> None:
     for relative in blobs:
         if not relative or relative.startswith("/") or ".." in Path(relative).parts:
             raise ValueError(f"harness tree refuses unsafe relative path: {relative!r}")
-    if destination.is_symlink():
-        raise ValueError(f"harness tree destination must not be a symlink: {destination}")
+    if any(path.is_symlink() for path in (destination, *destination.parents)):
+        raise ValueError(f"harness tree destination must not contain a symlink: {destination}")
     if destination.exists():
         if not destination.is_dir():
             raise ValueError(
@@ -357,7 +360,6 @@ def stage_harness_tree(
     blobs = _read_blobs(root, files)
     config, _, _, rules_relative, skill_relatives = _mapping(root, blobs)
     staging_base = Path(staging_root)
-    staging_base.mkdir(parents=True, exist_ok=True)
     staged = staging_base / digest.removeprefix("sha256:")
     _publish_tree(blobs, staged)
     if evidence_tree_digest(staged) != digest:

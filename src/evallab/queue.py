@@ -119,10 +119,10 @@ def approved_spec_digest(spec: ExperimentSpec) -> str:
 def authorization_required_message(spec: ExperimentSpec) -> str:
     """The refusal an operator reads — in `submit` output and in queue/reasons/."""
     spec_id = spec.spec_id or "<spec-id>"
-    subscription = provider_subscription_description(spec.agent)
+    subscription = provider_subscription_description(spec.agent, spec.model)
     return (
-        f"{spec.agent} is a billable agent. Paid execution here draws on "
-        f"{subscription}, so it never runs unattended: this spec waits until "
+        f"{spec.agent} is a non-control agent and requires named human approval. "
+        f"Cost/account basis: {subscription}. This spec waits until "
         "a named human authorises it.\n"
         f"  authorise: uv run evallab approve {spec_id} --actor <you>\n"
         f'  refuse:    uv run evallab reject {spec_id} --actor <you> --reason "<why>"\n'
@@ -2127,6 +2127,10 @@ class Executor:
             extra_instruction_path=extra_instruction_path,
             toolbox_path=toolbox_path,
             toolbox_sha256=spec.toolbox_sha256,
+            harness_tree_path=(
+                self._safe_repo_path(spec.harness_tree_path) if spec.harness_tree_path else None
+            ),
+            harness_tree_sha256=spec.harness_tree_sha256,
             agent=spec.agent,
             name=spec.name,
             jobs_dir=jobs_dir,
@@ -2146,6 +2150,7 @@ class Executor:
             harness_policy=spec.harness_policy,
             lease_path=self.queue.lease_path(spec),
             lease_generation=lease_generation,
+            experiment_spec=spec.model_copy(deep=True),
             provenance=RunProvenance(
                 spec_id=str(spec.spec_id),
                 task=spec.task,
@@ -2165,6 +2170,8 @@ class Executor:
                 preamble_sha256=actual_preamble_hash,
                 toolbox_path=spec.toolbox_path,
                 toolbox_sha256=spec.toolbox_sha256,
+                harness_tree_path=spec.harness_tree_path,
+                harness_tree_sha256=spec.harness_tree_sha256,
                 task_family=spec.task_family,
                 task_id=task_id,
                 task_instance_id=spec.task_instance_id,

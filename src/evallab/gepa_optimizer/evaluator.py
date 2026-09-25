@@ -1151,6 +1151,7 @@ class LabEvaluator:
                 candidate_path=Path(rel_candidate_path),
                 candidate_sha256=candidate_sha256,
                 jobs_dir=relative_jobs,
+                candidate_kind=self.candidate_kind,
             )
             spec = spec.model_copy(
                 update={

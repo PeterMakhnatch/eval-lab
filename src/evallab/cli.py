@@ -566,8 +566,8 @@ def _approve_command(
     if authorized.billable:
         print(
             f"spend: {authorized.agent} x {authorized.attempts} attempt(s), "
-            f"estimated {authorized.est_cost_usd:.2f} USD per job, billed to "
-            f"{provider_subscription_description(authorized.agent)}"
+            f"estimated {authorized.est_cost_usd:.2f} USD per job; cost/account basis: "
+            f"{provider_subscription_description(authorized.agent, authorized.model)}"
         )
         # The dollar figure is an API-list-price equivalent; the provider
         # allowance or policy state is the binding account-side signal.
@@ -2283,6 +2283,8 @@ def _tasks_prepare_command(
         max_input_tokens=args.max_input_tokens,
         max_output_tokens=args.max_output_tokens,
         max_total_tokens=args.max_total_tokens,
+        harness_tree_path=args.harness_tree,
+        harness_tree_sha256=args.harness_tree_sha256,
         output=args.output,
         submitted_by=args.submitted_by,
     )
@@ -2307,6 +2309,8 @@ def _tasks_prepare_command(
     print(f"task: {spec.task} @ {spec.task_version or 'unversioned'}")
     print(f"package: {spec.task_package_digest}")
     print(f"run: {spec.agent} / {spec.model or 'control'} / {spec.environment}")
+    if spec.harness_tree_sha256 is not None:
+        print(f"harness: {spec.harness_tree_sha256} ({spec.harness_tree_path})")
     print(f"resources: {json.dumps(prepared.resources, sort_keys=True)}")
     print(f"timeout: {spec.timeout_seconds}s (task: {prepared.task_timeout_seconds}s)")
     if spec.cost_limit_usd is not None:
@@ -2320,6 +2324,38 @@ def _tasks_prepare_command(
         print(f"warning: {warning}")
     print("Not submitted or authorized; no model or sandbox was started.")
     print(f"next: {next_command}")
+    return 0
+
+
+def _tasks_replay_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.task_prepare import replay_task
+
+    spec, spec_path = replay_task(
+        root,
+        _resolve(root, args.retained_spec),
+        name=args.name,
+        harness_tree_path=args.harness_tree,
+        harness_tree_sha256=args.harness_tree_sha256,
+        output=args.output,
+    )
+    relative_spec = spec_path.relative_to(root.resolve()).as_posix()
+    next_command = f"uv run evallab submit {shlex.quote(relative_spec)}"
+    if args.json:
+        print(json.dumps({
+            "spec_path": relative_spec,
+            "spec": spec.model_dump(mode="json"),
+            "next_command": next_command,
+            "submitted": False,
+        }, indent=2))
+    else:
+        print(f"prepared replay: {relative_spec}")
+        print(f"task package: {spec.task_package_digest}")
+        print(f"harness: {spec.harness_tree_sha256} ({spec.harness_tree_path})")
+        print("Retained model, task and execution settings are unchanged.")
+        print("Not submitted or authorized; prior approval is not inherited.")
+        print(f"next: {next_command}")
     return 0
 
 
@@ -4125,10 +4161,28 @@ def parser() -> argparse.ArgumentParser:
     tasks_prepare.add_argument(
         "--max-total-tokens", type=int, help="Defaults to input plus output token ceilings"
     )
+    tasks_prepare.add_argument(
+        "--harness-tree", type=Path,
+        help="Pin the directory containing terminus/ and terminus-commands/",
+    )
+    tasks_prepare.add_argument(
+        "--harness-tree-sha256", help="Require this source tree digest before freezing it"
+    )
     tasks_prepare.add_argument("--submitted-by", default="operator")
     tasks_prepare.add_argument("--output", type=Path, help="Repo-relative spec output path")
     tasks_prepare.add_argument("--json", action="store_true")
     tasks_prepare.set_defaults(func=_tasks_prepare_command)
+
+    tasks_replay = tasks_commands.add_parser(
+        "replay", help="Replay a retained Terminus spec with one replacement pinned harness"
+    )
+    tasks_replay.add_argument("retained_spec", type=Path)
+    tasks_replay.add_argument("--name", required=True, help="Unique replay run name")
+    tasks_replay.add_argument("--harness-tree", type=Path, required=True)
+    tasks_replay.add_argument("--harness-tree-sha256")
+    tasks_replay.add_argument("--output", type=Path, help="Repo-relative spec output path")
+    tasks_replay.add_argument("--json", action="store_true")
+    tasks_replay.set_defaults(func=_tasks_replay_command)
 
     tasks_import = tasks_commands.add_parser(
         "import", help="Restartable batch import of local Harbor task packages"

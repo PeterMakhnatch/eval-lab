@@ -3,8 +3,8 @@
 The lab's policy model is denominated in dollars (``est_cost_usd``,
 ``daily_cost_ceiling_usd``). Subscription-backed agents consume provider quota;
 their reported dollars are API-list-price equivalents, not subscription charges.
-API-backed agents such as Terminus 2 consume provider balance instead. Recorded
-usage and cost estimates do not establish either account's remaining allowance.
+API-backed Terminus 2 routes consume provider balance; local Ollama has no API
+charge. Recorded usage and cost estimates do not establish remaining allowance.
 
 This module reports that quota honestly, and its central discipline is to keep
 two different questions apart:
@@ -55,6 +55,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from evallab.execution_contracts import (
+    TERMINUS_AGENT,
+    TERMINUS_LOCAL_MODEL_SELECTOR,
+    ZAI_OPENAPI_MODEL_SELECTOR,
+)
 from evallab.results import discover_job_dirs
 
 #: Agents with a supported consumption reader. Free controls are excluded.
@@ -70,11 +75,16 @@ PROVIDER_SUBSCRIPTIONS: dict[str, str] = {
     "claude-code": "Peter's Claude subscription",
     "cursor-cli": "Cursor subscription/API-key policy state",
     "antigravity-cli": "Peter's Google subscription (Antigravity OAuth)",
-    "terminus-2": "Z.ai Open Platform standard-API balance",
+    "terminus-2": "configured Terminus model provider (model-specific)",
 }
 
 
-def provider_subscription_description(agent: str) -> str:
+def provider_subscription_description(agent: str, model: str | None = None) -> str:
+    if agent == TERMINUS_AGENT:
+        if model == TERMINUS_LOCAL_MODEL_SELECTOR:
+            return "local Ollama compute (no provider API charge)"
+        if model == ZAI_OPENAPI_MODEL_SELECTOR:
+            return "Z.ai Open Platform standard-API balance"
     return PROVIDER_SUBSCRIPTIONS.get(agent, f"{agent} subscription/policy state")
 
 

@@ -1,10 +1,10 @@
-"""Secret-safe Harbor Terminus2 adapter for the Z.ai OpenAPI standard-API lane.
+"""Secret-safe Harbor Terminus2 adapter for pinned host-side model routes.
 
 Upstream Terminus2 runs its model client host-side (inside the Harbor
 controller process) through LiteLLM, including the main terminal loop, the
 context-summarization subcalls, and the LiteLLM retry path. This subclass
-binds that client to the trial-owned ``127.0.0.1`` metered proxy and refuses
-any caller-supplied transport or credential override.
+binds that client to the trial-owned ``127.0.0.1`` metered proxy or an
+explicit local Ollama service, refusing caller transport/credential overrides.
 
 Credential posture:
 
@@ -18,6 +18,8 @@ Credential posture:
 - ``extra_env`` is exported into the task's tmux session, i.e. inside the
   task container. It must never carry provider secrets or the trial
   capability; construction fails closed when it does.
+- The local route requires an already installed, digest-identified GGUF model.
+  It never pulls weights and records zero provider API charge, not imputed usage.
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ from typing import Any
 from harbor.agents.terminus_2.terminus_2 import Terminus2  # ty: ignore[unresolved-import]
 
 from evallab.execution_contracts import (
+    TERMINUS_LOCAL_MODEL_SELECTOR,
     TERMINUS_PROXY_URL_ENV,
     ZAI_OPENAPI_ALLOWED_MODELS,
     ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS,
@@ -39,6 +42,7 @@ from evallab.execution_contracts import (
     collected_secret_values,
 )
 from evallab.harbor_common import sanitize_native_trajectory
+from evallab.terminus_local import OllamaBinding, resolve_ollama_binding
 
 __all__ = ["SecretSafeTerminus2"]
 
@@ -141,10 +145,12 @@ def _reject_kwarg_overrides(
     return items
 
 
-def _scrubbed_extra_env(extra_env: dict[str, str] | None, *, capability: str) -> dict[str, str]:
+def _scrubbed_extra_env(extra_env: dict[str, str] | None, *, capability: str | None) -> dict[str, str]:
     """Reject secret-bearing task-container environment; pass through the rest."""
     env = dict(extra_env or {})
-    secrets = collected_secret_values() | {capability}
+    secrets = collected_secret_values()
+    if capability is not None:
+        secrets = secrets | {capability}
     for key, value in env.items():
         folded = str(key).casefold()
         if folded in _FORBIDDEN_EXTRA_ENV_KEYS or folded.startswith(
@@ -163,16 +169,11 @@ def _scrubbed_extra_env(extra_env: dict[str, str] | None, *, capability: str) ->
 
 
 class SecretSafeTerminus2(Terminus2):
-    """Terminus2 bound to the trial-owned Z.ai OpenAPI metered proxy.
+    """Terminus2 with either a metered proxy or a qualified local Ollama client.
 
-    The native terminal loop, summarization subcalls, raw-response/ATIF
-    capture, and model identity are inherited unchanged from upstream. Only
-    the model transport is pinned: ``api_base`` points at the runner-owned
-    loopback proxy and the trial capability is exposed to litellm's ``zai``
-    provider lookup via the controller process environment. No provider
-    secret ever enters ``llm_kwargs`` (trajectory-persisted), ``llm_call_kwargs``,
-    ``extra_env`` (exported into the task container), or the task exec
-    environment.
+    The terminal loop, parser, summarization, retries and artifact capture are
+    upstream behavior. Model transport is controller-bound; provider secrets
+    never enter trajectory-persisted kwargs or the task environment.
 
     ``model_name`` is keyword-only: upstream binds it positionally, but this
     adapter must validate the exact route before delegating, so a second
@@ -194,7 +195,12 @@ class SecretSafeTerminus2(Terminus2):
                 "SecretSafeTerminus2 accepts at most logs_dir positionally; "
                 "pass model_name as a keyword argument"
             )
-        model = _require_exact_model(model_name)
+        self._local_binding: OllamaBinding | None = None
+        if model_name == TERMINUS_LOCAL_MODEL_SELECTOR:
+            self._local_binding = resolve_ollama_binding(model_name)
+            model = model_name
+        else:
+            model = _require_exact_model(model_name)
         if api_base is not None:
             raise ValueError(
                 "SecretSafeTerminus2 rejects api_base overrides: "
@@ -216,8 +222,21 @@ class SecretSafeTerminus2(Terminus2):
         clean_llm_call_kwargs = _reject_kwarg_overrides(
             llm_call_kwargs, source="llm_call_kwargs"
         )
-        proxy_url = _require_loopback_proxy_url()
-        capability = _require_capability()
+        if self._local_binding is not None:
+            if kwargs.get("model_info") is not None:
+                raise ValueError("local model context/pricing is runtime-bound, not a harness override")
+            proxy_url = self._local_binding.endpoint
+            capability = None
+            kwargs["model_info"] = {
+                "max_input_tokens": self._local_binding.context_budget_tokens,
+                "max_output_tokens": self._local_binding.context_budget_tokens,
+                "input_cost_per_token": 0.0,
+                "output_cost_per_token": 0.0,
+                "litellm_provider": "ollama_chat",
+            }
+        else:
+            proxy_url = _require_loopback_proxy_url()
+            capability = _require_capability()
         clean_extra_env = _scrubbed_extra_env(extra_env, capability=capability)
         super().__init__(
             *args,
@@ -232,7 +251,21 @@ class SecretSafeTerminus2(Terminus2):
         # stays in the controller process environment only: it is never added
         # to llm_kwargs (trajectory-persisted), llm_call_kwargs, extra_env
         # (task container), or any task exec call.
-        os.environ[_PROVIDER_KEY_ENV] = capability
+        if capability is not None:
+            os.environ[_PROVIDER_KEY_ENV] = capability
+
+    async def run(self, instruction: str, environment: Any, context: Any) -> None:
+        try:
+            await super().run(instruction, environment, context)
+        finally:
+            if self._local_binding is not None:
+                # Installed local inference has no provider API charge. This is
+                # a billing fact, not invented missing token or call telemetry.
+                context.cost_usd = 0.0
+                context.metadata = {
+                    **(context.metadata or {}),
+                    "local_ollama": self._local_binding.to_dict(),
+                }
 
     def populate_context_post_run(self, context: Any) -> None:
         secrets = collected_secret_values()

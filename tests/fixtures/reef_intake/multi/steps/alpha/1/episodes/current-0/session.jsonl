@@ -1,0 +1,6 @@
+{"data":{"agent":"root","model":"fixture-model","task":"[toy] Reply with 7.","turn":1},"seq":0,"time":1700000001000,"type":"session"}
+{"data":{"turn":1},"seq":1,"time":1700000001001,"type":"turn/start"}
+{"data":{"step":1,"turn":1},"seq":2,"time":1700000001002,"type":"step/start"}
+{"data":{"content":"","finish":"stop","step":1,"tool_calls":[],"usage":{"input_tokens":10,"output_tokens":1}},"seq":3,"time":1700000001003,"type":"assistant/message"}
+{"data":{"step":1,"turn":1},"seq":4,"time":1700000001004,"type":"step/end"}
+{"data":{"reason":{"kind":"completed"},"turn":1},"seq":5,"time":1700000001005,"type":"turn/end"}

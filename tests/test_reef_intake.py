@@ -334,3 +334,58 @@ def test_module_cli_imports_traffic_corpus(tmp_path: Path, capsys) -> None:
     assert printed["trajectories_total"] == 2
     assert printed["reef_format_ref"] == "818997d7"
     assert (out / "summary.json").is_file()
+
+
+MULTI = Path(__file__).resolve().parent / "fixtures/reef_intake/multi"
+
+
+def test_multi_scenario_steps_keep_their_own_files_and_metadata(tmp_path: Path) -> None:
+    """Two scenarios sharing step 1 must not overwrite each other's trajectories."""
+    out = tmp_path / "multi-out"
+    summary = reef_intake.import_reef_gate_run(
+        MULTI / "steps", out, run_label="fixture-multi", results_path=MULTI / "results.jsonl"
+    )
+    assert summary["episodes_total"] == 4
+    assert summary["scenarios"] == ["alpha", "beta"]
+    assert summary["trials"] == 2
+    assert summary["published"] == 1
+    manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+    assert len(manifest["trajectories"]) == 4
+    assert len({path for path in manifest["trajectories"]}) == 4
+    by_path = {
+        relative: json.loads((out / relative).read_text(encoding="utf-8"))
+        for relative in manifest["trajectories"]
+    }
+    assert by_path["trajectories/alpha/1/candidate-0.json"]["extra"]["reef"]["release_id"] == "rel-a"
+    assert by_path["trajectories/beta/1/candidate-0.json"]["extra"]["reef"]["release_id"] == "rel-b"
+    pairs = {(pair["scenario"], pair["outcome"], pair["published"]) for pair in json.loads(
+        (out / "pairs.json").read_text(encoding="utf-8")
+    )}
+    assert pairs == {("alpha", "W", True), ("beta", "T", False)}
+
+
+def test_ambiguous_trial_rows_refuse_rather_than_misattribute(tmp_path: Path) -> None:
+    results = tmp_path / "results.jsonl"
+    results.write_text(
+        '{"trial": 1, "scenario": "alpha", "published": true}\n'
+        '{"trial": 1, "scenario": "alpha", "published": false}\n',
+        encoding="utf-8",
+    )
+    try:
+        reef_intake.import_reef_gate_run(
+            MULTI / "steps", tmp_path / "out", run_label="x", results_path=results
+        )
+    except reef_intake.ReefGateError as exc:
+        assert "alpha" in str(exc)
+    else:
+        raise AssertionError("ambiguous trial rows must fail loudly")
+
+
+def test_trial_join_prefers_scenario_then_scenario_only_then_trial() -> None:
+    rows = [
+        {"trial": 7, "scenario": "beta", "release_id": "rel-single"},
+        {"trial": 1, "release_id": "rel-legacy"},
+    ]
+    assert reef_intake.match_trial_row(rows, "beta", 1) == rows[0]
+    assert reef_intake.match_trial_row(rows, "alpha", 1) == rows[1]
+    assert reef_intake.match_trial_row(rows, "gamma", 9) == {}

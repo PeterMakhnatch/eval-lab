@@ -1,11 +1,20 @@
-"""Read Reef harness-gate step records as ATIF.
+"""Read Reef-recorded evidence as ATIF.
 
-Reef ran these trajectories itself; Eval Lab only reads them. One Reef gate
-episode (``episode.json`` plus its sibling ``session.jsonl``) becomes one
-valid ATIF document with the origin recorded as Reef. Reef ``None`` scores
-and failed episodes stay unscored: missing source fields stay missing.
+Reef ran these trajectories itself; Eval Lab only reads them. Two sources:
 
-Format mirror (local Reef checkout, ref ``07dfa883``):
+- Gate episodes: one Reef gate episode (``episode.json`` plus its sibling
+  ``session.jsonl``) becomes one valid ATIF document with the origin
+  recorded as Reef. Reef ``None`` scores and failed episodes stay
+  unscored: missing source fields stay missing.
+- Captured traffic: one Reef report record plus the inference records its
+  ``references`` name becomes one ATIF document, mirroring the semantics
+  of ``reef/core/trajectories.py`` ``make_trajectory`` without importing
+  ``reef``: references define one trajectory; the report score/feedback
+  attach to it.
+
+Format mirror (local Reef checkout; the mirrored files are byte-identical
+at ``07dfa883`` and ``818997d7``, verified by diff; ``--reef-format-ref``
+records which commit produced each imported corpus):
 
 - ``reef/train/cordis_backend/backend.py`` ``RECORD_EPISODES_DIR`` ("episodes",
   line 235), ``RECORD_EPISODE_FILE`` ("episode.json", line 236),
@@ -20,19 +29,22 @@ Format mirror (local Reef checkout, ref ``07dfa883``):
   finish, usage), ``tool/call`` (step, call_id, name, arguments),
   ``tool/result`` (step, call_id, name, content, is_error, error),
   ``step/end``, ``turn/end`` events as JSONL.
-- ``reef/core/trajectories.py`` ``make_trajectory`` semantics are mirrored
-  only in the sense that references define one trajectory and a recorded
-  score attaches to it; this module never imports ``reef``.
+- ``reef/core/trajectories.py`` ``make_trajectory`` (line 63),
+  ``exchange_messages``, ``_append_message`` and ``_tool_call``: ordered
+  inference records become steps with shared prefixes marked copied, and
+  the report score/feedback attach in ``extra.reef``.
 
-Run with ``python -m evallab.evidence.reef_gate --steps-root <root>
---out <new dir> --run-label <label> [--results <results.jsonl>]``. The
+Run gate intake with ``python -m evallab.evidence.reef_intake --steps-root
+<root> --out <new dir> --run-label <label> [--results <results.jsonl>]``,
+or traffic intake with ``--records <records.json> --record-details
+<details.json> --scenario <scenario>`` in place of ``--steps-root``. The
 output layout is deliberately not a native Harbor job: ATIF documents under
 ``trajectories/`` plus a ``manifest.json`` (``evidence_kind`` historical)
 that the existing offline analyzer
 (``research/analysis/harness-mechanics/analyze.py``) reads directly, a
-``pairs.json`` paired view, a ``summary.json`` reproduction, and an
-``intake.json`` provenance record. No decision rules, sign tests, or
-calibration live here: HAR-72 owns those.
+``summary.json`` reproduction, and an ``intake.json`` provenance record.
+Gate imports additionally write a ``pairs.json`` paired view. No decision
+rules, sign tests, or calibration live here: HAR-72 owns those.
 """
 
 from __future__ import annotations
@@ -41,6 +53,7 @@ import argparse
 import hashlib
 import json
 import math
+import mimetypes
 from pathlib import Path
 from typing import Any
 
@@ -53,8 +66,9 @@ REEF_AGENT_NAME = "reef-harness"
 #: ``evallab.dsh.DEFAULT_SCHEMA_VERSION``.
 DEFAULT_SCHEMA_VERSION = "ATIF-v1.7"
 
-#: Reef commit whose step-record format this module mirrors. Recorded in
-#: every intake so a later format drift is attributable.
+#: Default Reef commit whose record format this module mirrors. Recorded per
+#: corpus via ``--reef-format-ref`` (exp04 ran at 07dfa883, exp05/06 at
+#: 818997d7); the mirrored files are byte-identical at both, verified by diff.
 REEF_FORMAT_REF = "07dfa883"
 
 #: Episode sides the gate evaluates.
@@ -628,6 +642,27 @@ def import_reef_gate_run(
         "episodes_total": len(records),
     }
 
+    _publish_layout(
+        out_dir,
+        run_label,
+        documents,
+        {
+            "manifest.json": manifest,
+            "pairs.json": pairs,
+            "summary.json": summary,
+            "intake.json": intake,
+        },
+    )
+    return summary
+
+
+def _publish_layout(
+    out_dir: Path,
+    run_label: str,
+    documents: list[tuple[Path, JsonObject]],
+    sidecars: dict[str, Any],
+) -> None:
+    """Write documents plus sidecar JSON files atomically into a new directory."""
     staging = out_dir.parent / f".tmp_{out_dir.name}_{hashlib.sha256(run_label.encode()).hexdigest()[:8]}"
     if staging.exists():
         raise ReefGateError(f"staging directory already exists: {staging}")
@@ -637,10 +672,8 @@ def import_reef_gate_run(
             target = staging / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-        (staging / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-        (staging / "pairs.json").write_text(json.dumps(pairs, indent=2) + "\n")
-        (staging / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
-        (staging / "intake.json").write_text(json.dumps(intake, indent=2) + "\n")
+        for name, sidecar in sidecars.items():
+            (staging / name).write_text(json.dumps(sidecar, indent=2) + "\n", encoding="utf-8")
         staging.rename(out_dir)
     except Exception:
         for leftover in sorted(staging.rglob("*"), reverse=True):
@@ -651,13 +684,498 @@ def import_reef_gate_run(
                 leftover.rmdir()
         staging.rmdir()
         raise
+
+
+def _traffic_exchange_messages(payload: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Split one inference payload into request and response messages.
+
+    Mirrors ``reef/core/trajectories.py`` ``exchange_messages`` without
+    importing ``reef``: the training projection wins, then OpenAI-style
+    ``choices``, then a generic output/message body.
+    """
+    response = payload.get("response", {}) if isinstance(payload, dict) else {}
+    response = response if isinstance(response, dict) else {"content": response}
+    training = response.get("training", {})
+    training = training if isinstance(training, dict) else {}
+    request: Any = training.get(
+        "request_messages",
+        payload.get("messages", payload.get("input", payload.get("prompt", [])))
+        if isinstance(payload, dict)
+        else [],
+    )
+    if isinstance(request, str):
+        request = [{"role": "user", "content": request}]
+    if not isinstance(request, list):
+        request = []
+    request = [entry for entry in request if isinstance(entry, dict)]
+    system = payload.get("system", payload.get("instructions")) if isinstance(payload, dict) else None
+    if system and not any(message.get("role") == "system" for message in request):
+        request.insert(0, {"role": "system", "content": system})
+    message = training.get("response_message")
+    if isinstance(message, dict):
+        return request, [message]
+    choices = response.get("choices")
+    if isinstance(choices, list) and choices and isinstance(choices[0], dict):
+        message = choices[0].get("message")
+        if isinstance(message, dict):
+            return request, [message]
+        return request, [{"role": "assistant", "content": choices[0].get("text", "")}]
+    output = response.get("output")
+    if isinstance(output, list):
+        return request, [entry for entry in output if isinstance(entry, dict)]
+    message = response.get("message")
+    if isinstance(message, dict):
+        return request, [message]
+    return request, [
+        {
+            "role": "assistant",
+            "content": response.get("content", response.get("output_text", "")),
+            **({} if response else {"text_available": False}),
+        }
+    ]
+
+
+def _traffic_content(value: Any) -> str | list[dict[str, Any]]:
+    """Project one provider message content into ATIF text or content parts."""
+    if isinstance(value, str):
+        return value
+    if value is None:
+        return ""
+    if not isinstance(value, list):
+        return json.dumps(value, ensure_ascii=False)
+    parts: list[dict[str, Any]] = []
+    for part in value:
+        if not isinstance(part, dict):
+            parts.append({"type": "text", "text": str(part)})
+            continue
+        kind = part.get("type")
+        if kind in ("text", "input_text", "output_text"):
+            parts.append({"type": "text", "text": str(part.get("text", ""))})
+        elif kind in ("image", "image_url", "input_image"):
+            source = part.get("source", {})
+            image_url = part.get("image_url", {})
+            path = image_url.get("url") if isinstance(image_url, dict) else image_url
+            if isinstance(source, dict):
+                path = path or source.get("path") or source.get("url")
+                if source.get("type") == "base64":
+                    path = f"data:{source.get('media_type')};base64,{source.get('data')}"
+            if not isinstance(path, str):
+                parts.append({"type": "text", "text": json.dumps(dict(part), ensure_ascii=False)})
+                continue
+            media_type = (source.get("media_type") if isinstance(source, dict) else None) or (
+                path[5:].split(";", 1)[0]
+                if path.startswith("data:")
+                else mimetypes.guess_type(path.split("?", 1)[0])[0]
+            )
+            if media_type not in ("image/jpeg", "image/png", "image/gif", "image/webp"):
+                parts.append({"type": "text", "text": json.dumps(dict(part), ensure_ascii=False)})
+            else:
+                parts.append({"type": "image", "source": {"media_type": media_type, "path": path}})
+        elif kind not in ("tool_use", "tool_result", "thinking", "redacted_thinking"):
+            parts.append({"type": "text", "text": json.dumps(dict(part), ensure_ascii=False)})
+    if all(part["type"] == "text" for part in parts):
+        return "".join(part["text"] for part in parts)
+    return parts
+
+
+def _traffic_tool_call(call: dict[str, Any], step_id: int, index: int) -> JsonObject:
+    """One provider tool call as an ATIF tool call, mirroring Reef's ``_tool_call``."""
+    function = call.get("function", call)
+    function = function if isinstance(function, dict) else {}
+    arguments = function.get("arguments", {})
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except json.JSONDecodeError:
+            arguments = {"raw_arguments": arguments}
+    if not isinstance(arguments, dict):
+        arguments = {"raw_arguments": arguments}
+    return {
+        "tool_call_id": str(call.get("id") or f"call-{step_id}-{index}"),
+        "function_name": str(function.get("name") or "unknown"),
+        "arguments": dict(arguments),
+    }
+
+
+def _traffic_append_message(
+    steps: list[JsonObject], message: dict[str, Any], *, copied: bool
+) -> None:
+    """Append one provider message to ATIF steps, mirroring Reef's ``_append_message``."""
+    role = message.get("role", "assistant")
+    kind = message.get("type")
+    content = message.get("content", "")
+    blocks = content if isinstance(content, list) else []
+    results = [part for part in blocks if isinstance(part, dict) and part.get("type") == "tool_result"]
+    if role == "tool" or kind == "function_call_output":
+        results.append(
+            {
+                "tool_use_id": message.get("tool_call_id", message.get("call_id")),
+                "content": message.get("output", content),
+            }
+        )
+    for result in results:
+        call_id = result.get("tool_use_id")
+        target = next(
+            (
+                step
+                for step in reversed(steps)
+                if any(call.get("tool_call_id") == call_id for call in step.get("tool_calls", []))
+            ),
+            None,
+        )
+        if target is not None:
+            target.setdefault("observation", {"results": []})["results"].append(
+                {
+                    "source_call_id": call_id,
+                    "content": _traffic_content(result.get("content")),
+                    "extra": {"provider_result": dict(result)},
+                }
+            )
+        else:
+            steps.append(
+                {
+                    "step_id": len(steps) + 1,
+                    "source": "user",
+                    "message": _traffic_content(result.get("content")),
+                    "extra": {"provider_message": dict(message)},
+                }
+            )
+    if role == "tool" or kind == "function_call_output":
+        return
+    remaining = [
+        part for part in blocks if not isinstance(part, dict) or part.get("type") != "tool_result"
+    ]
+    if results and not remaining:
+        return
+    source = "agent" if role == "assistant" else "system" if role in ("system", "developer") else "user"
+    step: JsonObject = {
+        "step_id": len(steps) + 1,
+        "source": source,
+        "message": _traffic_content(remaining if blocks else content),
+        "extra": {"provider_message": dict(message)},
+    }
+    if copied and source == "agent":
+        step["is_copied_context"] = True
+    calls = list(message.get("tool_calls") or [])
+    calls.extend(
+        {"id": part.get("id"), "function": {"name": part.get("name"), "arguments": part.get("input", {})}}
+        for part in blocks
+        if isinstance(part, dict) and part.get("type") == "tool_use"
+    )
+    if kind == "function_call":
+        calls.append({"id": message.get("call_id"), "function": message})
+    if calls and source == "agent":
+        step["tool_calls"] = [
+            _traffic_tool_call(call, len(steps) + 1, index) for index, call in enumerate(calls)
+        ]
+    reasoning = message.get("reasoning_content") or "".join(
+        str(part.get("thinking", ""))
+        for part in blocks
+        if isinstance(part, dict) and part.get("type") == "thinking"
+    )
+    if reasoning and source == "agent":
+        step["reasoning_content"] = reasoning
+    steps.append(step)
+
+
+def _traffic_detail_records(details: JsonObject) -> dict[str, JsonObject]:
+    """Validate the record-details map into ``{record id: detail body}``."""
+    records: dict[str, JsonObject] = {}
+    for record_id, body in details.items():
+        if not isinstance(body, dict):
+            raise ReefGateError(f"detail for {record_id!r} is not an object")
+        if body.get("agent_record_id", record_id) != record_id:
+            raise ReefGateError(f"detail key {record_id!r} disagrees with its agent_record_id")
+        records[record_id] = body
+    return records
+
+
+def _traffic_listed_ids(export: JsonObject) -> tuple[set[str], str | None]:
+    """Record ids named by a capture list export, plus its scenario when uniform."""
+    listed: set[str] = set()
+    scenarios: set[str] = set()
+    pages = export.get("pages")
+    if isinstance(pages, list):
+        for page in pages:
+            if not isinstance(page, dict):
+                continue
+            scenario = page.get("scenario")
+            if isinstance(scenario, str):
+                scenarios.add(scenario)
+            rows = page.get("records")
+            for row in rows if isinstance(rows, list) else []:
+                if isinstance(row, dict) and isinstance(row.get("agent_record_id"), str):
+                    listed.add(row["agent_record_id"])
+    else:
+        rows = export.get("records")
+        for row in rows if isinstance(rows, list) else []:
+            if isinstance(row, dict) and isinstance(row.get("agent_record_id"), str):
+                listed.add(row["agent_record_id"])
+        scenario = export.get("scenario")
+        if isinstance(scenario, str):
+            scenarios.add(scenario)
+    return listed, next(iter(scenarios)) if len(scenarios) == 1 else None
+
+
+def parse_reef_traffic_trajectory(
+    report_id: str,
+    record_ids: list[str],
+    by_id: dict[str, JsonObject],
+    *,
+    scenario: str | None = None,
+    run_label: str | None = None,
+    raw_source: str = "record-details.json",
+    schema_version: str = DEFAULT_SCHEMA_VERSION,
+) -> JsonObject:
+    """Build one ATIF document from a report and the inference records it references.
+
+    Mirrors ``make_trajectory``: the report's references define the one
+    trajectory, shared request prefixes are marked copied, and the report
+    score/feedback attach in ``extra.reef``. Only recorded fields are
+    carried; a missing score stays unscored.
+    """
+    report = by_id.get(report_id)
+    if report is None:
+        raise ReefGateError(f"report {report_id!r} has no detail record")
+    members: list[tuple[str, JsonObject]] = []
+    for record_id in record_ids:
+        body = by_id.get(record_id)
+        if body is None:
+            raise ReefGateError(f"report {report_id!r} references {record_id!r} with no detail record")
+        if body.get("request_type") != "inference":
+            raise ReefGateError(f"report {report_id!r} references non-inference record {record_id!r}")
+        payload = body.get("payload")
+        if not isinstance(payload, dict):
+            raise ReefGateError(f"inference record {record_id!r} carries no payload detail")
+        members.append((record_id, payload))
+    if not members:
+        raise ReefGateError(f"report {report_id!r} references no inference records")
+
+    steps: list[JsonObject] = []
+    history: list[dict[str, Any]] = []
+    for _record_id, payload in members:
+        request, responses = _traffic_exchange_messages(payload)
+        shared = 0
+        for previous, current in zip(history, request, strict=False):
+            if previous != current:
+                break
+            shared += 1
+        for message in request[shared:]:
+            _traffic_append_message(steps, message, copied=True)
+        for message in responses:
+            _traffic_append_message(steps, message, copied=False)
+        history = [*request, *responses]
+    if not steps:
+        steps.append(
+            {"step_id": 1, "source": "agent", "message": "", "extra": {"reef": {"text_available": False}}}
+        )
+
+    primary = members[-1][0]
+    agent: JsonObject = {"name": REEF_AGENT_NAME, "version": "unknown"}
+    model = members[-1][1].get("model")
+    if isinstance(model, str) and model:
+        agent["model_name"] = model
+    extra: JsonObject = {
+        "origin": "reef",
+        "raw_source": raw_source,
+        "transport": "reef-capture-records",
+    }
+    document: JsonObject = {
+        "schema_version": schema_version,
+        "session_id": members[0][0],
+        "trajectory_id": primary,
+        "agent": agent,
+        "steps": steps,
+        "extra": extra,
+    }
+    reef_meta: JsonObject = {"source_agent_record_id": primary, "report_id": report_id}
+    if scenario is not None:
+        reef_meta["scenario"] = scenario
+    if run_label is not None:
+        reef_meta["run"] = run_label
+    score = _finite_number(report.get("score"))
+    if score is not None:
+        reef_meta["reward"] = score
+    report_payload = report.get("payload")
+    feedback: Any = None
+    if isinstance(report_payload, dict):
+        feedback = report_payload.get("feedback", report.get("feedback"))
+    else:
+        feedback = report.get("feedback")
+    if isinstance(feedback, str | dict) and feedback:
+        reef_meta["feedback"] = feedback
+    entries = []
+    for record_id, payload in members:
+        body = by_id[record_id]
+        entry: JsonObject = {"agent_record_id": record_id, "payload": dict(payload)}
+        created = body.get("created_at")
+        if isinstance(created, int | float) and not isinstance(created, bool):
+            entry["created_at"] = created
+        artifact = body.get("artifact_ref")
+        if isinstance(artifact, dict) and artifact:
+            entry["artifact_ref"] = artifact
+        entries.append(entry)
+    reef_meta["records"] = entries
+    extra["reef"] = reef_meta
+
+    error = validate_atif_document(document)
+    if error is not None:
+        raise ReefGateError(f"traffic trajectory for report {report_id!r} is not valid ATIF: {error}")
+    return document
+
+
+def parse_reef_traffic_export(
+    export: JsonObject,
+    details: JsonObject,
+    *,
+    scenario: str | None = None,
+    run_label: str | None = None,
+    raw_source: str = "record-details.json",
+    schema_version: str = DEFAULT_SCHEMA_VERSION,
+) -> list[tuple[str, JsonObject]]:
+    """Build one ATIF document per report record in a capture export.
+
+    ``export`` is the list export (``{"pages": [...]}``); ``details`` maps
+    each ``agent_record_id`` to its full detail body. Inference records no
+    report references are skipped, never built into a trajectory alone.
+    """
+    by_id = _traffic_detail_records(details)
+    listed, listed_scenario = _traffic_listed_ids(export)
+    scenario = scenario or listed_scenario
+    reports = sorted(
+        record_id for record_id, body in by_id.items() if body.get("request_type") == "report"
+    )
+    if not reports:
+        raise ReefGateError("capture export holds no report records")
+    if listed:
+        missing = sorted(record_id for record_id in reports if record_id not in listed)
+        if missing:
+            raise ReefGateError(f"report records missing from the list export: {missing}")
+    documents: list[tuple[str, JsonObject]] = []
+    for report_id in reports:
+        body = by_id[report_id]
+        payload = body.get("payload")
+        references: Any = payload.get("references") if isinstance(payload, dict) else None
+        if references is None:
+            references = body.get("references")
+        if not isinstance(references, list) or not all(isinstance(item, str) for item in references):
+            raise ReefGateError(f"report {report_id!r} carries no string reference list")
+        if not references:
+            raise ReefGateError(f"report {report_id!r} references no inference records")
+        documents.append(
+            (
+                report_id,
+                parse_reef_traffic_trajectory(
+                    report_id,
+                    list(references),
+                    by_id,
+                    scenario=scenario,
+                    run_label=run_label,
+                    raw_source=raw_source,
+                    schema_version=schema_version,
+                ),
+            )
+        )
+    return documents
+
+
+def import_reef_traffic_run(
+    records_path: Path,
+    details_path: Path,
+    out_dir: Path,
+    *,
+    run_label: str,
+    scenario: str | None = None,
+    reef_format_ref: str = REEF_FORMAT_REF,
+) -> dict[str, Any]:
+    """Import a Reef capture export into an origin-marked evidence layout.
+
+    ``out_dir`` must be new. Returns the summary dictionary also written to
+    ``summary.json``.
+    """
+    out_dir = Path(out_dir)
+    if out_dir.exists():
+        raise ReefGateError(f"refusing to overwrite existing output: {out_dir}")
+    try:
+        export = json.loads(Path(records_path).read_text(encoding="utf-8"))
+        details = json.loads(Path(details_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ReefGateError(f"cannot read capture export: {exc}") from exc
+    if not isinstance(export, dict) or not isinstance(details, dict):
+        raise ReefGateError("capture export files must both hold JSON objects")
+    by_id = _traffic_detail_records(details)
+    listed, listed_scenario = _traffic_listed_ids(export)
+    scenario = scenario or listed_scenario
+    trajectories = parse_reef_traffic_export(
+        export, details, scenario=scenario, run_label=run_label, raw_source=Path(details_path).name
+    )
+    used: set[str] = set()
+    for _report_id, payload in trajectories:
+        for entry in payload["extra"]["reef"]["records"]:
+            used.add(entry["agent_record_id"])
+    inference_ids = sorted(
+        record_id for record_id, body in by_id.items() if body.get("request_type") == "inference"
+    )
+    report_ids = sorted(
+        record_id for record_id, body in by_id.items() if body.get("request_type") == "report"
+    )
+    scored = sum(1 for _report_id, payload in trajectories if "reward" in payload["extra"]["reef"])
+    documents = [
+        (Path("trajectories") / f"{report_id}.json", payload) for report_id, payload in trajectories
+    ]
+    summary: JsonObject = {
+        "origin": "reef",
+        "kind": "captured-traffic",
+        "run": run_label,
+        "scenario": scenario,
+        "reef_format_ref": reef_format_ref,
+        "trajectories_total": len(documents),
+        "trajectories_scored": scored,
+        "trajectories_unscored": len(documents) - scored,
+        "inference_records_used": len(used),
+        "inference_records_detail": len(inference_ids),
+        "report_records": len(report_ids),
+        "listed_records": len(listed),
+        "unreferenced_inference_skipped": sorted(set(inference_ids) - used),
+    }
+    manifest = {
+        "evidence_kind": "historical",
+        "origin": "reef",
+        "kind": "captured-traffic",
+        "run": run_label,
+        "trajectories": [relative.as_posix() for relative, _ in documents],
+    }
+    intake = {
+        "origin": "reef",
+        "kind": "captured-traffic",
+        "run": run_label,
+        "scenario": scenario,
+        "reef_format_ref": reef_format_ref,
+        "agent_name": REEF_AGENT_NAME,
+        "schema_version": DEFAULT_SCHEMA_VERSION,
+        "records_path": str(records_path),
+        "details_path": str(details_path),
+        "native_harbor_job": False,
+        "offline_reader": "research/analysis/harness-mechanics/analyze.py --evidence-kind historical",
+        "trajectories_total": len(documents),
+    }
+    _publish_layout(
+        out_dir,
+        run_label,
+        documents,
+        {"manifest.json": manifest, "summary.json": summary, "intake.json": intake},
+    )
     return summary
 
 
+
 def main(argv: list[str] | None = None) -> int:
-    """Module CLI: ``python -m evallab.evidence.reef_gate ...``."""
+    """Module CLI: ``python -m evallab.evidence.reef_intake ...``."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
-    parser.add_argument("--steps-root", type=Path, required=True, help="Reef steps/ directory")
+    parser.add_argument("--steps-root", type=Path, default=None, help="Reef steps/ directory")
+    parser.add_argument("--records", type=Path, default=None, help="Reef capture list export")
+    parser.add_argument("--record-details", type=Path, default=None, help="Record-details map")
+    parser.add_argument("--scenario", default=None, help="Scenario recorded as extra.reef.scenario")
     parser.add_argument("--out", type=Path, required=True, help="New output directory")
     parser.add_argument("--run-label", required=True, help="Label recorded as extra.reef.run")
     parser.add_argument("--results", type=Path, default=None, help="Reef results.jsonl path")
@@ -666,13 +1184,29 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     try:
-        summary = import_reef_gate_run(
-            args.steps_root,
-            args.out,
-            run_label=args.run_label,
-            results_path=args.results,
-            reef_format_ref=args.reef_format_ref,
-        )
+        if args.records is not None:
+            if args.record_details is None:
+                parser.error("--records requires --record-details")
+            if args.steps_root is not None:
+                parser.error("--records and --steps-root are mutually exclusive")
+            summary = import_reef_traffic_run(
+                args.records,
+                args.record_details,
+                args.out,
+                run_label=args.run_label,
+                scenario=args.scenario,
+                reef_format_ref=args.reef_format_ref,
+            )
+        else:
+            if args.steps_root is None:
+                parser.error("one of --steps-root or --records is required")
+            summary = import_reef_gate_run(
+                args.steps_root,
+                args.out,
+                run_label=args.run_label,
+                results_path=args.results,
+                reef_format_ref=args.reef_format_ref,
+            )
     except (ReefGateError, OSError) as exc:
         parser.error(str(exc))
     print(json.dumps(summary, indent=2))

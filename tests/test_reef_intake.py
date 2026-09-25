@@ -1,26 +1,26 @@
-"""Reef harness-gate intake: episode conversion, pairing, and import."""
+"""Reef intake: gate episodes, captured traffic, pairing, and import."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from evallab.evidence import reef_gate
+from evallab.evidence import reef_intake
 from evallab.evidence.atif import SUPPORTED_SCHEMA_VERSIONS, _validate_fallback
 
-FIXTURES = Path(__file__).resolve().parent / "fixtures/reef_gate"
+FIXTURES = Path(__file__).resolve().parent / "fixtures/reef_intake"
 STEPS = FIXTURES / "steps"
 
 
 def _fixture_episodes() -> list[dict]:
-    return reef_gate.iter_gate_episodes(STEPS)
+    return reef_intake.iter_gate_episodes(STEPS)
 
 
 def test_all_fixture_episodes_convert_and_validate() -> None:
     episodes = _fixture_episodes()
     assert len(episodes) == 4
     for entry in episodes:
-        payload = reef_gate.parse_reef_gate_episode(
+        payload = reef_intake.parse_reef_gate_episode(
             entry["episode_dir"],
             scenario=entry["scenario"],
             step=entry["step"],
@@ -33,12 +33,12 @@ def test_all_fixture_episodes_convert_and_validate() -> None:
         assert reef_meta["side"] in ("candidate", "current")
         assert reef_meta["step"] == entry["step"]
         assert reef_meta["scenario"] == "aa-gate"
-        assert payload["agent"]["name"] == reef_gate.REEF_AGENT_NAME
+        assert payload["agent"]["name"] == reef_intake.REEF_AGENT_NAME
 
 
 def test_tool_calls_pair_with_observations_in_one_step() -> None:
     episode_dir = STEPS / "aa-gate/1/episodes/candidate-0"
-    payload = reef_gate.parse_reef_gate_episode(episode_dir, scenario="aa-gate", step=1)
+    payload = reef_intake.parse_reef_gate_episode(episode_dir, scenario="aa-gate", step=1)
     tool_step = next(step for step in payload["steps"] if step.get("tool_calls"))
     results = tool_step["observation"]["results"]
     call_ids = {call["tool_call_id"] for call in tool_step["tool_calls"]}
@@ -48,7 +48,7 @@ def test_tool_calls_pair_with_observations_in_one_step() -> None:
 
 def test_empty_reply_is_kept_as_evidence() -> None:
     episode_dir = STEPS / "aa-gate/1/episodes/current-0"
-    payload = reef_gate.parse_reef_gate_episode(episode_dir, scenario="aa-gate", step=1)
+    payload = reef_intake.parse_reef_gate_episode(episode_dir, scenario="aa-gate", step=1)
     assert _validate_fallback(payload) is None
     agent_steps = [step for step in payload["steps"] if step["source"] == "agent"]
     assert agent_steps and all(isinstance(step["message"], str) for step in agent_steps)
@@ -82,7 +82,7 @@ def test_missing_source_fields_stay_missing(tmp_path: Path) -> None:
         + "\n",
         encoding="utf-8",
     )
-    payload = reef_gate.parse_reef_gate_episode(episode_dir, scenario="aa-gate", step=9)
+    payload = reef_intake.parse_reef_gate_episode(episode_dir, scenario="aa-gate", step=9)
     assert _validate_fallback(payload) is None
     reef_meta = payload["extra"]["reef"]
     for absent in (
@@ -129,32 +129,32 @@ def test_failed_episode_with_score_stays_unscored(tmp_path: Path) -> None:
         + "\n",
         encoding="utf-8",
     )
-    payload = reef_gate.parse_reef_gate_episode(episode_dir)
+    payload = reef_intake.parse_reef_gate_episode(episode_dir)
     assert _validate_fallback(payload) is None
     assert "episode_score" not in payload["extra"]["reef"]
     assert payload["extra"]["reef"]["failure"] == {"kind": "timeout"}
-    assert reef_gate.episode_passed(1.0) is True
-    assert reef_gate.episode_passed(None) is None
+    assert reef_intake.episode_passed(1.0) is True
+    assert reef_intake.episode_passed(None) is None
 
 
 def test_unknown_episode_names_are_not_episodes() -> None:
-    assert reef_gate.parse_episode_name("candidate-0") == {
+    assert reef_intake.parse_episode_name("candidate-0") == {
         "side": "candidate",
         "task_index": 0,
         "repeat": 0,
     }
-    assert reef_gate.parse_episode_name("current-2-3") == {
+    assert reef_intake.parse_episode_name("current-2-3") == {
         "side": "current",
         "task_index": 2,
         "repeat": 3,
     }
-    assert reef_gate.parse_episode_name("notes") is None
-    assert reef_gate.parse_episode_name("candidate-x") is None
+    assert reef_intake.parse_episode_name("notes") is None
+    assert reef_intake.parse_episode_name("candidate-x") is None
 
 
 def test_import_writes_historical_layout_not_a_harbor_job(tmp_path: Path) -> None:
     out = tmp_path / "reef-fixture"
-    summary = reef_gate.import_reef_gate_run(
+    summary = reef_intake.import_reef_gate_run(
         STEPS, out, run_label="fixture", results_path=FIXTURES / "results.jsonl"
     )
     assert summary["episodes_total"] == 4
@@ -188,7 +188,7 @@ def test_import_writes_historical_layout_not_a_harbor_job(tmp_path: Path) -> Non
 def test_module_cli_imports_fixture_corpus(tmp_path: Path, capsys) -> None:
     out = tmp_path / "cli-out"
     assert (
-        reef_gate.main(
+        reef_intake.main(
             [
                 "--steps-root",
                 str(STEPS),
@@ -204,4 +204,133 @@ def test_module_cli_imports_fixture_corpus(tmp_path: Path, capsys) -> None:
     )
     printed = json.loads(capsys.readouterr().out)
     assert printed["episode_pass"] == 1
+    assert (out / "summary.json").is_file()
+
+
+RECORDS = FIXTURES / "records/records-sample.json"
+DETAILS = FIXTURES / "records/record-details.json"
+
+
+def _traffic_documents() -> list[tuple[str, dict]]:
+    export = json.loads(RECORDS.read_text(encoding="utf-8"))
+    details = json.loads(DETAILS.read_text(encoding="utf-8"))
+    return reef_intake.parse_reef_traffic_export(export, details, run_label="fixture")
+
+
+def test_traffic_reports_define_trajectories() -> None:
+    documents = dict(_traffic_documents())
+    assert sorted(documents) == ["r-1", "r-2"]
+    scored = documents["r-1"]
+    assert _validate_fallback(scored) is None
+    assert scored["session_id"] == "inf-1"
+    assert scored["trajectory_id"] == "inf-3"
+    reef_meta = scored["extra"]["reef"]
+    assert reef_meta["report_id"] == "r-1"
+    assert reef_meta["reward"] == 1.0
+    assert reef_meta["feedback"] == "fixture pass"
+    assert [entry["agent_record_id"] for entry in reef_meta["records"]] == ["inf-1", "inf-2", "inf-3"]
+    assert scored["extra"]["origin"] == "reef"
+    assert scored["extra"]["transport"] == "reef-capture-records"
+
+
+def test_traffic_tool_result_joins_its_call() -> None:
+    documents = dict(_traffic_documents())
+    steps = documents["r-1"]["steps"]
+    observed = [
+        (step["step_id"], result["source_call_id"], result["content"])
+        for step in steps
+        for result in step.get("observation", {}).get("results", [])
+    ]
+    assert observed == [(3, "call_f1", "42")]
+    calls = [call for step in steps for call in step.get("tool_calls", [])]
+    assert calls == [
+        {"tool_call_id": "call_f1", "function_name": "lookup", "arguments": {"key": "v"}}
+    ]
+
+
+def test_traffic_records_stay_verbatim_and_unreferenced_is_skipped(tmp_path: Path) -> None:
+    documents = dict(_traffic_documents())
+    details = json.loads(DETAILS.read_text(encoding="utf-8"))
+    retained = documents["r-1"]["extra"]["reef"]["records"]
+    assert retained[0]["payload"] == details["inf-1"]["payload"]
+    out = tmp_path / "traffic-fixture"
+    summary = reef_intake.import_reef_traffic_run(
+        RECORDS, DETAILS, out, run_label="fixture", scenario="fixture-smoke"
+    )
+    assert summary["trajectories_total"] == 2
+    assert summary["trajectories_scored"] == 1
+    assert summary["trajectories_unscored"] == 1
+    assert summary["unreferenced_inference_skipped"] == ["inf-x"]
+    assert summary["scenario"] == "fixture-smoke"
+    manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["evidence_kind"] == "historical"
+    assert manifest["kind"] == "captured-traffic"
+    assert not list(out.rglob("result.json"))
+
+
+def test_traffic_missing_score_stays_unscored() -> None:
+    documents = dict(_traffic_documents())
+    reef_meta = documents["r-2"]["extra"]["reef"]
+    assert "reward" not in reef_meta
+    assert "feedback" not in reef_meta
+    assert _validate_fallback(documents["r-2"]) is None
+
+
+def test_traffic_dangling_reference_raises() -> None:
+    details = json.loads(DETAILS.read_text(encoding="utf-8"))
+    details["r-bad"] = {
+        "agent_record_id": "r-bad",
+        "request_type": "report",
+        "references": ["inf-absent"],
+        "score": 0.0,
+        "payload": {"references": ["inf-absent"], "score": 0.0},
+    }
+    export = json.loads(RECORDS.read_text(encoding="utf-8"))
+    export["pages"][0]["records"].append(
+        {"agent_record_id": "r-bad", "request_type": "report", "references": ["inf-absent"]}
+    )
+    try:
+        reef_intake.parse_reef_traffic_export(export, details)
+    except reef_intake.ReefGateError as exc:
+        assert "inf-absent" in str(exc)
+    else:
+        raise AssertionError("dangling reference must fail loudly")
+
+
+def test_traffic_inference_without_payload_raises() -> None:
+    details = json.loads(DETAILS.read_text(encoding="utf-8"))
+    del details["inf-2"]["payload"]
+    export = json.loads(RECORDS.read_text(encoding="utf-8"))
+    try:
+        reef_intake.parse_reef_traffic_export(export, details)
+    except reef_intake.ReefGateError as exc:
+        assert "inf-2" in str(exc)
+    else:
+        raise AssertionError("a payload-less inference record must fail loudly")
+
+
+def test_module_cli_imports_traffic_corpus(tmp_path: Path, capsys) -> None:
+    out = tmp_path / "traffic-cli-out"
+    assert (
+        reef_intake.main(
+            [
+                "--records",
+                str(RECORDS),
+                "--record-details",
+                str(DETAILS),
+                "--scenario",
+                "fixture-smoke",
+                "--out",
+                str(out),
+                "--run-label",
+                "fixture",
+                "--reef-format-ref",
+                "818997d7",
+            ]
+        )
+        == 0
+    )
+    printed = json.loads(capsys.readouterr().out)
+    assert printed["trajectories_total"] == 2
+    assert printed["reef_format_ref"] == "818997d7"
     assert (out / "summary.json").is_file()

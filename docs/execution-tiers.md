@@ -298,6 +298,98 @@ estimates are not invoices, and zero local API charge is not a hardware-cost
 estimate.
 
 
+### Reef-process publication gate and local calibration
+
+`library/adapters/reef_gate/` is a separate Python package with its own
+`pyproject.toml` and lock. It is **not** an `evallab` runtime dependency.
+`evallab_reef_gate.plugin:Factory` imports Reef only inside the Reef process;
+the Lab application never imports Reef or mixes its Harbor dependency into
+the Lab environment.
+
+Select the factory with Reef's `evolution.selection` and configure it through
+`EVALLAB_REEF_GATE_CONFIG`, a JSON file with these fields:
+
+```json
+{
+  "alpha": 0.05,
+  "min_valid_pairs": 5,
+  "pass_threshold": 1.0,
+  "regression_failure_threshold": 1,
+  "record_dir": "/absolute/owned/run/gate-decisions",
+  "reef_commit": "818997d76412f0eead7d0b4b343da701d6ce2c20"
+}
+```
+
+The gate delegates episode evaluation to Reef's `BackendEvaluateMixin`.
+It drops and counts a positional pair if either score is missing or invalid.
+Ties remain valid evidence but leave the sign-test sample. Selection requires
+the exact one-sided sign-test probability to be **strictly below** `alpha`,
+at least `min_valid_pairs`, and no protected-task regression. A task is
+protected only when the current harness passed every repeat; its valid
+candidate failures must stay below `regression_failure_threshold` **within
+that task**, not pooled across tasks. Missing scores are never fabricated
+failures or wins.
+
+Every candidate gets an exclusive JSON decision record with pairs, counts,
+probability, per-task vetoes, configuration, Reef revision and timings.
+Evaluation exceptions become rejections with no observed evaluation sides;
+they cannot clear the current failure history by inventing successful
+observations. If recording the decision fails, publication is refused.
+
+The calibration command copies the existing `04_gate_aa.py` experiment into
+the owned package; it does not edit the original script or its work directories.
+Use the already-installed Reef interpreter read-only, an already-running
+cloud-disabled local Ollama service, and a fresh owned output directory:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
+PYTHONPATH="$PWD/library/adapters/reef_gate/src" \
+~/Developer/reef/.venv/bin/python -m evallab_reef_gate.calibrate \
+  --reef-root ~/Developer/reef --work-dir "$PWD/runs/reef-gate-aa" \
+  --ollama-url http://127.0.0.1:11461 --model qwen2.5:7b \
+  --condition aa --trials 30 --repeats 5 --port 18972
+```
+
+The driver refuses nonempty output directories and output inside the Reef
+checkout. It checks a unique installed GGUF's digest/size, rejects cloud
+model routes, URL credentials and redirects, and neither downloads weights
+nor forwards ambient provider credentials/proxies into episodes. All Reef
+storage, recipes, step records and decision records stay under `--work-dir`.
+
+For the known-effect control, use a separate fresh directory with
+`--condition known-effect --trials 5 --repeats 5`. All trial scenarios are
+created before the first proposal: each forks the deliberately degraded
+answer-style skill before any publication can advance Reef's shared head.
+Each trial then proposes the original tutorial skill. This measures publication
+power; it is not A/A and does not inject reference answers into the harness.
+
+Use `--analyze-only --work-dir <existing-owned-run>` to recompute the report
+without starting a service. Task identities come from the retained served
+recipe; contradictory metadata is refused. Reports retain attempted/settled/
+invalid counts, the publish denominator, Wilson 95% uncertainty, the original
+gate-table prediction and missing episodes. Evaluator errors, insufficient-
+evidence holds and rows with no usable pair do not become resolved negative
+trials. Valid partial-pair comparisons retain their missing episode counts.
+With no publications, published-tree identity is unavailable, not vacuously
+true. Prediction assumptions and the additional regression veto are explicit.
+`decision_seconds` measures decision computation, excluding record persistence;
+evaluation time and full trial wall time are reported separately. Missing
+timings remain unavailable and have separate counts, never imputed zeros.
+
+An explicitly authorized API campaign can instead use
+`--api-proxy-url http://127.0.0.1:<port> --model <provider-model-id>`.
+This is mutually exclusive with `--ollama-url`; the proxy model is required,
+and no Ollama inventory request is made. `EVALLAB_REEF_PROXY_TOKEN` supplies
+only the proxy capability (rename the variable with `--api-proxy-token-env`),
+not the provider key. Use an existing supervised credential proxy with explicit
+request/token/cost ceilings and current conservative pricing. API provenance
+records the route and model, with no fabricated local-weight digest. Retain
+proxy usage separately and never pool calibration cohorts across model changes.
+The native Reef process is not an OS sandbox: an owner-only provider-key file
+outside its work directory does not isolate that key from same-user tool code.
+Reef may retain the resolved proxy capability in its own runtime configuration;
+keep that configuration private and terminate the proxy when the campaign ends.
+
 ### GLM mini-SWE on Daytona
 
 Prepare an ordinary spec without a Python launcher, credentials, or cloud calls:

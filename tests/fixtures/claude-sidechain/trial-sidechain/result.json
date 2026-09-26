@@ -1,0 +1,21 @@
+{
+  "trial_name": "trial-sidechain",
+  "task_name": "lab/task",
+  "config": {
+    "agent": {
+      "name": "claude-code"
+    }
+  },
+  "agent_info": {
+    "name": "claude-code",
+    "version": "2.0"
+  },
+  "agent_result": {},
+  "verifier_result": {
+    "rewards": {
+      "reward": 1.0
+    }
+  },
+  "started_at": "2026-09-01T00:00:00Z",
+  "finished_at": "2026-09-01T00:10:00Z"
+}

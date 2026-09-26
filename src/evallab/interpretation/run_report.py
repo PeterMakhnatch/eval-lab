@@ -12,8 +12,10 @@ Rules the report keeps:
   ``data_quality``, never a silent zero.
 - Tool status is tri-state. ``ok``/``error`` need a harness signal (exit code,
   error flag, envelope, code-mode script status, rejection message); strong
-  output-text signals mark ``error`` with ``evidence: "output_text"``; anything
-  else is ``unknown``.
+  output-text signals mark ``error`` with ``evidence: "output_text"``; Reef
+  native tools (``execute``/``run_bash``/``write_file``/``read_file``)
+  additionally fail on a leading ``timed out after 60s`` or ``refused: …``
+  line (same ``output_text`` channel); anything else is ``unknown``.
 - A *revisit* is an action whose exact signature (tool plus normalized
   command/arguments) already occurred in the run. An *exact revisit* also got
   the same normalized result back: the agent was at the same spot and nothing
@@ -39,6 +41,10 @@ from statistics import median
 from typing import Any
 
 from evallab.interpretation import run_report_scale
+from evallab.interpretation.claude_sessions import (
+    normalize_timestamp,
+    sidechain_session_tables,
+)
 from evallab.interpretation.codex_rollouts import read_codex_rollouts
 from evallab.interpretation.domains import domain_section, render_domain_markdown
 from evallab.interpretation.price_table import estimate_cost_usd, lookup_price
@@ -90,6 +96,17 @@ _STRONG_ERROR_TEXT_RE = re.compile(
     r"Traceback \(most recent call last\)|command not found|No such file or directory"
     r"|Permission denied|SyntaxError:|ModuleNotFoundError:"
 )
+# Reef native harness text-only failures (``reef/harness/runners/native/seed.py``:
+# ``run_bash``/``execute`` return ``"timed out after 60s"`` on tool timeout and
+# the native tools return ``"refused: <reason>"`` when they decline to run).
+# Both arrive with no exit code, error flag, or envelope, and successful
+# outputs never lead with these lines (normal results start with ``exit N``,
+# ``wrote N …``, or file text), so a leading match names the error while
+# deeper mentions stay ``unknown`` data. Scoped to Reef's native tool names so
+# other tools' successful outputs that mention errors are unaffected.
+_REEF_NATIVE_TOOLS = frozenset({"execute", "run_bash", "write_file", "read_file"})
+_REEF_TIMEOUT_LEAD_RE = re.compile(r"^timed out after \d+s")
+_REEF_REFUSED_LEAD_RE = re.compile(r"^refused:")
 _CACHE_WRITE_KEYS = (
     "cache_write_input_tokens",
     "cache_creation_input_tokens",
@@ -535,6 +552,12 @@ def _status(call: _Call, output: _Output | None) -> tuple[str, str | None, str, 
     if strong:
         start = max(0, strong.start() - 80)
         return "error", "output_text", "inferred_from_output", _clip(output.text[start:], 240)
+    if call.tool.lower() in _REEF_NATIVE_TOOLS:
+        lead = output.text.strip()
+        if _REEF_TIMEOUT_LEAD_RE.match(lead):
+            return "error", "output_text", "timeout", _clip(lead, 240)
+        if _REEF_REFUSED_LEAD_RE.match(lead):
+            return "error", "output_text", "inferred_from_output", _clip(lead, 240)
     return "unknown", None, "none", None
 
 
@@ -1232,6 +1255,34 @@ def _child_summary(doc: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _raw_step_call_ids(
+    step: _Step, segments: Sequence[tuple[Path, dict[str, Any], str]]
+) -> list[str]:
+    """Raw ATIF ``tool_call_id`` values for a built step.
+
+    Located by (segment, native id): converter-emitted step ids are
+    sequential within their own document, so the native id indexes that
+    document's step list; any mismatch (foreign layouts, filtered chains)
+    yields no ids and the caller falls back.
+    """
+    if step.native_step_id is None or not 0 <= step.segment < len(segments):
+        return []
+    raw_steps = segments[step.segment][1].get("steps")
+    if not isinstance(raw_steps, list) or not 1 <= step.native_step_id <= len(raw_steps):
+        return []
+    raw = raw_steps[step.native_step_id - 1]
+    if not isinstance(raw, dict):
+        return []
+    calls = raw.get("tool_calls")
+    if not isinstance(calls, list):
+        return []
+    return [
+        call["tool_call_id"]
+        for call in calls
+        if isinstance(call, dict) and isinstance(call.get("tool_call_id"), str)
+    ]
+
+
 def _subagents(
     steps: Sequence[_Step],
     segments: Sequence[tuple[Path, dict[str, Any], str]],
@@ -1282,6 +1333,32 @@ def _subagents(
                     **_child_summary(child),
                 }
             )
+    # Claude Code sidechain attribution, strongest signal first: the per-step
+    # ATIF agent id; then joins against the retained native session — the
+    # converter copies each raw tool_use block id to ATIF tool_call_id, and
+    # the raw event timestamp verbatim to the step timestamp, while the raw
+    # events holding those keys carry the camelCase agentId the converter
+    # otherwise drops. Timestamp attribution applies only when the timestamp
+    # names exactly one agent; then contiguous-run fallback for steps with no
+    # joined key. The session tables build lazily — most harnesses have no
+    # anonymous sidechain steps at all. (HAR-76 harness gaps.)
+    session_tables: tuple[dict[str, str], dict[datetime, set[str]]] | None = None
+    def _joined_agent(step: _Step) -> str | None:
+        nonlocal session_tables
+        if step.agent_id:
+            return step.agent_id
+        if session_tables is None:
+            session_tables = sidechain_session_tables(trial_dir)
+        by_call, by_stamp = session_tables
+        for call_id in _raw_step_call_ids(step, segments):
+            if call_id in by_call:
+                return by_call[call_id]
+        if step.timestamp is not None:
+            agents = by_stamp.get(normalize_timestamp(step.timestamp))
+            if agents is not None and len(agents) == 1:
+                return next(iter(agents))
+        return None
+
     sidechain_groups: dict[str, list[_Step]] = {}
     current_run = 0
     previous_side = False
@@ -1289,7 +1366,7 @@ def _subagents(
         if step.is_sidechain:
             if not previous_side:
                 current_run += 1
-            key = step.agent_id or f"sidechain-run-{current_run}"
+            key = _joined_agent(step) or f"sidechain-run-{current_run}"
             sidechain_groups.setdefault(key, []).append(step)
         previous_side = step.is_sidechain
     for key, group in sidechain_groups.items():

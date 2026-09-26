@@ -246,26 +246,37 @@ def build(trial_dir: Path, result: dict[str, Any]) -> dict[str, Any]:
     sources = [REWARD_PATH.as_posix()]
     calls, traj_problem = _iter_tool_calls(trial_dir)
     reads, submits = _chart_reads(calls)
-    counts: dict[tuple[str, tuple[str, ...]], list[int]] = {}
-    for index, (tool, key, _source) in enumerate(reads):
-        counts.setdefault((tool, key), []).append(index)
-    repeated: list[tuple[str, list[str], int]] = sorted(
-        ((tool, list(key), len(steps)) for (tool, key), steps in counts.items() if len(steps) > 1),
-        key=lambda row: (-row[2], row[0]),
-    )[:5]
-    most_repeated = [
-        {"tool": tool, "key": key, "reads": reads, "redundant": reads - 1}
-        for tool, key, reads in repeated
-    ]
-    distinct = len(counts)
-    chart_section: dict[str, Any] = {
-        "chart_reads": len(reads),
-        "distinct_sections": distinct,
-        "redundant_queries": len(reads) - distinct,
-        "most_repeated": most_repeated,
-    }
     if traj_problem is not None:
-        chart_section["trajectory_note"] = traj_problem
+        # The trajectory was not fully available: any count over it would be a
+        # fabricated zero (or a silent undercount on a partial chain), so every
+        # trajectory-derived measure stays None with the reason.
+        chart_section: dict[str, Any] = {
+            "chart_reads": None,
+            "distinct_sections": None,
+            "redundant_queries": None,
+            "most_repeated": [],
+            "trajectory_note": traj_problem,
+        }
+        witnessed: list[str] | None = None
+    else:
+        counts: dict[tuple[str, tuple[str, ...]], list[int]] = {}
+        for index, (tool, key, _source) in enumerate(reads):
+            counts.setdefault((tool, key), []).append(index)
+        repeated: list[tuple[str, list[str], int]] = sorted(
+            ((tool, list(key), len(steps)) for (tool, key), steps in counts.items() if len(steps) > 1),
+            key=lambda row: (-row[2], row[0]),
+        )[:5]
+        distinct = len(counts)
+        chart_section = {
+            "chart_reads": len(reads),
+            "distinct_sections": distinct,
+            "redundant_queries": len(reads) - distinct,
+            "most_repeated": [
+                {"tool": tool, "key": key, "reads": reads, "redundant": reads - 1}
+                for tool, key, reads in repeated
+            ],
+        }
+        witnessed = sorted(set(submits))
     return {
         "plugin": NAME,
         "version": VERSION,
@@ -274,7 +285,7 @@ def build(trial_dir: Path, result: dict[str, Any]) -> dict[str, Any]:
         "reward": reward["reward"],
         "verifier_steps": reward["steps"],
         "submitted": reward["submitted"],
-        "submitted_via_trajectory": sorted(set(submits)),
+        "submitted_via_trajectory": witnessed,
         "chart_section_queries": chart_section,
     }
 
@@ -295,6 +306,9 @@ def render_markdown(section: dict[str, Any]) -> list[str]:
     else:
         lines.append("- No submit call in the trajectory (the verifier closed the episode).")
     queries = section.get("chart_section_queries") or {}
+    if queries.get("trajectory_note"):
+        lines.append(f"- Chart reads: unavailable ({queries['trajectory_note']}).")
+        return lines
     lines.append(
         f"- Chart reads: {queries.get('chart_reads', 0)} across "
         f"{queries.get('distinct_sections', 0)} distinct sections; "
@@ -302,8 +316,6 @@ def render_markdown(section: dict[str, Any]) -> list[str]:
     )
     for row in queries.get("most_repeated") or []:
         lines.append(f"  - {row['reads']}× `{row['tool']}` {row['key']} ({row['redundant']} redundant)")
-    if queries.get("trajectory_note"):
-        lines.append(f"- Trajectory note: {queries['trajectory_note']}.")
     return lines
 
 

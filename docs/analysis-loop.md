@@ -158,7 +158,8 @@ Definitions the report applies:
   gates (criterion-level `failed_gate_indices` never fail a section), penalties,
   and downstream required-criteria loss attributed to the first failed gate.
   Malformed verifier output yields `status: unreadable` with a reason, never a
-  fabricated zero or an exception.
+  fabricated zero or an exception. Counts over an unavailable input are `null`
+  with a reason (`Chart reads: unavailable (...)`), never zero.
 
 ### CLI reference: deterministic trajectory analysis
 

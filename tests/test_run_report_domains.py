@@ -307,3 +307,38 @@ def test_plugin_exceptions_never_escape_domain_section(monkeypatch: pytest.Monke
 
     monkeypatch.setattr(domains, "PLUGINS", (FlakyDetect(),))
     assert domains.domain_section(tmp_path, {}) is None
+
+
+def test_hospital_missing_trajectory_counts_are_none_not_zero(tmp_path: Path) -> None:
+    """Regression: with no trajectory the chart counts are unavailable, never zero."""
+    trial = _trial(
+        tmp_path,
+        "sh-x-9",
+        _result(task_name="sh-patient-diagnosis"),
+        files={"verifier/reward.json": _hospital_reward()},
+    )
+    (trial / "agent" / "trajectory.json").unlink()
+    report = build_run_report(trial)
+    queries = report["domain"]["chart_section_queries"]
+    assert queries["chart_reads"] is None
+    assert queries["distinct_sections"] is None
+    assert queries["redundant_queries"] is None
+    assert queries["most_repeated"] == []
+    assert queries["trajectory_note"]
+    markdown = render_run_report_markdown(report)
+    assert "Chart reads: unavailable" in markdown
+    assert "0 redundant re-reads" not in markdown
+
+
+def test_atlas_absent_reward_fields_stay_none(tmp_path: Path) -> None:
+    """Audit lock: score fields absent from info.json are None, never zero."""
+    info = _atlas_info([_crit("c", 3.0, True)], [])
+    del info["reward"]
+    del info["raw_score"]
+    del info["maximum_score"]
+    trial = _trial(tmp_path, "task__a3", _result(), files={"verifier/grader/info.json": info})
+    domain = build_run_report(trial)["domain"]
+    assert domain is not None and domain["passes"] is True
+    assert domain["reward"] is None
+    assert domain["raw_score"] is None
+    assert domain["maximum_score"] is None

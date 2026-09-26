@@ -25,12 +25,13 @@ Historical branch inventories do not prove current ownership, activity, or closu
 
 ## HAR-73 continuation handoff — 2026-09-25
 
-**Authority:** Peter's direct September 25 instructions: finish HAR-72 through
-protected merge and merged-revision verification, write this handoff and the
-[HAR-73 Linear handoff](https://linear.app/petermakhnatch/issue/HAR-73), then stop.
-This supersedes the earlier plan to continue directly through HAR-74. This is
-resumption context, not a new claim or permission to start HAR-73 in the old tab.
-Linear owns this continuation's queue and acceptance.
+**Current authority (September 26):** Peter directly confirmed in the existing
+RE - Eval Lab tab, “of course it should go ahead,” activating HAR-73 here.
+This supersedes the September 25 stop/new-tab requirement below, not the
+execution, spending, ownership or per-spec approval limits. HAR-73 is In Progress;
+branch `feat/har73-evallab-gate` starts at `a320f0a9` (through PR #470).
+Linear owns the queue and acceptance. HAR-74 already has draft
+[PR #462](https://github.com/PeterMakhnatch/eval-lab/pull/462); do not duplicate it.
 
 **Absolute worktree:** `/Users/petermakhnatch/Developer/eval-lab/.worktrees/har72-reef-gate-20260925`
 
@@ -38,9 +39,11 @@ Linear owns this continuation's queue and acceptance.
 omp --cwd /Users/petermakhnatch/Developer/eval-lab/.worktrees/har72-reef-gate-20260925
 ```
 
-Peter chooses the new tab/model. That tab owns HAR-73 branch creation and
-`lin start HAR-73` after reading the full card. No HAR-73 implementation or
-activation was performed by the HAR-72 author.
+The existing tab owns HAR-73 implementation following the full card. The original
+HAR-72 author stopped as instructed; activation was a subsequent explicit decision.
+The committed split is `research/experiments/reef-loop-pool-20260925/har73-split.json`:
+two already registered dev tasks, with four exclusion-only held-out identities.
+No evaluation or Reef traffic preceded that split commit.
 
 ### Verified delivery and evidence
 
@@ -92,8 +95,10 @@ key file was removed. Partial local-Qwen campaigns remain separate.
   HAR-73 still requires recorded per-spec approvals; no autoapproval, policy
   changes, registration, cloud sandbox, download or upstream Reef PR without
   the applicable separate authorization.
-- Keep `~/Developer/reef` and its `.venv` read-only at
-  `818997d76412f0eead7d0b4b343da701d6ce2c20`. `evallab` never imports `reef`;
+- Keep `~/Developer/reef` and its `.venv` read-only. On HAR-73 intake its clean
+  HEAD is `2a1864d4158de8a24e00ae777e9ff0501f49a97f`, superseding the historical
+  HAR-72 runtime pin `818997d76412f0eead7d0b4b343da701d6ce2c20`.
+  Bind the actual clean revision explicitly; do not reset another checkout.
   `reef-client==0.2.1` is allowed. Native Reef is not an OS sandbox, and an
   owner-only same-UID provider-key file is not credential containment. Reef can
   retain its proxy capability in resolved runtime configuration.
@@ -107,17 +112,15 @@ key file was removed. Partial local-Qwen campaigns remain separate.
   renamed it to **`evallab.evidence.reef_intake`** and added captured-traffic
   intake. These are data readers, not HAR-73/HAR-74 execution integration.
   The original single-scenario intake consumed all 900 A/A episodes with
-  score/pair agreement. **Multi-scenario intake remains unsafe at `03893a42`:**
-  a real control diagnostic reports 150 episodes but writes only 30
-  trajectory files because `trajectories/<step>/<episode>.json` omits scenario.
-  The step-only trial-metadata join also needs review. See
-  `derived/har72/incoming-intake-boundary.json`; do not consume
-  `control-atif-intake-diagnostic` or its `-03893` reproduction as valid evidence.
-  Raw control records and the
-  HAR-72 gate package are unaffected. This dependency is handed off, not an
-  expansion into HAR-73 implementation here.
+  score/pair agreement. The historical multi-scenario overwrite at `03893a42`
+  was fixed by [PR #464](https://github.com/PeterMakhnatch/eval-lab/pull/464)
+  (`36c0b58c`), then hardened by PR #465. Paths and trial joins include scenario,
+  with duplicate-output refusal. Source review confirms the fix; PR #464's
+  receipt reports 150/150 retained control trajectories. Do not redo it.
+  The old `control-atif-intake-diagnostic` and `-03893` outputs remain invalid;
+  fixing the importer does not repair those historical artifacts.
 
-### Next implementation steps — new tab only
+### HAR-73 implementation steps — existing tab activated
 
 1. Read the full HAR-73 card. Commit dev/held-out task IDs and digests **before**
    candidate evaluation or Reef traffic. Refuse both split-held-out tasks and

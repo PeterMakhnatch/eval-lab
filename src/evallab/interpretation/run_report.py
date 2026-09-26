@@ -38,6 +38,7 @@ from pathlib import Path
 from statistics import median
 from typing import Any
 
+from evallab.interpretation.price_table import estimate_cost_usd, lookup_price
 from evallab.traj import (
     CONTROL_AGENTS,
     TrajectoryError,
@@ -770,6 +771,21 @@ def _sum(values: Iterable[int | float | None]) -> int | float | None:
     return sum(present) if present else None
 
 
+def _trial_model(result: dict[str, Any]) -> str | None:
+    """Resolve the trial model id for price-table matching.
+
+    Same precedence as ``_identity`` for the sources visible here
+    (``result.json`` only): ``agent_info.model_info.name`` first, then
+    ``config.agent.model_name``. Returns the raw id; normalization to a
+    table key happens in ``price_table.lookup_price``.
+    """
+    agent_info = _dict(result.get("agent_info"))
+    model_info = _dict(agent_info.get("model_info"))
+    agent_cfg = _dict(_dict(result.get("config")).get("agent"))
+    model = model_info.get("name") or agent_cfg.get("model_name")
+    return str(model) if isinstance(model, str) and model.strip() else None
+
+
 def _tokens_and_cost(
     result: dict[str, Any], terminal: dict[str, Any], steps: Sequence[_Step]
 ) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
@@ -904,8 +920,33 @@ def _tokens_and_cost(
     if cost_value is None and steps_with_cost:
         cost_value, cost_source = step_sums["cost_usd"], "step_sum"
         lower_bound = len(steps_with_cost) < len(llm_steps)
+    price_entry = None
+    price_model: str | None = None
     if cost_value is None:
-        warnings.append("cost unavailable: the harness recorded no cost for this run")
+        # No harness-reported cost anywhere: an estimate from the pinned
+        # provider price table is the only figure allowed, and only for a
+        # model with a verified list price. It is never added to harness
+        # spend because there is none on this path by construction.
+        price_model = _trial_model(result)
+        price_entry = lookup_price(price_model)
+        if price_entry is None:
+            warnings.append(
+                "cost unavailable: the harness recorded no cost for this run; "
+                f"model {price_model!r} has no pinned price-table entry"
+            )
+        else:
+            estimate = estimate_cost_usd(
+                chosen["input"], chosen["cached_input"], chosen["output"], price_entry
+            )
+            if estimate is None:
+                warnings.append(
+                    "cost unavailable: the harness recorded no cost for this run; "
+                    f"model {price_model!r} matches price-table key "
+                    f"{price_entry.key!r} but input/output token counts are missing"
+                )
+            else:
+                cost_value, cost_source = estimate, "price_table_estimate"
+    estimated = cost_source == "price_table_estimate" and price_entry is not None
     cost = {
         "total_usd": round(cost_value, 6) if cost_value is not None else None,
         "source": cost_source,
@@ -919,7 +960,26 @@ def _tokens_and_cost(
             if cost_value is not None and chosen["output"]
             else None
         ),
-        "note": "Harness-reported native ledger; not a provider invoice.",
+        "note": (
+            "Estimate from pinned provider list prices; not a metered charge or provider invoice."
+            if estimated
+            else "Harness-reported native ledger; not a provider invoice."
+        ),
+        "price_table": (
+            {
+                "model": price_model,
+                "matched_key": price_entry.key,
+                "source_url": price_entry.source_url,
+                "retrieved_on": price_entry.retrieved_on,
+                "usd_per_mtok": {
+                    "input": price_entry.input_usd_per_mtok,
+                    "cached_input": price_entry.cached_input_usd_per_mtok,
+                    "output": price_entry.output_usd_per_mtok,
+                },
+            }
+            if estimated
+            else None
+        ),
     }
     return tokens, cost, warnings
 
@@ -1721,6 +1781,7 @@ def build_job_report(
                 "tool_errors": r["errors"]["tool_errors"],
                 "tokens": r["tokens"]["total"],
                 "cost_usd": r["cost"]["total_usd"],
+                "cost_source": r["cost"]["source"],
                 "repeated_actions": r["revisits"]["repeated_actions"],
                 "exact_revisits": r["revisits"]["exact_revisits"],
                 "subagents": r["subagents"]["count"],
@@ -1728,7 +1789,18 @@ def build_job_report(
             }
         )
     rewards = [row["reward"] for row in rows if row["reward"] is not None]
-    costs = [row["cost_usd"] for row in rows if row["cost_usd"] is not None]
+    # Price-table estimates are trial-level list-price figures, never metered
+    # spend: they roll up separately and never enter the harness-cost sums.
+    costs = [
+        row["cost_usd"]
+        for row in rows
+        if row["cost_usd"] is not None and row["cost_source"] != "price_table_estimate"
+    ]
+    estimated = [
+        row["cost_usd"]
+        for row in rows
+        if row["cost_usd"] is not None and row["cost_source"] == "price_table_estimate"
+    ]
     walls = [row["wall_seconds"] for row in rows if row["wall_seconds"] is not None]
     agents = [row["agent_seconds"] for row in rows if row["agent_seconds"] is not None]
     passed = sum(1 for row in rows if row["verdict"] == "passed")
@@ -1743,7 +1815,9 @@ def build_job_report(
         "pass_rate": round(passed / scored, 4) if scored else None,
         "mean_reward": round(sum(rewards) / len(rewards), 4) if rewards else None,
         "total_cost_usd": round(sum(costs), 6) if costs else None,
-        "trials_without_cost": len(rows) - len(costs),
+        "trials_without_cost": len(rows) - len(costs) - len(estimated),
+        "trials_with_estimated_cost": len(estimated),
+        "estimated_cost_usd": round(sum(estimated), 6) if estimated else None,
         "cost_per_pass_usd": round(sum(costs) / passed, 6) if costs and passed else None,
         "median_wall_seconds": round(median(walls), 3) if walls else None,
         "median_agent_seconds": round(median(agents), 3) if agents else None,
@@ -1903,12 +1977,25 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
             ["**Total tokens**", _fmt_tokens(tokens["total"]), "input + output"],
             [
                 "**Cost**",
-                _fmt_usd(cost["total_usd"]) + (" (lower bound)" if cost["is_lower_bound"] else ""),
+                _fmt_usd(cost["total_usd"])
+                + (" (lower bound)" if cost["is_lower_bound"] else "")
+                + (" (estimate)" if cost["source"] == "price_table_estimate" else ""),
                 (cost["source"] or "unavailable")
                 + (f" / {cost['harness_cost_source']}" if cost["harness_cost_source"] else ""),
             ],
         ],
     )
+    if cost["source"] == "price_table_estimate" and cost["price_table"]:
+        table = cost["price_table"]
+        rates = table["usd_per_mtok"]
+        lines += [
+            "",
+            f"Cost is an estimate from pinned list prices for model {table['model']!r} "
+            f"(matched {table['matched_key']!r}): ${rates['input']}/M input, "
+            f"${rates['cached_input']}/M cached input, ${rates['output']}/M output. "
+            f"Source: {table['source_url']} (retrieved {table['retrieved_on']}). "
+            "Not a metered charge.",
+        ]
     ctx = tokens["context"]
     lines += [
         "",
@@ -2101,7 +2188,13 @@ def render_job_report_markdown(job_report: dict[str, Any]) -> str:
         f"Total cost {_fmt_usd(job_report['total_cost_usd'])}"
         + (f" ({job_report['trials_without_cost']} trials without cost)" if job_report["trials_without_cost"] else "")
         + f"; cost per pass {_fmt_usd(job_report['cost_per_pass_usd'])}. "
-        f"Median wall {_fmt_seconds(job_report['median_wall_seconds'])}, median agent time "
+        + (
+            f"Price-table estimates {_fmt_usd(job_report['estimated_cost_usd'])} "
+            f"across {job_report['trials_with_estimated_cost']} trials (not metered). "
+            if job_report.get("trials_with_estimated_cost")
+            else ""
+        )
+        + f"Median wall {_fmt_seconds(job_report['median_wall_seconds'])}, median agent time "
         f"{_fmt_seconds(job_report['median_agent_seconds'])}. Total tokens {_fmt_tokens(job_report['total_tokens'])}, "
         f"tool calls {job_report['total_tool_calls']}, repeated actions {job_report['total_repeated_actions']}, "
         f"subagents {job_report['total_subagents']}.",
@@ -2113,7 +2206,9 @@ def render_job_report_markdown(job_report: dict[str, Any]) -> str:
             [
                 r["trial"], r["verdict"], r["reward"], _fmt_seconds(r["wall_seconds"]),
                 _fmt_seconds(r["agent_seconds"]), r["steps"], r["tool_calls"], r["tool_errors"],
-                _fmt_tokens(r["tokens"]), _fmt_usd(r["cost_usd"]),
+                _fmt_tokens(r["tokens"]),
+                _fmt_usd(r["cost_usd"])
+                + (" (est)" if r.get("cost_source") == "price_table_estimate" else ""),
                 f"{r['repeated_actions']} ({r['exact_revisits']})", r["subagents"],
             ]
             for r in job_report["rows"]

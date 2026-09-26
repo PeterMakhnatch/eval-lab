@@ -124,6 +124,15 @@ Definitions the report applies:
 - Tokens and cost follow the precedence above, field by field, then step sums;
   each total names its source. Cost from partial step sums is flagged as a lower
   bound, and missing cost is `null` with a data-quality note, never zero.
+- When the harness recorded no cost anywhere, the report may still show a cost
+  figure labelled `(estimate)` with source `price_table_estimate`: token counts
+  priced at the pinned Standard-tier list rates in
+  `src/evallab/interpretation/price_table.py` (per-model source URL and
+  retrieval date recorded in `cost.price_table`). Matching is exact after
+  stripping a known provider prefix; unknown models and missing token counts
+  stay `null` with a reason. Estimates never enter the job rollup's harness
+  totals (`total_cost_usd`, `cost_per_pass_usd`); they roll up separately as
+  `estimated_cost_usd` / `trials_with_estimated_cost` and are marked `(est)`.
 - Tool status is `ok`, `error`, or `unknown`. `evidence` names the channel:
   exit code, mini-swe-agent envelope, Codex code-mode script status, harness
   error flag, structured payload status, leading harness rejection text, or

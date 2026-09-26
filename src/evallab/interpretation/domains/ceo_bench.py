@@ -1,7 +1,7 @@
 """CEO-Bench domain section for run reports.
 
 Reads the ``ceo_bench/*.json`` sidecars written by
-``library.adapters.ceo_bench.bridge`` (never ``world.nmdb``): cash-by-sim-day,
+``ceo_bench.bridge`` (never ``world.nmdb``): cash-by-sim-day,
 bankruptcy, forecast error, no-op weeks, and simulator spend metered
 separately from agent spend.
 """

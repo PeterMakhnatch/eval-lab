@@ -121,15 +121,21 @@ timeline (`--full-timeline` lists every step), and data-quality notes.
 `evallab.run_report/v1` is additive: a `domain` section appears when a
 `src/evallab/interpretation/domains/` plugin detects the trial, else `domain`
 is `None`. The CEO-Bench plugin (`ceo_bench`) reads the `ceo_bench/*.json`
-sidecars written by `library/adapters/ceo_bench/bridge.py`, which converts one
+sidecars written by the `ceo_bench` adapter package
+(`library/adapters/ceo_bench/ceo_bench/bridge.py`), which converts one
 CEO-Bench harness run (`bash_agent_runs/run_<id>/`) into a Harbor-shaped trial
 dir (`result.json` with honest nulls, one trajectory step per tool call, plus
-the sidecars). Operator path: `python -m library.adapters.ceo_bench <run_dir>`
-(prints the trial dir; `--out` overrides the `<run_dir>.trial` default), then
-`uv run evallab report run <trial_dir>`. The section reports cash-by-sim-day,
-bankruptcy (cash below $0), forecast error of the agent's cash predictions,
-no-op weeks, and simulator-LLM spend metered separately from agent spend
-(never merged into agent cost).
+the sidecars). Operator path (the adapter is an independent uv project so
+`sqlcipher3` never becomes an evallab core dependency):
+`uv run --project library/adapters/ceo_bench python -m ceo_bench <run_dir>`
+(prints the trial dir; `--out` overrides the `<run_dir>.trial` default),
+then `uv run evallab report run <trial_dir>`. An encrypted `world.nmdb`
+needs the published SQLCipher key (`NMDB_KEY`, else `--ceobench-src`
+`<checkout>`); without either it degrades to timing fallbacks with a reason.
+The section reports cash-by-sim-day, bankruptcy (cash below $0),
+forecast error of the agent's cash predictions, no-op weeks, and
+simulator-LLM spend metered separately from agent spend (never merged
+into agent cost).
 
 Definitions the report applies:
 

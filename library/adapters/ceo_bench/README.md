@@ -8,18 +8,28 @@ Bridge (`bridge.py`) converts one CEO-Bench harness run
 
 ## Operator path
 
+The adapter is an independent uv project (own `pyproject.toml` + `uv.lock`)
+so `sqlcipher3` never becomes an evallab core dependency. Bridge from the
+repository root:
+
 ```bash
-python -m library.adapters.ceo_bench <run_dir> --out <trial_dir>
+uv run --project library/adapters/ceo_bench python -m ceo_bench \
+    <run_dir> --out <trial_dir> [--ceobench-src <checkout>]
 uv run evallab report run <trial_dir> --output-dir <out_dir>
 ```
 
 The first command prints the written trial directory (exit 1 with an
 `error:` message when the run cannot be bridged); the second renders the
 `evallab.run_report/v1` JSON and Markdown, including `## Domain: ceo_bench`.
+An encrypted `world.nmdb` needs the published SQLCipher key: `NMDB_KEY` in
+the environment, else `--ceobench-src` pointing at an upstream checkout
+(the `_NMDB_KEY` constant is parsed as text, never imported). Without
+either, encrypted ledgers degrade to timing fallbacks with a reason.
 
 ## Outputs (trial dir)
 
 - `result.json` — trial identity, agent token totals, agent cost only when the
+  harness recorded it (`api_costs` purpose `agent`); honest nulls otherwise.
 - `agent/trajectory.json` — one step per tool call with per-turn tokens.
 - `ceo_bench/*.json` — `meta`, `cash_daily`, `spend`, `forecasts`, `weeks`
   sidecars for the `ceo_bench` domain plugin (it never reads `world.nmdb`).
@@ -29,8 +39,7 @@ The first command prints the written trial directory (exit 1 with an
 - Simulator-LLM spend is metered separately from agent spend, never merged.
 - Bankruptcy is cash below $0 (upstream engine rule).
 - No-op week: no state-changing tool call between completed week advances.
-- Encrypted `world.nmdb` without `NMDB_KEY`/sqlcipher3 degrades to timing
-  fallbacks with reasons, never fabricated zeros.
+- Missing data stays null with a reason, never a fabricated zero.
 
 ## Upstream
 

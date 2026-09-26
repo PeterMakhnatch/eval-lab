@@ -1,10 +1,16 @@
 """Operator entrypoint: bridge one CEO-Bench run into a Harbor trial dir.
 
 Usage:
-    python -m library.adapters.ceo_bench <run_dir> [--out <trial_dir>]
+    uv run --project library/adapters/ceo_bench python -m ceo_bench \
+        <run_dir> [--out <trial_dir>] [--ceobench-src <checkout>]
 
 Prints the written trial directory. Exit 1 with an ``error:`` message when
 the run directory cannot be bridged.
+
+Encrypted ``world.nmdb`` files need the published SQLCipher key: ``NMDB_KEY``
+in the environment, else ``--ceobench-src`` pointing at an upstream checkout
+whose ``src/saas_bench/_embedded_key.py`` is parsed as text (never imported).
+Without either, encrypted ledgers degrade to timing fallbacks with a reason.
 """
 
 from __future__ import annotations
@@ -13,7 +19,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from library.adapters.ceo_bench.bridge import CeoBenchBridgeError, bridge_ceo_bench_run
+from ceo_bench.bridge import CeoBenchBridgeError, bridge_ceo_bench_run
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -26,11 +32,17 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Trial directory to write (default: <run_dir>.trial sibling)",
     )
+    parser.add_argument(
+        "--ceobench-src",
+        default=None,
+        help="Upstream checkout used only to read the published SQLCipher key "
+        "when world.nmdb is encrypted and NMDB_KEY is unset",
+    )
     args = parser.parse_args(argv)
     run = Path(args.run_dir)
     trial = Path(args.out) if args.out else Path(str(run) + ".trial")
     try:
-        summary = bridge_ceo_bench_run(run, trial)
+        summary = bridge_ceo_bench_run(run, trial, ceobench_src=args.ceobench_src)
     except CeoBenchBridgeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

@@ -10,6 +10,11 @@ checkpoint writer ~line 689); tool_results entries (``_log_tool_result``
 selects (upstream DDL: ``src/saas_bench/database.py`` ledger ~line 443,
 api_costs ~line 660, predictions ~line 1041); they exercise the SQL reader
 path, not the upstream schema itself.
+
+The bridge lives in the ``ceo_bench`` adapter project (own pyproject/lock so
+``sqlcipher3`` never becomes an evallab core dependency); the suite imports
+it from the adapter directory. Encrypted-ledger tests skip cleanly when
+``sqlcipher3`` is absent.
 """
 
 from __future__ import annotations
@@ -29,14 +34,19 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
+ADAPTER = ROOT / "library" / "adapters" / "ceo_bench"
+if str(ADAPTER) not in sys.path:
+    sys.path.insert(0, str(ADAPTER))
 
-from evallab.interpretation.run_report import build_run_report  # noqa: E402
-from library.adapters.ceo_bench.bridge import (  # noqa: E402
+from ceo_bench.bridge import (  # noqa: E402
     CeoBenchBridgeError,
     bridge_ceo_bench_run,
     is_completed_week_advance,
     is_state_changing_call,
+    resolve_nmdb_key,
 )
+
+from evallab.interpretation.run_report import build_run_report  # noqa: E402
 
 
 def _config(**overrides: Any) -> dict[str, Any]:
@@ -592,8 +602,8 @@ def test_cli_exits_nonzero_with_message_on_unbridgeable_run(tmp_path: Path) -> N
     empty = tmp_path / "empty-run"
     empty.mkdir()
     completed = subprocess.run(
-        [sys.executable, "-m", "library.adapters.ceo_bench", str(empty)],
-        cwd=ROOT,
+        [sys.executable, "-m", "ceo_bench", str(empty)],
+        cwd=ADAPTER,
         capture_output=True,
         text=True,
         timeout=120,
@@ -601,3 +611,125 @@ def test_cli_exits_nonzero_with_message_on_unbridgeable_run(tmp_path: Path) -> N
     assert completed.returncode == 1
     assert "error:" in completed.stderr
     assert completed.stdout == ""
+
+
+FAKE_KEY = "ab" * 32
+
+
+def _fake_ceobench_src(root: Path, key: str = FAKE_KEY) -> Path:
+    embedded = root / "src" / "saas_bench" / "_embedded_key.py"
+    embedded.parent.mkdir(parents=True)
+    embedded.write_text(f'_NMDB_KEY = "{key}"\n', encoding="utf-8")
+    return root
+
+
+def test_resolve_nmdb_key_env_first(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    src = _fake_ceobench_src(tmp_path / "src-tree")
+    monkeypatch.setenv("NMDB_KEY", "env-key")
+    assert resolve_nmdb_key(src) == "env-key"
+    monkeypatch.delenv("NMDB_KEY")
+    assert resolve_nmdb_key(src) == FAKE_KEY
+
+
+def test_resolve_nmdb_key_rejects_malformed_or_missing(tmp_path: Path) -> None:
+    assert resolve_nmdb_key(tmp_path / "no-such-tree") is None
+    src = _fake_ceobench_src(tmp_path / "short-key", key="abc123")
+    assert resolve_nmdb_key(src) is None
+    assert resolve_nmdb_key(None) is None
+
+
+def _write_encrypted_db(path: Path, key: str) -> None:
+    sqlcipher3 = pytest.importorskip("sqlcipher3")
+    conn = sqlcipher3.connect(str(path))
+    conn.execute(f"PRAGMA key = '{key}'")
+    conn.execute(
+        "CREATE TABLE ledger (id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " day INTEGER NOT NULL, category TEXT NOT NULL,"
+        " amount REAL NOT NULL, note TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE api_costs (id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " day INTEGER NOT NULL, model TEXT NOT NULL, purpose TEXT NOT NULL,"
+        " input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL,"
+        " cost_usd REAL NOT NULL)"
+    )
+    conn.execute(
+        "CREATE TABLE predictions (submit_day INTEGER NOT NULL,"
+        " horizon_days INTEGER NOT NULL, metric TEXT NOT NULL,"
+        " predicted_value REAL NOT NULL, predicted_lower REAL,"
+        " predicted_upper REAL, submitted_at REAL NOT NULL,"
+        " PRIMARY KEY (submit_day, horizon_days, metric))"
+    )
+    conn.execute(
+        "INSERT INTO ledger (day, category, amount) VALUES"
+        " (0, 'initial_funding', 1000000.0), (7, 'operations', -1000.0)"
+    )
+    conn.execute(
+        "INSERT INTO api_costs (day, model, purpose, input_tokens,"
+        " output_tokens, cost_usd) VALUES"
+        " (7, 'agent-model', 'agent', 60000, 9000, 0.13),"
+        " (7, 'sim-model', 'customer_social_post', 50000, 8000, 0.21)"
+    )
+    conn.execute(
+        "INSERT INTO predictions (submit_day, horizon_days, metric,"
+        " predicted_value, submitted_at) VALUES (0, 7, 'cash', 999500.0, 1.0)"
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_encrypted_db_reads_with_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest.importorskip("sqlcipher3")
+    run = _run_dir(
+        tmp_path,
+        tools=_standard_tools(),
+        timing=[_day_summary(7, 999000.0)],
+    )
+    _write_encrypted_db(run / "world.nmdb", FAKE_KEY)
+    monkeypatch.setenv("NMDB_KEY", FAKE_KEY)
+    trial = tmp_path / "trial"
+    bridge_ceo_bench_run(run, trial)
+    meta = _sidecar(trial, "meta.json")
+    assert meta["world_nmdb"]["status"] == "ok"
+    cash = _sidecar(trial, "cash_daily.json")
+    assert cash["source"] == "ledger"
+    assert [(row["day"], row["cash"]) for row in cash["daily"]] == [
+        (0, 1000000.0),
+        (7, 999000.0),
+    ]
+    spend = _sidecar(trial, "spend.json")
+    assert spend["agent"]["cost_usd"] == 0.13
+    assert spend["agent"]["source"] == "api_costs:purpose=agent"
+    assert spend["simulator"]["cost_usd"] == 0.21
+    forecasts = _sidecar(trial, "forecasts.json")
+    assert forecasts["status"] == "scored"
+    assert forecasts["rows"][0]["abs_error"] == 500.0
+
+
+def test_encrypted_db_degrades_without_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest.importorskip("sqlcipher3")
+    run = _run_dir(
+        tmp_path,
+        tools=_standard_tools(),
+        timing=[_day_summary(7, 999000.0)],
+    )
+    _write_encrypted_db(run / "world.nmdb", FAKE_KEY)
+    monkeypatch.delenv("NMDB_KEY", raising=False)
+    trial = tmp_path / "trial"
+    bridge_ceo_bench_run(run, trial)
+    meta = _sidecar(trial, "meta.json")
+    assert meta["world_nmdb"]["status"] == "unavailable"
+    assert "NMDB_KEY" in meta["world_nmdb"]["reason"]
+    assert "--ceobench-src" in meta["world_nmdb"]["reason"]
+    monkeypatch.setenv("NMDB_KEY", "wrong-key")
+    trial2 = tmp_path / "trial2"
+    bridge_ceo_bench_run(run, trial2)
+    meta2 = _sidecar(trial2, "meta.json")
+    assert meta2["world_nmdb"]["status"] == "unavailable"
+    assert "wrong key" in meta2["world_nmdb"]["reason"]

@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import re
 import shlex
 import sqlite3
 from datetime import datetime
@@ -49,8 +51,36 @@ AGENT_COST_PURPOSE = "agent"
 #: ``agents/bash_agent/run_test.py`` resume/loop guards).
 BANKRUPTCY_CASH_BELOW = 0.0
 
+
+#: Published SQLCipher key for post-hoc analysis. Upstream publishes the key
+#: for exactly this use (``KEYS.md``: "The key", ``_embedded_key.py`` L16,
+#: ``docs/analyze_trajectory.md`` "Decrypt and open"). Resolution order here:
+#: ``NMDB_KEY`` env first, then the ``_NMDB_KEY`` constant parsed as text from
+#: a ``--ceobench-src`` checkout (read with a regex, never imported or
+#: executed — importing upstream code would pull its model/serving deps).
+#: Compare upstream ``db_protection._get_key`` (``db_protection.py`` L42-68:
+#: embedded key, then ``NMDB_KEY`` env, else ``RuntimeError``).
+_EMBEDDED_KEY_RE = re.compile(r'_NMDB_KEY\s*=\s*"([0-9a-fA-F]{64})"')
+
+
+def resolve_nmdb_key(ceobench_src: str | Path | None = None) -> str | None:
+    """Return the SQLCipher key for an encrypted ``world.nmdb``, if findable."""
+    key = os.environ.get("NMDB_KEY")
+    if key:
+        return key
+    if ceobench_src is not None:
+        candidate = Path(ceobench_src) / "src" / "saas_bench" / "_embedded_key.py"
+        try:
+            text = candidate.read_text(encoding="utf-8")
+        except OSError:
+            return None
+        match = _EMBEDDED_KEY_RE.search(text)
+        if match:
+            return match.group(1)
+    return None
+
+
 #: Marker of a completed week advance in a bash tool result (upstream
-#: ``agents/bash_agent/run_test.py`` resume logic: a finished next-week call's
 #: server response begins with the ``=== Week N Dashboard`` header).
 NEXT_WEEK_DONE_MARKER = "=== Week "
 
@@ -208,20 +238,30 @@ def is_completed_week_advance(tool: str, arguments: Any, result: Any) -> bool:
     return isinstance(result, str) and NEXT_WEEK_DONE_MARKER in result
 
 
-def _query_all(conn: sqlite3.Connection, sql: str) -> list[tuple[Any, ...]] | None:
+def _query_all(conn: Any, sql: str) -> list[tuple[Any, ...]] | None:
+    # ``sqlite3.Error`` for plaintext; ``sqlcipher3`` raises its own
+    # ``sqlcipher3.dbapi2`` hierarchy, so catch broadly — callers treat
+    # ``None`` as a missing/unreadable table with a named reason.
     try:
         return list(conn.execute(sql))
-    except sqlite3.Error:
+    except Exception:
         return None
 
 
-def _read_world_db(nmdb_path: Path) -> dict[str, Any]:
+def _read_world_db(
+    nmdb_path: Path, ceobench_src: str | Path | None = None
+) -> dict[str, Any]:
     """Read cash/spend/forecast tables from ``world.nmdb`` (or plain SQLite).
 
-    Encrypted ledgers need the SQLCipher key from the ``NMDB_KEY``
-    environment variable only (upstream ``db_protection._get_key``); the key
-    is never bundled here. Anything unreadable yields ``status`` Reasons,
-    never an exception.
+    Real runs encrypt ``world.nmdb`` with SQLCipher; upstream publishes the key
+    for post-hoc analysis (``KEYS.md`` L8-18, ``_embedded_key.py`` L16), so an
+    encrypted ledger is opened with :func:`resolve_nmdb_key` and read directly
+    — ledger cash-by-day, ``api_costs`` agent-vs-simulator spend, and
+    ``predictions`` forecasts. Key application mirrors upstream
+    ``db_protection._apply_key`` (``db_protection.py`` L71-74: quote-escape,
+    ``PRAGMA key = '<hex string>'`` verbatim, never the ``x'..'`` raw-bytes
+    syntax) plus the fail-fast page-1 read of ``_verify_key`` (L77-79).
+    Anything unreadable yields ``status`` reasons, never an exception.
     """
     info: dict[str, Any] = {
         "present": nmdb_path.is_file(),
@@ -235,7 +275,7 @@ def _read_world_db(nmdb_path: Path) -> dict[str, Any]:
     if not nmdb_path.is_file():
         info["reason"] = "world.nmdb absent (run may predate checkpointing)"
         return info
-    conn: sqlite3.Connection | None = None
+    conn: Any = None
     try:
         conn = sqlite3.connect(f"file:{nmdb_path}?mode=ro", uri=True)
         try:
@@ -244,20 +284,19 @@ def _read_world_db(nmdb_path: Path) -> dict[str, Any]:
             conn.close()
             conn = None
             try:
-                import sqlcipher3  # type: ignore[import-not-found]
+                import sqlcipher3
             except ImportError:
                 info["reason"] = (
                     f"encrypted world.nmdb unreadable: {type(exc).__name__} "
-                    "(sqlcipher3 is not installed; plain sqlite3 cannot open it)"
+                    "(sqlcipher3 is not installed; run the bridge from the "
+                    "ceo_bench adapter project)"
                 )
                 return info
-            import os
-
-            key = os.environ.get("NMDB_KEY")
+            key = resolve_nmdb_key(ceobench_src)
             if not key:
                 info["reason"] = (
-                    "encrypted world.nmdb unreadable: NMDB_KEY is not set "
-                    "(the key is never bundled with this bridge)"
+                    "encrypted world.nmdb unreadable: no key "
+                    "(set NMDB_KEY or pass --ceobench-src <ceobench-src checkout>)"
                 )
                 return info
             try:
@@ -268,13 +307,11 @@ def _read_world_db(nmdb_path: Path) -> dict[str, Any]:
             except Exception as exc2:
                 if conn is not None:
                     conn.close()
-                info["reason"] = f"encrypted world.nmdb unreadable: {type(exc2).__name__}"
+                info["reason"] = (
+                    f"encrypted world.nmdb unreadable: {type(exc2).__name__} "
+                    "(wrong key?)"
+                )
                 return info
-    except sqlite3.Error as exc:
-        info["reason"] = f"world.nmdb unreadable: {type(exc).__name__}"
-        return info
-    assert conn is not None
-    try:
         ledger = _query_all(
             conn, "SELECT day, SUM(amount) FROM ledger GROUP BY day ORDER BY day"
         )
@@ -345,8 +382,12 @@ def _read_world_db(nmdb_path: Path) -> dict[str, Any]:
             info["forecasts"] = {"source": "predictions", "rows": rows}
         info["status"] = "ok"
         info["reason"] = None
+    except sqlite3.Error as exc:
+        info["reason"] = f"world.nmdb unreadable: {type(exc).__name__}"
+        return info
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
     return info
 
 
@@ -407,12 +448,17 @@ def bridge_ceo_bench_run(
     trial_dir: str | Path,
     *,
     trial_name: str | None = None,
+    ceobench_src: str | Path | None = None,
 ) -> dict[str, Any]:
     """Bridge one CEO-Bench run directory into a Harbor-shaped trial directory.
 
     Raises :class:`CeoBenchBridgeError` when the run directory has no usable
     harness inputs (missing ``config.json``). Everything else degrades to
     explicit null/unavailable sidecar states.
+
+    ``ceobench_src`` is a checkout of the upstream repository used only to
+    parse the published ``_NMDB_KEY`` constant as text when ``world.nmdb``
+    is encrypted and ``NMDB_KEY`` is unset (see :func:`resolve_nmdb_key`).
     """
     run = Path(run_dir).resolve()
     trial = Path(trial_dir).resolve()
@@ -473,7 +519,7 @@ def bridge_ceo_bench_run(
         if stamp is not None:
             stamps.append(stamp)
 
-    world = _read_world_db(run / "world.nmdb")
+    world = _read_world_db(run / "world.nmdb", ceobench_src)
     if world["status"] != "ok" and world["reason"]:
         notes.append(f"world.nmdb: {world['reason']}")
     session = _read_session_event_logs(run, session_id)
@@ -791,7 +837,7 @@ def bridge_ceo_bench_run(
         "plugin": PLUGIN_NAME,
         "version": PLUGIN_VERSION,
         "bridge": {
-            "module": "library.adapters.ceo_bench.bridge",
+            "module": "ceo_bench.bridge",
             "version": BRIDGE_VERSION,
             "upstream_repo": UPSTREAM_REPO,
             "upstream_commit": UPSTREAM_COMMIT,

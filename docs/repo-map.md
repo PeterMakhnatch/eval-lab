@@ -175,7 +175,7 @@ inputs:
   - path: src/evallab/interpretation/domains/atlas_finance.py
     digest: sha256:a348a62b41ccf93bf77ce17b431fe8304cd2ba8c9035b7da32265758f715c2eb
   - path: src/evallab/interpretation/domains/ceo_bench.py
-    digest: sha256:39ec47b0a0bf7ff561db0218ba4409b8bdc32bc1b25d7124741c2a41ef7e28b3
+    digest: sha256:19d04bfb63eda321d9b70a10254a290a960d30c8bc1b9103b9ab6309786ba041
   - path: src/evallab/interpretation/domains/synthetic_hospital.py
     digest: sha256:434e7bcfa6cdebfc21961403d4c3009a338c525a4daa4ca2520b351b4fee24e8
   - path: src/evallab/interpretation/evidence_pack.py

@@ -520,6 +520,9 @@ def bridge_ceo_bench_run(
             stamps.append(stamp)
 
     world = _read_world_db(run / "world.nmdb", ceobench_src)
+    # Exact cause when the ledger is unreadable (no key, no sqlcipher3,
+    # wrong key, absent file); reused for every derived null-with-reason.
+    world_reason = world["reason"] if world["status"] != "ok" else None
     if world["status"] != "ok" and world["reason"]:
         notes.append(f"world.nmdb: {world['reason']}")
     session = _read_session_event_logs(run, session_id)
@@ -622,13 +625,17 @@ def bridge_ceo_bench_run(
             "by_purpose": entry["by_purpose"],
         }
         simulator_source = "session_event_log:llm_call"
+    agent_reason: str | None = None
     if agent_cost is None:
-        notes.append("agent cost unavailable: no api_costs purpose='agent' rows readable")
+        agent_reason = world_reason or "no api_costs purpose='agent' rows readable"
+        notes.append(f"agent cost unavailable: {agent_reason}")
+    simulator_reason: str | None = None
     if simulator_spend is None:
-        notes.append(
-            "simulator spend unavailable: world.nmdb encrypted or absent "
+        simulator_reason = world_reason or (
+            "world.nmdb encrypted or absent "
             "and no session event log with llm_call costs"
         )
+        notes.append(f"simulator spend unavailable: {simulator_reason}")
 
     # Forecast error: predictions (submit_day + horizon_days -> target day)
     # against actual cash then (upstream docs/analyze_trajectory.md recipe).
@@ -659,7 +666,9 @@ def bridge_ceo_bench_run(
             }
             forecast_rows.append(row)
     elif not isinstance(world_forecasts, dict):
-        forecast_reason = "predictions table unreadable (world.nmdb encrypted or absent)"
+        forecast_reason = world_reason or (
+            "predictions table unreadable (world.nmdb absent or table missing)"
+        )
     else:
         forecast_reason = "no cash series to score predictions against"
     if forecast_status == "unavailable" and forecast_reason:
@@ -888,10 +897,14 @@ def bridge_ceo_bench_run(
             "output_tokens": agent_tokens["output"],
             "cost_usd": agent_cost,
             "source": agent_cost_source,
+            "status": "ok" if agent_cost is not None else "unavailable",
+            "reason": None if agent_cost is not None else agent_reason,
         },
         "simulator": {
             **(simulator_spend or {"input_tokens": None, "output_tokens": None, "cost_usd": None}),
             "source": simulator_source,
+            "status": "ok" if simulator_spend is not None else "unavailable",
+            "reason": None if simulator_spend is not None else simulator_reason,
         },
     }
     forecasts_doc: dict[str, Any] = {

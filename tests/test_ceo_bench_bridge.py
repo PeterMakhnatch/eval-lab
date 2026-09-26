@@ -46,7 +46,10 @@ from ceo_bench.bridge import (  # noqa: E402
     resolve_nmdb_key,
 )
 
-from evallab.interpretation.run_report import build_run_report  # noqa: E402
+from evallab.interpretation.run_report import (  # noqa: E402
+    build_run_report,
+    render_run_report_markdown,
+)
 
 
 def _config(**overrides: Any) -> dict[str, Any]:
@@ -309,6 +312,8 @@ def test_spend_separation_never_merges_simulator(tmp_path: Path) -> None:
         "output_tokens": 9000,
         "cost_usd": 0.13,
         "source": "api_costs:purpose=agent",
+        "status": "ok",
+        "reason": None,
     }
     assert spend["simulator"]["cost_usd"] == 0.34
     assert spend["simulator"]["input_tokens"] == 80000
@@ -733,3 +738,64 @@ def test_encrypted_db_degrades_without_key(
     meta2 = _sidecar(trial2, "meta.json")
     assert meta2["world_nmdb"]["status"] == "unavailable"
     assert "wrong key" in meta2["world_nmdb"]["reason"]
+
+
+def _domain_section_markdown(report: dict[str, Any]) -> str:
+    markdown = render_run_report_markdown(report)
+    return markdown.split("## Domain:")[1].split("## Timeline")[0]
+
+
+def test_unreadable_ledger_spend_carries_exact_reason_to_report(
+    tmp_path: Path,
+) -> None:
+    # No sqlcipher needed: garbage bytes take the same unavailable path as a
+    # keyless encrypted ledger, with the exact world_nmdb cause attached.
+    run = _run_dir(
+        tmp_path,
+        tools=_standard_tools(),
+        timing=[_day_summary(7, 999500.0)],
+    )
+    (run / "world.nmdb").write_bytes(b"\x00\x01not-a-database\xff" * 64)
+    trial = tmp_path / "trial"
+    bridge_ceo_bench_run(run, trial)
+
+    exact = _sidecar(trial, "meta.json")["world_nmdb"]["reason"]
+    spend = _sidecar(trial, "spend.json")
+    assert spend["agent"]["status"] == "unavailable"
+    assert spend["agent"]["reason"] == exact
+    assert spend["simulator"]["status"] == "unavailable"
+    assert spend["simulator"]["reason"] == exact
+    assert _sidecar(trial, "forecasts.json")["reason"] == exact
+
+    report = build_run_report(trial)
+    assert report["domain"]["spend"]["agent"]["reason"] == exact
+    assert report["domain"]["spend"]["simulator"]["reason"] == exact
+    section = _domain_section_markdown(report)
+    assert "Agent spend unavailable:" in section
+    assert "simulator spend unavailable:" in section
+    assert "None" not in section
+
+
+def test_encrypted_no_key_reason_reaches_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest.importorskip("sqlcipher3")
+    run = _run_dir(
+        tmp_path,
+        tools=_standard_tools(),
+        timing=[_day_summary(7, 999000.0)],
+    )
+    _write_encrypted_db(run / "world.nmdb", FAKE_KEY)
+    monkeypatch.delenv("NMDB_KEY", raising=False)
+    trial = tmp_path / "trial"
+    bridge_ceo_bench_run(run, trial)
+
+    exact = _sidecar(trial, "meta.json")["world_nmdb"]["reason"]
+    assert "NMDB_KEY" in exact
+    report = build_run_report(trial)
+    assert report["domain"]["spend"]["agent"]["reason"] == exact
+    assert report["domain"]["spend"]["simulator"]["reason"] == exact
+    assert report["domain"]["forecasts"]["reason"] == exact
+    section = _domain_section_markdown(report)
+    assert "Agent spend unavailable:" in section
+    assert "None" not in section

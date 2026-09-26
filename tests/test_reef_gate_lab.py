@@ -1,621 +1,330 @@
-"""Deterministic behavioral tests for the HAR-73 Lab CLI evaluator.
-
-Everything runs against a fabricated Lab checkout in ``tmp_path`` and a fake
-CLI runner: no shared queue is drained, no shared database is written, no
-real model or sandbox is touched. The scenarios are the acceptance surface:
-
-* committed-split validation (disjointness, strict keys, schema) and the
-  registry allow-list contract (registered, measurement+training, never
-  heldout) refusing BEFORE any CLI submit/execution;
-* ``prepare()`` submitting every task-repeat-side spec and returning the
-  exact approve commands without ticking, executing, or waiting;
-* approval timeout / rejection aborts yielding positional ``None`` scores and
-  ``metadata["complete"] is False`` (never a fabricated zero);
-* infrastructure-failure episodes scoring ``None`` with a grounded failure
-  observation, the opposite side staying scoreable, and ``evaluation_sides``
-  excluding the incompletely covered side so settlement cannot clear a
-  failure manifest for missing evidence;
-* candidate-id idempotency: retry reuses submitted specs, the crash window
-  (spec submitted, manifest not yet updated) recovers by deterministic job
-  name, and conflicting content for one id refuses.
-"""
+"""Gate invariants using real task freezing and queue persistence; no live inference."""
 
 from __future__ import annotations
 
 import json
-import sys
+import os
+import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
+import evallab_reef_gate.lab as lab_module
 import pytest
+from evallab_reef_gate.lab import LabConfig, LabEvaluator, LabGateError, SubprocessRunner
 
-sys.path.insert(
-    0,
-    str(
-        Path(__file__).resolve().parents[1]
-        / "library" / "adapters" / "reef_gate" / "src",
-    ),
-)
+from evallab.cli import parser
+from evallab.queue import DirectoryQueue, PolicyGate
+from evallab.registry import compute_task_digests
+from evallab.schemas import AutoRunRule, ExperimentSpec, StandingApprovalsPolicy
+from evallab.task_prepare import prepare_task
 
-from evallab_reef_gate.lab import (  # noqa: E402
-    LabConfig,
-    LabEvaluator,
-    LabGateError,
-    SubprocessRunner,
-)
-
-MODEL = "zai-coding-plan/glm-5.3"
-TASK_A = "event-summary"
-TASK_B = "travel-lisbon-002"
-HELD_TASK = "heldout-external-001"
-HELD_PATH = "~/Developer/elsewhere/heldout-external-001"
-
-CURRENT_FILES = {"terminus/AGENTS.md": "# current rules\n"}
-CANDIDATE_FILES = {"terminus/AGENTS.md": "# candidate rules\nmore care\n"}
-
-DEV_A_DIGEST = "sha256:" + "a" * 64
-DEV_B_DIGEST = "sha256:" + "b" * 64
-HELD_DIGEST = "sha256:" + "c" * 64
+TASKS = ("dev-alpha", "dev-beta")
+CURRENT = {"terminus/AGENTS.md": "Inspect the task files before editing.\n"}
+CANDIDATE = {"terminus/AGENTS.md": "Inspect files, then validate required outputs.\n"}
+STAMP = "2026-09-26T00:00:00+00:00"
 
 
-def _sha64(seed: str) -> str:
-    import hashlib
+def git(root: Path, *args: str) -> None:
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    environment.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull)
+    subprocess.run(
+        ["git", "-c", "user.name=Gate Test", "-c", "user.email=gate@example.invalid",
+         "-c", "commit.gpgsign=false", *args],
+        cwd=root, env=environment, capture_output=True, check=True,
+    )
 
-    return "sha256:" + hashlib.sha256(seed.encode()).hexdigest()
 
-
-class FakeLab:
-    """A fake Eval Lab CLI: prepare/submit/tick against tmp directories."""
+class LocalEvidenceRunner(SubprocessRunner):
+    """Real prepare/queue contracts with injected native trial outcomes at tick."""
 
     def __init__(self, root: Path) -> None:
         self.root = root
-        self.submits: list[str] = []
+        self.queue = DirectoryQueue(root / "queue")
+        self.submissions: list[str] = []
         self.ticks: list[str] = []
-        self.prepared: list[str] = []
-        self.counter = 0
-        self.outcomes: dict[str, tuple[str, float | None]] = {}
-        for state in ("pending", "waiting", "approved", "running", "done", "failed", "rejected"):
-            (root / "queue" / state).mkdir(parents=True, exist_ok=True)
+        self.outcomes: dict[str, dict] = {}
+        self.crash_after_submit = False
 
-    # -- fake CLI entry ----------------------------------------------------
-
-    def cli(self, cmd: list[str]) -> tuple[int, str, str]:
-        sub = cmd[1] if len(cmd) > 1 else ""
-        if sub == "tasks" and "prepare" in cmd:
-            return self._prepare(cmd)
-        if sub == "submit":
-            return self._submit(cmd)
-        if sub == "tick":
-            return self._tick(cmd)
-        return 2, "", f"unknown command: {cmd}"
-
-    def _flag(self, cmd: list[str], name: str) -> str | None:
-        for index, token in enumerate(cmd):
-            if token == name and index + 1 < len(cmd):
-                return cmd[index + 1]
-        return None
-
-    def _prepare(self, cmd: list[str]) -> tuple[int, str, str]:
-        job = self._flag(cmd, "--name")
-        task_path = cmd[cmd.index("prepare") + 1]
-        spec = {
-            "name": job,
-            "agent": self._flag(cmd, "--agent"),
-            "model": self._flag(cmd, "--model"),
-            "environment": self._flag(cmd, "--environment"),
-            "task": task_path,
-            "task_path": task_path,
-            "task_package_digest": None,
-            "harness_tree_sha256": self._flag(cmd, "--harness-tree-sha256"),
-        }
-        path = self.root / "derived" / "prepared" / f"{job}.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(spec, indent=2) + "\n")
-        self.prepared.append(job)
-        return 0, json.dumps({"spec": spec, "spec_path": str(path)}) + "\n", ""
-
-    def _submit(self, cmd: list[str]) -> tuple[int, str, str]:
-        spec_path = Path(cmd[2])
-        spec = json.loads(spec_path.read_text())
-        existing = self._find_by_name(spec["name"])
-        if existing is not None:
-            state, path = existing
-            return 0, f"spec_id: {json.loads(path.read_text())['spec_id']}\nstate: {state}\n", ""
-        self.counter += 1
-        spec_id = f"01JTEST{self.counter:06d}"
-        spec["spec_id"] = spec_id
-        path = self.root / "queue" / "waiting" / f"{spec['agent']}-{spec_id}.json"
-        path.write_text(json.dumps(spec, indent=2) + "\n")
-        self.submits.append(spec_id)
-        return 0, f"spec_id: {spec_id}\nstate: waiting\npath: {path}\n", ""
-
-    def _tick(self, cmd: list[str]) -> tuple[int, str, str]:
-        spec_id = self._flag(cmd, "--spec-id")
+    def run(self, argv, *, cwd, timeout, python):
+        assert cwd == self.root
+        if argv[:2] == ["tasks", "prepare"]:
+            args = parser().parse_args(argv)
+            prepared = prepare_task(
+                self.root, self.root / args.source, name=args.name, agent=args.agent,
+                model=args.model, environment=args.environment, output=args.output,
+                harness_tree_path=args.harness_tree, harness_tree_sha256=args.harness_tree_sha256,
+                cost_limit_usd=args.cost_limit_usd, est_cost_usd=args.estimated_cost_usd,
+                max_requests=args.max_requests, max_input_tokens=args.max_input_tokens,
+                max_output_tokens=args.max_output_tokens, max_total_tokens=args.max_total_tokens,
+                timeout_seconds=args.timeout_seconds, submitted_by=args.submitted_by,
+            )
+            return 0, prepared.spec.model_dump_json(), ""
+        if argv[0] == "submit":
+            spec = ExperimentSpec.model_validate_json((self.root / argv[1]).read_text())
+            policy = StandingApprovalsPolicy(
+                daily_cost_ceiling_usd=10, per_job_cost_ceiling_usd=1,
+                quiet_failure_rule=3,
+                auto_run=[AutoRunRule(name="local-controls", agents=["oracle", "nop"])],
+                escalate_to_human=[],
+            )
+            path, decision = self.queue.submit(spec, gate=PolicyGate(policy), spent_today_usd=0)
+            assert not decision.admitted
+            spec_id = self.queue.load(path).spec_id
+            self.submissions.append(spec_id)
+            if self.crash_after_submit:
+                self.crash_after_submit = False
+                raise OSError("simulated crash after durable queue submission")
+            return 0, f"spec_id: {spec_id}\n", ""
+        assert argv[0:2] == ["tick", "--spec-id"]
+        spec_id = argv[2]
+        path = self.queue.locate(spec_id)
+        assert path.parent.name == "approved"
+        spec = self.queue.load(path)
         self.ticks.append(spec_id)
-        located = self._find(spec_id)
-        if located is None:
-            return 2, "", f"spec {spec_id} not found\n"
-        state, path = located
-        if state != "approved":
-            return 1, f"spec: {spec_id} state: {state}\n", f"{spec_id} is {state}, not approved\n"
-        spec = json.loads(path.read_text())
-        self._run_job(spec["name"])
-        (self.root / "queue" / "done" / path.name).write_text(
-            json.dumps(spec, indent=2) + "\n"
+        running = self.queue.transition(path, "running", actor="test-runner", event="started")
+        trial_dir = self.root / "runs" / spec.name / "native-trial"
+        trial_dir.mkdir(parents=True)
+        trial = self.outcomes.get(spec_id, {
+            "id": f"trial-{spec_id}", "finished_at": STAMP,
+            "verifier_result": {"rewards": {"reward": 1.0}},
+        })
+        (trial_dir / "result.json").write_text(json.dumps(trial))
+        (trial_dir.parent / "result.json").write_text(json.dumps({"finished_at": STAMP}))
+        self.queue.transition(running, "done", actor="test-runner", event="completed")
+        return 0, "dispatched 1 experiment(s)", ""
+
+
+@pytest.fixture
+def campaign(tmp_path, monkeypatch):
+    clock = [0.0]
+    monkeypatch.setattr(lab_module, "time", SimpleNamespace(
+        monotonic=lambda: clock[0],
+        sleep=lambda delay: clock.__setitem__(0, clock[0] + delay),
+    ))
+    root = tmp_path / "lab"
+    root.mkdir()
+    (root / "library/registry").mkdir(parents=True)
+    rows = []
+    for name in TASKS:
+        task = root / "library/tasks" / name
+        (task / "environment").mkdir(parents=True)
+        (task / "tests").mkdir()
+        (task / "task.toml").write_text(
+            'version = "1.0"\n[metadata]\nname = "' + name
+            + '"\n[agent]\ntimeout_sec = 60\n[environment]\ncpu_count = 1\nmemory_mb = 512\n'
         )
-        path.unlink()
-        return 0, f"dispatched 1 experiment(s)\nspec: {spec_id} state: done\n", ""
-
-    def _run_job(self, job: str) -> None:
-        from datetime import UTC, datetime
-
-        kind, value = self.outcomes.get(job, ("score", 1.0))
-        job_dir = self.root / "runs" / job
-        trial_dir = job_dir / f"{job}-trial1"
-        trial_dir.mkdir(parents=True, exist_ok=True)
-        now = datetime.now(UTC).isoformat()
-        if kind == "score":
-            trial = {"finished_at": now, "verifier_result": {"rewards": {"reward": value}}}
-        elif kind == "infra":
-            trial = {
-                "finished_at": now,
-                "exception_info": {"message": str(value)},
-                "verifier_result": {"rewards": {"reward": 0.0}},
-            }
-        elif kind == "unscored":
-            trial = {"finished_at": now, "verifier_result": {"rewards": {}}}
-        elif kind == "incomplete":
-            trial = None
-        else:  # pragma: no cover - unknown script
-            raise AssertionError(kind)
-        if trial is not None:
-            (trial_dir / "result.json").write_text(json.dumps(trial, indent=2) + "\n")
-        result = {"finished_at": now if kind != "incomplete" else None, "n_total_trials": 1}
-        (job_dir / "result.json").write_text(json.dumps(result, indent=2) + "\n")
-
-    def _find(self, spec_id: str) -> tuple[str, Path] | None:
-        for state in ("pending", "waiting", "approved", "running", "done", "failed", "rejected"):
-            for path in (self.root / "queue" / state).glob(f"*-{spec_id}.json"):
-                return state, path
-        return None
-
-    def _find_by_name(self, name: str) -> tuple[str, Path] | None:
-        for state in ("pending", "waiting", "approved", "running", "done", "failed", "rejected"):
-            for path in sorted((self.root / "queue" / state).glob("*.json")):
-                payload = json.loads(path.read_text())
-                if payload.get("name") == name:
-                    return state, path
-        return None
-
-
-class FakeRunner:
-    """Runs the FakeLab CLI; records every invocation for assertions."""
-
-    def __init__(self, lab: FakeLab) -> None:
-        self.lab = lab
-        self.calls: list[tuple[str, list[str]]] = []
-
-    def run(self, cmd, *, cwd, timeout, python):
-        self.calls.append((str(cwd), list(cmd)))
-        return self.lab.cli(cmd)
-
-
-def _write_split(root: Path, *, dev=None, held=None, extra_root=None, version=1) -> Path:
-    payload = {
-        "schema_version": version,
-        "name": "har73-split",
-        "status": "committed",
-        "authority": "peter",
-        "rationale": "HAR-73 dev/heldout split",
-        "dev": dev if dev is not None else [
-            {"task_id": TASK_A, "task_path": f"library/tasks/{TASK_A}", "package_digest": DEV_A_DIGEST},
-            {"task_id": TASK_B, "task_path": f"library/tasks/{TASK_B}", "package_digest": DEV_B_DIGEST},
-        ],
-        "held_out": held if held is not None else [
-            {"task_id": HELD_TASK, "task_path": HELD_PATH, "package_digest": HELD_DIGEST},
-        ],
-        "limits": {"max_dev_tasks": 2},
-    }
-    if extra_root:
-        payload.update(extra_root)
-    path = root / "split.json"
-    path.write_text(json.dumps(payload, indent=2) + "\n")
-    return path
-
-
-def _write_registry(root: Path, task_id: str, *, uses=None, package=None, state="registered") -> None:
-    record = {
-        "task_id": task_id,
-        "task_path": f"library/tasks/{task_id}",
-        "state": state,
-        "allowed_uses": uses if uses is not None else ["measurement", "training"],
-        "digests": {
-            "task_toml": _sha64(task_id + ":toml"),
-            "instruction": _sha64(task_id + ":instruction"),
-            "environment": _sha64(task_id + ":environment"),
-            "verifier": _sha64(task_id + ":verifier"),
-            "package": package if package is not None else _sha64(task_id + ":package"),
-        },
-    }
-    if task_id == TASK_A:
-        record["digests"]["package"] = DEV_A_DIGEST
-    if task_id == TASK_B:
-        record["digests"]["package"] = DEV_B_DIGEST
-    directory = root / "library" / "registry"
-    directory.mkdir(parents=True, exist_ok=True)
-    (directory / f"{task_id}.json").write_text(json.dumps(record, indent=2) + "\n")
-
-
-def _lab(tmp_path: Path, **config_overrides) -> tuple[LabEvaluator, FakeLab, FakeRunner, Path]:
-    lab_root = tmp_path / "lab"
-    (lab_root / ".venv" / "bin").mkdir(parents=True, exist_ok=True)
-    (lab_root / ".venv" / "bin" / "python").write_text("#!/bin/sh\n")
-    split = _write_split(lab_root)
-    _write_registry(lab_root, TASK_A)
-    _write_registry(lab_root, TASK_B)
-    lab = FakeLab(lab_root)
-    runner = FakeRunner(lab)
+        (task / "instruction.md").write_text(f"Write the required result for {name}.\n")
+        (task / "environment/Dockerfile").write_text("FROM python:3.12-slim\n")
+        (task / "tests/test.sh").write_text("#!/bin/sh\nexit 0\n")
+        package = compute_task_digests(task).package
+        relative = task.relative_to(root).as_posix()
+        rows.append({"task_id": name, "task_path": relative, "package_digest": package})
+        record = {"task_id": name, "task_path": relative, "state": "registered",
+                  "allowed_uses": ["measurement", "training"], "digests": {"package": package}}
+        (root / "library/registry" / f"{name}.json").write_text(json.dumps(record))
+    split = {"schema_version": 1, "dev": rows, "held_out": [{
+        "task_id": "held-out", "task_path": "library/tasks/held-out",
+        "package_digest": "sha256:" + "f" * 64,
+    }]}
+    (root / "split.json").write_text(json.dumps(split))
+    git(root, "init")
+    git(root, "add", "split.json")
+    git(root, "commit", "-m", "Commit split before evaluation")
     config = LabConfig.from_dict({
-        "lab_root": str(lab_root),
-        "split_path": str(split),
-        "model": MODEL,
-        "record_dir": str(tmp_path / "records"),
-        "tick_timeout_seconds": 1.0,
-        "tick_poll_seconds": 0.01,
-        **config_overrides,
+        "lab_root": str(root), "split_path": "split.json", "record_dir": "runs/gate",
+        "model": "zai/glm-5.3-flash", "cost_limit_usd": 0.40, "est_cost_usd": 0.40,
+        "tick_timeout_seconds": 0.2, "tick_poll_seconds": 0.01,
     })
-    return LabEvaluator(config, runner=runner), lab, runner, lab_root
+    runner = LocalEvidenceRunner(root)
+    return LabEvaluator(config, runner=runner), runner, root
 
 
-def _approve_all(lab: FakeLab) -> None:
-    for spec_id in list(lab.submits):
-        located = lab._find(spec_id)
-        assert located is not None
-        state, path = located
-        if state == "waiting":
-            target = lab.root / "queue" / "approved" / path.name
-            path.rename(target)
+def prepare(evaluator, identity="candidate"):
+    return evaluator.prepare(identity, CURRENT, CANDIDATE, TASKS)
 
 
-def _job_names(evaluator: LabEvaluator, candidate_id: str) -> list[str]:
-    import hashlib
-
-    prefix = "rg-" + hashlib.sha256(candidate_id.encode()).hexdigest()[:12]
-    names = []
-    for task in (TASK_A, TASK_B):
-        slug = task.replace("-", "-")
-        for side in ("candidate", "current"):
-            names.append(f"{prefix}-{slug}-0-{side}")
-    return names
+def approve(runner, result):
+    for spec_id in result["spec_ids"]:
+        runner.queue.approve(spec_id, actor="fixture-human")
 
 
-# ---------------------------------------------------------------------------
-# prepare(): submit everything, execute nothing
-# ---------------------------------------------------------------------------
-
-def test_prepare_submits_every_side_and_never_ticks(tmp_path: Path) -> None:
-    evaluator, lab, _runner, _root = _lab(tmp_path)
-    result = evaluator.prepare(
-        "cand-1", CURRENT_FILES, CANDIDATE_FILES, (TASK_A, TASK_B),
-    )
-    assert len(lab.submits) == 4  # 2 dev tasks x 1 repeat x 2 sides
-    assert lab.ticks == []
-    assert not any((tmp_path / "lab" / "runs").rglob("result.json"))
-    assert [detail["side"] for detail in result["spec_details"]] == [
-        "candidate", "current", "candidate", "current",
-    ]
-    assert result["approve_commands"] == [
-        f"uv run evallab approve {detail['spec_id']} --actor <you>"
-        for detail in result["spec_details"]
-    ]
-    assert all(command.startswith("uv run evallab approve ") for command in result["approve_commands"])
-    manifest = json.loads(Path(result["manifest_path"]).read_text())
-    assert manifest["candidate_id"] == "cand-1"
-    assert manifest["outcome"] == "awaiting_approval"
-    assert manifest["content_hash"] == result["content_hash"]
-    assert manifest["reef_commit"] is None
-    assert manifest["model"] == MODEL
+def test_prepare_requires_explicit_approval_and_freezes_each_pair(campaign):
+    evaluator, runner, root = campaign
+    result = prepare(evaluator)
+    assert runner.ticks == []
+    assert [row["side"] for row in result["spec_details"]] == ["candidate", "current"] * 2
+    for row in result["spec_details"]:
+        path = runner.queue.locate(row["spec_id"])
+        assert path.parent.name == "waiting"
+        spec = runner.queue.load(path)
+        assert spec.task_path.startswith("runs/.prepared-tasks/")
+        assert compute_task_digests(root / spec.task_path).package == spec.task_package_digest
+    assert result["manifest"]["tree_digests"]["candidate"] != result["manifest"]["tree_digests"]["current"]
 
 
-def test_prepare_is_idempotent_for_the_same_candidate_id(tmp_path: Path) -> None:
-    evaluator, lab, _runner, _root = _lab(tmp_path)
-    first = evaluator.prepare(
-        "cand-1", CURRENT_FILES, CANDIDATE_FILES, (TASK_A, TASK_B),
-    )
-    second = evaluator.prepare(
-        "cand-1", CURRENT_FILES, CANDIDATE_FILES, (TASK_A, TASK_B),
-    )
-    assert len(lab.submits) == 4
-    assert second["recovered"] is False
-    assert [d["spec_id"] for d in second["spec_details"]] == [
-        d["spec_id"] for d in first["spec_details"]
-    ]
+def test_repeated_prepare_and_post_submit_crash_do_not_duplicate_specs(campaign):
+    evaluator, runner, _ = campaign
+    runner.crash_after_submit = True
+    with pytest.raises(OSError):
+        prepare(evaluator)
+    first_id = runner.submissions[0]
+    recovered = prepare(evaluator)
+    repeated = prepare(evaluator)
+    assert recovered["spec_ids"] == repeated["spec_ids"] == runner.submissions
+    assert recovered["spec_ids"][0] == first_id
+    assert len(set(recovered["spec_ids"])) == 4
 
 
-def test_conflicting_content_for_one_candidate_id_refuses(tmp_path: Path) -> None:
-    evaluator, _lab, _runner, _root = _lab(tmp_path)
-    evaluator.prepare("cand-1", CURRENT_FILES, CANDIDATE_FILES, (TASK_A, TASK_B))
+def test_changed_candidate_refuses_without_mutating_retained_tree(campaign):
+    evaluator, runner, _ = campaign
+    original = prepare(evaluator)
+    tree = Path(original["manifest_path"]).parent / "candidate/terminus/AGENTS.md"
+    previous = tree.read_bytes()
     with pytest.raises(LabGateError, match="conflicting content"):
-        evaluator.prepare(
-            "cand-1", CURRENT_FILES, {"terminus/AGENTS.md": "# different\n"}, (TASK_A, TASK_B),
-        )
+        evaluator.prepare("candidate", CURRENT, {"terminus/AGENTS.md": "different"}, TASKS)
+    assert tree.read_bytes() == previous
+    assert runner.submissions == original["spec_ids"]
 
 
-def test_crash_window_spec_recovered_by_deterministic_job_name(tmp_path: Path) -> None:
-    evaluator, lab, _runner, _root = _lab(tmp_path)
-    # Submit through prepare, then wipe the manifest: the queue still holds
-    # the specs, and recovery must not submit anything new.
-    result = evaluator.prepare(
-        "cand-1", CURRENT_FILES, CANDIDATE_FILES, (TASK_A, TASK_B),
-    )
-    Path(result["manifest_path"]).unlink()
-    recovered = evaluator.prepare(
-        "cand-1", CURRENT_FILES, CANDIDATE_FILES, (TASK_A, TASK_B),
-    )
-    assert len(lab.submits) == 4
-    assert recovered["recovered"] is True
-    assert [d["spec_id"] for d in recovered["spec_details"]] == [
-        d["spec_id"] for d in result["spec_details"]
-    ]
-
-
-# ---------------------------------------------------------------------------
-# fail-closed validation before any CLI submit/execution
-# ---------------------------------------------------------------------------
-
-def test_heldout_allowlisted_task_refuses_before_submission(tmp_path: Path) -> None:
-    evaluator, lab, _runner, root = _lab(tmp_path)
-    _write_registry(root, TASK_B, uses=["measurement", "training", "heldout"])
-    with pytest.raises(LabGateError, match="heldout-allow-listed"):
-        evaluator.prepare("cand-1", CURRENT_FILES, CANDIDATE_FILES, (TASK_A, TASK_B))
-    assert lab.submits == []
-
-
-def test_missing_registration_fails_closed(tmp_path: Path) -> None:
-    evaluator, lab, _runner, root = _lab(tmp_path)
-    (root / "library" / "registry" / f"{TASK_B}.json").unlink()
-    with pytest.raises(LabGateError, match="no registry record"):
-        evaluator.prepare("cand-1", CURRENT_FILES, CANDIDATE_FILES, (TASK_A, TASK_B))
-    assert lab.submits == []
-
-
-def test_corrupt_registration_fails_closed(tmp_path: Path) -> None:
-    evaluator, lab, _runner, root = _lab(tmp_path)
-    (root / "library" / "registry" / f"{TASK_B}.json").write_text("{not json")
-    with pytest.raises(LabGateError, match="corrupt"):
-        evaluator.prepare("cand-1", CURRENT_FILES, CANDIDATE_FILES, (TASK_A, TASK_B))
-    assert lab.submits == []
-
-
-def test_dev_digest_drift_against_registry_refuses(tmp_path: Path) -> None:
-    evaluator, lab, _runner, root = _lab(tmp_path)
-    _write_registry(root, TASK_B, package="sha256:" + "d" * 64)
-    with pytest.raises(LabGateError, match="digest drift"):
-        evaluator.prepare("cand-1", CURRENT_FILES, CANDIDATE_FILES, (TASK_A, TASK_B))
-    assert lab.submits == []
-
-
-def test_task_mismatch_against_dev_set_refuses(tmp_path: Path) -> None:
-    evaluator, lab, _runner, _root = _lab(tmp_path)
-    with pytest.raises(LabGateError, match="match the committed dev set exactly"):
-        evaluator.prepare("cand-1", CURRENT_FILES, CANDIDATE_FILES, (TASK_A,))
-    assert lab.submits == []
-
-
-@pytest.mark.parametrize(
-    "mutation",
-    [
-        {"dev": [{"task_id": TASK_A, "task_path": "library/tasks/a", "package_digest": DEV_A_DIGEST},
-                 {"task_id": TASK_A, "task_path": "library/tasks/a2", "package_digest": DEV_B_DIGEST}]},
-        {"held": [{"task_id": TASK_A, "task_path": "~/x", "package_digest": DEV_A_DIGEST}]},
-        {"extra_root": {"sneaky": True}},
-        {"version": 2},
-    ],
-    ids=["duplicate-dev-id", "dev-held-digest-overlap", "unknown-root-key", "schema-version-2"],
-)
-def test_invalid_splits_refuse(tmp_path: Path, mutation: dict) -> None:
-    evaluator, lab, _runner, root = _lab(tmp_path)
-    held = [{"task_id": TASK_A, "task_path": "~/x", "package_digest": DEV_A_DIGEST}] \
-        if "held" in mutation else None
-    dev = mutation.get("dev")
-    _write_split(
-        root,
-        dev=dev,
-        held=held,
-        extra_root=mutation.get("extra_root"),
-        version=mutation.get("version", 1),
-    )
+@pytest.mark.parametrize("mutation", ["uncommitted", "heldout", "alias", "registry", "drift"])
+def test_exclusions_and_drift_refuse_before_any_submission(campaign, mutation):
+    evaluator, runner, root = campaign
+    if mutation in ("uncommitted", "heldout", "alias"):
+        split = json.loads((root / "split.json").read_text())
+        if mutation == "uncommitted":
+            split["note"] = "not committed"
+        elif mutation == "heldout":
+            split["held_out"][0]["task_id"] = TASKS[0]
+        else:
+            split["held_out"][0]["task_path"] = str(root / split["dev"][0]["task_path"])
+        (root / "split.json").write_text(json.dumps(split))
+        if mutation != "uncommitted":
+            git(root, "add", "split.json")
+            git(root, "commit", "-m", "Malformed boundary fixture")
+    elif mutation == "registry":
+        path = root / "library/registry" / (TASKS[0] + ".json")
+        record = json.loads(path.read_text())
+        record["allowed_uses"].append("heldout")
+        path.write_text(json.dumps(record))
+    else:
+        (root / "library/tasks" / TASKS[0] / "instruction.md").write_text("changed task")
     with pytest.raises(LabGateError):
-        evaluator.prepare("cand-1", CURRENT_FILES, CANDIDATE_FILES, (TASK_A, TASK_B))
-    assert lab.submits == []
+        prepare(evaluator)
+    assert runner.submissions == []
+    assert runner.ticks == []
 
 
-# ---------------------------------------------------------------------------
-# evaluation outcomes: timeouts, infra failures, idempotent retries
-# ---------------------------------------------------------------------------
-
-def test_approval_timeout_yields_positional_none_and_incomplete(tmp_path: Path, capsys) -> None:
-    evaluator, lab, _runner, _root = _lab(tmp_path, tick_timeout_seconds=0.05)
-    lab.outcomes = {}  # nothing will run: no approval ever arrives
-    out = evaluator.evaluate(
-        "cand-timeout", CURRENT_FILES, CANDIDATE_FILES, (TASK_A, TASK_B),
-    )
-    assert out["metadata"]["complete"] is False
-    assert out["metadata"]["incomplete_reason"] == "approval_timeout"
-    assert out["metrics"]["candidate_scores"] == (None, None)
-    assert out["metrics"]["current_scores"] == (None, None)
-    assert out["metrics"]["episode_failures"] == 4
-    assert out["metrics"]["evaluation_sides"] == []
-    assert lab.ticks == []
-    stdout = capsys.readouterr().out
-    assert "uv run evallab approve " in stdout
-    assert "candidate manifest:" in stdout
+def test_model_override_in_candidate_refuses_before_any_submission(campaign):
+    evaluator, runner, _ = campaign
+    poisoned = {**CANDIDATE, "terminus/config.json": '{"model_name":"another-model"}'}
+    with pytest.raises(ValueError, match="model/transport binding"):
+        evaluator.prepare("poisoned", CURRENT, poisoned, TASKS)
+    assert runner.submissions == []
 
 
-def test_rejected_spec_reports_withdrawn(tmp_path: Path) -> None:
-    evaluator, lab, _runner, _root = _lab(tmp_path)
-    evaluator.prepare("cand-reject", CURRENT_FILES, CANDIDATE_FILES, (TASK_A, TASK_B))
-    for spec_id in list(lab.submits):
-        state, path = lab._find(spec_id)
-        (lab.root / "queue" / "rejected" / path.name).write_text(path.read_text())
-        path.unlink()
-    out = evaluator.evaluate(
-        "cand-reject", CURRENT_FILES, CANDIDATE_FILES, (TASK_A, TASK_B),
-    )
-    assert out["metadata"]["incomplete_reason"] == "withdrawn"
-    assert out["metadata"]["complete"] is False
-    assert lab.ticks == []
+def test_missing_approval_and_withdrawal_preserve_none(campaign):
+    evaluator, runner, _ = campaign
+    result = prepare(evaluator)
+    missing = evaluator.evaluate("candidate", CURRENT, CANDIDATE, TASKS)
+    assert missing["metadata"]["incomplete_reason"] == "approval_timeout"
+    assert missing["metrics"]["candidate_scores"] == (None, None)
+    assert missing["metrics"]["current_scores"] == (None, None)
+    assert missing["metrics"]["evaluation_sides"] == []
+    assert runner.ticks == []
+    runner.queue.reject(result["spec_ids"][0], actor="fixture-human", message="withdrawn")
+    withdrawn = evaluator.evaluate("candidate", CURRENT, CANDIDATE, TASKS)
+    assert withdrawn["metadata"]["incomplete_reason"] == "withdrawn"
+    assert runner.ticks == []
 
 
-def test_infra_failure_scores_none_with_grounded_cause(tmp_path: Path) -> None:
-    evaluator, lab, _runner, _root = _lab(tmp_path)
-    names = _job_names(evaluator, "cand-infra")
-    for name in names:
-        side = "candidate" if name.endswith("-candidate") else "current"
-        if side == "candidate" and TASK_A in name:
-            lab.outcomes[name] = ("infra", "provider http 500")
-        else:
-            lab.outcomes[name] = ("score", 1.0)
-    _approve_all(lab)
-    out = evaluator.evaluate(
-        "cand-infra", CURRENT_FILES, CANDIDATE_FILES, (TASK_A, TASK_B),
-    )
-    metrics = out["metrics"]
-    assert metrics["candidate_scores"] == (None, 1.0)
-    assert metrics["current_scores"] == (1.0, 1.0)
-    assert metrics["episode_failures"] == 1
-    assert metrics["evaluation_sides"] == ["current"]
-    failure = metrics["candidate_failures"][0]
-    assert failure["task"] == TASK_A
-    assert failure["stage"] == "trial"
-    assert "provider http 500" in failure["cause"]
-    # Unobserved native quantities stay unknown, never invented.
-    assert out["metadata"]["residue_unknown"] is True
-    assert out["metadata"]["agents_unknown"] is True
-    assert metrics["candidate_agents"] == {}
-    assert metrics["candidate_residue"] == 0
+@pytest.mark.parametrize("bad_result", [
+    {"finished_at": STAMP, "exception_info": {"exception_type": "ProviderError"},
+     "verifier_result": {"rewards": {"reward": 0.0}}},
+    {"finished_at": STAMP, "verifier_result": {"rewards": {}}},
+    {"finished_at": STAMP, "verifier_result": {"rewards": {"reward": "1.0"}}},
+])
+def test_native_failures_are_none_and_cannot_clear_missing_side(campaign, bad_result):
+    evaluator, runner, _ = campaign
+    result = prepare(evaluator)
+    approve(runner, result)
+    runner.outcomes[result["spec_ids"][0]] = bad_result
+    measured = evaluator.evaluate("candidate", CURRENT, CANDIDATE, TASKS)
+    assert measured["metrics"]["candidate_scores"] == (None, 1.0)
+    assert measured["metrics"]["current_scores"] == (1.0, 1.0)
+    assert measured["metrics"]["episode_failures"] == 1
+    assert measured["metrics"]["evaluation_sides"] == ["current"]
+    assert measured["metadata"]["complete"] is False
+    assert measured["metadata"]["evidence"][0]["trial_dir"]
 
 
-def test_unscored_valid_trial_preserves_none(tmp_path: Path) -> None:
-    evaluator, lab, _runner, _root = _lab(tmp_path)
-    names = _job_names(evaluator, "cand-unscored")
-    for name in names:
-        if name.endswith("-current") and TASK_B in name:
-            lab.outcomes[name] = ("unscored", None)
-        else:
-            lab.outcomes[name] = ("score", 0.0)
-    _approve_all(lab)
-    out = evaluator.evaluate(
-        "cand-unscored", CURRENT_FILES, CANDIDATE_FILES, (TASK_A, TASK_B),
-    )
-    metrics = out["metrics"]
-    assert metrics["candidate_scores"] == (0.0, 0.0)
-    assert metrics["current_scores"] == (0.0, None)
-    assert metrics["evaluation_sides"] == ["candidate"]
-    assert out["metadata"]["complete"] is False
-    assert out["metadata"]["incomplete_reason"] == "incomplete_evidence"
+def test_completed_retry_reuses_results_and_preserves_pairing_order(campaign):
+    evaluator, runner, _ = campaign
+    result = prepare(evaluator)
+    approve(runner, result)
+    first = evaluator.evaluate("candidate", CURRENT, CANDIDATE, TASKS)
+    repeated = evaluator.evaluate("candidate", CURRENT, CANDIDATE, TASKS)
+    assert runner.ticks == result["spec_ids"]
+    assert runner.submissions == result["spec_ids"]
+    assert first["metrics"] == repeated["metrics"]
+    assert repeated["metadata"]["complete"] is True
+    assert all(row["trial_id"] for row in repeated["metadata"]["evidence"])
 
 
-def test_complete_campaign_has_full_settlement_shape(tmp_path: Path) -> None:
-    evaluator, lab, _runner, _root = _lab(tmp_path)
-    names = _job_names(evaluator, "cand-ok")
-    for name in names:
-        reward = 1.0 if name.endswith("-candidate") else 0.0
-        lab.outcomes[name] = ("score", reward)
-    _approve_all(lab)
-    out = evaluator.evaluate(
-        "cand-ok", CURRENT_FILES, CANDIDATE_FILES, (TASK_A, TASK_B),
-    )
-    metrics = out["metrics"]
-    assert metrics["candidate_scores"] == (1.0, 1.0)
-    assert metrics["current_scores"] == (0.0, 0.0)
-    assert metrics["episode_failures"] == 0
-    assert metrics["episode_repeats"] == 1
-    assert metrics["candidate_score"] == 2.0
-    assert metrics["current_score"] == 0.0
-    assert metrics["candidate_failures"] == ()
-    assert "evaluation_sides" not in metrics  # both sides fully covered
-    assert all(isinstance(p, str) and "runs/" in p for p in metrics["candidate_paths"])
-    meta = out["metadata"]
-    assert meta["complete"] is True
-    assert meta["incomplete_reason"] is None
-    assert meta["observed_pairs"] == 2
-    assert meta["split_digest"].startswith("sha256:")
-    assert meta["candidate_tree_sha256"] != meta["current_tree_sha256"]
-    assert meta["reef_commit"] == "2a1864d4158de8a24e00ae777e9ff0501f49a97f"
-    assert meta["model"] == MODEL
-    assert len(meta["spec_ids"]) == 4
-    assert meta["evaluation_seconds"] >= 0.0
-    assert {row["task_id"] for row in meta["evidence"]} == {TASK_A, TASK_B}
-    manifest = json.loads(Path(meta["manifest_path"]).read_text())
-    assert manifest["outcome"] == "evaluated"
-    assert len(manifest["approve_commands"]) == 8  # approve + tick per spec
+def test_queued_contract_tampering_refuses_before_execution(campaign):
+    evaluator, runner, _ = campaign
+    result = prepare(evaluator)
+    path = runner.queue.locate(result["spec_ids"][0])
+    spec = json.loads(path.read_text())
+    spec["max_requests"] += 1
+    path.write_text(json.dumps(spec))
+    with pytest.raises(LabGateError, match="submitted spec differs"):
+        evaluator.evaluate("candidate", CURRENT, CANDIDATE, TASKS)
+    assert runner.ticks == []
 
 
-def test_evaluate_retry_reuses_completed_specs_without_resubmitting(tmp_path: Path) -> None:
-    evaluator, lab, _runner, _root = _lab(tmp_path)
-    names = _job_names(evaluator, "cand-retry")
-    for name in names:
-        lab.outcomes[name] = ("score", 1.0)
-    _approve_all(lab)
-    first = evaluator.evaluate(
-        "cand-retry", CURRENT_FILES, CANDIDATE_FILES, (TASK_A, TASK_B),
-    )
-    submits_after_first = len(lab.submits)
-    ticks_after_first = len(lab.ticks)
-    second = evaluator.evaluate(
-        "cand-retry", CURRENT_FILES, CANDIDATE_FILES, (TASK_A, TASK_B),
-    )
-    assert len(lab.submits) == submits_after_first
-    # Completed specs are terminal; nothing new is ticked.
-    assert len(lab.ticks) == ticks_after_first
-    assert second["metrics"]["candidate_scores"] == first["metrics"]["candidate_scores"]
-    assert second["metadata"]["complete"] is True
+def test_queue_stop_prevents_dispatch(campaign):
+    evaluator, runner, _ = campaign
+    result = prepare(evaluator)
+    approve(runner, result)
+    runner.queue.stop()
+    outcome = evaluator.evaluate("candidate", CURRENT, CANDIDATE, TASKS)
+    assert outcome["metadata"]["incomplete_reason"] == "budget_stopped"
+    assert runner.ticks == []
 
 
-def test_model_binding_in_candidate_tree_refuses(tmp_path: Path) -> None:
-    evaluator, lab, _runner, _root = _lab(tmp_path)
-    poisoned = {
-        "terminus/AGENTS.md": "# rules\n",
-        "terminus/config.json": json.dumps({"model_name": "gpt-9", "temperature": 0.2}),
-    }
-    with pytest.raises(LabGateError, match="model/transport binding"):
-        evaluator.prepare("cand-poison", poisoned, CURRENT_FILES, (TASK_A, TASK_B))
-    assert lab.submits == []
+def test_running_prior_episode_blocks_later_dispatch(campaign):
+    evaluator, runner, _ = campaign
+    prepared = prepare(evaluator)
+    approve(runner, prepared)
+    first = runner.queue.locate(prepared["spec_ids"][0])
+    runner.queue.transition(first, "running", actor="test-runner", event="started")
+    result = evaluator.evaluate("candidate", CURRENT, CANDIDATE, TASKS)
+    assert result["metadata"]["incomplete_reason"] == "spec_timeout"
+    assert runner.ticks == []
 
 
-# ---------------------------------------------------------------------------
-# environment isolation
-# ---------------------------------------------------------------------------
-
-def test_child_environment_excludes_reef_runtime_but_keeps_credentials(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    venv_bin = tmp_path / "lab" / ".venv" / "bin"
-    venv_bin.mkdir(parents=True)
-    python = venv_bin / "python"
-    monkeypatch.setenv("PYTHONPATH", "/Users/x/Developer/reef")
-    monkeypatch.setenv("VIRTUAL_ENV", "/Users/x/Developer/reef/.venv")
-    monkeypatch.setenv("ZAI_OPENAPI_API_KEY", "sk-secret")
-    env = SubprocessRunner()._env(python)
-    assert "PYTHONPATH" not in env
-    assert "VIRTUAL_ENV" not in env
-    assert env["ZAI_OPENAPI_API_KEY"] == "sk-secret"
-    assert env["PATH"].startswith(str(venv_bin))
+def test_approval_timeout_keeps_already_observed_score(campaign):
+    evaluator, runner, root = campaign
+    prepared = prepare(evaluator)
+    first_id = prepared["spec_ids"][0]
+    runner.queue.approve(first_id, actor="fixture-human")
+    runner.run(["tick", "--spec-id", first_id], cwd=root, timeout=1, python=Path("unused"))
+    result = evaluator.evaluate("candidate", CURRENT, CANDIDATE, TASKS)
+    assert result["metadata"]["incomplete_reason"] == "approval_timeout"
+    assert result["metrics"]["candidate_scores"] == (1.0, None)
+    assert result["metrics"]["current_scores"] == (None, None)
+    assert result["metrics"]["evaluation_sides"] == []
+    assert runner.ticks == [first_id]
 
 
-def test_config_rejects_unknown_keys_and_wrong_agent() -> None:
-    with pytest.raises(LabGateError, match="unknown lab config keys"):
-        LabConfig.from_dict({
-            "lab_root": "/lab", "split_path": "split.json",
-            "model": MODEL, "record_dir": "/rec", "surprise": 1,
-        })
-    with pytest.raises(LabGateError, match="terminus-2"):
-        LabConfig.from_dict({
-            "lab_root": "/lab", "split_path": "s.json",
-            "model": MODEL, "record_dir": "/rec", "agent": "oracle",
-        })
-    with pytest.raises(LabGateError, match="complete lowercase commit"):
-        LabConfig.from_dict({
-            "lab_root": "/lab", "split_path": "s.json",
-            "model": MODEL, "record_dir": "/rec", "reef_commit": "HEAD",
-        })
+def test_retained_pair_removal_cannot_shrink_campaign(campaign):
+    evaluator, runner, _ = campaign
+    prepared = prepare(evaluator)
+    manifest_path = Path(prepared["manifest_path"])
+    manifest = json.loads(manifest_path.read_text())
+    manifest["pairings"].pop()
+    manifest_path.write_text(json.dumps(manifest))
+    with pytest.raises(LabGateError, match="pairing or tree identity"):
+        evaluator.evaluate("candidate", CURRENT, CANDIDATE, TASKS)
+    assert runner.submissions == prepared["spec_ids"]
+    assert runner.ticks == []

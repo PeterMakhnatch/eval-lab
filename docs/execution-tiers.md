@@ -320,8 +320,9 @@ Select the factory with Reef's `evolution.selection` and configure it through
 }
 ```
 
-The gate delegates episode evaluation to Reef's `BackendEvaluateMixin`.
-It drops and counts a positional pair if either score is missing or invalid.
+Without a `lab` object, the gate delegates episode evaluation to Reef's
+`BackendEvaluateMixin`. It drops and counts a positional pair if either score
+is missing or invalid.
 Ties remain valid evidence but leave the sign-test sample. Selection requires
 the exact one-sided sign-test probability to be **strictly below** `alpha`,
 at least `min_valid_pairs`, and no protected-task regression. A task is
@@ -335,6 +336,84 @@ probability, per-task vetoes, configuration, Reef revision and timings.
 Evaluation exceptions become rejections with no observed evaluation sides;
 they cannot clear the current failure history by inventing successful
 observations. If recording the decision fails, publication is refused.
+
+#### Judging harness candidates with Eval Lab (HAR-73)
+
+Add a `lab` object to the same gate configuration to replace native Reef
+episodes with ordinary Lab specs. The adapter calls the Lab CLI in the Lab
+checkout's own Python environment; it imports neither `evallab` nor Harbor
+inside Reef. `evallab` still never imports `reef`.
+
+```json
+{
+  "alpha": 0.05,
+  "min_valid_pairs": 5,
+  "pass_threshold": 1.0,
+  "regression_failure_threshold": 1,
+  "record_dir": "/absolute/owned/run/decisions",
+  "reef_commit": "2a1864d4158de8a24e00ae777e9ff0501f49a97f",
+  "lab": {
+    "lab_root": "/absolute/eval-lab-worktree",
+    "split_path": "research/experiments/reef-loop-pool-20260925/har73-split.json",
+    "record_dir": "/absolute/owned/run/evaluations",
+    "model": "zai/glm-5.3-flash",
+    "episode_repeats": 3,
+    "cost_limit_usd": 0.40,
+    "est_cost_usd": 0.40,
+    "max_requests": 30,
+    "max_input_tokens": 200000,
+    "max_output_tokens": 40000,
+    "max_total_tokens": 240000,
+    "tick_timeout_seconds": 3600
+  }
+}
+```
+
+The split must already be committed, not merely present on disk, before any
+candidate is evaluated. Its `dev` and `held_out` entries pin task IDs, paths,
+and package digests. Dev tasks must be registered for both `measurement` and
+`training`, with no `heldout` allowed use. Explicit held-out IDs, paths and
+package aliases refuse before submission. No registration or promotion is
+performed by the gate. The HAR-73 split uses two existing registered dev tasks;
+the four external held-out identities are **exclusions only**, not a matched,
+previously unseen confirmation benchmark.
+
+Reef's `evaluation_tasks` (or `gate_tasks` when the former is empty) must equal
+the configured split's dev IDs in order. Disable traffic-task promotion for
+this gate: an added or reordered task refuses rather than silently changing
+the comparison. Candidate/current file mappings become separately frozen
+HAR-71 trees. Model and transport are operator configuration, never candidate
+content. Each task/repeat gets fresh candidate then current specs, dispatched
+serially in that paired order.
+
+`LabEvaluator.prepare(...)` materializes and submits specs without executing
+them. It retains and prints the per-spec `evallab approve` commands.
+`evaluate(...)` reuses that manifest, waits for approval and executes only its
+own spec IDs through scoped `tick`. Neither operation approves anything.
+For two tasks and three repeats, twelve specs each capped at $0.40 permit up
+to **$4.80**, not a single $0.40 campaign. Standard `ZAI_OPENAPI_API_KEY` and
+per-spec recorded authorization are separate prerequisites; Coding Plan
+credentials are not substitutes. The no-Ollama-restart direction remains.
+
+The candidate ID binds the file mappings, split, model, and execution settings.
+Retries reuse retained prepared/submitted specs and native results; reusing an
+ID with a changed request refuses. A missing/withdrawn approval, budget stop,
+timeout, infrastructure error or unscored trial holds publication as
+`insufficient_evidence`, even if a measured subset has enough significant
+wins. Scores remain positional `None` where unknown; observed scores remain
+available for diagnosis. An incompletely observed side must not clear Reef's
+previous failure manifest.
+
+The decision's `lab` evidence includes the committed split revision and digest,
+pinned tree digests, spec IDs, native trial paths, and per-episode outcomes.
+Terminus ATIF does not supply Reef native-jsonl stage/residue observations;
+the corresponding empty Reef aggregations are marked unavailable in metadata,
+not presented as measured counters. Trial paths remain separate from Reef's
+stage-path dictionaries. Opaque Reef content IDs are provenance, not content
+hashes. Native Reef is still not an OS sandbox; the runner owns credential
+isolation and normal task containment.
+
+#### Native Reef calibration
 
 The calibration command copies the existing `04_gate_aa.py` experiment into
 the owned package; it does not edit the original script or its work directories.

@@ -162,10 +162,21 @@ class CeoBenchPlugin:
         spend = section.get("spend") or {}
         agent = spend.get("agent") or {}
         simulator = spend.get("simulator") or {}
+        if agent.get("cost_usd") is not None:
+            agent_part = (
+                f"Agent spend {_money(agent.get('cost_usd'))} "
+                f"(source {agent.get('source')})"
+            )
+        else:
+            agent_part = f"Agent spend unavailable: {agent.get('reason') or 'unknown'}"
+        if simulator.get("cost_usd") is not None:
+            simulator_part = f"simulator spend {_money(simulator.get('cost_usd'))}"
+        else:
+            simulator_part = (
+                f"simulator spend unavailable: {simulator.get('reason') or 'unknown'}"
+            )
         lines.append(
-            f"- Agent spend {_money(agent.get('cost_usd'))} "
-            f"(source {agent.get('source')}); simulator spend "
-            f"{_money(simulator.get('cost_usd'))} metered separately, "
+            f"- {agent_part}; {simulator_part} metered separately, "
             "never merged into agent cost."
         )
         forecasts = section.get("forecasts") or {}

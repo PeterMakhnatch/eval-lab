@@ -40,6 +40,8 @@ either, encrypted ledgers degrade to timing fallbacks with a reason.
 - Bankruptcy is cash below $0 (upstream engine rule).
 - No-op week: no state-changing tool call between completed week advances.
 - Missing data stays null with a reason, never a fabricated zero.
+- Unreadable spend/forecasts carry `status: unavailable` plus the exact
+  `world.nmdb` cause (no key, sqlcipher3 missing, wrong key, table absent).
 
 ## Upstream
 

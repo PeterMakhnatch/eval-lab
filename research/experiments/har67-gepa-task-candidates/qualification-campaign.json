@@ -1,0 +1,20 @@
+{
+  "name": "har67-task-package-qualification",
+  "engine": "gepa",
+  "agent": "oracle",
+  "seed_candidate_path": "research/experiments/har67-gepa-task-candidates/candidates/clarify-diagnostics-v1.txt",
+  "output_dir": "runs/gepa-har67-qualification",
+  "examples": [
+    {
+      "task_id": "db-wal-recovery",
+      "task_path": "research/experiments/har67-gepa-task-candidates/original",
+      "task_package_digest": "sha256:ce293e56ed1af10b86c6e953c41cdf451b1760b3203b41ec319c2e6b1d33cdc7",
+      "split": "development"
+    }
+  ],
+  "max_evals": 4,
+  "candidate_evaluation": "review",
+  "estimated_cost_usd": 0.05,
+  "timeout_seconds": 1200,
+  "objective": "QUALIFICATION ONLY (not live optimization): prove the task-package adapter loop end to end with the deterministic proposer and real oracle control trials. Zero model calls. The seed is a hand-authored clarification preamble, not a GEPA proposal."
+}

@@ -1,0 +1,11 @@
+# HAR-67 worktree-local task bytes (reproducible, never committed).
+#
+# original/ is vendored byte-identical from origin/har61-evalsbench-20260916
+# (includes the hidden solution/ and binary fixtures); candidate packages are
+# materialized from it by src/evallab/task_candidate.py. Both carry upstream
+# TB2 bytes that must not enter the merged tree (solution-leak and
+# training-corpus hygiene). Regenerate with the README revendor command;
+# pins live in paired-specs/ and the README digest tables.
+/original/
+/candidates/*/
+!/candidates/*.txt

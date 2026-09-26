@@ -23,7 +23,7 @@ inputs:
   - path: docs/agent-profiles.md
     digest: sha256:25a39ca8addc9a13867db38340b7bd3606ca87b733a54dd0facb101d7ef8c5cc
   - path: docs/analysis-loop.md
-    digest: sha256:6c9b6234faedcf2e103f9e56ca11624d9427b6d8fec503c1ff7e26a8ad3cf96d
+    digest: sha256:d898efc4e34ab1e05b531e210f2759796dde0ed0621c26594b8c744829f533d0
   - path: docs/analysis-worker.md
     digest: sha256:e371abf23361ab2a2f75408801e57c57c7332267ad787bfd3996dddb5f48e966
   - path: docs/architecture.md

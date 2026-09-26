@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from evallab.interpretation.domains.atlas_finance import AtlasFinancePlugin
+from evallab.interpretation.domains.ceo_bench import CeoBenchPlugin
 from evallab.interpretation.domains.synthetic_hospital import SyntheticHospitalPlugin
 
 
@@ -43,6 +44,7 @@ class DomainPlugin(Protocol):
 PLUGINS: tuple[DomainPlugin, ...] = (
     SyntheticHospitalPlugin(),
     AtlasFinancePlugin(),
+    CeoBenchPlugin(),
 )
 
 

@@ -6,22 +6,17 @@ no second parse of the trajectory document and no repeated full-chain scans.
 The step-window math (``window_of``) matches the historical tenth-of-the-run
 bucketing so window indices stay comparable across report versions.
 
-Loop suspicion is a verbatim port of ``evallab.traj._analyze_loop_suspicion``
-operating on :class:`LoopStep` (the four fields that algorithm reads) so the
-report computes the same score without building a second trajectory outline.
-A parity test pins the two implementations together.
+Loop suspicion is ``evallab.traj._analyze_loop_suspicion`` itself, called on
+per-step facts from ``evallab.traj.extract_loop_step``: one implementation and
+one fact source shared with the trajectory outline.
 """
 
 from __future__ import annotations
 
-from collections import Counter
 from collections.abc import Sequence
-from dataclasses import dataclass
 from datetime import datetime
 from statistics import median
 from typing import Any, Protocol
-
-from evallab.traj import LoopSuspicion
 
 WINDOW_COUNT = 10
 MIN_STEPS_FOR_WINDOWS = 20
@@ -59,16 +54,6 @@ class WindowStep(Protocol):
     def actions(self) -> Sequence[WindowAction]: ...
 
 
-@dataclass(frozen=True, slots=True)
-class LoopStep:
-    """The four per-step facts the loop-suspicion heuristic reads."""
-
-    tool_name: str | None
-    tool_command: str | None
-    exit_code: int | None
-    is_error: bool
-
-
 def window_bounds(
     index: int, total_steps: int, window_count: int = WINDOW_COUNT
 ) -> tuple[int, int]:
@@ -84,77 +69,6 @@ def window_bounds(
     return (first, max(first, last))
 
 
-def analyze_loop_suspicion(steps: Sequence[LoopStep]) -> LoopSuspicion:
-    """Loop suspicion over report steps; parity: ``traj._analyze_loop_suspicion``."""
-    repeated_commands = 0
-    repeated_errors = 0
-    cyclic_patterns = 0
-    reasons: list[str] = []
-
-    # 1. Consecutive identical tool commands
-    consecutive_cmd_count = 1
-    last_cmd: str | None = None
-    for step in steps:
-        cmd = step.tool_command
-        if cmd and len(cmd) > 5:
-            if cmd == last_cmd:
-                consecutive_cmd_count += 1
-                if consecutive_cmd_count == 3:
-                    repeated_commands += 1
-                    reasons.append(f"repeated_consecutive_command: {cmd[:40]!r} (3+ times)")
-            else:
-                consecutive_cmd_count = 1
-                last_cmd = cmd
-        else:
-            consecutive_cmd_count = 1
-            last_cmd = None
-
-    # 2. Repeated failing commands with identical error/exit code
-    failed_cmds: Counter[str] = Counter()
-    for step in steps:
-        if step.is_error and step.tool_command:
-            norm = f"{step.tool_name}:{step.tool_command[:60]}:{step.exit_code}"
-            failed_cmds[norm] += 1
-    for failed_cmd, count in failed_cmds.items():
-        if count >= 3:
-            repeated_errors += 1
-            reasons.append(f"repeated_failing_command: {failed_cmd} ({count} failures)")
-
-    # 3. Alternating tool cycles (e.g. A -> B -> A -> B -> A -> B)
-    tool_sequence = [s.tool_name for s in steps if s.tool_name]
-    if len(tool_sequence) >= 6:
-        for period in (2, 3):
-            matches = 0
-            for i in range(len(tool_sequence) - period * 2 + 1):
-                chunk1 = tool_sequence[i : i + period]
-                chunk2 = tool_sequence[i + period : i + period * 2]
-                if chunk1 == chunk2 and len(set(chunk1)) > 1:
-                    matches += 1
-            if matches >= 2:
-                cyclic_patterns += 1
-                reasons.append(f"cyclic_tool_pattern: period={period} repeated {matches} times")
-                break
-
-    # Calculate bounded score [0.0, 1.0]
-    score = 0.0
-    if repeated_commands > 0:
-        score += 0.35 + min(0.35, repeated_commands * 0.15)
-    if repeated_errors > 0:
-        score += 0.30 + min(0.30, repeated_errors * 0.15)
-    if cyclic_patterns > 0:
-        score += 0.40
-
-    score = min(1.0, round(score, 4))
-    detected = score >= 0.50
-
-    return LoopSuspicion(
-        score=score,
-        detected=detected,
-        reasons=tuple(reasons),
-        repeated_command_count=repeated_commands,
-        repeated_error_count=repeated_errors,
-        cyclic_patterns_count=cyclic_patterns,
-    )
 
 
 def window_of(step: int, total_steps: int, window_count: int = WINDOW_COUNT) -> int:

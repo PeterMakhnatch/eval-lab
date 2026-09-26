@@ -21,7 +21,7 @@ from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 import duckdb
 import pyarrow as pa
@@ -33,6 +33,7 @@ from evallab.storage.paths import (
     resolve_runs_roots,
 )
 from evallab.trajectory_error_taxonomy import (
+    ErrorClassification,
     classify_intervention_provenance,
     classify_step_error,
     split_envelope,
@@ -102,6 +103,37 @@ class LoopSuspicion:
     repeated_command_count: int
     repeated_error_count: int
     cyclic_patterns_count: int
+
+
+@dataclass(frozen=True)
+class LoopStep:
+    """The four per-step facts the loop-suspicion heuristic reads.
+
+    Extracted once per raw step by :func:`extract_loop_step` and shared by
+    ``outline_trajectory`` and the run report, so the heuristic has a single
+    implementation and a single fact source.
+    """
+
+    tool_name: str | None
+    tool_command: str | None
+    exit_code: int | None
+    is_error: bool
+
+
+class LoopStepView(Protocol):
+    """The four loop-suspicion attributes; ``StepOutline`` and ``LoopStep`` qualify."""
+
+    @property
+    def tool_name(self) -> str | None: ...
+
+    @property
+    def tool_command(self) -> str | None: ...
+
+    @property
+    def exit_code(self) -> int | None: ...
+
+    @property
+    def is_error(self) -> bool: ...
 
 
 @dataclass(frozen=True)
@@ -583,7 +615,7 @@ def _is_edit_action(tool_name: str | None, command_snippet: str | None) -> bool:
     return bool(command_snippet and EDIT_COMMAND_PATTERNS.search(command_snippet))
 
 
-def _analyze_loop_suspicion(steps: Sequence[StepOutline]) -> LoopSuspicion:
+def _analyze_loop_suspicion(steps: Sequence[LoopStepView]) -> LoopSuspicion:
     """Analyze step sequences for repeated commands, failing cycles, and loops."""
     repeated_commands = 0
     repeated_errors = 0
@@ -653,6 +685,81 @@ def _analyze_loop_suspicion(steps: Sequence[StepOutline]) -> LoopSuspicion:
         repeated_command_count=repeated_commands,
         repeated_error_count=repeated_errors,
         cyclic_patterns_count=cyclic_patterns,
+    )
+
+
+def extract_loop_step(raw_step: dict[str, Any]) -> tuple[LoopStep, str | None, ErrorClassification]:
+    """Primary-tool, exit, and error facts for one raw trajectory step.
+
+    This is the fact source ``outline_trajectory`` reads when building each
+    ``StepOutline``; the run report calls it too, so both consumers share one
+    extraction and one ``_analyze_loop_suspicion`` implementation.
+
+    Returns the four loop facts, the error message, and the full error
+    classification (probe flag, category) from the same single
+    ``classify_step_error`` call, so no consumer classifies twice.
+    """
+    tool_calls_value = raw_step.get("tool_calls")
+    tool_calls = tool_calls_value if isinstance(tool_calls_value, list) else []
+    primary_tool_name = None
+    primary_tool_cmd = None
+    if tool_calls and isinstance(tool_calls[0], dict):
+        first_call = tool_calls[0]
+        primary_tool_name = _safe_str(first_call.get("function_name"))
+        primary_tool_cmd = _extract_command_string(first_call.get("arguments"))
+    # Observation errors / exit codes across observation / observation_results.
+    exit_code: int | None = None
+    error_msg: str | None = None
+    result_type: str | None = None
+    result_status: str | None = None
+    obs = raw_step.get("observation")
+    obs_results_value = raw_step.get("observation_results")
+    results: list[dict[str, Any]] = []
+    if isinstance(obs, dict):
+        res_list = obs.get("results")
+        if isinstance(res_list, list):
+            results.extend(r for r in res_list if isinstance(r, dict))
+    if isinstance(obs_results_value, list):
+        results.extend(r for r in obs_results_value if isinstance(r, dict))
+    for res in results:
+        extra_value = res.get("extra")
+        extra = extra_value if isinstance(extra_value, dict) else {}
+        if "exit_code" in extra and isinstance(extra["exit_code"], int):
+            exit_code = extra["exit_code"]
+        envelope_code, content = split_envelope(res.get("content"))
+        if exit_code is None and envelope_code is not None:
+            exit_code = envelope_code
+        result_type = str(res.get("type") or "").lower()
+        result_status = str(res.get("status") or "").lower()
+        if exit_code is not None and exit_code != 0:
+            error_msg = error_msg or f"command exited with code {exit_code}"
+        elif result_type in {"error", "tool_error"} or result_status in {
+            "error",
+            "failed",
+        }:
+            error_msg = error_msg or content[:120].strip() or "tool result reported an error"
+    # Deterministic error taxonomy and expected negative probe classification.
+    _, primary_text = split_envelope(
+        results[0].get("content") if results else None
+    )
+    primary_content = primary_text or error_msg
+    error_classification = classify_step_error(
+        tool_name=primary_tool_name,
+        tool_command=primary_tool_cmd,
+        exit_code=exit_code,
+        output_content=str(primary_content or error_msg or ""),
+        result_type=result_type if results else None,
+        result_status=result_status if results else None,
+    )
+    return (
+        LoopStep(
+            tool_name=primary_tool_name,
+            tool_command=primary_tool_cmd,
+            exit_code=exit_code,
+            is_error=error_classification.is_error,
+        ),
+        error_msg,
+        error_classification,
     )
 
 
@@ -1530,18 +1637,20 @@ def outline_trajectory(
 
         tool_calls_value = raw_step.get("tool_calls")
         tool_calls = tool_calls_value if isinstance(tool_calls_value, list) else []
-        primary_tool_name = None
-        primary_tool_cmd = None
         if tool_calls and isinstance(tool_calls[0], dict):
-            first_call = tool_calls[0]
-            primary_tool_name = _safe_str(first_call.get("function_name"))
-            primary_tool_cmd = _extract_command_string(first_call.get("arguments"))
             for tc in tool_calls:
                 if not isinstance(tc, dict):
                     continue
                 tname = _safe_str(tc.get("function_name"))
                 if tname:
                     tool_mix_counter[tname] += 1
+        # Primary-tool, exit, and error facts come from the shared extractor so
+        # the outline and the run report read one identical source.
+        loop, error_msg, error_classification = extract_loop_step(raw_step)
+        primary_tool_name = loop.tool_name
+        primary_tool_cmd = loop.tool_command
+        exit_code = loop.exit_code
+        is_error = loop.is_error
 
         if primary_tool_name and step_to_first_tool is None:
             step_to_first_tool = step_id
@@ -1551,55 +1660,9 @@ def outline_trajectory(
             step_to_first_edit = step_id
             first_edit_timestamp = timestamp
 
-        # Determine observation errors / exit codes across observation / observation_results
-        exit_code: int | None = None
-        is_error = False
-        error_msg: str | None = None
-        obs = raw_step.get("observation")
-        obs_results_value = raw_step.get("observation_results")
-        results: list[dict[str, Any]] = []
-        if isinstance(obs, dict):
-            res_list = obs.get("results")
-            if isinstance(res_list, list):
-                results.extend(r for r in res_list if isinstance(r, dict))
-        if isinstance(obs_results_value, list):
-            results.extend(r for r in obs_results_value if isinstance(r, dict))
-        for res in results:
-            extra_value = res.get("extra")
-            extra = extra_value if isinstance(extra_value, dict) else {}
-            if "exit_code" in extra and isinstance(extra["exit_code"], int):
-                exit_code = extra["exit_code"]
-            envelope_code, content = split_envelope(res.get("content"))
-            if exit_code is None and envelope_code is not None:
-                exit_code = envelope_code
-            result_type = str(res.get("type") or "").lower()
-            result_status = str(res.get("status") or "").lower()
-            if exit_code is not None and exit_code != 0:
-                is_error = True
-                error_msg = error_msg or f"command exited with code {exit_code}"
-            elif result_type in {"error", "tool_error"} or result_status in {
-                "error",
-                "failed",
-            }:
-                is_error = True
-                error_msg = error_msg or content[:120].strip() or "tool result reported an error"
-        # Deterministic error taxonomy and expected negative probe classification
-        _, primary_text = split_envelope(
-            results[0].get("content") if results else None
-        )
-        primary_content = primary_text or error_msg
-        error_classification = classify_step_error(
-            tool_name=primary_tool_name,
-            tool_command=primary_tool_cmd,
-            exit_code=exit_code,
-            output_content=str(primary_content or error_msg or ""),
-            result_type=result_type if results else None,
-            result_status=result_status if results else None,
-        )
         is_probe = error_classification.is_expected_probe
         if is_probe:
             expected_probe_count += 1
-        is_error = error_classification.is_error
 
         if is_error:
             total_errors += 1

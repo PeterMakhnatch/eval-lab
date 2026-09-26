@@ -45,8 +45,6 @@ from evallab.interpretation.price_table import estimate_cost_usd, lookup_price
 from evallab.interpretation.run_report_scale import (
     MIN_STEPS_FOR_WINDOWS,
     WINDOW_COUNT,
-    LoopStep,
-    analyze_loop_suspicion,
     infer_compactions,
     repeat_onset,
     step_windows,
@@ -54,10 +52,12 @@ from evallab.interpretation.run_report_scale import (
 )
 from evallab.traj import (
     CONTROL_AGENTS,
+    LoopStep,
     TrajectoryError,
+    _analyze_loop_suspicion,
     _chain_action_steps,
-    _extract_command_string,
     _resolve_chain_segments,
+    extract_loop_step,
     resolve_trial_target,
 )
 from evallab.trajectory_error_taxonomy import classify_step_error, split_envelope
@@ -642,53 +642,6 @@ def _cache_write(metrics: dict[str, Any]) -> int | None:
     return None
 
 
-def _loop_step(raw: dict[str, Any]) -> LoopStep:
-    """Outline-parity facts for loop suspicion, read from the step's raw calls.
-
-    Mirrors the extraction ``outline_trajectory`` performs (first tool call's
-    name and command, exit code from any result, error from the shared
-    taxonomy) so the score matches the outline without a second document parse.
-    """
-    calls = raw.get("tool_calls")
-    first = calls[0] if isinstance(calls, list) and calls and isinstance(calls[0], dict) else None
-    tool_name = str(first.get("function_name")) if first and first.get("function_name") is not None else ""
-    tool_command = _extract_command_string(first.get("arguments")) if first else None
-    exit_code: int | None = None
-    error_msg: str | None = None
-    result_type = result_status = None
-    primary_text: str | None = None
-    results = _observation_results(raw)
-    for result in results:
-        code = _int(_dict(result.get("extra")).get("exit_code"))
-        if code is not None:
-            exit_code = code
-        envelope_code, content = split_envelope(result.get("content"))
-        if exit_code is None and envelope_code is not None:
-            exit_code = envelope_code
-        if exit_code is not None and exit_code != 0:
-            error_msg = error_msg or f"command exited with code {exit_code}"
-        lowered_type = str(result.get("type") or "").lower()
-        lowered_status = str(result.get("status") or "").lower()
-        if lowered_type in {"error", "tool_error"} or lowered_status in {"error", "failed"}:
-            error_msg = error_msg or content[:120].strip() or "tool result reported an error"
-        result_type, result_status = lowered_type, lowered_status
-    if results:
-        _, primary_text = split_envelope(results[0].get("content"))
-    classification = classify_step_error(
-        tool_name=tool_name or None,
-        tool_command=tool_command,
-        exit_code=exit_code,
-        output_content=str(primary_text or error_msg or ""),
-        result_type=result_type if results else None,
-        result_status=result_status if results else None,
-    )
-    return LoopStep(
-        tool_name=tool_name or None,
-        tool_command=tool_command,
-        exit_code=exit_code,
-        is_error=classification.is_error,
-    )
-
 
 def _build_steps(
     positioned: Sequence[tuple[int, Any]],
@@ -699,7 +652,7 @@ def _build_steps(
     # Number only well-formed steps so ordinals stay contiguous.
     well_formed = [(segment, raw) for segment, raw in positioned if isinstance(raw, dict)]
     for ordinal, (segment, raw) in enumerate(well_formed, start=1):
-        loop_steps.append(_loop_step(raw))
+        loop_steps.append(extract_loop_step(raw)[0])
         timestamp = _parse_ts(raw.get("timestamp"))
         metrics = _dict(raw.get("metrics"))
         extra = _dict(raw.get("extra"))
@@ -1171,7 +1124,7 @@ def _revisits(
         (g for g in groups.values() if len(g) > 1),
         key=lambda g: (-len(g), g[0].step),
     )
-    loop = analyze_loop_suspicion(loop_steps) if loop_steps is not None else None
+    loop = _analyze_loop_suspicion(loop_steps) if loop_steps is not None else None
     section: dict[str, Any] = {
         "actions_considered": len(counted),
         "distinct_actions": len(groups),
@@ -1762,6 +1715,7 @@ def build_run_report(
     # Loop suspicion is computed from the same single parse that builds the
     # steps below; the trajectory document is no longer read a second time.
     try:
+
         _, traj_path, _ = resolve_trial_target(trial, repo_root=trial, explicit_runs_root=trial)
     except (TrajectoryError, ValueError, OSError):
         traj_path = None

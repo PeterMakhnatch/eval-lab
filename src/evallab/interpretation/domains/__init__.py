@@ -13,6 +13,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Protocol
 
+from evallab.interpretation.domains.atlas_finance import AtlasFinancePlugin
+from evallab.interpretation.domains.synthetic_hospital import SyntheticHospitalPlugin
+
 
 class DomainPlugin(Protocol):
     """A benchmark-specific section of the run report."""
@@ -37,7 +40,10 @@ class DomainPlugin(Protocol):
         ...
 
 
-PLUGINS: tuple[DomainPlugin, ...] = ()
+PLUGINS: tuple[DomainPlugin, ...] = (
+    SyntheticHospitalPlugin(),
+    AtlasFinancePlugin(),
+)
 
 
 def domain_section(trial_dir: Path, result: dict[str, Any]) -> dict[str, Any] | None:

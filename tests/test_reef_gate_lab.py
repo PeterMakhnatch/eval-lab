@@ -328,3 +328,13 @@ def test_retained_pair_removal_cannot_shrink_campaign(campaign):
         evaluator.evaluate("candidate", CURRENT, CANDIDATE, TASKS)
     assert runner.submissions == prepared["spec_ids"]
     assert runner.ticks == []
+
+
+def test_crlf_candidate_retry_retains_exact_tree_bytes(campaign):
+    evaluator, runner, _ = campaign
+    files = {"terminus/AGENTS.md": "Inspect files.\r\nValidate outputs.\r\n"}
+    first = evaluator.prepare("crlf", CURRENT, files, TASKS)
+    repeated = evaluator.prepare("crlf", CURRENT, files, TASKS)
+    tree = Path(first["manifest_path"]).parent / "candidate/terminus/AGENTS.md"
+    assert tree.read_bytes() == files["terminus/AGENTS.md"].encode()
+    assert first["spec_ids"] == repeated["spec_ids"] == runner.submissions

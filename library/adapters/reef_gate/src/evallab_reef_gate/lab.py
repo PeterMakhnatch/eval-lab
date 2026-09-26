@@ -161,7 +161,7 @@ def retain_tree(path: Path, files: Mapping[str, str]) -> None:
             if child.is_symlink() or not (child.is_file() or child.is_dir()):
                 raise LabGateError("retained harness contains a symlink or special file")
             if child.is_file():
-                actual[child.relative_to(path).as_posix()] = child.read_text(encoding="utf-8")
+                actual[child.relative_to(path).as_posix()] = child.read_bytes().decode("utf-8")
         if actual != files:
             raise LabGateError("retained harness content changed; refusing overwrite")
         return

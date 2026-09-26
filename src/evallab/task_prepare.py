@@ -9,6 +9,9 @@ values, or cloud calls, so preparation works without credentials.
 from __future__ import annotations
 
 import math
+import os
+import shutil
+import tempfile
 import tomllib
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -27,12 +30,14 @@ from evallab.execution_contracts import (
     ZAI_OPENAPI_MODEL_SELECTOR,
     ZAI_OPENCODE_AGENT,
     ZAI_OPENCODE_MODEL_SELECTORS,
+    ReefTrafficBinding,
     RunRequest,
     uses_provider_proxy,
     validate_request,
 )
+from evallab.reef_traffic import check_task_allowed, pull_and_pin
 from evallab.registry import compute_task_digests
-from evallab.schemas import EXPLORATION_JOBS_ROOT, ExperimentSpec
+from evallab.schemas import EXPLORATION_JOBS_ROOT, ExperimentSpec, ReefTrafficSpec
 from evallab.task_import import import_task_package
 from evallab.terminus_harness import load_harness_tree, stage_harness_tree
 
@@ -247,6 +252,9 @@ def prepare_task(
     max_total_tokens: int | None = None,
     harness_tree_path: Path | None = None,
     harness_tree_sha256: str | None = None,
+    reef_url: str | None = None,
+    reef_scenario: str | None = None,
+    reef_token_env: str | None = None,
     output: Path | None = None,
     submitted_by: str = "operator",
 ) -> PreparedTask:
@@ -341,8 +349,69 @@ def prepare_task(
         raise ValueError("estimated cost must cover the model cost ceiling plus any infrastructure")
     if harness_tree_sha256 is not None and harness_tree_path is None:
         raise ValueError("harness_tree_sha256 requires harness_tree_path")
+    reef_params = (reef_url, reef_scenario, reef_token_env)
+    if any(param is not None for param in reef_params):
+        if agent != TERMINUS_AGENT:
+            raise ValueError("reef capture/reporting is supported only by terminus-2")
+        if model != TERMINUS_LOCAL_MODEL_SELECTOR:
+            raise ValueError("reef traffic runs on the local terminus route")
+        if harness_tree_path is not None:
+            raise ValueError("reef specs pull the served tree; omit --harness-tree")
+        if any(param is None for param in reef_params):
+            raise ValueError("reef_url, reef_scenario and reef_token_env are required together")
+
+    reef_spec: ReefTrafficSpec | None = None
     tree = None
-    if harness_tree_path is not None:
+    harness_snapshot = None
+    if reef_url is not None:
+        assert reef_scenario is not None and reef_token_env is not None
+        # Held-out refusal before any Reef call, same rule as training_pool.py:120.
+        # Source digests come first so a renamed copy still matches its
+        # registry record by package digest, not just by directory.
+        source_digests = compute_task_digests(resolved_source)
+        try:
+            source_rel = resolved_source.relative_to(repo).as_posix()
+        except ValueError:
+            source_rel = None
+        check_task_allowed(
+            repo,
+            task_label=display_name,
+            task_dir=resolved_source,
+            task_path=source_rel,
+            package_digest=source_digests.package,
+        )
+        token = os.environ.get(reef_token_env)
+        if not token:
+            raise ValueError(
+                f"reef token env var {reef_token_env!r} is not set; "
+                "export it before preparing a reef spec"
+            )
+        pull_dir = Path(tempfile.mkdtemp(prefix="reef-harness-pull."))
+        try:
+            pulled = pull_and_pin(reef_url, reef_scenario, token, pull_dir)
+            tree = load_harness_tree(pulled.path, pulled.digest)
+            # Stage into repo-owned prepared state now: execution must never
+            # depend on this tempdir, which is removed below.
+            harness_snapshot, _ = stage_harness_tree(
+                tree.root,
+                tree.sha256,
+                staging_root=_output_path(repo, Path(PREPARED_HARNESSES_REL)),
+            )
+        finally:
+            shutil.rmtree(pull_dir, ignore_errors=True)
+        reef_spec = ReefTrafficSpec(
+            url=reef_url,
+            scenario=reef_scenario,
+            token_env=reef_token_env,
+            release_id=pulled.release_id,
+            content_id=pulled.content_id,
+        )
+        warnings.append(
+            f"reef traffic to {reef_scenario!r}: pulled release {pulled.release_id} "
+            f"(content {pulled.content_id}) pinned as {pulled.digest}; "
+            "approval authorizes this exact tree"
+        )
+    if reef_spec is None and harness_tree_path is not None:
         if agent != TERMINUS_AGENT:
             raise ValueError("harness trees are supported only by terminus-2")
         tree_source = Path(harness_tree_path)
@@ -360,6 +429,17 @@ def prepare_task(
     snapshot_root = _output_path(repo, Path(PREPARED_TASKS_REL))
 
     # This validates the command contract; only the queue can authorize spending.
+    reef_binding = (
+        ReefTrafficBinding(
+            url=reef_spec.url,
+            scenario=reef_spec.scenario,
+            token_env=reef_spec.token_env,
+            release_id=reef_spec.release_id or "",
+            content_id=reef_spec.content_id or "",
+        )
+        if reef_spec is not None
+        else None
+    )
     request = RunRequest(
         task=resolved_source,
         agent=agent,
@@ -374,8 +454,9 @@ def prepare_task(
         max_output_tokens=ceiling_output,
         max_total_tokens=ceiling_total,
         cost_limit_usd=ceiling_cost,
-        harness_tree_path=tree.root if tree else None,
+        harness_tree_path=harness_snapshot if harness_snapshot is not None else (tree.root if tree else None),
         harness_tree_sha256=tree.sha256 if tree else None,
+        reef=reef_binding,
     )
     validate_request(request)
 
@@ -384,13 +465,13 @@ def prepare_task(
         raise ValueError(
             "task configuration changed during preparation; retry with a stable source"
         )
-    harness_snapshot = None
-    if tree is not None:
+    if tree is not None and harness_snapshot is None:
         harness_snapshot, _ = stage_harness_tree(
             tree.root,
             tree.sha256,
             staging_root=_output_path(repo, Path(PREPARED_HARNESSES_REL)),
         )
+    if harness_snapshot is not None:
         request = replace(request, harness_tree_path=harness_snapshot)
     task_rel = snapshot.relative_to(repo).as_posix()
     digests = compute_task_digests(snapshot)
@@ -412,6 +493,7 @@ def prepare_task(
         task_path=task_rel,
         harness_tree_path=harness_snapshot.relative_to(repo).as_posix() if harness_snapshot else None,
         harness_tree_sha256=tree.sha256 if tree else None,
+        reef=reef_spec,
         agent=agent,
         model=model,
         environment=environment,
@@ -481,6 +563,11 @@ def replay_task(
     base = load_retained_spec(retained_spec_path)
     if base.agent != TERMINUS_AGENT:
         raise ValueError("harness-tree replay requires a retained terminus-2 spec")
+    if base.reef is not None:
+        raise ValueError(
+            "reef specs pin a served release at prepare time; "
+            "prepare a fresh reef spec instead of replaying"
+        )
     task_path = (repo / (base.task_path or base.task)).resolve()
     if not task_path.is_relative_to(repo):
         raise ValueError("retained task path must remain inside the repository")

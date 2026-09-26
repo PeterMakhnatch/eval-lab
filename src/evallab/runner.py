@@ -16,7 +16,7 @@ import tempfile
 import threading
 import time
 import tomllib
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager, suppress
 from dataclasses import asdict, replace
 from datetime import UTC, datetime
@@ -50,6 +50,7 @@ from evallab.execution_contracts import (
     LOCAL_TO_HARBOR_MODEL,
     MAX_TRIAL_TIMEOUT_SECONDS,
     REDACTED_SECRET_VALUE,
+    REEF_SCENARIO_ENV,
     RLM_AGENT,
     SUPPORT_COMMAND_TIMEOUT_SECONDS,
     TERMINUS_AGENT,
@@ -93,6 +94,7 @@ from evallab.execution_contracts import (
     HarborProcessResult,
     ProxyTrialLimits,
     RedactingBinaryWriter,
+    ReefTrafficBinding,
     RunRequest,
     TransientHarnessFailure,
     TrialTimeoutFailure,
@@ -428,6 +430,41 @@ def _active_trial_directories(job_dir: Path) -> tuple[Path, ...]:
         for candidate in job_dir.iterdir()
         if candidate.is_dir() and "__" in candidate.name and not _trial_is_terminal(candidate)
     )
+
+
+def _reef_trial_inputs(job_dir: Path) -> list[tuple[str, dict[str, Any], dict[str, Any]]]:
+    """Read per-trial ``(trial_id, result, raw rewards)`` for Reef reporting.
+
+    Best-effort: an unreadable trial becomes an unscored skip, never a crash.
+    Only directories Harbor shaped as trials (``task_name`` + ``trial_name``)
+    are read, mirroring ``results.load_job``.
+    """
+    inputs: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+    if not job_dir.is_dir():
+        return inputs
+    for candidate in sorted(job_dir.iterdir()):
+        if not candidate.is_dir() or not (candidate / "result.json").is_file():
+            continue
+        try:
+            result = json.loads((candidate / "result.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, UnicodeError):
+            inputs.append((candidate.name, {}, {}))
+            continue
+        if not isinstance(result, dict):
+            inputs.append((candidate.name, {}, {}))
+            continue
+        if "task_name" not in result or "trial_name" not in result:
+            continue
+        trial_id = result.get("id")
+        raw_rewards = (result.get("verifier_result") or {}).get("rewards") or {}
+        inputs.append(
+            (
+                str(trial_id) if trial_id else candidate.name,
+                result,
+                dict(raw_rewards) if isinstance(raw_rewards, dict) else {},
+            )
+        )
+    return inputs
 
 
 def _unlink_secret_dir(directory: Path | None, secret_file: Path | None) -> None:
@@ -864,6 +901,8 @@ def run_harbor_process(
     lease_path: Path | None = None,
     lease_generation: str | None = None,
     proxy_attempt_id: str | None = None,
+    reef: ReefTrafficBinding | None = None,
+    reef_tags: Mapping[str, str] | None = None,
     proxy_limits: ProxyTrialLimits | None = None,
     heartbeat_interval_seconds: float = DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
 ) -> HarborProcessResult:
@@ -925,6 +964,7 @@ def run_harbor_process(
     capability_id: str | None = None
     proxy_pricing: dict[str, int] | None = None
     terminus_proxy: subprocess.Popen[bytes] | None = None
+    reef_proxy: Any | None = None
     try:
         if deepseek_lane:
             if proxy_attempt_id is None or proxy_limits is None:
@@ -1231,7 +1271,38 @@ def run_harbor_process(
             runtime_environment[ZAI_OPENAPI_PROXY_CAPABILITY_ENV] = capability
             runtime_environment[TERMINUS_PROXY_URL_ENV] = terminus_proxy_url
             secret_values = collected_secret_values({**os.environ, **runtime_environment})
+        if reef is not None:
+            # HAR-74: one model path. The per-trial host-loopback proxy slot
+            # (EVALLAB_TERMINUS_PROXY_URL) forwards through Reef's inference
+            # endpoint with scenario/tag headers instead of the metered
+            # provider proxy. Local route only; the bearer token lives in this
+            # process and never enters the Harbor child or the task container.
+            if not terminus_client:
+                raise ValueError("reef capture/reporting is supported only by terminus-2")
+            if not local_terminus:
+                raise ValueError("reef traffic runs on the local terminus route")
+            reef_token = os.environ.get(reef.token_env)
+            if not reef_token:
+                raise ValueError(
+                    f"reef token env var {reef.token_env!r} is not set; "
+                    "export it before dispatching a reef spec"
+                )
+            from evallab.reef_traffic import ReefCaptureProxy
 
+            reef_proxy = ReefCaptureProxy(
+                upstream=reef.url,
+                scenario=reef.scenario,
+                token=reef_token,
+                tags=dict(reef_tags or {}),
+            )
+            try:
+                reef_proxy.start()
+            except Exception:
+                reef_proxy = None
+                raise
+            runtime_environment[TERMINUS_PROXY_URL_ENV] = reef_proxy.url
+            runtime_environment[REEF_SCENARIO_ENV] = reef.scenario
+            secret_values = frozenset({*secret_values, reef_token})
         if rlm_lane:
             # Host-secret-file transport: the lab-owned RLM agent reads the
             # provider key from this owner-only file. No proxy URLs,
@@ -1262,9 +1333,26 @@ def run_harbor_process(
             timed_out: bool,
             timed_out_trial: str | None = None,
         ) -> HarborProcessResult:
+            nonlocal reef_proxy
             # Quiesce the loopback proxy before the final ledger read so no
             # in-flight handler can tear the report this function reconciles.
             _stop_terminus_proxy(terminus_proxy)
+            reef_turns: tuple[dict[str, Any], ...] | None = None
+            if reef_proxy is not None:
+                try:
+                    turns = reef_proxy.drain()
+                finally:
+                    reef_proxy.stop()
+                reef_proxy = None
+                reef_turns = tuple(
+                    {
+                        "receipt": turn.receipt,
+                        "status": turn.status,
+                        "tags": dict(turn.tags),
+                        "release_id": turn.release_id,
+                    }
+                    for turn in turns
+                )
             proxy_usage = None
             if (
                 (deepseek_lane or zai_lane or zai_openapi_lane or terminus_lane)
@@ -1290,6 +1378,7 @@ def run_harbor_process(
                 log_path=log_path,
                 timed_out_trial=timed_out_trial,
                 proxy_usage=proxy_usage,
+                reef_turns=reef_turns,
             )
 
         read_fd, write_fd = os.pipe()
@@ -1319,6 +1408,8 @@ def run_harbor_process(
             )
         except BaseException:
             _stop_terminus_proxy(terminus_proxy)
+            if reef_proxy is not None:
+                reef_proxy.stop()
             os.close(write_fd)
             os.close(read_fd)
             writer.close()
@@ -1392,13 +1483,16 @@ def run_harbor_process(
                 returncode=returncode,
                 timed_out=False,
             )
-
         finally:
             _stop_terminus_proxy(terminus_proxy)
+            if reef_proxy is not None:
+                reef_proxy.stop()
             _unlink_secret_dir(owned_secret_dir, owned_secret_path)
             _unlink_secret_dir(owned_usage_dir, owned_usage_path)
     finally:
         _stop_terminus_proxy(terminus_proxy)
+        if reef_proxy is not None:
+            reef_proxy.stop()
         _unlink_secret_dir(owned_secret_dir, owned_secret_path)
         _unlink_secret_dir(owned_usage_dir, owned_usage_path)
 
@@ -1844,6 +1938,37 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     )
     if not shutil.which("harbor"):
         raise RuntimeError("harbor is not installed or not on PATH")
+    reef_drift: Any | None = None
+    if request.reef is not None:
+        # Approval binds one exact served tree: re-check held-out status and
+        # served bytes before anything runs. A changed release_id with
+        # identical files is provenance, not drift; different files refuse.
+        from evallab.reef_traffic import check_drift, check_task_allowed
+
+        spec = request.experiment_spec
+        check_task_allowed(
+            repo_root,
+            task_label=spec.task if spec is not None else request.name,
+            task_id=spec.task_id if spec is not None else None,
+            task_path=spec.task_path if spec is not None else None,
+            task_dir=request.task,
+            package_digest=spec.task_package_digest if spec is not None else None,
+        )
+        if request.harness_tree_sha256 is None:
+            raise ValueError("reef execution requires the pinned harness tree")
+        reef_token = os.environ.get(request.reef.token_env)
+        if not reef_token:
+            raise ValueError(
+                f"reef token env var {request.reef.token_env!r} is not set; "
+                "export it before dispatching a reef spec"
+            )
+        reef_drift = check_drift(
+            request.reef.url,
+            request.reef.scenario,
+            reef_token,
+            pinned_digest=request.harness_tree_sha256,
+            pinned_release_id=request.reef.release_id,
+        )
 
     job_dir = request.jobs_dir / request.name
     if job_dir.exists():
@@ -1958,6 +2083,10 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 lease_generation=request.lease_generation,
                 proxy_attempt_id=_proxy_attempt_id(request),
                 proxy_limits=_proxy_trial_limits(request),
+                reef=request.reef,
+                reef_tags={"task": request.task.name, "episode": request.name}
+                if request.reef is not None
+                else None,
             )
         except BaseException:
             _write_executor_state(
@@ -1987,6 +2116,69 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             from evallab.terminus_harness import retain_harness_tree_evidence
 
             retain_harness_tree_evidence(job_dir, staged_harness, harness_meta)
+        if request.reef is not None and harness_meta is not None:
+            # After verification: one report per scored trial (card step 4).
+            # Unscored or infra-failed trials send nothing, never 0. No
+            # feedback: TrialDiagnosis is unmerged and hidden verifier inputs
+            # must never enter agent-visible feedback. Report errors are
+            # recorded, never raised: receipts stay in evidence and the
+            # retry-safe trial id allows a later repost.
+            from evallab.reef_traffic import TrialReport, reef_evidence_block, report_job_trials
+
+            turns = process.reef_turns or ()
+            receipts = [
+                str(turn["receipt"])
+                for turn in turns
+                if turn.get("status") == 200 and turn.get("receipt")
+            ]
+            trial_inputs = _reef_trial_inputs(job_dir)
+            spec = request.experiment_spec
+            task_name = Path(spec.task_path or spec.task).name if spec is not None else request.task.name
+            task_path = (spec.task_path or spec.task) if spec is not None else request.task.name
+            task_digest = spec.task_package_digest if spec is not None else None
+            reef_token = os.environ.get(request.reef.token_env)
+            if reef_token is None or not task_digest:
+                reason = (
+                    "reef token unavailable after the run"
+                    if reef_token is None
+                    else "no task digest for report metadata.task"
+                )
+                reports = [
+                    TrialReport(trial_id=trial_id, status="skipped", reason=reason)
+                    for trial_id, _, _ in trial_inputs
+                ]
+            elif len(trial_inputs) != 1:
+                # Single-trial contract (spec + request validation): never
+                # cross-reference one trial's calls from another's report.
+                reports = [
+                    TrialReport(
+                        trial_id=trial_id,
+                        status="error",
+                        reason=f"reef jobs carry exactly one trial, found {len(trial_inputs)}",
+                    )
+                    for trial_id, _, _ in trial_inputs
+                ]
+            else:
+                reports = report_job_trials(
+                    url=request.reef.url,
+                    scenario=request.reef.scenario,
+                    token=reef_token,
+                    task_name=task_name,
+                    task_path=task_path,
+                    task_digest=task_digest,
+                    trials=trial_inputs,
+                    receipts=receipts,
+                )
+            harness_meta["reef"] = reef_evidence_block(
+                url=request.reef.url,
+                scenario=request.reef.scenario,
+                release_id=request.reef.release_id,
+                content_id=request.reef.content_id,
+                digest=request.harness_tree_sha256 or "",
+                drift=reef_drift,
+                receipts=receipts,
+                reports=reports,
+            )
         _write_run_metadata(
             request,
             repo_root=repo_root,
@@ -2024,6 +2216,10 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             timeout_exc.timed_out_trial = process.timed_out_trial
             raise timeout_exc
         secret_values = collected_secret_values()
+        if request.reef is not None:
+            reef_token = os.environ.get(request.reef.token_env)
+            if reef_token:
+                secret_values = frozenset({*secret_values, reef_token})
         assert_no_secret_material((job_dir,), secrets=secret_values)
         _sanitize_persisted_job_tree(
             job_dir,

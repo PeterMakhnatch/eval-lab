@@ -297,6 +297,26 @@ cost evidence yields **unavailable**, never a fabricated zero. Native provider
 estimates are not invoices, and zero local API charge is not a hardware-cost
 estimate.
 
+#### Reef traffic (HAR-74): run the harness Reef serves
+
+An opt-in spec block (`--reef-url`, `--reef-scenario`, `--reef-token-env` on
+`evallab tasks prepare`, local route only) pulls the harness tree Reef serves
+(`GET /reef/harness`, raw — the bundled `reef-client` 0.2.0 `harness_pull`
+reads a stale `artifact_version` field) and pins it with the HAR-71 digest;
+`release_id`/`content_id` are recorded as provenance, not identity. Approval
+authorizes that exact tree: execution re-reads the manifest and refuses on
+file drift, while a changed release with identical files is recorded as
+provenance. Held-out tasks refuse before any Reef call, same rule as the
+training pool. During the trial, Terminus model calls go through a capture
+proxy on the HAR-70 loopback slot with `x-reef-scenario` and
+`x-reef-tag-task`/`x-reef-tag-episode`; the bearer token lives in the runner
+process only. After verification, one report per scored trial posts
+`score = verifier reward` with the trial's receipts and
+`metadata.task = {name, path, digest}` under the trial id (retry-safe);
+unscored or infra-failed trials send nothing, never 0, and carry no feedback.
+Receipts, the drift record and report ids land in `lab-metadata.json`
+(`harness_tree.reef`); the token value never enters evidence.
+
 
 ### Reef-process publication gate and local calibration
 

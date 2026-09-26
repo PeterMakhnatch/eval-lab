@@ -154,6 +154,7 @@ TERMINUS_AGENT_IMPORT_PATH = "evallab.harbor_terminus:SecretSafeTerminus2"
 TERMINUS_PROXY_URL_ENV = "EVALLAB_TERMINUS_PROXY_URL"
 TERMINUS_LOCAL_MODEL_SELECTOR = "ollama_chat/qwen2.5:7b"
 TERMINUS_LOCAL_ENDPOINT_ENV = "EVALLAB_TERMINUS_OLLAMA_URL"
+REEF_SCENARIO_ENV = "EVALLAB_REEF_SCENARIO"
 BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH = "evallab.harbor_daytona:BoundedDaytonaEnvironment"
 ZAI_OPENCODE_AGENT = "zai-opencode"
 ZAI_OPENCODE_MODEL_SELECTORS: frozenset[str] = frozenset(
@@ -371,6 +372,7 @@ class RunRequest:
     effective_endpoint_base: str | None = None
     provider_returned_model_id: str | None = None
     inference_settings: ProfileInferenceSettings | None = None
+    reef: ReefTrafficBinding | None = None
 
     @property
     def job_timeout_seconds(self) -> int:
@@ -393,6 +395,21 @@ class RunRequest:
                 result.extend(str(s) for s in self.skills)
         return tuple(result)
 
+@dataclass(frozen=True)
+class ReefTrafficBinding:
+    """Pinned Reef capture/report binding for one terminus-2 execution.
+
+    Mirrors ``ReefTrafficSpec``: the service URL, the scenario the records
+    belong to, the environment variable holding the bearer token (never the
+    token value), and the release/content ids pinned at prepare time.
+    """
+
+    url: str
+    scenario: str
+    token_env: str
+    release_id: str
+    content_id: str
+
 
 @dataclass(frozen=True)
 class HarborProcessResult:
@@ -403,6 +420,7 @@ class HarborProcessResult:
     log_path: Path
     timed_out_trial: str | None = None
     proxy_usage: dict[str, Any] | None = None
+    reef_turns: tuple[dict[str, Any], ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -1036,6 +1054,25 @@ def validate_request(request: RunRequest) -> None:
         from evallab.terminus_harness import load_harness_tree
 
         load_harness_tree(request.harness_tree_path, request.harness_tree_sha256)
+
+    if request.reef is not None:
+        if request.agent != TERMINUS_AGENT:
+            raise ValueError("reef capture/reporting is supported only by terminus-2")
+        if request.attempts != 1:
+            raise ValueError("reef execution carries exactly one trial: attempts must be 1")
+        if request.model != TERMINUS_LOCAL_MODEL_SELECTOR:
+            raise ValueError("reef traffic runs on the local terminus route")
+        if request.harness_tree_path is None or request.harness_tree_sha256 is None:
+            raise ValueError("reef execution requires the pinned harness tree")
+        for label, value in (
+            ("url", request.reef.url),
+            ("scenario", request.reef.scenario),
+            ("token_env", request.reef.token_env),
+            ("release_id", request.reef.release_id),
+            ("content_id", request.reef.content_id),
+        ):
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"reef binding {label} must be a nonempty string")
 
 
 def resolve_harbor_agent(agent: str, model: str | None = None) -> str:

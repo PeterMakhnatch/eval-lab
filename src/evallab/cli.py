@@ -2330,6 +2330,9 @@ def _tasks_prepare_command(
         max_total_tokens=args.max_total_tokens,
         harness_tree_path=args.harness_tree,
         harness_tree_sha256=args.harness_tree_sha256,
+        reef_url=args.reef_url,
+        reef_scenario=args.reef_scenario,
+        reef_token_env=args.reef_token_env,
         output=args.output,
         submitted_by=args.submitted_by,
     )
@@ -2356,6 +2359,11 @@ def _tasks_prepare_command(
     print(f"run: {spec.agent} / {spec.model or 'control'} / {spec.environment}")
     if spec.harness_tree_sha256 is not None:
         print(f"harness: {spec.harness_tree_sha256} ({spec.harness_tree_path})")
+    if spec.reef is not None:
+        print(
+            f"reef: {spec.reef.scenario!r} via {spec.reef.url} "
+            f"(release {spec.reef.release_id}, content {spec.reef.content_id})"
+        )
     print(f"resources: {json.dumps(prepared.resources, sort_keys=True)}")
     print(f"timeout: {spec.timeout_seconds}s (task: {prepared.task_timeout_seconds}s)")
     if spec.cost_limit_usd is not None:
@@ -4234,6 +4242,18 @@ def parser() -> argparse.ArgumentParser:
     )
     tasks_prepare.add_argument(
         "--harness-tree-sha256", help="Require this source tree digest before freezing it"
+    )
+    tasks_prepare.add_argument(
+        "--reef-url",
+        help="Reef service base URL (http(s) loopback); pulls the served harness tree",
+    )
+    tasks_prepare.add_argument(
+        "--reef-scenario",
+        help="Reef scenario the traffic records belong to",
+    )
+    tasks_prepare.add_argument(
+        "--reef-token-env",
+        help="Env var holding the Reef bearer token (value never stored)",
     )
     tasks_prepare.add_argument("--submitted-by", default="operator")
     tasks_prepare.add_argument("--output", type=Path, help="Repo-relative spec output path")

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the 16 paired original-vs-candidate model specs for HAR-67 step 4.
+"""Generate the 16 paired original-vs-candidate model specs for HAR-67 step 4 (v2 arm).
 
 Eight repeats per arm (sign test on decisive pairs: 7+ wins of 8 decisive
 pairs clears one-sided p < 0.05; ties dropped). Stock mini-SWE-agent with
@@ -25,13 +25,15 @@ from evallab.registry import compute_task_digests, task_directory_digest
 REPO = Path(__file__).resolve().parents[3]
 EXP = REPO / "research/experiments/har67-gepa-task-candidates"
 ORIGINAL = EXP / "original"
-CANDIDATE = EXP / "candidates/db-wal-recovery-clarify-diagnostics-v1"
+CANDIDATE = EXP / "candidates/db-wal-recovery-format-clarify-v2"
 
 PINNED_ORIGINAL_PACKAGE = "sha256:ce293e56ed1af10b86c6e953c41cdf451b1760b3203b41ec319c2e6b1d33cdc7"
 PINNED_CANDIDATE_PACKAGE = (
-    "sha256:21d36b8577232dbcfe0df04d6ac7eb4714fb2505036de652acacc65b4d0489e3"
+    "sha256:38062bf1f7e824ced2d7fcda40afd66b5316aef81e3c0104c9a005fdc15188b8"
 )
 PINNED_VERIFIER = "sha256:be88472ef34579421fd57b23807bbab5768f18293c6f3ad83addf186ec305354"
+
+SELECTION_RULE = "selection-rule.json in this directory"
 
 REPEATS = 8
 AGENT = "mini-swe-agent"
@@ -46,10 +48,11 @@ def _spec(name: str, arm: str, task_dir: Path, package_digest: str, rep: int) ->
         "name": name,
         "hypothesis": (
             f"HAR-67 paired trial rep {rep}/8, arm={arm}: stock {AGENT} + {MODEL} on "
-            f"{'validated instruction-clarified candidate' if arm == 'candidate' else 'original'} "
-            "db-wal-recovery; arms differ only in task package"
+            f"{'format-clarify-v2 candidate (public-inputs spec clarification)' if arm == 'c2' else 'original'} "
+            "db-wal-recovery; arms differ only in task package; decided under selection-rule.json"
         ),
         "purpose": "comparison",
+        "question_ref": "har67-selection-rule",
         "task": rel,
         "task_path": rel,
         "task_id": "db-wal-recovery",
@@ -89,7 +92,7 @@ def main() -> int:
     for rep in range(1, REPEATS + 1):
         for arm, path, digest in (
             ("orig", ORIGINAL, original_digest),
-            ("cand", CANDIDATE, candidate_digest),
+            ("c2", CANDIDATE, candidate_digest),
         ):
             name = f"har67-dbwal-{arm}-r{rep}"
             (out_dir / f"{name}.json").write_text(

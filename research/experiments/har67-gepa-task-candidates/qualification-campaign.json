@@ -2,8 +2,8 @@
   "name": "har67-task-package-qualification",
   "engine": "gepa",
   "agent": "oracle",
-  "seed_candidate_path": "research/experiments/har67-gepa-task-candidates/candidates/clarify-diagnostics-v1.txt",
-  "output_dir": "runs/gepa-har67-qualification",
+  "seed_candidate_path": "research/experiments/har67-gepa-task-candidates/candidates/format-clarify-v2.txt",
+  "output_dir": "runs/gepa-har67-qualification-v2",
   "examples": [
     {
       "task_id": "db-wal-recovery",

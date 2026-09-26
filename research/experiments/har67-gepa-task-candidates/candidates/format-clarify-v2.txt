@@ -1,0 +1,6 @@
+Note on the required output: the format example above shows the FORMAT
+ONLY. The names ("item1", ...) and values (X, Y, ...) in that example are
+placeholders, not the database content. Your /app/recovered.json must contain
+the ACTUAL values stored in the database — every row, including rows the
+initial 5-record view does not show — one object per row with exactly the keys
+"id", "name", and "value", sorted by id.

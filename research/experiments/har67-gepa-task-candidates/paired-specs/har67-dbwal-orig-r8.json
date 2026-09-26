@@ -1,8 +1,9 @@
 {
   "schema_version": 1,
   "name": "har67-dbwal-orig-r8",
-  "hypothesis": "HAR-67 paired trial rep 8/8, arm=orig: stock mini-swe-agent + zai/glm-5.3-flash on original db-wal-recovery; arms differ only in task package",
+  "hypothesis": "HAR-67 paired trial rep 8/8, arm=orig: stock mini-swe-agent + zai/glm-5.3-flash on original db-wal-recovery; arms differ only in task package; decided under selection-rule.json",
   "purpose": "comparison",
+  "question_ref": "har67-selection-rule",
   "task": "research/experiments/har67-gepa-task-candidates/original",
   "task_path": "research/experiments/har67-gepa-task-candidates/original",
   "task_id": "db-wal-recovery",

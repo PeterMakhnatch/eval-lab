@@ -61,11 +61,16 @@ The initial failed-preparation journal is retained under `evaluations/`;
 the corrected gate uses `gate-evaluations/` and recovered its already-submitted
 first spec rather than creating another.
 
-The standard `ZAI_OPENAPI_API_KEY` is absent from the dispatch environment and
-the checked local env files. OMP Coding Plan credentials cannot substitute.
-Peter must make that key available through the normal credential mechanism and
-record approval for each exact spec before the paid path can run. The approval
-commands are in `prepared-specs.json`; do not execute them on Peter's behalf.
+A nonempty standard `ZAI_OPENAPI_API_KEY` appeared in `~/.omp/agent/.env` on
+September 25 at 22:59 local (presence checked only; no model call). The Lab CLI
+does not read that file itself; the local `run-after-approval.sh` beside
+`approve.sh` passes it to the driver process only. OMP Coding Plan credentials
+cannot substitute. The remaining gate is Peter's recorded approval of each
+exact spec; the wrapper refuses unless all 12 are approved. Do not approve on
+Peter's behalf. A pre-approval check found the gate's Lab subprocess could not
+resolve `harbor`/`uv` (uv-tool directory missing from its PATH), so every tick
+would have failed; fixed without inheriting Reef's PATH, which carries Reef's
+own Harbor.
 No Ollama restart, cloud job, download, task registration, shared service change
 or modification to Reef has occurred. HAR-74's card still describes the older
 Ollama plan; the later no-restart instruction and existing draft PR #462 take

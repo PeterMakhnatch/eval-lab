@@ -199,8 +199,12 @@ class SubprocessRunner:
     def run(self, argv: list[str], *, cwd: Path, timeout: float, python: Path) -> tuple[int, str, str]:
         env = {key: value for key, value in os.environ.items()
                if not key.startswith(("PYTHON", "VIRTUAL_ENV", "UV_PROJECT", "UV_PYTHON"))}
+        # Never inherit Reef's PATH: its venv ships its own Harbor. The Lab's
+        # interpreter comes first, then the operator's uv-tool directory where
+        # the Lab's pinned `harbor` and `uv` executables are installed.
+        tools = Path(env.get("HOME") or Path.home()) / ".local/bin"
         env.update({
-            "PATH": f"{python.parent}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+            "PATH": f"{python.parent}:{tools}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
             "PYTHONPATH": str(cwd / "src"),
             "PYTHONDONTWRITEBYTECODE": "1",
             "PYTHONNOUSERSITE": "1",

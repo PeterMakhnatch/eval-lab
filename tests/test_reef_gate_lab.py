@@ -338,3 +338,20 @@ def test_crlf_candidate_retry_retains_exact_tree_bytes(campaign):
     tree = Path(first["manifest_path"]).parent / "candidate/terminus/AGENTS.md"
     assert tree.read_bytes() == files["terminus/AGENTS.md"].encode()
     assert first["spec_ids"] == repeated["spec_ids"] == runner.submissions
+
+
+def test_lab_cli_child_resolves_operator_tools_not_reef_path(tmp_path, monkeypatch):
+    home, reef_bin, lab_bin = tmp_path / "home", tmp_path / "reef/bin", tmp_path / "lab/bin"
+    for directory, owner in ((home / ".local/bin", "operator"), (reef_bin, "reef")):
+        directory.mkdir(parents=True)
+        tool = directory / "harbor"
+        tool.write_text(f"#!/bin/sh\necho {owner}\n")
+        tool.chmod(0o755)
+    lab_bin.mkdir(parents=True)
+    python = lab_bin / "python"
+    python.write_text('#!/bin/sh\nharbor\n')  # stands in for `python -m evallab.cli`
+    python.chmod(0o755)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("PATH", f"{reef_bin}:/usr/bin:/bin")
+    code, stdout, _ = SubprocessRunner().run(["doctor"], cwd=tmp_path, timeout=10, python=python)
+    assert (code, stdout.strip()) == (0, "operator")

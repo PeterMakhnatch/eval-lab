@@ -1,0 +1,12 @@
+{
+  "experiment": "HAR-67 db-wal-recovery original-vs-candidate pilot",
+  "recorded": "2026-09-26, before any model-trial outcome exists (16 paired specs parked, none approved, nothing run)",
+  "arms": {
+    "original": "registry package sha256:ce293e56ed1af10b86c6e953c41cdf451b1760b3203b41ec319c2e6b1d33cdc7",
+    "candidate": "registry package sha256:38062bf1f7e824ced2d7fcda40afd66b5316aef81e3c0104c9a005fdc15188b8 (format-clarify-v2, public inputs only)"
+  },
+  "design": "8 repeats per arm, stock mini-swe-agent + zai/glm-5.3-flash, local Docker, matched limits; arms differ only in task package",
+  "expected": "No directional claim: the candidate is a spec-clarity change (example placeholders marked as placeholders), not a capability change. Either arm may win; a null or negative result retains the original.",
+  "decision_rule": "Select the candidate ONLY if ALL hold: (1) it wins on decisive pairs at one-sided sign-test p < 0.05 (7+ of 8 decisive; ties dropped) computed with src/evallab/power.py sign_test_p_value; (2) no candidate-arm trial is lost to infrastructure (infra failures are ungraded, never ties); (3) trajectory evidence shows agents on BOTH arms still had to diagnose the WAL failure themselves — failure causes compared per arm, and any candidate win achieved by prescribing the target diagnostic procedure is classified 'easier, not improved'. Otherwise RETAIN THE ORIGINAL. v1 (diagnostic-procedure preamble) was withdrawn under this rule before any model trial ran.",
+  "scope": "Single-task pilot. No cross-task, cross-model, or SFT training-value claim; task-level proxies alone do not prove downstream training value."
+}

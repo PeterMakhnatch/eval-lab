@@ -34,10 +34,16 @@ def replay_spec_for_candidate(
     jobs_dir: str | Path,
     candidate_kind: str = "instructions",
     name: str | None = None,
+    candidate_verifier_digest: str | None = None,
 ) -> ExperimentSpec:
     """Replace one candidate binding, clearing run identity and prior authorization.
 
-    Model, task, limits and other behavioral settings remain unchanged.
+    Model, limits and other behavioral settings remain unchanged. The
+    ``task_package`` kind rebinds the task itself to a validated candidate
+    package (see ``evallab.task_candidate``): the base spec's task must be the
+    original, and the candidate package must have passed validity checks
+    before replay. Stale preamble/toolbox levers are cleared because the
+    candidate carries its own instruction.
     """
     if candidate_path.is_absolute() or ".." in candidate_path.parts:
         raise ValueError("candidate_path must be repository-relative")
@@ -47,13 +53,11 @@ def replay_spec_for_candidate(
         raise ValueError("jobs_dir must be repository-relative")
     if base_spec.jobs_dir != EXPLORATION_JOBS_ROOT:
         raise ValueError(
-            f"Retained spec jobs_dir must be {EXPLORATION_JOBS_ROOT!r}, "
-            f"got {base_spec.jobs_dir!r}"
+            f"Retained spec jobs_dir must be {EXPLORATION_JOBS_ROOT!r}, got {base_spec.jobs_dir!r}"
         )
     if relative_jobs != base_spec.jobs_dir:
         raise ValueError(
-            f"Replay jobs_dir {relative_jobs!r} does not match retained spec "
-            f"{base_spec.jobs_dir!r}"
+            f"Replay jobs_dir {relative_jobs!r} does not match retained spec {base_spec.jobs_dir!r}"
         )
     if candidate_kind == "instructions":
         path_field, digest_field = "extra_instruction_path", "extra_instruction_sha256"
@@ -64,15 +68,24 @@ def replay_spec_for_candidate(
     elif candidate_kind == "terminus_harness":
         path_field, digest_field = "harness_tree_path", "harness_tree_sha256"
         label, prefix = "Terminus harness", "harness"
+    elif candidate_kind == "task_package":
+        path_field, digest_field = "task_path", "task_package_digest"
+        label, prefix = "GEPA task package", "gepatask"
     else:
         raise ValueError(f"Unsupported candidate_kind: {candidate_kind!r}")
+    if candidate_verifier_digest is not None and not re.fullmatch(
+        r"sha256:[0-9a-f]{64}", candidate_verifier_digest
+    ):
+        raise ValueError(
+            f"candidate_verifier_digest must be a sha256:... 64-hex string, "
+            f"got {candidate_verifier_digest!r}"
+        )
     update: dict[str, object] = {
         "spec_id": None,
         "submitted_at": None,
         "submitted_by": f"{prefix}-replay",
-        "name": name or _replay_spec_name(
-            campaign_name, candidate_path, candidate_sha256, prefix=prefix
-        ),
+        "name": name
+        or _replay_spec_name(campaign_name, candidate_path, candidate_sha256, prefix=prefix),
         "hypothesis": (
             f"{label} candidate {candidate_sha256[:16]} "
             f"replayed from retained spec {base_spec.spec_id or base_spec.name}"
@@ -84,6 +97,14 @@ def replay_spec_for_candidate(
     }
     if candidate_kind != "terminus_harness":
         update["grid_point"] = None
+    if candidate_kind == "task_package":
+        update["task"] = relative_candidate
+        update["extra_instruction_path"] = None
+        update["extra_instruction_sha256"] = None
+        update["toolbox_path"] = None
+        update["toolbox_sha256"] = None
+        if candidate_verifier_digest is not None:
+            update["verifier_digest"] = candidate_verifier_digest
     for field in _CAMPAIGN_FIELDS:
         update[field] = None
     return ExperimentSpec.model_validate(base_spec.model_dump(mode="json") | update)

@@ -57,6 +57,7 @@ def gate() -> SimpleNamespace:
 
     return SimpleNamespace(
         Factory=Factory,
+        EvaluationResult=EvaluationResult,
         GateConfig=GateConfig,
         ScoredBackend=ScoredBackend,
         BrokenBackend=BrokenBackend,
@@ -151,3 +152,83 @@ def test_configured_selector_rejects_unknown_rule_fields(
     with pytest.raises(ValueError):
         gate.Factory(record_dir=tmp_path / "decisions")
     assert not (tmp_path / "decisions").exists()
+
+
+@pytest.mark.parametrize("reason", [
+    "approval_timeout", "withdrawn", "budget_stopped", "unscored_trial",
+])
+def test_partial_lab_campaign_cannot_publish_a_significant_subset(
+    gate: SimpleNamespace, tmp_path: Path, reason: str,
+) -> None:
+    """A campaign stop holds even when its observed subset would pass the rule."""
+    plugin = gate.Factory(record_dir=tmp_path / "decisions").build(
+        gate.ScoredBackend((1.0,) * 5 + (None,), (0.0,) * 5 + (None,), repeats=6)
+    )
+    proposal = gate.candidate("partial-" + reason)
+    measured = plugin.evaluate(proposal)
+    evidence = {
+        "complete": False, "incomplete_reason": reason,
+        "spec_ids": ["observed-spec", "missing-spec"],
+        "evidence": [{"spec_id": "observed-spec", "trial_id": "native-trial"}],
+    }
+    evaluation = gate.EvaluationResult(
+        evaluator="evallab_harness_pairs", evaluator_version="1",
+        metrics=measured.metrics,
+        metadata={"evallab_reef_gate": {"lab": evidence}},
+    )
+    decision = plugin.decide(proposal, evaluation)
+    assert not decision.selected
+    assert decision.metrics["reason_code"] == "insufficient_evidence"
+    assert decision.metrics["valid_pairs"] == 5
+    assert decision.metrics["invalid_pairs"] == 1
+    assert decision.metrics["p_value"] == 0.03125
+    record = json.loads(Path(decision.metrics["decision_record"]).read_text())
+    assert record["lab"] == evidence
+    assert record["pairs"][-1]["candidate_score"] is None
+
+
+def test_complete_lab_evidence_can_publish_and_retains_trial_links(
+    gate: SimpleNamespace, tmp_path: Path,
+) -> None:
+    plugin = gate.Factory(record_dir=tmp_path / "decisions").build(
+        gate.ScoredBackend((1.0,) * 5, (0.0,) * 5)
+    )
+    proposal = gate.candidate("complete-lab")
+    measured = plugin.evaluate(proposal)
+    evidence = {
+        "complete": True, "incomplete_reason": None,
+        "spec_ids": ["candidate-spec", "current-spec"],
+        "evidence": [
+            {"spec_id": "candidate-spec", "trial_id": "candidate-native-trial"},
+            {"spec_id": "current-spec", "trial_id": "current-native-trial"},
+        ],
+    }
+    evaluation = gate.EvaluationResult(
+        evaluator="evallab_harness_pairs", evaluator_version="1",
+        metrics=measured.metrics,
+        metadata={"evallab_reef_gate": {"lab": evidence}},
+    )
+    decision = plugin.decide(proposal, evaluation)
+    assert decision.selected
+    record = json.loads(Path(decision.metrics["decision_record"]).read_text())
+    assert record["lab"]["evidence"] == evidence["evidence"]
+    assert record["reason_code"] == "publish"
+
+
+def test_malformed_lab_evidence_rejects_without_recording_untrusted_metadata(
+    gate: SimpleNamespace, tmp_path: Path,
+) -> None:
+    plugin = gate.Factory(record_dir=tmp_path / "decisions").build(
+        gate.ScoredBackend((1.0,) * 5, (0.0,) * 5)
+    )
+    proposal = gate.candidate("malformed-lab")
+    measured = plugin.evaluate(proposal)
+    evaluation = gate.EvaluationResult(
+        evaluator="evallab_harness_pairs", evaluator_version="1",
+        metrics=measured.metrics,
+        metadata={"evallab_reef_gate": {"lab": ["not-a-mapping"]}},
+    )
+    decision = plugin.decide(proposal, evaluation)
+    assert not decision.selected
+    assert decision.metrics["reason_code"] == "invalid_evaluation"
+    assert "lab" not in decision.metrics

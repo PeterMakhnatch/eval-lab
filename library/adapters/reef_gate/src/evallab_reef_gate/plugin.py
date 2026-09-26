@@ -25,6 +25,7 @@ from reef.core.evaluation import (
 from reef.train.cordis_backend.backend import HarnessCandidate
 from reef.train.evaluation.evaluators import BackendEvaluateMixin, CandidatePluginFactory
 
+from .lab import LabConfig, LabEvaluator
 from .rules import GateConfig, decide_pairs
 
 CONFIG_ENV = "EVALLAB_REEF_GATE_CONFIG"
@@ -69,6 +70,7 @@ class Factory(CandidatePluginFactory):
         config: GateConfig | None = None,
         record_dir: Path | None = None,
         reef_commit: str | None = None,
+        lab: LabConfig | None = None,
     ) -> None:
         raw: dict[str, Any] = {}
         config_path = os.environ.get(CONFIG_ENV)
@@ -77,7 +79,7 @@ class Factory(CandidatePluginFactory):
             if not isinstance(loaded, dict):
                 raise ValueError(f"{CONFIG_ENV} must name a JSON object")
             raw = loaded
-        unknown = set(raw) - RULE_KEYS - {"record_dir", "reef_commit"}
+        unknown = set(raw) - RULE_KEYS - {"record_dir", "reef_commit", "lab"}
         if unknown:
             raise ValueError("unknown gate configuration keys: " + ", ".join(sorted(unknown)))
         self.config = config if config is not None else GateConfig(
@@ -99,6 +101,17 @@ class Factory(CandidatePluginFactory):
         self.reef_root, self.reef_commit = reef_source_identity(expected_revision)
         if self.record_dir.is_relative_to(self.reef_root):
             raise ValueError("gate records must not modify the Reef checkout or its environment")
+        lab_raw = raw.get("lab")
+        if lab_raw is not None and not isinstance(lab_raw, dict):
+            raise ValueError("lab must be a configuration object")
+        self.lab = lab if lab is not None else (
+            LabConfig.from_dict(lab_raw) if lab_raw is not None else None
+        )
+        if self.lab is not None and (
+            self.lab.record_dir.is_relative_to(self.reef_root)
+            or self.lab.lab_root.is_relative_to(self.reef_root)
+        ):
+            raise ValueError("Lab evaluation must not write inside the Reef checkout")
         self.record_dir.mkdir(parents=True, exist_ok=True)
 
     def build(self, candidate_backend: CandidateEvaluator) -> CandidateEvaluationPlugin:
@@ -107,11 +120,12 @@ class Factory(CandidatePluginFactory):
             config=self.config,
             record_dir=self.record_dir,
             reef_commit=self.reef_commit,
+            lab=self.lab,
         )
 
 
 class GatePlugin(BackendEvaluateMixin):
-    """Evaluate through Reef; only the publication decision changes."""
+    """Use native Reef or configured Lab evidence with the same publication rule."""
 
     def __init__(
         self,
@@ -120,16 +134,36 @@ class GatePlugin(BackendEvaluateMixin):
         config: GateConfig,
         record_dir: Path,
         reef_commit: str,
+        lab: LabConfig | None = None,
     ) -> None:
         super().__init__()
         self._candidate_backend = candidate_backend
         self.config = config
         self.record_dir = record_dir
         self.reef_commit = reef_commit
+        self.lab_evaluator = LabEvaluator(lab) if lab is not None else None
 
     def evaluate(self, candidate: UpdateCandidate) -> EvaluationResult:
         started = time.perf_counter()
         try:
+            if self.lab_evaluator is not None:
+                if not isinstance(candidate, HarnessCandidate):
+                    raise ValueError("Lab evaluation requires a HarnessCandidate")
+                result = self.lab_evaluator.evaluate(
+                    candidate.candidate_id,
+                    candidate.current_files,
+                    candidate.candidate_files,
+                    candidate.evaluation_tasks or candidate.gate_tasks,
+                )
+                return EvaluationResult(
+                    evaluator="evallab_harness_pairs",
+                    evaluator_version="1",
+                    metrics=result["metrics"],
+                    metadata={METADATA_KEY: {
+                        "evaluation_seconds": time.perf_counter() - started,
+                        "lab": result["metadata"],
+                    }},
+                )
             measured = super().evaluate(candidate)
             return replace(measured, metadata={
                 **measured.metadata,
@@ -152,6 +186,7 @@ class GatePlugin(BackendEvaluateMixin):
         started = time.perf_counter()
         evaluation_seconds: float | None = None
         error_type: str | None = None
+        lab_evidence: Mapping[str, Any] | None = None
         reason_code = "invalid_evaluation"
         metrics: dict[str, Any]
         try:
@@ -161,6 +196,10 @@ class GatePlugin(BackendEvaluateMixin):
             if not isinstance(metadata, Mapping):
                 raise ValueError("gate timing metadata must be a mapping")
             evaluation_seconds = metadata.get("evaluation_seconds")
+            raw_lab = metadata.get("lab")
+            if raw_lab is not None and not isinstance(raw_lab, Mapping):
+                raise ValueError("Lab evidence must be a mapping")
+            lab_evidence = raw_lab
             if metadata.get("evaluation_error_type"):
                 reason_code = "evaluator_error"
                 error_type = str(metadata["evaluation_error_type"])
@@ -188,6 +227,14 @@ class GatePlugin(BackendEvaluateMixin):
                 episode_repeats=evaluation.metrics["episode_repeats"], config=self.config,
             )
             metrics = result.to_dict()
+            if lab_evidence is not None and lab_evidence.get("complete") is not True:
+                # Preserve measured pairs, but never publish a partially observed
+                # campaign after an approval, infrastructure or budget stop.
+                metrics.update({
+                    "selected": False,
+                    "reason_code": "insufficient_evidence",
+                    "incomplete_reason": lab_evidence.get("incomplete_reason"),
+                })
         except Exception as error:
             metrics = {
                 "selected": False, "reason_code": reason_code,
@@ -202,6 +249,8 @@ class GatePlugin(BackendEvaluateMixin):
             "decision_seconds": time.perf_counter() - started,
             "timing_scope": "evaluation and decision computation; record persistence excluded",
         })
+        if lab_evidence is not None:
+            metrics["lab"] = dict(lab_evidence)
         record_path = self.record_dir / (
             hashlib.sha256(candidate.candidate_id.encode()).hexdigest() + ".json"
         )

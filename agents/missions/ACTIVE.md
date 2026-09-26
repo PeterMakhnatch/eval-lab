@@ -25,12 +25,13 @@ Historical branch inventories do not prove current ownership, activity, or closu
 
 ## HAR-73 continuation handoff — 2026-09-25
 
-**Authority:** Peter's direct September 25 instructions: finish HAR-72 through
-protected merge and merged-revision verification, write this handoff and the
-[HAR-73 Linear handoff](https://linear.app/petermakhnatch/issue/HAR-73), then stop.
-This supersedes the earlier plan to continue directly through HAR-74. This is
-resumption context, not a new claim or permission to start HAR-73 in the old tab.
-Linear owns this continuation's queue and acceptance.
+**Current authority (September 26):** Peter directly confirmed in the existing
+RE - Eval Lab tab, “of course it should go ahead,” activating HAR-73 here.
+This supersedes the September 25 stop/new-tab requirement below, not the
+execution, spending, ownership or per-spec approval limits. HAR-73 is In Progress;
+branch `feat/har73-evallab-gate` starts at `a320f0a9` (through PR #470).
+Linear owns the queue and acceptance. HAR-74 already has draft
+[PR #462](https://github.com/PeterMakhnatch/eval-lab/pull/462); do not duplicate it.
 
 **Absolute worktree:** `/Users/petermakhnatch/Developer/eval-lab/.worktrees/har72-reef-gate-20260925`
 
@@ -38,9 +39,43 @@ Linear owns this continuation's queue and acceptance.
 omp --cwd /Users/petermakhnatch/Developer/eval-lab/.worktrees/har72-reef-gate-20260925
 ```
 
-Peter chooses the new tab/model. That tab owns HAR-73 branch creation and
-`lin start HAR-73` after reading the full card. No HAR-73 implementation or
-activation was performed by the HAR-72 author.
+The existing tab owns HAR-73 implementation following the full card. The original
+HAR-72 author stopped as instructed; activation was a subsequent explicit decision.
+The committed split is `research/experiments/reef-loop-pool-20260925/har73-split.json`:
+two already registered dev tasks, with four exclusion-only held-out identities.
+No evaluation or Reef traffic preceded that split commit.
+
+**September 26 implementation receipt (acceptance still blocked):**
+the separate adapter prepares and freezes real Terminus trees through the Lab
+CLI, validates committed split bytes and task digests, journals candidate IDs,
+and dispatches only explicit approved spec IDs in paired order. Actual Reef
+`2a1864d4` prepared one manual AGENTS.md candidate; its 12 specs (two tasks,
+three repeats, two arms) are waiting, with a $0.40/spec, $4.80 total ceiling.
+Repeated preparation reused all 12 IDs without duplicate submissions.
+An isolated missing-approval run exercised real `CordisBackend.settle_step`:
+`insufficient_evidence`, 12 positional missing scores, no observed evaluation
+sides, no publication and no model calls. Evidence:
+`runs/har73-agents-validation/acceptance/prepared-specs.json` and
+`runs/har73-agents-validation/negative-acceptance/settlement.json`.
+The initial failed-preparation journal is retained under `evaluations/`;
+the corrected gate uses `gate-evaluations/` and recovered its already-submitted
+first spec rather than creating another.
+
+A nonempty standard `ZAI_OPENAPI_API_KEY` appeared in `~/.omp/agent/.env` on
+September 25 at 22:59 local (presence checked only; no model call). The Lab CLI
+does not read that file itself; the local `run-after-approval.sh` beside
+`approve.sh` passes it to the driver process only. OMP Coding Plan credentials
+cannot substitute. The remaining gate is Peter's recorded approval of each
+exact spec; the wrapper refuses unless all 12 are approved. Do not approve on
+Peter's behalf. A pre-approval check found the gate's Lab subprocess could not
+resolve `harbor`/`uv` (uv-tool directory missing from its PATH), so every tick
+would have failed; fixed without inheriting Reef's PATH, which carries Reef's
+own Harbor.
+No Ollama restart, cloud job, download, task registration, shared service change
+or modification to Reef has occurred. HAR-74's card still describes the older
+Ollama plan; the later no-restart instruction and existing draft PR #462 take
+precedence. Do not claim HAR-73 delivered until paid acceptance, CI, merge and
+merged-revision proof are complete.
 
 ### Verified delivery and evidence
 
@@ -92,8 +127,11 @@ key file was removed. Partial local-Qwen campaigns remain separate.
   HAR-73 still requires recorded per-spec approvals; no autoapproval, policy
   changes, registration, cloud sandbox, download or upstream Reef PR without
   the applicable separate authorization.
-- Keep `~/Developer/reef` and its `.venv` read-only at
-  `818997d76412f0eead7d0b4b343da701d6ce2c20`. `evallab` never imports `reef`;
+- Keep `~/Developer/reef` and its `.venv` read-only. On HAR-73 intake its clean
+  HEAD is `2a1864d4158de8a24e00ae777e9ff0501f49a97f`, superseding the historical
+  HAR-72 runtime pin `818997d76412f0eead7d0b4b343da701d6ce2c20`.
+  Bind the actual clean revision explicitly; do not reset another checkout.
+  `evallab` never imports `reef`; the separate gate package runs in Reef's process.
   `reef-client==0.2.1` is allowed. Native Reef is not an OS sandbox, and an
   owner-only same-UID provider-key file is not credential containment. Reef can
   retain its proxy capability in resolved runtime configuration.
@@ -107,17 +145,17 @@ key file was removed. Partial local-Qwen campaigns remain separate.
   renamed it to **`evallab.evidence.reef_intake`** and added captured-traffic
   intake. These are data readers, not HAR-73/HAR-74 execution integration.
   The original single-scenario intake consumed all 900 A/A episodes with
-  score/pair agreement. **Multi-scenario intake remains unsafe at `03893a42`:**
-  a real control diagnostic reports 150 episodes but writes only 30
-  trajectory files because `trajectories/<step>/<episode>.json` omits scenario.
-  The step-only trial-metadata join also needs review. See
-  `derived/har72/incoming-intake-boundary.json`; do not consume
-  `control-atif-intake-diagnostic` or its `-03893` reproduction as valid evidence.
-  Raw control records and the
-  HAR-72 gate package are unaffected. This dependency is handed off, not an
-  expansion into HAR-73 implementation here.
+  score/pair agreement. The historical multi-scenario overwrite at `03893a42`
+  was fixed by [PR #464](https://github.com/PeterMakhnatch/eval-lab/pull/464)
+  (`36c0b58c`), then hardened by PR #465. Paths and trial joins include scenario,
+  with duplicate-output refusal. HAR-73 intake exercised the merged reader:
+  150 episodes produced 150 files across five scenario directories, with
+  W50/L0/T25 and matching recorded pair totals, in
+  `derived/har73/control-intake-verified`. No duplicate fix is needed.
+  The old `control-atif-intake-diagnostic` and `-03893` outputs remain invalid;
+  fixing the importer does not repair those historical artifacts.
 
-### Next implementation steps — new tab only
+### HAR-73 implementation steps — existing tab activated
 
 1. Read the full HAR-73 card. Commit dev/held-out task IDs and digests **before**
    candidate evaluation or Reef traffic. Refuse both split-held-out tasks and

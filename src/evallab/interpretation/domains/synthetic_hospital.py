@@ -249,14 +249,14 @@ def build(trial_dir: Path, result: dict[str, Any]) -> dict[str, Any]:
     counts: dict[tuple[str, tuple[str, ...]], list[int]] = {}
     for index, (tool, key, _source) in enumerate(reads):
         counts.setdefault((tool, key), []).append(index)
-    most_repeated = sorted(
-        (
-            {"tool": tool, "key": list(key), "reads": len(steps), "redundant": len(steps) - 1}
-            for (tool, key), steps in counts.items()
-            if len(steps) > 1
-        ),
-        key=lambda row: (-row["reads"], row["tool"]),
+    repeated: list[tuple[str, list[str], int]] = sorted(
+        ((tool, list(key), len(steps)) for (tool, key), steps in counts.items() if len(steps) > 1),
+        key=lambda row: (-row[2], row[0]),
     )[:5]
+    most_repeated = [
+        {"tool": tool, "key": key, "reads": reads, "redundant": reads - 1}
+        for tool, key, reads in repeated
+    ]
     distinct = len(counts)
     chart_section: dict[str, Any] = {
         "chart_reads": len(reads),

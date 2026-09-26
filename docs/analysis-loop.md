@@ -114,8 +114,9 @@ from the JSON, so people and models read the same facts. It never writes into
 the run directory; `--output-dir` writes `<trial>.run_report.{json,md}` and
 `job.run_report.{json,md}`. Sections: outcome, Harbor phase timing and gaps
 between agent steps, tokens and cost, tools, revisits, subagents, context
-events, errors, a bounded timeline (`--full-timeline` lists every step), and
-data-quality notes.
+events, errors, an optional benchmark domain section (`## Domain: <name>`,
+absent as `domain: null` when no plugin detects the trial), a bounded
+timeline (`--full-timeline` lists every step), and data-quality notes.
 
 Definitions the report applies:
 
@@ -147,6 +148,17 @@ Definitions the report applies:
 - Subagents come from ATIF subagent references (embedded or file), Claude Code
   sidechain steps, and delegation tool calls. `none_observed` is not proof of
   absence for harnesses whose converters drop child threads.
+- Domain sections are benchmark plug-ins (`src/evallab/interpretation/domains/`,
+  explicit `PLUGINS` registry, deterministic order) reading verifier outputs
+  from the trial directory. `synthetic_hospital` reports reward/steps/submitted
+  from `verifier/reward.json` plus redundant chart-section re-reads from the
+  trajectory's tool calls (native EHR tools and `sh-agent call` wrappers, keyed
+  by the finest chart address named). `atlas_finance` reports the gandalf
+  rubric from `verifier/grader/info.json`: per-section pass/fail with section
+  gates (criterion-level `failed_gate_indices` never fail a section), penalties,
+  and downstream required-criteria loss attributed to the first failed gate.
+  Malformed verifier output yields `status: unreadable` with a reason, never a
+  fabricated zero or an exception.
 
 ### CLI reference: deterministic trajectory analysis
 

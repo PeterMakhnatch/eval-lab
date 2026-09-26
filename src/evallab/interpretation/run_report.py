@@ -38,6 +38,7 @@ from pathlib import Path
 from statistics import median
 from typing import Any
 
+from evallab.interpretation.domains import domain_section, render_domain_markdown
 from evallab.interpretation.price_table import estimate_cost_usd, lookup_price
 from evallab.traj import (
     CONTROL_AGENTS,
@@ -1719,6 +1720,7 @@ def build_run_report(
             "harness reports no per-call status (no exit codes or error flags): tool errors "
             "are only inferred from output text"
         )
+    domain = domain_section(trial, result)
     report: dict[str, Any] = {
         "schema": RUN_REPORT_SCHEMA,
         "identity": _identity(result, trial, root_doc, outline),
@@ -1732,6 +1734,7 @@ def build_run_report(
         "subagents": subagents,
         "context": context,
         "errors": errors,
+        "domain": domain,
         "timeline": _timeline(steps, actions, subagents, context, origin, timeline_limit),
         "data_quality": quality,
         "sources": [
@@ -2144,6 +2147,9 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
         f"- step {e['step']} `{e['tool']}` {e['target']} [{e['category']}]: {e['excerpt'] or ''}"
         for e in errors["examples"]
     ]
+    domain_lines = render_domain_markdown(report.get("domain"))
+    if domain_lines:
+        lines += [""] + domain_lines
     lines += ["", "## Timeline"]
     if timeline["windows"]:
         lines += _table(

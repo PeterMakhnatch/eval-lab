@@ -146,8 +146,24 @@ Definitions the report applies:
   the agent was back at the same spot and nothing had changed. Empty-input
   polls are excluded.
 - Subagents come from ATIF subagent references (embedded or file), Claude Code
-  sidechain steps, and delegation tool calls. `none_observed` is not proof of
-  absence for harnesses whose converters drop child threads.
+  sidechain steps, and delegation tool calls. For codex trials the report also
+  re-reads the retained native rollouts under `agent/sessions/**/rollout-*.jsonl`:
+  Harbor's codex converter keeps only the newest rollout and never links child
+  threads, so sibling rollouts surface as `evidence: "codex_native_rollout"` items
+  (per-child tokens from cumulative `token_count` snapshots, cost left `null`
+  because rollouts carry none). A sibling counts as a child only when its
+  `session_meta` source is a `thread_spawn` record naming this trial's parent
+  thread (`parent_thread_id` edge); the `spawn_agent`-call link is kept only
+  for V1 `{"agent_id": ...}` outputs, so V2 children keep no spawn step rather
+  than a guess. Any other extra rollout (retries, review/compact threads) is
+  listed under `other_threads`, never as delegated spend. Child tokens are
+  never merged into run totals. Rollouts present with no children stay
+  `none_observed`; absent or unreadable rollouts are `unavailable` with a
+  reason. `none_observed` is not proof of absence for harnesses whose converters
+  drop child threads. No retained codex trial has yet spawned a subagent (27
+  retained trials hold single `exec`-source rollouts), so multi-child behavior is
+  pinned by format-faithful fixtures verified against the codex source, not
+  production evidence.
 - Domain sections are benchmark plug-ins (`src/evallab/interpretation/domains/`,
   explicit `PLUGINS` registry, deterministic order) reading verifier outputs
   from the trial directory. `synthetic_hospital` reports reward/steps/submitted

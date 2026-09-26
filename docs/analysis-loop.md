@@ -164,6 +164,28 @@ Definitions the report applies:
   retained trials hold single `exec`-source rollouts), so multi-child behavior is
   pinned by format-faithful fixtures verified against the codex source, not
   production evidence.
+- The trajectory is parsed once: windows, revisits, loop suspicion, and the
+  context-growth curve all derive from that single pass, so build cost stays
+  roughly flat per step on long runs (measured ~2k–10k steps). Loop suspicion
+  is the outline's own heuristic (`traj._analyze_loop_suspicion`), called on
+  per-step facts from the shared `traj.extract_loop_step` source instead of a
+  second outline parse; it is `null` when the continuation chain is
+  incomplete or steps are malformed.
+- The timeline has two windowings of runs with at least 20 steps: tenths of
+  the run by step ordinal, and equal-duration wall-clock windows over the
+  span between the first and last timestamped step (steps without timestamps
+  are counted, not placed). Each window row carries the context growth
+  curve: `peak_prompt_tokens` and `compactions` — inferred compactions reuse
+  the context-drop heuristic (input tokens falling below 60% of the previous
+  agent step once past 8,000). Time windows are an explicit
+  `{"status": "unavailable", "reason": ...}` when timestamps are missing or
+  degenerate, never a fabricated bucketing.
+- `revisits.revisits_started` names when looping began: the first
+  step-window whose repeat rate (repeated non-poll actions over counted
+  non-poll actions in that window, rounded to four decimals) strictly
+  exceeds the median of the window rates (windows without actions have no
+  rate and cannot be the onset). `no_repeats` when nothing repeats, `flat`
+  when no window exceeds the median, omitted entirely below 20 steps.
 - Domain sections are benchmark plug-ins (`src/evallab/interpretation/domains/`,
   explicit `PLUGINS` registry, deterministic order) reading verifier outputs
   from the trial directory. `synthetic_hospital` reports reward/steps/submitted

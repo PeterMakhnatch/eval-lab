@@ -38,16 +38,26 @@ from pathlib import Path
 from statistics import median
 from typing import Any
 
+from evallab.interpretation import run_report_scale
 from evallab.interpretation.codex_rollouts import read_codex_rollouts
 from evallab.interpretation.domains import domain_section, render_domain_markdown
 from evallab.interpretation.price_table import estimate_cost_usd, lookup_price
+from evallab.interpretation.run_report_scale import (
+    MIN_STEPS_FOR_WINDOWS,
+    WINDOW_COUNT,
+    LoopStep,
+    analyze_loop_suspicion,
+    infer_compactions,
+    repeat_onset,
+    step_windows,
+    time_windows,
+)
 from evallab.traj import (
     CONTROL_AGENTS,
     TrajectoryError,
-    TrajectoryOutline,
     _chain_action_steps,
+    _extract_command_string,
     _resolve_chain_segments,
-    outline_trajectory,
     resolve_trial_target,
 )
 from evallab.trajectory_error_taxonomy import classify_step_error, split_envelope
@@ -59,10 +69,9 @@ JOB_REPORT_SCHEMA = "evallab.job_report/v1"
 DEFAULT_TIMELINE_LIMIT = 60
 TOP_N = 5
 TARGET_CHARS = 160
-WINDOW_COUNT = 10
-MIN_STEPS_FOR_WINDOWS = 20
-MIN_REPEATED_OUTPUT_CHARS = 32
 PASS_REWARD = 1.0
+MIN_REPEATED_OUTPUT_CHARS = 32
+MAX_CONTEXT_EVENT_LINES = 40
 
 # Argument keys that carry the command text, compared case-insensitively.
 _COMMAND_KEYS = ("command", "cmd", "keystrokes", "commandline", "script", "code", "input")
@@ -633,14 +642,64 @@ def _cache_write(metrics: dict[str, Any]) -> int | None:
     return None
 
 
+def _loop_step(raw: dict[str, Any]) -> LoopStep:
+    """Outline-parity facts for loop suspicion, read from the step's raw calls.
+
+    Mirrors the extraction ``outline_trajectory`` performs (first tool call's
+    name and command, exit code from any result, error from the shared
+    taxonomy) so the score matches the outline without a second document parse.
+    """
+    calls = raw.get("tool_calls")
+    first = calls[0] if isinstance(calls, list) and calls and isinstance(calls[0], dict) else None
+    tool_name = str(first.get("function_name")) if first and first.get("function_name") is not None else ""
+    tool_command = _extract_command_string(first.get("arguments")) if first else None
+    exit_code: int | None = None
+    error_msg: str | None = None
+    result_type = result_status = None
+    primary_text: str | None = None
+    results = _observation_results(raw)
+    for result in results:
+        code = _int(_dict(result.get("extra")).get("exit_code"))
+        if code is not None:
+            exit_code = code
+        envelope_code, content = split_envelope(result.get("content"))
+        if exit_code is None and envelope_code is not None:
+            exit_code = envelope_code
+        if exit_code is not None and exit_code != 0:
+            error_msg = error_msg or f"command exited with code {exit_code}"
+        lowered_type = str(result.get("type") or "").lower()
+        lowered_status = str(result.get("status") or "").lower()
+        if lowered_type in {"error", "tool_error"} or lowered_status in {"error", "failed"}:
+            error_msg = error_msg or content[:120].strip() or "tool result reported an error"
+        result_type, result_status = lowered_type, lowered_status
+    if results:
+        _, primary_text = split_envelope(results[0].get("content"))
+    classification = classify_step_error(
+        tool_name=tool_name or None,
+        tool_command=tool_command,
+        exit_code=exit_code,
+        output_content=str(primary_text or error_msg or ""),
+        result_type=result_type if results else None,
+        result_status=result_status if results else None,
+    )
+    return LoopStep(
+        tool_name=tool_name or None,
+        tool_command=tool_command,
+        exit_code=exit_code,
+        is_error=classification.is_error,
+    )
+
+
 def _build_steps(
     positioned: Sequence[tuple[int, Any]],
-) -> list[_Step]:
+) -> tuple[list[_Step], list[LoopStep]]:
     steps: list[_Step] = []
+    loop_steps: list[LoopStep] = []
     action_index = 0
     # Number only well-formed steps so ordinals stay contiguous.
     well_formed = [(segment, raw) for segment, raw in positioned if isinstance(raw, dict)]
     for ordinal, (segment, raw) in enumerate(well_formed, start=1):
+        loop_steps.append(_loop_step(raw))
         timestamp = _parse_ts(raw.get("timestamp"))
         metrics = _dict(raw.get("metrics"))
         extra = _dict(raw.get("extra"))
@@ -676,7 +735,7 @@ def _build_steps(
                 notices=tuple(notices),
             )
         )
-    return steps
+    return steps, loop_steps
 
 
 # --------------------------------------------------------------------------- #
@@ -1034,9 +1093,6 @@ def _tools(actions: Sequence[_Action]) -> dict[str, Any]:
     }
 
 
-def _window_of(step: int, total_steps: int) -> int:
-    return min(WINDOW_COUNT - 1, (step - 1) * WINDOW_COUNT // max(total_steps, 1))
-
 
 def _repeated_outputs(group: Sequence[_Action]) -> int:
     """Occurrences whose result equals an earlier occurrence's result (exact revisits)."""
@@ -1051,9 +1107,14 @@ def _repeated_outputs(group: Sequence[_Action]) -> int:
 
 
 def _revisits(
-    actions: Sequence[_Action], outline: TrajectoryOutline | None, total_steps: int
+    actions: Sequence[_Action],
+    loop_steps: Sequence[LoopStep] | None,
+    total_steps: int,
 ) -> dict[str, Any]:
     counted = [a for a in actions if not a.is_poll]
+    windowed = total_steps >= MIN_STEPS_FOR_WINDOWS
+    window_counted = [0] * WINDOW_COUNT
+    window_repeats = [0] * WINDOW_COUNT
     seen: set[str] = set()
     states: set[tuple[str, str]] = set()
     outputs: dict[str, str] = {}
@@ -1064,6 +1125,8 @@ def _revisits(
     longest: list[int] = []
     revisit_steps: list[int] = []
     for action in counted:
+        if windowed:
+            window_counted[run_report_scale.window_of(action.step, total_steps)] += 1
         groups[action.signature].append(action)
         state = (action.signature, action.output_hash) if action.output_hash else None
         # Cross-action matches need substantial output: many unrelated commands print nothing.
@@ -1076,6 +1139,8 @@ def _revisits(
         )
         if action.signature in seen:
             repeats += 1
+            if windowed:
+                window_repeats[run_report_scale.window_of(action.step, total_steps)] += 1
             revisit_steps.append(action.step)
             if previous == action.signature:
                 consecutive += 1
@@ -1106,7 +1171,7 @@ def _revisits(
         (g for g in groups.values() if len(g) > 1),
         key=lambda g: (-len(g), g[0].step),
     )
-    loop = outline.loop_suspicion if outline is not None else None
+    loop = analyze_loop_suspicion(loop_steps) if loop_steps is not None else None
     section: dict[str, Any] = {
         "actions_considered": len(counted),
         "distinct_actions": len(groups),
@@ -1139,11 +1204,14 @@ def _revisits(
         if loop is not None
         else None,
     }
-    if total_steps >= MIN_STEPS_FOR_WINDOWS:
-        windows = [0] * WINDOW_COUNT
-        for step in revisit_steps:
-            windows[_window_of(step, total_steps)] += 1
-        section["repeats_by_window"] = windows
+    if windowed:
+        section["repeats_by_window"] = window_repeats
+        onset = repeat_onset(window_counted, window_repeats)
+        if onset["status"] == "onset":
+            onset["steps"] = list(
+                run_report_scale.window_bounds(onset["window"], total_steps)
+            )
+        section["revisits_started"] = onset
     return section
 
 
@@ -1389,9 +1457,9 @@ def _context(
     segments: Sequence[tuple[Path, dict[str, Any], str]],
     subagent_events: list[dict[str, Any]],
     trial_dir: Path,
+    compactions: Sequence[dict[str, Any]] = (),
 ) -> dict[str, Any]:
     events = list(subagent_events)
-    previous: _Step | None = None
     previous_segment: int | None = None
     for step in steps:
         if previous_segment is not None and step.segment != previous_segment:
@@ -1401,23 +1469,15 @@ def _context(
             events.append({"step": step.step, "kind": "context_management", "detail": step.context_event})
         for notice in step.notices:
             events.append({"step": step.step, "kind": "harness_notice", "detail": _clip(notice, 160)})
-        if (
-            previous is not None
-            and previous.prompt_tokens is not None
-            and step.prompt_tokens is not None
-            and previous.prompt_tokens >= _COMPACTION_MIN_PROMPT
-            and step.prompt_tokens < previous.prompt_tokens * _COMPACTION_DROP_RATIO
-        ):
-            events.append(
-                {
-                    "step": step.step,
-                    "kind": "inferred_context_drop",
-                    "detail": f"input tokens fell {previous.prompt_tokens:,} -> {step.prompt_tokens:,}",
-                }
-            )
         previous_segment = step.segment
-        if step.source == "agent":
-            previous = step
+    events.extend(
+        {
+            "step": drop["step"],
+            "kind": "inferred_context_drop",
+            "detail": f"input tokens fell {drop['from_tokens']:,} -> {drop['to_tokens']:,}",
+        }
+        for drop in compactions
+    )
     copied = sum(
         1
         for _, data, _ in segments
@@ -1541,6 +1601,7 @@ def _timeline(
     context: dict[str, Any],
     origin: datetime | None,
     limit: int | None,
+    compactions: Sequence[dict[str, Any]] = (),
 ) -> dict[str, Any]:
     seen: set[str] = set()
     revisit_steps: set[int] = set()
@@ -1595,30 +1656,14 @@ def _timeline(
         previous_step = step.step
     if steps and previous_step < steps[-1].step:
         entries.append({"omitted_steps": [previous_step + 1, steps[-1].step]})
-    windows: list[dict[str, Any]] = []
-    if len(steps) >= MIN_STEPS_FOR_WINDOWS:
-        for index in range(WINDOW_COUNT):
-            members = [s for s in steps if _window_of(s.step, len(steps)) == index]
-            if not members:
-                continue
-            member_actions = [a for s in members for a in s.actions]
-            stamps = [s.timestamp for s in members if s.timestamp]
-            windows.append(
-                {
-                    "steps": [members[0].step, members[-1].step],
-                    "tool_calls": len(member_actions),
-                    "errors": sum(1 for a in member_actions if a.status == "error"),
-                    "revisits": sum(1 for s in members if s.step in revisit_steps),
-                    "output_tokens": _sum(s.completion_tokens for s in members),
-                    "cost_usd": _sum(s.cost_usd for s in members),
-                    "seconds": _seconds(min(stamps), max(stamps)) if len(stamps) > 1 else None,
-                }
-            )
+    compaction_steps = {drop["step"] for drop in compactions}
+    windows = step_windows(steps, revisit_steps, compaction_steps)
     return {
         "total_steps": len(steps),
         "shown_steps": len(chosen),
         "entries": entries,
         "windows": windows,
+        "time_windows": time_windows(steps, revisit_steps, compaction_steps),
     }
 
 
@@ -1631,7 +1676,6 @@ def _identity(
     result: dict[str, Any],
     trial_dir: Path,
     root_doc: dict[str, Any],
-    outline: TrajectoryOutline | None,
 ) -> dict[str, Any]:
     config = _dict(result.get("config"))
     agent_info = _dict(result.get("agent_info"))
@@ -1642,14 +1686,13 @@ def _identity(
         model_info.get("name")
         or agent_cfg.get("model_name")
         or agent_doc.get("model_name")
-        or (outline.model_name if outline and outline.model_name != "unknown" else None)
     )
     if model and model_info.get("provider") and "/" not in str(model):
         model = f"{model_info['provider']}/{model}"
     return {
         "trial_name": result.get("trial_name") or trial_dir.name,
         "trial_id": result.get("id"),
-        "task": result.get("task_name") or (outline.task_name if outline else None),
+        "task": result.get("task_name") or None,
         "job": trial_dir.parent.name,
         "agent": agent_info.get("name") or agent_cfg.get("name") or agent_doc.get("name"),
         "agent_version": agent_info.get("version") or agent_doc.get("version"),
@@ -1716,16 +1759,14 @@ def build_run_report(
     if not result:
         quality.append("result.json missing or unreadable: outcome and phase timing unavailable")
 
-    outline: TrajectoryOutline | None
-    try:
-        outline = outline_trajectory(trial, repo_root=trial, explicit_runs_root=trial)
-    except (TrajectoryError, ValueError, OSError):
-        outline = None
+    # Loop suspicion is computed from the same single parse that builds the
+    # steps below; the trajectory document is no longer read a second time.
     try:
         _, traj_path, _ = resolve_trial_target(trial, repo_root=trial, explicit_runs_root=trial)
     except (TrajectoryError, ValueError, OSError):
         traj_path = None
 
+    chain_complete = False
     segments: tuple[tuple[Path, dict[str, Any], str], ...] = ()
     availability: dict[str, Any] = {"trajectory": "present", "reason": None}
     if traj_path is None or not traj_path.is_file():
@@ -1749,6 +1790,7 @@ def build_run_report(
         if isinstance(data, dict):
             chain = _resolve_chain_segments(traj_path, data, trial)
             segments = chain.segments
+            chain_complete = chain.complete
             if not chain.complete:
                 quality.append(
                     f"continuation chain incomplete: {chain.stopped_ref!r} is {chain.stop_cause}; "
@@ -1760,7 +1802,7 @@ def build_run_report(
         quality.append(f"trajectory {availability['trajectory']}: {availability['reason']}")
 
     positioned = _chain_action_steps(segments) if segments else []
-    steps = _build_steps(positioned)
+    steps, loop_steps = _build_steps(positioned)
     if len(steps) < len(positioned):
         quality.append(f"{len(positioned) - len(steps)} malformed (non-object) steps skipped")
     actions = [a for s in steps for a in s.actions]
@@ -1775,8 +1817,11 @@ def build_run_report(
         quality.extend(token_warnings)
     if steps and not any(s.timestamp for s in steps):
         quality.append("steps carry no timestamps: per-step timing unavailable")
+    compactions = infer_compactions(
+        steps, min_prompt=_COMPACTION_MIN_PROMPT, drop_ratio=_COMPACTION_DROP_RATIO
+    )
     subagents, subagent_events = _subagents(steps, segments, trial, origin)
-    context = _context(steps, segments, subagent_events, trial)
+    context = _context(steps, segments, subagent_events, trial, compactions)
     errors = _errors(actions, result, origin)
     if actions and all(a.evidence in (None, "output_text", "no_result") for a in actions):
         quality.append(
@@ -1784,21 +1829,30 @@ def build_run_report(
             "are only inferred from output text"
         )
     domain = domain_section(trial, result)
+    # Outline-parity gate: loop suspicion only for a complete, well-formed chain
+    # (the same conditions under which an outline would have been "featured").
+    loop_view = (
+        loop_steps
+        if len(steps) == len(positioned)
+        and all(isinstance(doc.get("steps"), list) and doc.get("steps") for _, doc, _ in segments)
+        and chain_complete
+        else None
+    )
     report: dict[str, Any] = {
         "schema": RUN_REPORT_SCHEMA,
-        "identity": _identity(result, trial, root_doc, outline),
+        "identity": _identity(result, trial, root_doc),
         "availability": availability,
         "outcome": _outcome(result, steps, trial),
         "timing": timing,
         "tokens": tokens,
         "cost": cost,
         "tools": _tools(actions),
-        "revisits": _revisits(actions, outline if outline and outline.status == "featured" else None, len(steps)),
+        "revisits": _revisits(actions, loop_view, len(steps)),
         "subagents": subagents,
         "context": context,
         "errors": errors,
         "domain": domain,
-        "timeline": _timeline(steps, actions, subagents, context, origin, timeline_limit),
+        "timeline": _timeline(steps, actions, subagents, context, origin, timeline_limit, compactions),
         "data_quality": quality,
         "sources": [
             {"path": str(path.relative_to(trial)) if trial in path.parents else str(path), "sha256": _sha256_file(path)}
@@ -1895,6 +1949,24 @@ def build_job_report(
         "rows": rows,
     }
     return job_report, reports
+
+
+def _fmt_revisit_onset(onset: dict[str, Any] | None) -> str:
+    """One-line rendering of the ``revisits_started`` block."""
+    if not onset:
+        return "n/a"
+    if onset["status"] == "onset":
+        return (
+            f"window {onset['window'] + 1} (steps {onset['steps'][0]}–{onset['steps'][1]}): "
+            f"repeat rate {_fmt_pct(onset['repeat_rate'])} vs run median "
+            f"{_fmt_pct(onset['median_repeat_rate'])}"
+        )
+    labels = {
+        "no_repeats": "no repeated actions in the run",
+        "flat": "no window exceeds the run-median repeat rate",
+        "unavailable": onset.get("reason") or "no window carries actions",
+    }
+    return labels.get(str(onset["status"]), str(onset["status"]))
 
 
 # --------------------------------------------------------------------------- #
@@ -2130,6 +2202,11 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
                 ["Longest identical run", f"{revisits['longest_identical_run']['length']} (steps {revisits['longest_identical_run']['steps']})"],
             ]
             + (
+                [["Revisit onset", _fmt_revisit_onset(revisits.get("revisits_started"))]]
+                if revisits.get("revisits_started")
+                else []
+            )
+            + (
                 [["Loop suspicion", f"{'detected' if revisits['loop_suspicion']['detected'] else 'not detected'} "
                   f"(score {revisits['loop_suspicion']['score']:.2f}; {', '.join(revisits['loop_suspicion']['reasons']) or 'no reasons'})"]]
                 if revisits["loop_suspicion"]
@@ -2145,6 +2222,15 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
             ]
         if any(revisits.get("repeats_by_window") or ()):
             lines += ["", f"Repeats by tenth of the run: {revisits['repeats_by_window']}"]
+        onset = revisits.get("revisits_started") or {}
+        if onset.get("repeat_rate_by_window") is not None:
+            rates = ", ".join(
+                _fmt_pct(rate) if rate is not None else "—" for rate in onset["repeat_rate_by_window"]
+            )
+            lines += [
+                "",
+                f"Repeat rate by tenth of the run (median {_fmt_pct(onset['median_repeat_rate'])}): {rates}",
+            ]
     else:
         lines.append("No actions to compare.")
     lines += ["", "## Subagents"]
@@ -2197,7 +2283,11 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
         f"Segments: {len(context['segments'])}; copied-context steps excluded: "
         f"{context['copied_context_steps_excluded']}."
     )
-    lines += [f"- step {e['step']}: {e['kind']} — {e['detail']}" for e in context["events"]]
+    shown_events = context["events"][:MAX_CONTEXT_EVENT_LINES]
+    lines += [f"- step {e['step']}: {e['kind']} — {e['detail']}" for e in shown_events]
+    hidden = len(context["events"]) - len(shown_events)
+    if hidden > 0:
+        lines.append(f"- … {hidden} more events (see the JSON report)")
     lines += ["", "## Errors"]
     unknown_detail = [
         f"{errors[key]} {label}"
@@ -2233,14 +2323,44 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
         lines += [""] + domain_lines
     lines += ["", "## Timeline"]
     if timeline["windows"]:
+        lines.append("By tenth of the run:")
         lines += _table(
-            ["Steps", "Tool calls", "Errors", "Revisits", "Output tokens", "Cost", "Duration"],
+            ["Steps", "Calls", "Err", "Revisits", "Out tok", "Peak in", "Comp", "Cost", "Span"],
             [
                 [f"{w['steps'][0]}–{w['steps'][1]}", w["tool_calls"], w["errors"], w["revisits"],
-                 _fmt_tokens(w["output_tokens"]), _fmt_usd(w["cost_usd"]), _fmt_seconds(w["seconds"])]
+                 _fmt_tokens(w["output_tokens"]), _fmt_tokens(w.get("peak_prompt_tokens")),
+                 w.get("compactions"), _fmt_usd(w["cost_usd"]), _fmt_seconds(w["seconds"])]
                 for w in timeline["windows"]
             ],
         )
+        lines.append("")
+    time_section = timeline.get("time_windows") or {}
+    if time_section.get("windows"):
+        lines.append(
+            f"By wall clock (equal-duration windows over {_fmt_seconds(time_section['span_seconds'])}"
+            + (
+                f"; {_plural(time_section['steps_without_timestamps'], 'step')} without timestamps excluded"
+                if time_section.get("steps_without_timestamps")
+                else ""
+            )
+            + "):"
+        )
+        lines += _table(
+            ["At", "Steps", "Calls", "Err", "Revisits", "Out tok", "Peak in", "Comp"],
+            [
+                [
+                    f"+{_fmt_seconds(w['starts_at_offset_seconds'])}–"
+                    f"{_fmt_seconds(w['ends_at_offset_seconds'])}",
+                    f"{w['steps'][0]}–{w['steps'][1]}", w["tool_calls"], w["errors"], w["revisits"],
+                    _fmt_tokens(w["output_tokens"]), _fmt_tokens(w.get("peak_prompt_tokens")),
+                    w.get("compactions"),
+                ]
+                for w in time_section["windows"]
+            ],
+        )
+        lines.append("")
+    elif time_section.get("status") == "unavailable":
+        lines.append(f"Time windows unavailable: {time_section['reason']}.")
         lines.append("")
     lines.append(f"Showing {timeline['shown_steps']} of {timeline['total_steps']} steps.")
     rows = []

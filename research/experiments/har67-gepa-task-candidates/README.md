@@ -221,6 +221,7 @@ committed preamble and adapter (digests must match the §1/§2 tables):
 
 ```bash
 EXP=research/experiments/har67-gepa-task-candidates
+mkdir -p "$EXP/original"
 git --git-dir="$(git rev-parse --git-common-dir)" archive origin/har61-evalsbench-20260916 \
   library/tasks/experimental/bench-tb2-dev/db-wal-recovery-f443b9e082b3 \
   | tar -x -C "$EXP/original" --strip-components=5

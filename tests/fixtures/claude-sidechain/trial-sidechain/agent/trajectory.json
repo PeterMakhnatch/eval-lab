@@ -1,0 +1,227 @@
+{
+  "schema_version": "ATIF-v1.7",
+  "session_id": "sess-1",
+  "agent": {
+    "name": "claude-code",
+    "version": "2.0",
+    "model_name": "claude-test",
+    "extra": {
+      "cwds": [
+        "/app"
+      ],
+      "agent_ids": [
+        "agent-b",
+        "main-1",
+        "agent-a"
+      ]
+    }
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "timestamp": "2026-09-01T00:00:01Z",
+      "source": "user",
+      "message": "Find all TODOs",
+      "extra": {
+        "is_sidechain": false
+      }
+    },
+    {
+      "step_id": 2,
+      "timestamp": "2026-09-01T00:00:05Z",
+      "source": "agent",
+      "model_name": "claude-test",
+      "message": "Listing files",
+      "tool_calls": [
+        {
+          "tool_call_id": "c1",
+          "function_name": "Bash",
+          "arguments": {
+            "command": "ls"
+          },
+          "extra": {
+            "raw_arguments": {
+              "command": "ls"
+            },
+            "tool_use_name": "Bash"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "c1",
+            "content": "a.py\nb.py"
+          }
+        ]
+      },
+      "llm_call_count": 1,
+      "extra": {
+        "cwd": "/app",
+        "is_sidechain": false
+      }
+    },
+    {
+      "step_id": 3,
+      "timestamp": "2026-09-01T00:00:10Z",
+      "source": "agent",
+      "model_name": "claude-test",
+      "message": "Searching a",
+      "tool_calls": [
+        {
+          "tool_call_id": "cA1",
+          "function_name": "Grep",
+          "arguments": {
+            "pattern": "TODO",
+            "path": "a.py"
+          },
+          "extra": {
+            "raw_arguments": {
+              "pattern": "TODO",
+              "path": "a.py"
+            },
+            "tool_use_name": "Grep"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "cA1",
+            "content": "a.py:1: TODO fix"
+          }
+        ]
+      },
+      "llm_call_count": 1,
+      "extra": {
+        "cwd": "/app",
+        "is_sidechain": true
+      }
+    },
+    {
+      "step_id": 4,
+      "timestamp": "2026-09-01T00:00:14Z",
+      "source": "agent",
+      "model_name": "claude-test",
+      "message": "Searching b",
+      "tool_calls": [
+        {
+          "tool_call_id": "cB1",
+          "function_name": "Grep",
+          "arguments": {
+            "pattern": "TODO",
+            "path": "b.py"
+          },
+          "extra": {
+            "raw_arguments": {
+              "pattern": "TODO",
+              "path": "b.py"
+            },
+            "tool_use_name": "Grep"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "cB1",
+            "content": "b.py:3: TODO docs"
+          }
+        ]
+      },
+      "llm_call_count": 1,
+      "extra": {
+        "cwd": "/app",
+        "is_sidechain": true
+      }
+    },
+    {
+      "step_id": 5,
+      "timestamp": "2026-09-01T00:00:20Z",
+      "source": "agent",
+      "model_name": "claude-test",
+      "message": "Searching a again",
+      "tool_calls": [
+        {
+          "tool_call_id": "cA2",
+          "function_name": "Grep",
+          "arguments": {
+            "pattern": "TODO",
+            "path": "a.py"
+          },
+          "extra": {
+            "raw_arguments": {
+              "pattern": "TODO",
+              "path": "a.py"
+            },
+            "tool_use_name": "Grep"
+          }
+        }
+      ],
+      "observation": {
+        "results": [
+          {
+            "source_call_id": "cA2",
+            "content": "a.py:1: TODO fix"
+          }
+        ]
+      },
+      "llm_call_count": 1,
+      "extra": {
+        "cwd": "/app",
+        "is_sidechain": true
+      }
+    },
+    {
+      "step_id": 6,
+      "timestamp": "2026-09-01T00:00:24Z",
+      "source": "agent",
+      "model_name": "claude-test",
+      "message": "Noting progress, no tools needed",
+      "llm_call_count": 1,
+      "extra": {
+        "cwd": "/app",
+        "is_sidechain": true
+      }
+    },
+    {
+      "step_id": 7,
+      "timestamp": "2026-09-01T00:00:26Z",
+      "source": "agent",
+      "model_name": "claude-test",
+      "message": "Same-time note from a",
+      "llm_call_count": 1,
+      "extra": {
+        "cwd": "/app",
+        "is_sidechain": true
+      }
+    },
+    {
+      "step_id": 8,
+      "timestamp": "2026-09-01T00:00:26Z",
+      "source": "agent",
+      "model_name": "claude-test",
+      "message": "Same-time note from b",
+      "llm_call_count": 1,
+      "extra": {
+        "cwd": "/app",
+        "is_sidechain": true
+      }
+    },
+    {
+      "step_id": 9,
+      "timestamp": "2026-09-01T00:00:30Z",
+      "source": "agent",
+      "model_name": "claude-test",
+      "message": "Done: 3 TODOs",
+      "llm_call_count": 1,
+      "extra": {
+        "cwd": "/app",
+        "is_sidechain": false
+      }
+    }
+  ],
+  "final_metrics": {
+    "total_steps": 9
+  }
+}

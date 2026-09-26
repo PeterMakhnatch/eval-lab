@@ -155,9 +155,19 @@ Definitions the report applies:
   `estimated_cost_usd` / `trials_with_estimated_cost` and are marked `(est)`.
 - Tool status is `ok`, `error`, or `unknown`. `evidence` names the channel:
   exit code, mini-swe-agent envelope, Codex code-mode script status, harness
-  error flag, structured payload status, leading harness rejection text, or
-  strong output-text patterns (`output_text`, inferred). Codex code-mode `exec`
-  calls are reported as the inner tool (`exec_command`, `apply_patch`).
+  error flag, structured payload status, leading harness rejection text,
+  strong output-text patterns (`output_text`, inferred), or — for Reef native
+  tools (`execute`/`run_bash`/`write_file`/`read_file`) only — a leading
+  `timed out after 60s` (`timeout`) or `refused: …` line (same `output_text`
+  channel; the exact strings those tools return with no exit code or flag).
+  Failure words deeper in such an output are data the agent read, not a
+  rejection, so successful runs that merely mention errors stay `unknown`.
+  Codex code-mode `exec` calls are reported as the inner tool
+  (`exec_command`, `apply_patch`). OpenCode non-MCP tools (bash/read/write)
+  carry no per-call channel, so their failures surface only through the
+  strong patterns (for example shell `command not found`) and their successes
+  stay `unknown`; MCP-backed calls are still judged by structured payload
+  status (`isError`/`status`/`ok`).
 - An action's signature is its tool plus normalized command or arguments.
   A repeated action reuses an earlier signature; it is a *return* when other
   actions came between and an *immediate repeat* otherwise. An *exact revisit*
@@ -183,6 +193,22 @@ Definitions the report applies:
   retained trials hold single `exec`-source rollouts), so multi-child behavior is
   pinned by format-faithful fixtures verified against the codex source, not
   production evidence.
+  Sidechain steps group by per-step agent id when present; anonymous steps
+  rejoin to the retained native session (`<trial>/agent/sessions/…`) through
+  two exact keys the converter preserves: the raw `tool_use` block id (ATIF
+  `tool_call_id`) first, then the step timestamp (attributed only when it
+  names exactly one agent; normalized to ms, UTC). Steps with no joined key
+  (text-only turns on a timestamp two agents share, or with no session
+  retained) fall back to labeled contiguous runs, which may conflate
+  interleaved parallel subagents. Proven on a real local session converted
+  with the installed Harbor 0.21 converter (2 subagents, 46 sidechain steps
+  → 46 keyed by real `agentId`, `count` 2, 0 fallback runs) and pinned by
+  `tests/fixtures/claude-sidechain/` (real converter output over a synthetic
+  raw session with the real key layout: `agent-a` × 3 incl. one timestamp
+  join, `agent-b` × 1, plus one 2-step fallback run for a shared timestamp).
+  No real Claude Code trial exists in retained evidence; the producing spec
+  is `research/experiments/specs/04-claude-code-canary/event-summary.json`
+  (billable — needs approval before running).
 - The trajectory is parsed once: windows, revisits, loop suspicion, and the
   context-growth curve all derive from that single pass, so build cost stays
   roughly flat per step on long runs (measured ~2k–10k steps). Loop suspicion

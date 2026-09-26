@@ -6,10 +6,20 @@ Bridge (`bridge.py`) converts one CEO-Bench harness run
 `logs/timing_*.jsonl`) into a Harbor-shaped trial directory that
 `evallab report run` reads.
 
+## Operator path
+
+```bash
+python -m library.adapters.ceo_bench <run_dir> --out <trial_dir>
+uv run evallab report run <trial_dir> --output-dir <out_dir>
+```
+
+The first command prints the written trial directory (exit 1 with an
+`error:` message when the run cannot be bridged); the second renders the
+`evallab.run_report/v1` JSON and Markdown, including `## Domain: ceo_bench`.
+
 ## Outputs (trial dir)
 
 - `result.json` — trial identity, agent token totals, agent cost only when the
-  harness recorded it (`api_costs` purpose `agent`); honest nulls otherwise.
 - `agent/trajectory.json` — one step per tool call with per-turn tokens.
 - `ceo_bench/*.json` — `meta`, `cash_daily`, `spend`, `forecasts`, `weeks`
   sidecars for the `ceo_bench` domain plugin (it never reads `world.nmdb`).

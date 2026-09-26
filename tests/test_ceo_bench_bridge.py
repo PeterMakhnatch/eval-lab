@@ -584,3 +584,20 @@ def test_domain_plugin_malformed_sidecar_is_unreadable(tmp_path: Path) -> None:
     report = build_run_report(trial)
     assert report["domain"] is not None
     assert report["domain"]["status"] == "unreadable"
+
+
+def test_cli_exits_nonzero_with_message_on_unbridgeable_run(tmp_path: Path) -> None:
+    import subprocess
+
+    empty = tmp_path / "empty-run"
+    empty.mkdir()
+    completed = subprocess.run(
+        [sys.executable, "-m", "library.adapters.ceo_bench", str(empty)],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert completed.returncode == 1
+    assert "error:" in completed.stderr
+    assert completed.stdout == ""

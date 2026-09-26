@@ -38,6 +38,7 @@ from pathlib import Path
 from statistics import median
 from typing import Any
 
+from evallab.interpretation.codex_rollouts import read_codex_rollouts
 from evallab.interpretation.domains import domain_section, render_domain_markdown
 from evallab.interpretation.price_table import estimate_cost_usd, lookup_price
 from evallab.traj import (
@@ -1291,7 +1292,7 @@ def _subagents(
                 "duration_seconds": _seconds(min(stamps), max(stamps)) if len(stamps) > 1 else None,
             }
         )
-    delegations = [
+    delegations: list[dict[str, Any]] = [
         {
             "step": step.step,
             "offset_seconds": _seconds(origin, step.timestamp),
@@ -1304,20 +1305,82 @@ def _subagents(
         if action.tool.lower() in _DELEGATION_TOOLS
         or any(t.lower() in _DELEGATION_TOOLS for t in action.inner_tools)
     ]
+    codex_rollouts: dict[str, Any] | None = None
+    reason: str | None = None
+    root_doc = segments[0][1] if segments else {}
+    agent_name = _dict(root_doc.get("agent")).get("name")
+    if agent_name is None and not segments:
+        try:
+            fallback = json.loads((trial_root / "result.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            fallback = {}
+        if isinstance(fallback, dict):
+            agent_name = _dict(fallback.get("agent_info")).get("name") or _dict(
+                _dict(fallback.get("config")).get("agent")
+            ).get("name")
+    if agent_name == "codex":
+        session_id = root_doc.get("session_id")
+        read = read_codex_rollouts(
+            trial_dir, parent_session_id=session_id if isinstance(session_id, str) else None
+        )
+        codex_rollouts = {
+            "status": read.status,
+            "reason": read.reason,
+            "parent": read.parent,
+            "files": list(read.files),
+            "other_threads": list(read.other_threads),
+        }
+        spawn_steps = [d for d in delegations if d["tool"].lower() == "spawn_agent"]
+        for child in read.children:
+            spawned_at_step: int | None = None
+            spawned_at_offset: float | None = None
+            if child.spawn_call_id is not None and child.spawn_call_id in read.parent_spawns:
+                index = read.parent_spawns.index(child.spawn_call_id)
+                if index < len(spawn_steps):
+                    spawned_at_step = spawn_steps[index]["step"]
+                    spawned_at_offset = spawn_steps[index]["offset_seconds"]
+            items.append(
+                {
+                    "id": child.thread_id,
+                    "kind": "delegated",
+                    "evidence": "codex_native_rollout",
+                    "location": child.location,
+                    "spawned_at_step": spawned_at_step,
+                    "spawned_at_offset_seconds": spawned_at_offset,
+                    "model": child.model,
+                    "steps": child.steps,
+                    "tool_calls": child.tool_calls,
+                    "input_tokens": child.input_tokens,
+                    "output_tokens": child.output_tokens,
+                    "cost_usd": None,
+                    "started_at": child.started_at,
+                    "ended_at": child.ended_at,
+                    "duration_seconds": child.duration_seconds,
+                    "nested_subagents": None,
+                    "depth": child.depth,
+                    "agent_role": child.agent_role,
+                    "agent_nickname": child.agent_nickname,
+                }
+            )
     items.sort(key=lambda i: (i["spawned_at_step"] is None, i["spawned_at_step"] or 0, str(i["id"])))
     if items:
         observability = "captured"
     elif delegations:
         observability = "delegations_only"
+    elif codex_rollouts is not None and codex_rollouts["status"] in ("absent", "unreadable"):
+        observability = "unavailable"
+        reason = codex_rollouts["reason"]
     else:
         observability = "none_observed"
     return {
         "observability": observability,
+        "reason": reason,
         "count": len(items),
         "delegated_count": sum(1 for i in items if i["kind"] == "delegated"),
         "summarization_count": sum(1 for i in items if i["kind"] == "context_summarization"),
         "delegation_calls": delegations,
         "items": items,
+        "codex_rollouts": codex_rollouts,
     }, context_events
 
 
@@ -2085,12 +2148,30 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
     else:
         lines.append("No actions to compare.")
     lines += ["", "## Subagents"]
-    observability = {
+    observability_texts = {
         "captured": "Subagent activity captured in the trajectory.",
         "delegations_only": "Delegation calls observed, but the harness did not record the child trajectories.",
         "none_observed": "No subagents or delegation calls observed. (Harbor's codex converter drops subagent threads; claude-code records them as sidechain steps; terminus-2 records summarization subagents.)",
-    }[subagents["observability"]]
-    lines.append(observability)
+    }
+    if subagents["observability"] == "unavailable":
+        lines.append(f"Subagent activity unavailable: {subagents.get('reason') or 'native rollouts could not be read'}.")
+    else:
+        lines.append(observability_texts[subagents["observability"]])
+    rollouts = subagents.get("codex_rollouts")
+    if rollouts is not None:
+        detail = f"Native codex rollouts: {rollouts['status']}"
+        if rollouts.get("reason"):
+            detail += f" ({rollouts['reason']})"
+        if rollouts.get("parent"):
+            detail += f"; parent {rollouts['parent']}"
+        detail += f"; {len(rollouts.get('files') or [])} file(s) read."
+        lines.append(detail)
+        others = rollouts.get("other_threads") or []
+        if others:
+            summaries = ", ".join(
+                f"{o.get('thread_id')} ({o.get('source') or 'unknown source'})" for o in others
+            )
+            lines.append(f"Other native threads (not delegated spend): {summaries}.")
     if subagents["items"]:
         lines += _table(
             ["Id", "Kind", "Spawned (step / offset)", "Duration", "Steps", "Tool calls", "Tokens in/out", "Cost", "Evidence"],

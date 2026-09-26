@@ -196,11 +196,13 @@ uniform set:
 |---|---|
 | original (`ce293e56…`) | r1 `01M3DWADJK6JFSKHDC520C18T5`, r2 `01M3DWAFARZW6V18C1W7KSZGJM`, r3 `01M3DWAH0ANSK5MY3B0Q8SESCQ`, r4 `01M3DWAJMCQDK4MGS4F1DXNAE2`, r5 `01M3DWAM9XGVG8ADMSG3X2HE47`, r6 `01M3DWANY13YANQ4M5TX11SPDJ`, r7 `01M3DWAQK00X91739D3J9CK802`, r8 `01M3DWAS6ZWKTEK3FVHE8CTVWZ` |
 | candidate v2 (`38062bf1…`) | r1 `01M3DW9ZF7559X9PCTC0201H6M`, r2 `01M3DWA17PXW2B9JQY9XCV8JHJ`, r3 `01M3DWA2Y2Y15QJZN5ZA8AG9J0`, r4 `01M3DWA4KAFXKBZEHQDXVJ2EMX`, r5 `01M3DWA6AVM7D7DT7YC3G305N6`, r6 `01M3DWA80EMBGZWTXBF1Q4A2CP`, r7 `01M3DWA9S676DF5CE5103GWADY`, r8 `01M3DWABV3G0K7K7XNTDDK703R` |
-
-Dispatch gate: `run-after-approval.sh` refuses unless all 16 IDs above are
-approved (checks `queue/approved|running|done`), then loads
-`ZAI_OPENAPI_API_KEY` from `~/.omp/agent/.env` into the `evallab tick`
-process only (never prints it). Refusal verified: `0/16`, exit 2.
+Dispatch gate: `run-after-approval.sh` holds the 16 IDs once and uses them
+both for the approval count and for the tick, which passes each ID as
+`--spec-id` with `--max-specs 16` — no other queued work can dispatch.
+It refuses unless all 16 IDs are approved (checks
+`queue/approved|running|done`), then loads `ZAI_OPENAPI_API_KEY` from
+`~/.omp/agent/.env` into the `evallab tick` process only (never prints it).
+Refusal verified: `0/16`, exit 2.
 
 Live proposer route (for the future GEPA arm, NOT executed): contained
 OpenCode transport (`proposer_transport: "opencode"`), model

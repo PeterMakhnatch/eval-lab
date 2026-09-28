@@ -1715,6 +1715,15 @@ def _stage_task_for_host(
         shutil.rmtree(staging_dir)
     staging_dir.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source, staging_dir, symlinks=True)
+    # Pinned task stores (e.g. `evallab tasks pull-hf` snapshots) are 555/444.
+    # copytree carries those modes over, so the private copy could neither take
+    # the adapted task.toml nor be removed afterwards. Package digests cover
+    # bytes, not modes; the owner-write bit is the only mode changed. Links are
+    # skipped (chmod follows them) and rejected just below.
+    for path in (staging_dir, *staging_dir.rglob("*")):
+        if not path.is_symlink():
+            owner_bits = stat.S_IWUSR | (stat.S_IXUSR if path.is_dir() else 0)
+            path.chmod(path.stat().st_mode | owner_bits)
     if any(path.is_symlink() for path in staging_dir.rglob("*")):
         raise ValueError("staged task snapshot contains a symlink")
     staged_digest = compute_task_digests(staging_dir).package

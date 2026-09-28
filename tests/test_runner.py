@@ -1347,6 +1347,55 @@ def test_staging_cleaned_up_after_success(
     assert metadata["network_adaptation"]["effective_verifier_network"] == "public"
 
 
+def test_read_only_task_store_stages_and_cleans_up(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 555/444 pinned snapshot runs; the source keeps its modes and bytes."""
+    task = no_network_task(tmp_path)
+    for path in sorted(task.rglob("*"), reverse=True):
+        path.chmod(0o555 if path.is_dir() else 0o444)
+    task.chmod(0o555)
+    source_modes = {path: path.stat().st_mode for path in (task, *task.rglob("*"))}
+    source_toml = (task / "task.toml").read_bytes()
+    request = RunRequest(
+        task=task,
+        agent="oracle",
+        name="staging-read-only-source",
+        jobs_dir=tmp_path / "runs",
+    )
+    staged_tomls: list[str] = []
+
+    def completed(*args, **kwargs) -> HarborProcessResult:
+        staged = request.jobs_dir / ".exec-stage" / request.name
+        staged_tomls.append((staged / "task.toml").read_text(encoding="utf-8"))
+        kwargs["job_dir"].mkdir(parents=True)
+        return HarborProcessResult(returncode=0, timed_out=False, log_path=kwargs["log_path"])
+
+    monkeypatch.setattr(
+        "evallab.harbor_network.host_harbor_network_policy",
+        _darwin_public_policy,
+    )
+    monkeypatch.setattr(
+        runner_module,
+        "load_job",
+        lambda _job_dir: type("CompletedJob", (), {"id": "job-123"})(),
+    )
+    monkeypatch.setattr(runner_module.shutil, "which", lambda _command: "/bin/tool")
+    monkeypatch.setattr(runner_module, "harbor_container_ids", lambda _task: frozenset())
+    monkeypatch.setattr(runner_module, "run_harbor_process", completed)
+    monkeypatch.setattr(runner_module, "tool_version", lambda _command: "0.0")
+    monkeypatch.setattr(runner_module, "git_state", lambda _root: {"commit": None, "dirty": None})
+
+    run_experiment(request, repo_root=tmp_path)
+
+    assert len(staged_tomls) == 1
+    assert staged_tomls[0].encode() != source_toml  # the adaptation reached the copy
+    assert not (request.jobs_dir / ".exec-stage" / request.name).exists()
+    assert {path: path.stat().st_mode for path in source_modes} == source_modes
+    assert (task / "task.toml").read_bytes() == source_toml
+
+
 def test_staging_cleaned_up_after_harbor_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

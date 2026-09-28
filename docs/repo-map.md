@@ -127,7 +127,7 @@ inputs:
   - path: src/evallab/gepa_optimizer/release.py
     digest: sha256:64f8d2c60bcedcc8da4e75c6dd354993897967abdec14abf879d65a956fab214
   - path: src/evallab/gepa_optimizer/workflow.py
-    digest: sha256:398ad68bb0c38cda0dc690643f281666c832ffff66f1e1857445337c5820a77c
+    digest: sha256:7b22d16a2b020156af344c03f3a62f746b6debd9052954dae1f19e4b4f059838
   - path: src/evallab/governance.py
     digest: sha256:ae2a14127f4be7f73748c01aa694858a8015ef1173b1e76019b91212c5e61ddc
   - path: src/evallab/harbor_antigravity.py

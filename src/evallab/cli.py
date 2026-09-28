@@ -2877,6 +2877,67 @@ def _tasks_exploit_collect_command(
     return 0
 
 
+def _tasks_qualify_collect_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.storage.paths import derived_root_from_environment
+    from evallab.task_qualification import (
+        TABLE_FILENAME,
+        collect_jobs,
+        read_task_qualification_parquet,
+        summarize_qualification,
+        write_task_qualification_parquet,
+    )
+
+    jobs = [_resolve(root, job) for job in args.jobs]
+    missing = [str(job) for job in jobs if not job.is_dir()]
+    if missing:
+        raise ValueError(f"job directories are missing: {', '.join(missing)}")
+    rows = collect_jobs(jobs, rate_backend=args.backend_rate_card)
+    output = (
+        _resolve(root, args.output)
+        if args.output is not None
+        else derived_root_from_environment(root) / "external/task_catalog" / TABLE_FILENAME
+    )
+    write_task_qualification_parquet(rows, output)
+    if args.json:
+        print(json.dumps(
+            {"output": str(output), "rows": read_task_qualification_parquet(output)},
+            indent=2,
+        ))
+    else:
+        try:
+            relative = output.relative_to(root.resolve())
+        except ValueError:
+            relative = output
+        print(f"wrote {len(rows)} rows to {relative}")
+        print(summarize_qualification(rows), end="")
+    return 0
+
+
+def _tasks_catalog_export_broken_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.task_catalog import CatalogError
+    from evallab.task_qualification import export_broken
+
+    try:
+        result = export_broken(
+            _resolve(root, args.out),
+            backend=args.backend,
+            repo_root=root,
+            derived_root=getattr(args, "derived_root", None),
+        )
+    except CatalogError as exc:
+        print(f"catalog export-broken: {exc}", file=sys.stderr)
+        return 1
+    print(f"wrote {result.path} ({result.n_broken} broken on {result.backend})")
+    print(f"sha256: {result.sha256}")
+    return 0
+
+
 def _ladder_validate_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -4853,6 +4914,19 @@ def parser() -> argparse.ArgumentParser:
         help="override the shared Parquet root (same resolution as library)",
     )
     catalog_export.set_defaults(func=_tasks_catalog_export_command)
+    catalog_export_broken = catalog_commands.add_parser(
+        "export-broken", help="Write the content-addressed broken-task JSON for one backend"
+    )
+    catalog_export_broken.add_argument(
+        "--backend", required=True, help="backend to export (e.g. daytona)"
+    )
+    catalog_export_broken.add_argument("--out", type=Path, required=True, help="output JSON path")
+    catalog_export_broken.add_argument(
+        "--derived-root",
+        type=Path,
+        help="override the shared Parquet root (same resolution as library)",
+    )
+    catalog_export_broken.set_defaults(func=_tasks_catalog_export_broken_command)
 
     tasks_stability_run = tasks_commands.add_parser(
         "stability-run",
@@ -4898,6 +4972,22 @@ def parser() -> argparse.ArgumentParser:
     tasks_exploit_collect.add_argument("--probe-config", default="redteam-v1")
     tasks_exploit_collect.add_argument("--output", type=Path, help="Parquet output path")
     tasks_exploit_collect.set_defaults(func=_tasks_exploit_collect_command)
+
+    tasks_qualify_collect = tasks_commands.add_parser(
+        "qualify-collect",
+        help="Collect job trials into task_qualification.parquet (HAR-88)",
+    )
+    tasks_qualify_collect.add_argument(
+        "jobs", nargs="+", type=Path, help="Harbor job directories"
+    )
+    tasks_qualify_collect.add_argument(
+        "--backend-rate-card",
+        default="daytona",
+        help="Backend whose list prices apply to est_cost_usd (default: daytona)",
+    )
+    tasks_qualify_collect.add_argument("--output", type=Path, help="Parquet output path")
+    tasks_qualify_collect.add_argument("--json", action="store_true")
+    tasks_qualify_collect.set_defaults(func=_tasks_qualify_collect_command)
 
     ladder = commands.add_parser(
         "ladder", help="Expand Cartesian evaluation grids into ExperimentSpecs"

@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS trial_facts (
     task_digest VARCHAR,
     verifier_digest VARCHAR,
     environment_digest VARCHAR,
+    environment_type VARCHAR,
     grid_id VARCHAR,
     point_id VARCHAR,
     arm_id VARCHAR,

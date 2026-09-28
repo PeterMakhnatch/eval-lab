@@ -36,6 +36,10 @@ The commands and tables are described in `docs/mimo-task-catalog.md`.
 - `nop` agent: reward must be 0 and the verifier must finish. A pass is a free reward; a verifier error means
   setup or grading is broken.
 - Oracle: only where a solution exists (none in MiMo).
+- Record both per backend: `evallab tasks qualify-collect` writes one
+  `task_qualification` row per trial (reasons, status, Daytona cost estimate)
+  and `catalog export-broken` publishes the per-backend broken list —
+  full rules in `docs/mimo-task-catalog.md` ("Backend qualification").
 
 ## Stage 2: rollouts (model cost, needs approval)
 

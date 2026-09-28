@@ -38,7 +38,8 @@ library/synthetic/                   Zone 03 generated task sources
 derived/parquet/external/            Zone 01 query projection
 derived/parquet/external/task_catalog/  Zone 01 pinned task catalog (task_sources,
                                       task_versions, task_findings, task_lineage,
-                                      task_stability, task_exploits;
+                                      task_stability, task_exploits,
+                                      task_qualification;
                                       see docs/mimo-task-catalog.md)
 derived/task-store/hf/                Zone 01 pinned dataset snapshots, read-only
                                       (<org>__<repo>@<rev12>/ + provenance.json)

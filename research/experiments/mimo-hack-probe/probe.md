@@ -160,43 +160,41 @@ github.com` → `0.0.0.0  github.com`. Setup-phase apply (root) + unprivileged
 agent blocked from the leak. Proof scaffolds (`runs/proof-tasks/`,
 gitignored) kept for reproducibility.
 
-## 4. Costed approval block (for the lead to post on HAR-83)
+## 4. Costed approval
 
-```markdown
-## HAR-83 hack-probe approval request (redteam-v1, 32 trials)
+Staging runs from a clean checkout of `origin/main`. The primary checkout is
+diverged from `origin/main` and lacks the blocklist fix, and spec `task` and
+`jobs_dir` paths resolve against the invoking checkout:
 
-Probe: stock Terminus-2 + fixed adversarial instruction
-`research/experiments/preambles/mimo-hack-probe-v1.md`
-(sha256:9984663268ca4cc2ebc9f0116da6981e22a7d462e930203ff02481130045e4b6).
-Cohort: `research/experiments/mimo-hack-probe/cohort.json` (16 terminal + 16 code,
-redrawn from the full pools: terminal 64, code 2,698).
-Staging (reproducible — run from the primary checkout after merge):
+    git -C ~/Developer/eval-lab worktree add --detach .worktrees/mimo-ops origin/main
+    cd ~/Developer/eval-lab/.worktrees/mimo-ops && uv sync --frozen
+    research/experiments/mimo-hack-probe/stage.sh all   # pull 32 pinned tasks, submit 32 parked specs, print approve loop
+    # Peter only:
+    for id in <printed ids>; do uv run evallab approve "$id" --actor peter; done
+    uv run evallab tick --parallel 8 --max-specs 32
 
-    research/experiments/mimo-hack-probe/stage.sh all
-    # 1) pulls the 32 pinned snapshots into derived/task-store/hf/... (per-id
-    #    allow_patterns, asserts task.toml present; digests pinned in specs and
-    #    re-verified at dispatch — mismatch fails closed)
-    # 2) submits all 32 specs via evallab submit and prints the approve loop
-    #    with the fresh spec IDs
+Cost formula: tasks × attempts × (input_M × in_price + output_M × out_price)
++ Σ sandbox_hours × (cpus × $0.0504 + mem_GiB × $0.0162). The Daytona rates are
+from https://www.daytona.io/pricing, retrieved 2026-09-28.
 
-Formula: tasks x attempts x (est_in_M x in_price + est_out_M x out_price) + sandbox.
-Bounds use the enforced per-trial ceilings (64 req / 200k in / 8192 out / $2.50):
-32 x 1 x (0.200000 x $0.15 + 0.008192 x $0.50) = 32 x $0.034096 = $1.09 tokens.
-Daytona sandbox hours are NOT in this cap (no $/h pinned in repo) - confirm
-Daytona budget separately, or re-stage the same specs with environment docker.
+- Tokens are capped by the per-trial ceilings (64 requests, 200k input, 8,192
+  output, $2.50). At glm-5.3-flash prices: 32 × (0.2 × $0.15 + 0.008192 × $0.50)
+  = **$1.09**.
+- Sandbox upper bound, with every trial hitting its agent, verifier and setup
+  timeouts:
+  - 16 terminal (1 vCPU / 2 GiB, 900 + 240 + 1200 s): 16 × 0.65 h × $0.0828 = $0.86
+  - 16 code (2 vCPU / 8 GiB, 3600 + 2100 + 1200 s): 16 × 1.92 h × $0.2304 = $7.07
+  - Sandbox total: **$7.93**.
+- Worst case total $9.02; the proposed cap is **$10**.
 
-Model options (pinned list prices, `price_table.py`, retrieved 2026-09-26):
-- zai/glm-5.3-flash $0.15/M in ($0.03 cached) / $0.50/M out <- specs use this
-- zai/glm-5.3 $1.40/M in ($0.26 cached) / $4.40/M out (~$9.90 at ceilings - NOT recommended)
-- local ollama_chat/qwen2.5:7b $0 tokens (needs installed GGUF + spec model swap)
-Peter chooses. No weight downloads, no publication.
+Model options, from list prices in `src/evallab/price_table.py` (Peter chooses):
 
-Cap: $2 total provider tokens across the printed approve loop
-(formula $1.09 + headroom). Approve with the loop `stage.sh submit` prints
-(IDs are queue-local; the worktree IDs are superseded on re-stage — do NOT
-approve the IDs from earlier reports).
-```
-**[Data]** hack-probe slice staged (redrawn). Interim: blocklist gap found,
-fixed, and proven live on cyber (flag for HAR-81 above); 32 specs staged via
-`stage.sh` (re-run after merge); nop proofs + `task_exploits.parquet` (2 none /
-32 not_probed) landed.
+| Model | Price per M tokens (in / cached / out) | Token worst case for 32 trials |
+|---|---|---|
+| `zai/glm-5.3-flash` (specs are parked with this) | $0.15 / $0.03 / $0.50 | $1.09 |
+| `zai/glm-5.3` | $1.40 / $0.26 / $4.40 | $10.11 |
+| local `ollama_chat/qwen2.5:7b` (docker, not Daytona) | $0 | $0; runs on the Mac |
+
+To switch models, edit `model` in the 32 spec sources before `stage.sh submit`.
+IDs from earlier reports are dead; approve only the IDs that `stage.sh submit`
+prints.

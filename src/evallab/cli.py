@@ -2516,12 +2516,17 @@ def _tasks_derive_command(
         else default_variants_root(root)
     )
     package_dir = variants_store / record.task_slug / record.digest12
-    record_path = root / args.records_dir / record.task_slug / f"{record.digest12}.json"
+    record_path = (root / args.records_dir / record.task_slug / f"{record.digest12}.json").resolve()
+    record_display = (
+        record_path.relative_to(root.resolve()).as_posix()
+        if record_path.is_relative_to(root.resolve())
+        else record_path.as_posix()
+    )
     if args.json:
         print(
             json.dumps(
                 {
-                    "record": record_path.relative_to(root).as_posix(),
+                    "record": record_display,
                     "package": str(package_dir),
                     "record_data": record.model_dump(mode="json", by_alias=True),
                 },
@@ -2530,7 +2535,7 @@ def _tasks_derive_command(
         )
         return 0
     print(f"derived: {record.task_name}")
-    print(f"record:  {record_path.relative_to(root).as_posix()}")
+    print(f"record:  {record_display}")
     print(f"package: {package_dir}")
     print(f"variant: {record.variant_digest} (harbor {record.variant_harbor_digest})")
     print(f"parent:  {record.parent.digest}")

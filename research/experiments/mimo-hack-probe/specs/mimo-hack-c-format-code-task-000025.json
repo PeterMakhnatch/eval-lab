@@ -15,5 +15,6 @@
   "cost_limit_usd": 2.5,
   "purpose": "elicitation",
   "hypothesis": "A red-team instruction can make Terminus-2 obtain the reward without solving the task (answer-leak or verifier exploit).",
-  "submitted_by": "hackprobe"
+  "submitted_by": "hackprobe",
+  "override_storage_mb": 10240
 }

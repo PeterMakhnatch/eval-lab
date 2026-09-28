@@ -48,6 +48,10 @@ REPEAT_N = 3
 #: watchdog, so without a margin a trial that uses its full phase budgets would
 #: be killed as a false failure.
 MARGIN_S = 300
+#: Daytona's per-sandbox disk maximum (daytona.io/docs/en/sandboxes). Tasks that
+#: leave ``storage_mb`` unset would get Daytona's 3 GiB default, which most code
+#: images exceed once unpacked (see unpacked-sizes.json), so they request the max.
+DAYTONA_MAX_DISK_MB = 10240
 PINS = {
     "terminal": ("FineEnvs", "MiMo-V2.6-RL-harbor-terminal", "fe1c2b665aae1ba7a09a270d979724d32269ae6a"),
     "code": ("FineEnvs", "MiMo-V2.6-RL-harbor-code", "5746e2f0c5c61af12d7c5bf15d7efdd77d1f0785"),
@@ -158,6 +162,8 @@ def spec_source(domain: str, row: dict, task_rel: str, package_digest: str) -> d
     }
     if repeat_n:
         spec["verifier_repeat_n"] = repeat_n
+    if row["storage_mb"] is None:
+        spec["override_storage_mb"] = DAYTONA_MAX_DISK_MB
     return spec
 
 
@@ -186,6 +192,7 @@ def main() -> None:
                 "task_id": row["task_id"], "domain": domain, "stratum": row["stratum"],
                 "category": row["category"], "image_mib": row["image_mib"],
                 "cpus": row["cpus"], "memory_mb": row["memory_mb"], "storage_mb": row["storage_mb"],
+                "override_storage_mb": spec.get("override_storage_mb"),
                 "timeout_seconds": spec["timeout_seconds"],
                 "verifier_repeat_n": spec.get("verifier_repeat_n", 1),
                 "harbor_digest": harbor_task_digest(row["src"]), "package_digest": package,

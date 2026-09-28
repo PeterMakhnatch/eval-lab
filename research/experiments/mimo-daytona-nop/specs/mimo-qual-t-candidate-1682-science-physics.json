@@ -1,0 +1,14 @@
+{
+  "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-terminal@fe1c2b665aae/tasks/candidate-1682-science-physics",
+  "task_package_digest": "sha256:fea0e3db409bbf20cee4863becfe2f54dc7c9b37a0ae9c1b0d9383bb919762b8",
+  "agent": "nop",
+  "environment": "daytona",
+  "name": "mimo-qual-t-candidate-1682-science-physics",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "timeout_seconds": 4380,
+  "purpose": "calibration",
+  "hypothesis": "The MiMo task starts, passes its healthcheck and grades on Daytona: a nop control completes the verifier with reward 0.",
+  "submitted_by": "har88-qualification",
+  "verifier_repeat_n": 3
+}

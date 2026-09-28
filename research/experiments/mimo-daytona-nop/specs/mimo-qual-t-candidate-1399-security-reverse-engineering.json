@@ -1,0 +1,14 @@
+{
+  "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-terminal@fe1c2b665aae/tasks/candidate-1399-security-reverse-engineering",
+  "task_package_digest": "sha256:5676317892a845e0f15bd63cfa92c17a408534a9755072afab3dfb0ed80c6262",
+  "agent": "nop",
+  "environment": "daytona",
+  "name": "mimo-qual-t-candidate-1399-security-reverse-engineering",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "timeout_seconds": 4020,
+  "purpose": "calibration",
+  "hypothesis": "The MiMo task starts, passes its healthcheck and grades on Daytona: a nop control completes the verifier with reward 0.",
+  "submitted_by": "har88-qualification",
+  "verifier_repeat_n": 3
+}

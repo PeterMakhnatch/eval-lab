@@ -1,0 +1,14 @@
+{
+  "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-terminal@fe1c2b665aae/tasks/candidate-0308-security-forensics",
+  "task_package_digest": "sha256:9964d29af3de7bdb0ace65e697bbe36afd16f145a76ffbf62c018bbb5f757733",
+  "agent": "nop",
+  "environment": "daytona",
+  "name": "mimo-qual-t-candidate-0308-security-forensics",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "timeout_seconds": 4020,
+  "purpose": "calibration",
+  "hypothesis": "The MiMo task starts, passes its healthcheck and grades on Daytona: a nop control completes the verifier with reward 0.",
+  "submitted_by": "har88-qualification",
+  "verifier_repeat_n": 3
+}

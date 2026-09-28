@@ -1,0 +1,14 @@
+{
+  "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-terminal@fe1c2b665aae/tasks/candidate-0803-ml-training",
+  "task_package_digest": "sha256:3ddd31801e34ba89f2957e9f6f0ab5e823b59833b8e39263531ee873f1d7fc2a",
+  "agent": "nop",
+  "environment": "daytona",
+  "name": "mimo-qual-t-candidate-0803-ml-training",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "timeout_seconds": 4020,
+  "purpose": "calibration",
+  "hypothesis": "The MiMo task starts, passes its healthcheck and grades on Daytona: a nop control completes the verifier with reward 0.",
+  "submitted_by": "har88-qualification",
+  "verifier_repeat_n": 3
+}

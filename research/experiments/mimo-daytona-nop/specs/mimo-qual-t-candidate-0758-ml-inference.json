@@ -1,0 +1,14 @@
+{
+  "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-terminal@fe1c2b665aae/tasks/candidate-0758-ml-inference",
+  "task_package_digest": "sha256:efd5c6fd03b912e7bf11cfd16b85f97715abde26bdd09eadfd1191dd7a2fa66a",
+  "agent": "nop",
+  "environment": "daytona",
+  "name": "mimo-qual-t-candidate-0758-ml-inference",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "timeout_seconds": 4020,
+  "purpose": "calibration",
+  "hypothesis": "The MiMo task starts, passes its healthcheck and grades on Daytona: a nop control completes the verifier with reward 0.",
+  "submitted_by": "har88-qualification",
+  "verifier_repeat_n": 3
+}

@@ -1,0 +1,14 @@
+{
+  "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-terminal@fe1c2b665aae/tasks/candidate-2511-security-cryptography",
+  "task_package_digest": "sha256:1b2eafa4a7b7f209d058cb0d8164064f7f15c52817d7b10d195a4aa5704ab5e0",
+  "agent": "nop",
+  "environment": "daytona",
+  "name": "mimo-qual-t-candidate-2511-security-cryptography",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "timeout_seconds": 4020,
+  "purpose": "calibration",
+  "hypothesis": "The MiMo task starts, passes its healthcheck and grades on Daytona: a nop control completes the verifier with reward 0.",
+  "submitted_by": "har88-qualification",
+  "verifier_repeat_n": 3
+}

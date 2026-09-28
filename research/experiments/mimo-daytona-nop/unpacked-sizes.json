@@ -1,0 +1,606 @@
+{
+ "schema": "evallab.har88.unpacked_sizes/v1",
+ "measured_at": "2026-09-28",
+ "method": "Registry manifest per pinned digest (linux/amd64); per gzip layer, the ISIZE trailer (last 4 bytes, uncompressed size mod 4 GiB) fetched with an HTTP Range request. Layers <= 1 GiB compressed take the smallest value >= the compressed size; larger layers take values within 1.8x-3.8x of compressed, so lo/hi bound the 4 GiB wrap. Calibrated against `du -sxm /` of 3 locally pulled images.",
+ "calibration": [
+  {
+   "image": "format-code-task-000007",
+   "compressed_gib": 3.24,
+   "isize_resolved_gib": 8.92,
+   "du_gib": 9.46
+  },
+  {
+   "image": "arvo-v1-10055",
+   "compressed_gib": 0.62,
+   "isize_resolved_gib": 1.76,
+   "du_gib": 1.61
+  },
+  {
+   "image": "general-agent-env-3 (terminal)",
+   "compressed_gib": 0.27,
+   "isize_resolved_gib": 0.89,
+   "du_gib": 0.96
+  }
+ ],
+ "daytona_per_sandbox_disk_cap_gib": 10,
+ "daytona_default_disk_gib": 3,
+ "fit_rule": "fits: hi < 9 GiB (>= 1 GiB headroom); no: lo > 10 GiB; else marginal",
+ "cohort": [
+  {
+   "task_id": "format-code-task-001621",
+   "domain": "code",
+   "compressed_gib": 0.29,
+   "unpacked_gib_lo": 0.64,
+   "unpacked_gib_hi": 0.64,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-000822",
+   "domain": "code",
+   "compressed_gib": 0.39,
+   "unpacked_gib_lo": 0.95,
+   "unpacked_gib_hi": 0.95,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-003031",
+   "domain": "code",
+   "compressed_gib": 0.41,
+   "unpacked_gib_lo": 1.12,
+   "unpacked_gib_hi": 1.12,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-001615",
+   "domain": "code",
+   "compressed_gib": 0.44,
+   "unpacked_gib_lo": 1.14,
+   "unpacked_gib_hi": 1.14,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-002681",
+   "domain": "code",
+   "compressed_gib": 0.57,
+   "unpacked_gib_lo": 1.44,
+   "unpacked_gib_hi": 1.44,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-002609",
+   "domain": "code",
+   "compressed_gib": 0.6,
+   "unpacked_gib_lo": 1.49,
+   "unpacked_gib_hi": 1.49,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-001873",
+   "domain": "code",
+   "compressed_gib": 0.62,
+   "unpacked_gib_lo": 1.48,
+   "unpacked_gib_hi": 1.48,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-002083",
+   "domain": "code",
+   "compressed_gib": 0.66,
+   "unpacked_gib_lo": 1.74,
+   "unpacked_gib_hi": 1.74,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-000464",
+   "domain": "code",
+   "compressed_gib": 0.76,
+   "unpacked_gib_lo": 1.79,
+   "unpacked_gib_hi": 1.79,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-002201",
+   "domain": "code",
+   "compressed_gib": 0.93,
+   "unpacked_gib_lo": 1.84,
+   "unpacked_gib_hi": 1.84,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-002854",
+   "domain": "code",
+   "compressed_gib": 1.08,
+   "unpacked_gib_lo": 1.76,
+   "unpacked_gib_hi": 1.76,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-001626",
+   "domain": "code",
+   "compressed_gib": 1.09,
+   "unpacked_gib_lo": 2.77,
+   "unpacked_gib_hi": 2.77,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-002783",
+   "domain": "code",
+   "compressed_gib": 1.28,
+   "unpacked_gib_lo": 2.24,
+   "unpacked_gib_hi": 2.24,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-002362",
+   "domain": "code",
+   "compressed_gib": 1.3,
+   "unpacked_gib_lo": 3.38,
+   "unpacked_gib_hi": 3.38,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-001486",
+   "domain": "code",
+   "compressed_gib": 1.88,
+   "unpacked_gib_lo": 6.76,
+   "unpacked_gib_hi": 6.76,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-002245",
+   "domain": "code",
+   "compressed_gib": 1.97,
+   "unpacked_gib_lo": 5.38,
+   "unpacked_gib_hi": 5.38,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-002581",
+   "domain": "code",
+   "compressed_gib": 2.88,
+   "unpacked_gib_lo": 7.82,
+   "unpacked_gib_hi": 7.82,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-000514",
+   "domain": "code",
+   "compressed_gib": 2.89,
+   "unpacked_gib_lo": 7.8,
+   "unpacked_gib_hi": 7.8,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-000359",
+   "domain": "code",
+   "compressed_gib": 2.9,
+   "unpacked_gib_lo": 7.87,
+   "unpacked_gib_hi": 7.87,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-000220",
+   "domain": "code",
+   "compressed_gib": 2.92,
+   "unpacked_gib_lo": 7.89,
+   "unpacked_gib_hi": 7.89,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-002278",
+   "domain": "code",
+   "compressed_gib": 2.93,
+   "unpacked_gib_lo": 8.1,
+   "unpacked_gib_hi": 8.1,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-001264",
+   "domain": "code",
+   "compressed_gib": 2.95,
+   "unpacked_gib_lo": 8.02,
+   "unpacked_gib_hi": 8.02,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-002289",
+   "domain": "code",
+   "compressed_gib": 2.96,
+   "unpacked_gib_lo": 8.01,
+   "unpacked_gib_hi": 8.01,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-001302",
+   "domain": "code",
+   "compressed_gib": 2.97,
+   "unpacked_gib_lo": 8.29,
+   "unpacked_gib_hi": 8.29,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-001118",
+   "domain": "code",
+   "compressed_gib": 3.02,
+   "unpacked_gib_lo": 8.11,
+   "unpacked_gib_hi": 8.11,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-000541",
+   "domain": "code",
+   "compressed_gib": 3.15,
+   "unpacked_gib_lo": 8.46,
+   "unpacked_gib_hi": 8.46,
+   "layers": 1,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "format-code-task-001190",
+   "domain": "code",
+   "compressed_gib": 3.22,
+   "unpacked_gib_lo": 7.46,
+   "unpacked_gib_hi": 11.46,
+   "layers": 1,
+   "fit_10gib": "marginal"
+  },
+  {
+   "task_id": "format-code-task-000098",
+   "domain": "code",
+   "compressed_gib": 3.47,
+   "unpacked_gib_lo": 8.97,
+   "unpacked_gib_hi": 12.97,
+   "layers": 1,
+   "fit_10gib": "marginal"
+  },
+  {
+   "task_id": "format-code-task-000105",
+   "domain": "code",
+   "compressed_gib": 3.55,
+   "unpacked_gib_lo": 8.64,
+   "unpacked_gib_hi": 12.64,
+   "layers": 1,
+   "fit_10gib": "marginal"
+  },
+  {
+   "task_id": "format-code-task-001482",
+   "domain": "code",
+   "compressed_gib": 4.31,
+   "unpacked_gib_lo": 9.38,
+   "unpacked_gib_hi": 13.38,
+   "layers": 1,
+   "fit_10gib": "marginal"
+  },
+  {
+   "task_id": "format-code-task-001483",
+   "domain": "code",
+   "compressed_gib": 4.35,
+   "unpacked_gib_lo": 9.47,
+   "unpacked_gib_hi": 13.47,
+   "layers": 1,
+   "fit_10gib": "marginal"
+  },
+  {
+   "task_id": "format-code-task-000647",
+   "domain": "code",
+   "compressed_gib": 12.78,
+   "unpacked_gib_lo": 26.72,
+   "unpacked_gib_hi": 38.72,
+   "layers": 1,
+   "fit_10gib": "no"
+  },
+  {
+   "task_id": "arvo_28777",
+   "domain": "cyber",
+   "compressed_gib": 0.51,
+   "unpacked_gib_lo": 1.45,
+   "unpacked_gib_hi": 1.45,
+   "layers": 39,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "arvo_10841",
+   "domain": "cyber",
+   "compressed_gib": 0.52,
+   "unpacked_gib_lo": 1.5,
+   "unpacked_gib_hi": 1.5,
+   "layers": 39,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "arvo_34960",
+   "domain": "cyber",
+   "compressed_gib": 0.56,
+   "unpacked_gib_lo": 1.59,
+   "unpacked_gib_hi": 1.59,
+   "layers": 39,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "arvo_30365",
+   "domain": "cyber",
+   "compressed_gib": 0.57,
+   "unpacked_gib_lo": 1.55,
+   "unpacked_gib_hi": 1.55,
+   "layers": 39,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "arvo_43055",
+   "domain": "cyber",
+   "compressed_gib": 0.58,
+   "unpacked_gib_lo": 1.72,
+   "unpacked_gib_hi": 1.72,
+   "layers": 39,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "arvo_29280",
+   "domain": "cyber",
+   "compressed_gib": 0.64,
+   "unpacked_gib_lo": 1.7,
+   "unpacked_gib_hi": 1.7,
+   "layers": 39,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "arvo_42497943",
+   "domain": "cyber",
+   "compressed_gib": 0.64,
+   "unpacked_gib_lo": 1.92,
+   "unpacked_gib_hi": 1.92,
+   "layers": 39,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "arvo_21719",
+   "domain": "cyber",
+   "compressed_gib": 0.7,
+   "unpacked_gib_lo": 1.75,
+   "unpacked_gib_hi": 1.75,
+   "layers": 39,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "arvo_42537563",
+   "domain": "cyber",
+   "compressed_gib": 0.71,
+   "unpacked_gib_lo": 1.95,
+   "unpacked_gib_hi": 1.95,
+   "layers": 39,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "arvo_14912",
+   "domain": "cyber",
+   "compressed_gib": 0.73,
+   "unpacked_gib_lo": 2.13,
+   "unpacked_gib_hi": 2.13,
+   "layers": 39,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "arvo_42486152",
+   "domain": "cyber",
+   "compressed_gib": 0.76,
+   "unpacked_gib_lo": 1.97,
+   "unpacked_gib_hi": 1.97,
+   "layers": 39,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "arvo_378159150",
+   "domain": "cyber",
+   "compressed_gib": 0.99,
+   "unpacked_gib_lo": 2.35,
+   "unpacked_gib_hi": 2.35,
+   "layers": 39,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "arvo_42539239",
+   "domain": "cyber",
+   "compressed_gib": 1.14,
+   "unpacked_gib_lo": 2.33,
+   "unpacked_gib_hi": 2.33,
+   "layers": 39,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "arvo_34134",
+   "domain": "cyber",
+   "compressed_gib": 1.25,
+   "unpacked_gib_lo": 2.95,
+   "unpacked_gib_hi": 2.95,
+   "layers": 39,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "arvo_42471025",
+   "domain": "cyber",
+   "compressed_gib": 1.25,
+   "unpacked_gib_lo": 2.98,
+   "unpacked_gib_hi": 2.98,
+   "layers": 39,
+   "fit_10gib": "fits"
+  },
+  {
+   "task_id": "arvo_32142",
+   "domain": "cyber",
+   "compressed_gib": 13.3,
+   "unpacked_gib_lo": 29.26,
+   "unpacked_gib_hi": 45.26,
+   "layers": 39,
+   "fit_10gib": "no"
+  }
+ ],
+ "hack_probe_code": [
+  {
+   "task_id": "format-code-task-000025",
+   "compressed_gib": 0.64,
+   "unpacked_gib_lo": 1.49,
+   "unpacked_gib_hi": 1.49,
+   "fit_10gib": "fits",
+   "fits_default_3gib": true
+  },
+  {
+   "task_id": "format-code-task-000459",
+   "compressed_gib": 0.66,
+   "unpacked_gib_lo": 1.54,
+   "unpacked_gib_hi": 1.54,
+   "fit_10gib": "fits",
+   "fits_default_3gib": true
+  },
+  {
+   "task_id": "format-code-task-000008",
+   "compressed_gib": 2.55,
+   "unpacked_gib_lo": 5.67,
+   "unpacked_gib_hi": 9.67,
+   "fit_10gib": "marginal",
+   "fits_default_3gib": false
+  },
+  {
+   "task_id": "format-code-task-000091",
+   "compressed_gib": 2.89,
+   "unpacked_gib_lo": 7.86,
+   "unpacked_gib_hi": 7.86,
+   "fit_10gib": "fits",
+   "fits_default_3gib": false
+  },
+  {
+   "task_id": "format-code-task-000013",
+   "compressed_gib": 2.9,
+   "unpacked_gib_lo": 7.81,
+   "unpacked_gib_hi": 7.81,
+   "fit_10gib": "fits",
+   "fits_default_3gib": false
+  },
+  {
+   "task_id": "format-code-task-000250",
+   "compressed_gib": 2.98,
+   "unpacked_gib_lo": 7.89,
+   "unpacked_gib_hi": 7.89,
+   "fit_10gib": "fits",
+   "fits_default_3gib": false
+  },
+  {
+   "task_id": "format-code-task-000428",
+   "compressed_gib": 3.03,
+   "unpacked_gib_lo": 8.07,
+   "unpacked_gib_hi": 8.07,
+   "fit_10gib": "fits",
+   "fits_default_3gib": false
+  },
+  {
+   "task_id": "format-code-task-001715",
+   "compressed_gib": 3.07,
+   "unpacked_gib_lo": 8.01,
+   "unpacked_gib_hi": 8.01,
+   "fit_10gib": "fits",
+   "fits_default_3gib": false
+  },
+  {
+   "task_id": "format-code-task-000002",
+   "compressed_gib": 3.09,
+   "unpacked_gib_lo": 8.22,
+   "unpacked_gib_hi": 8.22,
+   "fit_10gib": "fits",
+   "fits_default_3gib": false
+  },
+  {
+   "task_id": "format-code-task-000020",
+   "compressed_gib": 3.12,
+   "unpacked_gib_lo": 8.45,
+   "unpacked_gib_hi": 8.45,
+   "fit_10gib": "fits",
+   "fits_default_3gib": false
+  },
+  {
+   "task_id": "format-code-task-001194",
+   "compressed_gib": 3.14,
+   "unpacked_gib_lo": 8.53,
+   "unpacked_gib_hi": 8.53,
+   "fit_10gib": "fits",
+   "fits_default_3gib": false
+  },
+  {
+   "task_id": "format-code-task-000113",
+   "compressed_gib": 3.25,
+   "unpacked_gib_lo": 8.19,
+   "unpacked_gib_hi": 12.19,
+   "fit_10gib": "marginal",
+   "fits_default_3gib": false
+  },
+  {
+   "task_id": "format-code-task-000018",
+   "compressed_gib": 3.33,
+   "unpacked_gib_lo": 8.31,
+   "unpacked_gib_hi": 12.31,
+   "fit_10gib": "marginal",
+   "fits_default_3gib": false
+  },
+  {
+   "task_id": "format-code-task-000131",
+   "compressed_gib": 3.51,
+   "unpacked_gib_lo": 8.94,
+   "unpacked_gib_hi": 12.94,
+   "fit_10gib": "marginal",
+   "fits_default_3gib": false
+  },
+  {
+   "task_id": "format-code-task-000681",
+   "compressed_gib": 4.11,
+   "unpacked_gib_lo": 8.62,
+   "unpacked_gib_hi": 12.62,
+   "fit_10gib": "marginal",
+   "fits_default_3gib": false
+  },
+  {
+   "task_id": "format-code-task-000004",
+   "compressed_gib": 4.21,
+   "unpacked_gib_lo": 9.29,
+   "unpacked_gib_hi": 13.29,
+   "fit_10gib": "marginal",
+   "fits_default_3gib": false
+  }
+ ],
+ "code_pool_estimate": {
+  "basis": "Docker Hub compressed sizes of pinned digests x ~2.7 (median measured single-layer code ratio)",
+  "n": 2698,
+  "sized": 2636,
+  "fits_10gib_with_headroom_compressed_le_3_3gib": 2095,
+  "marginal_3_3_to_3_7gib": 257,
+  "exceeds_10gib_compressed_gt_3_7gib": 284,
+  "fits_daytona_default_3gib_compressed_le_1_1gib": 889
+ },
+ "cyber_pool_estimate": {
+  "n": 1000,
+  "fits_10gib": 997,
+  "exceeds_10gib": 3
+ }
+}

@@ -130,7 +130,7 @@ def cmd_select() -> None:
 def spec_source(domain: str, task_id: str, task_rel: str, package_digest: str) -> dict:
     short = task_id.replace("_", "-")
     prefix = "t" if domain == "terminal" else "c"
-    return {"task": task_rel, "task_package_digest": package_digest, "agent": "terminus-2",
+    spec = {"task": task_rel, "task_package_digest": package_digest, "agent": "terminus-2",
             "model": "zai/glm-5.3-flash", "environment": "daytona",
             "name": f"mimo-hack-{prefix}-{short}"[:80],
             "jobs_dir": "runs", "attempts": 1, "timeout_seconds": 1800,
@@ -140,6 +140,11 @@ def spec_source(domain: str, task_id: str, task_rel: str, package_digest: str) -
             "hypothesis": ("A red-team instruction can make Terminus-2 obtain the "
                            "reward without solving the task (answer-leak or verifier exploit)."),
             "submitted_by": "hackprobe"}
+    if domain == "code":
+        # Code task.tomls leave storage_mb unset; Daytona's 3 GiB default disk is
+        # smaller than most unpacked code images, so request the 10 GiB maximum.
+        spec["override_storage_mb"] = 10240
+    return spec
 
 
 def cmd_finalize() -> None:

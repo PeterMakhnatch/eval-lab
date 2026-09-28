@@ -49,7 +49,7 @@ inputs:
   - path: docs/dashboard.md
     digest: sha256:ee56108fa8961f0e0bb6d6f7f2174973bfce4fd15337bfe2c9e3b9c8af61c42a
   - path: docs/data-architecture.md
-    digest: sha256:7389c512e612a32db2ea7a395672c366fc815c5792664a2ea6af2ac4d66e774f
+    digest: sha256:97ed28ea2069b008b702588420b6a65db870e74079350450ad1a586d4f1196c7
   - path: docs/deepseek-v4-flash-lane.md
     digest: sha256:efe12fcfc333012d835c097f02b64535305bf108e7f9d820c97327d1072d3633
   - path: docs/engineering.md
@@ -66,6 +66,8 @@ inputs:
     digest: sha256:e9bead9abe3e94658028e68f592ff3ef8cf4d43bb86b5199d8031fb19a2cbbe5
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
+  - path: docs/model-capture.md
+    digest: sha256:743075a3971443ef4e58770bb04b0c8ae5269083e0ba69c9445a9ee3b63e0d04
   - path: docs/observability.md
     digest: sha256:33a3d815435eb7ea2af8f24793dd69529e7155b465f96ecea2aa00900bf31547
   - path: docs/operating-manual.md
@@ -156,6 +158,7 @@ an operator can see what is archived.
 | `docs/join-spine.md` | Join Spine (E05) | `living` | `builder, analyst` |
 | `docs/lancedb.md` | LanceDB vector store | `living` | `analyst, builder` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
+| `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
 | `docs/quality.md` | DirectoryQueue property-based fuzzing | `living` | `builder, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
 | `docs/research-questions.md` | What this lab studies | `living` | `builder, analyst` |
@@ -254,6 +257,7 @@ an operator can see what is archived.
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/execution-tiers.md` | Execution tiers: what runs where, and what it costs | `living` | `runner, operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
+| `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
 | `docs/operations.md` | Operations | `living` | `runner, operator` |
 | `docs/quota-accounting.md` | Subscription quota accounting | `living` | `runner, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
@@ -297,6 +301,7 @@ an operator can see what is archived.
 | `docs/execution-tiers.md` | Execution tiers: what runs where, and what it costs | `living` | `runner, operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
+| `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
 | `docs/observability.md` | Observability | `living` | `analyst, operator` |
 | `docs/operating-manual.md` | Peter's operating manual — running a lab built by agents | `living` | `operator` |
 | `docs/operations.md` | Operations | `living` | `runner, operator` |

@@ -80,8 +80,13 @@ ALLOWED_KNOBS = frozenset(
         "reasoning_effort",
         "temperature",
         "hosts_blocklist_path",
+        "trajectory_config",
     }
 )
+
+#: The only trajectory_config keys Eval Lab admits. Both default to False
+#: upstream; unknown keys refuse here because upstream silently ignores them.
+TRAJECTORY_CONFIG_KEYS = frozenset({"raw_content", "linear_history"})
 
 #: Top-level keys that select model/transport instead of behavior.
 _EXPLICIT_BINDING_KEYS = frozenset(
@@ -133,6 +138,25 @@ def _validate_config(config: dict[str, Any]) -> None:
             "container path without whitespace or traversal, got "
             f"{blocklist!r}"
         )
+    if "trajectory_config" in config:
+        trajectory = config["trajectory_config"]
+        if not isinstance(trajectory, dict):
+            raise ValueError("terminus config trajectory_config must be an object")
+        unknown_trajectory = sorted(set(trajectory) - TRAJECTORY_CONFIG_KEYS)
+        if unknown_trajectory:
+            raise ValueError(
+                "terminus config trajectory_config sets unknown keys "
+                + ", ".join(unknown_trajectory)
+                + ": only raw_content and linear_history are admitted"
+            )
+        non_boolean = sorted(
+            str(key) for key, value in trajectory.items() if not isinstance(value, bool)
+        )
+        if non_boolean:
+            raise ValueError(
+                "terminus config trajectory_config values must be booleans: "
+                + ", ".join(non_boolean)
+            )
     if "llm_call_kwargs" in config:
         nested = config["llm_call_kwargs"]
         if not isinstance(nested, dict):

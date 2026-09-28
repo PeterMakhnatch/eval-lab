@@ -44,7 +44,41 @@ from evallab.execution_contracts import (
 from evallab.harbor_common import sanitize_native_trajectory
 from evallab.terminus_local import OllamaBinding, resolve_ollama_binding
 
-__all__ = ["SecretSafeTerminus2"]
+__all__ = ["SecretSafeTerminus2", "apply_mimo_blocklist"]
+
+#: Where MiMo task setup stages FineEnvs' answer-leak blocklist. Task setup
+#: leaves the list here; the agent appends it to /etc/hosts right after it
+#: installs (the install itself needs github.com). Mirrors
+#: ``agents/mimo_opencode.py`` ``MimoOpenCode.install`` in the FineEnvs
+#: Harbor ports (``agents/mimo_opencode.py:63-71``). Terminal and music tasks
+#: never stage this file (their ``setup.sh`` defines ``write_blocklist`` but
+#: has no ``files/blocklist`` to copy and never calls it), so the apply step
+#: is a no-op there by design.
+MIMO_BLOCKLIST_PATH = "/var/lib/mimo/blocklist"
+
+
+async def apply_mimo_blocklist(environment):
+    """Append the FineEnvs answer-leak blocklist to /etc/hosts, failing closed.
+
+    Runs only when ``/var/lib/mimo/blocklist`` exists (code/cyber/general
+    tasks stage it in setup); otherwise returns ``"none"`` without touching
+    ``/etc/hosts``. A nonzero ``exec`` fails the trial setup loudly instead
+    of running the agent unleaked. HAR-83: flag for HAR-81 — our Terminus-2
+    path never applied this until now.
+    """
+    res = await environment.exec(
+        f"if [ -f {MIMO_BLOCKLIST_PATH} ]; then "
+        f"cat {MIMO_BLOCKLIST_PATH} >> /etc/hosts && grep -c '^0.0.0.0' /etc/hosts; "
+        "else echo none; fi",
+        user="root",
+    )
+    if res.return_code != 0:
+        raise RuntimeError(
+            "could not install the answer-leak blocklist in /etc/hosts: "
+            + (res.stderr or res.stdout or "")[-300:]
+        )
+    out = (res.stdout or "").strip()
+    return "none for this task" if out == "none" else f"{out} hosts blocked in /etc/hosts"
 
 #: litellm resolves the ``zai`` provider key from this process-environment name.
 _PROVIDER_KEY_ENV = "ZAI_API_KEY"
@@ -253,6 +287,14 @@ class SecretSafeTerminus2(Terminus2):
         # (task container), or any task exec call.
         if capability is not None:
             os.environ[_PROVIDER_KEY_ENV] = capability
+
+    async def setup(self, environment: Any) -> None:
+        await super().setup(environment)
+        # HAR-83: FineEnvs' answer-leak blocklist is a task file the agent
+        # must apply after install; stock Terminus2 never does. Fail closed
+        # here (inside Harbor's agent-setup phase, before the agent runs) so
+        # a trial can never run unleaked on a task that staged the list.
+        self.logger.info("answer-leak blocklist: " + await apply_mimo_blocklist(environment))
 
     async def run(self, instruction: str, environment: Any, context: Any) -> None:
         try:

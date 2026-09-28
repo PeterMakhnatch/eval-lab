@@ -81,6 +81,14 @@ findings, not crashes.
   (N2 music abcmidi, N3 webdev CDN, N4 code test-time installs),
   plus `split-group-unresolved` when no family key is derivable and the
   builder-level cross-task slug-collision rows (same rule id).
+  On top of the lint set, `catalog build` appends curated, evidence-backed
+  defect records from `library/task-findings/**/*.json` (schema
+  `evallab.task_finding/v1`: digest, task, domain, rule, `error`|`warning`
+  severity, message, `{path, sha256}` evidence, recorder and time).
+  Invalid records are skipped with a count, never a crash. An
+  `error`-severity curated finding is a hard defect: it forces
+  `train_eligible=false` with reason `finding: <rule>` in `v_task_audit`
+  and lists the version in `export-broken` on every backend (see below).
 - `task_lineage`: parent/child digest links from lineage records
   (`variant` origin rows also appear in `task_versions`).
 - `task_qualification`: one row per Harbor trial with backend health
@@ -142,7 +150,10 @@ digest the queue staged, and keeps cohort tasks with no model trial as
 `not_probed` (a nop control does not count as a probe). `train_eligible` =
 `learnable` ∧ stability evidence that is `stable` (no evidence is
 ineligible) ∧ no `confirmed` exploit and no `suspected` one still awaiting
-review ∧ not broken on that backend (see below). `export-eligible` also
+review ∧ not broken on that backend (see below) ∧ no `error`-severity
+curated finding (see above). The finding check comes first: a version with
+an error finding is train-ineligible with reason `finding: <rule>` whatever
+else holds. `export-eligible` also
 drops tasks the split file marks `heldout`; its items carry the backend,
 so the same task qualified on docker and daytona exports as two rows.
 
@@ -162,9 +173,13 @@ environment import path, job/trial/agent names, started/finished times,
 setup/agent/verifier/trial seconds, `setup_ok`, `verifier_completed`,
 reward, `repeat_rewards` (from `verifier/stability.json` when RepeatVerifier
 ran, else null), `infra_error_class`/`infra_error_phase` (the existing
-`facts.py` exception classification), resource sizes from the staged
-`task.toml` Harbor ran (`cpus`, `memory_mb`, `storage_mb`),
-`sandbox_seconds` (trial wall time), `est_cost_usd`, `status`, and `reasons`.
+`facts.py` exception classification), `grader_error` (the root-cause line
+when the grader's own pytest collection is broken, else null), resource
+sizes (`cpus`, `memory_mb`, `storage_mb`) from the staged `task.toml` Harbor
+ran — overridden by the trial config's `environment.override_cpus` /
+`override_memory_mb` / `override_storage_mb` when Daytona staging resized
+the sandbox (the overrides also feed `est_cost_usd`) — `sandbox_seconds`
+(trial wall time), `est_cost_usd`, `status`, and `reasons`.
 `catalog show` lists a task's qualification rows alongside its outcomes.
 
 Reasons (a nop trial with reward exactly 0 and a completed verifier is `ok`):
@@ -172,12 +187,13 @@ Reasons (a nop trial with reward exactly 0 and a completed verifier is `ok`):
 | Reason | Meaning |
 |---|---|
 | `setup_failed` | exception during environment setup (incl. healthcheck) or agent setup — the agent never started |
-| `backend_quota` | setup-phase exception whose type/message shows a provider quota/limit/rate-limit problem (matched case-insensitively: `quota`, `limit exceeded`, `total cpu`, `memory limit`, `disk limit`, rate-limit wording incl. `DaytonaRateLimitError`, or HTTP 429/403 with quota wording) |
+| `backend_quota` | setup-phase exception whose type/message shows a provider quota/limit/rate-limit problem (matched case-insensitively: `quota`, `limit exceeded`, `total cpu`, `memory limit`, rate-limit wording incl. `DaytonaRateLimitError`, HTTP 429/403 with quota wording, or disk-capacity markers: `no space left on device`, `disk quota`, `insufficient disk`/`storage`, `storage limit`/`disk limit`, `exceeds` near `disk`/`storage` — bare `disk`/`storage` never match). Daytona caps every sandbox at 4 vCPU / 8 GiB RAM / 10 GiB disk whatever the org tier, so a setup-phase capacity failure is provider quota, never a task defect |
 | `verifier_error` | verifier-phase exception |
 | `verifier_timeout` | verifier-phase exception naming a timeout |
 | `reward_missing` | no exception explains the trial, yet no usable reward exists |
 | `nop_passes` | a nop/oracle control scored above 0 — the grader accepts no work |
 | `unstable_verifier` | `repeat_rewards` disagree |
+| `grader_broken` | a nop/oracle control's verifier stdout (`<trial>/verifier/test-stdout.txt`, plus any `RepeatVerifier` per-repeat stdout under `<trial>/verifier/repeat/*/`) shows pytest collection failing on a broken test module (`ImportError while importing test module` / `ModuleNotFoundError` / `SyntaxError`), so every run scores 0 whatever the agent does. The row's `grader_error` carries the root-cause line (e.g. `ModuleNotFoundError: No module named 'stevedore'`). Nop guard: when the missing module's top-level name appears as a word in the task's `instruction.md`, the import is expected under nop (the agent is supposed to create it) and does not flag |
 
 Status is `ok` (no reasons), `broken` (any task-blaming reason), or
 `inconclusive`: a trial whose *only* reason is `backend_quota` failed on
@@ -186,16 +202,20 @@ in total — MiMo code/cyber sandboxes need 8 GiB each, terminal sandboxes
 need 10 GiB disk), not on the task, so the task is unrun at this tier,
 never guilty. `qualify-collect` reports an `inconclusive (backend_quota)`
 count per domain.
-
 Broken rule: a task version is broken on a backend when its *latest*
 qualification trial on that backend is `broken` (ordered by `finished_at`,
 nulls oldest). `evallab tasks catalog export-broken --backend <b> --out
 PATH` writes `{schema, backend, items, meta}` where each item names the
-task, the latest trial's reasons, and every job/trial on that backend; the
-`sha256` covers `schema` + `backend` + `items` only (same content-addressed
-convention as `export-eligible`). In `v_task_audit` the same latest-broken
-rule joins per (task version, backend) and yields train-ineligible reason
-`broken on <backend>`.
+task, the latest trial's reasons, and every job/trial on that backend; each
+item carries a `source`: `qualification` for trial-driven entries,
+`finding` for curated-defect entries. Versions with an `error`-severity
+curated finding are listed on every backend (whatever the trials say) with
+a `finding:<rule>` reason — merged into the qualification item when the
+version is broken both ways. The `sha256` covers `schema` + `backend` +
+`items` only (same content-addressed convention as `export-eligible`). In
+`v_task_audit` the same latest-broken rule joins per (task version,
+backend) and yields train-ineligible reason `broken on <backend>`, unless
+an error-severity finding takes precedence (`finding: <rule>`).
 
 Cost model: `est_cost_usd = sandbox_seconds / 3600 × (cpus × 0.0504 +
 memory_GiB × 0.0162 + max(0, storage_GiB − 5) × 0.000108)`, from the Daytona
@@ -210,11 +230,16 @@ counts as 0 billable GiB (likewise missing cpus/memory count as 0).
 Full six-domain build (2026-09-28): `task_sources` 6 rows,
 `task_versions` 7780 rows (code 2698 / cyber 1000 / general 925 /
 terminal 64 / webdev 2093 / music 1000 — exactly the contract counts),
-`task_findings` 47017 rows, `task_lineage` 0 rows (no variant records
-exist yet in `library/task-variants/`). Snapshots total 476M on disk
+`task_findings` 47017 rows (all `warning`; zero `error` rows — the audit's
+finding gate currently flips nothing), `task_lineage` 0 rows (no variant
+records exist yet in `library/task-variants/`). Snapshots total 476M on disk
 (code 106M, cyber 52M, general 116M, music 71M, terminal 4.8M, webdev
 126M); catalog tables ~5M. Zero manifest digest mismatches: every task
 directory verifies against the adapter `manifest.json`.
+The first curated record — `library/task-findings/terminal/candidate-0260-security-appsec.json`
+(`grader-broken`, `error`: the grader's pytest collection fails on the missing
+`stevedore` dependency) — materializes into `task_findings` on the next
+`catalog build`; the shared catalog above predates it.
 
 Findings per rule per domain:
 

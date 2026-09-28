@@ -1,0 +1,21 @@
+{
+  "schema": "evallab.task_finding/v1",
+  "task_version_digest": "sha256:95d2df6678d8c999a4ded14f161eb65fadabd9bc15978471868b05908fbcf1c7",
+  "task_id": "candidate-0260-security-appsec",
+  "domain": "terminal",
+  "rule": "grader-broken",
+  "severity": "error",
+  "message": "The grader's pytest collection fails with ModuleNotFoundError: No module named 'stevedore', so every run scores 0 whatever the agent does.",
+  "evidence": [
+    {
+      "path": "runs/har81-nop-terminal-0260/har81-nop-terminal-0260__ZhPhf4Z/verifier/test-stdout.txt",
+      "sha256": "sha256:444ffc9767eeaa484fe65856457cfa8e1da5eb5633299cffa920aadc10b11eb2"
+    },
+    {
+      "path": "runs/har83-stab-candidate-0260-security-appsec/candidate-0260-security-appsec__iCDRyMK/verifier/test-stdout.txt",
+      "sha256": "sha256:4a7383d7803bf57981c1bbecfb89c2798759f2d3d48dde194eb8b02a02318ec9"
+    }
+  ],
+  "recorded_at": "2026-09-28T00:00:00Z",
+  "recorded_by": "har88-qualification"
+}

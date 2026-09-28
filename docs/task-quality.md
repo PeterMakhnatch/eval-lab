@@ -40,6 +40,11 @@ The commands and tables are described in `docs/mimo-task-catalog.md`.
   `task_qualification` row per trial (reasons, status, Daytona cost estimate)
   and `catalog export-broken` publishes the per-backend broken list —
   full rules in `docs/mimo-task-catalog.md` ("Backend qualification").
+  In particular a `grader_broken` trial means the grader's own pytest
+  collection failed under a control agent (root-cause line in `grader_error`;
+  guarded so a module the agent is supposed to create does not flag), and a
+  setup-phase disk-capacity failure is `backend_quota` (inconclusive), never
+  a task defect.
 
 ## Stage 2: rollouts (model cost, needs approval)
 
@@ -70,7 +75,9 @@ never count toward a model's verdict.
 - False fails: for `always_fail` tasks, check whether the instruction and the hidden tests agree.
 
 `v_task_audit` combines these: `train_eligible` requires `learnable`, stability evidence that says `stable`, and
-no confirmed or unreviewed suspected exploit. `evallab tasks catalog export-eligible` also drops held-out tasks and
+no confirmed or unreviewed suspected exploit. A version with an `error`-severity curated finding
+(`library/task-findings/`, evidence-backed and reviewable) is train-ineligible first, with reason
+`finding: <rule>` — a hard defect outranks every other reason. `evallab tasks catalog export-eligible` also drops held-out tasks and
 writes the list with its sha256, plus the digests of the tables it was built from.
 
 ## Stage 4: behavior

@@ -2455,6 +2455,167 @@ def _tasks_import_command(
         )
     return 1 if report.failed else 0
 
+def _parse_key_value(assignments: Sequence[str], *, label: str) -> dict[str, str]:
+    parsed: dict[str, str] = {}
+    for assignment in assignments:
+        if "=" not in assignment:
+            raise ValueError(f"{label} must be key=value, got {assignment!r}")
+        key, value = assignment.split("=", 1)
+        if not key:
+            raise ValueError(f"{label} has an empty key: {assignment!r}")
+        parsed[key] = value
+    return parsed
+
+
+def _tasks_derive_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.task_variants import VariantError, derive_task
+
+    try:
+        sets = _parse_key_value(args.set or [], label="--set")
+        inputs = _parse_key_value(args.input or [], label="--input")
+        changes: dict[str, bytes | None] = {}
+        for relative, source in sets.items():
+            source_path = _resolve(root, Path(source))
+            if not source_path.is_file():
+                raise VariantError(f"--set source file is missing: {source_path}")
+            changes[relative] = source_path.read_bytes()
+        for relative in args.delete or []:
+            if relative in changes:
+                raise VariantError(f"path both set and deleted: {relative!r}")
+            changes[relative] = None
+        parent_source = None
+        if args.parent_source:
+            try:
+                parent_source = json.loads(args.parent_source)
+            except json.JSONDecodeError as exc:
+                raise VariantError(f"--parent-source is not valid JSON: {exc}") from exc
+            if not isinstance(parent_source, dict):
+                raise VariantError("--parent-source must be a JSON object")
+        record = derive_task(
+            _resolve(root, Path(args.parent)),
+            changes=changes,
+            transform=args.transform,
+            rationale=args.rationale,
+            created_by=args.created_by,
+            inputs=inputs,
+            parent_source=parent_source,
+            repo_root=root,
+            records_dir=Path(args.records_dir),
+            variants_root=Path(args.variants_root) if args.variants_root else None,
+        )
+    except VariantError as exc:
+        print(f"error: {exc}")
+        return 1
+    from evallab.task_variants import default_variants_root
+
+    variants_store = (
+        Path(args.variants_root)
+        if args.variants_root
+        else default_variants_root(root)
+    )
+    package_dir = variants_store / record.task_slug / record.digest12
+    record_path = (root / args.records_dir / record.task_slug / f"{record.digest12}.json").resolve()
+    record_display = (
+        record_path.relative_to(root.resolve()).as_posix()
+        if record_path.is_relative_to(root.resolve())
+        else record_path.as_posix()
+    )
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "record": record_display,
+                    "package": str(package_dir),
+                    "record_data": record.model_dump(mode="json", by_alias=True),
+                },
+                indent=2,
+            )
+        )
+        return 0
+    print(f"derived: {record.task_name}")
+    print(f"record:  {record_display}")
+    print(f"package: {package_dir}")
+    print(f"variant: {record.variant_digest} (harbor {record.variant_harbor_digest})")
+    print(f"parent:  {record.parent.digest}")
+    print(f"transform: {record.transform} components_changed={','.join(record.components_changed)}")
+    print(f"status:  {record.status}")
+    return 0
+
+
+def _tasks_lineage_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.task_variants import LineageError, lineage_chain, render_lineage
+
+    try:
+        steps = lineage_chain(
+            args.target,
+            repo_root=root,
+            records_dir=Path(args.records_dir),
+        )
+    except (LineageError, ValueError) as exc:
+        print(f"error: {exc}")
+        return 1
+    if not steps:
+        print("error: no lineage records found")
+        return 1
+    if args.json:
+        print(
+            json.dumps(
+                [
+                    {
+                        "depth": step.depth,
+                        "record": str(step.record_path),
+                        "task_name": step.record.task_name,
+                        "variant_digest": step.record.variant_digest,
+                        "parent_digest": step.record.parent.digest,
+                        "transform": step.record.transform,
+                        "components_changed": list(step.record.components_changed),
+                        "status": step.record.status,
+                        "files": [
+                            {
+                                "path": change.path,
+                                "before_sha256": change.before_sha256,
+                                "after_sha256": change.after_sha256,
+                            }
+                            for change in step.record.files
+                        ],
+                        "parent_error": step.parent_error,
+                    }
+                    for step in steps
+                ],
+                indent=2,
+            )
+        )
+    else:
+        print(render_lineage(steps))
+    return 1 if any(step.parent_error for step in steps) else 0
+
+
+def _tasks_variant_status_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.task_variants import LineageError, VariantError, append_status_evidence
+
+    try:
+        updated = append_status_evidence(
+            args.record,
+            args.status,
+            evidence=args.evidence,
+            by=args.by,
+            repo_root=root,
+            records_dir=Path(args.records_dir),
+        )
+    except (LineageError, VariantError, ValueError) as exc:
+        print(f"error: {exc}")
+        return 1
+    print(f"{updated.task_name}: {updated.status} ({len(updated.evidence)} evidence entries)")
+    latest = updated.evidence[-1]
+    print(f"  {latest.at} by {latest.by}: {latest.evidence}")
+    return 0
+
 
 def _ladder_validate_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
@@ -4277,6 +4438,90 @@ def parser() -> argparse.ArgumentParser:
     )
     tasks_lint.add_argument("--json", action="store_true")
     tasks_lint.set_defaults(func=_tasks_lint_command)
+
+
+    tasks_derive = tasks_commands.add_parser(
+        "derive", help="Derive a task variant with a git-tracked lineage record"
+    )
+    tasks_derive.add_argument("--parent", type=Path, required=True, help="Parent task directory")
+    tasks_derive.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        metavar="RELPATH=FILE",
+        help="Replace RELPATH with the bytes of FILE (repeatable)",
+    )
+    tasks_derive.add_argument(
+        "--delete",
+        action="append",
+        default=[],
+        metavar="RELPATH",
+        help="Delete RELPATH from the variant (repeatable)",
+    )
+    tasks_derive.add_argument(
+        "--transform", required=True, help="Transform identity as name@version"
+    )
+    tasks_derive.add_argument("--rationale", required=True, help="Why this variant exists")
+    tasks_derive.add_argument(
+        "--input",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="Free-form provenance input (repeatable)",
+    )
+    tasks_derive.add_argument("--created-by", default="operator")
+    tasks_derive.add_argument(
+        "--parent-source",
+        help=(
+            'Parent provenance as JSON, e.g. '
+            "'{\"kind\":\"hf\",\"repo\":\"...\",\"revision\":\"<40-hex>\",\"path\":\"tasks/x\"}'"
+        ),
+    )
+    tasks_derive.add_argument(
+        "--records-dir",
+        type=Path,
+        default=Path("library/task-variants"),
+        help="Repo-relative lineage-record root",
+    )
+    tasks_derive.add_argument(
+        "--variants-root",
+        type=Path,
+        help="Override the materialized-variant store root (defaults to the shared derived store)",
+    )
+    tasks_derive.add_argument("--json", action="store_true")
+    tasks_derive.set_defaults(func=_tasks_derive_command)
+
+    tasks_lineage = tasks_commands.add_parser(
+        "lineage", help="Print a variant's chain back to its original parent"
+    )
+    tasks_lineage.add_argument(
+        "target", help="Lineage record path, variant digest (full or 12-hex), or task directory"
+    )
+    tasks_lineage.add_argument(
+        "--records-dir",
+        type=Path,
+        default=Path("library/task-variants"),
+        help="Repo-relative lineage-record root",
+    )
+    tasks_lineage.add_argument("--json", action="store_true")
+    tasks_lineage.set_defaults(func=_tasks_lineage_command)
+
+    tasks_status = tasks_commands.add_parser(
+        "variant-status", help="Append validation evidence to a variant record"
+    )
+    tasks_status.add_argument("record", help="Lineage record path or variant digest")
+    tasks_status.add_argument("status", choices=["validated", "rejected"])
+    tasks_status.add_argument(
+        "--evidence", required=True, help="Job directory or note justifying the verdict"
+    )
+    tasks_status.add_argument("--by", default="operator")
+    tasks_status.add_argument(
+        "--records-dir",
+        type=Path,
+        default=Path("library/task-variants"),
+        help="Repo-relative lineage-record root",
+    )
+    tasks_status.set_defaults(func=_tasks_variant_status_command)
 
     ladder = commands.add_parser(
         "ladder", help="Expand Cartesian evaluation grids into ExperimentSpecs"

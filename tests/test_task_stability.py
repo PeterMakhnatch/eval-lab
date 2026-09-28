@@ -214,7 +214,10 @@ class _FakeExecResult:
 
 
 class _FakeEnvironment:
-    """Replays one return code per non-chmod exec, in call order."""
+    """Replays one return code per test-script exec, in call order.
+
+    Setup/cleanup execs (chmod, rm) return 0 without consuming codes.
+    """
 
     def __init__(self, return_codes: list[int] | None = None) -> None:
         self._return_codes = list(return_codes or [])
@@ -222,16 +225,17 @@ class _FakeEnvironment:
 
     async def exec(self, command: str, *args: object, **kwargs: object) -> _FakeExecResult:
         self.exec_commands.append(command)
-        if command.lstrip().startswith("chmod"):
-            return _FakeExecResult(0)
-        code = self._return_codes.pop(0) if self._return_codes else 0
-        return _FakeExecResult(code)
+        if "test-stdout" in command and self._return_codes:
+            return _FakeExecResult(self._return_codes.pop(0))
+        return _FakeExecResult(0)
 
 
 class _FakeTrialPaths:
     def __init__(self, root: Path) -> None:
         self.verifier_dir = root / "verifier"
         self.test_stdout_path = root / "verifier" / "test-stdout.txt"
+        self.reward_text_path = root / "verifier" / "reward.txt"
+        self.reward_json_path = root / "verifier" / "reward.json"
 
 
 def _scripted_inner(rewards: list[float | None], exit_codes: list[int] | None = None):
@@ -401,3 +405,83 @@ def test_summarize_job_trials_marks_missing_stability(tmp_path: Path) -> None:
     assert by_trial["job__good"]["verdict"] == "stable"
     assert by_trial["job__bad"]["has_stability"] is False
     assert by_trial["job__bad"]["rewards"] == [0.0]
+
+
+def _file_backed_inner(writes: list[str | None]):
+    """Inner verifier that grades like Harbor: reads the host reward file.
+
+    Each call writes ``reward.txt`` per the script (or nothing when the run
+    dies first), rewrites ``test-stdout.txt``, then parses the reward file —
+    raising ``FileNotFoundError`` when no file exists, exactly like Harbor's
+    ``Verifier`` on a testbed failure.
+    """
+    state = {"calls": 0}
+
+    def factory(*, task: object, trial_paths: _FakeTrialPaths,
+                environment: _FakeEnvironment, **kwargs: object) -> object:
+        class FileBackedInner:
+            async def verify(self) -> SimpleNamespace:
+                index = state["calls"]
+                state["calls"] += 1
+                await environment.exec("chmod +x /tests/test.sh", user="root")
+                await environment.exec("(/tests/test.sh) > /logs/verifier/test-stdout.txt 2>&1")
+                trial_paths.test_stdout_path.parent.mkdir(parents=True, exist_ok=True)
+                trial_paths.test_stdout_path.write_bytes(f"run {index} stdout\n".encode())
+                written = writes[index]
+                if written is not None:
+                    trial_paths.reward_text_path.write_text(written)
+                try:
+                    reward = float(trial_paths.reward_text_path.read_text().strip())
+                except (OSError, ValueError) as exc:
+                    raise FileNotFoundError("No reward file found") from exc
+                return SimpleNamespace(rewards={"reward": reward})
+
+        return FileBackedInner()
+
+    return factory
+
+
+def test_rerun_without_reward_reads_null_not_stale(tmp_path: Path) -> None:
+    """Run 2 writes nothing: clearing must prevent run 1's stale reward."""
+    paths = _FakeTrialPaths(tmp_path)
+    env = _FakeEnvironment()
+    verifier = RepeatVerifier(
+        task=object(), trial_paths=paths, environment=env, repeat_n=3,
+        _inner_factory=_file_backed_inner(["1", None, "0"]),
+    )
+    result = asyncio.run(verifier.verify())
+    assert result.rewards == {"reward": 1.0}
+    payload = json.loads((paths.verifier_dir / "stability.json").read_text())
+    assert [run["reward"] for run in payload["runs"]] == [1.0, None, 0.0]
+    assert "FileNotFoundError" in payload["runs"][1]["error"]
+    assert verdict_for([run["reward"] for run in payload["runs"]]) == "errored"
+    # The container-side clear was issued before reruns.
+    rm_calls = [cmd for cmd in env.exec_commands if cmd.startswith("rm -f")]
+    assert len(rm_calls) == 2
+
+
+def test_top_level_matches_run_zero_with_per_run_copies(tmp_path: Path) -> None:
+    """Trial dir looks like a single-verify trial of run 0 plus repeat/."""
+    paths = _FakeTrialPaths(tmp_path)
+    env = _FakeEnvironment()
+    verifier = RepeatVerifier(
+        task=object(), trial_paths=paths, environment=env, repeat_n=3,
+        _inner_factory=_file_backed_inner(["1", None, "0"]),
+    )
+    asyncio.run(verifier.verify())
+    top = paths.verifier_dir
+    assert (top / "reward.txt").read_text() == "1"
+    assert (top / "test-stdout.txt").read_bytes() == b"run 0 stdout\n"
+    assert (top / "stability.json").is_file()
+    for index, expected_reward, expected_stdout in (
+        (0, "1", b"run 0 stdout\n"),
+        (1, None, b"run 1 stdout\n"),
+        (2, "0", b"run 2 stdout\n"),
+    ):
+        rundir = top / "repeat" / str(index)
+        assert (rundir / "test-stdout.txt").read_bytes() == expected_stdout
+        reward_file = rundir / "reward.txt"
+        if expected_reward is None:
+            assert not reward_file.exists()
+        else:
+            assert reward_file.read_text() == expected_reward

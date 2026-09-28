@@ -81,7 +81,7 @@ Reruns execute in the same container with no reset between them:
 
 ## First sample (2026-09-28, Harbor 0.21.0, local Docker, nop agent)
 
-`task_stability.parquet` holds 10 rows from `har83-stab*` jobs:
+`task_stability.parquet` holds 11 rows from `har83-stab*` jobs:
 
 | task | method | rewards | verdict |
 |---|---|---|---|
@@ -93,13 +93,17 @@ Reruns execute in the same container with no reset between them:
 | arvo_10096 | repeat_verifier | [0,0,0] | stable |
 | music-gk-0000 (x2 attempts) | nop_repeat | [null] | errored |
 | music-gk-0001 (x2 attempts) | nop_repeat | [null] | errored |
+| candidate-0036 (har83-stab3 re-run, fixed verifier) | repeat_verifier | [0,0,0] | stable |
 
 Notes: terminal stdout tails differ across runs while rewards agree
-(timing lines); cyber stdout is byte-identical. Music never reached the
-verifier: Harbor's healthcheck fails with rc=127 while the identical
-command succeeds when run manually in the same image (`rc=0`), so both
-music attempts are infra `errored`, not signal. Code was skipped (2.7 GB
-image, long test commands) per the $0 sampling plan.
+(timing lines); cyber stdout is byte-identical. The `har83-stab3` re-run
+uses the fixed verifier: the trial's `verifier/` top level holds run 0's
+`reward.txt`/`test-stdout.txt`/`ctrf.json` plus `repeat/{0,1,2}/` and
+`stability.json` (top reward == run 0 reward, top stdout byte-identical
+to `repeat/0`). Music never reached the verifier: Harbor's healthcheck
+fails with rc=127 (missing `/app` workdir vs `exec -w`; see Known issues),
+so both music attempts are infra `errored`, not signal. Code was skipped
+(2.7 GB image, long test commands) per the $0 sampling plan.
 
 ## `diff_replay` recipe (offline reruns, no container retained)
 
@@ -113,3 +117,25 @@ Implemented only as a documented recipe (see `task_stability.py`
    `verifier/agent.diff` (`git apply` in the workdir), then run
    `tests/test.sh` k times and record each `reward.txt`.
 4. Collect with `stability-collect --method diff_replay`.
+
+## Known issues
+
+### Music tasks fail Harbor setup with rc=127 (all music tasks likely affected)
+
+Music tasks declare `workdir = "/app"` but their base image
+(`docker.io/library/python@…`, multi-arch) ships **without** `/app`.
+Harbor 0.21's Docker backend runs `[environment.healthcheck].command` as
+`docker compose exec -w /app … bash -c '…'`, and `exec -w` into a missing
+directory fails with **rc=127** — before `setup.sh` (which would create
+`/app`) ever runs. Chicken-and-egg: terminal/cyber MiMo images bake their
+workdirs in, so only music is affected, but every music task shares this
+shape, so presumably all ~1,000 music tasks are unrunnable under Harbor
+0.21 local Docker until the adapter creates `/app` (e.g. `Dockerfile`
+`WORKDIR`/`mkdir`) or Harbor tolerates a missing exec workdir.
+
+Evidence (2026-09-28, Harbor 0.21.0, arm64 host): `music-gk-0000` and
+`music-gk-0001` healthchecks failed with rc=127 twice each, while the byte-
+identical healthcheck command run manually in the same image (`docker exec
+-w /app … bash -c '…'`) succeeds with rc=0, and `docker exec -w` into a
+missing directory reproduces rc=127 exactly. The task bytes and image are
+exonerated; the failure is in Harbor's exec invocation vs the image layout.

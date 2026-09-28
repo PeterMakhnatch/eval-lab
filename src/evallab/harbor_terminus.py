@@ -25,7 +25,6 @@ Credential posture:
 from __future__ import annotations
 
 import os
-import shlex
 import urllib.parse
 from pathlib import Path
 from typing import Any
@@ -127,9 +126,6 @@ _FORBIDDEN_EXTRA_ENV_PREFIXES = (
 )
 
 
-class HostsBlocklistError(RuntimeError):
-    """The pinned hosts blocklist could not be applied as an infrastructure step."""
-
 
 def _resolve_metered_model(model_name: str | None) -> tuple[str, TinkerModelSpec | None]:
     """Return the validated model string plus its Tinker spec, if any.
@@ -150,23 +146,6 @@ def _resolve_metered_model(model_name: str | None) -> tuple[str, TinkerModelSpec
         f"got {model_name!r}. Coding Plan credentials are not admitted."
     )
 
-
-def _validated_hosts_blocklist_path(value: str | None) -> str | None:
-    """Accept only a plain absolute container path for the hosts blocklist."""
-    if value is None:
-        return None
-    if (
-        not isinstance(value, str)
-        or not value.startswith("/")
-        or value != value.strip()
-        or any(ch.isspace() for ch in value)
-        or ".." in value.split("/")
-    ):
-        raise ValueError(
-            "hosts_blocklist_path must be a plain absolute container path "
-            f"without whitespace or traversal, got {value!r}"
-        )
-    return value
 
 def _require_loopback_proxy_url() -> str:
     """Return the runner-bound loopback proxy URL, failing closed otherwise."""
@@ -265,7 +244,6 @@ class SecretSafeTerminus2(Terminus2):
         llm_kwargs: dict[str, Any] | None = None,
         llm_call_kwargs: dict[str, Any] | None = None,
         extra_env: dict[str, str] | None = None,
-        hosts_blocklist_path: str | None = None,
         **kwargs: Any,
     ) -> None:
         if len(args) > 1:
@@ -275,8 +253,6 @@ class SecretSafeTerminus2(Terminus2):
             )
         self._local_binding: OllamaBinding | None = None
         self._tinker_spec: TinkerModelSpec | None = None
-        self._hosts_blocklist_path = _validated_hosts_blocklist_path(hosts_blocklist_path)
-        self._hosts_blocklist_result: dict[str, Any] | None = None
         if model_name == TERMINUS_LOCAL_MODEL_SELECTOR:
             self._local_binding = resolve_ollama_binding(model_name)
             model = model_name
@@ -361,45 +337,6 @@ class SecretSafeTerminus2(Terminus2):
         if capability is not None and provider is not None:
             os.environ[_PROVIDER_KEY_ENVS[provider]] = capability
 
-    async def _apply_hosts_blocklist(self, environment: Any) -> None:
-        """Append the pinned answer-leak blocklist to /etc/hosts as root.
-
-        Runs after the agent's own setup/install (network still required for
-        the install) and before the first model turn, mirroring the reference
-        MiMo harness protocol. Any failure — missing file, failed append, a
-        line that did not land — is an infrastructure error that fails the
-        trial; it is never a task score.
-        """
-        assert self._hosts_blocklist_path is not None
-        quoted = shlex.quote(self._hosts_blocklist_path)
-        script = (
-            "set -e; "
-            f"B={quoted}; "
-            '[ -f "$B" ] || { echo "hosts blocklist file missing: $B" >&2; exit 3; }; '
-            'cat "$B" >> /etc/hosts || { echo "hosts append failed" >&2; exit 4; }; '
-            "applied=0; "
-            'while IFS= read -r line; do '
-            '  [ -n "$line" ] || continue; '
-            '  grep -qF -- "$line" /etc/hosts || '
-            '    { echo "hosts blocklist line not applied: $line" >&2; exit 5; }; '
-            '  applied=$((applied+1)); '
-            'done < "$B"; '
-            '[ "$applied" -gt 0 ] || { echo "hosts blocklist is empty: $B" >&2; exit 6; }; '
-            'echo "$applied"'
-        )
-        result = await environment.exec(script, timeout_sec=30, user="root")
-        output = (result.stdout or "").strip()
-        if result.return_code != 0 or not output.isdigit() or int(output) < 1:
-            raise HostsBlocklistError(
-                "applying the pinned hosts blocklist "
-                f"{self._hosts_blocklist_path!r} failed as an infrastructure "
-                f"step (exit={result.return_code}, stdout={result.stdout!r}, "
-                f"stderr={result.stderr!r}); the trial must fail, not score"
-            )
-        self._hosts_blocklist_result = {
-            "path": self._hosts_blocklist_path,
-            "applied_lines": int(output),
-        }
 
     async def setup(self, environment: Any) -> None:
         await super().setup(environment)
@@ -410,8 +347,6 @@ class SecretSafeTerminus2(Terminus2):
         self.logger.info("answer-leak blocklist: " + await apply_mimo_blocklist(environment))
 
     async def run(self, instruction: str, environment: Any, context: Any) -> None:
-        if self._hosts_blocklist_path is not None and self._hosts_blocklist_result is None:
-            await self._apply_hosts_blocklist(environment)
         try:
             await super().run(instruction, environment, context)
         finally:
@@ -422,11 +357,6 @@ class SecretSafeTerminus2(Terminus2):
                 context.metadata = {
                     **(context.metadata or {}),
                     "local_ollama": self._local_binding.to_dict(),
-                }
-            if self._hosts_blocklist_result is not None:
-                context.metadata = {
-                    **(context.metadata or {}),
-                    "hosts_blocklist": self._hosts_blocklist_result,
                 }
 
     def populate_context_post_run(self, context: Any) -> None:

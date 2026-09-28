@@ -9,10 +9,11 @@ Covers the consumer-visible boundaries of HAR-81's Terminus additions:
 - The generic metered proxy under the Tinker provider profile: native model
   rewrite (including checkpoints), ``reasoning_effort: false`` passthrough,
   pinned table pricing in the frozen ledger, and the Z.ai glm-5.3 price row.
-- Credential gating for the Tinker route.
-- The ``hosts_blocklist_path`` infrastructure step, applied as root before
-  the first model turn, recorded in retained metadata, failing the trial on
-  any apply error, and never forwarded upstream.
+    - Credential gating for the Tinker route.
+    - Harness-tree opt-in ``trajectory_config`` (exactly ``raw_content`` and
+      ``linear_history``) passed through to the native Terminus 2 kwarg.
+    - Main's MiMo answer-leak blocklist setup step running unchanged on the
+      Tinker branch, plus raw-content ATIF projection through ingestion readers.
 
 Everything runs against scripted loopback fakes: no paid provider calls.
 """
@@ -22,6 +23,8 @@ from __future__ import annotations
 import asyncio
 import importlib
 import json
+import logging
+import os
 import subprocess
 import sys
 import threading
@@ -191,6 +194,12 @@ class _FakeTerminus2:
         self._extra_env = dict(extra_env) if extra_env else {}
         self.extra_kwargs = kwargs
         self.ran = False
+        self.setup_ran = False
+        self.logger = logging.getLogger("fake-terminus2")
+
+    async def setup(self, environment: Any) -> None:
+        del environment
+        self.setup_ran = True
 
     async def run(self, instruction: str, environment: Any, context: Any) -> None:
         del instruction, environment
@@ -253,12 +262,8 @@ def test_adapter_binds_tinker_context_and_capability(
     assert model_info["input_cost_per_token"] == pytest.approx(0.54)
     assert model_info["output_cost_per_token"] == pytest.approx(1.335)
     # The litellm openai-compatible lookup receives the capability only in
-    # the controller process environment.
-    import os
-
+    assert agent.api_base == "http://127.0.0.1:9"
     assert os.environ["OPENAI_API_KEY"] == CAPABILITY_SENTINEL
-    # hosts_blocklist_path is consumed, never forwarded upstream.
-    assert "hosts_blocklist_path" not in agent.extra_kwargs
 
 
 def test_adapter_rejects_tinker_model_info_override(
@@ -288,129 +293,209 @@ def test_adapter_rejects_transport_overrides_on_tinker(
 
 
 # ---------------------------------------------------------------------------
-# 3. hosts_blocklist_path infrastructure step
+# 3. trajectory_config harness knob (SFT export: raw content, linear segments)
 # ---------------------------------------------------------------------------
 
 
+def _tree(tmp_path: Path, config: dict[str, Any]) -> Path:
+    from evallab.terminus_harness import CONFIG_PATH
+
+    digest = sum(ord(ch) for ch in json.dumps(config, sort_keys=True))
+    root = tmp_path / f"tree-{digest}"
+    (root / CONFIG_PATH).parent.mkdir(parents=True, exist_ok=True)
+    (root / CONFIG_PATH).write_text(json.dumps(config))
+    return root
+
+
+def test_harness_knob_accepts_trajectory_config(tmp_path: Path) -> None:
+    from evallab.terminus_harness import load_harness_tree
+
+    for config in (
+        {"trajectory_config": {"raw_content": True, "linear_history": True}},
+        {"trajectory_config": {"raw_content": True}},
+        {"trajectory_config": {"linear_history": False}},
+        {"trajectory_config": {}},
+    ):
+        loaded = load_harness_tree(_tree(tmp_path, config))
+        assert loaded.config["trajectory_config"] == config["trajectory_config"]
+    # The knob is covered by the harness-tree digest: different values pin
+    # different trees.
+    first = load_harness_tree(
+        _tree(tmp_path, {"trajectory_config": {"raw_content": True}})
+    )
+    second = load_harness_tree(
+        _tree(tmp_path, {"trajectory_config": {"raw_content": False}})
+    )
+    assert first.sha256 != second.sha256
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {"trajectory_config": {"store_all_messages": True}},
+        {"trajectory_config": {"raw_content": True, "bogus": False}},
+        {"trajectory_config": ["raw_content"]},
+        {"trajectory_config": {"raw_content": 1}},
+        {"trajectory_config": {"linear_history": "yes"}},
+        {"trajectory_config": {"raw_content": None}},
+    ],
+)
+def test_harness_knob_rejects_trajectory_config(
+    tmp_path: Path, config: dict[str, Any]
+) -> None:
+    from evallab.terminus_harness import load_harness_tree
+
+    with pytest.raises(ValueError, match="trajectory_config"):
+        load_harness_tree(_tree(tmp_path, config))
+
+
+def test_trajectory_config_reaches_native_kwargs(tmp_path: Path) -> None:
+    from evallab.execution_contracts import terminus_agent_kwargs
+    from evallab.terminus_harness import load_harness_tree
+
+    value = {"raw_content": True, "linear_history": True}
+    root = _tree(tmp_path, {"trajectory_config": value})
+    tree = load_harness_tree(root)
+    request = _terminus_request(
+        tmp_path,
+        TINKER_BASE_SELECTOR,
+        harness_tree_path=root,
+        harness_tree_sha256=tree.sha256,
+    )
+    assert terminus_agent_kwargs(request)["trajectory_config"] == value
+
+
+def test_adapter_forwards_trajectory_config_to_native_terminus(
+    tinker_transport: Any, tmp_path: Path
+) -> None:
+    agent = tinker_transport.SecretSafeTerminus2(
+        logs_dir=tmp_path,
+        model_name=TINKER_BASE_SELECTOR,
+        trajectory_config={"raw_content": True, "linear_history": False},
+    )
+    assert agent.extra_kwargs["trajectory_config"] == {
+        "raw_content": True,
+        "linear_history": False,
+    }
+
+
 @dataclass
-class _ExecResult:
+class _BlocklistExecResult:
     stdout: str
     stderr: str
     return_code: int
 
 
-class _ScriptedEnvironment:
-    """Environment stand-in applying the blocklist like a container would."""
+class _BlocklistEnvironment:
+    """Environment stand-in answering the answer-leak blocklist probe."""
 
-    def __init__(self, *, blocklist_lines: list[str] | None, fail: bool = False) -> None:
-        self.blocklist_lines = blocklist_lines
-        self.fail = fail
-        self.hosts: list[str] = ["127.0.0.1 localhost"]
+    def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
 
-    async def exec(
-        self,
-        command: str,
-        cwd: str | None = None,
-        env: dict[str, str] | None = None,
-        timeout_sec: float | None = None,
-        user: str | None = None,
-    ) -> _ExecResult:
-        del cwd, env
-        self.calls.append({"command": command, "timeout_sec": timeout_sec, "user": user})
-        if self.fail:
-            return _ExecResult(stdout="", stderr="append failed", return_code=4)
-        if self.blocklist_lines is None:
-            return _ExecResult(stdout="", stderr="hosts blocklist file missing", return_code=3)
-        self.hosts.extend(self.blocklist_lines)
-        return _ExecResult(stdout=str(len(self.blocklist_lines)), stderr="", return_code=0)
+    async def exec(self, command: str, user: str | None = None) -> _BlocklistExecResult:
+        self.calls.append({"command": command, "user": user})
+        return _BlocklistExecResult(stdout="12\n", stderr="", return_code=0)
 
 
-class _Context:
-    def __init__(self) -> None:
-        self.metadata: dict[str, Any] | None = None
-        self.cost_usd: float | None = None
-
-
-def test_hosts_blocklist_applied_as_root_and_recorded(
+def test_setup_applies_mimo_blocklist_on_tinker_route(
     tinker_transport: Any, tmp_path: Path
 ) -> None:
+    """Main's answer-leak blocklist step is route-agnostic: it runs on Tinker."""
     agent = tinker_transport.SecretSafeTerminus2(
-        logs_dir=tmp_path,
-        model_name=TINKER_BASE_SELECTOR,
-        hosts_blocklist_path="/var/lib/mimo/blocklist",
+        logs_dir=tmp_path, model_name=TINKER_BASE_SELECTOR
     )
-    environment = _ScriptedEnvironment(
-        blocklist_lines=["0.0.0.0 github.com", "0.0.0.0 api.github.com"]
-    )
-    context = _Context()
-    asyncio.run(agent.run("do the task", environment, context))
-    assert agent.ran is True  # type: ignore[attr-defined]
-    # The append runs as root before the first model turn.
-    call = environment.calls[0]
-    assert call["user"] == "root"
-    assert call["timeout_sec"] is not None
-    assert context.metadata == {
-        "upstream": "ran",
-        "hosts_blocklist": {"path": "/var/lib/mimo/blocklist", "applied_lines": 2},
-    }
+    environment = _BlocklistEnvironment()
+    asyncio.run(agent.setup(environment))
+    assert agent.setup_ran is True  # type: ignore[attr-defined]
+    assert len(environment.calls) == 1
+    assert environment.calls[0]["user"] == "root"
+    assert "/var/lib/mimo/blocklist" in environment.calls[0]["command"]
 
 
-def test_hosts_blocklist_missing_file_fails_trial_as_infra_error(
-    tinker_transport: Any, tmp_path: Path
-) -> None:
-    agent = tinker_transport.SecretSafeTerminus2(
-        logs_dir=tmp_path,
-        model_name=TINKER_BASE_SELECTOR,
-        hosts_blocklist_path="/var/lib/mimo/blocklist",
-    )
-    environment = _ScriptedEnvironment(blocklist_lines=None)
-    with pytest.raises(tinker_transport.HostsBlocklistError, match="infrastructure"):
-        asyncio.run(agent.run("do the task", environment, _Context()))
-    assert agent.ran is False  # type: ignore[attr-defined]
+# A raw-content ATIF document: assistant steps carry the unparsed LLM text
+# and no tool_calls key.
+_RAW_DOCUMENT = {
+    "schema_version": "ATIF-v1.7",
+    "session_id": "raw-session",
+    "agent": {
+        "name": "terminus-2",
+        "version": "2.0.0",
+        "model_name": "tinker/Qwen/Qwen3.6-35B-A3B",
+    },
+    "steps": [
+        {
+            "step_id": 1,
+            "timestamp": "2026-09-28T12:00:00+00:00",
+            "source": "user",
+            "message": "summarize the repository",
+        },
+        {
+            "step_id": 2,
+            "timestamp": "2026-09-28T12:00:05+00:00",
+            "source": "agent",
+            "model_name": "Qwen/Qwen3.6-35B-A3B",
+            # Raw unparsed LLM text (fenced tool call, never parsed into
+            # step tool_calls): this is what raw_content=True retains.
+            "message": (
+                '```json\n{"analysis": "list files", '
+                '"plan": "run ls", "tool_calls": [{"name": "bash", '
+                '"arguments": {"command": "ls"}}]}\n```'
+            ),
+            "metrics": {"prompt_tokens": 120, "completion_tokens": 60},
+        },
+    ],
+    "final_metrics": {
+        "total_prompt_tokens": 120,
+        "total_completion_tokens": 60,
+        "total_cached_tokens": 0,
+    },
+}
 
 
-def test_hosts_blocklist_append_failure_fails_trial(
-    tinker_transport: Any, tmp_path: Path
-) -> None:
-    agent = tinker_transport.SecretSafeTerminus2(
-        logs_dir=tmp_path,
-        model_name=TINKER_BASE_SELECTOR,
-        hosts_blocklist_path="/var/lib/mimo/blocklist",
-    )
-    with pytest.raises(tinker_transport.HostsBlocklistError):
-        asyncio.run(agent.run("t", _ScriptedEnvironment(blocklist_lines=[], fail=True), _Context()))
-
-
-@pytest.mark.parametrize(
-    "path",
-    ["var/lib/mimo/blocklist", "/var/lib/mimo/block list", "/var/../etc/hosts", " /x"],
-)
-def test_adapter_rejects_malformed_blocklist_paths(
-    tinker_transport: Any, tmp_path: Path, path: str
-) -> None:
-    with pytest.raises(ValueError, match="hosts_blocklist_path"):
-        tinker_transport.SecretSafeTerminus2(
-            logs_dir=tmp_path,
-            model_name=TINKER_BASE_SELECTOR,
-            hosts_blocklist_path=path,
+def _raw_content_job(root: Path) -> Path:
+    job = root / "job-raw"
+    trial_dir = job / "trial-raw"
+    (trial_dir / "agent").mkdir(parents=True)
+    (job / "result.json").write_text(
+        json.dumps(
+            {
+                "id": "job-raw",
+                "finished_at": "2026-09-28T12:30:00+00:00",
+                "n_total_trials": 1,
+                "stats": {"n_completed_trials": 1, "n_errored_trials": 0},
+            }
         )
+    )
+    (trial_dir / "result.json").write_text(
+        json.dumps(
+            {
+                "id": "trial-raw",
+                "trial_name": "trial-raw",
+                "task_name": "raw-content-fixture-task",
+            }
+        )
+    )
+    (trial_dir / "agent" / "trajectory.json").write_text(json.dumps(_RAW_DOCUMENT))
+    return job
 
 
-def test_harness_knob_validates_blocklist_path(tmp_path: Path) -> None:
-    from evallab.terminus_harness import CONFIG_PATH, load_harness_tree
+def test_raw_content_trajectory_projects_and_outlines(tmp_path: Path) -> None:
+    """Ingestion consumers complete on raw-content steps without tool_calls."""
+    from evallab.evidence.atif import project_trial
+    from evallab.results import load_job
+    from evallab.traj import outline_trajectory
 
-    def tree(config: dict[str, Any]) -> Path:
-        digest = sum(ord(ch) for ch in json.dumps(config, sort_keys=True))
-        root = tmp_path / f"tree-{digest}"
-        (root / CONFIG_PATH).parent.mkdir(parents=True, exist_ok=True)
-        (root / CONFIG_PATH).write_text(json.dumps(config))
-        return root
-
-    loaded = load_harness_tree(tree({"hosts_blocklist_path": "/var/lib/mimo/blocklist"}))
-    assert loaded is not None
-    with pytest.raises(ValueError, match="hosts_blocklist_path"):
-        load_harness_tree(tree({"hosts_blocklist_path": "relative/path"}))
+    job_dir = _raw_content_job(tmp_path)
+    job = load_job(job_dir)
+    trial = job.trials[0]
+    projection = project_trial(job, trial)
+    assert {t.validation_status for t in projection.trajectories} == {"valid"}
+    assert projection.tool_calls == ()
+    outline = outline_trajectory(trial.path, repo_root=tmp_path)
+    assert outline.status == "featured"
+    assert len(outline.steps) == 2
+    # The unparsed fenced tool call stays message text, never a tool call.
+    assert "```json" in (outline.steps[1].thought_snippet or "")
 
 
 # ---------------------------------------------------------------------------
@@ -707,3 +792,143 @@ def test_loopback_smoke_through_real_proxy_and_adapter(
     finally:
         process.terminate()
         process.wait(10)
+
+
+# ---------------------------------------------------------------------------
+# 7. Capture chain: tinker secret proxy -> capture -> upstream (HAR-82 lane)
+# ---------------------------------------------------------------------------
+
+
+class _TinkerChainStub(BaseHTTPRequestHandler):
+    """Stub Tinker endpoint answering behind the capture proxy."""
+
+    protocol_version = "HTTP/1.1"
+    received: list[dict[str, Any]] = []
+
+    def log_message(self, format: str, *args: Any) -> None:
+        del format, args
+
+    def _reply(self, body: bytes) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+        self.close_connection = True
+
+    def do_POST(self) -> None:  # noqa: N802
+        assert self.path == "/services/tinker-prod/oai/api/v1/chat/completions"
+        length = int(self.headers.get("Content-Length") or 0)
+        payload = json.loads(self.rfile.read(length)) if length else {}
+        type(self).received.append(
+            {
+                "auth": self.headers.get("Authorization"),
+                "model": payload.get("model"),
+                "reasoning_effort": payload.get("reasoning_effort"),
+            }
+        )
+        self._reply(
+            json.dumps(
+                {
+                    "id": "cmpl-tinker",
+                    "object": "chat.completion",
+                    "model": payload.get("model"),
+                    "choices": [
+                        {"message": {"role": "assistant", "content": "done"}}
+                    ],
+                    "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+                }
+            ).encode()
+        )
+
+
+def test_tinker_secret_proxy_chain_records_chat_and_scrubs_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Same HAR-82 placement as the z.ai lane: proxy -> capture -> upstream."""
+    import importlib.util
+
+    from evallab.model_capture import serve_capture
+
+    _TinkerChainStub.received = []
+    stub = ThreadingHTTPServer(("127.0.0.1", 0), _TinkerChainStub)
+    threading.Thread(target=stub.serve_forever, daemon=True).start()
+    capture, recorder, _manifest = serve_capture(
+        upstream=f"http://127.0.0.1:{stub.server_address[1]}",
+        out_dir=tmp_path / "cap",
+        bind="127.0.0.1",
+        port=0,
+    )
+    capture_thread = threading.Thread(target=capture.serve_forever, daemon=True)
+    capture_thread.start()
+    provider_key = "tinker-provider-key-sentinel-24680"
+    secret_file = tmp_path / "tinker-key"
+    secret_file.write_text(provider_key + "\n")
+    secret_file.chmod(0o600)
+    capability = "tinker-chain-capability-token"
+    monkeypatch.setenv("EVALLAB_PROXY_PROVIDER", "tinker")
+    monkeypatch.setenv("EVALLAB_TINKER_SECRET_PATH", str(secret_file))
+    monkeypatch.setenv(
+        "EVALLAB_TINKER_UPSTREAM", f"http://127.0.0.1:{capture.server_address[1]}"
+    )
+    monkeypatch.setenv("EVALLAB_TINKER_PROXY_CAPABILITY", capability)
+    monkeypatch.setenv("EVALLAB_TINKER_ATTEMPT_ID", "trial-01")
+    monkeypatch.setenv("EVALLAB_TINKER_USAGE_FILE", str(tmp_path / "usage.json"))
+    monkeypatch.setenv("EVALLAB_TINKER_EXPECTED_BASE", TINKER_BASE)
+    monkeypatch.setenv("EVALLAB_TINKER_MAX_REQUESTS", "5")
+    monkeypatch.setenv("EVALLAB_TINKER_MAX_INPUT_TOKENS", "10000")
+    monkeypatch.setenv("EVALLAB_TINKER_MAX_OUTPUT_TOKENS", "10000")
+    monkeypatch.setenv("EVALLAB_TINKER_MAX_TOTAL_TOKENS", "20000")
+    monkeypatch.setenv("EVALLAB_TINKER_MAX_COST_MICROS", "1000000")
+    source = REPO_ROOT / "containers" / "zai_openapi_secret_proxy.py"
+    spec = importlib.util.spec_from_file_location("chain_tinker_secret_proxy", source)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, spec.name, module)
+    spec.loader.exec_module(module)
+    proxy = module.serve(host="127.0.0.1", port=0)
+    proxy_thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+    proxy_thread.start()
+    try:
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{proxy.server_address[1]}"
+            "/services/tinker-prod/oai/api/v1/chat/completions",
+            data=json.dumps(
+                {
+                    "model": CHECKPOINT_SELECTOR,
+                    "messages": [{"role": "user", "content": "hi"}],
+                    "reasoning_effort": False,
+                }
+            ).encode(),
+            headers={
+                "Content-Type": "application/json",
+                "X-Evallab-Proxy-Capability": capability,
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=30) as response:
+            assert response.status == 200
+            body = json.loads(response.read())
+            assert body["choices"][0]["message"]["content"] == "done"
+    finally:
+        proxy.shutdown()
+        capture.shutdown()
+        stub.shutdown()
+        recorder.close()
+    assert _TinkerChainStub.received
+    seen = _TinkerChainStub.received[0]
+    assert seen["auth"] == f"Bearer {provider_key}"
+    assert seen["model"] == CHECKPOINT
+    assert seen["reasoning_effort"] is False
+    records = [
+        json.loads(line)
+        for line in (tmp_path / "cap" / "calls.jsonl").read_text().splitlines()
+    ]
+    assert len(records) == 1
+    record = records[0]
+    assert record["request_body"]["model"] == CHECKPOINT
+    assert record["request_body"]["reasoning_effort"] is False
+    assert record["assistant_texts"] == ["done"]
+    assert "authorization" not in {k.lower() for k in record["request_headers"]}
+    assert provider_key not in json.dumps(record)

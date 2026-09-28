@@ -224,19 +224,25 @@ uv run evallab ingest runs/terminus-example
 
 Two Terminus-specific knobs:
 
-- Harness config `hosts_blocklist_path` (absolute container path, e.g.
-  `/var/lib/mimo/blocklist`): after agent setup and before the first model
-  turn, the adapter appends the file to `/etc/hosts` as root, verifies every
-  non-empty line landed, and records the applied line count in
-  `context.metadata.hosts_blocklist`. A missing file, failed append, or empty
-  blocklist fails the trial as an infrastructure error, never a task score.
-  This pins the MiMo answer-leak protocol (agent install keeps network; the
-  task itself must not reach the leak hosts). Unset keeps today's behavior.
+- Harness config `trajectory_config` (exactly `raw_content` and
+  `linear_history`, both booleans, both false unless set): passed through to
+  the native Terminus 2 kwarg and covered by the harness-tree digest. SFT
+  export sets both true for raw LLM responses and linear segments.
 - `evallab tasks replay <retained-spec> --name <n> --model <selector>` swaps
   only the model (e.g. base to checkpoint), keeping the retained task,
   harness, and ceilings; the printed cost estimate must be re-checked before
   submitting. Prior approval is never inherited.
 
+Independent model-call capture (same placement as the z.ai lane) chains the
+metered proxy into `evallab capture serve`, so Tinker trials get the same
+completeness verdicts; see [the capture recipe](model-capture.md):
+
+```bash
+uv run evallab capture serve --upstream https://tinker.thinkingmachines.dev \
+  --out derived/captures/<name> --port 8471
+EVALLAB_TINKER_UPSTREAM=http://127.0.0.1:8471 uv run evallab tick ...
+uv run evallab capture link derived/captures/<name> runs/<job>
+```
 
 The trial's `agent/` directory retains `trajectory.json`, `recording.cast`,
 `terminus_2.pane`, and any summarization/continuation trajectories. Native

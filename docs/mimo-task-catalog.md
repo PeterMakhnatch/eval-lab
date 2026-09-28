@@ -211,8 +211,11 @@ item carries a `source`: `qualification` for trial-driven entries,
 `finding` for curated-defect entries. Versions with an `error`-severity
 curated finding are listed on every backend (whatever the trials say) with
 a `finding:<rule>` reason — merged into the qualification item when the
-version is broken both ways. The `sha256` covers `schema` + `backend` +
-`items` only (same content-addressed convention as `export-eligible`). In
+version is broken both ways. Curated findings export even before any
+qualification run on that backend (`meta.table_digest` is then null); with
+neither a qualification table nor an error finding the export refuses. The
+`sha256` covers `schema` + `backend` + `items` only (same content-addressed
+convention as `export-eligible`). In
 `v_task_audit` the same latest-broken rule joins per (task version,
 backend) and yields train-ineligible reason `broken on <backend>`, unless
 an error-severity finding takes precedence (`finding: <rule>`).

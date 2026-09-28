@@ -79,6 +79,7 @@ ALLOWED_KNOBS = frozenset(
         "proactive_summarization_threshold",
         "reasoning_effort",
         "temperature",
+        "hosts_blocklist_path",
     }
 )
 
@@ -119,8 +120,21 @@ def _validate_config(config: dict[str, Any]) -> None:
     turns = config.get("max_turns")
     if turns is not None and (isinstance(turns, bool) or not isinstance(turns, int) or turns < 1):
         raise ValueError("terminus config max_turns must be a positive integer")
-    nested = config.get("llm_call_kwargs")
+    blocklist = config.get("hosts_blocklist_path")
+    if blocklist is not None and (
+        not isinstance(blocklist, str)
+        or not blocklist.startswith("/")
+        or blocklist != blocklist.strip()
+        or any(ch.isspace() for ch in blocklist)
+        or ".." in blocklist.split("/")
+    ):
+        raise ValueError(
+            "terminus config hosts_blocklist_path must be a plain absolute "
+            "container path without whitespace or traversal, got "
+            f"{blocklist!r}"
+        )
     if "llm_call_kwargs" in config:
+        nested = config["llm_call_kwargs"]
         if not isinstance(nested, dict):
             raise ValueError("terminus config llm_call_kwargs must be an object")
         nested_bound = sorted(str(key) for key in nested if _is_binding_key(str(key)))

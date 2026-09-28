@@ -153,9 +153,24 @@ closed during container network configuration before model requests can issue.
 Use `--agent terminus-2`. Eval Lab subclasses Harbor's upstream **Terminus 2**
 only to bind its host-side model client. Its terminal loop, JSON command parser,
 context summarization, terminal recordings, and ATIF writer remain upstream
-implementations. The metered route is `zai/glm-5.3-flash`, using the standard-API
-`ZAI_OPENAPI_API_KEY`, never Coding Plan credentials. A separate local route,
-`ollama_chat/qwen2.5:7b`, uses an explicitly selected local Ollama service.
+implementations. Metered routes, all host-side through the same loopback proxy:
+
+- `zai/glm-5.3-flash` and `zai/glm-5.3` — Z.ai standard API via
+  `ZAI_OPENAPI_API_KEY` ($0.15/$0.50 and $1.40/$4.40 per 1M tokens). Never
+  Coding Plan credentials.
+- `tinker/<base>` for `Qwen/Qwen3.6-35B-A3B` ($0.54/$1.335),
+  `Qwen/Qwen3.8-27B` ($1.86/$5.595), or `Qwen/Qwen3.5-9B` ($0.66/$1.995)
+  — Thinking Machines Tinker's OpenAI-compatible endpoint via `TINKER_API_KEY`,
+  pinned to `tinker.thinkingmachines.dev` +
+  `/services/tinker-prod/oai/api/v1/chat/completions`. A fine-tuned checkpoint
+  replay uses `tinker/<base>@tinker://<run-id>:train:<i>/sampler_weights/<step>`;
+  it pins the same base profile, prices, and credential. Tinker's 64K context
+  window is bound at the adapter, so native summarization triggers before
+  overflow. A harness config `reasoning_effort: false` is forwarded verbatim
+  (the HAR-81 student protocol disables thinking).
+
+A separate local route, `ollama_chat/qwen2.5:7b`, uses an explicitly selected
+local Ollama service.
 
 Prepare any local Harbor task package; no task-ID allowlist or new registry
 admission is needed:
@@ -206,6 +221,22 @@ uv run evallab traj outline runs/terminus-example/<trial-directory>
 # Rebuild derived records from retained native evidence when needed:
 uv run evallab ingest runs/terminus-example
 ```
+
+Two Terminus-specific knobs:
+
+- Harness config `hosts_blocklist_path` (absolute container path, e.g.
+  `/var/lib/mimo/blocklist`): after agent setup and before the first model
+  turn, the adapter appends the file to `/etc/hosts` as root, verifies every
+  non-empty line landed, and records the applied line count in
+  `context.metadata.hosts_blocklist`. A missing file, failed append, or empty
+  blocklist fails the trial as an infrastructure error, never a task score.
+  This pins the MiMo answer-leak protocol (agent install keeps network; the
+  task itself must not reach the leak hosts). Unset keeps today's behavior.
+- `evallab tasks replay <retained-spec> --name <n> --model <selector>` swaps
+  only the model (e.g. base to checkpoint), keeping the retained task,
+  harness, and ceilings; the printed cost estimate must be re-checked before
+  submitting. Prior approval is never inherited.
+
 
 The trial's `agent/` directory retains `trajectory.json`, `recording.cast`,
 `terminus_2.pane`, and any summarization/continuation trajectories. Native

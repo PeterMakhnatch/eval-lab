@@ -25,9 +25,12 @@ from evallab.execution_contracts import (
     TERMINUS_AGENT,
     TERMINUS_LOCAL_MODEL_SELECTOR,
     ZAI_OPENAPI_MODEL_SELECTOR,
+    ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS,
     ZAI_OPENCODE_AGENT,
     ZAI_OPENCODE_MODEL_SELECTORS,
     RunRequest,
+    is_tinker_terminus_model,
+    parse_tinker_model,
     uses_provider_proxy,
     validate_request,
 )
@@ -42,11 +45,6 @@ PREPARED_HARNESSES_REL = "runs/.prepared-harnesses"
 #: Prepared specs live here by default, named ``<job-name>.json``.
 PREPARED_SPECS_REL = "derived/prepared"
 
-#: Request/default numeric caps reused from the retained pilot.
-PILOT_MAX_REQUESTS = 200
-PILOT_MAX_INPUT_TOKENS = 5_000_000
-PILOT_MAX_OUTPUT_TOKENS = 131_072
-
 MINI_SWE_AGENT = "mini-swe-agent"
 MINI_SWE_MODELS = frozenset(
     {
@@ -56,6 +54,12 @@ MINI_SWE_MODELS = frozenset(
         GLM_SELFHOSTED_FT_MODEL_SELECTOR,
     }
 )
+
+#: Request/default numeric caps reused from the retained pilot.
+PILOT_MAX_REQUESTS = 200
+PILOT_MAX_INPUT_TOKENS = 5_000_000
+PILOT_MAX_OUTPUT_TOKENS = 131_072
+
 #: Local Docker plus the TB4 remote backends (mirrors craft.TB4_REMOTE_ENVIRONMENTS).
 SUPPORTED_ENVIRONMENTS = frozenset({"docker", "modal", "beam", "daytona"})
 
@@ -272,8 +276,19 @@ def prepare_task(
         raise ValueError("paid harness preparation requires an explicit model selector")
     if agent in CONTROL_AGENTS and model is not None:
         raise ValueError(f"the {agent} control does not accept a model")
-    if agent == MINI_SWE_AGENT and model is not None and model not in MINI_SWE_MODELS:
-        raise ValueError(f"mini-swe-agent requires one of {sorted(MINI_SWE_MODELS)}, got {model!r}")
+    if agent == TERMINUS_AGENT and model is not None:
+        if is_tinker_terminus_model(model):
+            # Fail closed on unknown bases/malformed checkpoints at prepare
+            # time, not at dispatch.
+            parse_tinker_model(model)
+        elif model not in ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS | {TERMINUS_LOCAL_MODEL_SELECTOR}:
+            raise ValueError(
+                "terminus-2 requires a Z.ai standard-API model "
+                f"{sorted(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)}, a "
+                "'tinker/<base>[@tinker://<run>:train:<i>/sampler_weights/"
+                f"<step>]' selector, or the installed local selector "
+                f"{TERMINUS_LOCAL_MODEL_SELECTOR!r}, got {model!r}"
+            )
     if (
         agent in (ZAI_OPENCODE_AGENT, RLM_AGENT)
         and model is not None
@@ -466,25 +481,54 @@ def replay_task(
     retained_spec_path: Path,
     *,
     name: str,
-    harness_tree_path: Path,
+    harness_tree_path: Path | None = None,
     harness_tree_sha256: str | None = None,
+    model: str | None = None,
     output: Path | None = None,
 ) -> tuple[ExperimentSpec, Path]:
-    """Freeze a replacement harness; preserve the retained task and run settings."""
+    """Freeze a replayed spec; swap the harness tree and/or the model only.
+
+    The retained task package, ceilings, attempts, and timeouts are preserved
+    unchanged (task drift is refused). A model swap must stay inside the
+    adapter's admitted selectors; everything else — including the retained
+    cost ceilings — is replayed verbatim.
+    """
     from evallab.gepa_optimizer.intake import (
         load_retained_spec,
         replay_spec_for_candidate,
+        replay_spec_for_model,
         validate_drift,
     )
 
+    if harness_tree_path is None and model is None:
+        raise ValueError("replay requires a harness tree path, a model swap, or both")
     repo = Path(repo_root).resolve()
     base = load_retained_spec(retained_spec_path)
     if base.agent != TERMINUS_AGENT:
-        raise ValueError("harness-tree replay requires a retained terminus-2 spec")
+        raise ValueError("spec replay requires a retained terminus-2 spec")
     task_path = (repo / (base.task_path or base.task)).resolve()
     if not task_path.is_relative_to(repo):
         raise ValueError("retained task path must remain inside the repository")
     validate_drift(base, compute_task_digests(task_path).package)
+    if model is not None and model != base.model:
+        if is_tinker_terminus_model(model):
+            parse_tinker_model(model)
+        elif model not in ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS | {TERMINUS_LOCAL_MODEL_SELECTOR}:
+            raise ValueError(
+                "model replay requires a Terminus-admitted model: one of "
+                f"{sorted(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)} or a "
+                "'tinker/<base>[@tinker://<run>:train:<i>/sampler_weights/"
+                f"<step>]' selector, got {model!r}"
+            )
+        replayed = replay_spec_for_model(base, campaign_name=name, model=model)
+        if harness_tree_path is None:
+            candidate = (
+                Path(output) if output is not None else Path(PREPARED_SPECS_REL) / f"{name}.json"
+            )
+            spec_path = _output_path(repo, candidate)
+            _publish_prepared_spec(replayed, spec_path)
+            return replayed, spec_path
+    assert harness_tree_path is not None
     tree_source = Path(harness_tree_path)
     if not tree_source.is_absolute():
         tree_source = repo / tree_source
@@ -503,6 +547,9 @@ def replay_task(
         candidate_kind="terminus_harness",
         name=name,
     )
+    if model is not None and model != base.model:
+        assert replayed is not None
+        replayed = replayed.model_copy(update={"model": model})
     candidate = Path(output) if output is not None else Path(PREPARED_SPECS_REL) / f"{name}.json"
     spec_path = _output_path(repo, candidate)
     _publish_prepared_spec(replayed, spec_path)

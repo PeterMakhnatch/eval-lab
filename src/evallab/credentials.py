@@ -48,6 +48,7 @@ ANTIGRAVITY_SESSION = "antigravity_session"
 DEEPSEEK_API_CREDENTIAL = "deepseek_api_environment"
 ZAI_OPENCODE_AUTH = "zai_opencode_auth"
 ZAI_OPENAPI_API_CREDENTIAL = "zai_openapi_api_environment"
+TINKER_API_CREDENTIAL = "tinker_api_environment"
 GLM_SELFHOSTED_API_CREDENTIAL = "glm_selfhosted_api_environment"
 LOCAL_OLLAMA_ENDPOINT = "local_ollama_endpoint"
 # Agents whose runs require a credential. Control agents (oracle, nop) are
@@ -78,6 +79,7 @@ _ZAI_PROFILE = _PROFILES["zai-opencode-glm-5.3-flash"]
 _ZAI_MINISWE_PROFILE = _PROFILES["mini-swe-agent-glm-5.3-flash"]
 _GLM_SELFHOSTED_BASE_PROFILE = _PROFILES["glm-selfhosted-base"]
 _GLM_SELFHOSTED_FT_PROFILE = _PROFILES["glm-selfhosted-ft"]
+_TINKER_TERMINUS_PROFILE = _PROFILES["terminus-2-tinker-qwen3-6-35b-a3b"]
 
 
 def _security_exit_status(args: list[str]) -> int:
@@ -197,6 +199,21 @@ def probe_glm_selfhosted_api_result(
     return probe(_GLM_SELFHOSTED_BASE_PROFILE)
 
 
+def probe_tinker_api() -> bool:
+    return probe_tinker_api_result().ok
+
+
+def probe_tinker_api_result(
+    environment: Mapping[str, str] | None = None,
+) -> ProbeResult:
+    probe = EnvironmentPresenceProbe(
+        environment=os.environ if environment is None else environment,
+        names=("TINKER_API_KEY",),
+    )
+    return probe(_TINKER_TERMINUS_PROFILE)
+
+
+
 
 def probe_zai_opencode_auth_result(home: Path | None = None) -> ProbeResult:
     probe = OpenCodeProviderAuthProbe(
@@ -223,6 +240,8 @@ def available_credentials(home: Path | None = None) -> frozenset[str]:
         found.add(ZAI_OPENCODE_AUTH)
     if probe_zai_openapi_api():
         found.add(ZAI_OPENAPI_API_CREDENTIAL)
+    if probe_tinker_api():
+        found.add(TINKER_API_CREDENTIAL)
     if probe_glm_selfhosted_api():
         found.add(GLM_SELFHOSTED_API_CREDENTIAL)
     if os.environ.get(TERMINUS_LOCAL_ENDPOINT_ENV):
@@ -242,6 +261,8 @@ def missing_credential_for(
             return None if required in available else required
         if agent == "mini-swe-agent" and model.startswith("zai/"):
             return None if ZAI_OPENAPI_API_CREDENTIAL in available else ZAI_OPENAPI_API_CREDENTIAL
+        if agent == TERMINUS_AGENT and model.startswith("tinker/"):
+            return None if TINKER_API_CREDENTIAL in available else TINKER_API_CREDENTIAL
         if agent == "mini-swe-agent" and (
             model.startswith("glm-selfhosted/") or model.startswith("glm-ft/")
         ):
@@ -269,6 +290,10 @@ DEFAULT_PROFILE_FOR_ADAPTER: dict[str | tuple[str, str], str] = {
     ("mini-swe-agent", "zai/glm-5.3-flash"): "mini-swe-agent-glm-5.3-flash",
     ("mini-swe-agent", GLM_SELFHOSTED_BASE_MODEL_SELECTOR): "glm-selfhosted-base",
     ("mini-swe-agent", GLM_SELFHOSTED_FT_MODEL_SELECTOR): "glm-selfhosted-ft",
+    (TERMINUS_AGENT, "zai/glm-5.3"): "terminus-2-glm-5.3",
+    (TERMINUS_AGENT, "tinker/Qwen/Qwen3.6-35B-A3B"): "terminus-2-tinker-qwen3-6-35b-a3b",
+    (TERMINUS_AGENT, "tinker/Qwen/Qwen3.8-27B"): "terminus-2-tinker-qwen3-8-27b",
+    (TERMINUS_AGENT, "tinker/Qwen/Qwen3.5-9B"): "terminus-2-tinker-qwen3-5-9b",
     ZAI_OPENCODE_AGENT: "zai-opencode-glm-5.3-flash",
     RLM_AGENT: "rlm-glm-5.3-flash",
     TERMINUS_AGENT: "terminus-2-glm-5.3-flash",

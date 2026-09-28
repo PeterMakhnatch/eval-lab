@@ -58,7 +58,8 @@ from pydantic import BaseModel, Field
 from evallab.execution_contracts import (
     TERMINUS_AGENT,
     TERMINUS_LOCAL_MODEL_SELECTOR,
-    ZAI_OPENAPI_MODEL_SELECTOR,
+    ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS,
+    is_tinker_terminus_model,
 )
 from evallab.results import discover_job_dirs
 
@@ -83,7 +84,9 @@ def provider_subscription_description(agent: str, model: str | None = None) -> s
     if agent == TERMINUS_AGENT:
         if model == TERMINUS_LOCAL_MODEL_SELECTOR:
             return "local Ollama compute (no provider API charge)"
-        if model == ZAI_OPENAPI_MODEL_SELECTOR:
+        if is_tinker_terminus_model(model):
+            return "Thinking Machines Tinker API balance"
+        if model in ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS:
             return "Z.ai Open Platform standard-API balance"
     return PROVIDER_SUBSCRIPTIONS.get(agent, f"{agent} subscription/policy state")
 

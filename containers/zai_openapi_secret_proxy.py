@@ -1,4 +1,4 @@
-"""Least-privilege Z.ai Open Platform standard API reverse proxy for Harbor mini-swe-agent.
+"""Least-privilege metered reverse proxy for pinned OpenAI-compatible providers.
 
 Only this sidecar mounts the Z.ai Open Platform provider key. Untrusted task/agent
 processes see an internal endpoint and a per-trial capability, never the credential.
@@ -29,6 +29,7 @@ import hmac
 import http.client
 import json
 import os
+import re
 import socket
 import ssl
 import stat
@@ -42,10 +43,15 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_SECRET_PATH = Path("/run/secrets/evallab_zai_openapi_api_key")
-DEFAULT_UPSTREAM = "https://api.z.ai"
 ALLOWED_PATH = "/api/paas/v4/chat/completions"
-ALLOWED_PATHS = frozenset({ALLOWED_PATH, "/chat/completions", "/v1/chat/completions"})
-UPSTREAM_PATH = "/api/paas/v4/chat/completions"
+
+
+def _allowed_inbound_paths() -> frozenset[str]:
+    """Chat-completions paths this proxy accepts for the active provider."""
+    return frozenset(
+        {"/chat/completions", "/v1/chat/completions", str(_profile()["upstream_path"])}
+    )
+
 HEALTHZ_PATH = "/healthz"
 MAX_REQUEST_BYTES = 4 * 1024 * 1024
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
@@ -55,20 +61,102 @@ REQUEST_TIMEOUT_SECONDS = 15.0
 UPSTREAM_TIMEOUT_SECONDS = 600.0
 MAX_CONCURRENT_WORKERS = 32
 
-PINNED_HTTPS_HOST = "api.z.ai"
-PINNED_HTTPS_PORT = 443
 ALLOWED_HTTP_HOSTS = frozenset(
     {"127.0.0.1", "localhost", "evallab-smoke-upstream", "host.docker.internal"}
 )
-REQUIRED_MODEL_PREFIX = "zai/"
-ALLOWED_MODEL_IDS = frozenset({"glm-5.3-flash"})
 
-# Z.ai Open Platform published rates for GLM-5.3-Flash (USD per million tokens):
-# Source: https://docs.z.ai/guides/overview/pricing.md (verified 2026-09)
-# Input:  $0.15 / 1M tokens = 150,000 micros / 1M tokens
-# Output: $0.50 / 1M tokens = 500,000 micros / 1M tokens
-DEFAULT_INPUT_COST_MICROS_PER_MILLION = 150_000
-DEFAULT_OUTPUT_COST_MICROS_PER_MILLION = 500_000
+# ---------------------------------------------------------------------------
+# Provider profiles. One metered implementation, pinned per provider: env
+# names, upstream host/path, admitted models, and list prices (USD per 1M
+# tokens, micros). Rates are conservative: every input token is priced as
+# uncached prefill; cached-prefill discounts are never credited.
+# ---------------------------------------------------------------------------
+
+# Z.ai Open Platform rates (docs.z.ai/guides/overview/pricing, verified
+# 2026-09): glm-5.3-flash $0.15 in / $0.50 out; glm-5.3 $1.40 in / $4.40 out.
+# Thinking Machines Tinker rates (verified 2026-09-28):
+# Qwen/Qwen3.6-35B-A3B 0.54/1.335; Qwen/Qwen3.8-27B 1.86/5.595;
+# Qwen/Qwen3.5-9B 0.66/1.995.
+PROVIDERS: dict[str, Any] = {
+    "zai_openapi": {
+        "label": "Z.ai OpenAPI",
+        "secret_path_envs": ("EVALLAB_ZAI_OPENAPI_SECRET_PATH", "EVALLAB_ZAI_SECRET_PATH"),
+        "default_secret_path": Path("/run/secrets/evallab_zai_openapi_api_key"),
+        "upstream_env": "EVALLAB_ZAI_OPENAPI_UPSTREAM",
+        "default_upstream": "https://api.z.ai",
+        "upstream_path": "/api/paas/v4/chat/completions",
+        "https_host": "api.z.ai",
+        "capability_env": "EVALLAB_ZAI_OPENAPI_PROXY_CAPABILITY",
+        "expires_env": "EVALLAB_ZAI_OPENAPI_CAPABILITY_EXPIRES_AT",
+        "attempt_env": "EVALLAB_ZAI_OPENAPI_ATTEMPT_ID",
+        "usage_env": "EVALLAB_ZAI_OPENAPI_USAGE_FILE",
+        "limit_env_prefix": "EVALLAB_ZAI_OPENAPI",
+        "model_prefix": "zai/",
+        "allowed_models_env": "EVALLAB_ZAI_OPENAPI_ALLOWED_MODEL",
+        "default_allowed_models": frozenset({"glm-5.3-flash", "glm-5.3"}),
+        "flat_input_price_env": "EVALLAB_ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION",
+        "flat_output_price_env": "EVALLAB_ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION",
+        "model_prices": {
+            "glm-5.3-flash": (150_000, 500_000),
+            "glm-5.3": (1_400_000, 4_400_000),
+        },
+        "expected_base_env": None,
+        "checkpoint_models": False,
+        "forwarded_fields": ("model", "messages", "tools", "tool_choice", "temperature"),
+    },
+    "tinker": {
+        "label": "Tinker",
+        "secret_path_envs": ("EVALLAB_TINKER_SECRET_PATH",),
+        "default_secret_path": Path("/run/secrets/evallab_tinker_api_key"),
+        "upstream_env": "EVALLAB_TINKER_UPSTREAM",
+        "default_upstream": "https://tinker.thinkingmachines.dev",
+        "upstream_path": "/services/tinker-prod/oai/api/v1/chat/completions",
+        "https_host": "tinker.thinkingmachines.dev",
+        "capability_env": "EVALLAB_TINKER_PROXY_CAPABILITY",
+        "expires_env": "EVALLAB_TINKER_CAPABILITY_EXPIRES_AT",
+        "attempt_env": "EVALLAB_TINKER_ATTEMPT_ID",
+        "usage_env": "EVALLAB_TINKER_USAGE_FILE",
+        "limit_env_prefix": "EVALLAB_TINKER",
+        "model_prefix": "tinker/",
+        "allowed_models_env": None,
+        "default_allowed_models": frozenset(
+            {"Qwen/Qwen3.6-35B-A3B", "Qwen/Qwen3.8-27B", "Qwen/Qwen3.5-9B"}
+        ),
+        "flat_input_price_env": None,
+        "flat_output_price_env": None,
+        "model_prices": {
+            "Qwen/Qwen3.6-35B-A3B": (540_000, 1_335_000),
+            "Qwen/Qwen3.8-27B": (1_860_000, 5_595_000),
+            "Qwen/Qwen3.5-9B": (660_000, 1_995_000),
+        },
+        "expected_base_env": "EVALLAB_TINKER_EXPECTED_BASE",
+        # ``tinker/<base>@tinker://<run>:train:<i>/sampler_weights/<step>``
+        "checkpoint_models": True,
+        # Tinker's OpenAI-compatible endpoint honors reasoning_effort
+        # (including boolean false to disable thinking).
+        "forwarded_fields": (
+            "model",
+            "messages",
+            "tools",
+            "tool_choice",
+            "temperature",
+            "reasoning_effort",
+        ),
+    },
+}
+
+PROVIDER_ENV = "EVALLAB_PROXY_PROVIDER"
+
+
+def _provider_name() -> str:
+    name = os.environ.get(PROVIDER_ENV, "zai_openapi")
+    if name not in PROVIDERS:
+        raise ValueError(f"unknown proxy provider {name!r}")
+    return name
+
+
+def _profile() -> dict[str, Any]:
+    return PROVIDERS[_provider_name()]
 
 HOP_BY_HOP = frozenset(
     {
@@ -100,31 +188,38 @@ STRIP_INBOUND_HEADERS = frozenset(
 
 
 def secret_path() -> Path:
-    raw = os.environ.get("EVALLAB_ZAI_OPENAPI_SECRET_PATH") or os.environ.get(
-        "EVALLAB_ZAI_SECRET_PATH"
-    )
-    return Path(raw) if raw else DEFAULT_SECRET_PATH
+    profile = _profile()
+    raw = ""
+    for name in profile["secret_path_envs"]:
+        raw = os.environ.get(name) or raw
+    return Path(raw) if raw else profile["default_secret_path"]
 
 
 def upstream_base() -> str:
-    return os.environ.get("EVALLAB_ZAI_OPENAPI_UPSTREAM", DEFAULT_UPSTREAM).rstrip("/")
+    profile = _profile()
+    return os.environ.get(profile["upstream_env"], profile["default_upstream"]).rstrip("/")
+
+
+def _env(suffix: str) -> str:
+    return f"{_profile()['limit_env_prefix']}_{suffix}"
 
 
 def provider_key() -> str:
+    label = _profile()["label"]
     path = secret_path()
     flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
     try:
         fd = os.open(path, flags)
     except OSError as exc:
-        raise RuntimeError("Z.ai OpenAPI secret file is unavailable") from exc
+        raise RuntimeError(f"{label} secret file is unavailable") from exc
     try:
         info = os.fstat(fd)
         if not stat.S_ISREG(info.st_mode):
-            raise RuntimeError("Z.ai OpenAPI secret file is unavailable")
+            raise RuntimeError(f"{label} secret file is unavailable")
         if info.st_uid not in {0, os.geteuid()}:
-            raise RuntimeError("Z.ai OpenAPI secret file is unavailable")
+            raise RuntimeError(f"{label} secret file is unavailable")
         if (info.st_mode & 0o777) not in {0o400, 0o600}:
-            raise RuntimeError("Z.ai OpenAPI secret file is unavailable")
+            raise RuntimeError(f"{label} secret file is unavailable")
         chunks: list[bytes] = []
         while True:
             chunk = os.read(fd, 4096)
@@ -135,7 +230,7 @@ def provider_key() -> str:
         os.close(fd)
     value = b"".join(chunks).decode("utf-8").rstrip("\r\n")
     if not value:
-        raise RuntimeError("Z.ai OpenAPI secret file is empty")
+        raise RuntimeError(f"{label} secret file is empty")
     return value
 
 
@@ -154,16 +249,19 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def _pinned_upstream_url() -> str:
+    profile = _profile()
+    https_host = profile["https_host"]
+    upstream_path = profile["upstream_path"]
     parsed = urllib.parse.urlsplit(upstream_base())
     if parsed.scheme == "https":
-        if parsed.hostname != PINNED_HTTPS_HOST:
+        if parsed.hostname != https_host:
             raise RuntimeError("upstream host is not pinned")
-        port = parsed.port or PINNED_HTTPS_PORT
-        if port != PINNED_HTTPS_PORT:
+        port = parsed.port or 443
+        if port != 443:
             raise RuntimeError("upstream port is not pinned")
         if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
             raise RuntimeError("upstream path is not pinned")
-        return f"https://{PINNED_HTTPS_HOST}:{PINNED_HTTPS_PORT}{UPSTREAM_PATH}"
+        return f"https://{https_host}:443{upstream_path}"
     if parsed.scheme == "http":
         host = parsed.hostname
         if not host or host not in ALLOWED_HTTP_HOSTS:
@@ -173,9 +271,8 @@ def _pinned_upstream_url() -> str:
             raise RuntimeError("http upstream port is not pinned")
         if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
             raise RuntimeError("upstream path is not pinned")
-        return f"http://{host}:{port}{UPSTREAM_PATH}"
+        return f"http://{host}:{port}{upstream_path}"
     raise RuntimeError("upstream scheme is not pinned")
-
 
 def _key_needles(key: str) -> tuple[bytes, ...]:
     utf8 = key.encode("utf-8")
@@ -345,7 +442,7 @@ def _response_encoding_ok(headers: http.client.HTTPMessage, *, stream: bool = Fa
 
 
 def _capability_ok(presented: str) -> bool:
-    expected = os.environ.get("EVALLAB_ZAI_OPENAPI_PROXY_CAPABILITY", "")
+    expected = os.environ.get(_profile()["capability_env"], "")
     if not expected or not presented:
         return False
     left = presented.encode("utf-8")
@@ -357,7 +454,7 @@ def _capability_ok(presented: str) -> bool:
 
 
 def _expired() -> bool:
-    raw = os.environ.get("EVALLAB_ZAI_OPENAPI_CAPABILITY_EXPIRES_AT")
+    raw = os.environ.get(_profile()["expires_env"])
     if raw is None or raw == "":
         return False
     try:
@@ -390,36 +487,87 @@ def _estimate_tokens(payload: dict[str, Any]) -> int:
     return max(1, len(encoded))
 
 
-def _cost_micros(input_tokens: int, output_tokens: int) -> int:
-    input_rate = _int_env(
-        "EVALLAB_ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION",
-        DEFAULT_INPUT_COST_MICROS_PER_MILLION,
-    )
-    output_rate = _int_env(
-        "EVALLAB_ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION",
-        DEFAULT_OUTPUT_COST_MICROS_PER_MILLION,
-    )
-    numerator = input_tokens * input_rate + output_tokens * output_rate
+def _cost_micros(
+    input_tokens: int, output_tokens: int, rates: tuple[int, int]
+) -> int:
+    numerator = input_tokens * rates[0] + output_tokens * rates[1]
     return (numerator + 999_999) // 1_000_000
 
 
-def _validate_model(model: Any) -> str | None:
-    """Normalize model selector to native model ID."""
-    if not isinstance(model, str) or not model:
+def _model_rates(native_base: str) -> tuple[int, int] | None:
+    """Resolve the pinned (input, output) micros per 1M tokens for one base."""
+    profile = _profile()
+    input_env = profile["flat_input_price_env"]
+    output_env = profile["flat_output_price_env"]
+    if input_env is not None and output_env is not None:
+        raw_input = os.environ.get(input_env)
+        raw_output = os.environ.get(output_env)
+        if raw_input is not None and raw_output is not None:
+            try:
+                return (int(raw_input), int(raw_output))
+            except ValueError:
+                return None
+    return profile["model_prices"].get(native_base)
+
+
+def _allowed_native_models() -> frozenset[str]:
+    profile = _profile()
+    allowed_env = profile["allowed_models_env"]
+    if allowed_env is not None:
+        raw = os.environ.get(allowed_env, "")
+        if raw:
+            return frozenset(
+                model.strip() for model in raw.split(",") if model.strip()
+            )
+    return profile["default_allowed_models"]
+
+
+_TINKER_CHECKPOINT_RE = re.compile(
+    r"^tinker://[A-Za-z0-9][A-Za-z0-9._-]*:train:\d+/sampler_weights/\d+$"
+)
+
+
+def _validate_model(model: Any) -> tuple[str, str, tuple[int, int]] | None:
+    """Resolve the requested model to (native id, base, pinned rates).
+
+    Z.ai: the selector must be ``zai/<id>`` with ``<id>`` in the admitted set.
+    Tinker: the selector is ``tinker/<base>`` for base weights or
+    ``tinker/<base>@tinker://<run>:train:<i>/sampler_weights/<step>`` for a
+    fine-tuned checkpoint; the base must be admitted, must match the
+    runner-pinned expected base, and the checkpoint form is checked strictly.
+    """
+    profile = _profile()
+    prefix = profile["model_prefix"]
+    if not isinstance(model, str) or not model.startswith(prefix):
         return None
-    native_model = model.removeprefix(REQUIRED_MODEL_PREFIX)
-    if native_model not in ALLOWED_MODEL_IDS:
+    remainder = model[len(prefix) :]
+    base, separator, checkpoint = remainder.partition("@")
+    if separator and not profile["checkpoint_models"]:
         return None
-    return native_model
+    if separator and not _TINKER_CHECKPOINT_RE.fullmatch(checkpoint):
+        return None
+    if base not in _allowed_native_models() or base not in profile["model_prices"]:
+        return None
+    expected_env = profile["expected_base_env"]
+    if expected_env is not None:
+        expected = os.environ.get(expected_env, "")
+        if expected != base:
+            return None
+    rates = _model_rates(base)
+    if rates is None:
+        return None
+    native = checkpoint if separator else base
+    return native, base, rates
 
 
 class TrialBudget:
     """Concurrency-safe, durable accounting for one trial capability."""
 
     def __init__(self) -> None:
-        capability = os.environ.get("EVALLAB_ZAI_OPENAPI_PROXY_CAPABILITY", "")
-        attempt_id = os.environ.get("EVALLAB_ZAI_OPENAPI_ATTEMPT_ID", "")
-        usage_path = os.environ.get("EVALLAB_ZAI_OPENAPI_USAGE_FILE", "")
+        profile = _profile()
+        capability = os.environ.get(profile["capability_env"], "")
+        attempt_id = os.environ.get(profile["attempt_env"], "")
+        usage_path = os.environ.get(profile["usage_env"], "")
         if not capability or not attempt_id or not usage_path:
             raise ValueError("proxy capability accounting is not configured")
         self._lock = threading.Lock()
@@ -434,23 +582,29 @@ class TrialBudget:
         self._attempt_id = attempt_id
         self._capability_id = "sha256:" + hashlib.sha256(capability.encode()).hexdigest()
         self._limits = {
-            "max_requests": _int_env("EVALLAB_ZAI_OPENAPI_MAX_REQUESTS"),
-            "max_input_tokens": _int_env("EVALLAB_ZAI_OPENAPI_MAX_INPUT_TOKENS"),
-            "max_output_tokens": _int_env("EVALLAB_ZAI_OPENAPI_MAX_OUTPUT_TOKENS"),
-            "max_total_tokens": _int_env("EVALLAB_ZAI_OPENAPI_MAX_TOTAL_TOKENS"),
-            "max_cost_micros": _int_env("EVALLAB_ZAI_OPENAPI_MAX_COST_MICROS"),
+            "max_requests": _int_env(_env("MAX_REQUESTS")),
+            "max_input_tokens": _int_env(_env("MAX_INPUT_TOKENS")),
+            "max_output_tokens": _int_env(_env("MAX_OUTPUT_TOKENS")),
+            "max_total_tokens": _int_env(_env("MAX_TOTAL_TOKENS")),
+            "max_cost_micros": _int_env(_env("MAX_COST_MICROS")),
         }
-        self._pricing = {
-            "input_cost_micros_per_million": _int_env(
-                "EVALLAB_ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION",
-                DEFAULT_INPUT_COST_MICROS_PER_MILLION,
-            ),
-            "output_cost_micros_per_million": _int_env(
-                "EVALLAB_ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION",
-                DEFAULT_OUTPUT_COST_MICROS_PER_MILLION,
-            ),
-        }
+        # A trial binds exactly one model, so its pinned rates are frozen at
+        # the first reservation and every later call must agree. A zero-call
+        # ledger keeps ``pricing: null``: no rate is invented without a call.
+        self._pricing: dict[str, int] | None = None
         self._persist_locked()
+
+    def _freeze_pricing_locked(self, rates: tuple[int, int]) -> None:
+        if self._pricing is None:
+            self._pricing = {
+                "input_cost_micros_per_million": rates[0],
+                "output_cost_micros_per_million": rates[1],
+            }
+        elif self._pricing != {
+            "input_cost_micros_per_million": rates[0],
+            "output_cost_micros_per_million": rates[1],
+        }:
+            raise ValueError("proxy pricing changed mid-trial")
 
     def _persist_locked(self) -> None:
         unresolved = sum(1 for call in self._calls if call["state"] != "reconciled")
@@ -506,8 +660,10 @@ class TrialBudget:
         output_tokens: int,
         cost_micros: int,
         requested_model: str,
+        rates: tuple[int, int],
     ) -> int | None:
         with self._lock:
+            self._freeze_pricing_locked(rates)
             next_requests = self._requests + 1
             next_input = self._input_tokens + input_tokens
             next_output = self._output_tokens + output_tokens
@@ -740,7 +896,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         path = self.path.partition("?")[0]
-        if path not in ALLOWED_PATHS:
+        if path not in _allowed_inbound_paths():
             self._reject(404, b"endpoint not allowed\n")
             return
 
@@ -832,11 +988,12 @@ class Handler(BaseHTTPRequestHandler):
             self._reject(409, b"replay rejected\n")
             return
 
-        model = _validate_model(payload.get("model"))
-        if model is None:
+        resolved = _validate_model(payload.get("model"))
+        if resolved is None:
             self._reject(403, b"model not allowed\n")
             return
-        full_model = f"{REQUIRED_MODEL_PREFIX}{model}"
+        model, _base, rates = resolved
+        full_model = str(payload["model"])
         requested_stream = payload.get("stream", False)
         if not isinstance(requested_stream, bool):
             self._reject(400, b"invalid stream field\n")
@@ -844,7 +1001,7 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             input_tokens = _estimate_tokens(payload)
-            max_output = _int_env("EVALLAB_ZAI_OPENAPI_MAX_OUTPUT_TOKENS")
+            max_output = _int_env(_env("MAX_OUTPUT_TOKENS"))
             requested_output = payload.get("max_tokens")
             if requested_output is None or int(requested_output) <= 0:
                 output_tokens = max_output
@@ -855,7 +1012,7 @@ class Handler(BaseHTTPRequestHandler):
             if output_tokens <= 0:
                 self._reject(429, b"trial budget exhausted\n")
                 return
-            cost = _cost_micros(input_tokens, output_tokens)
+            cost = _cost_micros(input_tokens, output_tokens, rates)
         except (TypeError, ValueError):
             self._reject(400, b"invalid budget fields\n")
             return
@@ -866,6 +1023,7 @@ class Handler(BaseHTTPRequestHandler):
                 output_tokens=output_tokens,
                 cost_micros=cost,
                 requested_model=full_model,
+                rates=rates,
             )
         except (OSError, ValueError):
             self._reject(503, b"budget accounting unavailable\n")
@@ -895,7 +1053,7 @@ class Handler(BaseHTTPRequestHandler):
 
         forwarded = {
             name: payload[name]
-            for name in ("model", "messages", "tools", "tool_choice", "temperature")
+            for name in _profile()["forwarded_fields"]
             if name in payload
         }
         forwarded["model"] = model
@@ -1070,7 +1228,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._reject(502, b"unsupported upstream body\n")
                 return
 
-            used_cost = _cost_micros(used_input, used_output)
+            used_cost = _cost_micros(used_input, used_output, rates)
             if used_input > input_tokens or used_output > output_tokens or used_cost > cost:
                 self._budget().mark_exceeded(
                     call_id=call_id,
@@ -1155,16 +1313,25 @@ def _host_entrypoint_args(argv: list[str] | None = None) -> argparse.Namespace:
     loopback instance never depends on ambient ``PORT`` state.
     """
     parser = argparse.ArgumentParser(
-        description="Least-privilege Z.ai OpenAPI metered proxy",
+        description="Least-privilege metered provider proxy (Z.ai OpenAPI, Tinker)",
     )
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=None)
     parser.add_argument("--ready-file", default=None)
+    parser.add_argument(
+        "--provider",
+        choices=sorted(PROVIDERS),
+        default=None,
+        help="Pin the provider profile; defaults to EVALLAB_PROXY_PROVIDER or zai_openapi",
+    )
     return parser.parse_args(argv)
 
 
 if __name__ == "__main__":
     _entry_args = _host_entrypoint_args()
+    if _entry_args.provider is not None:
+        os.environ[PROVIDER_ENV] = _entry_args.provider
+    _provider_name()  # fail closed on an unknown provider before binding
     serve(
         host=_entry_args.host,
         port=_entry_args.port,

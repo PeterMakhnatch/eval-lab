@@ -207,8 +207,14 @@ ZAI_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
     }
 )
 ZAI_OPENAPI_MODEL_SELECTOR = "zai/glm-5.3-flash"
-ZAI_OPENAPI_ALLOWED_MODELS: frozenset[str] = frozenset({ZAI_OPENAPI_MODEL_SELECTOR})
+ZAI_OPENAPI_FULL_MODEL_SELECTOR = "zai/glm-5.3"
+#: Exact model selectors Terminus 2 may pin on the Z.ai standard-API route.
+ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS: frozenset[str] = frozenset(
+    {ZAI_OPENAPI_MODEL_SELECTOR, ZAI_OPENAPI_FULL_MODEL_SELECTOR}
+)
+ZAI_OPENAPI_ALLOWED_MODELS: frozenset[str] = frozenset(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)
 ZAI_OPENAPI_ALLOWED_MODEL = "glm-5.3-flash"
+ZAI_OPENAPI_FULL_ALLOWED_MODEL = "glm-5.3"
 ZAI_OPENAPI_PROXY_HOST = "zai-openapi-secret-proxy"
 ZAI_OPENAPI_PROXY_URL = "http://zai-openapi-secret-proxy:8080"
 ZAI_OPENAPI_PROXY_TOKEN = "evallab-proxy-placeholder"
@@ -248,6 +254,163 @@ ZAI_OPENAPI_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
         ZAI_OPENAPI_PROXY_GID_ENV,
     }
 )
+#: Z.ai standard-API list prices per native model id (USD per 1M tokens,
+#: micros). glm-5.3-flash $0.15/$0.50; glm-5.3 $1.40/$4.40.
+#: Source: docs.z.ai/guides/overview/pricing (verified 2026-09).
+ZAI_OPENAPI_MODEL_PRICES_MICROS: Mapping[str, tuple[int, int]] = MappingProxyType(
+    {
+        ZAI_OPENAPI_ALLOWED_MODEL: (
+            ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION,
+            ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION,
+        ),
+        ZAI_OPENAPI_FULL_ALLOWED_MODEL: (1_400_000, 4_400_000),
+    }
+)
+
+
+def zai_openapi_model_prices(
+    environment: Mapping[str, str] | None = None,
+) -> Mapping[str, tuple[int, int]]:
+    """Resolve Z.ai per-model prices, honoring the flat per-run env overrides.
+
+    The flat ``EVALLAB_ZAI_OPENAPI_{INPUT,OUTPUT}_COST_MICROS_PER_MILLION``
+    overrides predate the per-model table; when set they replace the whole
+    table so a pinned operator price can never be silently mixed.
+    """
+    source = os.environ if environment is None else environment
+    raw_input = source.get("EVALLAB_ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION")
+    raw_output = source.get("EVALLAB_ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION")
+    if raw_input is not None and raw_output is not None:
+        try:
+            return MappingProxyType(
+                {
+                    model: (int(raw_input), int(raw_output))
+                    for model in ZAI_OPENAPI_MODEL_PRICES_MICROS
+                }
+            )
+        except ValueError as exc:
+            raise ValueError(
+                "EVALLAB_ZAI_OPENAPI_{INPUT,OUTPUT}_COST_MICROS_PER_MILLION "
+                "must be integers"
+            ) from exc
+    return ZAI_OPENAPI_MODEL_PRICES_MICROS
+
+
+def zai_openapi_price_for(model: str) -> tuple[int, int]:
+    """Return (input, output) micros per 1M tokens for one Z.ai model id."""
+    selector = model if model.startswith("zai/") else f"zai/{model}"
+    native = selector.removeprefix("zai/")
+    prices = zai_openapi_model_prices()
+    if native not in prices:
+        raise ValueError(f"no Z.ai OpenAPI price is pinned for model {model!r}")
+    return prices[native]
+
+
+TINKER_MODEL_PREFIX = "tinker/"
+TINKER_UPSTREAM_HOST = "tinker.thinkingmachines.dev"
+TINKER_UPSTREAM_PATH = "/services/tinker-prod/oai/api/v1/chat/completions"
+TINKER_UPSTREAM_DEFAULT = f"https://{TINKER_UPSTREAM_HOST}"
+TINKER_CREDENTIAL_ENVIRONMENT_KEYS: frozenset[str] = frozenset({"TINKER_API_KEY"})
+TINKER_PROXY_TOKEN = "evallab-proxy-placeholder"
+TINKER_SECRET_FILE_ENV = "EVALLAB_TINKER_SECRET_FILE"
+TINKER_SECRET_PATH_ENV = "EVALLAB_TINKER_SECRET_PATH"
+TINKER_PROXY_CAPABILITY_ENV = "EVALLAB_TINKER_PROXY_CAPABILITY"
+TINKER_CAPABILITY_EXPIRES_AT_ENV = "EVALLAB_TINKER_CAPABILITY_EXPIRES_AT"
+TINKER_UPSTREAM_ENV = "EVALLAB_TINKER_UPSTREAM"
+TINKER_PROXY_ATTEMPT_ID_ENV = "EVALLAB_TINKER_ATTEMPT_ID"
+TINKER_PROXY_USAGE_FILE_ENV = "EVALLAB_TINKER_USAGE_FILE"
+TINKER_EXPECTED_BASE_ENV = "EVALLAB_TINKER_EXPECTED_BASE"
+TINKER_PROXY_PROVIDER_ENV = "EVALLAB_PROXY_PROVIDER"
+#: Thinking Machines Tinker list prices per base model (USD per 1M tokens,
+#: micros; prefill/sample — cached prefill is deliberately not credited).
+#: Qwen/Qwen3.6-35B-A3B 0.54/1.335; Qwen/Qwen3.8-27B 1.86/5.595;
+#: Qwen/Qwen3.5-9B 0.66/1.995. Verified 2026-09-28.
+TINKER_MODEL_PRICES_MICROS: Mapping[str, tuple[int, int]] = MappingProxyType(
+    {
+        "Qwen/Qwen3.6-35B-A3B": (540_000, 1_335_000),
+        "Qwen/Qwen3.8-27B": (1_860_000, 5_595_000),
+        "Qwen/Qwen3.5-9B": (660_000, 1_995_000),
+    }
+)
+#: Context window shared by the Tinker-hosted Qwen students (input+output).
+TINKER_CONTEXT_TOKENS = 65_536
+#: ``tinker://<run-id>:train:<index>/sampler_weights/<step>`` — the checkpoint
+#: form Tinker's OpenAI-compatible sampler accepts. Run ids are opaque
+#: alphanumeric (including ``-``/``_``); train index and step are integers.
+TINKER_CHECKPOINT_PATTERN = re.compile(
+    r"^tinker://[A-Za-z0-9][A-Za-z0-9._-]*:train:\d+/sampler_weights/\d+$"
+)
+
+
+@dataclass(frozen=True)
+class TinkerModelSpec:
+    """One fully resolved Tinker Terminus route: selector, native id, pricing."""
+
+    selector: str
+    base_model: str
+    native_model: str
+    input_cost_micros_per_million: int
+    output_cost_micros_per_million: int
+
+    @property
+    def is_checkpoint(self) -> bool:
+        return self.native_model.startswith("tinker://")
+
+
+def parse_tinker_model(model: str | None) -> TinkerModelSpec:
+    """Strictly parse ``tinker/<base>[@tinker://<...>/sampler_weights/<n>]``.
+
+    The selector's model string fully identifies the sampled weights: a bare
+    base routes to base weights, the ``@`` form to a fine-tuned checkpoint.
+    Anything else — unknown bases, malformed checkpoints, other providers'
+    prefixes, or transport kwargs smuggled in the string — fails closed here
+    before any execution or spec freeze.
+    """
+    if not isinstance(model, str) or not model.startswith(TINKER_MODEL_PREFIX):
+        raise ValueError(
+            f"Tinker Terminus model must start with {TINKER_MODEL_PREFIX!r}, got {model!r}"
+        )
+    remainder = model[len(TINKER_MODEL_PREFIX) :]
+    if not remainder or remainder != remainder.strip() or "/" not in remainder:
+        raise ValueError(
+            f"malformed Tinker Terminus model selector: {model!r}"
+        )
+    base, separator, checkpoint = remainder.partition("@")
+    if base not in TINKER_MODEL_PRICES_MICROS:
+        raise ValueError(
+            "Tinker Terminus base model must be one of "
+            f"{sorted(TINKER_MODEL_PRICES_MICROS)}, got {base!r}"
+        )
+    if separator:
+        if not TINKER_CHECKPOINT_PATTERN.fullmatch(checkpoint):
+            raise ValueError(
+                "Tinker checkpoint must be "
+                "tinker://<run-id>:train:<index>/sampler_weights/<step>, "
+                f"got {checkpoint!r}"
+            )
+        native = checkpoint
+    else:
+        native = base
+    input_cost, output_cost = TINKER_MODEL_PRICES_MICROS[base]
+    return TinkerModelSpec(
+        selector=model,
+        base_model=base,
+        native_model=native,
+        input_cost_micros_per_million=input_cost,
+        output_cost_micros_per_million=output_cost,
+    )
+
+
+def is_tinker_terminus_model(model: str | None) -> bool:
+    return isinstance(model, str) and model.startswith(TINKER_MODEL_PREFIX)
+
+
+def terminus_metered_model(model: str | None) -> bool:
+    """Whether a Terminus model routes through the metered loopback proxy."""
+    if model == TERMINUS_LOCAL_MODEL_SELECTOR:
+        return False
+    return model in ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS or is_tinker_terminus_model(model)
+
 GLM_SELFHOSTED_BASE_MODEL_SELECTOR = "glm-selfhosted/glm-5.3-flash"
 GLM_SELFHOSTED_FT_MODEL_SELECTOR = "glm-ft/glm-5.3-flash-ft"
 GLM_SELFHOSTED_ALLOWED_PROVIDERS: frozenset[str] = frozenset({"glm-selfhosted", "glm-ft"})
@@ -586,6 +749,29 @@ def materialize_zai_openapi_secret_file(
     return destination
 
 
+def materialize_tinker_secret_file(
+    destination: Path,
+    environment: Mapping[str, str] | None = None,
+) -> Path:
+    """Write the Tinker API key to a 0400 file for the host loopback proxy."""
+    source = os.environ if environment is None else environment
+    value = source.get("TINKER_API_KEY")
+    if value == TINKER_PROXY_TOKEN:
+        value = None
+    if not value:
+        existing = source.get(TINKER_SECRET_FILE_ENV)
+        if existing:
+            path = Path(existing)
+            try:
+                read_owner_secret_file(path)
+            except OSError as exc:
+                raise RuntimeError("Tinker provider credential is missing") from exc
+            return path
+        raise RuntimeError("Tinker provider credential is missing")
+    persist_private_bytes(destination, f"{value}\n".encode(), secrets=(), mode=0o400)
+    return destination
+
+
 def proxy_runtime_identity(path: Path) -> tuple[int, int]:
     """Return the numeric uid/gid the proxy must run as to read *path*.
 
@@ -611,8 +797,7 @@ def collected_secret_values(
     for key, placeholder in (
         *((key, "") for key in DAYTONA_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, DEEPSEEK_PROXY_TOKEN) for key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS),
-        *((key, ZAI_PROXY_TOKEN) for key in ZAI_CREDENTIAL_ENVIRONMENT_KEYS),
-        *((key, ZAI_OPENAPI_PROXY_TOKEN) for key in ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS),
+        *((key, TINKER_PROXY_TOKEN) for key in TINKER_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, GLM_SELFHOSTED_PROXY_TOKEN) for key in GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS),
     ):
         value = source.get(key)
@@ -622,6 +807,7 @@ def collected_secret_values(
         (DEEPSEEK_SECRET_FILE_ENV, DEEPSEEK_PROXY_TOKEN),
         (ZAI_SECRET_FILE_ENV, ZAI_PROXY_TOKEN),
         (ZAI_OPENAPI_SECRET_FILE_ENV, ZAI_OPENAPI_PROXY_TOKEN),
+        (TINKER_SECRET_FILE_ENV, TINKER_PROXY_TOKEN),
     ):
         secret_file = source.get(secret_file_env)
         if secret_file:
@@ -635,6 +821,7 @@ def collected_secret_values(
         (DEEPSEEK_PROXY_CAPABILITY_ENV, DEEPSEEK_PROXY_TOKEN),
         (ZAI_PROXY_CAPABILITY_ENV, ZAI_PROXY_TOKEN),
         (ZAI_OPENAPI_PROXY_CAPABILITY_ENV, ZAI_OPENAPI_PROXY_TOKEN),
+        (TINKER_PROXY_CAPABILITY_ENV, TINKER_PROXY_TOKEN),
     ):
         capability = source.get(capability_env)
         if capability and capability != placeholder:
@@ -861,6 +1048,7 @@ def redact_environment(environment: Mapping[str, str]) -> dict[str, str]:
         DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS
         | ZAI_CREDENTIAL_ENVIRONMENT_KEYS
         | ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS
+        | TINKER_CREDENTIAL_ENVIRONMENT_KEYS
         | GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
         | DAYTONA_CREDENTIAL_ENVIRONMENT_KEYS
     )
@@ -887,11 +1075,10 @@ def _task_gpu_request(task: Path) -> int | None:
     gpus = environment.get("gpus")
     return gpus if isinstance(gpus, int) and not isinstance(gpus, bool) else None
 
-
 def uses_provider_proxy(agent: str, model: str | None) -> bool:
     """Whether this model route can enforce the provider request/token/cost ceilings."""
     return agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT} or (
-        agent == TERMINUS_AGENT and model != TERMINUS_LOCAL_MODEL_SELECTOR
+        agent == TERMINUS_AGENT and terminus_metered_model(model)
     )
 
 
@@ -956,11 +1143,22 @@ def validate_request(request: RunRequest) -> None:
         if request.attempts != 1 or request.concurrency != 1:
             raise ValueError(f"{request.agent} capabilities bind exactly one trial")
     if request.agent == TERMINUS_AGENT:
-        if request.model not in {ZAI_OPENAPI_MODEL_SELECTOR, TERMINUS_LOCAL_MODEL_SELECTOR}:
+        model = request.model
+        if is_tinker_terminus_model(model):
+            # Strict fail-closed parse: unknown base or malformed checkpoint
+            # refuses here, before any spec freeze or execution.
+            parse_tinker_model(model)
+        elif model not in {
+            *ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS,
+            TERMINUS_LOCAL_MODEL_SELECTOR,
+        }:
             raise ValueError(
-                f"terminus-2 requires standard-API {ZAI_OPENAPI_MODEL_SELECTOR!r} "
-                f"or installed local {TERMINUS_LOCAL_MODEL_SELECTOR!r}; "
-                "Coding Plan credentials are not admitted for this harness"
+                "terminus-2 requires a Z.ai standard-API model "
+                f"({sorted(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)}), a Tinker "
+                f"route ({TINKER_MODEL_PREFIX}<base>[@tinker://<run>:train:<i>"
+                "/sampler_weights/<step>]), or installed local "
+                f"{TERMINUS_LOCAL_MODEL_SELECTOR!r}; Coding Plan credentials "
+                "are not admitted for this harness"
             )
         if request.attempts != 1 or request.concurrency != 1:
             raise ValueError("terminus-2 specs bind exactly one trial")

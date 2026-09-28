@@ -46,6 +46,10 @@ uv run evallab tasks catalog export-eligible --out train_eligible.json [--split 
 
 # After a hack-probe run: detector over every probe job -> task_exploits.parquet
 uv run evallab tasks exploit-collect --cohort research/experiments/mimo-hack-probe/cohort.json runs/mimo-hack-*
+
+# After any nop/control run: per-trial backend health -> task_qualification.parquet
+uv run evallab tasks qualify-collect runs/<job>... [--backend-rate-card daytona]
+uv run evallab tasks catalog export-broken --backend daytona --out broken-daytona.json
 ```
 
 `pull-hf` verifies every task directory against the adapter's
@@ -79,6 +83,9 @@ findings, not crashes.
   builder-level cross-task slug-collision rows (same rule id).
 - `task_lineage`: parent/child digest links from lineage records
   (`variant` origin rows also appear in `task_versions`).
+- `task_qualification`: one row per Harbor trial with backend health
+  (see "Backend qualification" below). Written by `qualify-collect`,
+  never by `catalog build`.
 
 `grader_kind`/`grader_cost` are derived from task files, never the domain
 name: a `*JUDGE*` verifier env or judge-graded `tests/grade.py` means a
@@ -113,12 +120,17 @@ signal; general/webdev/music share one image per domain (correctly ignored).
 ## Outcome joins
 
 `storage/attach.py` registers `v_task_outcomes` (per task_version ×
-agent/model: n_trials, n_scored, n_errors, mean reward, Wilson 95%
+backend × agent/model: n_trials, n_scored, n_errors, mean reward, Wilson 95%
 pass-rate interval, verdict) and `v_task_audit` (same grain plus
-verifier-stability and exploit rollups with train-eligibility reason codes).
+verifier-stability, exploit, and backend-qualification rollups with
+train-eligibility reason codes). `backend` is
+`COALESCE(trial_facts.environment_type, 'unknown')`, read from each trial's
+Harbor config (`$.environment.type`, with Eval Lab Daytona wrapper import
+paths mapped to `daytona`); old trial_facts partitions without the column
+read as `'unknown'`, so local and cloud trials never pool into one row.
 Verdicts: `learnable` (some pass, some fail), `always_pass`,
 `always_fail`, `infra_only` (no scored trial), `untested`. Outcomes are
-grained by (task_version × agent/model), so nop/control trials join as
+grained by (task_version × backend × agent/model), so nop/control trials join as
 their own rows and never mix into a model's pass rate: they cannot make
 a task look learnable, and a uniformly-failing nop row is simply not
 learnable (control, not training signal).
@@ -130,7 +142,9 @@ digest the queue staged, and keeps cohort tasks with no model trial as
 `not_probed` (a nop control does not count as a probe). `train_eligible` =
 `learnable` ∧ stability evidence that is `stable` (no evidence is
 ineligible) ∧ no `confirmed` exploit and no `suspected` one still awaiting
-review. `export-eligible` also drops tasks the split file marks `heldout`.
+review ∧ not broken on that backend (see below). `export-eligible` also
+drops tasks the split file marks `heldout`; its items carry the backend,
+so the same task qualified on docker and daytona exports as two rows.
 
 The export's `sha256` covers `schema` + `items` only. Items carry the
 agent/model whose verdict made them eligible. So the digest names the
@@ -138,6 +152,58 @@ training set: re-exporting the same set gives the same digest. `meta`
 records when, from which table digests, and against which split file it
 was built. Without `--split` the export is `provisional` and every item's
 split is `unassigned`.
+
+## Backend qualification
+
+`evallab tasks qualify-collect <job_dir>...` writes one
+`task_qualification.parquet` row per trial: task digests (attributed by the
+package digest the queue staged, as `exploit-collect` does), backend and
+environment import path, job/trial/agent names, started/finished times,
+setup/agent/verifier/trial seconds, `setup_ok`, `verifier_completed`,
+reward, `repeat_rewards` (from `verifier/stability.json` when RepeatVerifier
+ran, else null), `infra_error_class`/`infra_error_phase` (the existing
+`facts.py` exception classification), resource sizes from the staged
+`task.toml` Harbor ran (`cpus`, `memory_mb`, `storage_mb`),
+`sandbox_seconds` (trial wall time), `est_cost_usd`, `status`, and `reasons`.
+`catalog show` lists a task's qualification rows alongside its outcomes.
+
+Reasons (a nop trial with reward exactly 0 and a completed verifier is `ok`):
+
+| Reason | Meaning |
+|---|---|
+| `setup_failed` | exception during environment setup (incl. healthcheck) or agent setup — the agent never started |
+| `backend_quota` | setup-phase exception whose type/message shows a provider quota/limit/rate-limit problem (matched case-insensitively: `quota`, `limit exceeded`, `total cpu`, `memory limit`, `disk limit`, rate-limit wording incl. `DaytonaRateLimitError`, or HTTP 429/403 with quota wording) |
+| `verifier_error` | verifier-phase exception |
+| `verifier_timeout` | verifier-phase exception naming a timeout |
+| `reward_missing` | no exception explains the trial, yet no usable reward exists |
+| `nop_passes` | a nop/oracle control scored above 0 — the grader accepts no work |
+| `unstable_verifier` | `repeat_rewards` disagree |
+
+Status is `ok` (no reasons), `broken` (any task-blaming reason), or
+`inconclusive`: a trial whose *only* reason is `backend_quota` failed on
+our provider tier (Daytona Tier 1: 10 vCPU / 10 GiB memory / 30 GiB disk
+in total — MiMo code/cyber sandboxes need 8 GiB each, terminal sandboxes
+need 10 GiB disk), not on the task, so the task is unrun at this tier,
+never guilty. `qualify-collect` reports an `inconclusive (backend_quota)`
+count per domain.
+
+Broken rule: a task version is broken on a backend when its *latest*
+qualification trial on that backend is `broken` (ordered by `finished_at`,
+nulls oldest). `evallab tasks catalog export-broken --backend <b> --out
+PATH` writes `{schema, backend, items, meta}` where each item names the
+task, the latest trial's reasons, and every job/trial on that backend; the
+`sha256` covers `schema` + `backend` + `items` only (same content-addressed
+convention as `export-eligible`). In `v_task_audit` the same latest-broken
+rule joins per (task version, backend) and yields train-ineligible reason
+`broken on <backend>`.
+
+Cost model: `est_cost_usd = sandbox_seconds / 3600 × (cpus × 0.0504 +
+memory_GiB × 0.0162 + max(0, storage_GiB − 5) × 0.000108)`, from the Daytona
+list prices at https://www.daytona.io/pricing (retrieved 2026-09-28; rates
+live in `task_qualification.DAYTONA_RATE_CARD`). Cost is computed only for
+the rate-card backend (`--backend-rate-card`, default `daytona`); other
+backends get null. When `storage_mb` is unset no disk size is invented: it
+counts as 0 billable GiB (likewise missing cpus/memory count as 0).
 
 ## Current numbers
 

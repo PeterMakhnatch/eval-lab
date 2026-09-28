@@ -1142,11 +1142,14 @@ def outcome_verdict(n_attempts: int, n_scored: int, n_pass: int) -> str:
 
 
 def task_outcomes_sql(trials: str = "trial_facts", versions: str = "task_versions") -> str:
-    """Per task-version x agent/model outcome rollup (Harbor digest join).
+    """Per task-version x backend x agent/model outcome rollup (Harbor digest join).
 
     Infra = missing reward, reward -1, or any exception: counted in n_infra,
     never in the pass rate. Wilson 95% interval is computed on scored
-    attempts only.
+    attempts only. ``backend`` is ``COALESCE(environment_type, 'unknown')``:
+    local and cloud trials never pool into one row. Old trial_facts
+    partitions without ``environment_type`` read as ``'unknown'`` through
+    ``union_by_name``.
     """
     inner = f"""
         SELECT
@@ -1154,6 +1157,7 @@ def task_outcomes_sql(trials: str = "trial_facts", versions: str = "task_version
             v.harbor_digest AS harbor_digest,
             v.task_id AS task_id,
             v.domain AS domain,
+            COALESCE(t.environment_type, 'unknown') AS backend,
             COALESCE(t.agent_name, '') AS agent_name,
             COALESCE(t.model_name, '') AS model_name,
             COUNT(t.trial_id) AS n_attempts,
@@ -1173,11 +1177,12 @@ def task_outcomes_sql(trials: str = "trial_facts", versions: str = "task_version
         FROM {versions} AS v
         LEFT JOIN {trials} AS t ON t.task_digest = v.harbor_digest
         GROUP BY v.task_version_digest, v.harbor_digest, v.task_id, v.domain,
+            COALESCE(t.environment_type, 'unknown'),
             COALESCE(t.agent_name, ''), COALESCE(t.model_name, '')
     """
     return f"""
     SELECT
-        task_version_digest, harbor_digest, task_id, domain,
+        task_version_digest, harbor_digest, task_id, domain, backend,
         agent_name, model_name, n_attempts, n_scored, n_infra, n_pass, mean_reward,
         CASE WHEN n_scored > 0 THEN n_pass * 1.0 / n_scored END AS pass_rate,
         CASE WHEN n_scored > 0 THEN GREATEST(0.0,
@@ -1282,13 +1287,22 @@ def show_task(
         children = []
     try:
         outcomes = conn.execute(
-            "SELECT agent_name, model_name, n_attempts, n_scored, n_infra, "
+            "SELECT backend, agent_name, model_name, n_attempts, n_scored, n_infra, "
             "pass_rate, pass_rate_lo, pass_rate_hi, verdict FROM v_task_outcomes "
             "WHERE task_version_digest = ?",
             [digest],
         ).fetchall()
     except Exception:
         outcomes = []
+    try:
+        qualification = conn.execute(
+            "SELECT backend, job_name, trial_name, agent_name, status, "
+            "reasons, reward, trial_seconds, est_cost_usd FROM task_qualification "
+            "WHERE task_version_digest = ? ORDER BY backend, job_name, trial_name",
+            [digest],
+        ).fetchall()
+    except Exception:
+        qualification = []
     result.connection.close()
 
     lines = [
@@ -1323,32 +1337,49 @@ def show_task(
     lines.append(f"outcomes ({len(outcomes)}):")
     for outcome in outcomes:
         lines.append(
-            f"  agent={outcome[0]!r} model={outcome[1]!r} attempts={outcome[2]} "
-            f"scored={outcome[3]} infra={outcome[4]} pass_rate={outcome[5]} "
-            f"[{outcome[6]}, {outcome[7]}] verdict={outcome[8]}"
+            f"  backend={outcome[0]!r} agent={outcome[1]!r} model={outcome[2]!r} "
+            f"attempts={outcome[3]} scored={outcome[4]} infra={outcome[5]} "
+            f"pass_rate={outcome[6]} [{outcome[7]}, {outcome[8]}] verdict={outcome[9]}"
+        )
+    lines.append(f"qualification ({len(qualification)}):")
+    for qual_row in qualification:
+        lines.append(
+            f"  backend={qual_row[0]!r} {qual_row[1]}/{qual_row[2]} "
+            f"agent={qual_row[3]!r} status={qual_row[4]} reasons={qual_row[5]} "
+            f"reward={qual_row[6]} trial_seconds={qual_row[7]} est_cost_usd={qual_row[8]}"
         )
     return "\n".join(lines) + "\n"
-
 
 def task_audit_sql(
     outcomes: str = "v_task_outcomes",
     versions: str = "task_versions",
     stability: str | None = None,
     exploits: str | None = None,
+    qualification: str | None = None,
     *,
     has_stability: bool = True,
     has_exploits: bool = True,
+    has_qualification: bool = False,
 ) -> str:
-    """One row per task version x agent/model with verdict, stability, exploit, eligibility.
+    """One row per task version x backend x agent/model with verdict and eligibility.
 
     Missing stability/exploit tables yield null columns, never guessed
     values; eligibility is then false with a reason. Split assignment
     (train|heldout) is applied at export time, so the view stays
     split-agnostic and ``train_eligible`` here means learnable, stable, and
     free of confirmed exploits.
+
+    With ``has_qualification``, the latest qualification trial per
+    (task version, backend) joins on both keys: a version whose latest
+    trial on that backend is ``broken`` is train-ineligible with reason
+    ``broken on <backend>``. ``inconclusive`` (backend-quota) trials never
+    mark a task broken. The join is one-to-one per audit row, never fanout.
     """
+    from evallab.task_qualification import TABLE as QUALIFICATION_TABLE_DEFAULT
+
     stability_table = stability or STABILITY_TABLE
     exploits_table = exploits or EXPLOITS_TABLE
+    qualification_table = qualification or QUALIFICATION_TABLE_DEFAULT
     stability_source = (
         f"(SELECT task_version_digest, verdict, n_runs, evidence_path FROM {stability_table})"
         if has_stability
@@ -1362,6 +1393,15 @@ def task_audit_sql(
         else "(SELECT CAST(NULL AS VARCHAR) AS task_version_digest, "
         "CAST(NULL AS VARCHAR) AS exploit_status, "
         "CAST(NULL AS VARCHAR) AS evidence_path WHERE FALSE)"
+    )
+    qualification_source = (
+        f"(SELECT task_version_digest, backend, status, finished_at,"
+        f" job_name, trial_name FROM {qualification_table})"
+        if has_qualification
+        else "(SELECT CAST(NULL AS VARCHAR) AS task_version_digest, "
+        "CAST(NULL AS VARCHAR) AS backend, CAST(NULL AS VARCHAR) AS status, "
+        "CAST(NULL AS VARCHAR) AS finished_at, CAST(NULL AS VARCHAR) AS job_name, "
+        "CAST(NULL AS VARCHAR) AS trial_name WHERE FALSE)"
     )
     return f"""
     WITH stab AS (
@@ -1389,6 +1429,21 @@ def task_audit_sql(
             LIST(e.evidence_path) AS exploit_evidence_paths
         FROM {exploits_source} AS e
         GROUP BY e.task_version_digest
+    ),
+    qual_ranked AS (
+        SELECT q.task_version_digest AS digest, q.backend AS backend,
+            q.status AS status,
+            ROW_NUMBER() OVER (
+                PARTITION BY q.task_version_digest, q.backend
+                ORDER BY q.finished_at DESC NULLS LAST, q.job_name DESC, q.trial_name DESC
+            ) AS rn
+        FROM {qualification_source} AS q
+    ),
+    qual AS (
+        SELECT digest, backend,
+            MAX(CASE WHEN rn = 1 AND status = 'broken' THEN 1 ELSE 0 END) AS is_broken
+        FROM qual_ranked
+        GROUP BY digest, backend
     )
     SELECT
         v.task_version_digest AS task_version_digest,
@@ -1399,6 +1454,7 @@ def task_audit_sql(
         v.split_group AS split_group,
         v.grader_kind AS grader_kind,
         v.grader_cost AS grader_cost,
+        o.backend AS backend,
         o.agent_name AS agent_name,
         o.model_name AS model_name,
         o.n_attempts AS n_attempts,
@@ -1413,9 +1469,11 @@ def task_audit_sql(
         stab.stability_evidence_paths AS stability_evidence_paths,
         expl.exploit_status AS exploit_status,
         expl.exploit_evidence_paths AS exploit_evidence_paths,
+        qual.is_broken AS qual_broken,
         COALESCE(o.verdict = 'learnable' AND stab.stability = 'stable'
             AND (expl.exploit_status IS NULL
-                OR expl.exploit_status IN ('none', 'not_probed')), false) AS train_eligible,
+                OR expl.exploit_status IN ('none', 'not_probed'))
+            AND (qual.is_broken IS NULL OR qual.is_broken = 0), false) AS train_eligible,
         CASE
             WHEN o.verdict IS NULL OR o.verdict != 'learnable'
                 THEN 'not learnable: ' || COALESCE(o.verdict, 'missing')
@@ -1423,13 +1481,14 @@ def task_audit_sql(
             WHEN stab.stability != 'stable' THEN 'unstable verifier: ' || stab.stability
             WHEN expl.exploit_status = 'confirmed' THEN 'confirmed exploit'
             WHEN expl.exploit_status = 'suspected' THEN 'suspected exploit awaiting review'
+            WHEN qual.is_broken = 1 THEN 'broken on ' || COALESCE(o.backend, 'unknown')
         END AS train_ineligible_reason
     FROM {versions} AS v
     LEFT JOIN {outcomes} AS o ON o.task_version_digest = v.task_version_digest
     LEFT JOIN stab ON stab.digest = v.task_version_digest
     LEFT JOIN expl ON expl.digest = v.task_version_digest
+    LEFT JOIN qual ON qual.digest = v.task_version_digest AND qual.backend = o.backend
     """
-
 
 @dataclass(frozen=True)
 class ExportResult:
@@ -1481,6 +1540,9 @@ def export_train_eligible(
     split file the export is marked provisional and splits stay unassigned.
     """
     from evallab.storage.attach import attach
+    from evallab.task_qualification import TABLE as QUALIFICATION_TABLE
+    from evallab.task_qualification import TABLE_FILENAME as QUALIFICATION_PARQUET_FILENAME
+
     derived = derived_root or derived_root_from_environment(repo_root)
     catalog = catalog_dir(derived)
     if not (catalog / "task_versions.parquet").is_file():
@@ -1490,6 +1552,7 @@ def export_train_eligible(
         *((name, f"{name}.parquet") for name in CATALOG_TABLES),
         (STABILITY_TABLE, STABILITY_TABLE_FILENAME),
         (EXPLOITS_TABLE, EXPLOITS_TABLE_FILENAME),
+        (QUALIFICATION_TABLE, QUALIFICATION_PARQUET_FILENAME),
     ):
         path = catalog / filename
         table_digests[name] = _sha256_file(path) if path.is_file() else None
@@ -1498,7 +1561,7 @@ def export_train_eligible(
     result = attach(repo_root=repo_root, explicit_derived=derived)
     try:
         rows = result.connection.execute(
-            "SELECT task_version_digest, harbor_digest, task_name, split_group, "
+            "SELECT task_version_digest, harbor_digest, task_name, split_group, backend, "
             "agent_name, model_name, verdict, pass_rate, stability, exploit_status, "
             "train_eligible, train_ineligible_reason FROM v_task_audit"
         ).fetchall()
@@ -1522,6 +1585,7 @@ def export_train_eligible(
                 "task_name": record.get("task_name"),
                 "split_group": record.get("split_group"),
                 "split": split,
+                "backend": record.get("backend"),
                 "agent_name": record.get("agent_name"),
                 "model_name": record.get("model_name"),
                 "verdict": record.get("verdict"),
@@ -1532,7 +1596,10 @@ def export_train_eligible(
         )
     items.sort(
         key=lambda item: (
-            str(item["task_version_digest"]), str(item["agent_name"]), str(item["model_name"])
+            str(item["task_version_digest"]),
+            str(item["backend"]),
+            str(item["agent_name"]),
+            str(item["model_name"]),
         )
     )
     # The digest names the training set itself: same items, same digest, no

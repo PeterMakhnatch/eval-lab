@@ -134,7 +134,8 @@ CREATE TABLE IF NOT EXISTS trial_facts (
     model_name VARCHAR,
     primary_reward DOUBLE,
     exception_class VARCHAR,
-    duration_seconds DOUBLE
+    duration_seconds DOUBLE,
+    environment_type VARCHAR
 );
 
 CREATE TABLE IF NOT EXISTS trajectory_ir (

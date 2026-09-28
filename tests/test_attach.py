@@ -130,6 +130,36 @@ def test_z3_jobs_view_reads_job_level_parquet(tmp_path: Path) -> None:
     finally:
         result.connection.close()
 
+def test_trial_facts_old_partition_without_environment_type_reads_as_null(
+    tmp_path: Path,
+) -> None:
+    """Pre-HAR-88 partitions lack ``environment_type``; union_by_name fills NULL."""
+    derived = tmp_path / "derived"
+    old_dir = derived / "job_id=old" / "trial_id=t1"
+    old_dir.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist([{"trial_id": "t1", "reward": 1.0}]),
+        old_dir / "trial_facts.parquet",
+    )
+    new_dir = derived / "job_id=new" / "trial_id=t2"
+    new_dir.mkdir(parents=True)
+    pq.write_table(
+        pa.Table.from_pylist([{
+            "trial_id": "t2",
+            "reward": 0.0,
+            "environment_type": "docker",
+        }]),
+        new_dir / "trial_facts.parquet",
+    )
+    result = attach(repo_root=tmp_path, explicit_derived=derived)
+    try:
+        rows = dict(result.connection.execute(
+            "SELECT trial_id, environment_type FROM trial_facts"
+        ).fetchall())
+        assert rows == {"t1": None, "t2": "docker"}
+    finally:
+        result.connection.close()
+
 
 def test_z3_jobs_view_prefers_job_level_over_legacy_trial_nested(tmp_path: Path) -> None:
     """When both a job-level jobs.parquet and a legacy trial-nested jobs.parquet

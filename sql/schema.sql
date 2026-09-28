@@ -156,6 +156,7 @@ CREATE TABLE IF NOT EXISTS deterministic_trial_facts (
     trial_id uuid PRIMARY KEY REFERENCES trials(id) ON DELETE CASCADE,
     verifier_digest text NOT NULL,
     environment_digest text NOT NULL,
+    environment_type text,
     agent_config_digest text NOT NULL,
     grid_id text,
     point_id text,
@@ -212,6 +213,7 @@ ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS task_instance_id 
 ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS generator_seed_json text;
 ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS task_block_inputs_json text;
 ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS task_block_id text;
+ALTER TABLE deterministic_trial_facts ADD COLUMN IF NOT EXISTS environment_type text;
 
 CREATE TABLE IF NOT EXISTS analysis_invocations (
     id uuid PRIMARY KEY,

@@ -425,24 +425,46 @@ def test_outcomes_sql_join_counts_infra_not_fail() -> None:
                  ") AS t(task_version_digest, harbor_digest, task_id, domain)")
     trials = _trial_table([
         {"trial_id": "n1", "task_digest": "sha256:hb1", "agent_name": "nop",
-         "model_name": "", "primary_reward": 0.0, "exception_class": None},
+         "model_name": "", "environment_type": "docker",
+         "primary_reward": 0.0, "exception_class": None},
         {"trial_id": "e1", "task_digest": "sha256:hb1", "agent_name": "agentx",
-         "model_name": "m", "primary_reward": None, "exception_class": "VerifierError"},
+         "model_name": "m", "environment_type": "docker",
+         "primary_reward": None, "exception_class": "VerifierError"},
         {"trial_id": "m1", "task_digest": "sha256:hb2", "agent_name": "agentx",
-         "model_name": "m", "primary_reward": -1.0, "exception_class": None},
+         "model_name": "m", "environment_type": "daytona",
+         "primary_reward": -1.0, "exception_class": None},
     ])
     conn.register("trials", trials)
     rows = conn.execute(task_outcomes_sql(trials="trials", versions="v")).fetchall()
-    by_key = {(row[2], row[4]): row for row in rows}
-    nop = by_key[("t1", "nop")]
-    assert (nop[6], nop[7], nop[8], nop[9], nop[11], nop[14]) == (1, 1, 0, 0, 0.0, "always_fail")
-    ctl = by_key[("t1", "agentx")]
-    assert (ctl[6], ctl[7], ctl[8], ctl[14]) == (1, 0, 1, "infra_only")
-    neg = by_key[("t2", "agentx")]
-    assert (neg[7], neg[8], neg[14]) == (0, 1, "infra_only")
-    bare = by_key[("t3", "")]
-    assert (bare[6], bare[7], bare[14]) == (0, 0, "untested")
-    assert bare[10] is None and bare[11] is None and bare[12] is None and bare[13] is None
+    by_key = {(row[2], row[4], row[5]): row for row in rows}
+    nop = by_key[("t1", "docker", "nop")]
+    assert (nop[7], nop[8], nop[9], nop[10], nop[12], nop[15]) == (1, 1, 0, 0, 0.0, "always_fail")
+    ctl = by_key[("t1", "docker", "agentx")]
+    assert (ctl[7], ctl[8], ctl[9], ctl[15]) == (1, 0, 1, "infra_only")
+    neg = by_key[("t2", "daytona", "agentx")]
+    assert (neg[8], neg[9], neg[15]) == (0, 1, "infra_only")
+    bare = by_key[("t3", "unknown", "")]
+    assert (bare[7], bare[8], bare[15]) == (0, 0, "untested")
+    assert bare[11] is None and bare[12] is None and bare[13] is None and bare[14] is None
+    conn.close()
+
+
+def test_outcomes_sql_keeps_backends_apart() -> None:
+    conn = duckdb.connect(":memory:")
+    conn.execute("CREATE TABLE v AS SELECT * FROM (VALUES "
+                 "('sha256:pkg1', 'sha256:hb1', 't1', 'terminal')"
+                 ") AS t(task_version_digest, harbor_digest, task_id, domain)")
+    trials = _trial_table([
+        {"trial_id": "d1", "task_digest": "sha256:hb1", "agent_name": "nop",
+         "model_name": "", "environment_type": "docker",
+         "primary_reward": 0.0, "exception_class": None},
+        {"trial_id": "c1", "task_digest": "sha256:hb1", "agent_name": "nop",
+         "model_name": "", "environment_type": "daytona",
+         "primary_reward": 0.0, "exception_class": None},
+    ])
+    conn.register("trials", trials)
+    rows = conn.execute(task_outcomes_sql(trials="trials", versions="v")).fetchall()
+    assert {(row[4], row[7]) for row in rows} == {("docker", 1), ("daytona", 1)}
     conn.close()
 
 
@@ -454,9 +476,9 @@ def test_audit_view_eligibility_and_missing_tables() -> None:
                  ") AS t(task_version_digest, harbor_digest, task_id, task_name,"
                  " domain, split_group, grader_kind, grader_cost)")
     conn.execute("CREATE TABLE o AS SELECT * FROM (VALUES "
-                 "('sha256:p1', 'a', 'm', 2, 2, 0, 0.5, 0.1, 0.9, 'learnable'),"
-                 "('sha256:p2', 'a', 'm', 1, 1, 0, 0.0, 0.0, 0.8, 'always_fail')"
-                 ") AS t(task_version_digest, agent_name, model_name, n_attempts,"
+                 "('sha256:p1', 'docker', 'a', 'm', 2, 2, 0, 0.5, 0.1, 0.9, 'learnable'),"
+                 "('sha256:p2', 'docker', 'a', 'm', 1, 1, 0, 0.0, 0.0, 0.8, 'always_fail')"
+                 ") AS t(task_version_digest, backend, agent_name, model_name, n_attempts,"
                  " n_scored, n_infra, pass_rate, pass_rate_lo, pass_rate_hi, verdict)")
     conn.execute("CREATE TABLE s AS SELECT * FROM (VALUES "
                  "('sha256:p1', 'stable', 3, 'runs/e1'),"
@@ -478,6 +500,42 @@ def test_audit_view_eligibility_and_missing_tables() -> None:
     by_id = {row[2]: row for row in rows}
     assert by_id["t1"][-2] is False
     assert by_id["t1"][-1] == "no stability evidence"
+    conn.close()
+
+def test_audit_view_broken_backend_ineligible_without_fanout() -> None:
+    conn = duckdb.connect(":memory:")
+    conn.execute("CREATE TABLE v AS SELECT * FROM (VALUES "
+                 "('sha256:p1', 'sha256:h1', 't1', 'n1', 'terminal', 'terminal:t1', 'script', 'free')"
+                 ") AS t(task_version_digest, harbor_digest, task_id, task_name,"
+                 " domain, split_group, grader_kind, grader_cost)")
+    conn.execute("CREATE TABLE o AS SELECT * FROM (VALUES "
+                 "('sha256:p1', 'docker', 'a', 'm', 2, 2, 0, 0.5, 0.1, 0.9, 'learnable'),"
+                 "('sha256:p1', 'daytona', 'a', 'm', 2, 2, 0, 0.5, 0.1, 0.9, 'learnable')"
+                 ") AS t(task_version_digest, backend, agent_name, model_name, n_attempts,"
+                 " n_scored, n_infra, pass_rate, pass_rate_lo, pass_rate_hi, verdict)")
+    conn.execute("CREATE TABLE s AS SELECT * FROM (VALUES "
+                 "('sha256:p1', 'stable', 3, 'runs/e1')"
+                 ") AS t(task_version_digest, verdict, n_runs, evidence_path)")
+    conn.execute("CREATE TABLE e AS SELECT * FROM (VALUES "
+                 "('sha256:p1', 'none', 'runs/x1')"
+                 ") AS t(task_version_digest, exploit_status, evidence_path)")
+    conn.execute("CREATE TABLE q AS SELECT * FROM (VALUES "
+                 "('sha256:p1', 'docker', 'broken', '2026-09-27T00:00:00Z', 'j1', 't1'),"
+                 "('sha256:p1', 'docker', 'ok', '2026-09-28T00:00:00Z', 'j2', 't2'),"
+                 "('sha256:p1', 'daytona', 'broken', '2026-09-28T00:00:00Z', 'j3', 't3'),"
+                 "('sha256:p1', 'daytona', 'inconclusive', '2026-09-26T00:00:00Z', 'j0', 't0')"
+                 ") AS t(task_version_digest, backend, status, finished_at,"
+                 " job_name, trial_name)")
+    rows = conn.execute(task_audit_sql(
+        outcomes="o", versions="v", stability="s", exploits="e",
+        qualification="q", has_qualification=True)).fetchall()
+    assert len(rows) == 2  # one audit row per backend, never fanned out
+    columns = [desc[0] for desc in conn.description]
+    by_backend = {row[columns.index("backend")]: dict(zip(columns, row, strict=True)) for row in rows}
+    assert by_backend["docker"]["train_eligible"] is True
+    assert by_backend["docker"]["train_ineligible_reason"] is None
+    assert by_backend["daytona"]["train_eligible"] is False
+    assert by_backend["daytona"]["train_ineligible_reason"] == "broken on daytona"
     conn.close()
 
 
@@ -503,11 +561,11 @@ def test_export_provisional_then_split_gated(tmp_path: Path, capsys) -> None:
     alpha_harbor = digests["alpha-task"]["harbor_digest"]
     _write_trial_facts(derived, [
         {"trial_id": "a1", "job_id": "j", "task_digest": alpha_harbor,
-         "agent_name": "agentx", "model_name": "m", "primary_reward": 1.0,
-         "exception_class": None},
+         "agent_name": "agentx", "model_name": "m", "environment_type": "docker",
+         "primary_reward": 1.0, "exception_class": None},
         {"trial_id": "a2", "job_id": "j", "task_digest": alpha_harbor,
-         "agent_name": "agentx", "model_name": "m", "primary_reward": 0.0,
-         "exception_class": None},
+         "agent_name": "agentx", "model_name": "m", "environment_type": "docker",
+         "primary_reward": 0.0, "exception_class": None},
     ])
     _write_aux_table(derived, "task_stability", [
         {"task_version_digest": digests["alpha-task"]["task_version_digest"],

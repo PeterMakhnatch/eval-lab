@@ -4,7 +4,7 @@ import hashlib
 import json
 import subprocess
 from collections import Counter
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -91,6 +91,51 @@ def _exception_phase(exception_class: str | None) -> str | None:
     if "environment" in lowered or "docker" in lowered or "sandbox" in lowered:
         return "environment"
     return "unknown"
+
+
+def exception_phase_for(exception_class: str | None) -> str | None:
+    """Public alias of the phase classifier (reused by task qualification)."""
+    return _exception_phase(exception_class)
+
+
+#: Harbor environment wrappers that run on Daytona even when the resolved
+#: ``environment.type`` names something else. A custom ``import_path`` is the
+#: only trace these wrappers leave in the trial config, so it wins over the
+#: type string within the same config dict.
+DAYTONA_ENVIRONMENT_IMPORTS = frozenset(
+    {
+        "evallab.harbor_daytona:BoundedDaytonaEnvironment",
+        "evallab.harbor_daytona:SecretSafeDaytonaEnvironment",
+    }
+)
+_DAYTONA_IMPORT_PREFIX = "evallab.harbor_daytona:"
+
+
+def trial_environment_type(*sources: Mapping[str, Any] | None) -> str | None:
+    """Backend name from Harbor trial dicts holding ``$.environment``.
+
+    Tries each source in order (trial ``config.json``, the ``config``
+    embedded in ``result.json``, ``lock.json``). Returns values such as
+    ``"docker"`` or ``"daytona"`` verbatim, or ``None`` when no source
+    records an environment. Old trials predate this column and read back
+    as NULL through ``union_by_name``.
+    """
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        env = source.get("environment")
+        if not isinstance(env, dict):
+            continue
+        import_path = env.get("import_path")
+        if isinstance(import_path, str) and (
+            import_path in DAYTONA_ENVIRONMENT_IMPORTS
+            or import_path.startswith(_DAYTONA_IMPORT_PREFIX)
+        ):
+            return "daytona"
+        env_type = env.get("type")
+        if isinstance(env_type, str) and env_type:
+            return env_type
+    return None
 
 
 def experiment_id(job: JobRecord) -> str | None:
@@ -215,6 +260,7 @@ class TrialFact:
     task_digest: str | None
     verifier_digest: str
     environment_digest: str
+    environment_type: str | None
     grid_id: str | None
     point_id: str | None
     arm_id: str | None
@@ -581,6 +627,11 @@ def extract_trial_fact(
         task_digest=task_digest,
         verifier_digest=verifier_digest,
         environment_digest=environment_digest,
+        environment_type=trial_environment_type(
+            trial.config,
+            result.get("config") if isinstance(result.get("config"), dict) else None,
+            trial.lock,
+        ),
         agent_config_digest=digest_json(trial.lock.get("agent") or {}),
         grid_id=_string(provenance.get("grid_id")),
         point_id=_string(provenance.get("point_id")),
@@ -756,6 +807,7 @@ TRIAL_FACT_SCHEMA = pa.schema(
         pa.field("task_digest", pa.string()),
         pa.field("verifier_digest", pa.string(), nullable=False),
         pa.field("environment_digest", pa.string(), nullable=False),
+        pa.field("environment_type", pa.string()),
         pa.field("grid_id", pa.string()),
         pa.field("point_id", pa.string()),
         pa.field("arm_id", pa.string()),
@@ -1117,6 +1169,7 @@ def ingest_catalog(
                     """
                     INSERT INTO deterministic_trial_facts (
                         trial_id, verifier_digest, environment_digest,
+                        environment_type,
                         agent_config_digest, grid_id, point_id, arm_id,
                         factor_values_json, factor_values_digest,
                         factor_bindings_json, factor_bindings_digest,
@@ -1133,6 +1186,7 @@ def ingest_catalog(
                         updated_at
                     ) VALUES (
                         %(trial_id)s, %(verifier_digest)s, %(environment_digest)s,
+                        %(environment_type)s,
                         %(agent_config_digest)s, %(grid_id)s, %(point_id)s, %(arm_id)s,
                         %(factor_values_json)s, %(factor_values_digest)s,
                         %(factor_bindings_json)s, %(factor_bindings_digest)s,
@@ -1152,6 +1206,7 @@ def ingest_catalog(
                     ON CONFLICT (trial_id) DO UPDATE SET
                         verifier_digest = EXCLUDED.verifier_digest,
                         environment_digest = EXCLUDED.environment_digest,
+                        environment_type = EXCLUDED.environment_type,
                         agent_config_digest = EXCLUDED.agent_config_digest,
                         grid_id = EXCLUDED.grid_id,
                         point_id = EXCLUDED.point_id,

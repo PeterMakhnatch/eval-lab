@@ -40,7 +40,9 @@ made from this directory; no model weights downloaded.
    `candidate-0260-security-appsec` (train) with `--ak working_dir=/app`
    (derived from the task's `[environment].workdir`): the recorded first
    tool output is `/app` (`pwd && ls` with a relative listing), verifier
-   reward 0.0. Job `har85-wd-probe`, trial
+   reward 0.0 (a grader collection error on this task, not an agent result;
+   0260 is excluded from the train pool since, `../train-exclusions.json`).
+   Job `har85-wd-probe`, trial
    `candidate-0260-security-appsec__qKyzm6u` (`/private/tmp/har85-wd-probe`,
    since removed). Both staged runners (`gepa_mimo.py`,
    `run-after-approval.sh` phase 2) now derive `--ak working_dir` from each
@@ -49,7 +51,8 @@ made from this directory; no model weights downloaded.
    bound approval exits 2; `gepa_mimo.py` paid path without
    `--approval-file`/`--cap-usd` exits 2; tampered binding, wrong approver,
    blank date, and under-cover cap each refuse via `verify_approval`;
-   held-out ids in `--train-tasks` refuse; direct `--phase heldout`
+   held-out ids in `--train-tasks` refuse; train ids listed in
+   `../train-exclusions.json` refuse; direct `--phase heldout`
    execution outside the launcher refuses.
 5. **Paid path exercised at $0 up to the first trial** (2026-09-28, #492):
    with a probe approval and `DAYTONA_API_KEY` unset, the paid invocation

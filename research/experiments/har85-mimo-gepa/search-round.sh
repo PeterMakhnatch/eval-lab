@@ -87,6 +87,10 @@ fi
 # --dispatch below: refuse-first, then tick, then rerun. Nothing runs before this point.
 [ -n "$ref" ] || { echo "refusing: --dispatch needs --ref PROPOSER_APPROVAL_REF" >&2; exit 2; }
 [ -f "$ref" ] || { echo "refusing: approval ref missing: $ref" >&2; exit 2; }
+# Every search example must be in the train pool (split train minus
+# train-exclusions.json, e.g. tasks whose grader cannot score an honest solution).
+python3 "$lab/$EXP/train_pool.py" check-campaign "$lab/$CAMPAIGN" >&2 \
+  || { echo "refusing: $CAMPAIGN is not within the HAR-85 train pool" >&2; exit 2; }
 if [ "$waiting_n" -gt 0 ]; then
   echo "refusing: $waiting_n campaign specs still awaiting approval" >&2
   exit 2

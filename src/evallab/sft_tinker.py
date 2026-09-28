@@ -4,19 +4,24 @@ A thin, spend-guarded Eval Lab front end to ``tinker-cookbook``'s
 ``recipes.chat_sl.train`` over a :mod:`evallab.sft_terminus` export
 directory (``conversations.jsonl`` + ``manifest.json``).
 
-``dry-run`` is offline and free: it renders every conversation with the
-chosen tinker-cookbook renderer and the model's Hugging Face tokenizer
-(tokenizer files only, never weights), reports token counts, truncation at
-``max_length``, and estimates training cost from the pinned Tinker train
-price table. ``train`` refuses to run without ``--confirm-spend``; with it,
-it invokes the pinned chat_sl trainer with recorded hyperparameters and
-writes a training manifest linking the data digest to the Tinker run and
-final ``sampler_path`` read from the log dir's ``checkpoints.jsonl``.
+Eval Lab never imports tinker or tinker-cookbook: the toolchain lives in the
+isolated, locked uv project ``tools/tinker-sft`` (own ``uv.lock``, never a
+root workspace member), and both code paths shell out to it through
+``uv run --project tools/tinker-sft --locked``:
 
-The optional ``tinker`` dependency group (``uv sync --group tinker``)
-carries the pinned SDK (``tinker==0.30.4``, ``tinker-cookbook==0.5.7``);
-without it, dry-run and train fail with install instructions instead of
-importing. Credentials are referenced by environment variable name only
+- ``dry-run`` is offline and free: it runs ``tools/tinker-sft/measure.py``,
+  which renders every conversation with the chosen tinker-cookbook renderer
+  and the model's Hugging Face tokenizer (tokenizer files only, never
+  weights) and prints token statistics as one JSON object. The launcher
+  turns that into the report with truncation at ``max_length`` and a cost
+  estimate from the pinned Tinker train price table.
+- ``train`` refuses to run without ``--confirm-spend``; with it, it invokes
+  the pinned chat_sl trainer in the same isolated project with recorded
+  hyperparameters and writes a training manifest linking the data digest to
+  the Tinker run and final ``sampler_path`` read from the log dir's
+  ``checkpoints.jsonl``.
+
+Credentials are referenced by environment variable name only
 (``TINKER_API_KEY``); values are never read, logged, or written.
 
 chat_sl 0.5.7 entrypoint note: ``chz.entrypoint`` parses ``key=value``
@@ -32,8 +37,8 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
-import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -50,6 +55,11 @@ CHAT_SL_MODULE = "tinker_cookbook.recipes.chat_sl.train"
 TINKER_API_KEY_ENV = "TINKER_API_KEY"
 TRAIN_ON_WHAT = "all_assistant_messages"
 ALLOWED_ROLES = frozenset({"system", "user", "assistant"})
+
+#: Isolated, locked toolchain project (tinker==0.30.4,
+#: tinker-cookbook==0.5.7). Never imported; always invoked by subprocess.
+PROJECT_DIR = Path(__file__).resolve().parents[2] / "tools" / "tinker-sft"
+MEASURE_SCRIPT = PROJECT_DIR / "measure.py"
 
 #: Tinker train prices, USD per 1M train tokens (HAR-81 brief, 2026-09-28).
 TRAIN_PRICE_PER_MTOKEN_USD: dict[str, float] = {
@@ -150,83 +160,114 @@ def _sha256_file(path: Path) -> str:
 
 
 def verify_export_dir(data_dir: Path) -> dict[str, Any]:
-    """Verify conversations.jsonl against its export manifest; return the manifest."""
+    """Load the export manifest and re-verify the conversations digest."""
     manifest_path = data_dir / EXPORT_MANIFEST_FILE
-    conversations_path = data_dir / CONVERSATIONS_FILE
-    if not manifest_path.is_file() or not conversations_path.is_file():
-        raise TraceError(
-            f"{data_dir} is not an evallab.sft_terminus export "
-            f"(missing {EXPORT_MANIFEST_FILE}/{CONVERSATIONS_FILE})"
-        )
     try:
         manifest = json.loads(manifest_path.read_text())
     except (OSError, ValueError) as exc:
-        raise TraceError(f"cannot read export manifest {manifest_path}: {exc}") from exc
-    if not isinstance(manifest, dict) or manifest.get("contract") != "evallab.sft_terminus/1":
-        raise TraceError(f"{manifest_path} is not an evallab.sft_terminus/1 manifest")
-    recorded = manifest.get("conversations_sha256")
-    actual = _sha256_file(conversations_path)
-    if recorded != actual:
+        raise TraceError(f"cannot read {manifest_path}: {exc}") from exc
+    expected = manifest.get("conversations_sha256")
+    if not isinstance(expected, str) or not expected.startswith("sha256:"):
+        raise TraceError(f"{manifest_path} lacks a sha256 conversations_sha256")
+    actual = _sha256_file(data_dir / CONVERSATIONS_FILE)
+    if actual != expected:
         raise TraceError(
-            f"conversations.jsonl digest mismatch: manifest records {recorded}, "
-            f"file is {actual}; refusing to train drifted data"
+            f"digest mismatch: manifest pins {expected} but "
+            f"{data_dir / CONVERSATIONS_FILE} hashes to {actual}"
         )
     return manifest
 
 
 # ---------------------------------------------------------------------------
-# Rendering and measurement
+# Isolated toolchain project (subprocess only; never imported)
 # ---------------------------------------------------------------------------
 
 
-def _require_tinker_cookbook() -> Any:
-    try:
-        import tinker_cookbook  # noqa: F401
-    except ImportError as exc:
+def _uv_executable() -> str:
+    uv = shutil.which("uv")
+    if uv is None:
         raise TraceError(
-            "tinker-cookbook is not installed in this environment; "
-            "run: uv sync --group tinker"
-        ) from exc
-    return True
+            "uv executable not found on PATH; it is required to run the "
+            f"isolated toolchain project at {PROJECT_DIR}"
+        )
+    return uv
 
 
-class _MeasuredRenderer:
-    """Binds a cookbook renderer to the supervision target for measurement."""
-
-    def __init__(self, renderer: Any, train_on_what: Any) -> None:
-        self._renderer = renderer
-        self._train_on_what = train_on_what
-        #: Upstream sequence-extension property (None when unreported). When
-        #: False, tinker-cookbook warns that ALL_ASSISTANT_MESSAGES supervision
-        #: gives earlier assistant turns prefixes that differ from their
-        #: generation-time prompts.
-        self.has_extension_property = getattr(renderer, "has_extension_property", None)
-
-    def build_supervised_example(
-        self, messages: list[dict[str, Any]], train_on_what: Any = None
-    ) -> tuple[Any, Any]:
-        return self._renderer.build_supervised_example(messages, self._train_on_what)
-
-
-def cookbook_renderer_factory(model: str, renderer_name: str) -> Callable[[], Any]:
-    """Real renderer factory: HF tokenizer (files only) + cookbook renderer."""
-
-    def factory() -> Any:
-        _require_tinker_cookbook()
-        from tinker_cookbook.renderers import TrainOnWhat, get_renderer
-        from tinker_cookbook.tokenizer_utils import get_tokenizer
-
-        tokenizer = get_tokenizer(model)
-        renderer = get_renderer(renderer_name, tokenizer)
-        return _MeasuredRenderer(renderer, TrainOnWhat(TRAIN_ON_WHAT))
-
-    return factory
+def measure_command(
+    conversations_path: Path,
+    *,
+    model: str,
+    renderer_name: str,
+    max_length: int,
+    project_dir: Path = PROJECT_DIR,
+) -> list[str]:
+    """Offline render-measurement invocation inside the isolated project."""
+    return [
+        _uv_executable(),
+        "run",
+        "--project",
+        project_dir.resolve().as_posix(),
+        "--locked",
+        "python",
+        (project_dir / "measure.py").resolve().as_posix(),
+        "--conversations",
+        conversations_path.resolve().as_posix(),
+        "--model",
+        model,
+        "--renderer",
+        renderer_name,
+        "--max-length",
+        str(int(max_length)),
+        "--train-on-what",
+        TRAIN_ON_WHAT,
+    ]
 
 
-def _measure_one(renderer: Any, messages: list[dict[str, Any]]) -> tuple[int, Any]:
-    """(token count, per-token weight tensor) for one rendered conversation."""
-    model_input, weights = renderer.build_supervised_example(messages)
-    return int(model_input.length), weights
+def training_command(
+    dataset_path: Path,
+    *,
+    model: str,
+    renderer_name: str,
+    learning_rate: float,
+    lora_rank: int,
+    batch_size: int,
+    num_epochs: int,
+    max_length: int,
+    log_dir: Path,
+    project_dir: Path = PROJECT_DIR,
+) -> list[str]:
+    """The pinned chat_sl trainer invocation (chz ``key=value`` arguments)."""
+    return [
+        _uv_executable(),
+        "run",
+        "--project",
+        project_dir.resolve().as_posix(),
+        "--locked",
+        "python",
+        "-m",
+        CHAT_SL_MODULE,
+        f"dataset={dataset_path.resolve().as_posix()}",
+        f"model_name={model}",
+        f"renderer_name={renderer_name}",
+        f"train_on_what={TRAIN_ON_WHAT}",
+        f"learning_rate={float(learning_rate)!r}",
+        f"lora_rank={int(lora_rank)}",
+        f"batch_size={int(batch_size)}",
+        f"num_epochs={int(num_epochs)}",
+        f"max_length={int(max_length)}",
+        f"log_path={log_dir.resolve().as_posix()}",
+        "behavior_if_log_dir_exists=raise",
+    ]
+
+
+#: A measure runner maps an argv to ``(returncode, stdout)``. Injectable so
+#: tests exercise parsing and gating offline without uv or the toolchain.
+MeasureRunner = Callable[[list[str]], "tuple[int, str]"]
+
+
+def _subprocess_measure_runner(argv: list[str]) -> tuple[int, str]:
+    completed = subprocess.run(argv, capture_output=True, text=True, check=False)
+    return completed.returncode, completed.stdout
 
 
 @dataclass
@@ -255,43 +296,58 @@ class RenderStats:
         }
 
 
-def measure_conversations(
-    conversations: list[list[dict[str, Any]]],
-    renderer_factory: Callable[[], Any],
-    *,
-    max_length: int,
-) -> RenderStats:
-    """Render every conversation offline and aggregate token statistics.
+_STAT_FIELDS = (
+    "conversations",
+    "total_tokens",
+    "total_tokens_after_truncation",
+    "supervised_tokens_after_truncation",
+    "truncated_conversations",
+    "longest_conversation_tokens",
+    "median_conversation_tokens",
+)
 
-    Truncation semantics mirror ``datum_from_model_input_weights``: the
-    rendered sequence is cut from the right at ``max_length``, so the
-    post-truncation supervised mass is the prefix sum of the weights.
-    """
-    renderer = renderer_factory()
-    lengths: list[int] = []
-    total_after = 0
-    supervised_after = 0.0
-    truncated = 0
-    for messages in conversations:
-        tokens, weights = _measure_one(renderer, messages)
-        lengths.append(tokens)
-        total_after += min(tokens, max_length)
-        # Truncation keeps the left max_length tokens (cut from the right).
-        supervised_after += float(weights[:max_length].sum())
-        if tokens > max_length:
-            truncated += 1
-    lengths.sort()
-    median = float(lengths[len(lengths) // 2])
-    return RenderStats(
-        conversations=len(conversations),
-        total_tokens=sum(lengths),
-        total_tokens_after_truncation=total_after,
-        supervised_tokens_after_truncation=round(supervised_after, 1),
-        truncated_conversations=truncated,
-        longest_conversation_tokens=lengths[-1] if lengths else 0,
-        median_conversation_tokens=median,
-        renderer_extension_property=getattr(renderer, "has_extension_property", None),
+def run_measure(
+    conversations_path: Path,
+    *,
+    model: str,
+    renderer_name: str,
+    max_length: int,
+    project_dir: Path = PROJECT_DIR,
+    measure_runner: MeasureRunner | None = None,
+) -> RenderStats:
+    """Run the isolated measure script and parse its JSON statistics."""
+    argv = measure_command(
+        conversations_path,
+        model=model,
+        renderer_name=renderer_name,
+        max_length=max_length,
+        project_dir=project_dir,
     )
+    execute = measure_runner or _subprocess_measure_runner
+    returncode, stdout = execute(argv)
+    if returncode != 0:
+        raise TraceError(
+            f"measure script failed with exit code {returncode}: {' '.join(argv)}"
+        )
+    try:
+        payload = json.loads(stdout)
+    except ValueError as exc:
+        raise TraceError(f"measure script stdout is not JSON: {exc}") from exc
+    if not isinstance(payload, dict) or any(field not in payload for field in _STAT_FIELDS):
+        raise TraceError("measure script stdout lacks the expected statistic fields")
+    try:
+        return RenderStats(
+            conversations=int(payload["conversations"]),
+            total_tokens=int(payload["total_tokens"]),
+            total_tokens_after_truncation=int(payload["total_tokens_after_truncation"]),
+            supervised_tokens_after_truncation=float(payload["supervised_tokens_after_truncation"]),
+            truncated_conversations=int(payload["truncated_conversations"]),
+            longest_conversation_tokens=int(payload["longest_conversation_tokens"]),
+            median_conversation_tokens=float(payload["median_conversation_tokens"]),
+            renderer_extension_property=payload.get("renderer_extension_property"),
+        )
+    except (TypeError, ValueError) as exc:
+        raise TraceError(f"measure script statistics have wrong types: {exc}") from exc
 
 
 def estimate_cost_usd(total_tokens: int, model: str, epochs: int) -> float:
@@ -307,14 +363,26 @@ def dry_run(
     renderer_name: str | None,
     max_length: int,
     epochs: int,
-    renderer_factory: Callable[[], Any] | None = None,
+    project_dir: Path = PROJECT_DIR,
+    measure_runner: MeasureRunner | None = None,
 ) -> dict[str, Any]:
     """Offline render + cost report. Never contacts the Tinker service."""
     manifest = verify_export_dir(data_dir)
     conversations = load_conversations(data_dir / CONVERSATIONS_FILE)
     renderer_name = renderer_name or default_renderer_for(model)
-    factory = renderer_factory or cookbook_renderer_factory(model, renderer_name)
-    stats = measure_conversations(conversations, factory, max_length=max_length)
+    stats = run_measure(
+        data_dir / CONVERSATIONS_FILE,
+        model=model,
+        renderer_name=renderer_name,
+        max_length=max_length,
+        project_dir=project_dir,
+        measure_runner=measure_runner,
+    )
+    if stats.conversations != len(conversations):
+        raise TraceError(
+            f"measure script counted {stats.conversations} conversations but "
+            f"{data_dir / CONVERSATIONS_FILE} holds {len(conversations)}"
+        )
     price = _require_price(model)
     return {
         "contract": CONTRACT_VERSION,
@@ -354,37 +422,6 @@ def _dry_run_notes(stats: RenderStats) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def training_command(
-    dataset_path: Path,
-    *,
-    model: str,
-    renderer_name: str,
-    learning_rate: float,
-    lora_rank: int,
-    batch_size: int,
-    num_epochs: int,
-    max_length: int,
-    log_dir: Path,
-) -> list[str]:
-    """The pinned chat_sl trainer invocation (chz ``key=value`` arguments)."""
-    return [
-        sys.executable,
-        "-m",
-        CHAT_SL_MODULE,
-        f"dataset={dataset_path.resolve().as_posix()}",
-        f"model_name={model}",
-        f"renderer_name={renderer_name}",
-        f"train_on_what={TRAIN_ON_WHAT}",
-        f"learning_rate={float(learning_rate)!r}",
-        f"lora_rank={int(lora_rank)}",
-        f"batch_size={int(batch_size)}",
-        f"num_epochs={int(num_epochs)}",
-        f"max_length={int(max_length)}",
-        f"log_path={log_dir.resolve().as_posix()}",
-        "behavior_if_log_dir_exists=raise",
-    ]
-
-
 def read_final_sampler_path(log_dir: Path) -> dict[str, Any]:
     """Final checkpoint record from ``checkpoints.jsonl`` (fails closed)."""
     path = log_dir / CHECKPOINTS_FILE
@@ -412,6 +449,7 @@ def run_training(
     max_length: int,
     confirm_spend: bool,
     manifest_out: Path | None = None,
+    project_dir: Path = PROJECT_DIR,
     runner: Callable[[list[str]], int] | None = None,
 ) -> dict[str, Any]:
     """Guarded chat_sl training invocation; writes the training manifest."""
@@ -442,6 +480,7 @@ def run_training(
         num_epochs=num_epochs,
         max_length=max_length,
         log_dir=log_dir,
+        project_dir=project_dir,
     )
     execute = runner or (lambda argv: subprocess.run(argv, check=False).returncode)
     exit_code = execute(command)
@@ -472,6 +511,7 @@ def run_training(
         },
         "trainer": {
             "module": CHAT_SL_MODULE,
+            "project": project_dir.resolve().as_posix(),
             "command": command,
             "log_dir": log_dir.as_posix(),
             "exit_code": exit_code,

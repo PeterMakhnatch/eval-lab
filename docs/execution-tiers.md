@@ -515,16 +515,26 @@ uv run python -m evallab.sft_split freeze \
 uv run python -m evallab.sft_terminus export \
   --root teacher=runs/mimo-teacher --split-manifest split.json --out export/
 
-# 3. Offline render + cost report (needs the optional dependency group:
-#    uv sync --group tinker; downloads tokenizer files only).
-uv run --group tinker python -m evallab.sft_tinker dry-run \
+# 3. Offline render + cost report (free; downloads tokenizer files only).
+#    The renderer runs inside the isolated, locked project tools/tinker-sft
+#    (tinker==0.30.4, tinker-cookbook==0.5.7, own uv.lock; never part of the
+#    root environment) via `uv run --project tools/tinker-sft --locked`,
+#    invoked internally — no root dependency group is needed.
+uv run python -m evallab.sft_tinker dry-run \
   --data export/ --model Qwen/Qwen3.6-35B-A3B
 
-# 4. Real training (paid; refuses without --confirm-spend). Writes
-#    <log-dir>/training-manifest.json linking data digest -> run -> sampler_path.
-uv run --group tinker python -m evallab.sft_tinker train \
+# 4. Real training (paid; refuses without --confirm-spend). Same isolated
+#    project hosts the chat_sl trainer. Writes <log-dir>/training-manifest.json
+#    linking data digest -> tinker run -> final sampler_path.
+uv run python -m evallab.sft_tinker train \
   --data export/ --model Qwen/Qwen3.6-35B-A3B --log-dir logs/run1 --confirm-spend
 ```
+
+Known deviation, reported machine-readably in every dry-run: the pinned
+`train_on_what=all_assistant_messages` renderers lack tinker-cookbook's
+sequence-extension property, so earlier assistant turns train on prefixes
+that differ from their generation-time prompts; the protocol keeps one
+conversation per linear segment and no per-turn export.
 
 The exporter only accepts trials recorded in raw-content mode (parsed
 `tool_calls` trajectories lost the model's raw emission and are excluded),

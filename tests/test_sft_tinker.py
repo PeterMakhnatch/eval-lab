@@ -1,8 +1,8 @@
 """Behavioral checks for the guarded Tinker chat_sl launcher (evallab.sft_tinker).
 
-No Tinker dependency, network, or spend: rendering uses a fake renderer with
-injectable token/weight arithmetic, and the trainer runs through a recorded
-fake runner that writes a synthetic ``checkpoints.jsonl``.
+No Tinker toolchain, uv subprocess, network, or spend: the measure path runs
+through an injected fake runner returning canned JSON, and the trainer runs
+through a recorded fake runner that writes a synthetic ``checkpoints.jsonl``.
 """
 
 from __future__ import annotations
@@ -18,55 +18,40 @@ import pytest
 from evallab.sft_tinker import (
     CONVERSATIONS_FILE,
     EXPORT_MANIFEST_FILE,
+    PROJECT_DIR,
     TRAINING_MANIFEST_FILE,
     TraceError,
     dry_run,
     estimate_cost_usd,
     load_conversations,
+    measure_command,
     read_final_sampler_path,
+    run_measure,
     run_training,
     training_command,
 )
 
 
-class _ModelInput:
-    def __init__(self, length: int) -> None:
-        self.length = length
+def _stats_json(**overrides: Any) -> str:
+    payload: dict[str, Any] = {
+        "conversations": 2,
+        "total_tokens": 16,
+        "total_tokens_after_truncation": 12,
+        "supervised_tokens_after_truncation": 4.0,
+        "truncated_conversations": 2,
+        "longest_conversation_tokens": 8,
+        "median_conversation_tokens": 8.0,
+        "renderer_extension_property": None,
+    }
+    payload.update(overrides)
+    return json.dumps(payload)
 
 
-class _Weights:
-    def __init__(self, values: list[float]) -> None:
-        self.values = values
+def _measure_runner(payload: str) -> Any:
+    def runner(argv: list[str]) -> tuple[int, str]:
+        return 0, payload
 
-    def __getitem__(self, key: Any) -> _Weights:
-        if isinstance(key, slice):
-            return _Weights(self.values[key])
-        raise TypeError("fake weights support slicing only")
-
-    def sum(self) -> float:
-        return float(sum(self.values))
-
-
-class _FakeRenderer:
-    """4 tokens per message; weight 1.0 on assistant tokens only."""
-
-    def build_supervised_example(
-        self, messages: list[dict[str, Any]], train_on_what: Any = None
-    ) -> tuple[_ModelInput, _Weights]:
-        weights: list[float] = []
-        for message in messages:
-            weights.extend([1.0 if message["role"] == "assistant" else 0.0] * 4)
-        return _ModelInput(len(weights)), _Weights(weights)
-
-
-class _FakeRendererNoExtension(_FakeRenderer):
-    """Upstream renderers like qwen3_5_disable_thinking report no extension."""
-
-    has_extension_property = False
-
-
-def _fake_factory() -> _FakeRenderer:
-    return _FakeRenderer()
+    return runner
 
 
 def _write_export(tmp_path: Path, rows: list[list[dict[str, Any]]]) -> Path:
@@ -100,7 +85,77 @@ def _conversation(user_chars: int = 40, assistant_chars: int = 60) -> list[dict[
     ]
 
 
-def test_measure_counts_tokens_and_truncation(tmp_path: Path) -> None:
+def test_measure_command_wraps_isolated_project() -> None:
+    command = measure_command(
+        Path("/data/conversations.jsonl"),
+        model="Qwen/Qwen3.5-9B",
+        renderer_name="qwen3_5_disable_thinking",
+        max_length=16384,
+    )
+    assert command[0].endswith("uv")
+    assert command[1:5] == [
+        "run",
+        "--project",
+        PROJECT_DIR.resolve().as_posix(),
+        "--locked",
+    ]
+    joined = " ".join(command)
+    assert f"--project {PROJECT_DIR.resolve().as_posix()}" in joined
+    assert "--locked" in joined
+    assert (PROJECT_DIR / "measure.py").resolve().as_posix() in joined
+    assert "--model Qwen/Qwen3.5-9B" in joined
+    assert "--renderer qwen3_5_disable_thinking" in joined
+    assert "--max-length 16384" in joined
+    assert "--train-on-what all_assistant_messages" in joined
+    assert "--conversations /data/conversations.jsonl" in joined
+
+
+def test_run_measure_parses_stats_json(tmp_path: Path) -> None:
+    data = _write_export(tmp_path, [_conversation(), _conversation()])
+    stats = run_measure(
+        data / CONVERSATIONS_FILE,
+        model="Qwen/Qwen3.6-35B-A3B",
+        renderer_name="qwen3_5_disable_thinking",
+        max_length=6,
+        measure_runner=_measure_runner(_stats_json()),
+    )
+    assert stats.conversations == 2
+    assert stats.total_tokens == 16
+    assert stats.total_tokens_after_truncation == 12
+    assert stats.supervised_tokens_after_truncation == 4.0
+    assert stats.truncated_conversations == 2
+    assert stats.renderer_extension_property is None
+
+
+def test_run_measure_fails_closed_on_error_and_bad_json(tmp_path: Path) -> None:
+    data = _write_export(tmp_path, [_conversation()])
+    with pytest.raises(TraceError, match="measure script failed with exit code 1"):
+        run_measure(
+            data / CONVERSATIONS_FILE,
+            model="Qwen/Qwen3.6-35B-A3B",
+            renderer_name="qwen3_5_disable_thinking",
+            max_length=6,
+            measure_runner=lambda argv: (1, "boom"),
+        )
+    with pytest.raises(TraceError, match="lacks the expected statistic fields"):
+        run_measure(
+            data / CONVERSATIONS_FILE,
+            model="Qwen/Qwen3.6-35B-A3B",
+            renderer_name="qwen3_5_disable_thinking",
+            max_length=6,
+            measure_runner=lambda argv: (0, '{"conversations": "lots"}'),
+        )
+    with pytest.raises(TraceError, match="not JSON"):
+        run_measure(
+            data / CONVERSATIONS_FILE,
+            model="Qwen/Qwen3.6-35B-A3B",
+            renderer_name="qwen3_5_disable_thinking",
+            max_length=6,
+            measure_runner=lambda argv: (0, "not json at all"),
+        )
+
+
+def test_dry_run_reports_stats_and_cost(tmp_path: Path) -> None:
     data = _write_export(tmp_path, [_conversation(), _conversation()])
     report = dry_run(
         data,
@@ -108,19 +163,18 @@ def test_measure_counts_tokens_and_truncation(tmp_path: Path) -> None:
         renderer_name="qwen3_5_disable_thinking",
         max_length=6,
         epochs=1,
-        renderer_factory=_fake_factory,
+        measure_runner=_measure_runner(_stats_json(total_tokens_after_truncation=1_000_000)),
     )
     render = report["render"]
     assert render["conversations"] == 2
-    assert render["total_tokens"] == 16  # 2 conversations x 4 messages-tokens
-    assert render["total_tokens_after_truncation"] == 12  # capped at 6 each
-    # weights [0,0,0,0,1,1,1,1][:6] -> 2 supervised tokens per conversation.
-    assert render["supervised_tokens_after_truncation"] == 4.0
+    assert render["total_tokens"] == 16
     assert render["truncated_conversations"] == 2
     assert report["renderer"] == "qwen3_5_disable_thinking"
     assert report["train_on_what"] == "all_assistant_messages"
     assert report["split_manifest_digest"] == "sha256:" + "0" * 64
-
+    assert report["price_per_mtoken_usd"] == 1.177
+    assert report["estimated_cost_usd"] == 1.18  # 1M tokens x 1 epoch x 1.177/M
+    assert report["notes"] == []
 
 
 def test_dry_run_surfaces_missing_extension_property(tmp_path: Path) -> None:
@@ -131,10 +185,28 @@ def test_dry_run_surfaces_missing_extension_property(tmp_path: Path) -> None:
         renderer_name="qwen3_5_disable_thinking",
         max_length=128,
         epochs=1,
-        renderer_factory=lambda: _FakeRendererNoExtension(),
+        measure_runner=_measure_runner(
+            _stats_json(
+                conversations=1,
+                renderer_extension_property=False,
+            )
+        ),
     )
     assert report["render"]["renderer_extension_property"] is False
     assert any("extension" in note for note in report["notes"])
+
+
+def test_dry_run_refuses_count_mismatch(tmp_path: Path) -> None:
+    data = _write_export(tmp_path, [_conversation()])
+    with pytest.raises(TraceError, match="counted 2 conversations"):
+        dry_run(
+            data,
+            model="Qwen/Qwen3.6-35B-A3B",
+            renderer_name="qwen3_5_disable_thinking",
+            max_length=128,
+            epochs=1,
+            measure_runner=_measure_runner(_stats_json()),  # says 2, file has 1
+        )
 
 
 def test_cost_uses_pinned_price_table() -> None:
@@ -157,7 +229,7 @@ def test_dry_run_refuses_drifted_data(tmp_path: Path) -> None:
             renderer_name="qwen3_5_disable_thinking",
             max_length=128,
             epochs=1,
-            renderer_factory=_fake_factory,
+            measure_runner=_measure_runner(_stats_json()),
         )
 
 
@@ -177,7 +249,7 @@ def test_load_conversations_enforces_chat_sl_row_shape(tmp_path: Path) -> None:
         load_conversations(tool_role)
 
 
-def test_training_command_uses_chz_key_value_form() -> None:
+def test_training_command_uses_isolated_project_and_chz_key_value_form() -> None:
     command = training_command(
         Path("/data/conversations.jsonl"),
         model="Qwen/Qwen3.5-9B",
@@ -189,7 +261,14 @@ def test_training_command_uses_chz_key_value_form() -> None:
         max_length=16384,
         log_dir=Path("/logs/run1"),
     )
-    assert command[1:3] == ["-m", "tinker_cookbook.recipes.chat_sl.train"]
+    assert command[0].endswith("uv")
+    assert command[1:5] == [
+        "run",
+        "--project",
+        PROJECT_DIR.resolve().as_posix(),
+        "--locked",
+    ]
+    assert command[5:8] == ["python", "-m", "tinker_cookbook.recipes.chat_sl.train"]
     joined = " ".join(command)
     assert "dataset=/data/conversations.jsonl" in joined
     assert "model_name=Qwen/Qwen3.5-9B" in joined
@@ -197,6 +276,7 @@ def test_training_command_uses_chz_key_value_form() -> None:
     assert "train_on_what=all_assistant_messages" in joined
     assert "lora_rank=32" in joined and "batch_size=256" in joined
     assert "num_epochs=1" in joined and "max_length=16384" in joined
+    assert "log_path=/logs/run1" in joined
     assert "behavior_if_log_dir_exists=raise" in joined
     assert "--dataset" not in joined  # chz 0.5.7 rejects dash-style flags
 
@@ -267,6 +347,13 @@ def test_training_runs_and_links_data_digest_to_sampler_path(
         runner=fake_runner,
     )
     assert len(commands) == 1
+    assert commands[0][0].endswith("uv")
+    assert commands[0][1:5] == [
+        "run",
+        "--project",
+        PROJECT_DIR.resolve().as_posix(),
+        "--locked",
+    ]
     assert manifest["sampler_path"] == "tinker://run-abc:train:0/sampler_weights/7"
     assert manifest["tinker_run_id"] == "run-abc"
     assert manifest["conversations_sha256"].startswith("sha256:")
@@ -275,6 +362,7 @@ def test_training_runs_and_links_data_digest_to_sampler_path(
     assert manifest["renderer"] == "qwen3_5_disable_thinking"
     assert manifest["hyperparameters"]["max_length"] == 16384
     assert manifest["trainer"]["exit_code"] == 0
+    assert manifest["trainer"]["project"] == PROJECT_DIR.resolve().as_posix()
     assert (log_dir / TRAINING_MANIFEST_FILE).is_file()
 
 

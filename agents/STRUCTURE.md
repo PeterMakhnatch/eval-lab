@@ -84,6 +84,10 @@ eval-lab/
 ├── tests/                     executable contracts for repository behavior
 ├── sql/                       schema and analysis views
 ├── scripts/                   operator and CI tooling
+├── tools/                    isolated locked uv projects for external
+│                              toolchains the lab shells out to by subprocess
+│                              and never imports (own uv.lock; never root
+│                              workspace members)
 ├── dashboard/                 read-only research overview (Streamlit app +
 │                              explorer, projection, queries, own tests/).
 │                              Platform lane per agents/OWNERS.md. Separate
@@ -249,3 +253,8 @@ The change log below is historical, not a current inventory or work order.
   `docs/task-variants.md`). Bucket rule: evaluable task supply; materialized
   variant packages live outside Git in `derived/task-store/variants/`, which
   is already covered by the ignored `derived/` bucket.
+- 2026-09-28 — `tools/` declared for isolated, locked uv projects holding
+  external toolchains the lab invokes only by subprocess (bucket rule:
+  execution-path support that must stay out of the root dependency graph);
+  first entry is `tools/tinker-sft/` for the HAR-81 Tinker chat_sl trainer
+  and offline renderer.

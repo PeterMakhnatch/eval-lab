@@ -1,0 +1,17 @@
+[project]
+name = "evallab-tinker-sft"
+version = "0.1.0"
+description = "Isolated, locked Tinker chat_sl toolchain for Eval Lab HAR-81 (offline renderer + trainer)"
+requires-python = ">=3.12"
+dependencies = [
+    "tinker==0.30.4",
+    "tinker-cookbook==0.5.7",
+]
+
+[tool.uv]
+# Virtual project: never built or installed as a package; it only pins the
+# toolchain environment that `uv run --project tools/tinker-sft --locked`
+# creates. Deliberately outside the repository root workspace so torch,
+# CUDA, and transformers never enter the root uv.lock or the lab's default
+# environment.
+package = false

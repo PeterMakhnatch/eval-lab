@@ -55,15 +55,6 @@ dev = [
 lance = [
     "lancedb>=0.37,<1",
 ]
-# HAR-81 Tinker distillation launcher (evallab.sft_tinker). Optional group:
-# the offline dry-run renderer and the guarded chat_sl trainer need the
-# pinned Tinker SDK and cookbook; every other lab command runs without them.
-# tinker-cookbook pulls torch/transformers, so it stays out of the default
-# install and CI (uv sync --group tinker opts in).
-tinker = [
-    "tinker==0.30.4",
-    "tinker-cookbook==0.5.7",
-]
 observability = [
     "harbor-atif2otel>=0.1.0",
     "arize-phoenix-client>=3.3.0",

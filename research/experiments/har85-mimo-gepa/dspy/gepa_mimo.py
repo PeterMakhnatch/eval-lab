@@ -12,10 +12,11 @@ Pipeline (train split ONLY; held-out appears solely in the final paired eval):
   3. ``dspy.GEPA`` optimises the *complete action instructions* of a
      ``LabRlm``-shaped student (same target as ``evallab.rlm.gepa_rlm``, new
      rollout path for Harbor tasks).
-  4. Each metric call is one real ``harbor run`` trial in local Docker with
-     the current candidate policy file (``--ak policy=<file>`` served by the
-     shipped ``resolve_agent_policy``), scored by the task's own deterministic
-     verifier (reward 0/1).
+  4. Each metric call is one real ``harbor run`` trial (``--harbor-env``:
+     Daytona by default, via the Lab's ``BoundedDaytonaEnvironment``; local
+     Docker only for $0 dry runs) with the current candidate policy file
+     (``--ak policy=<file>`` served by the shipped ``resolve_agent_policy``),
+     scored by the task's own deterministic verifier (reward 0/1).
   5. The winner is written as a file-backed candidate policy JSON loadable by
      both ``bench_runner.load_policy`` and the Harbor agent.
 
@@ -28,10 +29,11 @@ Spend-relevant facts, stated plainly:
     PROVISIONAL default ``zai-coding-plan/glm-5.3-flash``; HAR-81's
     Qwen-on-Tinker route later). Reflection model is ``--reflection-model``.
 
-Usage ($0 dry run, 2 train + 1 val task, real containers + verifier)::
+Usage ($0 dry run, 2 train + 1 val task, real local containers + verifier)::
 
     runs/.harbor-dspy/bin/python research/experiments/har85-mimo-gepa/dspy/gepa_mimo.py \\
-        --dry-run --train-tasks candidate-0260-security-appsec,candidate-0390-security-appsec \\
+        --dry-run --harbor-env docker \\
+        --train-tasks candidate-0260-security-appsec,candidate-0390-security-appsec \\
         --val-tasks candidate-0688-hardware-rtl --max-metric-calls 8 --out runs/har85-dryrun/gepa
 """
 
@@ -40,6 +42,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -108,6 +111,17 @@ TRACE_SEED_USD = 0.007
 REFLECTION_CALL_USD = 0.10
 METRIC_OVERSHOOT = 2.5
 
+#: Where each trial's task container runs. Daytona is the default (Peter,
+#: 2026-09-28: run everything in the cloud); docker remains for $0 dry runs.
+HARBOR_ENVS = ("daytona", "docker")
+DAYTONA_ENV_KEYS = ("DAYTONA_API_KEY", "DAYTONA_API_URL", "DAYTONA_TARGET")
+#: METERED Daytona sandbox $ per trial (not subscription). MiMo terminal tasks
+#: request 1 vCPU + 2 GiB: $0.0504/vCPU-h + 2 x $0.0162/GiB-h
+#: (daytona.io/pricing, read 2026-09-28) = $0.0834/h; $0.03 covers ~22 min.
+DAYTONA_TRIAL_USD = 0.03
+#: Per-trial controller timeout; also sizes the Daytona TTL (harbor_env_args).
+TRIAL_TIMEOUT_SECONDS = 1800
+
 
 def sha256_file(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
@@ -128,6 +142,7 @@ def phase1_binding(
     max_metric_calls: int,
     cost_limit_usd: float,
     cap_usd: float,
+    harbor_env: str,
 ) -> dict:
     return {
         "phase": "gepa",
@@ -142,6 +157,7 @@ def phase1_binding(
         "max_metric_calls": max_metric_calls,
         "cost_limit_usd": cost_limit_usd,
         "cap_usd": cap_usd,
+        "harbor_env": harbor_env,
     }
 
 
@@ -153,6 +169,7 @@ def phase2_binding(
     attempts: int,
     cost_limit_usd: float,
     cap_usd: float,
+    harbor_env: str,
 ) -> dict:
     return {
         "phase": "heldout",
@@ -164,21 +181,54 @@ def phase2_binding(
         "attempts": attempts,
         "cost_limit_usd": cost_limit_usd,
         "cap_usd": cap_usd,
+        "harbor_env": harbor_env,
     }
 
 
-def expected_cost_usd(binding: dict) -> float:
-    """BUDGET.md formula: expected API-equivalent spend for a binding."""
-    if binding["phase"] == "gepa":
-        import math
+def expected_cost_parts(binding: dict) -> dict[str, float]:
+    """BUDGET.md formula for a binding, split by spend type.
 
+    ``model_api_equiv_usd`` is coding-plan SUBSCRIPTION quota priced at list
+    rates; ``daytona_sandbox_usd`` is METERED sandbox spend (0 for docker).
+    """
+    if binding["phase"] == "gepa":
         trials = binding["max_metric_calls"] * METRIC_OVERSHOOT
         # Reflection calls: ~1 per 10 rollouts (measured 2 proposals / 19
         # metric calls in the $0 dry run; reflection calls >= proposals).
         reflections = max(1, math.ceil(trials / 10))
-        return trials * (TRIAL_EXPECTED_USD + TRACE_SEED_USD) + reflections * REFLECTION_CALL_USD
-    trials = len(binding["heldout_task_ids"]) * 2 * binding["attempts"]
-    return trials * TRIAL_EXPECTED_USD
+        model = trials * (TRIAL_EXPECTED_USD + TRACE_SEED_USD) + reflections * REFLECTION_CALL_USD
+    else:
+        trials = len(binding["heldout_task_ids"]) * 2 * binding["attempts"]
+        model = trials * TRIAL_EXPECTED_USD
+    sandbox = trials * DAYTONA_TRIAL_USD if binding["harbor_env"] == "daytona" else 0.0
+    return {"model_api_equiv_usd": model, "daytona_sandbox_usd": sandbox}
+
+
+def expected_cost_usd(binding: dict) -> float:
+    """Both spend types together: the conservative total the bound cap must cover."""
+    return sum(expected_cost_parts(binding).values())
+
+
+def harbor_env_args(harbor_env: str, trial_timeout_seconds: int = TRIAL_TIMEOUT_SECONDS) -> list[str]:
+    """Harbor environment flags for one trial.
+
+    Daytona reuses the Lab queue's bounded lifecycle for host-side agents
+    (``execution_contracts.build_command``): a named sandbox with a
+    provider-side TTL, so a dead controller cannot leave it billing.
+    """
+    if harbor_env == "docker":
+        return ["--env", "docker"]
+    if harbor_env != "daytona":
+        raise ValueError(f"harbor_env must be one of {HARBOR_ENVS}, got {harbor_env!r}")
+    from evallab.execution_contracts import BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH
+
+    ttl_minutes = (trial_timeout_seconds + 600 + 59) // 60
+    return [
+        "--env",
+        BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH,
+        "--environment-kwarg",
+        f"ttl_minutes={ttl_minutes}",
+    ]
 
 
 def verify_approval(binding: dict, approval_path: Path) -> dict:
@@ -334,7 +384,8 @@ class RunnerConfig:
     model: str
     base_policy_id: str
     cost_limit_usd: float
-    job_timeout_seconds: int = 1800
+    harbor_env: str
+    job_timeout_seconds: int = TRIAL_TIMEOUT_SECONDS
 
 
 class HarborTrialRunner:
@@ -390,6 +441,9 @@ class HarborTrialRunner:
             "PYTHONPATH": f"{self.cfg.repo_root / 'src'}:{self.cfg.agent_bind_dir}",
             "EVALLAB_ZAI_SECRET_FILE": str(self.secret_file),
         }
+        if self.cfg.harbor_env == "daytona":
+            # Only the Daytona connection settings; never the parent env.
+            env.update({key: os.environ[key] for key in DAYTONA_ENV_KEYS if os.environ.get(key)})
         command = [
             self.cfg.harbor_bin,
             "run",
@@ -397,8 +451,7 @@ class HarborTrialRunner:
             str(task_dir),
             "--agent",
             self.cfg.agent_import,
-            "--env",
-            "docker",
+            *harbor_env_args(self.cfg.harbor_env, self.cfg.job_timeout_seconds),
             "--model",
             self.cfg.model,
             "--ak",
@@ -549,6 +602,37 @@ def write_dummy_secret(path: Path) -> Path:
     return path
 
 
+def paid_lms(args, secret_file: Path) -> tuple[object, object]:
+    """Reflection LM and trace-seed LM for the paid path (coding-plan route).
+
+    Construction makes no model call. Route selectors map to API ids exactly as
+    the shipped agent does (``zai_model_id``, ``harbor_rlm.LabRlmAgent.run``).
+    The trace seed is one extra student-route call per rollout (output unused
+    for scoring; costed in BUDGET.md) with the base policy's root token budget
+    and temperature, thinking off.
+    """
+    from evallab.rlm.harness import build_lm, zai_model_id
+    from evallab.rlm.policies import resolve_policy
+
+    api_key = secret_file.read_text().strip()
+    reflection_lm = build_lm(
+        model_id=zai_model_id(args.reflection_model),
+        api_key=api_key,
+        max_tokens=16_000,
+        thinking=True,
+        temperature=1.0,
+    )
+    base = resolve_policy(args.base_policy)
+    trace_lm = build_lm(
+        model_id=zai_model_id(args.student_route),
+        api_key=api_key,
+        max_tokens=base.root_max_tokens,
+        thinking=False,
+        temperature=base.temperature,
+    )
+    return reflection_lm, trace_lm
+
+
 def _refuse(message: str) -> int:
     print(f"REFUSING: {message}", file=sys.stderr)
     return 2
@@ -566,6 +650,7 @@ def _binding_for_args(args, split: dict, train_ids: list[str], val_ids: list[str
             attempts=args.attempts,
             cost_limit_usd=args.cost_limit_usd,
             cap_usd=args.cap_usd,
+            harbor_env=args.harbor_env,
         )
     return phase1_binding(
         split=split,
@@ -577,6 +662,7 @@ def _binding_for_args(args, split: dict, train_ids: list[str], val_ids: list[str
         max_metric_calls=args.max_metric_calls,
         cost_limit_usd=args.cost_limit_usd,
         cap_usd=args.cap_usd,
+        harbor_env=args.harbor_env,
     )
 
 
@@ -586,6 +672,8 @@ def _run_binding_modes(args, split: dict, train_ids: list[str], val_ids: list[st
         binding = _binding_for_args(args, split, train_ids, val_ids)
         print(json.dumps(binding, indent=1, sort_keys=True))
         print(f"binding_sha256: {binding_sha256(binding)}")
+        for part, usd in expected_cost_parts(binding).items():
+            print(f"expected_{part}: {usd:.2f}")
         print(f"expected_cost_usd: {expected_cost_usd(binding):.2f}")
         return 0
     if args.phase == "heldout" and not args.verify_only:
@@ -637,6 +725,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="phase heldout: winner policy JSON from phase 1")
     parser.add_argument("--attempts", type=int, default=3,
                         help="phase heldout: attempts per task per arm")
+    parser.add_argument("--harbor-env", default="daytona", choices=HARBOR_ENVS,
+                        help="where task containers run (bound into the approval); "
+                             "docker only for $0 dry runs")
 
     args = parser.parse_args(argv)
     split = load_split(args.split)
@@ -690,32 +781,25 @@ def main(argv: list[str] | None = None) -> int:
                 f"(pre-spend point; no trial launched)"
             )
             return 0
+        from evallab.execution_contracts import (
+            HARBOR_AGENT_IMPORT_PATHS,
+            RLM_AGENT,
+            materialize_zai_secret_file,
+        )
+
+        agent_import = HARBOR_AGENT_IMPORT_PATHS[RLM_AGENT]
+        instruction_proposer = None
         secret_holder = tempfile.mkdtemp(prefix="har85-paid-secret-")
         try:
-            from evallab.execution_contracts import materialize_zai_secret_file
-
             secret_file = materialize_zai_secret_file(Path(secret_holder) / "secret")
         except (OSError, ValueError) as exc:
             shutil.rmtree(secret_holder, ignore_errors=True)
             return _refuse(f"coding-plan credential unavailable: {exc}")
-        instruction_proposer = None
-        from evallab.rlm.harness import build_lm
-
-        reflection_lm = build_lm(
-            model_id=args.reflection_model,
-            api_key=secret_file.read_text().strip(),
-            max_tokens=16_000,
-            thinking=True,
-            temperature=1.0,
-        )
-        # One extra student-route call per rollout (trace seed for the GEPA
-        # adapter; output unused for scoring). Costed in BUDGET.md.
-        trace_lm = build_lm(
-            model_id=args.student_route,
-            api_key=secret_file.read_text().strip(),
-            thinking=False,
-        )
+        # Built under the try/finally below so a failure never leaks the secret.
+        reflection_lm = trace_lm = None
     try:
+        if not args.dry_run:
+            reflection_lm, trace_lm = paid_lms(args, secret_file)
         runner = HarborTrialRunner(
             RunnerConfig(
                 harbor_bin=args.harbor_bin,
@@ -727,10 +811,14 @@ def main(argv: list[str] | None = None) -> int:
                 model=args.student_route,
                 base_policy_id=args.base_policy,
                 cost_limit_usd=args.cost_limit_usd,
+                harbor_env=args.harbor_env,
             ),
             secret_file=secret_file,
             job_tag=args.job_tag,
         )
+        # Last refusal before the first trial (everything above is inert).
+        if args.harbor_env == "daytona" and not os.environ.get("DAYTONA_API_KEY"):
+            return _refuse("--harbor-env daytona needs DAYTONA_API_KEY in the environment")
         original_instructions = base_action_instructions(args.base_policy)
         student = build_student(args.base_policy, runner.run, trace_lm)
         trainset = build_examples(train_ids, args.tasks_root)

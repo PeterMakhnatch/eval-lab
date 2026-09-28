@@ -509,13 +509,66 @@ def test_cli_pull_refusal_build_and_show(tmp_path: Path, capsys) -> None:
     assert {"task_versions", "v_task_outcomes", "v_task_audit"} <= names
 
 
-def test_lineage_loader_tolerates_invalid_records(tmp_path: Path) -> None:
+def _valid_variant_record() -> dict:
+    digest = "sha256:" + "1" * 64
+    return {
+        "schema": "evallab.task_variant/v1",
+        "task_name": "mimo-v2.6-rl/alpha-task",
+        "variant_digest": digest,
+        "variant_harbor_digest": "sha256:" + "2" * 64,
+        "parent": {
+            "digest": "sha256:" + "3" * 64,
+            "harbor_digest": "sha256:" + "4" * 64,
+            "source": {
+                "kind": "hf", "repo": "o/r", "revision": "5" * 40,
+                "path": "tasks/alpha-task", "record": None,
+            },
+        },
+        "transform": "handfix@v1",
+        "components_changed": ["verifier"],
+        "files": [{
+            "path": "tests/test.sh",
+            "before_sha256": "sha256:" + "6" * 64,
+            "after_sha256": "sha256:" + "7" * 64,
+            "content": "exit 0\n",
+        }],
+        "rationale": "test record",
+        "inputs": {},
+        "created_by": "test",
+        "created_at": "2026-09-28T00:00:00Z",
+        "status": "candidate",
+        "evidence": [],
+    }
+
+
+def test_lineage_loader_uses_strict_module_and_skips_invalid(tmp_path: Path) -> None:
     variants = tmp_path / "library" / "task-variants" / "slug"
     variants.mkdir(parents=True)
-    (variants / "good.json").write_text(json.dumps({
-        "schema": "evallab.task_variant/v1", "task_name": "x/y",
-        "variant_digest": "sha256:" + "1" * 64,
-    }))
+    (variants / "good.json").write_text(json.dumps(_valid_variant_record()))
     (variants / "bad.json").write_text("{not json")
+    (variants / "wrong-schema.json").write_text(json.dumps({"schema": "other/v9"}))
     records, skipped = load_lineage_dicts(tmp_path)
-    assert len(records) == 1 and skipped >= 1
+    assert len(records) == 1 and skipped == 2
+    payload, relpath = records[0]
+    assert payload["variant_digest"] == "sha256:" + "1" * 64
+    assert payload["parent"]["source"]["kind"] == "hf"
+    assert relpath == "library/task-variants/slug/good.json"
+
+
+def test_build_indexes_variant_versions_and_lineage(tmp_path: Path) -> None:
+    derived = _pulled_snapshot(tmp_path)
+    variants = tmp_path / "library" / "task-variants" / "slug"
+    variants.mkdir(parents=True)
+    record = _valid_variant_record()
+    (variants / "good.json").write_text(json.dumps(record))
+    report = build_catalog(repo_root=tmp_path, derived_root=derived)
+    assert report.n_variants == 1 and report.skipped_variant_records == 0
+    versions = pq.read_table(derived / "external/task_catalog/task_versions.parquet")
+    rows = {row["task_id"]: row for row in versions.to_pylist()}
+    assert rows["alpha-task"]["origin"] == "variant"
+    assert rows["alpha-task"]["transform"] == "handfix@v1"
+    lineage = pq.read_table(derived / "external/task_catalog/task_lineage.parquet")
+    links = lineage.to_pylist()
+    assert len(links) == 1
+    assert links[0]["child_digest"] == "sha256:" + "1" * 64
+    assert links[0]["transform"] == "handfix@v1"

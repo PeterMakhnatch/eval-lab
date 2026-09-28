@@ -802,66 +802,34 @@ def _build_external_task(
 
 
 def load_lineage_dicts(repo_root: Path) -> tuple[list[tuple[dict[str, Any], str]], int]:
-    """Lineage records as ``(dict, record_relpath)`` pairs, preferring TaskVariants' loader.
+    """Lineage records as ``(dict, record_relpath)`` pairs via TaskVariants.
 
-    Returns ``(records, skipped)``; invalid records are skipped with a count,
-    never a crash, so catalog builds stay rebuildable while lineage evolves.
+    Each file under ``library/task-variants/**/*.json`` is parsed with
+    ``evallab.task_variants.resolve_record`` (strict
+    ``evallab.task_variant/v1`` validation). Returns ``(records, skipped)``;
+    invalid records are skipped with a count, never a crash, so catalog
+    builds stay rebuildable while lineage evolves.
     """
-    variants_root = repo_root / "library" / "task-variants"
-    relpaths: dict[str, str] = {}
-    if variants_root.is_dir():
-        for path in sorted(variants_root.rglob("*.json")):
-            try:
-                relpaths[str(path.relative_to(repo_root).as_posix())] = path.read_text(
-                    encoding="utf-8"
-                )
-            except OSError:
-                continue
-    digest_paths: dict[str, str] = {}
-    for relpath, text in relpaths.items():
-        try:
-            digest = json.loads(text).get("variant_digest")
-        except ValueError:
-            continue
-        if isinstance(digest, str):
-            digest_paths.setdefault(digest, relpath)
+    from evallab.task_variants import RECORDS_DIRNAME, LineageError, resolve_record
 
-    try:
-        from evallab.task_variants import load_variant_records  # type: ignore[import-not-found]
-    except ImportError:
-        load_variant_records = None  # type: ignore[assignment]
-
-    raw: list[dict[str, Any]] = []
-    if load_variant_records is not None:
-        try:
-            raw = [dict(record) for record in load_variant_records(repo_root)]
-        except Exception:
-            raw = []
-    if not raw:
-        for text in relpaths.values():
-            try:
-                record = json.loads(text)
-            except ValueError:
-                continue
-            if isinstance(record, dict):
-                raw.append(record)
+    tree = Path(repo_root) / RECORDS_DIRNAME
     records: list[tuple[dict[str, Any], str]] = []
     skipped = 0
-    for record in raw:
-        if record.get("schema") != "evallab.task_variant/v1":
-            skipped += 1
-            continue
-        digest = record.get("variant_digest")
-        records.append((record, digest_paths.get(digest, "") if isinstance(digest, str) else ""))
-    skipped += sum(1 for text in relpaths.values() if _not_json_dict(text))
+    if tree.is_dir():
+        for path in sorted(tree.rglob("*.json")):
+            if not path.is_file():
+                continue
+            try:
+                record = resolve_record(path)
+            except LineageError:
+                skipped += 1
+                continue
+            try:
+                relpath = path.relative_to(repo_root).as_posix()
+            except ValueError:
+                relpath = path.name
+            records.append((record.model_dump(mode="json", by_alias=True), relpath))
     return records, skipped
-
-
-def _not_json_dict(text: str) -> bool:
-    try:
-        return not isinstance(json.loads(text), dict)
-    except ValueError:
-        return True
 
 
 def _variant_version_row(record: Mapping[str, Any]) -> dict[str, Any]:

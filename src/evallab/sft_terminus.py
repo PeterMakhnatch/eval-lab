@@ -65,7 +65,7 @@ from evallab.sft_records import (
     discover_trial_dirs,
     resolve_outcome,
 )
-from evallab.sft_split import heldout_task_ids, load_split
+from evallab.sft_split import load_split
 from evallab.sft_split import split_digest as split_manifest_digest_of
 from evallab.tracing import REDACTION_MARKER_RE, TraceError
 
@@ -179,6 +179,8 @@ class TrialDisposition:
     reasons: list[str] = field(default_factory=list)
     conversations: list[SegmentConversation] = field(default_factory=list)
     duplicate_of: str | None = None
+    #: The sealed task version the trial was matched to (None until matched).
+    task_version_digest: str | None = None
 
     def to_json(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -194,6 +196,8 @@ class TrialDisposition:
         }
         if self.duplicate_of is not None:
             out["duplicate_of"] = self.duplicate_of
+        if self.task_version_digest is not None:
+            out["task_version_digest"] = self.task_version_digest
         return out
 
 
@@ -437,23 +441,97 @@ def _identity_key(trial: TrialSource, main_sha: str | None) -> str:
     return f"path:{trial.root.label}:{trial.relative_path}"
 
 
+def _split_task_entries(
+    split_manifest: dict[str, Any],
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Index sealed per-task entries by full task name and by task id."""
+    by_name: dict[str, dict[str, Any]] = {}
+    by_id: dict[str, dict[str, Any]] = {}
+    for entry in split_manifest.get("tasks") or ():
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("task_name")
+        task_id = entry.get("task_id")
+        if isinstance(name, str):
+            by_name[name] = entry
+        if isinstance(task_id, str):
+            by_id[task_id] = entry
+    return by_name, by_id
+
+
+def default_task_store_root() -> Path | None:
+    """Shared snapshot store (primary checkout), when it exists locally."""
+    from evallab.task_catalog import default_task_store_root as catalog_store_root
+
+    root = catalog_store_root(Path(__file__).resolve().parents[2])
+    return root if root.is_dir() else None
+
+
+def snapshot_task_dir(
+    sources: dict[str, Any], entry: dict[str, Any], task_store_root: Path
+) -> Path | None:
+    """Locate a sealed task's package directory in the shared snapshot store."""
+    from evallab.task_catalog import hf_task_store, snapshot_dir_name
+
+    pinned = sources.get(entry.get("domain"))
+    if not isinstance(pinned, str):
+        return None
+    repo, _, revision = pinned.partition("@")
+    org, _, repo_name = repo.partition("/")
+    task_id = entry.get("task_id")
+    if not org or not repo_name or not revision or not isinstance(task_id, str):
+        return None
+    return (
+        hf_task_store(task_store_root)
+        / snapshot_dir_name(org, repo_name, revision)
+        / "tasks"
+        / task_id
+    )
+
+
+def snapshot_task_version_digest(
+    sources: dict[str, Any], entry: dict[str, Any], task_store_root: Path
+) -> str | None:
+    """The on-disk task dir digest (None when the store dir is unavailable).
+
+    Uses the catalog's digest scheme (:func:`evallab.registry
+    .task_directory_digest`); a recomputed digest that differs from the
+    sealed ``task_version_digest`` means the snapshot drifted and the trial
+    matched only by name.
+    """
+    from evallab.registry import task_directory_digest
+
+    task_dir = snapshot_task_dir(sources, entry, task_store_root)
+    if task_dir is None or not task_dir.is_dir():
+        return None
+    try:
+        return task_directory_digest(task_dir)
+    except (OSError, ValueError):
+        return None
+
+
 def export_conversations(
     roots: list[SourceRoot],
     *,
     split_manifest_path: Path,
     reward_threshold: float = DEFAULT_REWARD_THRESHOLD,
     keep_reasoning: bool = False,
+    task_store_root: Path | None = None,
 ) -> TerminusExportResult:
-    """Select and convert trials. Raises TraceError on held-out contamination."""
+    """Select and convert trials. Raises TraceError on held-out contamination.
+
+    A trial resolves to a sealed task by full task name first, then task id.
+    When the pinned snapshot task directory is available under
+    ``task_store_root`` (explicit, else the shared store when it exists),
+    the trial's task dir digest must equal the sealed ``task_version_digest``;
+    a recomputed digest that differs excludes the trial as
+    ``task_version_drift``. Without the store, matching is by name/id alone.
+    """
     split_manifest = load_split(split_manifest_path)
     digest = split_manifest_digest_of(split_manifest)
-    heldout = heldout_task_ids(split_manifest)
-    train_ids = {
-        task["task_id"]
-        for domain in split_manifest.get("domains", {}).values()
-        for task in domain.get("tasks", [])
-        if task.get("assignment") == "train"
-    }
+    entries_by_name, entries_by_id = _split_task_entries(split_manifest)
+    store_root = task_store_root if task_store_root is not None else default_task_store_root()
+    sources = split_manifest.get("sources") or {}
 
     loaded: list[tuple[SourceRoot, Path, TrialSource]] = []
     for root in roots:
@@ -531,20 +609,34 @@ def export_conversations(
         if outcome.reward < reward_threshold:
             _exclude(disposition, "reward_below_threshold")
             continue
+        reward = outcome.reward
         if task_id is None:
             _exclude(disposition, "no_task_id")
             continue
-        if task_id in heldout:
+        task_name = trial.result.get("task_name")
+        entry = entries_by_name.get(task_name) if isinstance(task_name, str) else None
+        if entry is None:
+            entry = entries_by_id.get(task_id)
+        if entry is None:
+            _exclude(disposition, "task_not_in_split")
+            continue
+        task_id = entry["task_id"]
+        disposition.task_id = task_id
+        disposition.task_version_digest = entry["task_version_digest"]
+        if store_root is not None:
+            task_dir_digest = snapshot_task_version_digest(sources, entry, store_root)
+            if task_dir_digest is not None and task_dir_digest != entry["task_version_digest"]:
+                _exclude(disposition, "task_version_drift")
+                continue
+        if entry["split"] == "heldout":
             refusals.append(
                 {
                     "root": root.label,
                     "trial": trial.relative_path,
                     "task_id": task_id,
+                    "task_version_digest": entry["task_version_digest"],
                 }
             )
-            continue
-        if task_id not in train_ids:
-            _exclude(disposition, "task_not_in_split")
             continue
         if not segments or not any(segment.segment == "main" for segment in segments):
             _exclude(disposition, "no_trajectory")
@@ -584,7 +676,7 @@ def export_conversations(
                     job=job,
                     task_id=task_id,
                     model_name=_teacher_model(payload, trial.result),
-                    reward=outcome.reward,
+                    reward=reward,
                     session_id=session_id if isinstance(session_id, str) else None,
                     segment=segment.segment,
                     continuation_index=segment.continuation_index,
@@ -729,6 +821,13 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="keep teacher reasoning_content as a <think> prefix (default: dropped)",
     )
+    export.add_argument(
+        "--task-store-root",
+        type=Path,
+        default=None,
+        help="snapshot store root enabling task_version_digest verification "
+        "(default: shared store when it exists, else name/id matching only)",
+    )
     args = parser.parse_args(argv)
     try:
         result = export_conversations(
@@ -736,6 +835,7 @@ def main(argv: list[str] | None = None) -> int:
             split_manifest_path=args.split_manifest,
             reward_threshold=args.reward_threshold,
             keep_reasoning=args.keep_reasoning,
+            task_store_root=args.task_store_root,
         )
         manifest = write_export(
             result,

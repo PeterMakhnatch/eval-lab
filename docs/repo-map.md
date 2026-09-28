@@ -359,7 +359,7 @@ inputs:
   - path: src/evallab/sft_terminus.py
     digest: sha256:fbef2ef4d95d18d4a4690e53f795c427f88259a849f382cd0cbc5578927f7ed3
   - path: src/evallab/sft_tinker.py
-    digest: sha256:483853394d867117c9ae89e4ee798f4090bfc59300f68f591929393c658a8bd8
+    digest: sha256:c3803fb755b9f82efbcc8e623a095e9280ffc8c77b998357f3d96be2d8f3bf28
   - path: src/evallab/smoke.py
     digest: sha256:8e9c4d8a8560513ed333c5bd794f69882632c4ba78a76cd04c4506ed5b246e46
   - path: src/evallab/spine.py

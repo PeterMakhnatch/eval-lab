@@ -9,13 +9,14 @@ rewound history, and ``trajectory.summarization-*`` subagent files.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from evallab.sft_split import DomainRoot, build_split, write_split
+from evallab.sft_split import CatalogTask, build_split, write_split
 from evallab.sft_terminus import (
     CONVERSATIONS_FILE,
     SourceRoot,
@@ -28,26 +29,51 @@ from evallab.sft_terminus import (
 )
 
 
+def _digest(seed: str) -> str:
+    return f"sha256:{hashlib.sha256(seed.encode()).hexdigest()}"
+
+
+def _catalog_rows(
+    task_ids: list[str], *, digest_of: dict[str, str] | None = None
+) -> list[CatalogTask]:
+    """Catalog rows with singleton groups, mirroring the real catalog."""
+    return [
+        CatalogTask(
+            domain="code",
+            task_id=task_id,
+            task_name=f"mimo-v2.6-rl/{task_id}",
+            split_group=f"code:{task_id}",
+            task_version_digest=(digest_of or {}).get(task_id, _digest(f"code/{task_id}")),
+            source_repo="FineEnvs/MiMo-V2.6-RL-harbor-code",
+            source_revision="r" * 40,
+        )
+        for task_id in task_ids
+    ]
+
+
+def _freeze_manifest(
+    rows: list[CatalogTask], *, heldout_count: int, salt: str = "test-salt"
+) -> dict[str, Any]:
+    return build_split(
+        rows,
+        salt=salt,
+        catalog_table="test",
+        catalog_digest=_digest("table"),
+        catalog_rows=len(rows),
+        heldout_counts={"code": heldout_count},
+    )
+
+
 def _freeze_split(tmp_path: Path, task_ids: list[str], *, heldout: list[str]) -> Path:
     """Seal a split manifest whose held-out set is exactly ``heldout``.
 
     Held-out membership is by hash rank, so the helper searches salts until
     the requested set is the sealed one (deterministic for fixed inputs).
     """
-    dataset = tmp_path / "dataset" / "code"
-    dataset.mkdir(parents=True)
-    for task_id in task_ids:
-        package = dataset / task_id
-        package.mkdir()
-        (package / "task.toml").write_text(f"[task]\nname = '{task_id}'\n")
+    rows = _catalog_rows(task_ids)
     for salt_index in range(200):
-        manifest = build_split(
-            [DomainRoot(domain="code", path=dataset)],
-            salt=f"test-salt-{salt_index}",
-            source_dataset="FineEnvs/MiMo-V2.6-RL-harbor-code",
-            source_revision="rev1",
-            heldout_counts={"code": len(heldout)},
-            heldout_fraction=None,
+        manifest = _freeze_manifest(
+            rows, heldout_count=len(heldout), salt=f"test-salt-{salt_index}"
         )
         if set(manifest["heldout_task_ids"]) == set(heldout):
             break
@@ -128,7 +154,7 @@ def _write_trial(
     root: Path,
     name: str,
     *,
-    task_name: str = "mimo/task-a",
+    task_name: str = "mimo-v2.6-rl/task-a",
     reward: Any = 1.0,
     exception: dict[str, Any] | None = None,
     steps: list[dict[str, Any]] | None = None,
@@ -182,12 +208,14 @@ def _export(
 ) -> tuple[dict[str, Any], Path]:
     reward_threshold = kwargs.get("reward_threshold", 1.0)
     keep_reasoning = kwargs.get("keep_reasoning", False)
+    task_store_root = kwargs.get("task_store_root")
     source = SourceRoot(label="teacher", path=root)
     result = export_conversations(
         [source],
         split_manifest_path=split_path,
         reward_threshold=reward_threshold,
         keep_reasoning=keep_reasoning,
+        task_store_root=task_store_root,
     )
     out = tmp_path / out_name
     manifest = write_export(
@@ -263,7 +291,7 @@ def test_export_matches_model_visible_conversation(tmp_path: Path) -> None:
 def test_heldout_task_refuses_whole_export(tmp_path: Path) -> None:
     root = tmp_path / "runs"
     root.mkdir()
-    _write_trial(root, "trial-secret", task_name="mimo/task-held")
+    _write_trial(root, "trial-secret", task_name="mimo-v2.6-rl/task-held")
     _write_trial(root, "trial-ok")
     split = _freeze_split(tmp_path, ["task-a", "task-held"], heldout=["task-held"])
     with pytest.raises(TraceError, match="held-out task"):
@@ -289,16 +317,16 @@ def test_heldout_task_refuses_whole_export(tmp_path: Path) -> None:
 def test_reward_and_exception_filtering_counts_by_reason(tmp_path: Path) -> None:
     root = tmp_path / "runs"
     root.mkdir()
-    _write_trial(root, "trial-failed-reward", task_name="mimo/task-a", reward=0.4)
+    _write_trial(root, "trial-failed-reward", task_name="mimo-v2.6-rl/task-a", reward=0.4)
     _write_trial(
         root,
         "trial-exception",
-        task_name="mimo/task-b",
+        task_name="mimo-v2.6-rl/task-b",
         reward=None,
         exception={"exception_type": "EnvironmentStartupError"},
     )
-    _write_trial(root, "trial-unverified", task_name="mimo/task-c", reward=None)
-    _write_trial(root, "trial-pass", task_name="mimo/task-d")
+    _write_trial(root, "trial-unverified", task_name="mimo-v2.6-rl/task-c", reward=None)
+    _write_trial(root, "trial-pass", task_name="mimo-v2.6-rl/task-d")
     split = _freeze_split(tmp_path, ["task-a", "task-b", "task-c", "task-d"], heldout=[])
     manifest, out = _export(tmp_path, root, split)
 
@@ -316,7 +344,7 @@ def test_reward_and_exception_filtering_counts_by_reason(tmp_path: Path) -> None
 def test_task_outside_sealed_split_is_excluded(tmp_path: Path) -> None:
     root = tmp_path / "runs"
     root.mkdir()
-    _write_trial(root, "trial-unknown", task_name="mimo/task-elsewhere")
+    _write_trial(root, "trial-unknown", task_name="mimo-v2.6-rl/task-elsewhere")
     split = _freeze_split(tmp_path, ["task-a"], heldout=[])
     manifest, _ = _export(tmp_path, root, split)
     assert manifest["exclusion_counts"] == {"task_not_in_split": 1}
@@ -422,3 +450,78 @@ def test_harness_tree_digest_binding_is_recorded_and_verified(tmp_path: Path) ->
     recorded = manifest2["harness_tree_digests"]["job-x"]
     assert recorded["verified"] is False
     assert recorded["sha256"] == evidence_tree_digest(job / "harness-tree")
+
+
+def _snapshot_task_dir(
+    store: Path, repo: str, revision: str, task_id: str
+) -> Path:
+    from evallab.task_catalog import snapshot_dir_name
+
+    org, _, repo_name = repo.partition("/")
+    task_dir = (
+        store / "hf" / snapshot_dir_name(org, repo_name, revision)
+        / "tasks" / task_id
+    )
+    task_dir.mkdir(parents=True)
+    (task_dir / "task.toml").write_text(f"[task]\nname = '{task_id}'\n")
+    return task_dir
+
+
+def test_store_digest_verified_match_selects(tmp_path: Path) -> None:
+    from evallab.registry import task_directory_digest
+
+    store = tmp_path / "store"
+    revision = "r" * 40
+    task_dir = _snapshot_task_dir(
+        store, "FineEnvs/MiMo-V2.6-RL-harbor-code", revision, "task-a"
+    )
+    digest = task_directory_digest(task_dir)
+    rows = _catalog_rows(["task-a"], digest_of={"task-a": digest})
+    rows[0] = CatalogTask(
+        domain=rows[0].domain, task_id=rows[0].task_id,
+        task_name=rows[0].task_name, split_group=rows[0].split_group,
+        task_version_digest=digest, source_repo=rows[0].source_repo,
+        source_revision=revision,
+    )
+    manifest = _freeze_manifest(rows, heldout_count=0)
+    split = tmp_path / "split.json"
+    write_split(manifest, split)
+    root = tmp_path / "runs"
+    root.mkdir()
+    _write_trial(root, "trial-ok")
+    result = export_conversations(
+        [SourceRoot(label="teacher", path=root)],
+        split_manifest_path=split,
+        task_store_root=store,
+    )
+    assert result.selected_trials == 1
+    assert result.dispositions[0].task_version_digest == digest
+
+
+def test_store_digest_drift_is_excluded(tmp_path: Path) -> None:
+    from evallab.registry import task_directory_digest
+
+    store = tmp_path / "store"
+    revision = "r" * 40
+    task_dir = _snapshot_task_dir(
+        store, "FineEnvs/MiMo-V2.6-RL-harbor-code", revision, "task-a"
+    )
+    sealed_digest = task_directory_digest(task_dir)
+    (task_dir / "planted.txt").write_text("drift\n")
+    assert task_directory_digest(task_dir) != sealed_digest
+    rows = _catalog_rows(["task-a"], digest_of={"task-a": sealed_digest})
+    rows[0] = CatalogTask(
+        domain=rows[0].domain, task_id=rows[0].task_id,
+        task_name=rows[0].task_name, split_group=rows[0].split_group,
+        task_version_digest=sealed_digest, source_repo=rows[0].source_repo,
+        source_revision=revision,
+    )
+    manifest = _freeze_manifest(rows, heldout_count=0)
+    split = tmp_path / "split.json"
+    write_split(manifest, split)
+    root = tmp_path / "runs"
+    root.mkdir()
+    _write_trial(root, "trial-drift")
+    manifest_out, _ = _export(tmp_path, root, split, task_store_root=store)
+    assert manifest_out["counts"]["trials_selected"] == 0
+    assert manifest_out["exclusion_counts"] == {"task_version_drift": 1}

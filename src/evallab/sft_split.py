@@ -1,29 +1,32 @@
-"""Sealed train/held-out task splits for distillation datasets (HAR-81).
+"""Sealed train/held-out task splits for the MiMo catalog (HAR-81/HAR-84).
 
-A teacher/student distillation run needs one frozen split that both the SFT
-export (:mod:`evallab.sft_terminus`) and the later held-out re-evaluation
-agree on. This module freezes that split over a directory of Harbor task
-packages (e.g. a downloaded MiMo-V2.6-RL dataset ``tasks/`` tree).
+A teacher/student distillation run needs one frozen split that the SFT export
+(:mod:`evallab.sft_terminus`), the Tinker training manifest, and the later
+held-out re-evaluation all agree on. The split is frozen from the shared
+MiMo task catalog (``task_versions.parquet``, built by
+``evallab tasks catalog build``; see ``docs/mimo-task-catalog.md``) — never
+from an ad hoc directory walk — and buckets tasks on ``split_group``, the
+catalog's stable family key, so sibling tasks never straddle train and
+held-out.
 
-Determinism: within each domain, task ids are ranked by
-``sha256(salt + "\\0" + task_id)`` and the first ``heldout_count`` ids (by
-rank) are sealed as ``heldout``; every other task is ``train``. The same
-salt, source dataset, and task set always reproduce byte-identical
-manifests, which carry no wall-clock values.
+Determinism: within each domain, split groups are ranked by
+``sha256(salt + "\\0" + split_group)`` and whole groups are taken into
+held-out in rank order until the held-out task count reaches the requested
+per-domain count (the actual count is reported; a group is never split).
+The same salt and catalog table always reproduce byte-identical manifests,
+which carry no wall-clock values.
 
-The manifest records each task's package digest
-(:func:`evallab.evidence_store.evidence_tree_digest`), the source dataset
-and revision it was frozen from, and its own ``manifest_digest`` over the
-canonical JSON of every other field. The exporter verifies that digest on
-load, so a silently edited split cannot relabel a run.
+The manifest records the catalog table digest it was frozen from, each
+domain's pinned ``source_repo@source_revision``, a per-task list keyed by
+``task_version_digest`` (:func:`evallab.registry.task_directory_digest` —
+the catalog's scheme, reused, not duplicated), a top-level ``splits`` map
+consumed unchanged by ``evallab tasks catalog export-eligible --split`` (
+:func:`evallab.task_catalog._read_split_map`), and its own
+``manifest_digest`` over the canonical JSON of every other field, verified
+on load so a silently edited split cannot relabel a run.
 
-This is a dataset-level split keyed by *task id*, sealed before any teacher
-run; :func:`evallab.sft_records.load_split_manifest` remains the separate
-trial-family assignment consumed by the HAR-65 record bridge.
-
-Run with ``python -m evallab.sft_split freeze --root DOMAIN=PATH ...
---salt S --source-dataset DS --source-revision REV --heldout-count D=N
---out split.json``.
+Run with ``python -m evallab.sft_split freeze --salt S
+--heldout-count DOMAIN=N ... --out split.json``.
 """
 
 from __future__ import annotations
@@ -31,155 +34,240 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from evallab.evidence_store import evidence_tree_digest
 from evallab.tracing import TraceError
 
-CONTRACT_VERSION = "evallab.sft_split/1"
+CONTRACT_VERSION = "evallab.sft_split/2"
 MANIFEST_DIGEST_KEY = "manifest_digest"
-#: A Harbor task package is a directory carrying ``task.toml`` at its root.
-TASK_MARKER = "task.toml"
+CATALOG_TABLE_FILENAME = "task_versions.parquet"
+GROUPING_KEY = "split_group"
 ASSIGNMENTS = ("train", "heldout")
+
+#: Columns the split needs from the catalog ``task_versions`` table.
+REQUIRED_COLUMNS = (
+    "domain",
+    "task_id",
+    "task_name",
+    "split_group",
+    "task_version_digest",
+    "source_repo",
+    "source_revision",
+)
+
+_DIGEST_SHAPE = "sha256:" + "0" * 64
 
 
 @dataclass(frozen=True)
-class DomainRoot:
-    """One dataset domain (e.g. ``code``) rooted at a directory of tasks."""
+class CatalogTask:
+    """One ``task_versions`` row the split is frozen over."""
 
     domain: str
-    path: Path
+    task_id: str
+    task_name: str
+    split_group: str
+    task_version_digest: str
+    source_repo: str
+    source_revision: str
 
 
-def _parse_domain_root(value: str) -> DomainRoot:
-    domain, sep, path = value.partition("=")
-    if not sep:
-        path, domain = value, Path(value).name
-    domain = domain.strip()
-    if not domain or "/" in domain or domain in {".", ".."}:
-        raise TraceError(f"domain label must be a plain directory name: {value!r}")
-    return DomainRoot(domain=domain, path=Path(path))
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return f"sha256:{digest.hexdigest()}"
 
 
-def discover_task_packages(root: Path) -> list[Path]:
-    """Sorted immediate subdirectories of ``root`` that are task packages."""
-    if not root.is_dir():
-        raise TraceError(f"domain root is not a directory: {root.resolve()}")
-    found = [child for child in sorted(root.iterdir()) if (child / TASK_MARKER).is_file()]
-    if not found:
-        raise TraceError(f"no task packages ({TASK_MARKER}) under {root.resolve()}")
-    return found
+def load_catalog_tasks(table: Path) -> list[CatalogTask]:
+    """Read and validate the ``task_versions`` parquet into split rows."""
+    import pyarrow.parquet as pq
 
-
-def rank_key(salt: str, task_id: str) -> str:
-    """The deterministic hash ranking a task inside its domain."""
-    return hashlib.sha256(f"{salt}\0{task_id}".encode()).hexdigest()
-
-
-def _heldout_count_for(
-    domain: str, total: int, counts: dict[str, int], fraction: float | None
-) -> int:
-    if domain in counts:
-        explicit = counts[domain]
-    elif fraction is not None:
-        explicit = int(math.floor(fraction * total + 0.5))
-    else:
-        raise TraceError(
-            f"domain {domain!r} has no explicit held-out count or fraction; "
-            "a sealed split must state every domain's held-out size "
-            "(--heldout-count DOMAIN=N or --heldout-fraction)"
+    if not table.is_file():
+        raise TraceError(f"catalog table not found: {table.resolve()}")
+    loaded = pq.read_table(table)
+    missing = [name for name in REQUIRED_COLUMNS if name not in loaded.column_names]
+    if missing:
+        raise TraceError(f"catalog table {table} lacks required columns: {missing}")
+    tasks: list[CatalogTask] = []
+    seen_ids: dict[str, str] = {}
+    seen_digests: set[str] = set()
+    for row in loaded.select(list(REQUIRED_COLUMNS)).to_pylist():
+        task = CatalogTask(
+            domain=str(row["domain"]),
+            task_id=str(row["task_id"]),
+            task_name=str(row["task_name"]),
+            split_group=str(row["split_group"]),
+            task_version_digest=str(row["task_version_digest"]),
+            source_repo=str(row["source_repo"]),
+            source_revision=str(row["source_revision"]),
         )
-    if not 0 <= explicit <= total:
+        for field in ("domain", "task_id", "task_name", "split_group"):
+            if not getattr(task, field).strip():
+                raise TraceError(f"catalog row for {task.task_id!r} has an empty {field}")
+        if len(task.task_version_digest) != len(_DIGEST_SHAPE) or not (
+            task.task_version_digest.startswith("sha256:")
+            and all(c in "0123456789abcdef" for c in task.task_version_digest[7:])
+        ):
+            raise TraceError(
+                f"catalog row for {task.task_id!r} has a malformed "
+                f"task_version_digest: {task.task_version_digest!r}"
+            )
+        if task.task_id in seen_ids:
+            raise TraceError(
+                f"task id {task.task_id!r} appears in both domains "
+                f"{seen_ids[task.task_id]!r} and {task.domain!r}; held-out "
+                "refusal requires globally unique task ids"
+            )
+        if task.task_version_digest in seen_digests:
+            raise TraceError(
+                f"task_version_digest {task.task_version_digest} is shared by "
+                "more than one catalog row"
+            )
+        seen_ids[task.task_id] = task.domain
+        seen_digests.add(task.task_version_digest)
+        tasks.append(task)
+    if not tasks:
+        raise TraceError(f"catalog table {table} contains no task rows")
+    return tasks
+
+
+def group_rank_key(salt: str, split_group: str) -> str:
+    """The deterministic hash ranking a split group inside its domain."""
+    return hashlib.sha256(f"{salt}\0{split_group}".encode()).hexdigest()
+
+
+def _heldout_requested(domain: str, heldout_counts: dict[str, int]) -> int:
+    if domain not in heldout_counts:
         raise TraceError(
-            f"held-out count for domain {domain!r} is {explicit}, "
-            f"outside 0..{total}"
+            f"domain {domain!r} has no held-out count; a sealed split must "
+            "state every catalog domain's held-out size (--heldout-count "
+            "DOMAIN=N)"
         )
-    return explicit
+    return heldout_counts[domain]
 
 
 def build_split(
-    roots: list[DomainRoot],
+    tasks: list[CatalogTask],
     *,
     salt: str,
-    source_dataset: str,
-    source_revision: str,
+    catalog_table: str,
+    catalog_digest: str,
+    catalog_rows: int,
     heldout_counts: dict[str, int],
-    heldout_fraction: float | None,
 ) -> dict[str, Any]:
-    """Freeze the split manifest for every domain root (never writes files)."""
+    """Freeze the split manifest over catalog rows (never writes files)."""
     if not salt:
         raise TraceError("salt must be a nonempty string")
-    if not source_dataset:
-        raise TraceError("source_dataset must name the dataset the tasks came from")
-    if not source_revision:
+    if not catalog_digest.startswith("sha256:"):
+        raise TraceError("catalog_digest must be a sha256: digest of the table bytes")
+
+    domains = sorted({task.domain for task in tasks})
+    unknown = sorted(set(heldout_counts) - set(domains))
+    if unknown:
         raise TraceError(
-            "source_revision must pin the dataset revision (commit sha or tag)"
+            "held-out counts name domains absent from the catalog: " + ", ".join(unknown)
         )
-    seen: dict[str, str] = {}
-    domains: dict[str, Any] = {}
-    for root in roots:
-        tasks: list[dict[str, Any]] = []
-        for package in discover_task_packages(root.path):
-            task_id = package.name
-            if task_id in seen:
-                raise TraceError(
-                    f"task id {task_id!r} appears in both domains "
-                    f"{seen[task_id]!r} and {root.domain!r}; held-out refusal "
-                    "requires globally unique task ids"
-                )
-            seen[task_id] = root.domain
-            tasks.append(
+
+    manifest_tasks: list[dict[str, Any]] = []
+    domain_blocks: dict[str, Any] = {}
+    for domain in domains:
+        rows = [task for task in tasks if task.domain == domain]
+        total = len(rows)
+        requested = _heldout_requested(domain, heldout_counts)
+        if not 0 <= requested <= total:
+            raise TraceError(
+                f"held-out count for domain {domain!r} is {requested}, outside 0..{total}"
+            )
+        groups: dict[str, list[CatalogTask]] = {}
+        for row in rows:
+            groups.setdefault(row.split_group, []).append(row)
+        ranked_groups = sorted(groups, key=lambda group: (group_rank_key(salt, group), group))
+        heldout: set[str] = set()
+        taken = 0
+        taken_groups = 0
+        for group in ranked_groups:
+            if taken >= requested:
+                break
+            heldout.add(group)
+            taken += len(groups[group])
+            taken_groups += 1
+        sources = {row.source_repo for row in rows}
+        revisions = {row.source_revision for row in rows}
+        if len(sources) != 1 or len(revisions) != 1:
+            raise TraceError(
+                f"domain {domain!r} spans multiple pinned sources: "
+                f"{sorted(sources)}@{sorted(revisions)}"
+            )
+        source_repo = sources.pop()
+        source_revision = revisions.pop()
+        domain_rows: list[dict[str, Any]] = []
+        for row in rows:
+            assignment = "heldout" if row.split_group in heldout else "train"
+            domain_rows.append(
                 {
-                    "task_id": task_id,
-                    "package_digest": evidence_tree_digest(package),
+                    "domain": domain,
+                    "task_id": row.task_id,
+                    "task_name": row.task_name,
+                    "split_group": row.split_group,
+                    "task_version_digest": row.task_version_digest,
+                    "split": assignment,
                 }
             )
-        total = len(tasks)
-        heldout_n = _heldout_count_for(root.domain, total, heldout_counts, heldout_fraction)
-        ranked = sorted(tasks, key=lambda task: (rank_key(salt, task["task_id"]), task["task_id"]))
-        for position, task in enumerate(ranked):
-            task["assignment"] = "heldout" if position < heldout_n else "train"
-        domains[root.domain] = {
-            "path": root.path.as_posix(),
+        domain_rows.sort(key=lambda entry: entry["task_id"])
+        manifest_tasks.extend(domain_rows)
+        domain_blocks[domain] = {
+            "source_repo": source_repo,
+            "source_revision": source_revision,
             "task_count": total,
-            "heldout_count": heldout_n,
-            "tasks": sorted(tasks, key=lambda task: task["task_id"]),
+            "split_group_count": len(groups),
+            "heldout": {
+                "requested": requested,
+                "actual": taken,
+                "groups": taken_groups,
+            },
+            "train_task_ids": [
+                entry["task_id"] for entry in domain_rows if entry["split"] == "train"
+            ],
+            "heldout_task_ids": [
+                entry["task_id"] for entry in domain_rows if entry["split"] == "heldout"
+            ],
         }
+
+    manifest_tasks.sort(key=lambda entry: (entry["domain"], entry["task_id"]))
     manifest: dict[str, Any] = {
         "contract": CONTRACT_VERSION,
         "salt": salt,
-        "source_dataset": source_dataset,
-        "source_revision": source_revision,
-        "heldout_fraction": heldout_fraction,
-        "domains": domains,
+        "grouping": GROUPING_KEY,
+        "catalog": {
+            "table": catalog_table,
+            "digest": catalog_digest,
+            "rows": catalog_rows,
+        },
+        "sources": {
+            domain: f"{block['source_repo']}@{block['source_revision']}"
+            for domain, block in sorted(domain_blocks.items())
+        },
+        "domains": domain_blocks,
+        "tasks": manifest_tasks,
+        # Consumed unchanged by task_catalog._read_split_map (export-eligible).
+        "splits": {entry["task_version_digest"]: entry["split"] for entry in manifest_tasks},
         "counts": {
-            "train": sum(
-                1 for tasks in domains.values() for task in tasks["tasks"]
-                if task["assignment"] == "train"
-            ),
-            "heldout": sum(
-                1 for tasks in domains.values() for task in tasks["tasks"]
-                if task["assignment"] == "heldout"
-            ),
+            "train": sum(1 for entry in manifest_tasks if entry["split"] == "train"),
+            "heldout": sum(1 for entry in manifest_tasks if entry["split"] == "heldout"),
         },
     }
     manifest["heldout_task_ids"] = sorted(
-        task["task_id"]
-        for tasks in domains.values()
-        for task in tasks["tasks"]
-        if task["assignment"] == "heldout"
+        entry["task_id"] for entry in manifest_tasks if entry["split"] == "heldout"
     )
     manifest[MANIFEST_DIGEST_KEY] = split_digest(manifest)
     return manifest
 
 
 def _canonical_bytes(value: Any) -> bytes:
-    return json.dumps(
-        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-    ).encode()
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
 
 
 def split_digest(manifest: dict[str, Any]) -> str:
@@ -215,7 +303,17 @@ def load_split(path: Path) -> dict[str, Any]:
 
 
 def heldout_task_ids(manifest: dict[str, Any]) -> set[str]:
+    """Task ids sealed as held-out (any domain)."""
     return set(manifest.get("heldout_task_ids") or ())
+
+
+def default_catalog_table(repo_root: Path) -> Path:
+    """The shared catalog table path (primary checkout, never a worktree)."""
+    from evallab.storage.paths import derived_root_from_environment
+    from evallab.task_catalog import catalog_dir
+
+    derived = derived_root_from_environment(repo_root)
+    return catalog_dir(derived) / CATALOG_TABLE_FILENAME
 
 
 def _parse_heldout(value: str) -> tuple[str, int]:
@@ -230,56 +328,55 @@ def _parse_heldout(value: str) -> tuple[str, int]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    repo_root = Path(__file__).resolve().parents[2]
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     sub = parser.add_subparsers(dest="command", required=True)
     freeze = sub.add_parser("freeze", help="freeze a sealed train/held-out split")
-    freeze.add_argument(
-        "--root",
-        action="append",
-        required=True,
-        type=_parse_domain_root,
-        help="DOMAIN=PATH directory of task packages; repeatable",
-    )
     freeze.add_argument("--salt", required=True, help="sealing salt (any nonempty string)")
-    freeze.add_argument("--source-dataset", required=True, help="e.g. FineEnvs/MiMo-V2.6-RL-harbor")
-    freeze.add_argument(
-        "--source-revision",
-        required=True,
-        help="pinned dataset revision (commit sha or tag)",
-    )
     freeze.add_argument(
         "--heldout-count",
         action="append",
         default=[],
         type=_parse_heldout,
-        help="DOMAIN=N explicit held-out task count; repeatable",
-    )
-    freeze.add_argument(
-        "--heldout-fraction",
-        type=float,
-        default=None,
-        help="default per-domain held-out fraction for domains without an explicit count",
+        help="DOMAIN=N requested held-out task count (whole groups; repeatable)",
     )
     freeze.add_argument("--out", type=Path, required=True, help="output manifest path (new file)")
+    freeze.add_argument(
+        "--catalog",
+        type=Path,
+        default=None,
+        help=f"task_versions.parquet path (default: shared {CATALOG_TABLE_FILENAME})",
+    )
+    freeze.add_argument("--derived-root", type=Path, default=None, help="derived Parquet root")
     freeze.add_argument(
         "--force", action="store_true", help="replace an existing manifest at --out"
     )
     args = parser.parse_args(argv)
-    domains = [root.domain for root in args.root]
-    duplicates = sorted({domain for domain in domains if domains.count(domain) > 1})
-    if duplicates:
-        print(f"error: duplicate domain roots: {', '.join(duplicates)}")
-        return 2
+
+    counts: dict[str, int] = {}
+    for domain, number in args.heldout_count:
+        if domain in counts:
+            print(f"error: duplicate --heldout-count for domain {domain!r}")
+            return 2
+        counts[domain] = number
+
     try:
+        if args.catalog is not None:
+            table = args.catalog
+        elif args.derived_root is not None:
+            table = args.derived_root / "external" / "task_catalog" / CATALOG_TABLE_FILENAME
+        else:
+            table = default_catalog_table(repo_root)
+        tasks = load_catalog_tasks(table)
         manifest = build_split(
-            args.root,
+            tasks,
             salt=args.salt,
-            source_dataset=args.source_dataset,
-            source_revision=args.source_revision,
-            heldout_counts=dict(args.heldout_count),
-            heldout_fraction=args.heldout_fraction,
+            catalog_table=table.resolve().as_posix(),
+            catalog_digest=_sha256_file(table),
+            catalog_rows=len(tasks),
+            heldout_counts=counts,
         )
         write_split(manifest, args.out, force=args.force)
     except TraceError as exc:
@@ -290,7 +387,18 @@ def main(argv: list[str] | None = None) -> int:
             {
                 "out": args.out.as_posix(),
                 "manifest_digest": manifest[MANIFEST_DIGEST_KEY],
+                "catalog": manifest["catalog"],
                 "counts": manifest["counts"],
+                "domains": {
+                    domain: {
+                        "requested": block["heldout"]["requested"],
+                        "actual": block["heldout"]["actual"],
+                        "groups": block["heldout"]["groups"],
+                        "split_groups": block["split_group_count"],
+                        "tasks": block["task_count"],
+                    }
+                    for domain, block in sorted(manifest["domains"].items())
+                },
             },
             indent=2,
         )

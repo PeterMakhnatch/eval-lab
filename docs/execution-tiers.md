@@ -503,15 +503,22 @@ offline dry-run never spend. Only `sft_tinker train --confirm-spend` calls
 the Tinker service (paid; requires `TINKER_API_KEY` in the environment).
 
 ```bash
-# 1. Freeze the sealed train/held-out split over a downloaded task dataset.
+# 1. Freeze the sealed split from the shared MiMo task catalog
+#    (docs/mimo-task-catalog.md; task_versions.parquet under the primary
+#    checkout's derived root, never inside a worktree). Whole split_groups
+#    go to held-out in hash-rank order until each domain's requested task
+#    count is reached; the sealed manifest also carries the top-level
+#    {task_version_digest: train|heldout} splits map that
+#    `evallab tasks catalog export-eligible --split` consumes.
 uv run python -m evallab.sft_split freeze \
-  --root code=dataset/MiMo-V2.6-RL-harbor-code/tasks \
-  --salt "$SALT" --source-dataset FineEnvs/MiMo-V2.6-RL-harbor-code \
-  --source-revision "$REV" --heldout-count code=12 --out split.json
+  --salt "$SALT" --heldout-count code=270 --heldout-count cyber=100 \
+  --out split.json
 
 # 2. Export Terminus-2 teacher trials to chat_sl conversations. Any trial on
-#    a held-out task REFUSES the export; exceptions and reward < threshold
-#    are excluded and counted by reason in manifest.json.
+#    a held-out task (matched by sealed task_version_digest when the pinned
+#    snapshot task directory is available, else by task name/id) REFUSES the
+#    export; exceptions and reward < threshold are excluded and counted by
+#    reason in manifest.json.
 uv run python -m evallab.sft_terminus export \
   --root teacher=runs/mimo-teacher --split-manifest split.json --out export/
 

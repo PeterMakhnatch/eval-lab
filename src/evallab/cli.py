@@ -2617,6 +2617,85 @@ def _tasks_variant_status_command(
     return 0
 
 
+def _tasks_stability_run_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.storage.paths import shared_checkout_root
+    from evallab.task_stability import run_stability_jobs
+
+    jobs_dir = (
+        _resolve(root, args.jobs_dir)
+        if args.jobs_dir is not None
+        else shared_checkout_root(root) / "runs"
+    )
+    tasks = [_resolve(root, task) for task in args.tasks]
+    outcomes = run_stability_jobs(
+        tasks=tasks,
+        job_prefix=args.job_prefix,
+        jobs_dir=jobs_dir,
+        repo_src=Path(__file__).resolve().parent.parent,
+        agent=args.agent,
+        repeat_n=args.repeat,
+        n_concurrent=args.n_concurrent,
+        dry_run=args.dry_run,
+    )
+    if args.json:
+        print(json.dumps({"jobs_dir": str(jobs_dir), "outcomes": [
+            {**outcome, "argv": list(outcome["argv"])} for outcome in outcomes
+        ]}, indent=2))
+    else:
+        for outcome in outcomes:
+            print(f"{outcome['job_name']}: returncode={outcome['returncode']}")
+            for trial in outcome["trials"]:
+                print(f"  {trial['trial']}: stability={trial['has_stability']} "
+                      f"rewards={trial['rewards']} verdict={trial['verdict']}")
+    return 1 if any(outcome["returncode"] not in (0, None) for outcome in outcomes) else 0
+
+
+def _tasks_stability_collect_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.storage.paths import derived_root_from_environment, shared_checkout_root
+    from evallab.task_stability import (
+        TABLE_FILENAME,
+        collect_jobs,
+        read_task_stability_parquet,
+        write_task_stability_parquet,
+    )
+
+    jobs_dir = (
+        _resolve(root, args.jobs_dir)
+        if args.jobs_dir is not None
+        else shared_checkout_root(root) / "runs"
+    )
+    jobs = [jobs_dir / name for name in args.job_name]
+    missing = [str(job) for job in jobs if not job.is_dir()]
+    if missing:
+        raise ValueError(f"job directories are missing: {', '.join(missing)}")
+    rows = collect_jobs(jobs, backend=args.backend, method_override=args.method)
+    output = (
+        _resolve(root, args.output)
+        if args.output is not None
+        else derived_root_from_environment(root) / "external/task_catalog" / TABLE_FILENAME
+    )
+    write_task_stability_parquet(rows, output)
+    if args.json:
+        print(json.dumps({"output": str(output), "rows": read_task_stability_parquet(output)},
+                         indent=2))
+    else:
+        try:
+            relative = output.relative_to(root.resolve())
+        except ValueError:
+            relative = output
+        print(f"wrote {len(rows)} rows to {relative}")
+        for row in rows:
+            print(f"{row['trial_name']}: {row['method']} n={row['n_runs']} "
+                  f"rewards={row['rewards']} verdict={row['verdict']}")
+    return 0
+
+
 def _ladder_validate_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -4522,6 +4601,39 @@ def parser() -> argparse.ArgumentParser:
         help="Repo-relative lineage-record root",
     )
     tasks_status.set_defaults(func=_tasks_variant_status_command)
+
+    tasks_stability_run = tasks_commands.add_parser(
+        "stability-run",
+        help="Run $0 nop/oracle controls with k-fold repeat verification (HAR-83)",
+    )
+    tasks_stability_run.add_argument(
+        "--tasks", nargs="+", type=Path, required=True, help="Local Harbor task directories",
+    )
+    tasks_stability_run.add_argument("--job-prefix", required=True, help="Job name prefix")
+    tasks_stability_run.add_argument("--jobs-dir", type=Path, help="Harbor jobs dir")
+    tasks_stability_run.add_argument("--agent", default="nop", choices=["nop", "oracle"])
+    tasks_stability_run.add_argument("--repeat", type=int, default=3, help="Verifier reruns")
+    tasks_stability_run.add_argument("--n-concurrent", type=int, default=1)
+    tasks_stability_run.add_argument("--dry-run", action="store_true")
+    tasks_stability_run.add_argument("--json", action="store_true")
+    tasks_stability_run.set_defaults(func=_tasks_stability_run_command)
+
+    tasks_stability_collect = tasks_commands.add_parser(
+        "stability-collect",
+        help="Collect job trials into task_stability.parquet (HAR-83)",
+    )
+    tasks_stability_collect.add_argument(
+        "--job-name", nargs="+", required=True, help="Harbor job names under --jobs-dir",
+    )
+    tasks_stability_collect.add_argument("--jobs-dir", type=Path, help="Harbor jobs dir")
+    tasks_stability_collect.add_argument("--backend", default="docker")
+    tasks_stability_collect.add_argument(
+        "--method", choices=["repeat_verifier", "nop_repeat", "diff_replay"],
+        help="Override the collected method for every trial",
+    )
+    tasks_stability_collect.add_argument("--output", type=Path, help="Parquet output path")
+    tasks_stability_collect.add_argument("--json", action="store_true")
+    tasks_stability_collect.set_defaults(func=_tasks_stability_collect_command)
 
     ladder = commands.add_parser(
         "ladder", help="Expand Cartesian evaluation grids into ExperimentSpecs"

@@ -496,6 +496,43 @@ agent sandbox, separate verifier, and builds independently of model tokens.
 All five provider request/token/cost ceilings remain mandatory. Shorter pilot
 timeouts and budget terminations are diagnostic limits, not full TB4 results.
 
+### Teacher SFT export and Tinker training launcher (HAR-81)
+
+Free and local: sealing a split, exporting teacher trajectories, and the
+offline dry-run never spend. Only `sft_tinker train --confirm-spend` calls
+the Tinker service (paid; requires `TINKER_API_KEY` in the environment).
+
+```bash
+# 1. Freeze the sealed train/held-out split over a downloaded task dataset.
+uv run python -m evallab.sft_split freeze \
+  --root code=dataset/MiMo-V2.6-RL-harbor-code/tasks \
+  --salt "$SALT" --source-dataset FineEnvs/MiMo-V2.6-RL-harbor-code \
+  --source-revision "$REV" --heldout-count code=12 --out split.json
+
+# 2. Export Terminus-2 teacher trials to chat_sl conversations. Any trial on
+#    a held-out task REFUSES the export; exceptions and reward < threshold
+#    are excluded and counted by reason in manifest.json.
+uv run python -m evallab.sft_terminus export \
+  --root teacher=runs/mimo-teacher --split-manifest split.json --out export/
+
+# 3. Offline render + cost report (needs the optional dependency group:
+#    uv sync --group tinker; downloads tokenizer files only).
+uv run --group tinker python -m evallab.sft_tinker dry-run \
+  --data export/ --model Qwen/Qwen3.6-35B-A3B
+
+# 4. Real training (paid; refuses without --confirm-spend). Writes
+#    <log-dir>/training-manifest.json linking data digest -> run -> sampler_path.
+uv run --group tinker python -m evallab.sft_tinker train \
+  --data export/ --model Qwen/Qwen3.6-35B-A3B --log-dir logs/run1 --confirm-spend
+```
+
+The exporter only accepts trials recorded in raw-content mode (parsed
+`tool_calls` trajectories lost the model's raw emission and are excluded),
+and each Terminus continuation segment (`trajectory.cont-N.json`) becomes
+its own flagged conversation. Teacher reasoning is dropped by default
+(`--keep-reasoning` opts in). chat_sl 0.5.7 takes `key=value` arguments,
+not `--flags`; the launcher emits the verified form.
+
 ## Running on Modal (binding rules)
 
 **Any cloud/remote execution is `escalate_to_human` per

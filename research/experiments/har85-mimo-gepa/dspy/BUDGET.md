@@ -1,81 +1,62 @@
-# HAR-85 DSPy arm: budget formula + measured inputs
+# HAR-85 DSPy arm: budget formula + measured inputs (2026-09-28)
 
-Prices: Z.ai list-price equivalents from `src/evallab/rlm/harness.py`
-($1.40/M input tokens, $4.40/M output tokens). Z.ai coding-plan billing is
-a subscription window, so these are COMPARABILITY units; the binding
-host-side controls are the approval caps + per-trial `cost_limit_usd=1.0`
-(enforced in-loop by `LabRlm`: `rlm_budget_stopped` in trial metadata).
+## Spend type (read first)
 
-## Measured ($0, this branch, 2026-09-28)
+The staged student route (`zai-coding-plan/glm-5.3-flash`) and reflection
+model (`zai-coding-plan/glm-5.3`) bill against the **Z.ai coding-plan
+SUBSCRIPTION window quota** (see `research/experiments/rlm-harness-20260916/README.md`:
+a Pro 5-hour window holds 12 000 credits; the post-reset reference batch of
+16 trials + 108 bench rollouts used ~7% ≈ 840 credits ≈ ~47 credits/trial).
+They are NOT metered API spend.
 
-Feasibility trial (1 real MiMo terminal task, DummyLM probe, local Docker):
+Dollar figures below are **API-list-price equivalents** in the units the
+harness already meters (`cost_usd`: $1.40/$4.40 per M tokens,
+`src/evallab/rlm/harness.py:85-86`, mirroring
+`src/evallab/execution_contracts.py:188-189`). They exist so a pilot can be
+checked against the standing per-job ceiling; the binding constraint at run
+time is the subscription window, not a card charge.
 
-| Stage | Wall | Notes |
+The metered OpenAPI route (`zai/glm-5.3-flash`, $0.15/$0.50 per M) is a
+DIFFERENT route through a different endpoint with a different credential
+transport. The RLM lane cannot use it without a lane change (agent kwarg +
+lane validation + key transport); the staged path keeps the coding-plan
+route. See README.md "Student route verdict".
+
+## Formula (enforced by `verify_approval` via `expected_cost_usd`)
+
+Per phase binding:
+
+- phase gepa: `max_metric_calls × 2.5 × ($0.06 + $0.007) + ceil(trials/10) × $0.10`
+- phase heldout: `16 × 2 × attempts × $0.06`
+
+Inputs and where they were measured ($0 work, this branch):
+
+| input | value | source |
 |---|---|---|
-| container start + `[environment.healthcheck]` | ~1.0 s | image cached; `/var/lib/mimo/ready` baked in |
-| agent execution (3 RLM steps, real tool outputs) | ~1.4 s | DummyLM; paid = task work, up to 900 s task timeout |
-| verifier (pytest `FFFFF`, reward 0.0) | ~1.3 s | of the 240 s verifier timeout |
-| Harbor overhead (trial dirs, logs, teardown) | ~4.5 s | |
-| total per trial | ~8.2 s | `harbor_trials_run` counts these |
+| trial API-equiv $ | $0.06 ($0.053 LM + margin) | feasibility trial: 14 309 in + 7 851 out tokens at $1.40/$4.40 (`runs/har85-feasibility/jobs/har85-dspy-feasibility-0036/.../agent/rlm/usage.json`) |
+| trace-seed call $ | $0.007 | 1 799 in + 1 003 out tokens, same trial |
+| metric-call overshoot | 2.5× | $0 dry run: 19 metric calls for `max_metric_calls=8` (2.4×); budget rounds up |
+| reflection calls | ~1 per 10 rollouts | $0 dry run: 2 proposals / 19 metric calls (reflection calls ≥ proposals) |
+| reflection call $ | $0.10 | glm-5.3 (non-flash) planning assumption at list prices; recheck from real usage after the pilot |
+| per-trial ceiling | $1.00 (`cost_limit_usd`) | enforced in-harness by `LabRlm` (`src/evallab/rlm/harness.py`); worst case, never the plan |
+| held-out trials | 16 tasks × 2 arms × attempts | split manifest `fb645fed…52dab` (16 heldout ids); paired winner-vs-base |
 
-GEPA dry run 2 (2 train + 1 val tasks, `--max-metric-calls 8`,
-`--dry-run`, real containers + verifier per call):
+## Costed scopes
 
-| Counter | Value |
-|---|---|
-| `harbor_trials_run` (real trials) | 13 |
-| `metric_calls_made` (GEPA count) | 19 |
-| `proposer_calls_made` (scripted) | 2 |
-| `elapsed_seconds` | 152.7 (~11.7 s/trial all-in) |
-| outcome | `changed=false`: challengers evaluated on real 3-trial subsamples, ties at 0.0 correctly rejected |
+| scope | expected API-equiv | phase cap | ceiling change |
+|---|---|---|---|
+| pilot phase 1 (4 train + 2 val, 12 metric calls) | 30×$0.067 + 3×$0.10 = **$2.31** | $3 | none (standing `per_job_cost_ceiling_usd` 3 covers it) |
+| full phase 1 (48 train, 36 metric calls) | 90×$0.067 + 9×$0.10 = **$6.93** | $10 | raise `per_job_cost_ceiling_usd` 3 → 10 for that job |
+| phase 2 (16 heldout × 2 arms × 3 attempts) | 96×$0.06 = **$5.76** | $8 | raise `per_job_cost_ceiling_usd` 3 → 8 for that job |
 
-Planning factors (small-sample, flagged as such):
-- **Trial overshoot ≈ 2.4×**: GEPA made 19 metric calls / 13 trials against
-  a cap of 8 (val tracking + proposal subsample evals are extra). Budget
-  trials as `max_metric_calls × 2.5`.
-- **Reflection invocations ≈ trials ÷ (train + val)**: 2 per 13 trials here.
-  Paid reflection input ≈ 3 examples × ~5 KB feedback ≈ 15–20 KB; output cap
-  16 K tokens ⇒ worst ≈ (20 K × $1.40 + 16 K × $4.40)/1 M ≈ **$0.10/call**.
-- **Trace-seed call** (1 extra student-route call per rollout, output unused
-  for scoring): ~4.5 KB in + ~0.2 KB out ⇒ ≈ **$0.007/call**.
-- **Rollout agent**: hard ceiling `cost_limit_usd=1.0` per trial (enforced);
-  expected from the rlm-harness lane on the same model family: $0.024–0.150
-  per trial, plan at **$0.06**.
+The daily $20 ceiling covers any single phase. `verify_approval` refuses when
+`expected_cost_usd(binding) > cap_usd` (exercised: $0.50 cap against a $2.31
+binding refuses). The cap is part of the binding: raising it invalidates the
+approval sha and forces a re-derive + re-sign.
 
-## Formulae
-
-```
-phase1_trials  = max_metric_calls × 2.5
-phase1_cost    = phase1_trials × (0.06 + 0.007) + reflections × 0.10
-                 where reflections ≈ phase1_trials ÷ (n_train + n_val)
-phase2_trials  = 16 heldout × 2 arms × attempts
-phase2_cost    = phase2_trials × 0.06        (no reflection, no trace seed)
-worst_case     = trials × cost_limit_usd     (per-trial enforcement bound)
-```
-
-## Worked examples (what the approval `<CAP>` should say)
-
-Pilot phase 1 (recommended first spend): 4 train + 2 val, `--max-metric-calls 12`
-⇒ trials ≈ 30, reflections ≈ 5:
-`30 × 0.067 + 5 × 0.10 ≈ $2.5` ⇒ **cap $3, fits the standing
-per-job ceiling; no raise needed.**
-
-Full phase 1: 6 train + 3 val, `--max-metric-calls 36`
-⇒ trials ≈ 90, reflections ≈ 10:
-`90 × 0.067 + 10 × 0.10 ≈ $7.0` ⇒ **cap $10; Peter must raise
-`per_job_cost_ceiling_usd` (standing: $3) first.**
-
-Phase 2 (final paired held-out, once): 16 × 2 × 3 = **96 trials**,
-`96 × 0.06 ≈ $5.8` ⇒ **cap $12; same per-job raise required.**
-Worst-case bound 96 × $1.0 = $96 (only if every trial burns its full
-ceiling; expected is the $5.8 above). Daily standing cap $20 covers one
-phase at a time; do not run both phases the same day without a daily raise.
-
-## Limits
-
-- Overshoot/proposer ratios come from one 13-trial dry run; re-estimate
-  from phase-1 logs before approving phase 2.
-- Dry-run scores are all 0.0 (DummyLM probe never solves); acceptance of a
-  challenger requires score variance, which needs a solving (paid) agent.
-- Verifier is deterministic pytest (no judge cost); terminal images ~0.29 GB
-  (already local for the tried tasks; further tasks pull on first use).
+At ~7 credits per rollout-ish unit (840 credits / 124 units in the reference
+batch), the pilot (~33 units) burns roughly 230 credits ≈ 2% of one 5-hour
+window; full phase 1 (~99 units) ≈ 6%; phase 2 (96 short trials) ≈ 6%. No
+phase comes close to one window on credits. If the window is already
+partially consumed, run the phase in a fresh one; the launcher does not
+check this — the approver does, before signing.

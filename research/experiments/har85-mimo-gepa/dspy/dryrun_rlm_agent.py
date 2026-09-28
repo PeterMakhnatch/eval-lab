@@ -2,7 +2,7 @@
 
 ``DryRunRlmAgent`` subclasses the shipped :class:`evallab.harbor_rlm.LabRlmAgent`
 and differs in exactly one place: the LM factory returns a
-``dspy.utils.DummyLM`` with a fixed two-action script (``ls /app``, then
+``dspy.utils.DummyLM`` with a fixed two-action script (``pwd && ls``, then
 ``SUBMIT``) instead of the paid endpoint. Unlike
 ``scripted_rlm_agent:ScriptedRlmAgent`` (fixed ``policy=stock``), this agent
 honours ``--ak policy=<catalog-id|policy-JSON>`` through the shipped
@@ -18,19 +18,22 @@ from __future__ import annotations
 from harbor.environments.base import BaseEnvironment  # ty: ignore[unresolved-import]
 from harbor.models.agent.context import AgentContext  # ty: ignore[unresolved-import]
 
-import evallab.harbor_rlm as upstream
-from evallab.harbor_rlm import LabRlmAgent
-
 try:
     from dspy.utils import DummyLM
+
+    import evallab.harbor_rlm as upstream
+    from evallab.harbor_rlm import LabRlmAgent
 except ImportError:  # pragma: no cover - lane venv always has dspy
     DummyLM = None  # type: ignore[assignment, misc]
+    upstream = None  # type: ignore[assignment, misc]
+    LabRlmAgent = object  # type: ignore[assignment, misc]
 
 #: Generic two-action probe valid against any MiMo terminal checkout.
+#: Step 1 uses a relative listing so its recorded output proves the agent cwd.
 DRYRUN_ANSWERS: list[dict[str, str]] = [
     {
-        "reasoning": "Dry-run step 1/2: list the container workdir.",
-        "code": "print(exec_command('ls /app'))",
+        "reasoning": "Dry-run step 1/2: prove the agent cwd, then list it.",
+        "code": "print(exec_command('pwd && ls'))",
     },
     {
         "reasoning": "Dry-run step 2/2: exploration only; submit a dummy solution.",

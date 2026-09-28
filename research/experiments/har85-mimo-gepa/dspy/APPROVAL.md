@@ -1,81 +1,86 @@
-# HAR-85 DSPy arm: approval contract (STAGED, nothing approved)
+# HAR-85 DSPy arm: approval gate (bound authorization)
 
-Gate stated plainly: this arm's dspy.GEPA runs OUTSIDE the Lab queue
-(direct `harbor run` per metric call). There is no queue spec to approve,
-so `evallab approve` cannot gate it and is NOT invoked. The spend controls
-are (1) this recorded approval, (2) `run-after-approval.sh` refusing without
-it, (3) `gepa_mimo.py` refusing its paid path without `--approval-file`,
-(4) per-trial `cost_limit_usd=1.0`.
+dspy.GEPA runs OUTSIDE the Lab queue (direct `harbor run` per metric call),
+so `evallab approve` cannot gate it — there is no queue spec to approve.
+The gate is `run-after-approval.sh` + `verify_approval` in `gepa_mimo.py`,
+following the Lab's out-of-queue convention
+(`src/evallab/gepa_optimizer/workflow.py:557-577`, `_run_campaign`).
 
-## Exact approval commands (Peter runs these; workers never do)
+## What the approval binds
 
-Phase 1 — GEPA train/val (paid student + reflection calls):
+The approval is a JSON file with exactly three load-bearing fields:
+
+```json
+{"binding_sha256": "<sha>", "approved_by": "peter", "approved_at": "<ISO-8601>"}
+```
+
+`binding_sha256` is sha256 over canonical sorted-key JSON of every
+spend-relevant launch parameter for that phase:
+
+- phase gepa: `gepa_mimo.py` sha256 + `run-after-approval.sh` sha256, split
+  `manifest_digest`, student route, reflection model, base policy, train/val
+  id lists, `max_metric_calls`, per-trial `cost_limit_usd`, phase `cap_usd`.
+- phase heldout: launcher sha256, split `manifest_digest`, student route,
+  winner policy digest, the 16 heldout ids, attempts, `cost_limit_usd`, `cap_usd`.
+
+The paid path recomputes the binding and refuses (exit 2) on: binding
+mismatch (ANY param change: tasks, calls, cap, code edits, split change),
+`approved_by` other than `peter`, missing/unparsable `approved_at`, or
+`expected_cost_usd(binding) > cap_usd`. Signed refs are runtime state: keep
+them OUTSIDE the repo (e.g. `/private/tmp`), never commit them. Only the
+blank templates in `approvals/` are committed.
+
+## Exact commands
+
+Pilot phase 1 (4 train + 2 val, 12 metric calls, cap $3; expected $2.31):
 
 ```bash
-printf 'HAR-85 dspy-arm phase1 approved %s cap $%.2f ref %s\n' \
-  "$(date -u +%Y-%m-%dT%H:%MZ)" <CAP> <LINEAR-COMMENT-URL> \
-  >/private/tmp/har85-dspy-approval-phase1
-cd /Users/petermakhnatch/Developer/eval-lab/.worktrees/har85-dspy-rlm
+# 1. Print the binding for the EXACT pilot flags (from the worktree root):
+PYTHONPATH=src runs/.harbor-dspy/bin/python research/experiments/har85-mimo-gepa/dspy/gepa_mimo.py \
+  --print-binding --split research/experiments/har85-mimo-gepa/split.provisional.json \
+  --tasks-root runs/har85-gepa-mimo/tasks --repo-root . --jobs-dir runs/har85-gepa-mimo/jobs \
+  --train-tasks candidate-0260-security-appsec,candidate-0390-security-appsec,candidate-0109-science-robotics,candidate-0308-security-forensics \
+  --val-tasks candidate-0688-hardware-rtl,candidate-0036-software-data-engineering \
+  --max-metric-calls 12 --cost-limit-usd 1.0 --cap-usd 3 --out runs/har85-gepa-mimo/phase1
+# 2. Paste binding_sha256 into a copy of approvals/phase1-pilot.template.json
+#    kept OUTSIDE the repo; Peter fills approved_by/approved_at.
+# 3. Run (binding re-verified before the first trial; credential materialized
+#    from the owner's OpenCode auth store, fails closed when absent):
 research/experiments/har85-mimo-gepa/dspy/run-after-approval.sh --phase gepa \
-  --approval-file /private/tmp/har85-dspy-approval-phase1 \
-  --train-tasks <CSV of train_task_ids> --val-tasks <CSV of train_task_ids> \
-  --max-metric-calls <N>
+  --approval-file /private/tmp/har85-phase1.signed.json --cap-usd 3 \
+  --train-tasks candidate-0260-security-appsec,candidate-0390-security-appsec,candidate-0109-science-robotics,candidate-0308-security-forensics \
+  --val-tasks candidate-0688-hardware-rtl,candidate-0036-software-data-engineering \
+  --max-metric-calls 12
 ```
 
-Phase 2 — final paired held-out eval, ONCE, after the winner exists:
+Phase 2 (heldout, once; winner digest known only after phase 1):
 
 ```bash
-printf 'HAR-85 dspy-arm phase2 approved %s cap $%.2f winner %s ref %s\n' \
-  "$(date -u +%Y-%m-%dT%H:%MZ)" <CAP> <WINNER-DIGEST> <LINEAR-COMMENT-URL> \
-  >/private/tmp/har85-dspy-approval-phase2
-.../run-after-approval.sh --phase heldout \
-  --approval-file /private/tmp/har85-dspy-approval-phase2 \
-  --winner runs/har85-gepa-mimo/phase1/<winner>.json --attempts 3
+# 1. Derive the binding with the phase-1 winner policy:
+PYTHONPATH=src runs/.harbor-dspy/bin/python research/experiments/har85-mimo-gepa/dspy/gepa_mimo.py \
+  --phase heldout --print-binding --split research/experiments/har85-mimo-gepa/split.provisional.json \
+  --tasks-root runs/har85-gepa-mimo/tasks --repo-root . --jobs-dir runs/har85-gepa-mimo/jobs \
+  --job-tag x --winner <phase1-policy.json> --attempts 3 --cost-limit-usd 1.0 --cap-usd 8 \
+  --out runs/har85-gepa-mimo/phase2
+# 2. Sign a copy of approvals/phase2.template.json outside the repo.
+# 3. Run:
+research/experiments/har85-mimo-gepa/dspy/run-after-approval.sh --phase heldout \
+  --approval-file /private/tmp/har85-phase2.signed.json --cap-usd 8 \
+  --winner <phase1-policy.json> --attempts 3
 ```
 
-Caps vs standing policy (`policy/standing-approvals.yaml`:
-per_job_cost_ceiling_usd 3, daily_cost_ceiling_usd 20): fill `<CAP>` from
-`BUDGET.md`. If a phase exceeds $3, Peter must raise
-`per_job_cost_ceiling_usd` first — the script does not (and cannot) do that.
+Pre-spend check without spending (verifies a signed ref against the
+recomputed binding, exits 0, launches nothing): add `--verify-only` to the
+phase-1 python invocation (with `--approval-file`), or run the same for
+`--phase heldout` with `--winner`.
 
-Prerequisites before EITHER approval: `../split.provisional.json` merged by
-Har85Gepa (the script refuses without it); `ZAI_OPENAPI_API_KEY` present in
-the approver's environment (presence check only, never printed); the sealed
-HAR-81 split, when available, replaces the provisional manifest and the
-train/val lists are regenerated from it.
+## No bypass statement
 
-## Recorded refusal outputs (exercised 2026-09-28, $0)
-
-`run-after-approval.sh` with no args:
-
-```
-usage:
-  run-after-approval.sh --phase gepa --approval-file <path> [--train-tasks a,b] [--val-tasks c] [--max-metric-calls N]
-  run-after-approval.sh --phase heldout --approval-file <path> --winner <policy.json> [--attempts K]
-Without a phase + existing approval file this script runs nothing (exit 2).
-exit=2
-```
-
-`run-after-approval.sh --phase gepa --approval-file /nonexistent`:
-
-```
-refusing: approval file not found: /nonexistent
-exit=2
-```
-
-`gepa_mimo.py` paid path without `--approval-file`:
-
-```
-REFUSING: the paid path requires --approval-file pointing at the recorded approval token (see dspy/APPROVAL.md). Use --dry-run for the $0 path.
-exit=2
-```
-
-## What approval authorizes (and what it does not)
-
-- Authorizes: local-Docker Harbor trials with the paid student route +
-  reflection model, bounded by the cap in the approval line and the formula
-  in `BUDGET.md`; public Docker image pulls; no data leaves the host
-  except paid model API calls.
-- Does NOT authorize: cloud sandboxes (Daytona/Modal), GPUs, model-weight
-  downloads, publication/upstream PRs, touching the primary checkout or any
-  other agent's worktree, or spending on any other arm.
+There is no `evallab approve` / `--proposer-approval-ref` path for this arm
+because dspy.GEPA never enters the Lab queue: each metric call shells to
+`harbor run` directly. Routing approval through the queue would be theater —
+the queue would constrain nothing the loop does. The binding gate above is
+the control, and it is stricter than a token: it pins the code (both files),
+the split, every task id, the call budget, the per-trial ceiling, and the
+phase cap in one hash. The refusal paths are exercised, not asserted
+(see README.md).

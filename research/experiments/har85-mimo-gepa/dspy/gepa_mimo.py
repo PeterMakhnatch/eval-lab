@@ -84,8 +84,155 @@ def check_train_only(task_ids: list[str], split: dict) -> None:
     leaked = [tid for tid in task_ids if tid in heldout]
     if leaked:
         raise ValueError(
-            f"REFUSING: held-out task ids must never feed the optimizer: {leaked}"
+            f"held-out task ids must never feed the optimizer: {leaked}"
         )
+
+
+# --------------------------------------------------------------------------
+# Bound authorization (Lab out-of-queue convention: workflow.py _run_campaign)
+#
+# The approval is a JSON file carrying ``binding_sha256`` plus ``approved_by``
+# and ``approved_at``. binding_sha256 is sha256 over canonical sorted-key JSON
+# of every spend-relevant launch parameter for that phase. The paid path
+# recomputes the binding and refuses on mismatch, on approved_by != "peter",
+# or on a missing/unparsable approved_at. Signed refs are runtime state:
+# gitignored, never committed (commit the blank templates in approvals/).
+
+APPROVER = "peter"
+LAUNCHER_NAME = "run-after-approval.sh"
+
+#: Planning rates: API-list-price equivalents for the coding-plan student
+#: route (SUBSCRIPTION window quota, not metered API spend; see BUDGET.md).
+TRIAL_EXPECTED_USD = 0.06
+TRACE_SEED_USD = 0.007
+REFLECTION_CALL_USD = 0.10
+METRIC_OVERSHOOT = 2.5
+
+
+def sha256_file(path: Path) -> str:
+    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def binding_sha256(binding: dict) -> str:
+    return hashlib.sha256(json.dumps(binding, sort_keys=True).encode()).hexdigest()
+
+
+def phase1_binding(
+    *,
+    split: dict,
+    student_route: str,
+    reflection_model: str,
+    base_policy: str,
+    train_ids: list[str],
+    val_ids: list[str],
+    max_metric_calls: int,
+    cost_limit_usd: float,
+    cap_usd: float,
+) -> dict:
+    return {
+        "phase": "gepa",
+        "gepa_mimo_sha256": sha256_file(Path(__file__).resolve()),
+        "launcher_sha256": sha256_file(EXPERIMENT_DIR / LAUNCHER_NAME),
+        "split_manifest_digest": split.get("manifest_digest"),
+        "student_route": student_route,
+        "reflection_model": reflection_model,
+        "base_policy": base_policy,
+        "train_task_ids": sorted(train_ids),
+        "val_task_ids": sorted(val_ids),
+        "max_metric_calls": max_metric_calls,
+        "cost_limit_usd": cost_limit_usd,
+        "cap_usd": cap_usd,
+    }
+
+
+def phase2_binding(
+    *,
+    split: dict,
+    student_route: str,
+    winner_digest: str,
+    attempts: int,
+    cost_limit_usd: float,
+    cap_usd: float,
+) -> dict:
+    return {
+        "phase": "heldout",
+        "launcher_sha256": sha256_file(EXPERIMENT_DIR / LAUNCHER_NAME),
+        "split_manifest_digest": split.get("manifest_digest"),
+        "student_route": student_route,
+        "winner_policy_digest": winner_digest,
+        "heldout_task_ids": sorted(split["heldout_task_ids"]),
+        "attempts": attempts,
+        "cost_limit_usd": cost_limit_usd,
+        "cap_usd": cap_usd,
+    }
+
+
+def expected_cost_usd(binding: dict) -> float:
+    """BUDGET.md formula: expected API-equivalent spend for a binding."""
+    if binding["phase"] == "gepa":
+        import math
+
+        trials = binding["max_metric_calls"] * METRIC_OVERSHOOT
+        # Reflection calls: ~1 per 10 rollouts (measured 2 proposals / 19
+        # metric calls in the $0 dry run; reflection calls >= proposals).
+        reflections = max(1, math.ceil(trials / 10))
+        return trials * (TRIAL_EXPECTED_USD + TRACE_SEED_USD) + reflections * REFLECTION_CALL_USD
+    trials = len(binding["heldout_task_ids"]) * 2 * binding["attempts"]
+    return trials * TRIAL_EXPECTED_USD
+
+
+def verify_approval(binding: dict, approval_path: Path) -> dict:
+    """Recompute the binding and enforce the authorization. Raises PermissionError."""
+    try:
+        approval = json.loads(approval_path.read_text())
+    except OSError as exc:
+        raise PermissionError(f"approval file {approval_path} is unreadable: {exc}") from exc
+    except ValueError as exc:
+        raise PermissionError(f"approval file {approval_path} is not valid JSON") from exc
+    if approval.get("binding_sha256") != binding_sha256(binding):
+        raise PermissionError(
+            f"approval binding mismatch: signed {approval.get('binding_sha256')} "
+            f"!= recomputed {binding_sha256(binding)}; re-derive after ANY param change"
+        )
+    if approval.get("approved_by") != APPROVER:
+        raise PermissionError(
+            f"approval must identify the approver ({APPROVER!r}); got {approval.get('approved_by')!r}"
+        )
+    approved_at = approval.get("approved_at") or ""
+    try:
+        from datetime import datetime
+
+        datetime.fromisoformat(str(approved_at).replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise PermissionError(
+            f"approval needs a parsable approved_at; got {approved_at!r}"
+        ) from exc
+    cap = binding.get("cap_usd")
+    expected = expected_cost_usd(binding)
+    if cap is None or not isinstance(cap, (int, float)) or expected > float(cap):
+        raise PermissionError(
+            f"phase cap ${cap} does not cover expected ${expected:.2f}; "
+            "raise the cap or shrink the scope and re-derive the binding"
+        )
+    return approval
+
+
+def task_workdir(task_dir: Path) -> str:
+    """Agent cwd for a staged task, derived from its task.toml.
+
+    MiMo terminal tasks pin the workdir under ``[environment]`` (``/app``);
+    ``[agent]`` carries only timeouts. Falls back to ``/`` when absent so
+    older task shapes still stage.
+    """
+    import tomllib
+
+    try:
+        config = tomllib.loads((task_dir / "task.toml").read_text())
+    except (OSError, ValueError):
+        return "/"
+    workdir = (config.get("environment") or {}).get("workdir") or "/"
+    return str(workdir)
+
 
 
 # --------------------------------------------------------------------------
@@ -231,6 +378,7 @@ class HarborTrialRunner:
         task_dir = self.cfg.tasks_root / task_id
         if not (task_dir / "task.toml").is_file():
             raise ValueError(f"staged task missing for {task_id}: {task_dir}")
+        agent_cwd = task_workdir(task_dir)
         job_name = f"{self.job_tag}-{task_id[:32]}-{self.trials:03d}"
         env = {
             "HOME": os.environ.get("HOME", ""),
@@ -257,6 +405,8 @@ class HarborTrialRunner:
             f"policy={candidate_file}",
             "--ak",
             f"cost_limit_usd={self.cfg.cost_limit_usd}",
+            "--ak",
+            f"working_dir={agent_cwd}",
             "--job-name",
             job_name,
             "--jobs-dir",
@@ -399,6 +549,53 @@ def write_dummy_secret(path: Path) -> Path:
     return path
 
 
+def _refuse(message: str) -> int:
+    print(f"REFUSING: {message}", file=sys.stderr)
+    return 2
+
+
+def _binding_for_args(args, split: dict, train_ids: list[str], val_ids: list[str]) -> dict:
+    if args.phase == "heldout":
+        if args.winner is None or not args.winner.is_file():
+            raise ValueError("--winner <phase-1 policy json> is required for phase heldout")
+        winner_payload = json.loads(args.winner.read_text())
+        return phase2_binding(
+            split=split,
+            student_route=args.student_route,
+            winner_digest=winner_payload.get("policy_digest", ""),
+            attempts=args.attempts,
+            cost_limit_usd=args.cost_limit_usd,
+            cap_usd=args.cap_usd,
+        )
+    return phase1_binding(
+        split=split,
+        student_route=args.student_route,
+        reflection_model=args.reflection_model,
+        base_policy=args.base_policy,
+        train_ids=train_ids,
+        val_ids=val_ids,
+        max_metric_calls=args.max_metric_calls,
+        cost_limit_usd=args.cost_limit_usd,
+        cap_usd=args.cap_usd,
+    )
+
+
+def _run_binding_modes(args, split: dict, train_ids: list[str], val_ids: list[str]) -> int | None:
+    """Handle --print-binding / phase-heldout routing. Returns exit code or None to proceed."""
+    if args.print_binding:
+        binding = _binding_for_args(args, split, train_ids, val_ids)
+        print(json.dumps(binding, indent=1, sort_keys=True))
+        print(f"binding_sha256: {binding_sha256(binding)}")
+        print(f"expected_cost_usd: {expected_cost_usd(binding):.2f}")
+        return 0
+    if args.phase == "heldout" and not args.verify_only:
+        return _refuse(
+            "phase heldout executes via run-after-approval.sh "
+            "(gepa_mimo.py only prints/verifies its binding)"
+        )
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -412,8 +609,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--jobs-dir", type=Path, required=True)
     parser.add_argument("--job-tag", default="har85-gepa-mimo")
     parser.add_argument("--base-policy", default="stock")
-    parser.add_argument("--train-tasks", required=True,
-                        help="comma-separated task ids, MUST be ⊆ train_task_ids")
+    parser.add_argument("--train-tasks", default="",
+                        help="comma-separated task ids, MUST be ⊆ train_task_ids (phase gepa)")
     parser.add_argument("--val-tasks", default="",
                         help="comma-separated task ids, MUST be ⊆ train_task_ids")
     parser.add_argument("--student-route", default=PROVISIONAL_STUDENT_ROUTE,
@@ -427,15 +624,37 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true",
                         help="$0: DummyLM probe agent + scripted proposer, real containers")
     parser.add_argument("--approval-file", type=Path, default=None,
-                        help="required without --dry-run: recorded approval token")
-    args = parser.parse_args(argv)
+                        help="required without --dry-run: bound approval JSON (see dspy/APPROVAL.md)")
+    parser.add_argument("--cap-usd", type=float, default=None,
+                        help="phase $ cap; bound into the approval (required without --dry-run)")
+    parser.add_argument("--phase", default="gepa", choices=["gepa", "heldout"],
+                        help="phase this invocation serves (binding + templates)")
+    parser.add_argument("--print-binding", action="store_true",
+                        help="print the canonical binding + sha256 for these params and exit 0")
+    parser.add_argument("--verify-only", action="store_true",
+                        help="verify the approval against the recomputed binding and exit 0 (pre-spend point)")
+    parser.add_argument("--winner", type=Path, default=None,
+                        help="phase heldout: winner policy JSON from phase 1")
+    parser.add_argument("--attempts", type=int, default=3,
+                        help="phase heldout: attempts per task per arm")
 
+    args = parser.parse_args(argv)
     split = load_split(args.split)
-    train_ids = [t for t in args.train_tasks.split(",") if t]
-    val_ids = [t for t in args.val_tasks.split(",") if t]
-    if not train_ids:
-        raise ValueError("at least one --train-tasks id is required")
-    check_train_only(train_ids + val_ids, split)
+    if args.phase == "heldout":
+        train_ids, val_ids = [], []
+    else:
+        train_ids = [t for t in args.train_tasks.split(",") if t]
+        val_ids = [t for t in args.val_tasks.split(",") if t]
+        if not train_ids and not (args.print_binding or args.verify_only or args.dry_run):
+            return _refuse("at least one --train-tasks id is required")
+        try:
+            check_train_only(train_ids + val_ids, split)
+        except ValueError as exc:
+            return _refuse(str(exc))
+
+    mode = _run_binding_modes(args, split, train_ids, val_ids)
+    if mode is not None:
+        return mode
 
     import dspy
 
@@ -450,25 +669,35 @@ def main(argv: list[str] | None = None) -> int:
         # One trace-seed call per rollout; 256 spares cover any staged budget.
         trace_lm = DummyLM([{"solution": "har85-dryrun-trace-seed"}] * 256)
     else:
-        if args.approval_file is None or not args.approval_file.is_file():
-            print(
-                "REFUSING: the paid path requires --approval-file pointing at "
-                "the recorded approval token (see dspy/APPROVAL.md). "
-                "Use --dry-run for the $0 path.",
-                file=sys.stderr,
+        if args.phase != "gepa":
+            return _refuse("only phase gepa runs the optimizer here")
+        if args.approval_file is None:
+            return _refuse(
+                "the paid path requires --approval-file with the bound approval JSON "
+                "(see dspy/APPROVAL.md). Use --dry-run for the $0 path."
             )
-            return 2
-        key = os.environ.get("ZAI_OPENAPI_API_KEY", "")
-        if not key:
-            print("REFUSING: ZAI_OPENAPI_API_KEY is missing from the environment.",
-                  file=sys.stderr)
-            return 2
-        agent_import = "evallab.harbor_rlm:LabRlmAgent"
+        if args.cap_usd is None:
+            return _refuse("the paid path requires --cap-usd (bound into the approval)")
+        binding = _binding_for_args(args, split, train_ids, val_ids)
+        try:
+            approval = verify_approval(binding, args.approval_file)
+        except PermissionError as exc:
+            return _refuse(str(exc))
+        if args.verify_only:
+            print(
+                f"approval ok: binding {binding_sha256(binding)} "
+                f"approved by {approval['approved_by']} at {approval['approved_at']} "
+                f"(pre-spend point; no trial launched)"
+            )
+            return 0
         secret_holder = tempfile.mkdtemp(prefix="har85-paid-secret-")
-        secret_file = Path(secret_holder) / "secret"
-        secret_file.write_text(key + "\n")
-        os.chmod(secret_file, 0o400)
-        del key
+        try:
+            from evallab.execution_contracts import materialize_zai_secret_file
+
+            secret_file = materialize_zai_secret_file(Path(secret_holder) / "secret")
+        except (OSError, ValueError) as exc:
+            shutil.rmtree(secret_holder, ignore_errors=True)
+            return _refuse(f"coding-plan credential unavailable: {exc}")
         instruction_proposer = None
         from evallab.rlm.harness import build_lm
 
@@ -559,6 +788,10 @@ def main(argv: list[str] | None = None) -> int:
             "harbor_trials_run": runner.trials,
             "elapsed_seconds": round(elapsed, 1),
             "approval_file": None if args.dry_run else str(args.approval_file),
+            "binding_sha256": None if args.dry_run else binding_sha256(binding),
+            "approved_by": None if args.dry_run else approval["approved_by"],
+            "approved_at": None if args.dry_run else approval["approved_at"],
+            "cap_usd": None if args.dry_run else args.cap_usd,
             "original_instructions": original_instructions,
             "optimized_instructions": new_instructions,
         }

@@ -36,9 +36,41 @@ made from this directory; no model weights downloaded.
    agent). First dry-run attempt caught a real design flaw (no predictor
    call in the trace ⇒ GEPA never proposes); `forward` now records one
    genuine `generate_action` call per rollout (output unused for scoring).
-3. **Gate refusal exercised**: `run-after-approval.sh` without approval exits
-   2 (recorded output in `APPROVAL.md`); `gepa_mimo.py` without `--dry-run`
-   and without `--approval-file` exits 2.
+3. **Agent cwd proven**: a `DryRunRlmAgent` probe trial on
+   `candidate-0260-security-appsec` (train) with `--ak working_dir=/app`
+   (derived from the task's `[environment].workdir`): the recorded first
+   tool output is `/app` (`pwd && ls` with a relative listing), verifier
+   reward 0.0. Job `har85-wd-probe`, trial
+   `candidate-0260-security-appsec__qKyzm6u` (`/private/tmp/har85-wd-probe`,
+   since removed). Both staged runners (`gepa_mimo.py`,
+   `run-after-approval.sh` phase 2) now derive `--ak working_dir` from each
+   task's `task.toml` instead of relying on the `/` default.
+4. **Gate refusal exercised**: `run-after-approval.sh` without phase +
+   bound approval exits 2; `gepa_mimo.py` paid path without
+   `--approval-file`/`--cap-usd` exits 2; tampered binding, wrong approver,
+   blank date, and under-cover cap each refuse via `verify_approval`;
+   held-out ids in `--train-tasks` refuse; direct `--phase heldout`
+   execution outside the launcher refuses.
+
+## Student route verdict (code-derived, 2026-09-28)
+
+The RLM lane can only use the **Z.ai coding-plan route**
+(`zai-coding-plan/glm-5.3-flash`): `LabRlmAgent.run` calls
+`build_lms(policy, model_id=zai_model_id(...), api_key=key)` with no
+`api_base`, so it always dials `ZAI_CODING_API_BASE`
+(`src/evallab/rlm/harness.py:79,105,128`); the credential is the coding-plan
+key materialized from the owner's OpenCode auth store
+(`materialize_zai_secret_file`, `src/evallab/execution_contracts.py:550`);
+lane validation pins rlm to `ZAI_OPENCODE_MODEL_SELECTORS`
+(`execution_contracts.py:159-161,966-972`). Spend type is SUBSCRIPTION
+window quota. The metered OpenAPI route (`zai/glm-5.3-flash`,
+`api.z.ai/api/paas/v4` via the metered secret-proxy sidecar) needs a lane
+change the agent never passes (`api_base` exists as a parameter but the
+agent never sets it; no OpenAPI key transport exists for rlm) — out of
+scope, and it would mix subscription student spend with metered accounting.
+The staged path keeps the coding-plan student route. "Coding Plan
+credentials are not admitted" (`execution_contracts.py:960`) constrains the
+Terminus-2 lane only.
 
 ## Files
 
@@ -46,10 +78,11 @@ made from this directory; no model weights downloaded.
 |---|---|
 | `scripted_rlm_agent.py` | $0-only feasibility agent (fixed `policy=stock` + DummyLM). Never for paid runs. |
 | `dryrun_rlm_agent.py` | $0-only dry-run agent (honours `--ak policy=<file>` + DummyLM). Never for paid runs. |
-| `gepa_mimo.py` | Staged optimizer: split loading (train-only assertion), examples, real-trial metric, dspy.GEPA, winner policy file. |
-| `run-after-approval.sh` | Gated paid launcher (phase 1: GEPA train/val; phase 2: final paired held-out). Refuses without approval. |
-| `APPROVAL.md` | Exact approval commands + recorded refusal output. |
-| `BUDGET.md` | Budget formula with measured inputs. |
+| `gepa_mimo.py` | Staged optimizer: split loading (train-only assertion), bound approval (`verify_approval`, `--print-binding`, `--verify-only`), derived workdir, real-trial metric, dspy.GEPA, winner policy file. |
+| `run-after-approval.sh` | Gated paid launcher (phase 1: GEPA train/val; phase 2: final paired held-out). Refuses without a bound approval. |
+| `approvals/` | Committed BLANK templates per phase (binding filled, approver blank for phase 1; binding filled post-phase-1 for phase 2). Signed refs live outside the repo, never committed. |
+| `APPROVAL.md` | Exact approval commands + gate design + no-bypass statement. |
+| `BUDGET.md` | Budget formula with measured inputs (subscription-quota framing). |
 
 The split manifest lives at `../split.provisional.json` (owned by Har85Gepa;
 PROVISIONAL until HAR-81 seals its split). This arm reads it at runtime and
@@ -99,7 +132,6 @@ uv pip install --python runs/.harbor-dspy/bin/python \
 # focused tests
 PYTHONPATH=src runs/.harbor-dspy/bin/python -m pytest tests/test_rlm_harness.py -q -o addopts=""
 # feasibility trial (~15 s + one docker image, already local)
-printf 'har85-dummy-never-used' >/private/tmp/har85-dummy-secret && chmod 400 /private/tmp/har85-dummy-secret
 D=$PWD; PYTHONPATH=$D/src:$D/research/experiments/har85-mimo-gepa/dspy \
 EVALLAB_ZAI_SECRET_FILE=/private/tmp/har85-dummy-secret \
 $D/runs/.harbor-dspy/bin/harbor run --path $D/runs/har85-feasibility/tasks/candidate-0036-software-data-engineering \
@@ -114,9 +146,8 @@ $D/runs/.harbor-dspy/bin/harbor run --path $D/runs/har85-feasibility/tasks/candi
 - Dry run proves mechanics, not proposal quality: with a scripted proposer
   and DummyLM rollouts every candidate scores 0 and `changed=false`. Paid
   reflection quality is the staged hypothesis.
-- One feasibility task + three dry-run tasks; wall-clock numbers are
-  single samples on one host.
+- One feasibility task + three dry-run tasks (+ one cwd probe trial);
+  wall-clock numbers are single samples on one host.
 - `report run` does not surface the `agent/rlm/` sidecar trajectory.
-- The LabRlm bridge default `working_dir="/"` (scripts here use absolute
-  paths); staged runs should pass `--ak working_dir=/app` — recorded as a
-  rollout parameter, not yet exercised.
+- Agent cwd is derived from each task's `[environment].workdir` (`/app`
+  proven in-trial); tasks without that field fall back to `/`.

@@ -49,7 +49,7 @@ inputs:
   - path: docs/dashboard.md
     digest: sha256:ee56108fa8961f0e0bb6d6f7f2174973bfce4fd15337bfe2c9e3b9c8af61c42a
   - path: docs/data-architecture.md
-    digest: sha256:36bb2f042881ff649a2634c795a3f67c189cf99402ae7082e36d9f5a80b57c26
+    digest: sha256:4c9411a8e973d9840189a8995f9c07596bd8f285de2a4f2ad349199db8e8e9dd
   - path: docs/deepseek-v4-flash-lane.md
     digest: sha256:efe12fcfc333012d835c097f02b64535305bf108e7f9d820c97327d1072d3633
   - path: docs/engineering.md
@@ -67,7 +67,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/mimo-task-catalog.md
-    digest: sha256:5089f60a3eb9818a6d897f518909386ce68fabd8027a2ac26d5a1d34796e2800
+    digest: sha256:c6838d3c882a1309da4b6afb75d004d5492fabbb0a04fd1c36e2dad495564c81
   - path: docs/model-capture.md
     digest: sha256:f545bf75f0a2db4ed10f15803297ec5ec11a9fc466b5b9df59a071b54e2b4603
   - path: docs/observability.md
@@ -108,6 +108,8 @@ inputs:
     digest: sha256:599c3ae6f22cf2696bc2f7bdc17f6c207f0366ae4e8e5592a28c6fe7bfe2b064
   - path: docs/task-provenance.md
     digest: sha256:3f34b7469d329d51d4dac9356f9655e03b5dd0a155494ddf380caff3dedc6e56
+  - path: docs/task-quality.md
+    digest: sha256:32b366a871220396138c1aed94849ca4a0113111173cd88dce6edb12f3f5288b
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md
@@ -225,6 +227,7 @@ an operator can see what is archived.
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
 | `docs/surfaces.md` | Operating Surfaces: Digest, Storm Alarms, and STATUS.md | `living` | `operator, analyst` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
+| `docs/task-quality.md` | Judging whether a task is good | `living` | `analyst, operator` |
 | `docs/task-stability.md` | Verifier stability (HAR-83 §4.2.1) | `living` | `builder, analyst, operator` |
 | `docs/task-variants.md` | Task variants: versioning modified tasks without touching the original | `living` | `builder, analyst, operator` |
 | `docs/verdicts.md` | Human Verdict Decision Record (§2.1, §2.2, §6) | `living` | `operator, analyst` |
@@ -319,6 +322,7 @@ an operator can see what is archived.
 | `docs/storm-alarms.md` | Storm Alarms & STATUS.md Generator | `living` | `operator, runner` |
 | `docs/surfaces.md` | Operating Surfaces: Digest, Storm Alarms, and STATUS.md | `living` | `operator, analyst` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
+| `docs/task-quality.md` | Judging whether a task is good | `living` | `analyst, operator` |
 | `docs/task-registry.md` | Task registry and admission trust boundary | `living` | `builder, operator` |
 | `docs/task-stability.md` | Verifier stability (HAR-83 §4.2.1) | `living` | `builder, analyst, operator` |
 | `docs/task-variants.md` | Task variants: versioning modified tasks without touching the original | `living` | `builder, analyst, operator` |

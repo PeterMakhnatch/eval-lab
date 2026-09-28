@@ -43,6 +43,9 @@ uv run evallab tasks pull-hf FineEnvs/MiMo-V2.6-RL-harbor-terminal@fe1c2b665aae1
 uv run evallab tasks catalog build [--derived-root PATH]
 uv run evallab tasks catalog show <task_id|digest> [--derived-root PATH]
 uv run evallab tasks catalog export-eligible --out train_eligible.json [--split split.json]
+
+# After a hack-probe run: detector over every probe job -> task_exploits.parquet
+uv run evallab tasks exploit-collect --cohort research/experiments/mimo-hack-probe/cohort.json runs/mimo-hack-*
 ```
 
 `pull-hf` verifies every task directory against the adapter's
@@ -119,6 +122,22 @@ grained by (task_version × agent/model), so nop/control trials join as
 their own rows and never mix into a model's pass rate: they cannot make
 a task look learnable, and a uniformly-failing nop row is simply not
 learnable (control, not training signal).
+
+`task_stability` comes from `evallab tasks stability-collect`
+(docs/task-stability.md) and `task_exploits` from `evallab tasks
+exploit-collect`. `exploit-collect` attributes each trial by the package
+digest the queue staged, and keeps cohort tasks with no model trial as
+`not_probed` (a nop control does not count as a probe). `train_eligible` =
+`learnable` ∧ stability evidence that is `stable` (no evidence is
+ineligible) ∧ no `confirmed` exploit and no `suspected` one still awaiting
+review. `export-eligible` also drops tasks the split file marks `heldout`.
+
+The export's `sha256` covers `schema` + `items` only. Items carry the
+agent/model whose verdict made them eligible. So the digest names the
+training set: re-exporting the same set gives the same digest. `meta`
+records when, from which table digests, and against which split file it
+was built. Without `--split` the export is `provisional` and every item's
+split is `unassigned`.
 
 ## Current numbers
 

@@ -2848,6 +2848,35 @@ def _tasks_stability_collect_command(
     return 0
 
 
+def _tasks_exploit_collect_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.mimo_exploit import (
+        TABLE_FILENAME,
+        collect_probe,
+        summarize,
+        write_exploits_parquet,
+    )
+    from evallab.storage.paths import derived_root_from_environment
+
+    cohort = json.loads(_resolve(root, args.cohort).read_text(encoding="utf-8"))["cohort"]
+    records = collect_probe(
+        cohort, [_resolve(root, job) for job in args.jobs], probe_config=args.probe_config
+    )
+    output = (
+        _resolve(root, args.output)
+        if args.output is not None
+        else derived_root_from_environment(root) / "external/task_catalog" / TABLE_FILENAME
+    )
+    write_exploits_parquet(records, output)
+    print(f"wrote {len(records)} rows to {output}: {json.dumps(summarize(records))}")
+    for record in records:
+        if record.exploit_status == "suspected":
+            print(f"suspected {record.trial_name}: {record.method} ({record.evidence_path})")
+    return 0
+
+
 def _ladder_validate_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -4857,6 +4886,18 @@ def parser() -> argparse.ArgumentParser:
     tasks_stability_collect.add_argument("--output", type=Path, help="Parquet output path")
     tasks_stability_collect.add_argument("--json", action="store_true")
     tasks_stability_collect.set_defaults(func=_tasks_stability_collect_command)
+
+    tasks_exploit_collect = tasks_commands.add_parser(
+        "exploit-collect",
+        help="Run the hack-probe exploit detector over jobs into task_exploits.parquet (HAR-83)",
+    )
+    tasks_exploit_collect.add_argument("jobs", nargs="+", type=Path, help="Probe job directories")
+    tasks_exploit_collect.add_argument(
+        "--cohort", type=Path, required=True, help="Probe cohort.json (unprobed rows stay not_probed)"
+    )
+    tasks_exploit_collect.add_argument("--probe-config", default="redteam-v1")
+    tasks_exploit_collect.add_argument("--output", type=Path, help="Parquet output path")
+    tasks_exploit_collect.set_defaults(func=_tasks_exploit_collect_command)
 
     ladder = commands.add_parser(
         "ladder", help="Expand Cartesian evaluation grids into ExperimentSpecs"

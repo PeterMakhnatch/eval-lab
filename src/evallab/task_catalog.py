@@ -41,6 +41,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from evallab.fetch import FetchError, parse_pin
+from evallab.mimo_exploit import TABLE_FILENAME as EXPLOITS_PARQUET_FILENAME
 from evallab.registry import compute_task_digests, harbor_task_digest, task_directory_digest
 from evallab.schemas import ProvenanceMetadata
 from evallab.storage.paths import derived_root_from_environment, shared_checkout_root
@@ -51,6 +52,14 @@ from evallab.task_stability import TABLE_FILENAME as STABILITY_PARQUET_FILENAME
 def _as_dict(value: object) -> dict[str, Any]:
     """Narrow an untyped mapping lookup to a dict (ty cannot narrow call results)."""
     return value if isinstance(value, dict) else {}
+
+def _repo_relative(path: Path, repo_root: Path) -> str:
+    """Portable path for git-tracked records; absolute only outside the repo."""
+    try:
+        return path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return str(path)
+
 
 
 MIMO_HF_PINS: dict[str, str] = {
@@ -79,10 +88,8 @@ CATALOG_RELPATH = Path("external/task_catalog")
 CATALOG_TABLES = ("task_sources", "task_versions", "task_findings", "task_lineage")
 STABILITY_TABLE_FILENAME = STABILITY_PARQUET_FILENAME
 STABILITY_TABLE = Path(STABILITY_TABLE_FILENAME).stem
-# Contract table name; the mimo_exploit writer module (HackProbe #487) has not
-# landed, so no constant exists yet — reconcile on merge.
-EXPLOITS_TABLE = "task_exploits"
-EXPLOITS_TABLE_FILENAME = f"{EXPLOITS_TABLE}.parquet"
+EXPLOITS_TABLE_FILENAME = EXPLOITS_PARQUET_FILENAME
+EXPLOITS_TABLE = Path(EXPLOITS_TABLE_FILENAME).stem
 PROVENANCE_FILENAME = "provenance.json"
 SNAPSHOT_SKIP_NAMES = frozenset({PROVENANCE_FILENAME})
 _HEX40 = re.compile(r"^[0-9a-f]{40}$")
@@ -1415,6 +1422,7 @@ def task_audit_sql(
             WHEN stab.stability IS NULL THEN 'no stability evidence'
             WHEN stab.stability != 'stable' THEN 'unstable verifier: ' || stab.stability
             WHEN expl.exploit_status = 'confirmed' THEN 'confirmed exploit'
+            WHEN expl.exploit_status = 'suspected' THEN 'suspected exploit awaiting review'
         END AS train_ineligible_reason
     FROM {versions} AS v
     LEFT JOIN {outcomes} AS o ON o.task_version_digest = v.task_version_digest
@@ -1491,8 +1499,8 @@ def export_train_eligible(
     try:
         rows = result.connection.execute(
             "SELECT task_version_digest, harbor_digest, task_name, split_group, "
-            "verdict, pass_rate, stability, exploit_status, train_eligible, "
-            "train_ineligible_reason FROM v_task_audit"
+            "agent_name, model_name, verdict, pass_rate, stability, exploit_status, "
+            "train_eligible, train_ineligible_reason FROM v_task_audit"
         ).fetchall()
         columns = [desc[0] for desc in result.connection.description]
     finally:
@@ -1514,24 +1522,33 @@ def export_train_eligible(
                 "task_name": record.get("task_name"),
                 "split_group": record.get("split_group"),
                 "split": split,
+                "agent_name": record.get("agent_name"),
+                "model_name": record.get("model_name"),
                 "verdict": record.get("verdict"),
                 "pass_rate": record.get("pass_rate"),
                 "stability": record.get("stability"),
                 "exploit_status": record.get("exploit_status"),
             }
         )
-    items.sort(key=lambda item: str(item["task_version_digest"]))
+    items.sort(
+        key=lambda item: (
+            str(item["task_version_digest"]), str(item["agent_name"]), str(item["model_name"])
+        )
+    )
+    # The digest names the training set itself: same items, same digest, no
+    # matter when or from which table snapshot it was exported (see meta).
+    identity = {"schema": "evallab.train_eligible/v1", "items": items}
+    canonical = json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
+    sha = f"sha256:{hashlib.sha256(canonical).hexdigest()}"
     meta = {
         "created_at": datetime.now(UTC).isoformat(),
         "provisional": provisional,
-        "split_path": str(split_path) if split_path else None,
+        "split_path": _repo_relative(split_path, repo_root) if split_path else None,
         "table_digests": table_digests,
         "n_eligible": len(items),
         "n_considered": len(rows),
     }
-    payload = {"schema": "evallab.train_eligible/v1", "items": items, "meta": meta}
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-    sha = f"sha256:{hashlib.sha256(canonical).hexdigest()}"
+    payload = {**identity, "meta": meta}
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(
         json.dumps({**payload, "sha256": sha}, indent=2, sort_keys=True) + "\n",

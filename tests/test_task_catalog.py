@@ -532,10 +532,13 @@ def test_export_provisional_then_split_gated(tmp_path: Path, capsys) -> None:
     payload = json.loads(out.read_text())
     assert payload["items"][0]["split"] == "unassigned"
     canonical = json.dumps(
-        {key: payload[key] for key in ("schema", "items", "meta")},
+        {key: payload[key] for key in ("schema", "items")},
         sort_keys=True, separators=(",", ":"),
     ).encode()
     assert payload["sha256"] == f"sha256:{hashlib.sha256(canonical).hexdigest()}"
+    # Same eligible set exported again -> same digest (created_at is not identity).
+    again = export_train_eligible(tmp_path / "again.json", repo_root=tmp_path, derived_root=derived)
+    assert again.sha256 == result.sha256
     assert set(payload["meta"]["table_digests"]) >= {
         "task_sources", "task_versions", "task_findings", "task_lineage",
         "task_stability", "task_exploits",

@@ -1603,6 +1603,86 @@ def _report_run_command(
     return 0
 
 
+def _capture_serve_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    import signal
+
+    from evallab.model_capture import serve_capture, write_provenance
+
+    del harbor
+    upstream_key = None
+    if args.upstream_key_env:
+        upstream_key = os.environ.get(args.upstream_key_env)
+        if not upstream_key:
+            print(f"error: {args.upstream_key_env} is not set", file=sys.stderr)
+            return 1
+    out_dir = _resolve(root, args.out)
+    server, recorder, manifest = serve_capture(
+        upstream=args.upstream,
+        out_dir=out_dir,
+        bind=args.bind,
+        port=args.port,
+        upstream_key=upstream_key,
+    )
+    print(f"capture: {args.upstream} -> {out_dir} (:{args.port})", file=sys.stderr)
+    print(json.dumps(manifest, indent=2, sort_keys=True))
+    stopping = False
+
+    def _stop(signum: int, _frame: Any) -> None:
+        nonlocal stopping
+        if stopping:
+            return
+        stopping = True
+        # shutdown() blocks until serve_forever() returns, so it must run off
+        # the signaled thread; otherwise the close path below never runs.
+        import threading
+
+        threading.Thread(target=server.shutdown, daemon=True).start()
+
+    signal.signal(signal.SIGINT, _stop)  # type: ignore[arg-type]
+    signal.signal(signal.SIGTERM, _stop)  # type: ignore[arg-type]
+    try:
+        server.serve_forever()
+    finally:
+        recorder.close()
+        provenance = write_provenance(out_dir, upstream=args.upstream)
+        print(f"closed: {provenance.get('material_digest')}", file=sys.stderr)
+    return 0
+
+
+def _capture_link_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.model_capture import link_capture
+
+    del harbor
+    receipt = link_capture(
+        _resolve(root, args.capture_dir),
+        _resolve(root, args.job_dir),
+        derived_root=args.derived_root,
+        repo_root=root,
+    )
+    if args.json:
+        print(json.dumps(receipt, indent=2, sort_keys=True))
+    else:
+        print(f"capture {receipt['capture_dir']} -> job {receipt['job']}")
+        print(f"parquet: {receipt['parquet_dir']}")
+        print(f"calls: {receipt['calls_total']} total, {receipt['calls_assigned']} assigned")
+        print("| trial | verdict | captured | atif steps |")
+        for trial in receipt["trials"]:
+            print(
+                f"| {trial['trial_name']} | {trial['verdict']} | "
+                f"{trial['captured_calls']} calls / {trial['captured_assistant_turns']} turns | "
+                f"{trial['atif_agent_steps']} |"
+            )
+        if receipt["calls_unassigned"]:
+            print(f"unassigned call seqs: {receipt['calls_unassigned']}")
+        if receipt["ambiguous_trials"]:
+            print(f"ambiguous trials: {receipt['ambiguous_trials']}")
+    return 0
+
+
 def _analyze_plan_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -4064,6 +4144,30 @@ def parser() -> argparse.ArgumentParser:
         help="List every step (default: first and last steps plus notable ones)",
     )
     report_run.set_defaults(func=_report_run_command)
+    capture_parser = commands.add_parser(
+        "capture", help="Independently record model calls and link them to trials"
+    )
+    capture_commands = capture_parser.add_subparsers(dest="capture_command", required=True)
+    capture_serve = capture_commands.add_parser(
+        "serve", help="Run the recording reverse proxy in front of a model endpoint"
+    )
+    capture_serve.add_argument("--upstream", required=True, help="Upstream base URL to forward to")
+    capture_serve.add_argument("--out", required=True, type=Path, help="Capture directory to append to")
+    capture_serve.add_argument("--port", type=int, default=8471, help="Loopback port to bind")
+    capture_serve.add_argument("--bind", default="127.0.0.1", help="Interface to bind")
+    capture_serve.add_argument(
+        "--upstream-key-env",
+        help="Env var holding the upstream key: injected upstream, never recorded",
+    )
+    capture_serve.set_defaults(func=_capture_serve_command)
+    capture_link = capture_commands.add_parser(
+        "link", help="Attribute a capture directory to a job's trials and write Parquet"
+    )
+    capture_link.add_argument("capture_dir", type=Path, help="Capture directory with calls.jsonl")
+    capture_link.add_argument("job_dir", type=Path, help="Harbor job directory")
+    capture_link.add_argument("--derived-root", type=Path, help="Override the derived Parquet root")
+    capture_link.add_argument("--json", action="store_true", help="Emit the link receipt as JSON")
+    capture_link.set_defaults(func=_capture_link_command)
 
     analyze = commands.add_parser("analyze", help="Plan or index bounded trial analyses")
     analyze_commands = analyze.add_subparsers(dest="analyze_command", required=True)

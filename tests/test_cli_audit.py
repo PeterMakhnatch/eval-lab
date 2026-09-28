@@ -39,6 +39,7 @@ TOP_LEVEL_COMMANDS = (
     "curve",
     "power",
     "report",
+    "capture",
     "analyze",
     "data",
     "db",

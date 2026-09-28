@@ -129,7 +129,10 @@ capture as the secret proxy's upstream:
 ```bash
 uv run evallab capture serve --upstream https://api.z.ai \
   --out derived/captures/<name> --port 8471
-EVALLAB_ZAI_OPENAPI_UPSTREAM=http://127.0.0.1:8471 <secret-proxy ...>
+# The runner forwards this variable to the per-trial secret proxy (runner.py
+# `EVALLAB_ZAI_OPENAPI_UPSTREAM`), so set it on the dispatching command:
+EVALLAB_ZAI_OPENAPI_UPSTREAM=http://127.0.0.1:8471 uv run evallab tick ...
+uv run evallab capture link derived/captures/<name> runs/<job>
 ```
 
 The secret proxy appends `/api/paas/v4/chat/completions` itself; capture

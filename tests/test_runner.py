@@ -1577,3 +1577,78 @@ def test_validate_request_toolbox_invariants(tmp_path: Path) -> None:
     (task_dir / "task.toml").write_text('[environment]\nskills_dir = "/different-location"\n')
     with pytest.raises(ValueError):
         validate_request(valid_req)
+
+
+def test_nop_daytona_repeat_verifier_build_command(tmp_path: Path) -> None:
+    """A nop daytona spec with verifier_repeat_n=3 resolves the bounded env, TTL, and verifier flags."""
+    from evallab.execution_contracts import BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH
+    from evallab.harbor_repeat_verifier import VERIFIER_IMPORT_PATH
+
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="nop",
+        name="mimo-nop-daytona",
+        jobs_dir=tmp_path / "runs",
+        environment="daytona",
+        timeout_seconds=10800,
+        verifier_repeat_n=3,
+    )
+    validate_request(request)
+    command = build_command(request)
+
+    assert command[command.index("--env") + 1] == BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH
+    assert command[command.index("--environment-kwarg") + 1] == "ttl_minutes=190"
+    assert command[command.index("--verifier") + 1] == VERIFIER_IMPORT_PATH
+    assert command[command.index("--verifier-kwarg") + 1] == "repeat_n=3"
+    assert "--model" not in command
+
+
+def test_oracle_daytona_without_repeat_has_bounded_env_but_no_verifier_flags(
+    tmp_path: Path,
+) -> None:
+    """Controls on daytona get the provider TTL even without repeat verification."""
+    from evallab.execution_contracts import BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH
+
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name="mimo-oracle-daytona",
+        jobs_dir=tmp_path / "runs",
+        environment="daytona",
+        timeout_seconds=1800,
+    )
+    validate_request(request)
+    command = build_command(request)
+
+    assert command[command.index("--env") + 1] == BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH
+    assert command[command.index("--environment-kwarg") + 1] == "ttl_minutes=40"
+    assert "--verifier" not in command
+    assert "--verifier-kwarg" not in command
+
+
+def test_control_docker_argv_unchanged_without_repeat(tmp_path: Path) -> None:
+    """A spec without the new field keeps its previous argv byte-identically."""
+    from evallab.execution_contracts import HARBOR_STATE_JOURNAL_PLUGIN
+
+    task_dir = task(tmp_path)
+    jobs_dir = tmp_path / "runs"
+    command = build_command(
+        RunRequest(
+            task=task_dir,
+            agent="oracle",
+            name="sample-oracle-control",
+            jobs_dir=jobs_dir,
+        )
+    )
+
+    assert command == [
+        "harbor", "run",
+        "--path", str(task_dir),
+        "--agent", "oracle",
+        "--env", "docker",
+        "--job-name", "sample-oracle-control",
+        "--jobs-dir", str(jobs_dir),
+        "--n-concurrent", "1",
+        "--n-attempts", "1",
+        "--plugin", HARBOR_STATE_JOURNAL_PLUGIN,
+    ]

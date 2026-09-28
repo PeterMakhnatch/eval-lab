@@ -445,3 +445,29 @@ def test_terminus_cannot_escape_provider_or_authorization_bounds(
     request = _metered_request(tmp_path, agent="terminus-2")
     with pytest.raises(ValueError, match=reason):
         validate_request(replace(request, **changes))
+
+
+@pytest.mark.parametrize("repeat_n", [0, 1, 11, -3])
+def test_validate_request_rejects_repeat_out_of_range(tmp_path: Path, repeat_n: int) -> None:
+    """RunRequest carries the spec range 2..10 into the dispatch boundary."""
+    req = RunRequest(
+        task=_task_dir(tmp_path),
+        agent="nop",
+        name="valid-name",
+        jobs_dir=tmp_path / "jobs",
+        verifier_repeat_n=repeat_n,
+    )
+    with pytest.raises(ValueError, match="verifier_repeat_n must be between 2 and 10"):
+        validate_request(req)
+
+
+@pytest.mark.parametrize("repeat_n", [None, 2, 3, 10])
+def test_validate_request_accepts_repeat_bounds(tmp_path: Path, repeat_n: int | None) -> None:
+    req = RunRequest(
+        task=_task_dir(tmp_path),
+        agent="nop",
+        name="valid-name",
+        jobs_dir=tmp_path / "jobs",
+        verifier_repeat_n=repeat_n,
+    )
+    validate_request(req)

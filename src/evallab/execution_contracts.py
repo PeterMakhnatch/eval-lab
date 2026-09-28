@@ -27,6 +27,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from evallab.harbor_repeat_verifier import VERIFIER_IMPORT_PATH
 from evallab.schemas import (
     ExperimentSpec,
     RunProvenance,
@@ -367,6 +368,7 @@ class RunRequest:
     max_total_tokens: int | None = None
     cost_limit_usd: float | None = None
     harness_policy: str | None = None
+    verifier_repeat_n: int | None = None
     requested_selector: str | None = None
     effective_endpoint_base: str | None = None
     provider_returned_model_id: str | None = None
@@ -963,6 +965,8 @@ def validate_request(request: RunRequest) -> None:
             raise ValueError("terminus-2 specs bind exactly one trial")
     if request.harness_policy is not None and request.agent != RLM_AGENT:
         raise ValueError("harness_policy is supported only by the rlm lane")
+    if request.verifier_repeat_n is not None and not 2 <= request.verifier_repeat_n <= 10:
+        raise ValueError("verifier_repeat_n must be between 2 and 10")
     if request.agent == RLM_AGENT:
         if request.attempts != 1 or request.concurrency != 1:
             raise ValueError(f"{request.agent} capabilities bind exactly one trial")
@@ -1108,9 +1112,10 @@ def build_command(request: RunRequest) -> list[str]:
         and request.model == ZAI_OPENAPI_MODEL_SELECTOR
     )
     terminus_daytona = environment == "daytona" and request.agent == TERMINUS_AGENT
+    control_daytona = environment == "daytona" and request.agent in CONTROL_AGENTS
     if zai_daytona:
         environment = "evallab.harbor_daytona:SecretSafeDaytonaEnvironment"
-    elif terminus_daytona:
+    elif terminus_daytona or control_daytona:
         environment = BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH
     command = [
         "harbor",
@@ -1130,11 +1135,15 @@ def build_command(request: RunRequest) -> list[str]:
         "--n-attempts",
         str(request.attempts),
     ]
-    if zai_daytona or terminus_daytona:
+    if zai_daytona or terminus_daytona or control_daytona:
         # Provider-side destruction still applies if the local controller dies.
         ttl_minutes = (request.timeout_seconds + 600 + 59) // 60
         command.extend(["--environment-kwarg", f"ttl_minutes={ttl_minutes}"])
     command.extend(["--plugin", HARBOR_STATE_JOURNAL_PLUGIN])
+    if request.verifier_repeat_n is not None:
+        command.extend(
+            ["--verifier", VERIFIER_IMPORT_PATH, "--verifier-kwarg", f"repeat_n={request.verifier_repeat_n}"]
+        )
     harbor_model = resolve_harbor_model(request.agent, request.model)
     if harbor_model:
         command.extend(["--model", harbor_model])

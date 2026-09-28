@@ -368,6 +368,17 @@ class ExperimentSpec(ContractModel):
         default=None,
         description="harness variant selector forwarded as --agent-kwarg policy for the rlm lane",
     )
+    verifier_repeat_n: int | None = Field(
+        default=None,
+        ge=2,
+        le=10,
+        exclude_if=lambda value: value is None,
+        description=(
+            "repeat the task verifier N times per trial via "
+            "evallab.harbor_repeat_verifier:RepeatVerifier "
+            "(Harbor's --verifier/--verifier-kwarg repeat_n)"
+        ),
+    )
     campaign_ledger: CampaignCalibrationLedger | CampaignMeasurementLedger | None = None
     campaign_cell_id: str | None = Field(
         default=None,

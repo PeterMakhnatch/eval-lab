@@ -848,3 +848,35 @@ def test_absent_harness_binding_does_not_change_legacy_serialized_specs() -> Non
         payload | {"harness_tree_path": None, "harness_tree_sha256": None}
     )
     assert explicit_absence.model_dump_json() == legacy.model_dump_json()
+
+
+@pytest.mark.parametrize("repeat_n", [0, 1, 11, -3])
+def test_verifier_repeat_n_rejects_out_of_range(repeat_n: int) -> None:
+    with pytest.raises(ValidationError):
+        _s03_spec(verifier_repeat_n=repeat_n)
+
+
+@pytest.mark.parametrize("repeat_n", [2, 3, 10])
+def test_verifier_repeat_n_accepts_bounds(repeat_n: int) -> None:
+    assert _s03_spec(verifier_repeat_n=repeat_n).verifier_repeat_n == repeat_n
+
+
+def test_absent_verifier_repeat_does_not_change_legacy_serialized_specs() -> None:
+    legacy = _s03_spec()
+    assert legacy.verifier_repeat_n is None
+    payload = legacy.model_dump(mode="json")
+    assert "verifier_repeat_n" not in payload
+    explicit_absence = ExperimentSpec.model_validate(payload | {"verifier_repeat_n": None})
+    assert explicit_absence.model_dump_json() == legacy.model_dump_json()
+
+
+def test_verifier_repeat_n_is_bound_into_spec_digest() -> None:
+    from evallab.campaigns import experiment_spec_digest
+
+    base = _s03_spec()
+    assert experiment_spec_digest(base) == experiment_spec_digest(
+        base.model_copy(update={"verifier_repeat_n": None})
+    )
+    assert experiment_spec_digest(base) != experiment_spec_digest(
+        base.model_copy(update={"verifier_repeat_n": 3})
+    )

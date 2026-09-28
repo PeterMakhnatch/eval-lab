@@ -1,0 +1,177 @@
+{
+  "rule": "sha256(task_id) % 100 < 80 -> train; floor-1 per stratum + largest-remainder extras (ties: stratum name asc)",
+  "pool": {
+    "code": 2698,
+    "terminal": 64
+  },
+  "terminal": [
+    {
+      "task_id": "candidate-0036-software-data-engineering",
+      "split_frac": 52,
+      "stratum": "software"
+    },
+    {
+      "task_id": "candidate-0260-security-appsec",
+      "split_frac": 73,
+      "stratum": "security"
+    },
+    {
+      "task_id": "candidate-0308-security-forensics",
+      "split_frac": 65,
+      "stratum": "security"
+    },
+    {
+      "task_id": "candidate-0390-security-appsec",
+      "split_frac": 63,
+      "stratum": "security"
+    },
+    {
+      "task_id": "candidate-0461-ml-evaluation",
+      "split_frac": 60,
+      "stratum": "ml"
+    },
+    {
+      "task_id": "candidate-0534-ml-training",
+      "split_frac": 21,
+      "stratum": "ml"
+    },
+    {
+      "task_id": "candidate-0628-media-music",
+      "split_frac": 53,
+      "stratum": "media"
+    },
+    {
+      "task_id": "candidate-0674-ml-evaluation",
+      "split_frac": 68,
+      "stratum": "ml"
+    },
+    {
+      "task_id": "candidate-0688-hardware-rtl",
+      "split_frac": 53,
+      "stratum": "hardware"
+    },
+    {
+      "task_id": "candidate-0758-ml-inference",
+      "split_frac": 22,
+      "stratum": "ml"
+    },
+    {
+      "task_id": "candidate-0847-software-languages",
+      "split_frac": 76,
+      "stratum": "software"
+    },
+    {
+      "task_id": "candidate-0867-software-frontend",
+      "split_frac": 0,
+      "stratum": "software"
+    },
+    {
+      "task_id": "candidate-0938-science-chemistry",
+      "split_frac": 16,
+      "stratum": "science"
+    },
+    {
+      "task_id": "candidate-1048-operations-virtualization",
+      "split_frac": 58,
+      "stratum": "operations"
+    },
+    {
+      "task_id": "candidate-1271-media-games",
+      "split_frac": 32,
+      "stratum": "media"
+    },
+    {
+      "task_id": "candidate-1836-hardware-cad",
+      "split_frac": 31,
+      "stratum": "hardware"
+    }
+  ],
+  "code": [
+    {
+      "task_id": "format-code-task-000002",
+      "split_frac": 3,
+      "stratum": "Go"
+    },
+    {
+      "task_id": "format-code-task-000004",
+      "split_frac": 70,
+      "stratum": "JavaScript"
+    },
+    {
+      "task_id": "format-code-task-000008",
+      "split_frac": 41,
+      "stratum": "Python"
+    },
+    {
+      "task_id": "format-code-task-000013",
+      "split_frac": 60,
+      "stratum": "Go"
+    },
+    {
+      "task_id": "format-code-task-000018",
+      "split_frac": 16,
+      "stratum": "Python"
+    },
+    {
+      "task_id": "format-code-task-000020",
+      "split_frac": 55,
+      "stratum": "Unknown"
+    },
+    {
+      "task_id": "format-code-task-000025",
+      "split_frac": 36,
+      "stratum": "TypeScript"
+    },
+    {
+      "task_id": "format-code-task-000091",
+      "split_frac": 28,
+      "stratum": "PHP"
+    },
+    {
+      "task_id": "format-code-task-000113",
+      "split_frac": 36,
+      "stratum": "Scala"
+    },
+    {
+      "task_id": "format-code-task-000131",
+      "split_frac": 35,
+      "stratum": "Ruby"
+    },
+    {
+      "task_id": "format-code-task-000250",
+      "split_frac": 7,
+      "stratum": "Java"
+    },
+    {
+      "task_id": "format-code-task-000428",
+      "split_frac": 15,
+      "stratum": "C++"
+    },
+    {
+      "task_id": "format-code-task-000459",
+      "split_frac": 38,
+      "stratum": "C"
+    },
+    {
+      "task_id": "format-code-task-000681",
+      "split_frac": 69,
+      "stratum": "Rust"
+    },
+    {
+      "task_id": "format-code-task-001194",
+      "split_frac": 12,
+      "stratum": "Dart"
+    },
+    {
+      "task_id": "format-code-task-001715",
+      "split_frac": 72,
+      "stratum": "Kotlin"
+    }
+  ],
+  "excluded_singletons": [
+    "format-code-task-000134",
+    "format-code-task-001116",
+    "format-code-task-002500",
+    "format-code-task-002782"
+  ]
+}

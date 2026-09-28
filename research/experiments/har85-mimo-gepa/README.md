@@ -169,18 +169,26 @@ print(hashlib.sha256(json.dumps(binding, sort_keys=True).encode()).hexdigest())
 "
 ```
 
-Rounds (from the code): `evaluate()` converts EVERY evaluator exception —
-including the `EvaluationPending` raised when the first spec of a batch parks —
-into `_EvaluationHalt`, aborting the run with status `pending_evaluation`
-(workflow.py:685-703, :854-866). So each round parks exactly one new spec:
-the baseline gate evaluates the seed on each of the 8 examples first
-(:739-740) = 8 rounds minimum (reruns consume completed receipts and park the
-next), then the search (`max_evals: 24`) parks up to one spec per novel
-(candidate, example) evaluation, plus best-candidate selection re-evals on the
-8 train examples. Hard cap: `AggregateBudget` `max_target_attempts: 32`
-distinct target submissions. Expect ~8 baseline rounds + up to ~24 search
-rounds; each round is: `search-round.sh` → approve line → `search-round.sh
---dispatch --ref …`.
+Rounds (from the code): the baseline gate and the final selection loop submit
+EVERY example before halting (`_evaluate_allowing_pending`: pending halts are
+collected per example and the first is re-raised, so the run still reports
+`pending_evaluation`; any other halt stops immediately). In-engine evaluation
+still halts on the first novel pair (`evaluate()` wraps every evaluator
+exception — including the `EvaluationPending` raised when the first spec of a
+batch parks — into `_EvaluationHalt`: workflow.py:685-703, :854-866).
+So: baseline = 1 round (8 specs); search = one round per novel batch (worst
+case 24, typical a handful — reflection minibatches are 1 example, each
+proposal round parks its novel evals then halts); selection re-eval of the
+best on the 8 train examples = 1 round (mostly retained hits). Worst case ≈
+26 approve/dispatch rounds (was ~33 before batching); typical ≈ 8-12. Hard
+cap unchanged: `AggregateBudget` `max_target_attempts: 32` distinct target
+submissions. Each round is: `search-round.sh` → approve line →
+`search-round.sh --dispatch --ref …`.
+In-engine minibatches were deliberately NOT parallelized: the pinned upstream
+fans batch evaluations over threads (which would submit every started spec
+before propagation), but our candidate store (`open("x")` after an
+`exists()` check) spuriously fails concurrent same-candidate stores, so a
+concurrency field stays out until that race is fixed. See BUDGET.md.
 
 STEP 2 — final held-out eval (one-shot, after a reviewed winner exists):
 ```bash

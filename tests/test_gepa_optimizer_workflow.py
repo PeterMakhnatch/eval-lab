@@ -288,6 +288,17 @@ class _StubExecutor:
         spec_path.write_text(spec.model_dump_json(indent=2), encoding="utf-8")
         return spec_path, PendingDecision()
 
+    @property
+    def queue(self) -> _StubExecutor:
+        """Resume path resolves retained specs through the same stub."""
+        return self
+
+    def locate(self, spec_id: str) -> Path:
+        matches = sorted((self.repo_root / "out").glob("*.json"))
+        if len(matches) != 1:
+            raise ValueError(f"Expected exactly one stubbed spec, found {len(matches)}")
+        return matches[0]
+
 
 def test_run_campaign_deepseek_stops_pending_without_approving(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -947,3 +958,125 @@ def test_retained_broker_target_still_propagates_campaign_ceilings(
     assert config["agent"] == DEEPSEEK_TARGET_AGENT
     assert config["provider_ceilings"]["max_requests"] == base.max_requests
     assert config["provider_ceilings"]["cost_limit_usd"] == base.cost_limit_usd
+
+
+def _write_multi_example_campaign(repo_root: Path, tasks: list[dict[str, Any]]) -> Path:
+    (repo_root / "seed.txt").write_text("Study the requirements before acting.\n")
+    raw: dict[str, Any] = {
+        "name": "batched-baseline-path",
+        "engine": "gepa",
+        "agent": DEEPSEEK_TARGET_AGENT,
+        "model": DEEPSEEK_MODEL_SELECTOR,
+        "seed_candidate_path": "seed.txt",
+        "examples": tasks,
+        "validation_task_ids": [],
+        "max_evals": 6,
+        "timeout_seconds": 600,
+        "output_dir": "out/campaign",
+        "estimated_cost_usd": 1.5,
+        "max_proposer_cost_usd": 0.5,
+        "proposer_model": "test/proposer",
+        "provider_ceilings": dict(CEILINGS),
+        "objective": "Batch the baseline gate: every example parks before halting",
+    }
+    path = repo_root / "campaign.json"
+    path.write_text(json.dumps(raw), encoding="utf-8")
+    return path
+
+
+def _approval_ref_for(repo_root: Path, config_path: Path, pin: dict[str, str]) -> Path:
+    config = load_campaign(config_path, repo_root)
+    seed_sha256 = "sha256:" + hashlib.sha256((repo_root / "seed.txt").read_bytes()).hexdigest()
+    binding = {"config": config, "seed_sha256": seed_sha256, "release": pin, "qualification": False}
+    binding_sha256 = hashlib.sha256(json.dumps(binding, sort_keys=True).encode()).hexdigest()
+    ref = repo_root / "approval.json"
+    ref.write_text(
+        json.dumps(
+            {"binding_sha256": binding_sha256, "approved_by": "test", "approved_at": "2026-01-01"}
+        ),
+        encoding="utf-8",
+    )
+    return ref
+
+
+def test_baseline_gate_batches_pending_submissions_before_halting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Three pending examples: all three park in one run, status stays pending."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    tasks = [_write_task(repo_root, f"tasks/task_{i}") for i in range(1, 4)]
+    config_path = _write_multi_example_campaign(repo_root, tasks)
+
+    pin = {"commit": "test", "version": "test", "python_source_tree_sha256": "test"}
+    monkeypatch.setattr(workflow, "verify_release", lambda: pin)
+    stub = _StubExecutor(repo_root)
+
+    def _factory(*args: Any, **kwargs: Any) -> Any:
+        kwargs.setdefault("executor", stub)
+        return LabEvaluator(*args, **kwargs)
+
+    monkeypatch.setattr(workflow, "LabEvaluator", _factory)
+    report = workflow.run_campaign(
+        config_path,
+        repo_root=repo_root,
+        proposer_approval_ref=_approval_ref_for(repo_root, config_path, pin),
+    )
+    assert report["status"] == "pending_evaluation"
+    assert report["error_type"] == "EvaluationPending"
+    assert len(stub.submitted_specs) == 3
+    assert {spec.task_id for spec in stub.submitted_specs} == {"task_1", "task_2", "task_3"}
+
+
+def test_batched_loop_stops_immediately_on_non_pending_halt() -> None:
+    """A review-gate halt on example 2 stops the loop; example 3 never runs."""
+    from evallab.gepa_optimizer.evaluator import CandidateReviewRequired
+    from evallab.gepa_optimizer.workflow import _evaluate_allowing_pending
+
+    calls: list[str] = []
+    first_pending: _EvaluationHalt | None = None
+
+    def fake_eval(candidate: str, example: str) -> None:
+        nonlocal first_pending
+        calls.append(example)
+        halt = _EvaluationHalt(
+            CandidateReviewRequired("sha256:" + "a" * 64, Path("cand.txt"))
+            if example == "ex2"
+            else EvaluationPending("parked")
+        )
+        if example == "ex1":
+            first_pending = halt
+        raise halt
+
+    with pytest.raises(_EvaluationHalt) as excinfo:
+        _evaluate_allowing_pending(fake_eval, "cand", ["ex1", "ex2", "ex3"])
+    assert calls == ["ex1", "ex2"]
+    assert isinstance(excinfo.value.cause, CandidateReviewRequired)
+    assert first_pending is not None and isinstance(first_pending.cause, EvaluationPending)
+
+
+def test_pending_retry_reuses_parked_spec_without_resubmitting(tmp_path: Path) -> None:
+    """A rerun while the spec is still parked reuses it: no duplicate submit."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = _write_task(repo_root)
+    evaluator = LabEvaluator(
+        repo_root=repo_root,
+        output_dir=repo_root / "out" / "lab",
+        examples=[task],
+        agent=DEEPSEEK_TARGET_AGENT,
+        model=DEEPSEEK_MODEL_SELECTOR,
+        timeout_seconds=600,
+        estimated_cost_usd=1.5,
+        ceilings=ProviderCeilings(**CEILINGS),
+        executor=_StubExecutor(repo_root),
+        approved_candidate_ids=None,
+        base_spec=None,
+    )
+    candidate = "Study the requirements before acting.\n"
+    with pytest.raises(EvaluationPending):
+        evaluator(candidate, task)
+    assert len(evaluator.executor.submitted_specs) == 1
+    with pytest.raises(EvaluationPending):
+        evaluator(candidate, task)
+    assert len(evaluator.executor.submitted_specs) == 1

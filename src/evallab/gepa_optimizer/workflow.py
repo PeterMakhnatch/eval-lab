@@ -141,6 +141,30 @@ class _EvaluationHalt(BaseException):
         self.cause = cause
 
 
+def _evaluate_allowing_pending(evaluate, candidate, examples):
+    """Evaluate every example, batching pending submissions before halting.
+
+    The first novel evaluation parks its spec and raises EvaluationPending;
+    collect it, keep submitting the rest, then re-raise the first halt so the
+    run still reports pending_evaluation. Any other halt cause (review gate,
+    failure, exhausted budget) stops immediately, exactly as a bare loop
+    would. Reservation order and accounting are unchanged: each example still
+    reserves before its own side effect inside the evaluator, and resumed runs
+    reuse retained receipts without resubmitting.
+    """
+    first_pending = None
+    for example in examples:
+        try:
+            evaluate(candidate, example)
+        except _EvaluationHalt as halt:
+            if not isinstance(halt.cause, EvaluationPending):
+                raise
+            if first_pending is None:
+                first_pending = halt
+    if first_pending is not None:
+        raise first_pending
+
+
 def _path(root: Path, value: str) -> Path:
     relative = Path(value)
     if relative.is_absolute() or ".." in relative.parts:
@@ -736,8 +760,7 @@ def _run_campaign(
                     "Retained proposer accounting is unresolved; refusing baseline dispatch"
                 )
         # Resolve the baseline target gate before any paid proposer can start.
-        for example in config["examples"]:
-            evaluate(seed, example)
+        _evaluate_allowing_pending(evaluate, seed, config["examples"])
         from gepa.optimize_anything import (  # ty: ignore[unresolved-import]
             OptimizeAnythingConfig,
             optimize_anything,
@@ -848,8 +871,7 @@ def _run_campaign(
                 background=background,
             )
         # Selection needs full common-pool evidence even after an upstream resume.
-        for example in validation or train:
-            evaluate(result.best_candidate, example)
+        _evaluate_allowing_pending(evaluate, result.best_candidate, validation or train)
         status = "completed"
     except _EvaluationHalt as halt:
         if isinstance(halt.cause, CandidateReviewRequired):

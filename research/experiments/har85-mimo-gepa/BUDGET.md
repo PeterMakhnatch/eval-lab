@@ -52,3 +52,38 @@ $heldout = 32 x C_STUDENT_TRIAL
 - Student-route swap (HAR-81 Qwen-on-Tinker later): replace
   base-specs/student-terminus2-provisional.json, keep the same formula with the
   new route's C_STUDENT_TRIAL.
+
+## Approval rounds (after the baseline/selection batching fix)
+
+- Baseline gate and final selection loop park EVERY example before halting
+  (`src/evallab/gepa_optimizer/workflow.py` `_evaluate_allowing_pending`):
+  baseline = 1 round (8 specs), selection = 1 round.
+- In-engine search still halts per novel batch: worst case 24 rounds, typical
+  a handful. Worst case ≈ 26 rounds total (was ~33); typical ≈ 8-12.
+- Trial/proposer counts above are unchanged; only the round count moved.
+
+## In-engine concurrency verdict: NO (evidence, 2026-09-28)
+
+- Upstream (pinned gepa @0632cdb) DOES fan minibatch examples over threads
+  when the adapter runs parallel batches: `OptimizeAnythingAdapter.evaluate`
+  takes the `_evaluate_parallel` path for `len(batch) > 1`
+  (`adapters/optimize_anything_adapter/optimize_anything_adapter.py:386-389`),
+  all futures submit upfront and worker exceptions propagate via
+  `future.result()` (`:628-635`); our engine gets legacy `GEPAConfig`
+  defaults (`parallel=True`) through `engine_config={}`
+  (`oa/engines/gepa.py:48-52`, `gepa_launcher.py:1363-1364`); actual execution
+  is gated by our eval-server semaphore
+  (`oa/eval_server.py:197`, singular `evaluate` propagates at `:233-264`).
+  Every started spec would submit before propagation — answer 1 is yes.
+- But our evaluator is NOT thread-safe: `_ensure_candidate_stored` checks
+  `exists()` then `open("x")` (`src/evallab/gepa_optimizer/evaluator.py:603-611`),
+  so concurrent same-candidate stores (e.g. the seed on 8 examples) fail all
+  but one worker with `FileExistsError` → spurious `evaluation_failed`.
+  `AggregateBudget.reserve` IS safe (fcntl `LOCK_EX` read-modify-write +
+  duplicate detection, `src/evallab/gepa_optimizer/budget.py:71-103,153-184`)
+  and queue submit uses `O_EXCL` unique names plus a locked event log
+  (`src/evallab/queue.py:1226-1231,824-838`) — answer 2 is no.
+- So no concurrency campaign field was added and the race was left untouched:
+  widening the semaphore today would turn the batched seed eval into
+  evaluation failures. Revisit only with a store-level fix plus a concurrent
+  same-candidate test.

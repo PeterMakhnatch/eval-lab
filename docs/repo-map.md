@@ -151,7 +151,7 @@ inputs:
   - path: src/evallab/harbor_state_journal.py
     digest: sha256:9b95447082a99c2b8316ec183c97f27a3de3978758e828433b299a51526fe494
   - path: src/evallab/harbor_terminus.py
-    digest: sha256:ddaaed77cd93a04860e598ec1ce789e1ded2736486566280a84c5617e227a37e
+    digest: sha256:bc2768f114e30064cd715389747d267bac486783ed36547bd3aa7edac497ee8e
   - path: src/evallab/harbor_zai_miniswe.py
     digest: sha256:61a6c4a69a59cc193e14d802575b945446ee8a74e7bab6c7447346003681a6b3
   - path: src/evallab/harbor_zai_opencode.py

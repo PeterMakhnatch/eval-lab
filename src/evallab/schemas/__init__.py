@@ -379,6 +379,17 @@ class ExperimentSpec(ContractModel):
             "(Harbor's --verifier/--verifier-kwarg repeat_n)"
         ),
     )
+    override_storage_mb: int | None = Field(
+        default=None,
+        ge=1024,
+        le=1048576,
+        exclude_if=lambda value: value is None,
+        description=(
+            "request N MiB of Daytona sandbox disk via Harbor's "
+            "--override-storage-mb (unset MiMo task.toml storage falls back "
+            "to the 3 GiB provider default)"
+        ),
+    )
     campaign_ledger: CampaignCalibrationLedger | CampaignMeasurementLedger | None = None
     campaign_cell_id: str | None = Field(
         default=None,

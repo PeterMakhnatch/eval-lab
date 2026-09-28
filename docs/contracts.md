@@ -58,6 +58,8 @@ path and digest must appear together; non-Terminus consumers reject them.
 `verifier_repeat_n` (2..10, default absent) forwards `--verifier
 evallab.harbor_repeat_verifier:RepeatVerifier --verifier-kwarg repeat_n=<N>`;
 controls on `daytona` resolve the bounded environment with a provider TTL.
+`override_storage_mb` (1024..1048576, default absent) forwards Harbor's
+`--override-storage-mb <N>` for any environment and agent.
 Adding a field does not justify repinning unrelated titles, descriptions, or
 incidental generated-schema details.
 

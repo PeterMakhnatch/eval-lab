@@ -880,3 +880,34 @@ def test_verifier_repeat_n_is_bound_into_spec_digest() -> None:
     assert experiment_spec_digest(base) != experiment_spec_digest(
         base.model_copy(update={"verifier_repeat_n": 3})
     )
+
+@pytest.mark.parametrize("storage_mb", [0, 1, 1023, 1048577, -5])
+def test_override_storage_mb_rejects_out_of_range(storage_mb: int) -> None:
+    with pytest.raises(ValidationError):
+        _s03_spec(override_storage_mb=storage_mb)
+
+
+@pytest.mark.parametrize("storage_mb", [1024, 10240, 1048576])
+def test_override_storage_mb_accepts_bounds(storage_mb: int) -> None:
+    assert _s03_spec(override_storage_mb=storage_mb).override_storage_mb == storage_mb
+
+
+def test_absent_override_storage_does_not_change_legacy_serialized_specs() -> None:
+    legacy = _s03_spec()
+    assert legacy.override_storage_mb is None
+    payload = legacy.model_dump(mode="json")
+    assert "override_storage_mb" not in payload
+    explicit_absence = ExperimentSpec.model_validate(payload | {"override_storage_mb": None})
+    assert explicit_absence.model_dump_json() == legacy.model_dump_json()
+
+
+def test_override_storage_mb_is_bound_into_spec_digest() -> None:
+    from evallab.campaigns import experiment_spec_digest
+
+    base = _s03_spec()
+    assert experiment_spec_digest(base) == experiment_spec_digest(
+        base.model_copy(update={"override_storage_mb": None})
+    )
+    assert experiment_spec_digest(base) != experiment_spec_digest(
+        base.model_copy(update={"override_storage_mb": 10240})
+    )

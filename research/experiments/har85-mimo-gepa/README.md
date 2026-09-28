@@ -15,6 +15,13 @@ Peter's approvals (see §6).
   (manifest_digest `sha256:fb645f…52dab`, byte-identical to the parent-frozen
   copy). Rule: per-domain rank by `sha256(salt + "\0" + task_id)`, first 16
   held out; terminal split_group == task_id.
+- Train pool: the 48 split train tasks minus `train-exclusions.json` = **47**
+  (`sha256:8f1c1fa7…c372`, rule and digest in `train_pool.py`). Excluded:
+  `candidate-0260-security-appsec`, whose grader cannot score an honest
+  solution (its tests import the vendored Bandit tree, which needs `stevedore`;
+  the image lacks it and the task forbids adding dependencies, so pytest stops
+  at collection in 9/9 attributed Eval Lab runs). The split manifest itself is
+  unchanged. `search-round.sh --dispatch` and the DSPy arm refuse excluded ids.
 - Student: PROVISIONAL `SecretSafeTerminus2` + `ZAI_OPENAPI_MODEL_SELECTOR`
   (`zai/glm-5.3-flash`), stock settings, profile
   `terminus-2-glm-5.3-flash`. Single swappable parameter:
@@ -59,7 +66,7 @@ deterministic QualificationProposer, local Docker) RAN END TO END:
 |---|---|---|---|---|
 | `gepa-nop-candidate-0036-softw-6240505183e6d425d2ff4f33` | candidate-0036 (snakemake flags) | 0 | ~7 s (setup ~1 s, verify ~1 s) | real pytest: 5 failed (nop did nothing), reward 0 |
 | `gepa-nop-candidate-0109-scien-8e8189d092062060ff23ed99` | candidate-0109 | 0 | ~8 s | completed, reward 0, no exception |
-| `gepa-nop-candidate-0260-secur-8193bf44728c0c887a9e2de6` | candidate-0260 | 0 | ~7 s | completed, reward 0, no exception |
+| `gepa-nop-candidate-0260-secur-8193bf44728c0c887a9e2de6` | candidate-0260 | 0 | ~7 s | grader collection error (`No module named 'stevedore'`): the 0 is not a nop result; task excluded since (`train-exclusions.json`) |
 
 Setup passed fast because the pinned MiMo images come pre-baked
 (`/var/lib/mimo/ready` present; images pulled: `xiaomimimo/mimo-v2.6-rl-oss`,
@@ -98,8 +105,12 @@ verifier`). No infra failures; all rewards the expected nop 0.
   never run).
 - `proposer-options.json` (A/B/C: 4/8/2 reflection calls; stamp fields +
   fresh approval ref to switch).
-- `proposer-approval.template.json` (STAGED binding `e79f94e9…`, signer/date
+- `proposer-approval.template.json` (STAGED binding `d21878de…`, signer/date
   blank; signed materialization is runtime state, gitignored).
+- `train-exclusions.json` (train tasks dropped from the pool, each with its
+  exact package digest, reason, evidence and replacement; recorded against
+  the split manifest digest) and `train_pool.py` (`digest`,
+  `check-campaign`, `materialize`; refuses on any drift).
 - `search-round.sh` (per-round helper: no-args list + exact approve line,
   `--dispatch --ref [--max-specs N]` gated tick + campaign rerun; refusals
   exercised).
@@ -118,20 +129,11 @@ verifier`). No infra failures; all rewards the expected nop 0.
 ```bash
 EXP=research/experiments/har85-mimo-gepa
 SRC=/Users/petermakhnatch/Developer/.sources/mimo/terminal@fe1c2b66/tasks
-# train split (48 tasks; asserts digests against split.provisional.json):
-uv run --no-sync python -c "
-import json, shutil
-from pathlib import Path
-from evallab.registry import task_directory_digest
-m = json.load(open('$EXP/split.provisional.json'))
-for row in m['tasks']:
-    if row['assignment'] != 'train': continue
-    d = Path('$EXP/tasks') / row['task_id']
-    if not d.exists(): shutil.copytree(Path('$SRC') / row['task_id'], d)
-    assert task_directory_digest(d) == row['task_package_digest'], row['task_id']
-print('train materialized, digests match')
-"
-# held-out (16 tasks) ONLY at final-eval time, same pattern over heldout_task_ids.
+# train pool (47 tasks = split train minus train-exclusions.json; asserts each
+# package digest against split.provisional.json and removes excluded copies):
+uv run --no-sync python $EXP/train_pool.py materialize --src $SRC
+# held-out (16 tasks) ONLY at final-eval time: copy heldout_task_ids from $SRC
+# and assert task_directory_digest against the split rows the same way.
 ```
 
 ## 6. Launch sequence (Peter's commands, from a clean eval-lab worktree at main)
@@ -144,7 +146,7 @@ PREREQUISITES (once per worktree, $0):
 ```bash
 uv sync --locked
 uv pip install -r research/experiments/harness-gepa/requirements.txt   # pinned GEPA runtime (verify_release)
-# then run the §5 recipe to materialize the 48 train tasks
+# then run the §5 recipe to materialize the 47-task train pool
 # ~/.omp/agent/.env must hold ZAI_OPENAPI_API_KEY (student) and DAYTONA_API_KEY
 # (sandboxes); the scripts read both into the tick process only, never print them.
 ```
@@ -180,15 +182,16 @@ uv run --no-sync python -m evallab.gepa_optimizer approve-candidate \
 ```
 `search-round.sh` lists only this campaign's parked specs (name prefix
 `gepa-runs-gepa-har85-mimo-train-search-`, derived from the evaluator
-output_dir); `--dispatch` refuses unless every listed spec is approved, ticks
-only those IDs with the key loaded non-printing, then reruns the campaign.
+output_dir); `--dispatch` refuses unless every campaign example is in the
+train pool (`train_pool.py check-campaign`) and every listed spec is approved,
+ticks only those IDs with the key loaded non-printing, then reruns the campaign.
 The signed ref is runtime state (gitignored), never committed.
 The `--proposer-approval-ref` JSON must carry `binding_sha256` of the exact
 frozen campaign binding + `approved_by` + `approved_at` (operator: Peter).
 The staged binding (`proposer-approval.template.json`) was precomputed with
 the real loader/pin/hash (`load_campaign`, `verify_release`,
 `hashlib.sha256(json.dumps(binding, sort_keys=True))` per workflow.py:592-606):
-`e79f94e9dc0378e98fd95f3aef84d3053163484cc5c814fa38719db46511c0ce`.
+`d21878de56284edaf30152fff33b27dffa50e058b26ef2f1b54132e4ef06b97e`.
 Recompute after ANY byte change to `campaign-train.json`, the retained base
 spec, the seed, or the
 pinned GEPA release (reinstall first: `uv pip install -r

@@ -24,7 +24,7 @@ $heldout = 32 x C_STUDENT_TRIAL
 
 | Input | Value | Source |
 |---|---|---|
-| Train search examples | 8 (train ids only, held-out: none) | campaign-train.json (validated by load_campaign) |
+| Train search examples | 8 (train pool only, held-out: none; 0260 replaced by 0390, see train-exclusions.json) | campaign-train.json (validated by load_campaign + train_pool.py check-campaign) |
 | Baseline gate evals | 8 (seed x 8 examples) | workflow.py: seed evaluated once per example before search |
 | max_evals (upstream budget) | 24 | campaign-train.json |
 | max_target_attempts (hard target-trial cap) | 32 (= 24 + 8 best-candidate selection re-evals) | campaign-train.json; AggregateBudget refuses beyond |
@@ -34,7 +34,7 @@ $heldout = 32 x C_STUDENT_TRIAL
 | Proposer token input per call | in <= 22,000, out <= 4,096, total <= 26,096 | proposer_ceilings (har59 precedent) |
 | Held-out eval trials | 32 (16 tasks x seed/gepa arms x 1) | make_paired_specs.py |
 | Nop dry-run trial wall time | ~7-8 s each (setup ~1 s, agent ~0 s, verifier ~1-2 s) | runs/gepa-nop-candidate-{0036,0109,0260}-* |
-| Nop dry-run rewards | 0.0 x 3, verifier completed, no exceptions | campaign attempt-26a22eed result.json |
+| Nop dry-run rewards | 0.0 x 3, no exceptions; 0036/0109 verifiers ran their tests, 0260's stopped at collection (grader defect, task since excluded) | campaign attempt-26a22eed result.json; verifier/test-stdout.txt |
 | Deterministic proposer calls in dry run | 1, $0.00, review-gate stop | same report (candidate_review_required) |
 
 ## Per-trial estimates (the $0.25 queue estimate covers both spend types)

@@ -7,7 +7,8 @@ path only runs via ``run-after-approval.sh`` with a recorded approval; the
 Pipeline (train split ONLY; held-out appears solely in the final paired eval):
   1. Load ``../split.provisional.json`` (PROVISIONAL until HAR-81 seals its
      split). Trainset/valset ids MUST be a subset of ``train_task_ids``;
-     anything in ``heldout_task_ids`` is refused.
+     anything in ``heldout_task_ids`` is refused, and so is any train id in
+     ``../train-exclusions.json`` (graders that cannot score an honest run).
   2. Each example is one real MiMo terminal task (instruction text + dir).
   3. ``dspy.GEPA`` optimises the *complete action instructions* of a
      ``LabRlm``-shaped student (same target as ``evallab.rlm.gepa_rlm``, new
@@ -33,7 +34,7 @@ Usage ($0 dry run, 2 train + 1 val task, real local containers + verifier)::
 
     runs/.harbor-dspy/bin/python research/experiments/har85-mimo-gepa/dspy/gepa_mimo.py \\
         --dry-run --harbor-env docker \\
-        --train-tasks candidate-0260-security-appsec,candidate-0390-security-appsec \\
+        --train-tasks candidate-0758-ml-inference,candidate-0390-security-appsec \\
         --val-tasks candidate-0688-hardware-rtl --max-metric-calls 8 --out runs/har85-dryrun/gepa
 """
 
@@ -54,6 +55,8 @@ from pathlib import Path
 
 EXPERIMENT_DIR = Path(__file__).resolve().parent
 DEFAULT_SPLIT = EXPERIMENT_DIR.parent / "split.provisional.json"
+#: Train tasks excluded from the pool with a recorded reason (train_pool.py).
+TRAIN_EXCLUSIONS = EXPERIMENT_DIR.parent / "train-exclusions.json"
 
 PROVISIONAL_STUDENT_ROUTE = "zai-coding-plan/glm-5.3-flash"
 PROVISIONAL_REFLECTION_MODEL = "zai-coding-plan/glm-5.3"
@@ -78,6 +81,19 @@ def load_split(split_path: Path) -> dict:
     return payload
 
 
+def excluded_task_ids(split: dict, exclusions_path: Path = TRAIN_EXCLUSIONS) -> set[str]:
+    """Train ids excluded from the pool; fails closed on a missing or foreign record."""
+    try:
+        exclusions = json.loads(exclusions_path.read_text())
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"train exclusions {exclusions_path} are unreadable: {exc}") from exc
+    if exclusions.get("split_manifest_digest") != split.get("manifest_digest"):
+        raise ValueError(
+            f"{exclusions_path.name} was recorded against another split; re-review it"
+        )
+    return {entry["task_id"] for entry in exclusions["excluded"]}
+
+
 def check_train_only(task_ids: list[str], split: dict) -> None:
     train = set(split["train_task_ids"])
     heldout = set(split["heldout_task_ids"])
@@ -88,6 +104,11 @@ def check_train_only(task_ids: list[str], split: dict) -> None:
     if leaked:
         raise ValueError(
             f"held-out task ids must never feed the optimizer: {leaked}"
+        )
+    excluded = sorted(set(task_ids) & excluded_task_ids(split))
+    if excluded:
+        raise ValueError(
+            f"task ids excluded from the train pool (see {TRAIN_EXCLUSIONS.name}): {excluded}"
         )
 
 

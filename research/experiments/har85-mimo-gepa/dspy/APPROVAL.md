@@ -37,14 +37,17 @@ Only the blank templates in `approvals/` are committed.
 ## Exact commands
 
 Pilot phase 1 (4 train + 2 val, 10 metric calls, cap $3; expected $2.73 =
-$1.98 model API-equiv + $0.75 Daytona):
+$1.98 model API-equiv + $0.75 Daytona). Every id is a train task whose grader
+ran its tests in an Eval Lab run; `candidate-0260-security-appsec` is excluded
+(grader cannot import its vendored Bandit tree, see `../train-exclusions.json`)
+and `gepa_mimo.py` refuses it:
 
 ```bash
 # 1. Print the binding for the EXACT pilot flags (from the worktree root):
 PYTHONPATH=src runs/.harbor-dspy/bin/python research/experiments/har85-mimo-gepa/dspy/gepa_mimo.py \
   --print-binding --split research/experiments/har85-mimo-gepa/split.provisional.json \
   --tasks-root runs/har85-gepa-mimo/tasks --repo-root . --jobs-dir runs/har85-gepa-mimo/jobs \
-  --train-tasks candidate-0260-security-appsec,candidate-0390-security-appsec,candidate-0109-science-robotics,candidate-0308-security-forensics \
+  --train-tasks candidate-0758-ml-inference,candidate-0390-security-appsec,candidate-0109-science-robotics,candidate-0308-security-forensics \
   --val-tasks candidate-0688-hardware-rtl,candidate-0036-software-data-engineering \
   --max-metric-calls 10 --cost-limit-usd 1.0 --cap-usd 3 --harbor-env daytona --out runs/har85-gepa-mimo/phase1
 # 2. Paste binding_sha256 into a copy of approvals/phase1-pilot.template.json
@@ -54,7 +57,7 @@ PYTHONPATH=src runs/.harbor-dspy/bin/python research/experiments/har85-mimo-gepa
 #    read from ~/.omp/agent/.env, both fail closed when absent):
 research/experiments/har85-mimo-gepa/dspy/run-after-approval.sh --phase gepa \
   --approval-file /private/tmp/har85-phase1.signed.json --cap-usd 3 \
-  --train-tasks candidate-0260-security-appsec,candidate-0390-security-appsec,candidate-0109-science-robotics,candidate-0308-security-forensics \
+  --train-tasks candidate-0758-ml-inference,candidate-0390-security-appsec,candidate-0109-science-robotics,candidate-0308-security-forensics \
   --val-tasks candidate-0688-hardware-rtl,candidate-0036-software-data-engineering \
   --max-metric-calls 10
 ```

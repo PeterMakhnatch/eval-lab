@@ -59,7 +59,7 @@ Inputs and where they were measured ($0 work, this branch):
 | scope | model API-equiv (subscription) | Daytona (metered) | total vs phase cap | ceiling change |
 |---|---|---|---|---|
 | pilot phase 1 (4 train + 2 val, 10 metric calls, 25 trials) | 25×$0.067 + 3×$0.10 = $1.98 | 25×$0.03 = $0.75 | **$2.73** / $3 | none (standing `per_job_cost_ceiling_usd` 3 covers it) |
-| full phase 1 (48 train, 36 metric calls, 90 trials) | 90×$0.067 + 9×$0.10 = $6.93 | $2.70 | **$9.63** / $10 | raise `per_job_cost_ceiling_usd` 3 → 10 for that job |
+| full phase 1 (47-task train pool, 36 metric calls, 90 trials) | 90×$0.067 + 9×$0.10 = $6.93 | $2.70 | **$9.63** / $10 | raise `per_job_cost_ceiling_usd` 3 → 10 for that job |
 | phase 2 (16 heldout × 2 arms × 3 attempts, 96 trials) | 96×$0.06 = $5.76 | $2.88 | **$8.64** / $9 | raise `per_job_cost_ceiling_usd` 3 → 9 for that job |
 
 The pilot was 12 metric calls before trials moved to Daytona; 12 calls now

@@ -40,10 +40,12 @@ from typing import Any, Literal
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from pydantic import Field
+
 from evallab.fetch import FetchError, parse_pin
 from evallab.mimo_exploit import TABLE_FILENAME as EXPLOITS_PARQUET_FILENAME
 from evallab.registry import compute_task_digests, harbor_task_digest, task_directory_digest
-from evallab.schemas import ProvenanceMetadata
+from evallab.schemas import ContractModel, ProvenanceMetadata
 from evallab.storage.paths import derived_root_from_environment, shared_checkout_root
 from evallab.task_lint import Finding, lint_mimo_task, mimo_manifest_sha
 from evallab.task_stability import TABLE_FILENAME as STABILITY_PARQUET_FILENAME
@@ -102,6 +104,83 @@ _TEST_HELPER_MODULES = frozenset({"github.com/stretchr/testify"})
 
 class CatalogError(ValueError):
     """User-facing pull/build/show refusal."""
+
+
+#: Durable curated-defect record schema. Owned here, read by the catalog build.
+FINDING_RECORD_SCHEMA = "evallab.task_finding/v1"
+
+#: Git-tracked curated finding records live under this repo-relative directory.
+FINDINGS_DIRNAME = Path("library/task-findings")
+
+
+class FindingRecordError(CatalogError):
+    """Raised when a curated task-finding record is invalid (skipped, never fatal)."""
+
+
+class TaskFindingEvidence(ContractModel):
+    """One evidence pointer: a repo-relative stdout path plus its sha256."""
+
+    path: str = Field(min_length=1)
+    sha256: str = Field(pattern=r"^(sha256:)?[0-9a-f]{64}$")
+
+
+class TaskFindingRecord(ContractModel):
+    """One evidence-backed task defect; the durable ``evallab.task_finding/v1`` record."""
+
+    schema_: str = Field(alias="schema", pattern=r"^evallab\.task_finding/v1$")
+    task_version_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    task_id: str = Field(min_length=1)
+    domain: str = Field(min_length=1)
+    rule: str = Field(min_length=1, pattern=r"^[a-z0-9][a-z0-9._-]*$")
+    severity: Literal["error", "warning"] = Field()
+    message: str = Field(min_length=1)
+    evidence: list[TaskFindingEvidence] = Field(min_length=1)
+    recorded_at: str = Field(min_length=1)
+    recorded_by: str = Field(min_length=1)
+
+    model_config = {**ContractModel.model_config, "populate_by_name": True}
+
+
+def resolve_finding_record(path: Path) -> TaskFindingRecord:
+    """Parse one curated finding record (strict ``evallab.task_finding/v1``)."""
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise FindingRecordError(f"finding record is unreadable ({path}): {exc}") from exc
+    try:
+        return TaskFindingRecord.model_validate(payload)
+    except ValueError as exc:
+        raise FindingRecordError(f"finding record is invalid ({path}): {exc}") from exc
+
+
+def load_finding_dicts(repo_root: Path) -> tuple[list[tuple[dict[str, Any], str]], int]:
+    """Curated finding records as ``(dict, record_relpath)`` pairs.
+
+    Each file under ``library/task-findings/**/*.json`` is parsed with
+    strict ``evallab.task_finding/v1`` validation. Returns
+    ``(records, skipped)``; invalid records are skipped with a count, never
+    a crash, so catalog builds stay rebuildable while findings evolve.
+    Evidence paths are recorded as written (they may point at untracked
+    ``runs/`` stdout); only their shape is validated, never their presence.
+    """
+    tree = Path(repo_root) / FINDINGS_DIRNAME
+    records: list[tuple[dict[str, Any], str]] = []
+    skipped = 0
+    if tree.is_dir():
+        for path in sorted(tree.rglob("*.json")):
+            if not path.is_file():
+                continue
+            try:
+                record = resolve_finding_record(path)
+            except FindingRecordError:
+                skipped += 1
+                continue
+            try:
+                relpath = path.relative_to(repo_root).as_posix()
+            except ValueError:
+                relpath = path.name
+            records.append((record.model_dump(mode="json", by_alias=True), relpath))
+    return records, skipped
 
 
 def mimo_repo_id(domain: str) -> str:
@@ -937,6 +1016,8 @@ class CatalogBuildReport:
     tables: dict[str, int] = field(default_factory=dict)
     n_variants: int = 0
     skipped_variant_records: int = 0
+    n_curated_findings: int = 0
+    skipped_finding_records: int = 0
     findings_by_rule_domain: dict[str, dict[str, int]] = field(default_factory=dict)
     unresolved_splits: dict[str, int] = field(default_factory=dict)
     cyber_dupe_groups: int = 0
@@ -1081,6 +1162,21 @@ def build_catalog(
                 "transform": record.get("transform"),
                 "record_path": record_path,
                 "origin": "variant",
+            }
+        )
+
+    curated, skipped_curated = load_finding_dicts(repo_root)
+    report.n_curated_findings = len(curated)
+    report.skipped_finding_records = skipped_curated
+    for record, _record_path in curated:
+        finding_rows.append(
+            {
+                "task_version_digest": record.get("task_version_digest"),
+                "task_id": record.get("task_id"),
+                "domain": record.get("domain"),
+                "rule": record.get("rule"),
+                "severity": record.get("severity"),
+                "message": record.get("message"),
             }
         )
 
@@ -1356,10 +1452,12 @@ def task_audit_sql(
     stability: str | None = None,
     exploits: str | None = None,
     qualification: str | None = None,
+    findings: str | None = None,
     *,
     has_stability: bool = True,
     has_exploits: bool = True,
     has_qualification: bool = False,
+    has_findings: bool = True,
 ) -> str:
     """One row per task version x backend x agent/model with verdict and eligibility.
 
@@ -1374,12 +1472,19 @@ def task_audit_sql(
     trial on that backend is ``broken`` is train-ineligible with reason
     ``broken on <backend>``. ``inconclusive`` (backend-quota) trials never
     mark a task broken. The join is one-to-one per audit row, never fanout.
+
+    With ``has_findings``, an ``error``-severity row in the catalog
+    ``task_findings`` table (curated defects under
+    ``library/task-findings/``) makes the version train-ineligible with
+    reason ``finding: <rule>``, whatever the backend. This is a hard
+    defect, so it takes precedence over every other ineligibility reason.
     """
     from evallab.task_qualification import TABLE as QUALIFICATION_TABLE_DEFAULT
 
     stability_table = stability or STABILITY_TABLE
     exploits_table = exploits or EXPLOITS_TABLE
     qualification_table = qualification or QUALIFICATION_TABLE_DEFAULT
+    findings_table = findings or "task_findings"
     stability_source = (
         f"(SELECT task_version_digest, verdict, n_runs, evidence_path FROM {stability_table})"
         if has_stability
@@ -1402,6 +1507,12 @@ def task_audit_sql(
         "CAST(NULL AS VARCHAR) AS backend, CAST(NULL AS VARCHAR) AS status, "
         "CAST(NULL AS VARCHAR) AS finished_at, CAST(NULL AS VARCHAR) AS job_name, "
         "CAST(NULL AS VARCHAR) AS trial_name WHERE FALSE)"
+    )
+    findings_source = (
+        f"(SELECT task_version_digest, rule FROM {findings_table} WHERE severity = 'error')"
+        if has_findings
+        else "(SELECT CAST(NULL AS VARCHAR) AS task_version_digest, "
+        "CAST(NULL AS VARCHAR) AS rule WHERE FALSE)"
     )
     return f"""
     WITH stab AS (
@@ -1444,6 +1555,12 @@ def task_audit_sql(
             MAX(CASE WHEN rn = 1 AND status = 'broken' THEN 1 ELSE 0 END) AS is_broken
         FROM qual_ranked
         GROUP BY digest, backend
+    ),
+    ferr AS (
+        SELECT f.task_version_digest AS digest,
+            MIN(f.rule) AS rule
+        FROM {findings_source} AS f
+        GROUP BY f.task_version_digest
     )
     SELECT
         v.task_version_digest AS task_version_digest,
@@ -1470,11 +1587,14 @@ def task_audit_sql(
         expl.exploit_status AS exploit_status,
         expl.exploit_evidence_paths AS exploit_evidence_paths,
         qual.is_broken AS qual_broken,
+        ferr.rule AS finding_rule,
         COALESCE(o.verdict = 'learnable' AND stab.stability = 'stable'
             AND (expl.exploit_status IS NULL
                 OR expl.exploit_status IN ('none', 'not_probed'))
-            AND (qual.is_broken IS NULL OR qual.is_broken = 0), false) AS train_eligible,
+            AND (qual.is_broken IS NULL OR qual.is_broken = 0)
+            AND ferr.rule IS NULL, false) AS train_eligible,
         CASE
+            WHEN ferr.rule IS NOT NULL THEN 'finding: ' || ferr.rule
             WHEN o.verdict IS NULL OR o.verdict != 'learnable'
                 THEN 'not learnable: ' || COALESCE(o.verdict, 'missing')
             WHEN stab.stability IS NULL THEN 'no stability evidence'
@@ -1488,6 +1608,7 @@ def task_audit_sql(
     LEFT JOIN stab ON stab.digest = v.task_version_digest
     LEFT JOIN expl ON expl.digest = v.task_version_digest
     LEFT JOIN qual ON qual.digest = v.task_version_digest AND qual.backend = o.backend
+    LEFT JOIN ferr ON ferr.digest = v.task_version_digest
     """
 
 @dataclass(frozen=True)

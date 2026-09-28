@@ -45,6 +45,7 @@ REASONS = (
     "reward_missing",
     "nop_passes",
     "unstable_verifier",
+    "grader_broken",
 )
 
 CONTROL_AGENTS = frozenset({"nop", "oracle"})
@@ -67,13 +68,22 @@ RATE_CARDS = {"daytona": DAYTONA_RATE_CARD}
 
 #: Case-insensitive quota indicators matched against
 #: ``exception_type + exception_message``. Bare ``429``/``403`` only count
-#: with quota wording nearby (tracebacks routinely cite line numbers).
+#: with quota wording nearby (tracebacks routinely cite line numbers), and
+#: bare ``disk``/``storage`` never count: only precise capacity markers do
+#: (Daytona sandboxes are capped at 4 vCPU / 8 GiB RAM / 10 GiB disk whatever
+#: the org tier, so a setup-phase capacity failure is provider quota, never
+#: a task defect).
 _QUOTA_SUBSTRINGS = (
     "quota",
     "limit exceeded",
     "total cpu",
     "memory limit",
     "disk limit",
+    "storage limit",
+    "disk quota",
+    "no space left on device",
+    "insufficient disk",
+    "insufficient storage",
     "rate limit",
     "ratelimit",
     "rate_limit",
@@ -81,6 +91,11 @@ _QUOTA_SUBSTRINGS = (
     "daytonaratelimit",
 )
 _HTTP_STATUS_RE = re.compile(r"\b(429|403)\b")
+#: ``exceed(s|ed|ing)`` within ~40 chars of ``disk``/``storage`` (either
+#: order), e.g. "disk size exceeds the allowed limit".
+_DISK_EXCEEDS_RE = re.compile(
+    r"\bexceed\w*\b.{0,40}\b(disk|storage)\b|\b(disk|storage)\b.{0,40}\bexceed\w*\b"
+)
 
 
 def utc_now_iso() -> str:
@@ -94,9 +109,126 @@ def is_backend_quota_failure(
     text = f"{exception_type or ''} {exception_message or ''}".lower()
     if any(marker in text for marker in _QUOTA_SUBSTRINGS):
         return True
+    if _DISK_EXCEEDS_RE.search(text):
+        return True
     return bool(_HTTP_STATUS_RE.search(text)) and any(
         word in text for word in ("limit", "quota", "rate")
     )
+
+#: Pytest collection-failure markers: the grader's own test modules failed to
+#: import, so every run scores 0 whatever the agent does.
+_COLLECTION_MARKERS = (
+    "error collecting",
+    "error during collection",
+    "errors during collection",
+)
+#: Error lines proving the collection failure is a broken test module
+#: (a missing third-party dependency, a syntax error, or an ``ImportError``
+#: while importing the test module), in pytest's ``E``-prefixed or plain
+#: form. Ordered by specificity: the reported ``grader_error`` is the most
+#: specific (root-cause) match, e.g. the ``ModuleNotFoundError`` line rather
+#: than the ``ImportError while importing`` header above it.
+_GRADER_ERROR_RES = (
+    (0, re.compile(r"^\s*E?\s*ModuleNotFoundError: No module named '(?P<module>[^']+)'.*$")),
+    (1, re.compile(r"^\s*E?\s*SyntaxError(?::|\s).*$")),
+    (2, re.compile(r"^\s*E?\s*ImportError while importing test module\b.*$")),
+)
+_WORD_RE_CACHE: dict[str, "re.Pattern[str]"] = {}
+
+
+def _mentioned_as_word(text: str, word: str) -> bool:
+    """True when ``word`` appears as a whole word in ``text`` (nop-guard check)."""
+    try:
+        pattern = _WORD_RE_CACHE[word]
+    except KeyError:
+        pattern = _WORD_RE_CACHE[word] = re.compile(r"\b" + re.escape(word) + r"\b")
+    return pattern.search(text) is not None
+
+
+def detect_grader_collection_failure(
+    stdout_texts: Sequence[str], *, instruction_text: str | None
+) -> str | None:
+    """Error line when grader pytest collection is broken, else null.
+
+    Flags pytest collection failures (``ERROR collecting`` /
+    ``error during collection``) whose cause is an ``ImportError`` /
+    ``ModuleNotFoundError`` / ``SyntaxError`` inside a test module, and
+    returns the most specific matched error line (e.g.
+    ``ModuleNotFoundError: No module named 'stevedore'``).
+
+    Nop false-positive guard: some graders import a module the agent is
+    supposed to create (e.g. ``solution``). When the missing module's
+    top-level name appears as a word in the task's ``instruction.md``, the
+    import failure is expected under nop — not a grader defect — and that
+    match is skipped. A missing instruction (unreadable task dir) never
+    guards: without the task text there is no evidence the import is
+    expected.
+    """
+    combined = "\n".join(stdout_texts)
+    if not any(marker in combined.lower() for marker in _COLLECTION_MARKERS):
+        return None
+    candidates: list[tuple[int, int, str, str | None]] = []
+    for lineno, line in enumerate(combined.splitlines()):
+        for specificity, pattern in _GRADER_ERROR_RES:
+            match = pattern.match(line)
+            if match is None:
+                continue
+            error = re.sub(r"^E\s+", "", line.strip())
+            candidates.append((specificity, lineno, error, match.groupdict().get("module")))
+            break
+    candidates.sort(key=lambda candidate: (candidate[0], candidate[1]))
+    specific = [candidate for candidate in candidates if candidate[0] < 2]
+    if specific:
+        # A root-cause line (missing dependency, syntax error) decides: the
+        # ``ImportError while importing`` header for the same collection
+        # error carries no module name of its own, so when every root cause
+        # is expected under nop the header must not flag on its own.
+        for _, _, error, module in specific:
+            if (
+                module is not None
+                and instruction_text is not None
+                and _mentioned_as_word(instruction_text, module.split(".")[0])
+            ):
+                continue  # expected under nop; keep scanning for real defects
+            return error
+        return None
+    for _, _, error, _module in candidates:
+        return error
+    return None
+
+
+def grader_stdout_texts(trial_dir: Path) -> list[str]:
+    """Verifier stdout for grader-defect scan: top-level plus repeat snapshots.
+
+    Reads ``<trial>/verifier/test-stdout.txt`` and any per-repeat stdout the
+    ``RepeatVerifier`` snapshotted under ``<trial>/verifier/repeat/*/``.
+    Missing files contribute nothing (never a crash).
+    """
+    texts: list[str] = []
+    verifier_dir = trial_dir / "verifier"
+    candidates = [verifier_dir / "test-stdout.txt"]
+    repeat_dir = verifier_dir / "repeat"
+    if repeat_dir.is_dir():
+        candidates.extend(sorted(repeat_dir.rglob("test-stdout.txt")))
+    for path in candidates:
+        try:
+            texts.append(path.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            continue
+    return texts
+
+
+def read_task_instruction(trial_dir: Path) -> str | None:
+    """The staged task's ``instruction.md`` (same task-dir resolution as task.toml)."""
+    lock = _read_json(trial_dir / "lock.json")
+    task = lock.get("task")
+    task_path = task.get("path") if isinstance(task, dict) else None
+    if not isinstance(task_path, str) or not task_path:
+        return None
+    try:
+        return (Path(task_path) / "instruction.md").read_text(encoding="utf-8")
+    except OSError:
+        return None
 
 
 def _timing_complete(timing: Any) -> bool:
@@ -334,6 +466,14 @@ def collect_trial(
         agent_execution_started=agent_execution_started,
         repeat_rewards=list(stability) if stability is not None else None,
     )
+    grader_error: str | None = None
+    if agent_name in CONTROL_AGENTS:
+        grader_error = detect_grader_collection_failure(
+            grader_stdout_texts(trial_dir),
+            instruction_text=read_task_instruction(trial_dir),
+        )
+        if grader_error is not None and "grader_broken" not in reasons:
+            reasons.append("grader_broken")
     started_at = result.get("started_at")
     finished_at = result.get("finished_at")
     trial_seconds = duration_seconds(
@@ -348,6 +488,23 @@ def collect_trial(
     cpus = _int_or_none(env_map.get("cpus"))
     memory_mb = _int_or_none(env_map.get("memory_mb"))
     storage_mb = _int_or_none(env_map.get("storage_mb"))
+    # Harbor Daytona staging overrides the task.toml sizes in the trial's own
+    # config: when present they are what the sandbox actually got (and cost).
+    for source in (config, result_config):
+        if not isinstance(source, dict):
+            continue
+        env = source.get("environment")
+        if not isinstance(env, dict):
+            continue
+        override = _int_or_none(env.get("override_cpus"))
+        if override is not None:
+            cpus = override
+        override = _int_or_none(env.get("override_memory_mb"))
+        if override is not None:
+            memory_mb = override
+        override = _int_or_none(env.get("override_storage_mb"))
+        if override is not None:
+            storage_mb = override
     staging = _job_staging(job_dir)
     manifest = _manifest_entry(job_dir, trial_name)
     task_version_digest = staging.get("source_package_digest") or manifest.get(
@@ -394,6 +551,7 @@ def collect_trial(
         "repeat_rewards": list(stability) if stability is not None else None,
         "infra_error_class": exception_type,
         "infra_error_phase": exception_phase_for(exception_type),
+        "grader_error": grader_error,
         "cpus": cpus,
         "memory_mb": memory_mb,
         "storage_mb": storage_mb,
@@ -490,6 +648,7 @@ def qualification_schema() -> Any:
         ("repeat_rewards", pa.list_(pa.float64())),
         ("infra_error_class", pa.string()),
         ("infra_error_phase", pa.string()),
+        ("grader_error", pa.string()),
         ("cpus", pa.int64()),
         ("memory_mb", pa.int64()),
         ("storage_mb", pa.int64()),
@@ -632,9 +791,12 @@ def export_broken(
     A task version counts as broken on a backend when its *latest*
     qualification trial on that backend has status ``broken``
     (``inconclusive`` backend-quota trials never mark a task broken: the
-    task is unrun at this tier, not guilty). The digest covers
-    ``schema`` + ``backend`` + ``items`` only, so re-exporting the same
-    broken set gives the same digest.
+    task is unrun at this tier, not guilty). Versions carrying an
+    ``error``-severity row in the catalog ``task_findings`` table are
+    listed as well, whatever the backend: a curated hard defect outranks
+    any single trial outcome. The digest covers ``schema`` + ``backend`` +
+    ``items`` only, so re-exporting the same broken set gives the same
+    digest.
     """
     from evallab.storage.paths import derived_root_from_environment
     from evallab.task_catalog import CatalogError, catalog_dir
@@ -653,6 +815,7 @@ def export_broken(
         key = str(row.get("task_version_digest") or row.get("task_id") or row["trial_name"])
         by_version.setdefault(key, []).append(row)
     items: list[dict[str, Any]] = []
+    item_by_digest: dict[str, dict[str, Any]] = {}
     for key in sorted(by_version):
         group = by_version[key]
         latest = max(group, key=_latest_key)
@@ -665,16 +828,41 @@ def export_broken(
                 if row.get("job_name") and row.get("trial_name")
             }
         )
-        items.append(
-            {
-                "task_id": latest.get("task_id"),
-                "task_version_digest": latest.get("task_version_digest"),
-                "harbor_digest": latest.get("harbor_digest"),
-                "domain": latest.get("domain"),
-                "reasons": list(latest.get("reasons") or []),
-                "trials": trials,
+        item = {
+            "task_id": latest.get("task_id"),
+            "task_version_digest": latest.get("task_version_digest"),
+            "harbor_digest": latest.get("harbor_digest"),
+            "domain": latest.get("domain"),
+            "reasons": list(latest.get("reasons") or []),
+            "trials": trials,
+            "source": "qualification",
+        }
+        items.append(item)
+        digest = latest.get("task_version_digest")
+        if isinstance(digest, str) and digest:
+            item_by_digest[digest] = item
+    for finding in _error_findings(catalog_dir(derived)):
+        digest = str(finding["task_version_digest"])
+        reason = f"finding:{finding['rule']}"
+        item = item_by_digest.get(digest)
+        if item is None:
+            item = {
+                "task_id": finding["task_id"],
+                "task_version_digest": digest,
+                "harbor_digest": None,
+                "domain": finding["domain"],
+                "reasons": [],
+                "trials": [],
+                "source": "finding",
             }
-        )
+            items.append(item)
+            item_by_digest[digest] = item
+        reasons = item["reasons"]
+        assert isinstance(reasons, list)
+        if reason not in reasons:
+            reasons.append(reason)
+            reasons.sort()
+        item["source"] = "finding"
     items.sort(key=lambda item: str(item.get("task_version_digest") or item.get("task_id")))
     identity = {"schema": BROKEN_EXPORT_SCHEMA, "backend": backend, "items": items}
     canonical = json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
@@ -693,6 +881,40 @@ def export_broken(
         json.dumps({**payload, "sha256": sha}, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    return BrokenExportResult(path=out, sha256=sha, backend=backend, n_broken=len(items))
+
+
+def _error_findings(catalog: Path) -> list[dict[str, Any]]:
+    """Error-severity catalog findings, sorted by ``(digest, rule)``.
+
+    A missing findings table means no curated defects (never a crash): the
+    export then lists qualification-broken versions only.
+    """
+    from evallab.task_catalog import TASK_FINDINGS_SCHEMA
+
+    path = catalog / "task_findings.parquet"
+    if not path.is_file():
+        return []
+    try:
+        import pyarrow.parquet as pq
+
+        table = pq.read_table(path, schema=TASK_FINDINGS_SCHEMA)
+    except Exception:
+        return []
+    findings = [
+        {
+            "task_version_digest": str(row["task_version_digest"]),
+            "task_id": row["task_id"],
+            "domain": row["domain"],
+            "rule": str(row["rule"]),
+        }
+        for row in table.to_pylist()
+        if row.get("severity") == "error"
+        and isinstance(row.get("task_version_digest"), str)
+        and isinstance(row.get("rule"), str)
+    ]
+    findings.sort(key=lambda row: (str(row["task_version_digest"]), str(row["rule"])))
+    return findings
     return BrokenExportResult(path=out, sha256=sha, backend=backend, n_broken=len(items))
 
 

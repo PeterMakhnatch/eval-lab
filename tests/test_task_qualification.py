@@ -17,6 +17,8 @@ from evallab.task_qualification import (
     TABLE_FILENAME,
     classify_trial,
     collect_jobs,
+    collect_trial,
+    detect_grader_collection_failure,
     estimate_cost_usd,
     export_broken,
     is_backend_quota_failure,
@@ -423,7 +425,7 @@ def test_parquet_round_trip_contract_schema(tmp_path: Path) -> None:
         "started_at", "finished_at", "environment_setup_seconds",
         "agent_setup_seconds", "verifier_seconds", "trial_seconds", "setup_ok",
         "verifier_completed", "reward", "repeat_rewards", "infra_error_class",
-        "infra_error_phase", "cpus", "memory_mb", "storage_mb",
+        "infra_error_phase", "grader_error", "cpus", "memory_mb", "storage_mb",
         "sandbox_seconds", "est_cost_usd", "status", "reasons", "produced_at",
     }
 
@@ -579,3 +581,290 @@ def test_cli_export_broken_prints_sha(tmp_path: Path, capsys) -> None:
     out = capsys.readouterr().out
     assert "1 broken on daytona" in out
     assert "sha256: " in out
+
+# ---------------------------------------------------------------- disk-cap quota
+
+
+def test_backend_quota_matches_disk_capacity_markers() -> None:
+    assert is_backend_quota_failure("DaytonaError", "no space left on device") is True
+    assert is_backend_quota_failure("DaytonaError", "failed: disk quota exceeded") is True
+    assert is_backend_quota_failure("DaytonaError", "insufficient disk space") is True
+    assert is_backend_quota_failure("DaytonaError", "insufficient storage for volume") is True
+    assert is_backend_quota_failure("DaytonaError", "storage limit reached") is True
+    assert is_backend_quota_failure("DaytonaError", "disk size exceeds the allowed limit") is True
+    assert is_backend_quota_failure("DaytonaError", "storage capacity exceeded for tier") is True
+
+
+def test_backend_quota_rejects_bare_disk_storage() -> None:
+    assert is_backend_quota_failure("EnvironmentSetupError", "disk I/O error") is False
+    assert is_backend_quota_failure("EnvironmentSetupError", "storage backend down") is False
+    assert is_backend_quota_failure("EnvironmentSetupError", "low disk warning") is False
+    assert is_backend_quota_failure("EnvironmentSetupError", "retry budget exceeded") is False
+
+
+def test_classify_disk_cap_setup_failure_is_inconclusive() -> None:
+    reasons = classify_trial(
+        agent_name="nop", reward=None, verifier_completed=False,
+        exception_type="DaytonaError",
+        exception_message="create sandbox: no space left on device",
+        agent_execution_started=False, repeat_rewards=None,
+    )
+    assert reasons == ["backend_quota"]
+    assert status_for(reasons) == "inconclusive"
+
+
+# ---------------------------------------------------------------- resource overrides
+
+
+def test_collect_uses_environment_resource_overrides(tmp_path: Path) -> None:
+    staged = _write_staged_task(tmp_path)
+    job = _write_job(
+        tmp_path, "jobo", [{"name": "t__a", "env_type": "daytona", "reward": 0.0}],
+        staged=staged,
+    )
+    trial = job / "t__a"
+    config = json.loads((trial / "config.json").read_text())
+    config["environment"].update({
+        "override_cpus": 4, "override_memory_mb": 8192, "override_storage_mb": 30720,
+    })
+    (trial / "config.json").write_text(json.dumps(config))
+    (row,) = collect_jobs([job])
+    assert (row["cpus"], row["memory_mb"], row["storage_mb"]) == (4, 8192, 30720)
+    expected = (60.0 / 3600.0) * (4 * 0.0504 + 8 * 0.0162 + 25 * 0.000108)
+    assert row["est_cost_usd"] == pytest.approx(expected)
+
+
+# ---------------------------------------------------------------- grader_broken
+
+GRADER_BROKEN_STDOUT = """\
+==================================== ERRORS ====================================
+_______________________ ERROR collecting test_outputs.py _______________________
+ImportError while importing test module '/tests/test_outputs.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/tests/test_outputs.py:10: in <module>
+    from bandit.core.issue import Issue
+vendor/pycqa-bandit/bandit/core/extension_loader.py:6: in <module>
+    from stevedore import extension
+E   ModuleNotFoundError: No module named 'stevedore'
+=========================== short test summary info ============================
+ERROR ../tests/test_outputs.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.11s
+"""
+
+HEALTHY_STDOUT = """\
+FAILED ../tests/test_outputs.py::test_core_case - assert 0 == 1
+FAILED ../tests/test_outputs.py::test_edge_case - assert 0 == 2
+========================= 5 failed in 0.05s ==========================
+"""
+
+
+def test_detect_grader_flags_collection_import_failure() -> None:
+    assert detect_grader_collection_failure(
+        [GRADER_BROKEN_STDOUT], instruction_text="Repair the scan pipeline.\n"
+    ) == "ModuleNotFoundError: No module named 'stevedore'"
+
+
+def test_detect_grader_ignores_healthy_stdout() -> None:
+    assert detect_grader_collection_failure(
+        [HEALTHY_STDOUT], instruction_text="Repair the scan pipeline.\n"
+    ) is None
+
+
+def test_detect_grader_requires_collection_marker() -> None:
+    runtime = "FAILED test_x.py::test_y - E ModuleNotFoundError: No module named 'pandas'\n"
+    assert detect_grader_collection_failure(
+        [runtime], instruction_text="Analyze the data.\n"
+    ) is None
+
+
+def test_detect_grader_flags_syntax_error() -> None:
+    stdout = (
+        "ERROR collecting tests/test_bad.py\n"
+        "E   SyntaxError: invalid syntax (test_bad.py, line 3)\n"
+        "!!!! Interrupted: 1 error during collection !!!!\n"
+    )
+    assert detect_grader_collection_failure(
+        [stdout], instruction_text="Fix it.\n"
+    ) == "SyntaxError: invalid syntax (test_bad.py, line 3)"
+
+
+def test_detect_grader_nop_guard_for_expected_module() -> None:
+    stdout = (
+        "ERROR collecting tests/test_out.py\n"
+        "ImportError while importing test module 'tests/test_out.py'.\n"
+        "E   ModuleNotFoundError: No module named 'solution'\n"
+        "Interrupted: 1 error during collection\n"
+    )
+    guarded = "Create /app/solution.py implementing the pipeline.\n"
+    assert detect_grader_collection_failure(
+        [stdout], instruction_text=guarded
+    ) is None
+    assert detect_grader_collection_failure(
+        [stdout], instruction_text="Repair the vendored scanner.\n"
+    ) == "ModuleNotFoundError: No module named 'solution'"
+    # A missing instruction never guards: the defect still flags.
+    assert detect_grader_collection_failure(
+        [stdout], instruction_text=None
+    ) == "ModuleNotFoundError: No module named 'solution'"
+
+
+def test_detect_grader_guards_dotted_module_by_top_level() -> None:
+    stdout = (
+        "ERROR collecting tests/test_out.py\n"
+        "E   ModuleNotFoundError: No module named 'pkg.submodule'\n"
+        "Interrupted: 1 error during collection\n"
+    )
+    assert detect_grader_collection_failure(
+        [stdout], instruction_text="Implement pkg from scratch.\n"
+    ) is None
+
+
+def test_collect_trial_flags_grader_broken_for_controls(tmp_path: Path) -> None:
+    staged = _write_staged_task(tmp_path)
+    job = _write_job(tmp_path, "jobg", [
+        {"name": "t__nop", "agent": "nop", "reward": 0.0},
+        {"name": "t__model", "agent": "agentx", "reward": 0.0},
+    ], staged=staged)
+    for name in ("t__nop", "t__model"):
+        (job / name / "verifier" / "test-stdout.txt").write_text(GRADER_BROKEN_STDOUT)
+    rows = {row["trial_name"]: row for row in collect_jobs([job])}
+    nop = rows["t__nop"]
+    assert nop["reasons"] == ["grader_broken"]
+    assert nop["status"] == "broken"
+    assert nop["grader_error"] == "ModuleNotFoundError: No module named 'stevedore'"
+    model = rows["t__model"]
+    assert model["reasons"] == []
+    assert model["status"] == "ok"
+    assert model["grader_error"] is None
+
+
+def test_collect_trial_grader_guard_from_staged_instruction(tmp_path: Path) -> None:
+    staged = _write_staged_task(tmp_path)
+    (staged / "instruction.md").write_text("Create /app/solution.py now.\n")
+    job = _write_job(tmp_path, "jobh", [
+        {"name": "t__nop", "agent": "nop", "reward": 0.0},
+    ], staged=staged)
+    stdout = (
+        "ERROR collecting tests/test_out.py\n"
+        "E   ModuleNotFoundError: No module named 'solution'\n"
+        "Interrupted: 1 error during collection\n"
+    )
+    (job / "t__nop" / "verifier" / "test-stdout.txt").write_text(stdout)
+    (row,) = collect_jobs([job])
+    assert row["reasons"] == []
+    assert row["status"] == "ok"
+    assert row["grader_error"] is None
+
+
+def test_collect_trial_reads_repeat_stdout(tmp_path: Path) -> None:
+    staged = _write_staged_task(tmp_path)
+    job = _write_job(tmp_path, "jobr2", [
+        {"name": "t__nop", "agent": "nop", "reward": 0.0},
+    ], staged=staged)
+    top = job / "t__nop" / "verifier" / "test-stdout.txt"
+    top.unlink(missing_ok=True)
+    repeat_stdout = job / "t__nop" / "verifier" / "repeat" / "0" / "test-stdout.txt"
+    repeat_stdout.parent.mkdir(parents=True)
+    repeat_stdout.write_text(GRADER_BROKEN_STDOUT)
+    (row,) = collect_jobs([job])
+    assert row["reasons"] == ["grader_broken"]
+    assert row["grader_error"] == "ModuleNotFoundError: No module named 'stevedore'"
+
+
+# ---------------------------------------------------------------- export-broken findings
+
+
+def _write_findings_table(derived: Path, rows: list[dict]) -> None:
+    import pyarrow as pa
+
+    from evallab.task_catalog import TASK_FINDINGS_SCHEMA
+
+    catalog = derived / "external/task_catalog"
+    catalog.mkdir(parents=True, exist_ok=True)
+    pq.write_table(
+        pa.Table.from_pylist(rows, schema=TASK_FINDINGS_SCHEMA),
+        catalog / "task_findings.parquet",
+    )
+
+
+def test_export_broken_lists_error_findings_on_any_backend(tmp_path: Path) -> None:
+    derived = tmp_path / "derived"
+    staged = _write_staged_task(tmp_path)
+    job = _write_job(tmp_path, "jobf", [{"name": "t__ok", "reward": 0.0}], staged=staged)
+    rows = collect_jobs([job])
+    for row in rows:
+        row["backend"] = "docker"
+    _write_catalog_table(derived, rows)
+    _write_findings_table(derived, [{
+        "task_version_digest": "sha256:" + "a" * 64,
+        "task_id": "qual-task", "domain": "terminal",
+        "rule": "grader-broken", "severity": "error",
+        "message": "collection imports stevedore",
+    }])
+    for backend in ("docker", "daytona"):
+        result = export_broken(
+            tmp_path / f"broken-{backend}.json", backend=backend,
+            repo_root=tmp_path, derived_root=derived,
+        )
+        assert result.n_broken == 1
+        payload = json.loads(result.path.read_text())
+        (item,) = payload["items"]
+        assert item["reasons"] == ["finding:grader-broken"]
+        assert item["source"] == "finding"
+        assert item["trials"] == []
+    again = export_broken(
+        tmp_path / "broken-docker-again.json", backend="docker",
+        repo_root=tmp_path, derived_root=derived,
+    )
+    first = export_broken(
+        tmp_path / "broken-docker-first.json", backend="docker",
+        repo_root=tmp_path, derived_root=derived,
+    )
+    assert again.sha256 == first.sha256
+
+
+def test_export_broken_merges_finding_into_qualification_item(tmp_path: Path) -> None:
+    derived = tmp_path / "derived"
+    staged = _write_staged_task(tmp_path)
+    job = _write_job(tmp_path, "jobm", [{"name": "t__bad", "reward": 1.0}], staged=staged)
+    rows = collect_jobs([job])
+    for row in rows:
+        row["backend"] = "daytona"
+    _write_catalog_table(derived, rows)
+    _write_findings_table(derived, [{
+        "task_version_digest": "sha256:" + "a" * 64,
+        "task_id": "qual-task", "domain": "terminal",
+        "rule": "grader-broken", "severity": "error",
+        "message": "collection imports stevedore",
+    }])
+    result = export_broken(
+        tmp_path / "broken.json", backend="daytona",
+        repo_root=tmp_path, derived_root=derived,
+    )
+    assert result.n_broken == 1
+    (item,) = json.loads(result.path.read_text())["items"]
+    assert item["reasons"] == ["finding:grader-broken", "nop_passes"]
+    assert item["source"] == "finding"
+
+
+def test_export_broken_ignores_warning_findings(tmp_path: Path) -> None:
+    derived = tmp_path / "derived"
+    staged = _write_staged_task(tmp_path)
+    job = _write_job(tmp_path, "jobw", [{"name": "t__ok", "reward": 0.0}], staged=staged)
+    rows = collect_jobs([job])
+    for row in rows:
+        row["backend"] = "docker"
+    _write_catalog_table(derived, rows)
+    _write_findings_table(derived, [{
+        "task_version_digest": "sha256:" + "a" * 64,
+        "task_id": "qual-task", "domain": "terminal",
+        "rule": "mimo-no-oracle", "severity": "warning",
+        "message": "no oracle recorded",
+    }])
+    result = export_broken(
+        tmp_path / "broken.json", backend="docker",
+        repo_root=tmp_path, derived_root=derived,
+    )
+    assert result.n_broken == 0

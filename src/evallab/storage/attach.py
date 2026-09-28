@@ -478,6 +478,7 @@ def _attach_task_catalog(conn: duckdb.DuckDBPyConnection, derived: Path) -> None
             has_stability=STABILITY_TABLE in present,
             has_exploits=EXPLOITS_TABLE in present,
             has_qualification=QUALIFICATION_TABLE in present,
+            has_findings="task_findings" in present,
         )
         conn.execute("CREATE OR REPLACE VIEW v_task_audit AS " + audit)
         conn.execute("CREATE OR REPLACE VIEW z3.v_task_audit AS " + audit)
@@ -577,6 +578,7 @@ def build_sql_preamble(dsn: str, derived: Path, root: Path) -> str:
             has_stability=STABILITY_TABLE in present,
             has_exploits=EXPLOITS_TABLE in present,
             has_qualification=QUALIFICATION_TABLE_PREAMBLE in present,
+            has_findings="task_findings" in present,
         )
         lines.append("CREATE OR REPLACE VIEW v_task_audit AS " + audit + ";")
         lines.append("CREATE OR REPLACE VIEW z3.v_task_audit AS " + audit + ";")

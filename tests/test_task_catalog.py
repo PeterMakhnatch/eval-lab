@@ -488,15 +488,16 @@ def test_audit_view_eligibility_and_missing_tables() -> None:
                  "('sha256:p1', 'none', 'runs/x1')"
                  ") AS t(task_version_digest, exploit_status, evidence_path)")
     rows = conn.execute(task_audit_sql(
-        outcomes="o", versions="v", stability="s", exploits="e")).fetchall()
+        outcomes="o", versions="v", stability="s", exploits="e",
+        has_findings=False)).fetchall()
     by_id = {row[2]: row for row in rows}
     assert by_id["t1"][-2] is True
     assert by_id["t1"][-1] is None
     assert by_id["t2"][-2] is False
     assert "not learnable" in str(by_id["t2"][-1])
-
     rows = conn.execute(task_audit_sql(
-        outcomes="o", versions="v", has_stability=False, has_exploits=False)).fetchall()
+        outcomes="o", versions="v", has_stability=False, has_exploits=False,
+        has_findings=False)).fetchall()
     by_id = {row[2]: row for row in rows}
     assert by_id["t1"][-2] is False
     assert by_id["t1"][-1] == "no stability evidence"
@@ -528,7 +529,7 @@ def test_audit_view_broken_backend_ineligible_without_fanout() -> None:
                  " job_name, trial_name)")
     rows = conn.execute(task_audit_sql(
         outcomes="o", versions="v", stability="s", exploits="e",
-        qualification="q", has_qualification=True)).fetchall()
+        qualification="q", has_qualification=True, has_findings=False)).fetchall()
     assert len(rows) == 2  # one audit row per backend, never fanned out
     columns = [desc[0] for desc in conn.description]
     by_backend = {row[columns.index("backend")]: dict(zip(columns, row, strict=True)) for row in rows}
@@ -720,3 +721,136 @@ def test_build_indexes_variant_versions_and_lineage(tmp_path: Path) -> None:
     assert len(links) == 1
     assert links[0]["child_digest"] == "sha256:" + "1" * 64
     assert links[0]["transform"] == "handfix@v1"
+
+# ---------------------------------------------------------------- curated findings
+
+
+def _valid_finding_record() -> dict:
+    return {
+        "schema": "evallab.task_finding/v1",
+        "task_version_digest": "sha256:" + "9" * 64,
+        "task_id": "alpha-task",
+        "domain": "fake",
+        "rule": "grader-broken",
+        "severity": "error",
+        "message": "collection imports a missing dependency",
+        "evidence": [{
+            "path": "runs/job/trial/verifier/test-stdout.txt",
+            "sha256": "sha256:" + "8" * 64,
+        }],
+        "recorded_at": "2026-09-28T00:00:00Z",
+        "recorded_by": "test",
+    }
+
+
+def test_finding_loader_uses_strict_schema_and_skips_invalid(tmp_path: Path) -> None:
+    from evallab.task_catalog import load_finding_dicts
+
+    tree = tmp_path / "library" / "task-findings" / "fake"
+    tree.mkdir(parents=True)
+    (tree / "good.json").write_text(json.dumps(_valid_finding_record()))
+    (tree / "bad.json").write_text("{not json")
+    (tree / "wrong-schema.json").write_text(json.dumps({"schema": "other/v9"}))
+    bad_severity = _valid_finding_record()
+    bad_severity["severity"] = "fatal"
+    (tree / "bad-severity.json").write_text(json.dumps(bad_severity))
+    records, skipped = load_finding_dicts(tmp_path)
+    assert len(records) == 1 and skipped == 3
+    payload, relpath = records[0]
+    assert payload["rule"] == "grader-broken" and payload["severity"] == "error"
+    assert relpath == "library/task-findings/fake/good.json"
+
+
+def test_build_appends_curated_findings(tmp_path: Path) -> None:
+    derived = _pulled_snapshot(tmp_path)
+    build_catalog(repo_root=tmp_path, derived_root=derived)
+    versions = pq.read_table(derived / "external/task_catalog/task_versions.parquet")
+    alpha = next(
+        row for row in versions.to_pylist() if row["task_id"] == "alpha-task"
+    )
+    tree = tmp_path / "library" / "task-findings" / "fake"
+    tree.mkdir(parents=True)
+    record = _valid_finding_record()
+    record["task_version_digest"] = alpha["task_version_digest"]
+    (tree / "alpha.json").write_text(json.dumps(record))
+    report = build_catalog(repo_root=tmp_path, derived_root=derived)
+    assert report.n_curated_findings == 1 and report.skipped_finding_records == 0
+    findings = pq.read_table(derived / "external/task_catalog/task_findings.parquet")
+    curated = [
+        row for row in findings.to_pylist() if row["rule"] == "grader-broken"
+    ]
+    assert len(curated) == 1
+    assert curated[0]["task_version_digest"] == alpha["task_version_digest"]
+    assert curated[0]["severity"] == "error"
+    assert report.findings_by_rule_domain["grader-broken"]["fake"] == 1
+
+
+def test_audit_error_finding_ineligible_with_precedence() -> None:
+    conn = duckdb.connect(":memory:")
+    conn.execute("CREATE TABLE v AS SELECT * FROM (VALUES "
+                 "('sha256:p1', 'sha256:h1', 't1', 'n1', 'terminal', 'terminal:t1', 'script', 'free'),"
+                 "('sha256:p2', 'sha256:h2', 't2', 'n2', 'terminal', 'terminal:t2', 'script', 'free')"
+                 ") AS t(task_version_digest, harbor_digest, task_id, task_name,"
+                 " domain, split_group, grader_kind, grader_cost)")
+    conn.execute("CREATE TABLE o AS SELECT * FROM (VALUES "
+                 "('sha256:p1', 'docker', 'a', 'm', 2, 2, 0, 0.5, 0.1, 0.9, 'learnable'),"
+                 "('sha256:p2', 'docker', 'a', 'm', 2, 2, 0, 0.5, 0.1, 0.9, 'learnable')"
+                 ") AS t(task_version_digest, backend, agent_name, model_name, n_attempts,"
+                 " n_scored, n_infra, pass_rate, pass_rate_lo, pass_rate_hi, verdict)")
+    conn.execute("CREATE TABLE s AS SELECT * FROM (VALUES "
+                 "('sha256:p1', 'stable', 3, 'runs/e1'),"
+                 "('sha256:p2', 'stable', 3, 'runs/e2')"
+                 ") AS t(task_version_digest, verdict, n_runs, evidence_path)")
+    conn.execute("CREATE TABLE e AS SELECT * FROM (VALUES "
+                 "('sha256:p1', 'confirmed', 'runs/x1'),"
+                 "('sha256:p2', 'none', 'runs/x2')"
+                 ") AS t(task_version_digest, exploit_status, evidence_path)")
+    conn.execute("CREATE TABLE f AS SELECT * FROM (VALUES "
+                 "('sha256:p1', 'grader-broken', 'error', 'collection broken'),"
+                 "('sha256:p2', 'mimo-no-oracle', 'warning', 'no oracle')"
+                 ") AS t(task_version_digest, rule, severity, message)")
+    rows = conn.execute(task_audit_sql(
+        outcomes="o", versions="v", stability="s", exploits="e",
+        findings="f")).fetchall()
+    columns = [desc[0] for desc in conn.description]
+    by_id = {row[2]: dict(zip(columns, row, strict=True)) for row in rows}
+    # The hard defect wins over the confirmed exploit: finding reason first.
+    assert by_id["t1"]["train_eligible"] is False
+    assert by_id["t1"]["train_ineligible_reason"] == "finding: grader-broken"
+    # Warnings change nothing: still eligible.
+    assert by_id["t2"]["train_eligible"] is True
+    assert by_id["t2"]["train_ineligible_reason"] is None
+    conn.close()
+
+
+def test_audit_finding_beats_qualification_broken_reason() -> None:
+    conn = duckdb.connect(":memory:")
+    conn.execute("CREATE TABLE v AS SELECT * FROM (VALUES "
+                 "('sha256:p1', 'sha256:h1', 't1', 'n1', 'terminal', 'terminal:t1', 'script', 'free')"
+                 ") AS t(task_version_digest, harbor_digest, task_id, task_name,"
+                 " domain, split_group, grader_kind, grader_cost)")
+    conn.execute("CREATE TABLE o AS SELECT * FROM (VALUES "
+                 "('sha256:p1', 'daytona', 'a', 'm', 2, 2, 0, 0.5, 0.1, 0.9, 'learnable')"
+                 ") AS t(task_version_digest, backend, agent_name, model_name, n_attempts,"
+                 " n_scored, n_infra, pass_rate, pass_rate_lo, pass_rate_hi, verdict)")
+    conn.execute("CREATE TABLE s AS SELECT * FROM (VALUES "
+                 "('sha256:p1', 'stable', 3, 'runs/e1')"
+                 ") AS t(task_version_digest, verdict, n_runs, evidence_path)")
+    conn.execute("CREATE TABLE e AS SELECT * FROM (VALUES "
+                 "('sha256:p1', 'none', 'runs/x1')"
+                 ") AS t(task_version_digest, exploit_status, evidence_path)")
+    conn.execute("CREATE TABLE q AS SELECT * FROM (VALUES "
+                 "('sha256:p1', 'daytona', 'broken', '2026-09-28T00:00:00Z', 'j1', 't1')"
+                 ") AS t(task_version_digest, backend, status, finished_at,"
+                 " job_name, trial_name)")
+    conn.execute("CREATE TABLE f AS SELECT * FROM (VALUES "
+                 "('sha256:p1', 'grader-broken', 'error', 'collection broken')"
+                 ") AS t(task_version_digest, rule, severity, message)")
+    rows = conn.execute(task_audit_sql(
+        outcomes="o", versions="v", stability="s", exploits="e",
+        qualification="q", has_qualification=True, findings="f")).fetchall()
+    columns = [desc[0] for desc in conn.description]
+    record = dict(zip(columns, rows[0], strict=True))
+    assert record["train_eligible"] is False
+    assert record["train_ineligible_reason"] == "finding: grader-broken"
+    conn.close()

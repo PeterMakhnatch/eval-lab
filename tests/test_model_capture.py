@@ -25,7 +25,9 @@ from evallab.model_capture import (
     TrialEvidence,
     attribute_calls,
     classify_kind,
+    extract_from_payload,
     extract_from_sse,
+    extract_ollama_ndjson,
     find_trial_capture,
     first_user_text,
     join_upstream_path,
@@ -325,6 +327,8 @@ def test_header_selection_and_key_redaction() -> None:
     assert classify_kind("/v1/responses") == "responses"
     assert classify_kind("/v1/messages") == "anthropic_messages"
     assert classify_kind("/v1/models") == "unknown"
+    assert classify_kind("/api/paas/v4/chat/completions") == "chat"
+    assert classify_kind("/api/chat") == "ollama_chat"
 
 
 def test_join_upstream_path_avoids_doubling() -> None:
@@ -755,3 +759,112 @@ def test_run_report_capture_section(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     rendered = render_run_report_markdown(report)
     assert "## Independent capture" in rendered
     assert "capture missing" in rendered
+
+
+def test_ollama_native_request_and_response() -> None:
+    body = {"model": "qwen2.5:7b", "messages": [{"role": "user", "content": "do the thing"}]}
+    assert request_message_pairs("ollama_chat", body) == [("user", "do the thing")]
+    assert first_user_text("ollama_chat", body) == "do the thing"
+    payload = {
+        "model": "qwen2.5:7b",
+        "message": {
+            "role": "assistant",
+            "content": "all done",
+            "tool_calls": [{"function": {"name": "bash", "arguments": {"cmd": "ls"}}}],
+        },
+        "prompt_eval_count": 9,
+        "eval_count": 3,
+    }
+    turns = extract_from_payload("ollama_chat", payload)
+    assert turns.assistant_texts == ["all done"]
+    assert turns.tool_calls == [{"id": None, "name": "bash", "arguments": '{"cmd": "ls"}'}]
+    assert turns.usage == {"prompt_tokens": 9, "completion_tokens": 3}
+    assert turns.model == "qwen2.5:7b"
+
+
+def test_ollama_ndjson_stream_reassembly() -> None:
+    raw = b"\n".join(
+        [
+            json.dumps({"model": "qwen2.5:7b", "message": {"role": "assistant", "content": "hel"}}).encode(),
+            json.dumps({"message": {"role": "assistant", "content": "lo"}}).encode(),
+            json.dumps({"done": True, "prompt_eval_count": 9, "eval_count": 3}).encode(),
+        ]
+    )
+    turns = extract_ollama_ndjson(raw)
+    assert turns.assistant_texts == ["hello"]
+    assert turns.usage == {"prompt_tokens": 9, "completion_tokens": 3}
+    assert turns.model == "qwen2.5:7b"
+
+
+def test_zai_secret_proxy_chain_records_chat_and_scrubs_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import importlib.util
+    import sys
+
+    _StubUpstream.received = []
+    stub = ThreadingHTTPServer(("127.0.0.1", 0), _StubUpstream)
+    threading.Thread(target=stub.serve_forever, daemon=True).start()
+    capture, recorder, _manifest = serve_capture(
+        upstream=f"http://127.0.0.1:{stub.server_address[1]}",
+        out_dir=tmp_path / "cap",
+        bind="127.0.0.1",
+        port=0,
+    )
+    capture_thread = threading.Thread(target=capture.serve_forever, daemon=True)
+    capture_thread.start()
+    provider_key = "zai-provider-key-sentinel-987654321"
+    secret_file = tmp_path / "zai-key"
+    secret_file.write_text(provider_key + "\n")
+    secret_file.chmod(0o600)
+    capability = "chain-capability-token"
+    monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_SECRET_PATH", str(secret_file))
+    monkeypatch.setenv(
+        "EVALLAB_ZAI_OPENAPI_UPSTREAM", f"http://127.0.0.1:{capture.server_address[1]}"
+    )
+    monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_PROXY_CAPABILITY", capability)
+    monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_ATTEMPT_ID", "trial-01")
+    monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_USAGE_FILE", str(tmp_path / "usage.json"))
+    monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_MAX_REQUESTS", "5")
+    monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_MAX_INPUT_TOKENS", "10000")
+    monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_MAX_OUTPUT_TOKENS", "10000")
+    monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_MAX_TOTAL_TOKENS", "20000")
+    monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_MAX_COST_MICROS", "1000000")
+    source = Path(__file__).resolve().parents[1] / "containers" / "zai_openapi_secret_proxy.py"
+    spec = importlib.util.spec_from_file_location("chain_zai_openapi_proxy", source)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, spec.name, module)
+    spec.loader.exec_module(module)
+    proxy = module.serve(host="127.0.0.1", port=0)
+    proxy_thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+    proxy_thread.start()
+    try:
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{proxy.server_address[1]}/api/paas/v4/chat/completions",
+            data=json.dumps(
+                {"model": "zai/glm-5.3-flash", "messages": [{"role": "user", "content": "hi"}]}
+            ).encode(),
+            headers={"Content-Type": "application/json", "X-Evallab-Proxy-Capability": capability},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=30) as response:
+            assert response.status == 200
+            assert json.loads(response.read())["choices"][0]["message"]["content"] == "done"
+    finally:
+        proxy.shutdown()
+        capture.shutdown()
+        stub.shutdown()
+        recorder.close()
+    assert _StubUpstream.received
+    assert _StubUpstream.received[0]["auth"] == f"Bearer {provider_key}"
+    records = [
+        json.loads(line)
+        for line in (tmp_path / "cap" / "calls.jsonl").read_text().splitlines()
+    ]
+    assert len(records) == 1
+    record = records[0]
+    assert record["request_body"]["model"] == "glm-5.3-flash"
+    assert record["assistant_texts"] == ["done"]
+    assert "authorization" not in {k.lower() for k in record["request_headers"]}
+    assert provider_key not in json.dumps(record)

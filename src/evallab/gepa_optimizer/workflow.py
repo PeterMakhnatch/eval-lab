@@ -38,6 +38,8 @@ from .proposer import (
 )
 from .release import verify_release
 
+_CAMPAIGN_CEILING_AGENTS = frozenset({DEEPSEEK_TARGET_AGENT, "zai-opencode"})
+
 
 class CampaignStopped(BaseException):
     """Stop before the next optimizer request without cancelling an in-flight trial."""
@@ -403,9 +405,9 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
             ProviderCeilings(**ceilings_raw)
         except (TypeError, ValueError) as exc:
             raise ValueError(f"Invalid provider_ceilings: {exc}") from exc
-    if raw["agent"] in {DEEPSEEK_TARGET_AGENT, "zai-opencode"} and ceilings_raw is None:
+    if raw["agent"] in _CAMPAIGN_CEILING_AGENTS and ceilings_raw is None:
         raise ValueError(f"Target '{raw['agent']}' requires explicit provider_ceilings")
-    if ceilings_raw is not None and raw["agent"] not in {DEEPSEEK_TARGET_AGENT, "zai-opencode"}:
+    if ceilings_raw is not None and raw["agent"] not in _CAMPAIGN_CEILING_AGENTS:
         raise ValueError(f"Target '{raw['agent']}' does not support provider_ceilings")
     if raw.get("model") is not None:
         if raw["agent"] == DEEPSEEK_TARGET_AGENT and raw["model"] not in {
@@ -495,7 +497,11 @@ def _apply_retained_target(raw: dict[str, Any], repo_root: Path) -> None:
     if any(value is not None for value in ceilings.values()):
         if any(value is None for value in ceilings.values()):
             raise ValueError("retained spec has incomplete provider_ceilings")
-        raw["provider_ceilings"] = ceilings
+        if retained.agent in _CAMPAIGN_CEILING_AGENTS:
+            raw["provider_ceilings"] = ceilings
+        # Other agents (e.g. terminus-2) carry their ceilings in the retained
+        # spec itself, where candidate replay preserves them exactly; copying
+        # them to the campaign level would trip the provider_ceilings gate.
     raw["target"] = {"base_spec_path": base_spec_path}
     validate_drift(
         retained, task_directory_digest(_path(repo_root, retained.task_path or retained.task))

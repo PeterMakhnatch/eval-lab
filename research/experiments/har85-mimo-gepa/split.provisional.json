@@ -1,0 +1,466 @@
+{
+  "contract": "har85.provisional_split/v1",
+  "domain": "terminal",
+  "heldout_count": 16,
+  "heldout_task_ids": [
+    "candidate-0628-media-music",
+    "candidate-0803-ml-training",
+    "candidate-1005-software-systems",
+    "candidate-1257-software-systems",
+    "candidate-1442-software-languages",
+    "candidate-1559-ml-evaluation",
+    "candidate-1702-ml-inference",
+    "candidate-1866-ml-inference",
+    "candidate-1890-ml-training",
+    "candidate-1939-software-systems",
+    "candidate-1990-security-cryptography",
+    "candidate-2207-security-appsec",
+    "candidate-2376-security-cryptography",
+    "candidate-2487-security-cryptography",
+    "candidate-2790-ml-evaluation",
+    "candidate-2838-ml-evaluation"
+  ],
+  "manifest_digest": "sha256:fb645fed8acf01a1df3eddcf3d235c0d72b8afba353993170923e43560052dab",
+  "salt": "har85-provisional-20260928",
+  "source_dataset": "FineEnvs/MiMo-V2.6-RL-harbor-terminal",
+  "source_revision": "fe1c2b665aae1ba7a09a270d979724d32269ae6a",
+  "split_group_rule": "terminal split_group == task_id (HAR-82 catalog draft)",
+  "status": "PROVISIONAL \u2014 stand-in until HAR-81 seals its split (same rule as HAR-81 draft evallab.sft_split: per-domain rank sha256(salt+'\\0'+task_id), first heldout_count held out)",
+  "task_count": 64,
+  "tasks": [
+    {
+      "assignment": "train",
+      "split_group": "candidate-0036-software-data-engineering",
+      "task_id": "candidate-0036-software-data-engineering",
+      "task_package_digest": "sha256:1cd36c1c322547754d4034c1f08a75581e3c7bebfa51f1fd58bebd75a4920572"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-0109-science-robotics",
+      "task_id": "candidate-0109-science-robotics",
+      "task_package_digest": "sha256:617b646f5cb5bb72d6b0f1d40de48ac2f4c4b6388fb289e6713aed7ee2d39120"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-0260-security-appsec",
+      "task_id": "candidate-0260-security-appsec",
+      "task_package_digest": "sha256:95d2df6678d8c999a4ded14f161eb65fadabd9bc15978471868b05908fbcf1c7"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-0308-security-forensics",
+      "task_id": "candidate-0308-security-forensics",
+      "task_package_digest": "sha256:9964d29af3de7bdb0ace65e697bbe36afd16f145a76ffbf62c018bbb5f757733"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-0390-security-appsec",
+      "task_id": "candidate-0390-security-appsec",
+      "task_package_digest": "sha256:ffec7cd6a3d6348dc8b44249424f2848aaa54f75b5f370e330a5e7bdfc0ec5c2"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-0461-ml-evaluation",
+      "task_id": "candidate-0461-ml-evaluation",
+      "task_package_digest": "sha256:cd8f01d6c1c2b7c282175cffb9a7ffa71efca249c072d60838ccb82ca14f6a37"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-0534-ml-training",
+      "task_id": "candidate-0534-ml-training",
+      "task_package_digest": "sha256:49c27070e6e2f4be4d5ba29a3892347473c280d691470a844fdafce741eb5e04"
+    },
+    {
+      "assignment": "heldout",
+      "split_group": "candidate-0628-media-music",
+      "task_id": "candidate-0628-media-music",
+      "task_package_digest": "sha256:885163b60de3207ea0778990bb29c19214d18d0036158416672e45194db68b12"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-0674-ml-evaluation",
+      "task_id": "candidate-0674-ml-evaluation",
+      "task_package_digest": "sha256:90be868f403beffbd2da6923cfcec8cd7df50995e98a3265b4421b3072eec1f7"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-0688-hardware-rtl",
+      "task_id": "candidate-0688-hardware-rtl",
+      "task_package_digest": "sha256:c5f09ddde6e234ee76fb3602de77a89d5e01f7f535149435be2a51c907a08fd0"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-0758-ml-inference",
+      "task_id": "candidate-0758-ml-inference",
+      "task_package_digest": "sha256:efd5c6fd03b912e7bf11cfd16b85f97715abde26bdd09eadfd1191dd7a2fa66a"
+    },
+    {
+      "assignment": "heldout",
+      "split_group": "candidate-0803-ml-training",
+      "task_id": "candidate-0803-ml-training",
+      "task_package_digest": "sha256:3ddd31801e34ba89f2957e9f6f0ab5e823b59833b8e39263531ee873f1d7fc2a"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-0847-software-languages",
+      "task_id": "candidate-0847-software-languages",
+      "task_package_digest": "sha256:fda581033863b7cc1250b44c0da8939402ec20c92dc37bb1d462b33c17362f2f"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-0867-software-frontend",
+      "task_id": "candidate-0867-software-frontend",
+      "task_package_digest": "sha256:887aa94c5426ffc6fcf91ad0c92f27ca90629753a8a98eae2bb248314b106b2d"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-0938-science-chemistry",
+      "task_id": "candidate-0938-science-chemistry",
+      "task_package_digest": "sha256:8a9a9be062b3e064ae9974896cfd6873a9f6fabe90bb093c92a15e44b38ac915"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-0993-software-systems",
+      "task_id": "candidate-0993-software-systems",
+      "task_package_digest": "sha256:c917bfffde9f12255434c6de95ad958b52d2f50c5a00570ff73f2518bdf44157"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-1001-security-forensics",
+      "task_id": "candidate-1001-security-forensics",
+      "task_package_digest": "sha256:00f5b2f6ede7dcc3c681b4f6b0a2a5a85d1f55a7449d0996c83bc18f0a7dc673"
+    },
+    {
+      "assignment": "heldout",
+      "split_group": "candidate-1005-software-systems",
+      "task_id": "candidate-1005-software-systems",
+      "task_package_digest": "sha256:4ba32ceed232d921ee6e241b047624263f7db51d5834ab4c8f9ef2a4e79985ce"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-1048-operations-virtualization",
+      "task_id": "candidate-1048-operations-virtualization",
+      "task_package_digest": "sha256:b3ad88df0cc8ee664d99edcc6d4e73bd7f5fdcc2b547c1d3ab14c1138b5106c4"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-1155-software-systems",
+      "task_id": "candidate-1155-software-systems",
+      "task_package_digest": "sha256:1dae2d08f70df3deab42b9bfa92e4b1a04631b8da0460c2f65d34596e41ce4c3"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-1165-ml-evaluation",
+      "task_id": "candidate-1165-ml-evaluation",
+      "task_package_digest": "sha256:732aa8f5ff9ea2ed838bb2216205dfa89374ee23e43c81ac1b9ff3e541fe5ac2"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-1216-software-frontend",
+      "task_id": "candidate-1216-software-frontend",
+      "task_package_digest": "sha256:99948a187cb60bba9ea3643f7b6e687e4f2a4c793c5088c3b474531b75d21a24"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-1247-security-reverse-engineering",
+      "task_id": "candidate-1247-security-reverse-engineering",
+      "task_package_digest": "sha256:d1afdc82bca26f590f27a5ce1997d0ba711a3f72b786fa8374adf470b79e0d5c"
+    },
+    {
+      "assignment": "heldout",
+      "split_group": "candidate-1257-software-systems",
+      "task_id": "candidate-1257-software-systems",
+      "task_package_digest": "sha256:fb610ccaa1d56d56084c591cb99cd8b7826f7b9f4e94e433b0a7b6d9122758e1"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-1271-media-games",
+      "task_id": "candidate-1271-media-games",
+      "task_package_digest": "sha256:e850dc33146d627344a2c5bfaf245332cb58649ef45198152f5e05376bc44d54"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-1305-software-data-engineering",
+      "task_id": "candidate-1305-software-data-engineering",
+      "task_package_digest": "sha256:5d3d8262534a7e930d591c57bc0cdde828b41b5d2aed07afcd171fb5602db2db"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-1399-security-reverse-engineering",
+      "task_id": "candidate-1399-security-reverse-engineering",
+      "task_package_digest": "sha256:5676317892a845e0f15bd63cfa92c17a408534a9755072afab3dfb0ed80c6262"
+    },
+    {
+      "assignment": "heldout",
+      "split_group": "candidate-1442-software-languages",
+      "task_id": "candidate-1442-software-languages",
+      "task_package_digest": "sha256:59cf15c2e0c8c0b089d8f7aa1423b06acc4bb21760432cb0a8e0e0adbf9da428"
+    },
+    {
+      "assignment": "heldout",
+      "split_group": "candidate-1559-ml-evaluation",
+      "task_id": "candidate-1559-ml-evaluation",
+      "task_package_digest": "sha256:1c999aa97dcc9f0c875547a162f120d6fc974c31b31a751a3562d7d342f9de07"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-1601-software-data-engineering",
+      "task_id": "candidate-1601-software-data-engineering",
+      "task_package_digest": "sha256:440fabdb021282cb7dc6be0c791ae58ea600aef6eed1013464b374e41da24c2c"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-1634-software-databases",
+      "task_id": "candidate-1634-software-databases",
+      "task_package_digest": "sha256:04ef36dcfe615098fab6ab39156559555deec02c76198ca8d754e9cac326c8d8"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-1669-operations-marketing",
+      "task_id": "candidate-1669-operations-marketing",
+      "task_package_digest": "sha256:5ce053ddb58d6772c8487a7b5d9e09ef1eb17f06c3120665953b5102be93d4c7"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-1682-science-physics",
+      "task_id": "candidate-1682-science-physics",
+      "task_package_digest": "sha256:fea0e3db409bbf20cee4863becfe2f54dc7c9b37a0ae9c1b0d9383bb919762b8"
+    },
+    {
+      "assignment": "heldout",
+      "split_group": "candidate-1702-ml-inference",
+      "task_id": "candidate-1702-ml-inference",
+      "task_package_digest": "sha256:a2a1fda29150f53687f641535c6f83b5c47778895c0ad6a871e683130e514eaf"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-1736-ml-inference",
+      "task_id": "candidate-1736-ml-inference",
+      "task_package_digest": "sha256:a95c857adfe0718904455f596ba13aa3aa30a45582dc7809112d9aa8349b47b1"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-1789-security-appsec",
+      "task_id": "candidate-1789-security-appsec",
+      "task_package_digest": "sha256:3bb4e1a6626adc35d5837ad7ecea65d89a288be20dd362697b751ef4809a17c2"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-1824-media-design",
+      "task_id": "candidate-1824-media-design",
+      "task_package_digest": "sha256:8fd0a9d3d2af87771030c71f3c5a4cb3995efa76d29a054e264dd4f568acfa1e"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-1836-hardware-cad",
+      "task_id": "candidate-1836-hardware-cad",
+      "task_package_digest": "sha256:36f8c3f8ec4b57a5056e5267eb5f9d4be65ece628c0e6b556fc35245abaef3e4"
+    },
+    {
+      "assignment": "heldout",
+      "split_group": "candidate-1866-ml-inference",
+      "task_id": "candidate-1866-ml-inference",
+      "task_package_digest": "sha256:18cad7fd0ac6ebeb0e74e1a248391ca43ad73c325a401b56a177c7102c08a05f"
+    },
+    {
+      "assignment": "heldout",
+      "split_group": "candidate-1890-ml-training",
+      "task_id": "candidate-1890-ml-training",
+      "task_package_digest": "sha256:c4d92a2c97484c9e9d4f6a5a1eac28c03160d510bebd91d11a49e1a030dd336c"
+    },
+    {
+      "assignment": "heldout",
+      "split_group": "candidate-1939-software-systems",
+      "task_id": "candidate-1939-software-systems",
+      "task_package_digest": "sha256:18e6cb82249ce31068a530448b47fe618d577497f5c40c0bd5a0e3ac8cb6233d"
+    },
+    {
+      "assignment": "heldout",
+      "split_group": "candidate-1990-security-cryptography",
+      "task_id": "candidate-1990-security-cryptography",
+      "task_package_digest": "sha256:e6a0e3ba021a277af638bc364d63d263ebd68f946b2cab9ff930c8c1a4e34c24"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-2072-software-data-engineering",
+      "task_id": "candidate-2072-software-data-engineering",
+      "task_package_digest": "sha256:2f45788e75255f3a6158ed15484e476f507f95a5245d2cdc1e0580fc3d6c52e7"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-2160-software-frontend",
+      "task_id": "candidate-2160-software-frontend",
+      "task_package_digest": "sha256:b2c2ad7d83caaaaad0414aac04e4d1cadc55d1fdfbe33a686a5e8efa39472512"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-2163-operations-marketing",
+      "task_id": "candidate-2163-operations-marketing",
+      "task_package_digest": "sha256:3611f2e0d87d95638ab18fef5f33e27d2043857480eb954f81563a99b6c2db11"
+    },
+    {
+      "assignment": "heldout",
+      "split_group": "candidate-2207-security-appsec",
+      "task_id": "candidate-2207-security-appsec",
+      "task_package_digest": "sha256:9542c36acf02ba24fa8ecbb87a41978940bfcdc8c50bc5b2616e3714fd2b3d65"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-2262-operations-compliance",
+      "task_id": "candidate-2262-operations-compliance",
+      "task_package_digest": "sha256:4cb64707f6789f114cb0786fb6f015c61fb0ca00a4273ace0ea912f15d8bda4d"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-2329-software-languages",
+      "task_id": "candidate-2329-software-languages",
+      "task_package_digest": "sha256:a96c71f77bae8d6a38c35629709436b3f64cfb0c24abd9c0eeccdf0b780a12df"
+    },
+    {
+      "assignment": "heldout",
+      "split_group": "candidate-2376-security-cryptography",
+      "task_id": "candidate-2376-security-cryptography",
+      "task_package_digest": "sha256:06205dfca4a41a4b134da31e72efc29197522e0d4a1981cff7b9d7addb9675f8"
+    },
+    {
+      "assignment": "heldout",
+      "split_group": "candidate-2487-security-cryptography",
+      "task_id": "candidate-2487-security-cryptography",
+      "task_package_digest": "sha256:e05dfcf2260ddbdffef6f644b676da5d6f3466462aca28ab0cc78f1f239f5cb5"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-2500-hardware-cad",
+      "task_id": "candidate-2500-hardware-cad",
+      "task_package_digest": "sha256:0bfefa04d6bedde1645aa12c0075802f2ffde8248abc601458dd8ec8aac2c37c"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-2511-security-cryptography",
+      "task_id": "candidate-2511-security-cryptography",
+      "task_package_digest": "sha256:1b2eafa4a7b7f209d058cb0d8164064f7f15c52817d7b10d195a4aa5704ab5e0"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-2517-software-data-engineering",
+      "task_id": "candidate-2517-software-data-engineering",
+      "task_package_digest": "sha256:8e7980a782c029a8f32650b2c9e4bdd7bf57153ce471086bd29772a6c3c08b30"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-2535-security-cryptography",
+      "task_id": "candidate-2535-security-cryptography",
+      "task_package_digest": "sha256:f839f8d83c69f989ba058b43b6e9f961b33498fa4b796412438fa2433595ce48"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-2684-security-appsec",
+      "task_id": "candidate-2684-security-appsec",
+      "task_package_digest": "sha256:d37b71fe7c29f4d96333e488152c6ad3e2c27d6e504b171303e7b86c67c77164"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-2713-ml-inference",
+      "task_id": "candidate-2713-ml-inference",
+      "task_package_digest": "sha256:505efd2c22a76df0999e57fea5d9a46e8b89503c91764a0915765fd257933ea8"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-2728-software-data-engineering",
+      "task_id": "candidate-2728-software-data-engineering",
+      "task_package_digest": "sha256:43103d43e2268324ab55e5a3183e858232a22c6849d6e2b885e0dbed97e09155"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-2760-ml-inference",
+      "task_id": "candidate-2760-ml-inference",
+      "task_package_digest": "sha256:cb34c27a5e85e4d73a0219174c2b5816057ba7032207d3b9bad268c302c14ef2"
+    },
+    {
+      "assignment": "heldout",
+      "split_group": "candidate-2790-ml-evaluation",
+      "task_id": "candidate-2790-ml-evaluation",
+      "task_package_digest": "sha256:e877e6cf348642dccf71e6cfd1798374ca2995dcc08bf41ccb7d2c6ccff26ba8"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-2836-ml-kernels",
+      "task_id": "candidate-2836-ml-kernels",
+      "task_package_digest": "sha256:58dcc5a2e343d5acecc8b6c83618e451550fee044002c442fbd191e35d953054"
+    },
+    {
+      "assignment": "heldout",
+      "split_group": "candidate-2838-ml-evaluation",
+      "task_id": "candidate-2838-ml-evaluation",
+      "task_package_digest": "sha256:549a1dadbd8b852c70ceb604413be9c941214cc56ab955d69cbf06c2711078ac"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-2916-ml-training",
+      "task_id": "candidate-2916-ml-training",
+      "task_package_digest": "sha256:8155fa796bd77d84c847572f5f1670a4d8dbeea6003bf3b55f8fb343ca910473"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-2951-security-appsec",
+      "task_id": "candidate-2951-security-appsec",
+      "task_package_digest": "sha256:85dae6637425721de2d21a96bb7678e796945d23b4bceae26b3c1a1969e347f0"
+    },
+    {
+      "assignment": "train",
+      "split_group": "candidate-2996-ml-evaluation",
+      "task_id": "candidate-2996-ml-evaluation",
+      "task_package_digest": "sha256:6af81b157f697fcc067e814b28d5d2913492a992f013118331e4c17a5b4ee6fa"
+    }
+  ],
+  "train_task_ids": [
+    "candidate-0036-software-data-engineering",
+    "candidate-0109-science-robotics",
+    "candidate-0260-security-appsec",
+    "candidate-0308-security-forensics",
+    "candidate-0390-security-appsec",
+    "candidate-0461-ml-evaluation",
+    "candidate-0534-ml-training",
+    "candidate-0674-ml-evaluation",
+    "candidate-0688-hardware-rtl",
+    "candidate-0758-ml-inference",
+    "candidate-0847-software-languages",
+    "candidate-0867-software-frontend",
+    "candidate-0938-science-chemistry",
+    "candidate-0993-software-systems",
+    "candidate-1001-security-forensics",
+    "candidate-1048-operations-virtualization",
+    "candidate-1155-software-systems",
+    "candidate-1165-ml-evaluation",
+    "candidate-1216-software-frontend",
+    "candidate-1247-security-reverse-engineering",
+    "candidate-1271-media-games",
+    "candidate-1305-software-data-engineering",
+    "candidate-1399-security-reverse-engineering",
+    "candidate-1601-software-data-engineering",
+    "candidate-1634-software-databases",
+    "candidate-1669-operations-marketing",
+    "candidate-1682-science-physics",
+    "candidate-1736-ml-inference",
+    "candidate-1789-security-appsec",
+    "candidate-1824-media-design",
+    "candidate-1836-hardware-cad",
+    "candidate-2072-software-data-engineering",
+    "candidate-2160-software-frontend",
+    "candidate-2163-operations-marketing",
+    "candidate-2262-operations-compliance",
+    "candidate-2329-software-languages",
+    "candidate-2500-hardware-cad",
+    "candidate-2511-security-cryptography",
+    "candidate-2517-software-data-engineering",
+    "candidate-2535-security-cryptography",
+    "candidate-2684-security-appsec",
+    "candidate-2713-ml-inference",
+    "candidate-2728-software-data-engineering",
+    "candidate-2760-ml-inference",
+    "candidate-2836-ml-kernels",
+    "candidate-2916-ml-training",
+    "candidate-2951-security-appsec",
+    "candidate-2996-ml-evaluation"
+  ]
+}

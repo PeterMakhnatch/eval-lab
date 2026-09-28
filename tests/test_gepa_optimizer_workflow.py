@@ -866,3 +866,84 @@ def test_replay_drift_validation_raises_on_digest_mismatch() -> None:
     base = _retained_spec()
     with pytest.raises(ValueError, match="task_package_digest"):
         validate_drift(base, "sha256:" + "b" * 64)
+
+
+def _write_retained_target_campaign(
+    repo_root: Path, task: dict[str, Any], base: ExperimentSpec
+) -> Path:
+    specs_dir = repo_root / "specs"
+    specs_dir.mkdir(exist_ok=True)
+    (specs_dir / "retained.json").write_text(
+        json.dumps(base.model_dump(mode="json")), encoding="utf-8"
+    )
+    (repo_root / "seed.txt").write_text("Study the requirements before acting.\n")
+    campaign = {
+        "name": "retained-target-ceilings",
+        "engine": "gepa",
+        "target": {"base_spec_path": "specs/retained.json"},
+        "seed_candidate_path": "seed.txt",
+        "output_dir": "out",
+        "examples": [task],
+        "max_evals": 2,
+    }
+    path = repo_root / "campaign.json"
+    path.write_text(json.dumps(campaign), encoding="utf-8")
+    return path
+
+
+def test_retained_terminus_target_keeps_ceilings_out_of_campaign(tmp_path: Path) -> None:
+    """A retained terminus-2 target loads without campaign-level provider_ceilings.
+
+    Terminus-2 carries its per-trial ceilings in the retained spec itself, where
+    candidate replay preserves them exactly; only broker-direct targets
+    propagate ceilings to the campaign level.
+    """
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = _write_task(repo_root)
+    base = _retained_spec(
+        agent="terminus-2",
+        model=ZAI_OPENAPI_MODEL_SELECTOR,
+        task=task["task_path"],
+        task_path=task["task_path"],
+        task_id=task["task_id"],
+        task_package_digest=task["task_package_digest"],
+        attempts=1,
+        concurrency=1,
+        harness_policy=None,
+    )
+    config = load_campaign(_write_retained_target_campaign(repo_root, task, base), repo_root)
+    assert config["agent"] == "terminus-2"
+    assert config["model"] == ZAI_OPENAPI_MODEL_SELECTOR
+    assert config["timeout_seconds"] == base.timeout_seconds
+    assert config["estimated_cost_usd"] == base.est_cost_usd
+    assert "provider_ceilings" not in config
+    replayed = replay_spec_for_candidate(
+        base,
+        campaign_name="retained-target-ceilings",
+        candidate_path=Path("out/lab/candidates/candidate.txt"),
+        candidate_sha256="sha256:" + "e" * 64,
+        jobs_dir="runs",
+    )
+    assert replayed.max_requests == base.max_requests
+    assert replayed.cost_limit_usd == base.cost_limit_usd
+
+
+def test_retained_broker_target_still_propagates_campaign_ceilings(
+    tmp_path: Path,
+) -> None:
+    """Broker-direct retained targets keep the existing ceiling propagation."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = _write_task(repo_root)
+    base = _retained_spec(
+        task=task["task_path"],
+        task_path=task["task_path"],
+        task_id=task["task_id"],
+        task_package_digest=task["task_package_digest"],
+        harness_policy=None,
+    )
+    config = load_campaign(_write_retained_target_campaign(repo_root, task, base), repo_root)
+    assert config["agent"] == DEEPSEEK_TARGET_AGENT
+    assert config["provider_ceilings"]["max_requests"] == base.max_requests
+    assert config["provider_ceilings"]["cost_limit_usd"] == base.cost_limit_usd

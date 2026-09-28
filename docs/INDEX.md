@@ -49,7 +49,7 @@ inputs:
   - path: docs/dashboard.md
     digest: sha256:ee56108fa8961f0e0bb6d6f7f2174973bfce4fd15337bfe2c9e3b9c8af61c42a
   - path: docs/data-architecture.md
-    digest: sha256:6f540c1b84582de2e8185c0a7b4b0d248f537df55eb8ffd3251da599376ccc37
+    digest: sha256:97ed28ea2069b008b702588420b6a65db870e74079350450ad1a586d4f1196c7
   - path: docs/deepseek-v4-flash-lane.md
     digest: sha256:efe12fcfc333012d835c097f02b64535305bf108e7f9d820c97327d1072d3633
   - path: docs/engineering.md
@@ -66,6 +66,8 @@ inputs:
     digest: sha256:e9bead9abe3e94658028e68f592ff3ef8cf4d43bb86b5199d8031fb19a2cbbe5
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
+  - path: docs/model-capture.md
+    digest: sha256:743075a3971443ef4e58770bb04b0c8ae5269083e0ba69c9445a9ee3b63e0d04
   - path: docs/observability.md
     digest: sha256:33a3d815435eb7ea2af8f24793dd69529e7155b465f96ecea2aa00900bf31547
   - path: docs/operating-manual.md
@@ -106,6 +108,10 @@ inputs:
     digest: sha256:3f34b7469d329d51d4dac9356f9655e03b5dd0a155494ddf380caff3dedc6e56
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
+  - path: docs/task-stability.md
+    digest: sha256:66ce5bd404a04d6ce58b4dd034ab549e5abcff50d94239abf8876cedfbf59bab
+  - path: docs/task-variants.md
+    digest: sha256:a11c49c8f0a2818d7604b6fdbaaf26a5e2153c063f880b84f6296ea1f5b4260b
   - path: docs/task-workbench.md
     digest: sha256:87fa6aa8b5781e0ce661129149c9fbbbcee01013e8613436731af04ba5b2b51f
   - path: docs/tidy.md
@@ -152,6 +158,7 @@ an operator can see what is archived.
 | `docs/join-spine.md` | Join Spine (E05) | `living` | `builder, analyst` |
 | `docs/lancedb.md` | LanceDB vector store | `living` | `analyst, builder` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
+| `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
 | `docs/quality.md` | DirectoryQueue property-based fuzzing | `living` | `builder, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
 | `docs/research-questions.md` | What this lab studies | `living` | `builder, analyst` |
@@ -161,6 +168,8 @@ an operator can see what is archived.
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
 | `docs/task-registry.md` | Task registry and admission trust boundary | `living` | `builder, operator` |
+| `docs/task-stability.md` | Verifier stability (HAR-83 §4.2.1) | `living` | `builder, analyst, operator` |
+| `docs/task-variants.md` | Task variants: versioning modified tasks without touching the original | `living` | `builder, analyst, operator` |
 | `docs/task-workbench.md` | Task-quality workbench | `living` | `builder` |
 | `docs/tidy.md` | Working Tree Discipline and Tidy Sweeps (`evallab tidy`) | `living` | `operator, builder` |
 | `docs/verifier-calibration.md` | Verifier Calibration and Selection Lift | `living` | `builder, analyst` |
@@ -212,6 +221,8 @@ an operator can see what is archived.
 | `docs/run-explorer.md` | Run & analysis explorer | `living` | `analyst, operator` |
 | `docs/surfaces.md` | Operating Surfaces: Digest, Storm Alarms, and STATUS.md | `living` | `operator, analyst` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
+| `docs/task-stability.md` | Verifier stability (HAR-83 §4.2.1) | `living` | `builder, analyst, operator` |
+| `docs/task-variants.md` | Task variants: versioning modified tasks without touching the original | `living` | `builder, analyst, operator` |
 | `docs/verdicts.md` | Human Verdict Decision Record (§2.1, §2.2, §6) | `living` | `operator, analyst` |
 | `docs/verifier-calibration.md` | Verifier Calibration and Selection Lift | `living` | `builder, analyst` |
 
@@ -246,6 +257,7 @@ an operator can see what is archived.
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/execution-tiers.md` | Execution tiers: what runs where, and what it costs | `living` | `runner, operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
+| `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
 | `docs/operations.md` | Operations | `living` | `runner, operator` |
 | `docs/quota-accounting.md` | Subscription quota accounting | `living` | `runner, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
@@ -289,6 +301,7 @@ an operator can see what is archived.
 | `docs/execution-tiers.md` | Execution tiers: what runs where, and what it costs | `living` | `runner, operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
+| `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
 | `docs/observability.md` | Observability | `living` | `analyst, operator` |
 | `docs/operating-manual.md` | Peter's operating manual — running a lab built by agents | `living` | `operator` |
 | `docs/operations.md` | Operations | `living` | `runner, operator` |
@@ -302,6 +315,8 @@ an operator can see what is archived.
 | `docs/surfaces.md` | Operating Surfaces: Digest, Storm Alarms, and STATUS.md | `living` | `operator, analyst` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
 | `docs/task-registry.md` | Task registry and admission trust boundary | `living` | `builder, operator` |
+| `docs/task-stability.md` | Verifier stability (HAR-83 §4.2.1) | `living` | `builder, analyst, operator` |
+| `docs/task-variants.md` | Task variants: versioning modified tasks without touching the original | `living` | `builder, analyst, operator` |
 | `docs/tidy.md` | Working Tree Discipline and Tidy Sweeps (`evallab tidy`) | `living` | `operator, builder` |
 | `docs/verdicts.md` | Human Verdict Decision Record (§2.1, §2.2, §6) | `living` | `operator, analyst` |
 

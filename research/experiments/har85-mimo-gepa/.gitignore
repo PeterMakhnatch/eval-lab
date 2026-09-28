@@ -1,0 +1,9 @@
+# HAR-85 worktree-local MiMo task bytes (reproducible, never committed).
+#
+# tasks/<task_id>/ are byte-identical copies of the pinned read-only source
+# FineEnvs/MiMo-V2.6-RL-harbor-terminal@fe1c2b66 (upstream MiMo bytes must not
+# enter the merged tree). Regenerate with the README recipe; pins live in
+# split.provisional.json (manifest_digest sha256:fb645fed...).
+/tasks/
+# Signed proposer authorization refs are runtime approvals, never committed.
+/proposer-approval.signed.json

@@ -65,6 +65,7 @@ eval-lab/
 │   ├── benchmarks/            pinned frontier benchmark ingests (INGEST)
 │   ├── adapters/              benchmark → Harbor converters
 │   ├── synthetic/             Zone 03 generated task sources (docs/data-architecture.md)
+│   ├── task-variants/         Zone 03 lineage records for derived task variants (docs/task-variants.md)
 │   └── registry/              task admission and execution trust records (REGISTER)
 │
 ├── research/                  WHAT WE LEARN — produced knowledge
@@ -243,3 +244,8 @@ The change log below is historical, not a current inventory or work order.
 - 2026-09-06 — folder document convention established (AGENTS.md under
   src/evallab/, README.md for top-level directories, 60-line cap, five
   standard sections) and enforced via governance check.
+- 2026-09-28 — `library/task-variants/` declared for git-tracked lineage
+  records of derived task variants (`evallab.task_variant/v1`,
+  `docs/task-variants.md`). Bucket rule: evaluable task supply; materialized
+  variant packages live outside Git in `derived/task-store/variants/`, which
+  is already covered by the ignored `derived/` bucket.

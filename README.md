@@ -132,6 +132,9 @@ uv run evallab summarize runs
 uv run evallab db init
 uv run evallab db list
 uv run evallab db attach
+uv run evallab tasks pull-hf FineEnvs/MiMo-V2.6-RL-harbor-terminal@fe1c2b665aae1ba7a09a270d979724d32269ae6a
+uv run evallab tasks catalog build
+uv run evallab tasks catalog show candidate-0036-software-data-engineering
 uv run evallab ingest runs research/evidence/runs
 uv run evallab data backfill --all
 uv run evallab gc

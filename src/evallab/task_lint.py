@@ -4,11 +4,11 @@ These findings screen declarations and files; they do not certify verifier
 correctness or replace oracle, NOP, and negative-mutant control runs.
 """
 
-from __future__ import annotations
-
+import hashlib
 import json
 import re
 import shlex
+import tomllib
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -17,6 +17,18 @@ from typing import Literal
 from evallab.task_workbench import Diagnostic, _parse_task_toml
 
 _EXPECTATION = re.compile(r"#\s*expect:\s*[01]\s*")
+
+# Agent-visible leak markers for converted (e.g. MiMo) tasks: grading secrets
+# an agent could read before grading. Spec-necessary API names are excluded on
+# purpose (the instruction must name the interface under test); anything here
+# is material the hidden grader depends on.
+_MIMO_LEAK_PATTERNS = (
+    re.compile(r"reward\.(json|txt)"),
+    re.compile(r"/tests/"),
+    re.compile(r"verifier_meta"),
+    re.compile(r"expected_func|EXPECTED_FUNC"),
+)
+_MIMO_HIDDEN_TEST_NAME = re.compile(r"func (Test\w+)\(")
 
 
 @dataclass(frozen=True)
@@ -190,3 +202,205 @@ def discover_tasks(paths: Sequence[Path]) -> list[Path]:
         for task in candidates:
             tasks[task] = None
     return list(tasks)
+
+def mimo_manifest_sha(task_dir: Path) -> str:
+    """Recompute a converted task directory's sha256 exactly as the adapter manifest describes.
+
+    h.update(relpath + NUL + file_bytes + NUL) for every file under the task
+    dir, sorted by relative posix path. Ported from the MiMo audit prototype
+    so catalog builds verify per-task bytes against manifest.json.
+    """
+    digest = hashlib.sha256()
+    files = sorted(
+        (path for path in task_dir.rglob("*") if path.is_file()),
+        key=lambda path: path.relative_to(task_dir).as_posix(),
+    )
+    for path in files:
+        digest.update(path.relative_to(task_dir).as_posix().encode() + b"\0" + path.read_bytes() + b"\0")
+    return digest.hexdigest()
+
+
+def _read_toml_table(task_dir: Path) -> dict:
+    """Parse task.toml leniently; unparseable or missing files yield {}."""
+    manifest = task_dir / "task.toml"
+    try:
+        return tomllib.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
+
+
+def _mimo_agent_visible_text(task_dir: Path) -> dict[str, str]:
+    """Contents the agent sees before grading: instruction, manifest, environment/."""
+    visible: dict[str, str] = {}
+    for relative in ("instruction.md", "task.toml"):
+        path = task_dir / relative
+        if path.is_file():
+            try:
+                visible[relative] = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+    environment = task_dir / "environment"
+    if environment.is_dir():
+        for path in sorted(p for p in environment.rglob("*") if p.is_file()):
+            try:
+                visible[path.relative_to(task_dir).as_posix()] = path.read_text(
+                    encoding="utf-8", errors="replace"
+                )
+            except (OSError, UnicodeDecodeError):
+                continue
+    return visible
+
+
+def lint_mimo_task(
+    task_dir: Path,
+    *,
+    expected_manifest_sha: str | None = None,
+    domain: str | None = None,
+) -> list[Finding]:
+    """Static MiMo-relevant checks for one converted Harbor task (read-only).
+
+    Rules mirror the MiMo audit prototype's static signals but stay per-task:
+    cross-task signals (slug collisions, split groups, near-duplicates) are
+    computed by the catalog builder, which reuses this Finding type.
+    """
+    findings: list[Finding] = []
+    config = _read_toml_table(task_dir)
+    manifest = task_dir / "task.toml"
+    verifier = config.get("verifier") if isinstance(config.get("verifier"), dict) else {}
+    agent = config.get("agent") if isinstance(config.get("agent"), dict) else {}
+    environment_cfg = config.get("environment") if isinstance(config.get("environment"), dict) else {}
+
+    solution = task_dir / "solution"
+    if not solution.is_dir() or not any(solution.rglob("*")):
+        findings.append(
+            Finding(
+                "mimo-no-oracle",
+                "warning",
+                str(task_dir),
+                "no solution/ oracle is recorded; solvability can only come from rollouts",
+            )
+        )
+
+    verifier_user = verifier.get("user") or "root"
+    if verifier_user == "root":
+        findings.append(
+            Finding(
+                "mimo-verifier-not-isolated",
+                "warning",
+                str(manifest),
+                "the verifier runs in the agent container as root, so agent-side "
+                "runtime tampering can forge the reward",
+            )
+        )
+
+    network_mode = environment_cfg.get("network_mode") or ""
+    if network_mode == "public":
+        agent_user = agent.get("user") or "root"
+        findings.append(
+            Finding(
+                "mimo-network-public",
+                "warning",
+                str(manifest),
+                "the agent runs with public network access"
+                + (
+                    " as root, which can rewrite /etc/hosts and bypass the answer-leak blocklist"
+                    if agent_user == "root"
+                    else ""
+                ),
+            )
+        )
+
+    verifier_env = verifier.get("env") if isinstance(verifier.get("env"), dict) else {}
+    grade_py = task_dir / "tests" / "grade.py"
+    grade_text = ""
+    if grade_py.is_file():
+        try:
+            grade_text = grade_py.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            grade_text = ""
+    env_blob = json.dumps(verifier_env, sort_keys=True)
+    if "JUDGE" in env_blob or "judge" in grade_text.lower():
+        model_default = (
+            verifier_env.get("GA_JUDGE_MODEL") or verifier_env.get("WEBDEV_JUDGE_MODEL") or ""
+        )
+        findings.append(
+            Finding(
+                "mimo-paid-judge",
+                "warning",
+                str(grade_py if grade_py.is_file() else manifest),
+                "grading depends on a paid model judge"
+                + (f" (default {model_default})" if model_default else "")
+                + "; judge outages bill and score as errors, never as 0",
+            )
+        )
+
+    visible = _mimo_agent_visible_text(task_dir)
+    blob = "\n".join(visible.values())
+    leaks = sorted({pattern.pattern for pattern in _MIMO_LEAK_PATTERNS if pattern.search(blob)})
+    patch_path = task_dir / "tests" / "test.patch"
+    if patch_path.is_file():
+        try:
+            patch = patch_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            patch = ""
+        hidden_tests = sorted(set(_MIMO_HIDDEN_TEST_NAME.findall(patch)))
+        instruction = visible.get("instruction.md", "")
+        leaked_tests = [name for name in hidden_tests if name in instruction]
+        if leaked_tests:
+            leaks.append(f"hidden tests named in instruction: {', '.join(leaked_tests)}")
+    if leaks:
+        findings.append(
+            Finding(
+                "mimo-answer-leak",
+                "warning",
+                str(task_dir / "instruction.md"),
+                f"agent-visible files reveal grading material: {'; '.join(leaks)}",
+            )
+        )
+
+    healthcheck = environment_cfg.get("healthcheck")
+    healthcheck_command = (
+        healthcheck.get("command", "") if isinstance(healthcheck, dict) else ""
+    )
+    if isinstance(healthcheck_command, str) and healthcheck_command:
+        findings.append(
+            Finding(
+                "mimo-setup-healthcheck-only",
+                "warning",
+                str(manifest),
+                "one-time setup runs only from [environment.healthcheck]; runners "
+                "that skip the healthcheck will never run setup and grade against "
+                "an unprepared testbed",
+            )
+        )
+
+    if expected_manifest_sha is not None and expected_manifest_sha != mimo_manifest_sha(task_dir):
+        findings.append(
+            Finding(
+                "mimo-manifest-digest-mismatch",
+                "error",
+                str(task_dir),
+                "task bytes do not match the adapter manifest.json digest; the "
+                "snapshot differs from the pinned conversion output",
+            )
+        )
+
+    metadata = config.get("metadata") if isinstance(config.get("metadata"), dict) else {}
+    source_id = metadata.get("source_id") or ""
+    if (
+        isinstance(source_id, str)
+        and source_id
+        and source_id != task_dir.name
+        and source_id.lower() == task_dir.name.lower()
+    ):
+        findings.append(
+            Finding(
+                "mimo-id-case-collision",
+                "warning",
+                str(manifest),
+                f"metadata.source_id {source_id!r} differs from the directory name "
+                f"{task_dir.name!r} only by case; slug folding can collide",
+            )
+        )
+    _ = domain
+    return findings

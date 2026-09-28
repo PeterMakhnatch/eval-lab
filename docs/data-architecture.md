@@ -36,6 +36,13 @@ library/benchmarks/_trajectories/    Zone 01 immutable snapshots
 runs/ and research/evidence/runs/    Zone 02 immutable raw jobs
 library/synthetic/                   Zone 03 generated task sources
 derived/parquet/external/            Zone 01 query projection
+derived/parquet/external/task_catalog/  Zone 01 pinned task catalog (task_sources,
+                                      task_versions, task_findings, task_lineage;
+                                      see docs/mimo-task-catalog.md)
+derived/parquet/task-store/hf/       Zone 01 pinned dataset snapshots, read-only
+                                      (<org>__<repo>@<rev12>/ + provenance.json)
+derived/parquet/task-store/variants/ Zone 03 materialized derived task packages
+library/task-variants/               Git-tracked lineage records (variant identity)
 derived/parquet/job_id=*/            Zone 02 query projection
 library/task-variants/                Zone 03 lineage records for derived task variants
 derived/task-store/variants/          Zone 03 materialized task variants (rebuildable from lineage records)

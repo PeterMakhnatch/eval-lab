@@ -37,6 +37,9 @@ runs/ and research/evidence/runs/    Zone 02 immutable raw jobs
 library/synthetic/                   Zone 03 generated task sources
 derived/parquet/external/            Zone 01 query projection
 derived/parquet/job_id=*/            Zone 02 query projection
+library/task-variants/                Zone 03 lineage records for derived task variants
+derived/task-store/variants/          Zone 03 materialized task variants (rebuildable from lineage records)
+derived/captures/<name>/             Zone 02 independent model-call record (calls.jsonl + manifest + digest)
 derived/synthetic/                   Zone 03 generated projections
 derived/curated/                     Zone 04 exports
 ```

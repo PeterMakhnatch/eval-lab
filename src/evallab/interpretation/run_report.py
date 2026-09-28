@@ -1774,6 +1774,15 @@ def _summary_line(report: dict[str, Any]) -> str:
     return "; ".join(parts) + "."
 
 
+def _linked_capture(trial: Path) -> dict[str, Any] | None:
+    """Linked independent-capture row for a trial, or None when absent."""
+    try:
+        from evallab.model_capture import find_trial_capture
+    except ImportError:
+        return None
+    return find_trial_capture(trial)
+
+
 def build_run_report(
     trial_dir: str | Path, *, timeline_limit: int | None = DEFAULT_TIMELINE_LIMIT
 ) -> dict[str, Any]:
@@ -1889,6 +1898,9 @@ def build_run_report(
             {"path": str(path.relative_to(trial)) if trial in path.parents else str(path), "sha256": _sha256_file(path)}
             for path in ([result_path] if result_path.is_file() else []) + [p for p, _, _ in segments]
         ],
+        # Independent capture is additive and optional: None means no linked
+        # capture exists, never a lookup failure worth failing the report over.
+        "capture": _linked_capture(trial),
     }
     report["summary"] = _summary_line(report)
     return report
@@ -2340,8 +2352,6 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
             if errors["expected_probe_misses"]
             else ""
         )
-        + (f" First error at step {errors['first_error']['step']}." if errors["first_error"] else "")
-        + (" The run ended on an error." if errors["ended_in_error"] else "")
     )
     if errors["by_category"]:
         lines.append("By category: " + ", ".join(f"{k}×{v}" for k, v in errors["by_category"].items()))
@@ -2349,6 +2359,26 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
         f"- step {e['step']} `{e['tool']}` {e['target']} [{e['category']}]: {e['excerpt'] or ''}"
         for e in errors["examples"]
     ]
+    capture = report.get("capture")
+    if capture is not None:
+        lines += ["", "## Independent capture"]
+        lines.append(
+            f"Verdict: **{str(capture.get('verdict', 'unknown')).replace('_', ' ')}** — "
+            f"{capture.get('captured_calls', 0)} captured calls "
+            f"({capture.get('captured_assistant_turns', 0)} assistant turns) vs "
+            f"{capture.get('atif_agent_steps', 0)} ATIF agent steps."
+        )
+        divergence = capture.get("first_divergence")
+        if isinstance(divergence, dict) and divergence:
+            if divergence.get("kind") == "missing_turn":
+                lines.append(
+                    f"First divergence: captured turn {divergence.get('turn_index')} absent "
+                    f"from the ATIF: {divergence.get('excerpt') or ''}"
+                )
+            else:
+                lines.append(f"First divergence: {divergence.get('kind')}.")
+        elif capture.get("verdict") == "complete":
+            lines.append("Captured turns agree with the harness trajectory.")
     domain_lines = render_domain_markdown(report.get("domain"))
     if domain_lines:
         lines += [""] + domain_lines

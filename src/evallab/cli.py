@@ -1603,6 +1603,86 @@ def _report_run_command(
     return 0
 
 
+def _capture_serve_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    import signal
+
+    from evallab.model_capture import serve_capture, write_provenance
+
+    del harbor
+    upstream_key = None
+    if args.upstream_key_env:
+        upstream_key = os.environ.get(args.upstream_key_env)
+        if not upstream_key:
+            print(f"error: {args.upstream_key_env} is not set", file=sys.stderr)
+            return 1
+    out_dir = _resolve(root, args.out)
+    server, recorder, manifest = serve_capture(
+        upstream=args.upstream,
+        out_dir=out_dir,
+        bind=args.bind,
+        port=args.port,
+        upstream_key=upstream_key,
+    )
+    print(f"capture: {args.upstream} -> {out_dir} (:{args.port})", file=sys.stderr)
+    print(json.dumps(manifest, indent=2, sort_keys=True))
+    stopping = False
+
+    def _stop(signum: int, _frame: Any) -> None:
+        nonlocal stopping
+        if stopping:
+            return
+        stopping = True
+        # shutdown() blocks until serve_forever() returns, so it must run off
+        # the signaled thread; otherwise the close path below never runs.
+        import threading
+
+        threading.Thread(target=server.shutdown, daemon=True).start()
+
+    signal.signal(signal.SIGINT, _stop)  # type: ignore[arg-type]
+    signal.signal(signal.SIGTERM, _stop)  # type: ignore[arg-type]
+    try:
+        server.serve_forever()
+    finally:
+        recorder.close()
+        provenance = write_provenance(out_dir, upstream=args.upstream)
+        print(f"closed: {provenance.get('material_digest')}", file=sys.stderr)
+    return 0
+
+
+def _capture_link_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.model_capture import link_capture
+
+    del harbor
+    receipt = link_capture(
+        _resolve(root, args.capture_dir),
+        _resolve(root, args.job_dir),
+        derived_root=args.derived_root,
+        repo_root=root,
+    )
+    if args.json:
+        print(json.dumps(receipt, indent=2, sort_keys=True))
+    else:
+        print(f"capture {receipt['capture_dir']} -> job {receipt['job']}")
+        print(f"parquet: {receipt['parquet_dir']}")
+        print(f"calls: {receipt['calls_total']} total, {receipt['calls_assigned']} assigned")
+        print("| trial | verdict | captured | atif steps |")
+        for trial in receipt["trials"]:
+            print(
+                f"| {trial['trial_name']} | {trial['verdict']} | "
+                f"{trial['captured_calls']} calls / {trial['captured_assistant_turns']} turns | "
+                f"{trial['atif_agent_steps']} |"
+            )
+        if receipt["calls_unassigned"]:
+            print(f"unassigned call seqs: {receipt['calls_unassigned']}")
+        if receipt["ambiguous_trials"]:
+            print(f"ambiguous trials: {receipt['ambiguous_trials']}")
+    return 0
+
+
 def _analyze_plan_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -2454,6 +2534,246 @@ def _tasks_import_command(
             f"{report.skipped} resumed, {report.failed} failed"
         )
     return 1 if report.failed else 0
+
+def _parse_key_value(assignments: Sequence[str], *, label: str) -> dict[str, str]:
+    parsed: dict[str, str] = {}
+    for assignment in assignments:
+        if "=" not in assignment:
+            raise ValueError(f"{label} must be key=value, got {assignment!r}")
+        key, value = assignment.split("=", 1)
+        if not key:
+            raise ValueError(f"{label} has an empty key: {assignment!r}")
+        parsed[key] = value
+    return parsed
+
+
+def _tasks_derive_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.task_variants import VariantError, derive_task
+
+    try:
+        sets = _parse_key_value(args.set or [], label="--set")
+        inputs = _parse_key_value(args.input or [], label="--input")
+        changes: dict[str, bytes | None] = {}
+        for relative, source in sets.items():
+            source_path = _resolve(root, Path(source))
+            if not source_path.is_file():
+                raise VariantError(f"--set source file is missing: {source_path}")
+            changes[relative] = source_path.read_bytes()
+        for relative in args.delete or []:
+            if relative in changes:
+                raise VariantError(f"path both set and deleted: {relative!r}")
+            changes[relative] = None
+        parent_source = None
+        if args.parent_source:
+            try:
+                parent_source = json.loads(args.parent_source)
+            except json.JSONDecodeError as exc:
+                raise VariantError(f"--parent-source is not valid JSON: {exc}") from exc
+            if not isinstance(parent_source, dict):
+                raise VariantError("--parent-source must be a JSON object")
+        record = derive_task(
+            _resolve(root, Path(args.parent)),
+            changes=changes,
+            transform=args.transform,
+            rationale=args.rationale,
+            created_by=args.created_by,
+            inputs=inputs,
+            parent_source=parent_source,
+            repo_root=root,
+            records_dir=Path(args.records_dir),
+            variants_root=Path(args.variants_root) if args.variants_root else None,
+        )
+    except VariantError as exc:
+        print(f"error: {exc}")
+        return 1
+    from evallab.task_variants import default_variants_root
+
+    variants_store = (
+        Path(args.variants_root)
+        if args.variants_root
+        else default_variants_root(root)
+    )
+    package_dir = variants_store / record.task_slug / record.digest12
+    record_path = (root / args.records_dir / record.task_slug / f"{record.digest12}.json").resolve()
+    record_display = (
+        record_path.relative_to(root.resolve()).as_posix()
+        if record_path.is_relative_to(root.resolve())
+        else record_path.as_posix()
+    )
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "record": record_display,
+                    "package": str(package_dir),
+                    "record_data": record.model_dump(mode="json", by_alias=True),
+                },
+                indent=2,
+            )
+        )
+        return 0
+    print(f"derived: {record.task_name}")
+    print(f"record:  {record_display}")
+    print(f"package: {package_dir}")
+    print(f"variant: {record.variant_digest} (harbor {record.variant_harbor_digest})")
+    print(f"parent:  {record.parent.digest}")
+    print(f"transform: {record.transform} components_changed={','.join(record.components_changed)}")
+    print(f"status:  {record.status}")
+    return 0
+
+
+def _tasks_lineage_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.task_variants import LineageError, lineage_chain, render_lineage
+
+    try:
+        steps = lineage_chain(
+            args.target,
+            repo_root=root,
+            records_dir=Path(args.records_dir),
+        )
+    except (LineageError, ValueError) as exc:
+        print(f"error: {exc}")
+        return 1
+    if not steps:
+        print("error: no lineage records found")
+        return 1
+    if args.json:
+        print(
+            json.dumps(
+                [
+                    {
+                        "depth": step.depth,
+                        "record": str(step.record_path),
+                        "task_name": step.record.task_name,
+                        "variant_digest": step.record.variant_digest,
+                        "parent_digest": step.record.parent.digest,
+                        "transform": step.record.transform,
+                        "components_changed": list(step.record.components_changed),
+                        "status": step.record.status,
+                        "files": [
+                            {
+                                "path": change.path,
+                                "before_sha256": change.before_sha256,
+                                "after_sha256": change.after_sha256,
+                            }
+                            for change in step.record.files
+                        ],
+                        "parent_error": step.parent_error,
+                    }
+                    for step in steps
+                ],
+                indent=2,
+            )
+        )
+    else:
+        print(render_lineage(steps))
+    return 1 if any(step.parent_error for step in steps) else 0
+
+
+def _tasks_variant_status_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.task_variants import LineageError, VariantError, append_status_evidence
+
+    try:
+        updated = append_status_evidence(
+            args.record,
+            args.status,
+            evidence=args.evidence,
+            by=args.by,
+            repo_root=root,
+            records_dir=Path(args.records_dir),
+        )
+    except (LineageError, VariantError, ValueError) as exc:
+        print(f"error: {exc}")
+        return 1
+    print(f"{updated.task_name}: {updated.status} ({len(updated.evidence)} evidence entries)")
+    latest = updated.evidence[-1]
+    print(f"  {latest.at} by {latest.by}: {latest.evidence}")
+    return 0
+
+
+def _tasks_stability_run_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.storage.paths import shared_checkout_root
+    from evallab.task_stability import run_stability_jobs
+
+    jobs_dir = (
+        _resolve(root, args.jobs_dir)
+        if args.jobs_dir is not None
+        else shared_checkout_root(root) / "runs"
+    )
+    tasks = [_resolve(root, task) for task in args.tasks]
+    outcomes = run_stability_jobs(
+        tasks=tasks,
+        job_prefix=args.job_prefix,
+        jobs_dir=jobs_dir,
+        repo_src=Path(__file__).resolve().parent.parent,
+        agent=args.agent,
+        repeat_n=args.repeat,
+        n_concurrent=args.n_concurrent,
+        dry_run=args.dry_run,
+    )
+    if args.json:
+        print(json.dumps({"jobs_dir": str(jobs_dir), "outcomes": [
+            {**outcome, "argv": list(outcome["argv"])} for outcome in outcomes
+        ]}, indent=2))
+    else:
+        for outcome in outcomes:
+            print(f"{outcome['job_name']}: returncode={outcome['returncode']}")
+            for trial in outcome["trials"]:
+                print(f"  {trial['trial']}: stability={trial['has_stability']} "
+                      f"rewards={trial['rewards']} verdict={trial['verdict']}")
+    return 1 if any(outcome["returncode"] not in (0, None) for outcome in outcomes) else 0
+
+
+def _tasks_stability_collect_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.storage.paths import derived_root_from_environment, shared_checkout_root
+    from evallab.task_stability import (
+        TABLE_FILENAME,
+        collect_jobs,
+        read_task_stability_parquet,
+        write_task_stability_parquet,
+    )
+
+    jobs_dir = (
+        _resolve(root, args.jobs_dir)
+        if args.jobs_dir is not None
+        else shared_checkout_root(root) / "runs"
+    )
+    jobs = [jobs_dir / name for name in args.job_name]
+    missing = [str(job) for job in jobs if not job.is_dir()]
+    if missing:
+        raise ValueError(f"job directories are missing: {', '.join(missing)}")
+    rows = collect_jobs(jobs, backend=args.backend, method_override=args.method)
+    output = (
+        _resolve(root, args.output)
+        if args.output is not None
+        else derived_root_from_environment(root) / "external/task_catalog" / TABLE_FILENAME
+    )
+    write_task_stability_parquet(rows, output)
+    if args.json:
+        print(json.dumps({"output": str(output), "rows": read_task_stability_parquet(output)},
+                         indent=2))
+    else:
+        try:
+            relative = output.relative_to(root.resolve())
+        except ValueError:
+            relative = output
+        print(f"wrote {len(rows)} rows to {relative}")
+        for row in rows:
+            print(f"{row['trial_name']}: {row['method']} n={row['n_runs']} "
+                  f"rewards={row['rewards']} verdict={row['verdict']}")
+    return 0
 
 
 def _ladder_validate_command(
@@ -3824,6 +4144,30 @@ def parser() -> argparse.ArgumentParser:
         help="List every step (default: first and last steps plus notable ones)",
     )
     report_run.set_defaults(func=_report_run_command)
+    capture_parser = commands.add_parser(
+        "capture", help="Independently record model calls and link them to trials"
+    )
+    capture_commands = capture_parser.add_subparsers(dest="capture_command", required=True)
+    capture_serve = capture_commands.add_parser(
+        "serve", help="Run the recording reverse proxy in front of a model endpoint"
+    )
+    capture_serve.add_argument("--upstream", required=True, help="Upstream base URL to forward to")
+    capture_serve.add_argument("--out", required=True, type=Path, help="Capture directory to append to")
+    capture_serve.add_argument("--port", type=int, default=8471, help="Loopback port to bind")
+    capture_serve.add_argument("--bind", default="127.0.0.1", help="Interface to bind")
+    capture_serve.add_argument(
+        "--upstream-key-env",
+        help="Env var holding the upstream key: injected upstream, never recorded",
+    )
+    capture_serve.set_defaults(func=_capture_serve_command)
+    capture_link = capture_commands.add_parser(
+        "link", help="Attribute a capture directory to a job's trials and write Parquet"
+    )
+    capture_link.add_argument("capture_dir", type=Path, help="Capture directory with calls.jsonl")
+    capture_link.add_argument("job_dir", type=Path, help="Harbor job directory")
+    capture_link.add_argument("--derived-root", type=Path, help="Override the derived Parquet root")
+    capture_link.add_argument("--json", action="store_true", help="Emit the link receipt as JSON")
+    capture_link.set_defaults(func=_capture_link_command)
 
     analyze = commands.add_parser("analyze", help="Plan or index bounded trial analyses")
     analyze_commands = analyze.add_subparsers(dest="analyze_command", required=True)
@@ -4277,6 +4621,123 @@ def parser() -> argparse.ArgumentParser:
     )
     tasks_lint.add_argument("--json", action="store_true")
     tasks_lint.set_defaults(func=_tasks_lint_command)
+
+
+    tasks_derive = tasks_commands.add_parser(
+        "derive", help="Derive a task variant with a git-tracked lineage record"
+    )
+    tasks_derive.add_argument("--parent", type=Path, required=True, help="Parent task directory")
+    tasks_derive.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        metavar="RELPATH=FILE",
+        help="Replace RELPATH with the bytes of FILE (repeatable)",
+    )
+    tasks_derive.add_argument(
+        "--delete",
+        action="append",
+        default=[],
+        metavar="RELPATH",
+        help="Delete RELPATH from the variant (repeatable)",
+    )
+    tasks_derive.add_argument(
+        "--transform", required=True, help="Transform identity as name@version"
+    )
+    tasks_derive.add_argument("--rationale", required=True, help="Why this variant exists")
+    tasks_derive.add_argument(
+        "--input",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="Free-form provenance input (repeatable)",
+    )
+    tasks_derive.add_argument("--created-by", default="operator")
+    tasks_derive.add_argument(
+        "--parent-source",
+        help=(
+            'Parent provenance as JSON, e.g. '
+            "'{\"kind\":\"hf\",\"repo\":\"...\",\"revision\":\"<40-hex>\",\"path\":\"tasks/x\"}'"
+        ),
+    )
+    tasks_derive.add_argument(
+        "--records-dir",
+        type=Path,
+        default=Path("library/task-variants"),
+        help="Repo-relative lineage-record root",
+    )
+    tasks_derive.add_argument(
+        "--variants-root",
+        type=Path,
+        help="Override the materialized-variant store root (defaults to the shared derived store)",
+    )
+    tasks_derive.add_argument("--json", action="store_true")
+    tasks_derive.set_defaults(func=_tasks_derive_command)
+
+    tasks_lineage = tasks_commands.add_parser(
+        "lineage", help="Print a variant's chain back to its original parent"
+    )
+    tasks_lineage.add_argument(
+        "target", help="Lineage record path, variant digest (full or 12-hex), or task directory"
+    )
+    tasks_lineage.add_argument(
+        "--records-dir",
+        type=Path,
+        default=Path("library/task-variants"),
+        help="Repo-relative lineage-record root",
+    )
+    tasks_lineage.add_argument("--json", action="store_true")
+    tasks_lineage.set_defaults(func=_tasks_lineage_command)
+
+    tasks_status = tasks_commands.add_parser(
+        "variant-status", help="Append validation evidence to a variant record"
+    )
+    tasks_status.add_argument("record", help="Lineage record path or variant digest")
+    tasks_status.add_argument("status", choices=["validated", "rejected"])
+    tasks_status.add_argument(
+        "--evidence", required=True, help="Job directory or note justifying the verdict"
+    )
+    tasks_status.add_argument("--by", default="operator")
+    tasks_status.add_argument(
+        "--records-dir",
+        type=Path,
+        default=Path("library/task-variants"),
+        help="Repo-relative lineage-record root",
+    )
+    tasks_status.set_defaults(func=_tasks_variant_status_command)
+
+    tasks_stability_run = tasks_commands.add_parser(
+        "stability-run",
+        help="Run $0 nop/oracle controls with k-fold repeat verification (HAR-83)",
+    )
+    tasks_stability_run.add_argument(
+        "--tasks", nargs="+", type=Path, required=True, help="Local Harbor task directories",
+    )
+    tasks_stability_run.add_argument("--job-prefix", required=True, help="Job name prefix")
+    tasks_stability_run.add_argument("--jobs-dir", type=Path, help="Harbor jobs dir")
+    tasks_stability_run.add_argument("--agent", default="nop", choices=["nop", "oracle"])
+    tasks_stability_run.add_argument("--repeat", type=int, default=3, help="Verifier reruns")
+    tasks_stability_run.add_argument("--n-concurrent", type=int, default=1)
+    tasks_stability_run.add_argument("--dry-run", action="store_true")
+    tasks_stability_run.add_argument("--json", action="store_true")
+    tasks_stability_run.set_defaults(func=_tasks_stability_run_command)
+
+    tasks_stability_collect = tasks_commands.add_parser(
+        "stability-collect",
+        help="Collect job trials into task_stability.parquet (HAR-83)",
+    )
+    tasks_stability_collect.add_argument(
+        "--job-name", nargs="+", required=True, help="Harbor job names under --jobs-dir",
+    )
+    tasks_stability_collect.add_argument("--jobs-dir", type=Path, help="Harbor jobs dir")
+    tasks_stability_collect.add_argument("--backend", default="docker")
+    tasks_stability_collect.add_argument(
+        "--method", choices=["repeat_verifier", "nop_repeat", "diff_replay"],
+        help="Override the collected method for every trial",
+    )
+    tasks_stability_collect.add_argument("--output", type=Path, help="Parquet output path")
+    tasks_stability_collect.add_argument("--json", action="store_true")
+    tasks_stability_collect.set_defaults(func=_tasks_stability_collect_command)
 
     ladder = commands.add_parser(
         "ladder", help="Expand Cartesian evaluation grids into ExperimentSpecs"

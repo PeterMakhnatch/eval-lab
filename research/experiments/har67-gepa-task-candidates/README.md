@@ -78,11 +78,15 @@ verbatim, caller-supplied forbidden tokens refused). Optimization scores
 ## 2. Adapter (smallest change on existing interfaces)
 
 - `src/evallab/task_candidate.py` (new): `build_instruction_candidate`
-  (copy + append preamble; refuses overwrite), `validate_task_candidate`
-  (boundary checks above → pinned `TaskCandidateProvenance`), `preamble_of`,
-  `trees_identical`, `materialization_matches_preamble` (proves candidate
-  package bytes ≡ original + `extra_instruction_path` replay — the agent sees
-  identical instruction bytes either way).
+  (derives the candidate through `evallab.task_variants.derive_task` with
+  transform `instruction-candidate@1` and `components_changed ==
+  ["instruction"]`; the package materializes into the shared variants store
+  and a git-tracked lineage record links it to the original; refuses
+  overwrite), `validate_task_candidate` (boundary checks above → pinned
+  `TaskCandidateProvenance`), `preamble_of`, `trees_identical`,
+  `materialization_matches_preamble` (proves candidate package bytes ≡
+  original + `extra_instruction_path` replay — the agent sees identical
+  instruction bytes either way).
 - `src/evallab/gepa_optimizer/intake.py` (extended):
   `replay_spec_for_candidate(..., candidate_kind="task_package")` rebinds
   `task`/`task_path`/`task_package_digest` (+ optional `verifier_digest`) to a
@@ -230,13 +234,13 @@ from pathlib import Path
 from evallab.task_candidate import build_instruction_candidate, validate_task_candidate
 exp = Path('$EXP')
 preamble = (exp / 'candidates/format-clarify-v2.txt').read_text()
-build_instruction_candidate(original_dir=exp / 'original',
-    candidate_dir=exp / 'candidates/db-wal-recovery-format-clarify-v2',
+prov = build_instruction_candidate(original_dir=exp / 'original',
     preamble_text=preamble)
 validate_task_candidate(original_dir=exp / 'original',
-    candidate_dir=exp / 'candidates/db-wal-recovery-format-clarify-v2',
+    candidate_dir=prov.package_dir,
     forbidden_tokens=('0x42', 'xor_decrypt', 'decrypt_wal.py'))
-print('revendored and valid')
+print('revendored and valid; record:', prov.record_path)
+print('package:', prov.package_dir)
 "
 ```
 

@@ -142,7 +142,10 @@ t['approved_at'] = datetime.now(UTC).isoformat(timespec='seconds')
 json.dump(t, open('research/experiments/har85-mimo-gepa/proposer-approval.signed.json', 'w'), indent=2)
 print('wrote signed ref')
 EOF
-# each round (single dispatch command after approvals):
+# first round: park the 8 baseline specs ($0; no tick while nothing is approved)
+./research/experiments/har85-mimo-gepa/search-round.sh --dispatch \
+  --ref research/experiments/har85-mimo-gepa/proposer-approval.signed.json
+# each round after that:
 ./research/experiments/har85-mimo-gepa/search-round.sh   # lists parked specs + exact approve line; changes nothing
 # for id in <...>; do uv run evallab approve "$id" --actor peter; done   (printed above)
 ./research/experiments/har85-mimo-gepa/search-round.sh --dispatch \

@@ -231,3 +231,50 @@ def test_container_python_tool_quotes_arbitrary_source() -> None:
     output = asyncio.run(run())
     assert output.splitlines() == ["'its $HOME `x` \\\\ \"q\"'", "2"]
     assert [t.__name__ for t in ContainerPythonBridge(None, None).get_tools()][-1] == "run_python"  # type: ignore[arg-type]
+
+def test_resolve_agent_policy_accepts_catalog_id(tmp_path) -> None:
+    from evallab.harbor_rlm import resolve_agent_policy
+    from evallab.rlm.policies import resolve_policy
+
+    assert resolve_agent_policy("stock").digest() == resolve_policy("stock").digest()
+
+
+def test_resolve_agent_policy_loads_gepa_candidate_file(tmp_path) -> None:
+    import json
+
+    from evallab.harbor_rlm import resolve_agent_policy
+    from evallab.rlm.policies import resolve_policy
+
+    base = resolve_policy("stock")
+    candidate = base.derive(
+        "gepa-test",
+        "test candidate",
+        source="test",
+        action_instructions_override="do the thing",
+    )
+    candidate_file = tmp_path / "candidate.json"
+    candidate_file.write_text(json.dumps({"policy": candidate.to_json()}))
+    resolved = resolve_agent_policy(str(candidate_file))
+    assert resolved.policy_id == "gepa-test"
+    assert resolved.digest() == candidate.digest()
+    assert resolved.action_instructions_override == "do the thing"
+
+
+def test_resolve_agent_policy_rejects_bad_specs(tmp_path) -> None:
+    import json
+
+    from evallab.harbor_rlm import resolve_agent_policy
+
+    with pytest.raises(ValueError):
+        resolve_agent_policy("no-such-policy")
+    with pytest.raises(ValueError):
+        resolve_agent_policy(str(tmp_path / "missing.json"))
+    broken = tmp_path / "broken.json"
+    broken.write_text("{not json")
+    with pytest.raises(ValueError):
+        resolve_agent_policy(str(broken))
+    empty = tmp_path / "empty.json"
+    empty.write_text(json.dumps({"no_policy_here": 1}))
+    with pytest.raises(ValueError):
+        resolve_agent_policy(str(empty))
+

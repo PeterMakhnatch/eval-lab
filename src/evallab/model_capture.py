@@ -148,6 +148,8 @@ def classify_kind(path: str) -> str:
     clean = path.split("?", 1)[0].rstrip("/") or "/"
     if clean.endswith("/chat/completions"):
         return "chat"
+    if clean.endswith("/api/chat"):
+        return "ollama_chat"
     if clean.endswith("/completions"):
         return "legacy_completions"
     if clean.endswith("/responses"):
@@ -226,7 +228,7 @@ def request_message_pairs(kind: str, body: Any) -> list[tuple[str, str]]:
     if not isinstance(body, dict):
         return []
     pairs: list[tuple[str, str]] = []
-    if kind in ("chat", "unknown"):
+    if kind in ("chat", "ollama_chat", "unknown"):
         messages = body.get("messages")
         if isinstance(messages, list):
             for item in messages:
@@ -388,6 +390,9 @@ def extract_from_payload(kind: str, payload: Any) -> ExtractedTurns:
             _extract_responses_object(response, turns)
     elif kind == "anthropic_messages":
         _extract_anthropic_object(payload, turns)
+    elif kind == "ollama_chat":
+        _ollama_message_into(payload.get("message"), turns)
+        _ollama_usage_into(payload, turns)
     return turns
 
 
@@ -423,8 +428,6 @@ def _extract_responses_object(response: dict[str, Any], turns: ExtractedTurns) -
                     arguments = item.get("arguments", "")
                     turns.tool_calls.append(
                         {
-                            "id": item.get("call_id") or item.get("id"),
-                            "name": name,
                             "arguments": arguments
                             if isinstance(arguments, str)
                             else json.dumps(arguments, sort_keys=True),
@@ -459,6 +462,54 @@ def _extract_anthropic_object(payload: dict[str, Any], turns: ExtractedTurns) ->
     model = payload.get("model")
     if isinstance(model, str) and model:
         turns.model = model
+
+
+def _ollama_message_into(message: Any, turns: ExtractedTurns) -> None:
+    if not isinstance(message, dict):
+        return
+    text = _content_text(message.get("content"))
+    if text:
+        turns.assistant_texts.append(text)
+    _ollama_tools_into(message.get("tool_calls"), turns)
+
+
+def _ollama_tools_into(calls: Any, turns: ExtractedTurns) -> None:
+    for call in calls or []:
+        parsed = _openai_tool_call(call)
+        if parsed is not None and parsed not in turns.tool_calls:
+            turns.tool_calls.append(parsed)
+
+
+def _ollama_usage_into(payload: dict[str, Any], turns: ExtractedTurns) -> None:
+    usage = _usage_pair(payload.get("prompt_eval_count"), payload.get("eval_count"))
+    if usage is not None:
+        turns.usage = usage
+    if isinstance(payload.get("model"), str) and not turns.model:
+        turns.model = str(payload["model"])
+
+
+def extract_ollama_ndjson(raw: bytes) -> ExtractedTurns:
+    """Reassemble an Ollama streaming ``/api/chat`` (NDJSON) body."""
+    turns = ExtractedTurns()
+    chunks: list[str] = []
+    for line in raw.decode("utf-8", "replace").splitlines():
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        message = event.get("message")
+        if isinstance(message, dict):
+            if isinstance(message.get("content"), str):
+                chunks.append(str(message["content"]))
+            _ollama_tools_into(message.get("tool_calls"), turns)
+        _ollama_usage_into(event, turns)
+    if chunks:
+        turns.assistant_texts.append("".join(chunks))
+    return turns
 
 
 def extract_from_sse(kind: str, raw: bytes) -> ExtractedTurns:
@@ -950,7 +1001,22 @@ class _CaptureHandler(BaseHTTPRequestHandler):
         try:
             payload = json.loads(raw.decode("utf-8"))
         except (ValueError, UnicodeDecodeError):
-            record["response_body"] = {"_text": redact_key_text(raw.decode("utf-8", "replace"), upstream_key)}
+            if kind != "ollama_chat":
+                record["response_body"] = {"_text": redact_key_text(raw.decode("utf-8", "replace"), upstream_key)}
+                return
+            text = redact_key_text(raw.decode("utf-8", "replace"), upstream_key)
+            turns = extract_ollama_ndjson(raw)
+            record["response_body"] = {
+                "ndjson_raw": text,
+                "reassembled": {
+                    "assistant_texts": turns.assistant_texts,
+                    "tool_calls": turns.tool_calls,
+                },
+            }
+            record["assistant_texts"] = turns.assistant_texts
+            record["tool_calls"] = turns.tool_calls
+            record["usage"] = turns.usage
+            record["model"] = turns.model
             return
         scrubbed = (
             json.loads(redact_key_text(json.dumps(payload, ensure_ascii=False), upstream_key))

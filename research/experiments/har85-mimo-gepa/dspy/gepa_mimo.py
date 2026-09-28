@@ -44,6 +44,7 @@ import hashlib
 import json
 import math
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -601,6 +602,37 @@ def write_dummy_secret(path: Path) -> Path:
     return path
 
 
+def paid_lms(args, secret_file: Path) -> tuple[object, object]:
+    """Reflection LM and trace-seed LM for the paid path (coding-plan route).
+
+    Construction makes no model call. Route selectors map to API ids exactly as
+    the shipped agent does (``zai_model_id``, ``harbor_rlm.LabRlmAgent.run``).
+    The trace seed is one extra student-route call per rollout (output unused
+    for scoring; costed in BUDGET.md) with the base policy's root token budget
+    and temperature, thinking off.
+    """
+    from evallab.rlm.harness import build_lm, zai_model_id
+    from evallab.rlm.policies import resolve_policy
+
+    api_key = secret_file.read_text().strip()
+    reflection_lm = build_lm(
+        model_id=zai_model_id(args.reflection_model),
+        api_key=api_key,
+        max_tokens=16_000,
+        thinking=True,
+        temperature=1.0,
+    )
+    base = resolve_policy(args.base_policy)
+    trace_lm = build_lm(
+        model_id=zai_model_id(args.student_route),
+        api_key=api_key,
+        max_tokens=base.root_max_tokens,
+        thinking=False,
+        temperature=base.temperature,
+    )
+    return reflection_lm, trace_lm
+
+
 def _refuse(message: str) -> int:
     print(f"REFUSING: {message}", file=sys.stderr)
     return 2
@@ -749,34 +781,25 @@ def main(argv: list[str] | None = None) -> int:
                 f"(pre-spend point; no trial launched)"
             )
             return 0
+        from evallab.execution_contracts import (
+            HARBOR_AGENT_IMPORT_PATHS,
+            RLM_AGENT,
+            materialize_zai_secret_file,
+        )
+
+        agent_import = HARBOR_AGENT_IMPORT_PATHS[RLM_AGENT]
+        instruction_proposer = None
         secret_holder = tempfile.mkdtemp(prefix="har85-paid-secret-")
         try:
-            from evallab.execution_contracts import materialize_zai_secret_file
-
             secret_file = materialize_zai_secret_file(Path(secret_holder) / "secret")
         except (OSError, ValueError) as exc:
             shutil.rmtree(secret_holder, ignore_errors=True)
             return _refuse(f"coding-plan credential unavailable: {exc}")
-        instruction_proposer = None
-        from evallab.rlm.harness import build_lm
-
-        reflection_lm = build_lm(
-            model_id=args.reflection_model,
-            api_key=secret_file.read_text().strip(),
-            max_tokens=16_000,
-            thinking=True,
-            temperature=1.0,
-        )
-        # One extra student-route call per rollout (trace seed for the GEPA
-        # adapter; output unused for scoring). Costed in BUDGET.md.
-        trace_lm = build_lm(
-            model_id=args.student_route,
-            api_key=secret_file.read_text().strip(),
-            thinking=False,
-        )
+        # Built under the try/finally below so a failure never leaks the secret.
+        reflection_lm = trace_lm = None
     try:
-        if args.harbor_env == "daytona" and not os.environ.get("DAYTONA_API_KEY"):
-            return _refuse("--harbor-env daytona needs DAYTONA_API_KEY in the environment")
+        if not args.dry_run:
+            reflection_lm, trace_lm = paid_lms(args, secret_file)
         runner = HarborTrialRunner(
             RunnerConfig(
                 harbor_bin=args.harbor_bin,
@@ -793,6 +816,9 @@ def main(argv: list[str] | None = None) -> int:
             secret_file=secret_file,
             job_tag=args.job_tag,
         )
+        # Last refusal before the first trial (everything above is inert).
+        if args.harbor_env == "daytona" and not os.environ.get("DAYTONA_API_KEY"):
+            return _refuse("--harbor-env daytona needs DAYTONA_API_KEY in the environment")
         original_instructions = base_action_instructions(args.base_policy)
         student = build_student(args.base_policy, runner.run, trace_lm)
         trainset = build_examples(train_ids, args.tasks_root)

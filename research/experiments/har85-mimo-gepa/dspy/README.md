@@ -51,6 +51,19 @@ made from this directory; no model weights downloaded.
    blank date, and under-cover cap each refuse via `verify_approval`;
    held-out ids in `--train-tasks` refuse; direct `--phase heldout`
    execution outside the launcher refuses.
+5. **Paid path exercised at $0 up to the first trial** (2026-09-28, #492):
+   with a probe approval and `DAYTONA_API_KEY` unset, the paid invocation
+   verifies the binding, materializes the coding-plan credential, builds
+   both LMs (`paid_lms`: API ids `glm-5.3` / `glm-5.3-flash` on the coding
+   endpoint, no call), takes the agent from the Lab registry
+   (`HARBOR_AGENT_IMPORT_PATHS["rlm"]`), builds the runner, then refuses at
+   the last gate; the secret directory is removed. `HarborTrialRunner.run`
+   with `subprocess.run` stubbed shows the Daytona flags and child env. This
+   probe found three paid-only defects the DummyLM dry run could not reach,
+   all fixed: trace LM built without the required `max_tokens`/`temperature`
+   (crash, leaking the secret dir because it ran outside the cleanup guard),
+   `agent_import` unset outside `--dry-run`, and raw route selectors passed
+   as API model ids.
 
 ## Student route verdict (code-derived, 2026-09-28)
 

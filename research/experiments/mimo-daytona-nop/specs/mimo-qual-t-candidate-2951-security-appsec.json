@@ -1,0 +1,14 @@
+{
+  "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-terminal@fe1c2b665aae/tasks/candidate-2951-security-appsec",
+  "task_package_digest": "sha256:85dae6637425721de2d21a96bb7678e796945d23b4bceae26b3c1a1969e347f0",
+  "agent": "nop",
+  "environment": "daytona",
+  "name": "mimo-qual-t-candidate-2951-security-appsec",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "timeout_seconds": 3720,
+  "purpose": "calibration",
+  "hypothesis": "The MiMo task starts, passes its healthcheck and grades on Daytona: a nop control completes the verifier with reward 0.",
+  "submitted_by": "har88-qualification",
+  "verifier_repeat_n": 3
+}

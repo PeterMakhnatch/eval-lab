@@ -1,0 +1,14 @@
+{
+  "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-terminal@fe1c2b665aae/tasks/candidate-2262-operations-compliance",
+  "task_package_digest": "sha256:4cb64707f6789f114cb0786fb6f015c61fb0ca00a4273ace0ea912f15d8bda4d",
+  "agent": "nop",
+  "environment": "daytona",
+  "name": "mimo-qual-t-candidate-2262-operations-compliance",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "timeout_seconds": 3720,
+  "purpose": "calibration",
+  "hypothesis": "The MiMo task starts, passes its healthcheck and grades on Daytona: a nop control completes the verifier with reward 0.",
+  "submitted_by": "har88-qualification",
+  "verifier_repeat_n": 3
+}

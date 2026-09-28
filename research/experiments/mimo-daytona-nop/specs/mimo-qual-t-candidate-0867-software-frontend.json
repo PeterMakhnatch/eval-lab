@@ -1,0 +1,14 @@
+{
+  "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-terminal@fe1c2b665aae/tasks/candidate-0867-software-frontend",
+  "task_package_digest": "sha256:887aa94c5426ffc6fcf91ad0c92f27ca90629753a8a98eae2bb248314b106b2d",
+  "agent": "nop",
+  "environment": "daytona",
+  "name": "mimo-qual-t-candidate-0867-software-frontend",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "timeout_seconds": 3720,
+  "purpose": "calibration",
+  "hypothesis": "The MiMo task starts, passes its healthcheck and grades on Daytona: a nop control completes the verifier with reward 0.",
+  "submitted_by": "har88-qualification",
+  "verifier_repeat_n": 3
+}

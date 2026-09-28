@@ -1,0 +1,13 @@
+{
+  "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002609",
+  "task_package_digest": "sha256:3ce64e24f78fad2b3260501178402f81b21a15016637a4aaa98aeeedf31b4e13",
+  "agent": "nop",
+  "environment": "daytona",
+  "name": "mimo-qual-c-format-code-task-002609",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "timeout_seconds": 5100,
+  "purpose": "calibration",
+  "hypothesis": "The MiMo task starts, passes its healthcheck and grades on Daytona: a nop control completes the verifier with reward 0.",
+  "submitted_by": "har88-qualification"
+}

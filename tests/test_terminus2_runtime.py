@@ -145,7 +145,7 @@ def test_adapter_binds_exact_route_without_persisting_secrets(
 
 def test_adapter_rejects_non_exact_models(trial_transport: Any, tmp_path: Path) -> None:
     for bad in (None, "glm-5.3-flash", "zai/glm-4", "openai/gpt-4", "zai/glm-5.3-flash "):
-        with pytest.raises(ValueError, match="qualified exact model"):
+        with pytest.raises(ValueError, match="exact metered model"):
             trial_transport.SecretSafeTerminus2(logs_dir=tmp_path, model_name=bad)
 
 
@@ -354,6 +354,7 @@ def _launch_proxy(
     capability: str,
     limits: ProxyTrialLimits,
     attempt_id: str = "terminus-test-attempt",
+    provider: str = "zai_openapi",
 ) -> tuple[subprocess.Popen[bytes], str, Path]:
     secret_file = tmp_path / "provider-key"
     secret_file.write_text(f"{SECRET_SENTINEL}\n")
@@ -368,6 +369,7 @@ def _launch_proxy(
     monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION", "150000")
     monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION", "500000")
     process, url = runner_module._start_terminus_proxy(
+        provider=provider,
         secret_path=secret_file,
         capability=capability,
         attempt_id=attempt_id,
@@ -506,6 +508,7 @@ def test_host_proxy_start_fails_closed(
     monkeypatch.setenv("EVALLAB_ZAI_OPENAPI_UPSTREAM", f"http://{host}:{port}")
     with pytest.raises(RuntimeError, match="before becoming ready"):
         runner_module._start_terminus_proxy(
+            provider="zai_openapi",
             secret_path=secret_file,
             capability=CAPABILITY_SENTINEL,
             attempt_id="terminus-test-attempt",

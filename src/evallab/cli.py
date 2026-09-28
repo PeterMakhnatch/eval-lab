@@ -2463,6 +2463,7 @@ def _tasks_replay_command(
         name=args.name,
         harness_tree_path=args.harness_tree,
         harness_tree_sha256=args.harness_tree_sha256,
+        model=args.model,
         output=args.output,
     )
     relative_spec = spec_path.relative_to(root.resolve()).as_posix()
@@ -2477,8 +2478,18 @@ def _tasks_replay_command(
     else:
         print(f"prepared replay: {relative_spec}")
         print(f"task package: {spec.task_package_digest}")
-        print(f"harness: {spec.harness_tree_sha256} ({spec.harness_tree_path})")
-        print("Retained model, task and execution settings are unchanged.")
+        if args.model and args.model != spec.model:
+            print(f"model swapped: {args.model} -> {spec.model}")
+        if spec.harness_tree_sha256:
+            print(f"harness: {spec.harness_tree_sha256} ({spec.harness_tree_path})")
+        if args.model is None:
+            print("Retained model, task and execution settings are unchanged.")
+        else:
+            print(
+                "Only the model was swapped; retained task, harness and "
+                "execution ceilings are unchanged. Re-check the cost "
+                "estimate before submitting."
+            )
         print("Not submitted or authorized; prior approval is not inherited.")
         print(f"next: {next_command}")
     return 0
@@ -4747,12 +4758,24 @@ def parser() -> argparse.ArgumentParser:
     tasks_prepare.set_defaults(func=_tasks_prepare_command)
 
     tasks_replay = tasks_commands.add_parser(
-        "replay", help="Replay a retained Terminus spec with one replacement pinned harness"
+        "replay",
+        help="Replay a retained Terminus spec, swapping the harness tree and/or model",
     )
     tasks_replay.add_argument("retained_spec", type=Path)
     tasks_replay.add_argument("--name", required=True, help="Unique replay run name")
-    tasks_replay.add_argument("--harness-tree", type=Path, required=True)
+    tasks_replay.add_argument(
+        "--harness-tree",
+        type=Path,
+        help="Repo-relative replacement harness tree (omit for a model-only replay)",
+    )
     tasks_replay.add_argument("--harness-tree-sha256")
+    tasks_replay.add_argument(
+        "--model",
+        help=(
+            "Swap only the model (e.g. tinker/<base>[@tinker://<run>:train:<i>/"
+            "sampler_weights/<step>]); retained task and ceilings are kept"
+        ),
+    )
     tasks_replay.add_argument("--output", type=Path, help="Repo-relative spec output path")
     tasks_replay.add_argument("--json", action="store_true")
     tasks_replay.set_defaults(func=_tasks_replay_command)

@@ -57,6 +57,13 @@ from evallab.execution_contracts import (
     TERMINUS_LOCAL_ENDPOINT_ENV,
     TERMINUS_LOCAL_MODEL_SELECTOR,
     TERMINUS_PROXY_URL_ENV,
+    TINKER_CAPABILITY_EXPIRES_AT_ENV,
+    TINKER_PROXY_ATTEMPT_ID_ENV,
+    TINKER_PROXY_CAPABILITY_ENV,
+    TINKER_PROXY_USAGE_FILE_ENV,
+    TINKER_SECRET_FILE_ENV,
+    TINKER_SECRET_PATH_ENV,
+    TINKER_UPSTREAM_ENV,
     WATCHDOG_POLL_SECONDS,
     ZAI_CAPABILITY_EXPIRES_AT_ENV,
     ZAI_INPUT_COST_MICROS_PER_MILLION,
@@ -77,6 +84,8 @@ from evallab.execution_contracts import (
     ZAI_OPENAPI_PROXY_USAGE_DIR_ENV,
     ZAI_OPENAPI_PROXY_USAGE_FILE_ENV,
     ZAI_OPENAPI_SECRET_FILE_ENV,
+    ZAI_OPENAPI_SECRET_PATH_ENV,
+    ZAI_OPENAPI_UPSTREAM_ENV,
     ZAI_OPENCODE_AGENT,
     ZAI_OUTPUT_COST_MICROS_PER_MILLION,
     ZAI_PROXY_ATTEMPT_ID_ENV,
@@ -94,14 +103,18 @@ from evallab.execution_contracts import (
     ProxyTrialLimits,
     RedactingBinaryWriter,
     RunRequest,
+    TinkerModelSpec,
     TransientHarnessFailure,
     TrialTimeoutFailure,
     build_command,
     collected_secret_values,
     is_lease_generation,
+    is_tinker_terminus_model,
     materialize_deepseek_secret_file,
+    materialize_tinker_secret_file,
     materialize_zai_openapi_secret_file,
     materialize_zai_secret_file,
+    parse_tinker_model,
     persist_private_bytes,
     proxy_runtime_identity,
     read_owner_secret_file,
@@ -115,6 +128,7 @@ from evallab.execution_contracts import (
     transient_provider_reason,
     uses_provider_proxy,
     validate_request,
+    zai_openapi_price_for,
 )
 from evallab.harbor_network import (
     NetworkAdaptation,
@@ -591,25 +605,30 @@ def _read_proxy_usage(
             )
         return value
 
-    expected_limits = asdict(limits)
-    binding_invalid = (
-        payload.get("schema_version") != 1
-        or payload.get("capability_id") != capability_id
-        or payload.get("attempt_id") != attempt_id
-        or payload.get("limits") != expected_limits
-        or (expected_pricing is not None and payload.get("pricing") != expected_pricing)
-    )
-    if binding_invalid:
-        raise ExecutionFailure(
-            "proxy_usage_invalid",
-            f"{provider_label} proxy usage binding does not match this trial",
-        )
     calls = payload.get("calls")
     totals = payload.get("totals")
     if not isinstance(calls, list) or not isinstance(totals, dict):
         raise ExecutionFailure(
             "proxy_usage_invalid",
             f"{provider_label} proxy usage report is invalid",
+        )
+    # Pricing freezes at the first reservation. A zero-call ledger keeps
+    # ``pricing: null``: no rate may be invented without a physical call.
+    pricing_invalid = expected_pricing is not None and (
+        payload.get("pricing") != expected_pricing
+        and not (not calls and payload.get("pricing") is None)
+    )
+    binding_invalid = (
+        payload.get("schema_version") != 1
+        or payload.get("capability_id") != capability_id
+        or payload.get("attempt_id") != attempt_id
+        or payload.get("limits") != asdict(limits)
+        or pricing_invalid
+    )
+    if binding_invalid:
+        raise ExecutionFailure(
+            "proxy_usage_invalid",
+            f"{provider_label} proxy usage binding does not match this trial",
         )
     computed = {
         "requests": len(calls),
@@ -684,12 +703,14 @@ _TERMINUS_PROXY_STDERR_TAIL_BYTES = 4096
 
 def _terminus_proxy_env(
     *,
+    provider: str,
     secret_path: Path,
     capability: str,
     attempt_id: str,
     usage_path: Path,
     limits: ProxyTrialLimits,
     timeout_seconds: float,
+    tinker_spec: TinkerModelSpec | None = None,
 ) -> dict[str, str]:
     """Build the minimal environment for the host-supervised proxy instance.
 
@@ -704,14 +725,35 @@ def _terminus_proxy_env(
             env[name] = value
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["PYTHONUNBUFFERED"] = "1"
-    env["EVALLAB_ZAI_OPENAPI_SECRET_PATH"] = str(secret_path)
-    upstream = os.environ.get("EVALLAB_ZAI_OPENAPI_UPSTREAM")
+    env["EVALLAB_PROXY_PROVIDER"] = provider
+    if provider == "tinker":
+        if tinker_spec is None:
+            raise ValueError("tinker proxy env requires the parsed model spec")
+        env[TINKER_SECRET_PATH_ENV] = str(secret_path)
+        upstream = os.environ.get(TINKER_UPSTREAM_ENV)
+        if upstream:
+            env[TINKER_UPSTREAM_ENV] = upstream
+        env[TINKER_PROXY_CAPABILITY_ENV] = capability
+        env[TINKER_PROXY_ATTEMPT_ID_ENV] = attempt_id
+        env[TINKER_PROXY_USAGE_FILE_ENV] = str(usage_path)
+        env["EVALLAB_TINKER_EXPECTED_BASE"] = tinker_spec.base_model
+        env["EVALLAB_TINKER_MAX_REQUESTS"] = str(limits.max_requests)
+        env["EVALLAB_TINKER_MAX_INPUT_TOKENS"] = str(limits.max_input_tokens)
+        env["EVALLAB_TINKER_MAX_OUTPUT_TOKENS"] = str(limits.max_output_tokens)
+        env["EVALLAB_TINKER_MAX_TOTAL_TOKENS"] = str(limits.max_total_tokens)
+        env["EVALLAB_TINKER_MAX_COST_MICROS"] = str(limits.max_cost_micros)
+        env[TINKER_CAPABILITY_EXPIRES_AT_ENV] = str(
+            time.time() + float(timeout_seconds) + 60.0
+        )
+        return env
+    env[ZAI_OPENAPI_SECRET_PATH_ENV] = str(secret_path)
+    upstream = os.environ.get(ZAI_OPENAPI_UPSTREAM_ENV)
     if upstream:
-        env["EVALLAB_ZAI_OPENAPI_UPSTREAM"] = upstream
-    env["EVALLAB_ZAI_OPENAPI_PROXY_CAPABILITY"] = capability
-    env["EVALLAB_ZAI_OPENAPI_ATTEMPT_ID"] = attempt_id
-    env["EVALLAB_ZAI_OPENAPI_USAGE_FILE"] = str(usage_path)
-    env["EVALLAB_ZAI_OPENAPI_ALLOWED_MODEL"] = os.environ.get(
+        env[ZAI_OPENAPI_UPSTREAM_ENV] = upstream
+    env[ZAI_OPENAPI_PROXY_CAPABILITY_ENV] = capability
+    env[ZAI_OPENAPI_PROXY_ATTEMPT_ID_ENV] = attempt_id
+    env[ZAI_OPENAPI_PROXY_USAGE_FILE_ENV] = str(usage_path)
+    env[ZAI_OPENAPI_ALLOWED_MODEL_ENV] = os.environ.get(
         ZAI_OPENAPI_ALLOWED_MODEL_ENV, ZAI_OPENAPI_ALLOWED_MODEL
     )
     env["EVALLAB_ZAI_OPENAPI_MAX_REQUESTS"] = str(limits.max_requests)
@@ -733,6 +775,8 @@ def _terminus_proxy_env(
     return env
 
 
+
+
 def _terminus_proxy_stderr_tail(stderr_path: Path) -> str:
     try:
         data = stderr_path.read_bytes()[-_TERMINUS_PROXY_STDERR_TAIL_BYTES:]
@@ -743,6 +787,7 @@ def _terminus_proxy_stderr_tail(stderr_path: Path) -> str:
 
 def _start_terminus_proxy(
     *,
+    provider: str,
     secret_path: Path,
     capability: str,
     attempt_id: str,
@@ -750,27 +795,30 @@ def _start_terminus_proxy(
     limits: ProxyTrialLimits,
     timeout_seconds: float,
     work_dir: Path,
+    tinker_spec: TinkerModelSpec | None = None,
 ) -> tuple[subprocess.Popen[bytes], str]:
     """Start the per-trial loopback proxy; return (process, proxy URL).
 
     Fails closed before Harbor launches when the proxy cannot bind, exits
     early, or withholds its ready file. The caller owns termination via
-    :func:`_stop_terminus_proxy` on every path.
+    :func:`_stop_terminus_proxy` on every exit path.
     """
     script = (_RUNTIME_ROOT / ZAI_OPENAPI_PROXY_SCRIPT).resolve()
     if not script.is_file():
-        raise RuntimeError(f"Z.ai OpenAPI secret proxy is missing: {script}")
+        raise RuntimeError(f"metered provider secret proxy is missing: {script}")
     ready_path = work_dir / "terminus-proxy-ready.json"
     stderr_path = work_dir / "terminus-proxy-stderr.log"
     with suppress(FileNotFoundError):
         ready_path.unlink()
     env = _terminus_proxy_env(
+        provider=provider,
         secret_path=secret_path,
         capability=capability,
         attempt_id=attempt_id,
         usage_path=usage_path,
         limits=limits,
         timeout_seconds=timeout_seconds,
+        tinker_spec=tinker_spec,
     )
     with open(stderr_path, "wb") as stderr_handle:
         os.chmod(stderr_path, 0o600)
@@ -778,6 +826,8 @@ def _start_terminus_proxy(
             [
                 sys.executable,
                 str(script),
+                "--provider",
+                provider,
                 "--host",
                 _TERMINUS_PROXY_HOST,
                 "--port",
@@ -1163,6 +1213,20 @@ def run_harbor_process(
         if terminus_lane:
             if proxy_attempt_id is None or proxy_limits is None:
                 raise ValueError("Terminus execution requires a bound trial capability")
+            # The command's --model value selects the provider profile: a
+            # ``tinker/`` selector routes to the Tinker profile, every other
+            # metered Terminus model to Z.ai OpenAPI.
+            tinker_client = any(
+                isinstance(arg, str) and arg.startswith("tinker/") for arg in command
+            )
+            model_args = [
+                command[index + 1]
+                for index, arg in enumerate(command)
+                if arg == "--model" and index + 1 < len(command)
+            ]
+            model_value = model_args[-1] if model_args else None
+            tinker_spec = parse_tinker_model(model_value) if tinker_client else None
+            provider = "tinker" if tinker_client else "zai_openapi"
             capability = secrets.token_urlsafe(32)
             capability_id = "sha256:" + hashlib.sha256(capability.encode()).hexdigest()
             owned_usage_dir = Path(
@@ -1173,22 +1237,34 @@ def run_harbor_process(
             )
             os.chmod(owned_usage_dir, 0o700)
             owned_usage_path = owned_usage_dir / "terminus-proxy-usage.json"
-            proxy_pricing = {
-                "input_cost_micros_per_million": int(
-                    os.environ.get(
-                        "EVALLAB_ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION",
-                        str(ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION),
-                    )
-                ),
-                "output_cost_micros_per_million": int(
-                    os.environ.get(
-                        "EVALLAB_ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION",
-                        str(ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION),
-                    )
-                ),
-            }
-            existing_secret = runtime_environment.get(ZAI_OPENAPI_SECRET_FILE_ENV) or os.environ.get(
-                ZAI_OPENAPI_SECRET_FILE_ENV
+            if tinker_spec is not None:
+                proxy_pricing = {
+                    "input_cost_micros_per_million": tinker_spec.input_cost_micros_per_million,
+                    "output_cost_micros_per_million": tinker_spec.output_cost_micros_per_million,
+                }
+            else:
+                input_rate, output_rate = zai_openapi_price_for(
+                    str(model_value or ZAI_OPENAPI_MODEL_SELECTOR)
+                )
+                proxy_pricing = {
+                    "input_cost_micros_per_million": int(
+                        os.environ.get(
+                            "EVALLAB_ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION",
+                            str(input_rate),
+                        )
+                    ),
+                    "output_cost_micros_per_million": int(
+                        os.environ.get(
+                            "EVALLAB_ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION",
+                            str(output_rate),
+                        )
+                    ),
+                }
+            secret_file_env = (
+                TINKER_SECRET_FILE_ENV if tinker_client else ZAI_OPENAPI_SECRET_FILE_ENV
+            )
+            existing_secret = runtime_environment.get(secret_file_env) or os.environ.get(
+                secret_file_env
             )
             log_root = log_path.resolve()
             if existing_secret:
@@ -1213,13 +1289,17 @@ def run_harbor_process(
                 )
                 os.chmod(owned_secret_dir, 0o700)
                 owned_secret_path = owned_secret_dir / "key"
-                materialize_zai_openapi_secret_file(owned_secret_path)
+                if tinker_client:
+                    materialize_tinker_secret_file(owned_secret_path)
+                else:
+                    materialize_zai_openapi_secret_file(owned_secret_path)
                 secret_path = owned_secret_path
             # Host-side model route: the proxy runs as a loopback supervisor
             # child, not a task-container compose sidecar. The Harbor child
             # receives only the loopback URL plus the trial capability; the
             # real provider key stays in the owner-only secret file.
             terminus_proxy, terminus_proxy_url = _start_terminus_proxy(
+                provider=provider,
                 secret_path=secret_path,
                 capability=capability,
                 attempt_id=proxy_attempt_id,
@@ -1227,8 +1307,18 @@ def run_harbor_process(
                 limits=proxy_limits,
                 timeout_seconds=timeout_seconds,
                 work_dir=owned_usage_dir,
+                tinker_spec=tinker_spec,
             )
-            runtime_environment[ZAI_OPENAPI_PROXY_CAPABILITY_ENV] = capability
+            if tinker_client:
+                runtime_environment[TINKER_PROXY_CAPABILITY_ENV] = capability
+                # litellm's openai-compatible lookup reads this in the
+                # controller process; the adapter overwrites it with the
+                # capability before any call. Never a task-container value.
+                runtime_environment["OPENAI_API_KEY"] = capability
+            else:
+                runtime_environment[ZAI_OPENAPI_PROXY_CAPABILITY_ENV] = capability
+                runtime_environment["ZAI_OPENAPI_API_KEY"] = capability
+                runtime_environment["MSWEA_API_KEY"] = capability
             runtime_environment[TERMINUS_PROXY_URL_ENV] = terminus_proxy_url
             secret_values = collected_secret_values({**os.environ, **runtime_environment})
 
@@ -1247,6 +1337,7 @@ def run_harbor_process(
             materialize_zai_secret_file(owned_secret_path)
             runtime_environment[ZAI_SECRET_FILE_ENV] = str(owned_secret_path)
             secret_values = collected_secret_values({**os.environ, **runtime_environment})
+
         if any(import_path in command for import_path in repo_imports):
             source_root = _RUNTIME_ROOT / "src"
             if source_root.is_dir():
@@ -1279,9 +1370,16 @@ def run_harbor_process(
                     capability_id=capability_id,
                     attempt_id=proxy_attempt_id,
                     limits=proxy_limits,
-                    provider_label="Z.ai OpenAPI"
-                    if (zai_openapi_lane or terminus_lane)
-                    else ("Z.ai" if zai_lane else "DeepSeek"),
+                    provider_label="Tinker"
+                    if any(
+                        isinstance(arg, str) and arg.startswith("tinker/")
+                        for arg in command
+                    )
+                    else (
+                        "Z.ai OpenAPI"
+                        if (zai_openapi_lane or terminus_lane)
+                        else ("Z.ai" if zai_lane else "DeepSeek")
+                    ),
                     expected_pricing=proxy_pricing,
                 )
             return HarborProcessResult(
@@ -2052,9 +2150,13 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             )
         if uses_provider_proxy(request.agent, request.model):
             provider_label = (
-                "Z.ai OpenAPI"
-                if (is_zai_openapi or is_terminus)
-                else ("Z.ai" if request.agent == ZAI_OPENCODE_AGENT else "DeepSeek")
+                "Tinker"
+                if is_tinker_terminus_model(request.model)
+                else (
+                    "Z.ai OpenAPI"
+                    if (is_zai_openapi or is_terminus)
+                    else ("Z.ai" if request.agent == ZAI_OPENCODE_AGENT else "DeepSeek")
+                )
             )
             if process.proxy_usage is None:
                 cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
@@ -2344,6 +2446,14 @@ def profile_for_request(request: RunRequest) -> AgentProfile:
         for profile in candidates:
             if profile.model == request.model:
                 return profile
+        if is_tinker_terminus_model(request.model):
+            # A fine-tuned checkpoint selector pins its base model's profile;
+            # parse_tinker_model has already validated its shape upstream.
+            spec = parse_tinker_model(request.model)
+            base_selector = f"tinker/{spec.base_model}"
+            for profile in candidates:
+                if profile.model == base_selector:
+                    return profile
         raise ValueError(
             f"no profile pins model {request.model!r} for agent {request.agent!r}; "
             "add a profile instead of overriding a pin"

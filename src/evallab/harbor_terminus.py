@@ -9,11 +9,11 @@ explicit local Ollama service, refusing caller transport/credential overrides.
 Credential posture:
 
 - The real provider key lives only in the existing owner-only secret file
-  read by the trusted proxy. The harness holds a per-trial capability.
-- The capability reaches litellm's ``zai`` provider lookup through the
-  controller process environment (``ZAI_API_KEY``) set here at construction
-  time. It is never placed in ``llm_kwargs``/``llm_call_kwargs``: upstream
-  Terminus2 persists ``llm_kwargs`` verbatim into the ATIF trajectory
+- The capability reaches litellm's provider key lookup (``ZAI_API_KEY`` for
+  Z.ai routes, ``OPENAI_API_KEY`` for Tinker routes) through the controller
+  process environment set here at construction time. It is never placed in
+  ``llm_kwargs``/``llm_call_kwargs``: upstream Terminus2 persists
+  ``llm_kwargs`` verbatim into the ATIF trajectory
   (``agent.extra.llm_kwargs``), so any secret there would land in evidence.
 - ``extra_env`` is exported into the task's tmux session, i.e. inside the
   task container. It must never carry provider secrets or the trial
@@ -34,12 +34,17 @@ from harbor.agents.terminus_2.terminus_2 import Terminus2  # ty: ignore[unresolv
 from evallab.execution_contracts import (
     TERMINUS_LOCAL_MODEL_SELECTOR,
     TERMINUS_PROXY_URL_ENV,
+    TINKER_CONTEXT_TOKENS,
+    TINKER_MODEL_PREFIX,
+    TINKER_PROXY_CAPABILITY_ENV,
+    TINKER_PROXY_TOKEN,
     ZAI_OPENAPI_ALLOWED_MODELS,
     ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS,
-    ZAI_OPENAPI_MODEL_SELECTOR,
     ZAI_OPENAPI_PROXY_CAPABILITY_ENV,
     ZAI_OPENAPI_PROXY_TOKEN,
+    TinkerModelSpec,
     collected_secret_values,
+    parse_tinker_model,
 )
 from evallab.harbor_common import sanitize_native_trajectory
 from evallab.terminus_local import OllamaBinding, resolve_ollama_binding
@@ -80,8 +85,9 @@ async def apply_mimo_blocklist(environment: Any) -> str:
     out = (res.stdout or "").strip()
     return "none for this task" if out == "none" else f"{out} hosts blocked in /etc/hosts"
 
-#: litellm resolves the ``zai`` provider key from this process-environment name.
-_PROVIDER_KEY_ENV = "ZAI_API_KEY"
+#: litellm resolves each provider's key from this process-environment name.
+#: The capability token (never the provider key) is what lands here.
+_PROVIDER_KEY_ENVS = {"zai": "ZAI_API_KEY", "tinker": "OPENAI_API_KEY"}
 
 #: The loopback interface the runner binds the trial proxy to. Hostnames that
 #: merely resolve to loopback (``localhost``) are rejected: the binding must be
@@ -112,17 +118,33 @@ _FORBIDDEN_EXTRA_ENV_KEYS = frozenset(
         ),
     }
 )
-_FORBIDDEN_EXTRA_ENV_PREFIXES = ("evallab_zai_openapi", "evallab_terminus", "evallab_zai_")
+_FORBIDDEN_EXTRA_ENV_PREFIXES = (
+    "evallab_zai_openapi",
+    "evallab_tinker",
+    "evallab_terminus",
+    "evallab_zai_",
+)
 
 
-def _require_exact_model(model_name: str | None) -> str:
-    """Return ``model_name`` only when it is the qualified exact GLM route."""
-    if model_name != ZAI_OPENAPI_MODEL_SELECTOR or model_name not in ZAI_OPENAPI_ALLOWED_MODELS:
-        raise ValueError(
-            "SecretSafeTerminus2 requires the qualified exact model "
-            f"{ZAI_OPENAPI_MODEL_SELECTOR!r}, got {model_name!r}"
-        )
-    return model_name
+
+def _resolve_metered_model(model_name: str | None) -> tuple[str, TinkerModelSpec | None]:
+    """Return the validated model string plus its Tinker spec, if any.
+
+    Z.ai routes must be one of the exact admitted selectors. Tinker routes
+    are parsed strictly (fail-closed on unknown bases and malformed
+    checkpoints) so the selector string fully identifies the sampled weights.
+    """
+    if isinstance(model_name, str) and model_name.startswith(TINKER_MODEL_PREFIX):
+        spec = parse_tinker_model(model_name)
+        return model_name, spec
+    if model_name in ZAI_OPENAPI_ALLOWED_MODELS:
+        return model_name, None
+    raise ValueError(
+        "SecretSafeTerminus2 requires an exact metered model: one of "
+        f"{sorted(ZAI_OPENAPI_ALLOWED_MODELS)} or a Tinker route "
+        "'tinker/<base>[@tinker://<run>:train:<i>/sampler_weights/<step>]'; "
+        f"got {model_name!r}. Coding Plan credentials are not admitted."
+    )
 
 
 def _require_loopback_proxy_url() -> str:
@@ -153,13 +175,13 @@ def _require_loopback_proxy_url() -> str:
     return f"http://{_LOOPBACK_HOST}:{port}"
 
 
-def _require_capability() -> str:
+def _require_capability(env_name: str, placeholder: str) -> str:
     """Return the trial capability, failing closed on absence or placeholder."""
-    capability = os.environ.get(ZAI_OPENAPI_PROXY_CAPABILITY_ENV, "")
-    if not capability or capability == ZAI_OPENAPI_PROXY_TOKEN:
+    capability = os.environ.get(env_name, "")
+    if not capability or capability == placeholder:
         raise ValueError(
             "SecretSafeTerminus2 requires a bound trial capability in "
-            f"{ZAI_OPENAPI_PROXY_CAPABILITY_ENV}"
+            f"{env_name}"
         )
     return capability
 
@@ -230,11 +252,12 @@ class SecretSafeTerminus2(Terminus2):
                 "pass model_name as a keyword argument"
             )
         self._local_binding: OllamaBinding | None = None
+        self._tinker_spec: TinkerModelSpec | None = None
         if model_name == TERMINUS_LOCAL_MODEL_SELECTOR:
             self._local_binding = resolve_ollama_binding(model_name)
             model = model_name
         else:
-            model = _require_exact_model(model_name)
+            model, self._tinker_spec = _resolve_metered_model(model_name)
         if api_base is not None:
             raise ValueError(
                 "SecretSafeTerminus2 rejects api_base overrides: "
@@ -261,6 +284,7 @@ class SecretSafeTerminus2(Terminus2):
                 raise ValueError("local model context/pricing is runtime-bound, not a harness override")
             proxy_url = self._local_binding.endpoint
             capability = None
+            provider = None
             kwargs["model_info"] = {
                 "max_input_tokens": self._local_binding.context_budget_tokens,
                 "max_output_tokens": self._local_binding.context_budget_tokens,
@@ -270,7 +294,32 @@ class SecretSafeTerminus2(Terminus2):
             }
         else:
             proxy_url = _require_loopback_proxy_url()
-            capability = _require_capability()
+            if self._tinker_spec is not None:
+                # Context/pricing of the pinned Tinker base is runtime-bound:
+                # the 64K window drives native context summarization before
+                # overflow, and the table price keeps native cost estimates
+                # honest. A caller-supplied model_info can never override it.
+                if kwargs.get("model_info") is not None:
+                    raise ValueError(
+                        "Tinker model context/pricing is runtime-bound, not a harness override"
+                    )
+                spec = self._tinker_spec
+                kwargs["model_info"] = {
+                    "max_input_tokens": TINKER_CONTEXT_TOKENS,
+                    "max_output_tokens": TINKER_CONTEXT_TOKENS,
+                    "input_cost_per_token": spec.input_cost_micros_per_million / 1e6,
+                    "output_cost_per_token": spec.output_cost_micros_per_million / 1e6,
+                    "litellm_provider": "openai",
+                }
+                capability = _require_capability(
+                    TINKER_PROXY_CAPABILITY_ENV, TINKER_PROXY_TOKEN
+                )
+                provider = "tinker"
+            else:
+                capability = _require_capability(
+                    ZAI_OPENAPI_PROXY_CAPABILITY_ENV, ZAI_OPENAPI_PROXY_TOKEN
+                )
+                provider = "zai"
         clean_extra_env = _scrubbed_extra_env(extra_env, capability=capability)
         super().__init__(
             *args,
@@ -281,12 +330,13 @@ class SecretSafeTerminus2(Terminus2):
             extra_env=clean_extra_env,
             **kwargs,
         )
-        # Bind the capability for litellm's zai provider key lookup. This
-        # stays in the controller process environment only: it is never added
-        # to llm_kwargs (trajectory-persisted), llm_call_kwargs, extra_env
-        # (task container), or any task exec call.
-        if capability is not None:
-            os.environ[_PROVIDER_KEY_ENV] = capability
+        # Bind the capability for litellm's provider key lookup. This stays in
+        # the controller process environment only: it is never added to
+        # llm_kwargs (trajectory-persisted), llm_call_kwargs, extra_env (task
+        # container), or any task exec call.
+        if capability is not None and provider is not None:
+            os.environ[_PROVIDER_KEY_ENVS[provider]] = capability
+
 
     async def setup(self, environment: Any) -> None:
         await super().setup(environment)

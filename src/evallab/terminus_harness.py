@@ -79,8 +79,13 @@ ALLOWED_KNOBS = frozenset(
         "proactive_summarization_threshold",
         "reasoning_effort",
         "temperature",
+        "trajectory_config",
     }
 )
+
+#: The only trajectory_config keys Eval Lab admits. Both default to False
+#: upstream; unknown keys refuse here because upstream silently ignores them.
+TRAJECTORY_CONFIG_KEYS = frozenset({"raw_content", "linear_history"})
 
 #: Top-level keys that select model/transport instead of behavior.
 _EXPLICIT_BINDING_KEYS = frozenset(
@@ -119,8 +124,27 @@ def _validate_config(config: dict[str, Any]) -> None:
     turns = config.get("max_turns")
     if turns is not None and (isinstance(turns, bool) or not isinstance(turns, int) or turns < 1):
         raise ValueError("terminus config max_turns must be a positive integer")
-    nested = config.get("llm_call_kwargs")
+    if "trajectory_config" in config:
+        trajectory = config["trajectory_config"]
+        if not isinstance(trajectory, dict):
+            raise ValueError("terminus config trajectory_config must be an object")
+        unknown_trajectory = sorted(set(trajectory) - TRAJECTORY_CONFIG_KEYS)
+        if unknown_trajectory:
+            raise ValueError(
+                "terminus config trajectory_config sets unknown keys "
+                + ", ".join(unknown_trajectory)
+                + ": only raw_content and linear_history are admitted"
+            )
+        non_boolean = sorted(
+            str(key) for key, value in trajectory.items() if not isinstance(value, bool)
+        )
+        if non_boolean:
+            raise ValueError(
+                "terminus config trajectory_config values must be booleans: "
+                + ", ".join(non_boolean)
+            )
     if "llm_call_kwargs" in config:
+        nested = config["llm_call_kwargs"]
         if not isinstance(nested, dict):
             raise ValueError("terminus config llm_call_kwargs must be an object")
         nested_bound = sorted(str(key) for key in nested if _is_binding_key(str(key)))

@@ -110,6 +110,38 @@ def replay_spec_for_candidate(
     return ExperimentSpec.model_validate(base_spec.model_dump(mode="json") | update)
 
 
+
+def replay_spec_for_model(
+    base_spec: ExperimentSpec,
+    *,
+    campaign_name: str,
+    model: str,
+) -> ExperimentSpec:
+    """Replay a retained spec against a different model, changing nothing else.
+
+    Task package, harness tree, ceilings, attempts, and timeouts remain the
+    retained spec's; only the model string is swapped and run identity plus
+    prior authorization are cleared, exactly like a candidate replay. Callers
+    must validate the new model against the adapter's admitted selectors.
+    """
+    update: dict[str, object] = {
+        "spec_id": None,
+        "submitted_at": None,
+        "submitted_by": "model-replay",
+        "name": campaign_name,
+        "hypothesis": (
+            f"model swap to {model} replayed from retained spec "
+            f"{base_spec.spec_id or base_spec.name}"
+        ),
+        "jobs_dir": base_spec.jobs_dir,
+        "model": model,
+        "policy_rule": None,
+    }
+    for field in _CAMPAIGN_FIELDS:
+        update[field] = None
+    return ExperimentSpec.model_validate(base_spec.model_dump(mode="json") | update)
+
+
 def validate_drift(base_spec: ExperimentSpec, current_task_digest: str) -> None:
     """Refuse replay when the retained task package no longer matches disk."""
     changed: list[str] = []

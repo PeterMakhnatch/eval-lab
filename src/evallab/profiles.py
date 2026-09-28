@@ -41,9 +41,11 @@ from evallab.execution_contracts import (
     TERMINUS_AGENT,
     TERMINUS_LOCAL_ENDPOINT_ENV,
     TERMINUS_LOCAL_MODEL_SELECTOR,
+    TINKER_MODEL_PREFIX,
     ZAI_AUTH_PROVIDER,
     ZAI_OPENCODE_AGENT,
     ProfileInferenceSettings,
+    parse_tinker_model,
     read_owner_secret_file,
 )
 
@@ -52,11 +54,13 @@ _FORBIDDEN_KEY_MARKERS = ("API_KEY", "API_TOKEN", "_SECRET", "ACCESS_KEY")
 DEEPSEEK_CREDENTIAL_NAMES = frozenset({"DEEPSEEK_API_KEY", "MSWEA_API_KEY"})
 ZAI_OPENAPI_CREDENTIAL_NAMES = frozenset({"ZAI_OPENAPI_API_KEY"})
 GLM_SELFHOSTED_CREDENTIAL_NAMES = GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
+TINKER_CREDENTIAL_NAMES = frozenset({"TINKER_API_KEY"})
 ADMITTED_ENV_SECRET_SETS: frozenset[frozenset[str]] = frozenset(
     {
         DEEPSEEK_CREDENTIAL_NAMES,
         ZAI_OPENAPI_CREDENTIAL_NAMES,
         GLM_SELFHOSTED_CREDENTIAL_NAMES,
+        TINKER_CREDENTIAL_NAMES,
     }
 )
 
@@ -529,13 +533,26 @@ def scrub_environment(environment: Mapping[str, str], allowlist: frozenset[str])
 _MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9./_-]*(?::[A-Za-z0-9][A-Za-z0-9._-]*)?$")
 
 
+def _pin_model(model: str | None) -> str | None:
+    """Collapse a Tinker checkpoint selector onto its pinned base profile."""
+    if isinstance(model, str) and model.startswith(TINKER_MODEL_PREFIX):
+        spec = parse_tinker_model(model)
+        return f"{TINKER_MODEL_PREFIX}{spec.base_model}"
+    return model
+
+
 def validate_model_pin(profile: AgentProfile, model: str | None) -> None:
-    """A run's model must match its profile's pin exactly (or inherit it)."""
+    """A run's model must match its profile's pin exactly (or inherit it).
+
+    A Tinker fine-tuned checkpoint selector pins the same profile as its base
+    model: the base determines pricing, context, and credential; the
+    checkpoint suffix only selects sampled weights.
+    """
     if profile.model is None:
         if model is not None:
             raise ValueError(f"control profile {profile.profile_id} takes no model")
         return
-    if model is not None and model != profile.model:
+    if model is not None and model != profile.model and _pin_model(model) != profile.model:
         raise ValueError(
             f"model {model!r} does not match profile {profile.profile_id} "
             f"pin {profile.model!r}; change profiles, not pins"
@@ -714,6 +731,86 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                     max_timeout_seconds=28_800,
                     max_attempts=1,
                     max_concurrency=1,
+                ),
+            ),
+            AgentProfile(
+                profile_id="terminus-2-glm-5.3",
+                adapter=TERMINUS_AGENT,
+                model="zai/glm-5.3",
+                auth_mode="api-key-environment",
+                secret_source="env:ZAI_OPENAPI_API_KEY",
+                capabilities=(
+                    "credential-transport:host-loopback-proxy",
+                    "structured-trajectory:atif",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=28_800,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-09: Z.ai standard-API GLM-5.3 ($1.40 in / $4.40 out per "
+                    "1M tokens) Terminus lane added",
+                ),
+            ),
+            AgentProfile(
+                profile_id="terminus-2-tinker-qwen3-6-35b-a3b",
+                adapter=TERMINUS_AGENT,
+                model="tinker/Qwen/Qwen3.6-35B-A3B",
+                auth_mode="api-key-environment",
+                secret_source="env:TINKER_API_KEY",
+                capabilities=(
+                    "credential-transport:host-loopback-proxy",
+                    "structured-trajectory:atif",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=28_800,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-09-28: Thinking Machines Tinker OpenAI-compatible "
+                    "route ($0.54 in / $1.335 out per 1M tokens, 64K context)",
+                ),
+            ),
+            AgentProfile(
+                profile_id="terminus-2-tinker-qwen3-8-27b",
+                adapter=TERMINUS_AGENT,
+                model="tinker/Qwen/Qwen3.8-27B",
+                auth_mode="api-key-environment",
+                secret_source="env:TINKER_API_KEY",
+                capabilities=(
+                    "credential-transport:host-loopback-proxy",
+                    "structured-trajectory:atif",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=28_800,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-09-28: Thinking Machines Tinker OpenAI-compatible "
+                    "route ($1.86 in / $5.595 out per 1M tokens, 64K context)",
+                ),
+            ),
+            AgentProfile(
+                profile_id="terminus-2-tinker-qwen3-5-9b",
+                adapter=TERMINUS_AGENT,
+                model="tinker/Qwen/Qwen3.5-9B",
+                auth_mode="api-key-environment",
+                secret_source="env:TINKER_API_KEY",
+                capabilities=(
+                    "credential-transport:host-loopback-proxy",
+                    "structured-trajectory:atif",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=28_800,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-09-28: Thinking Machines Tinker OpenAI-compatible "
+                    "route ($0.66 in / $1.995 out per 1M tokens, 64K context)",
                 ),
             ),
             AgentProfile(

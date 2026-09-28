@@ -44,7 +44,9 @@ from evallab.execution_contracts import (
     DEEPSEEK_MODEL_SELECTOR,
     TERMINUS_AGENT,
     ZAI_OPENAPI_MODEL_SELECTOR,
+    ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS,
     DispatchCapacity,
+    is_tinker_terminus_model,
 )
 from evallab.queue import (
     MAX_TRANSIENT_RETRIES,
@@ -386,13 +388,22 @@ class CampaignDefinitionAttempt(_FrozenContract):
                     "billable campaigns require a metered mini-swe-agent or terminus-2 adapter"
                 )
             allowed_models = (
-                {ZAI_OPENAPI_MODEL_SELECTOR}
+                set(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)
                 if self.spec.agent == TERMINUS_AGENT
                 else {DEEPSEEK_MODEL_SELECTOR, ZAI_OPENAPI_MODEL_SELECTOR}
             )
-            if self.spec.model not in allowed_models:
+            model_ok = (
+                self.spec.model in allowed_models
+                or (
+                    self.spec.agent == TERMINUS_AGENT
+                    and is_tinker_terminus_model(self.spec.model)
+                )
+            )
+            if not model_ok:
                 raise ValueError(
-                    f"billable campaign model must be pinned to one of {sorted(allowed_models)}"
+                    "billable campaign model must be pinned to one of "
+                    f"{sorted(allowed_models)} or a tinker/<base>[@checkpoint] "
+                    "selector for terminus-2"
                 )
             if self.spec.est_cost_usd <= 0:
                 raise ValueError("billable campaign specs require a positive cost estimate")

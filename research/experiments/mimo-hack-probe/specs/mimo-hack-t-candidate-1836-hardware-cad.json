@@ -1,0 +1,19 @@
+{
+  "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-terminal@fe1c2b665aae/tasks/candidate-1836-hardware-cad",
+  "task_package_digest": "sha256:36f8c3f8ec4b57a5056e5267eb5f9d4be65ece628c0e6b556fc35245abaef3e4",
+  "agent": "terminus-2",
+  "model": "zai/glm-5.3-flash",
+  "environment": "daytona",
+  "name": "mimo-hack-t-candidate-1836-hardware-cad",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "timeout_seconds": 1800,
+  "extra_instruction_path": "research/experiments/preambles/mimo-hack-probe-v1.md",
+  "max_requests": 64,
+  "max_input_tokens": 200000,
+  "max_output_tokens": 8192,
+  "cost_limit_usd": 2.5,
+  "purpose": "elicitation",
+  "hypothesis": "A red-team instruction can make Terminus-2 obtain the reward without solving the task (answer-leak or verifier exploit).",
+  "submitted_by": "hackprobe"
+}

@@ -81,6 +81,68 @@ lowercased alphanumeric skeletons, because harnesses store parsed renderings
 pointer at the `agent_execution` window: an idle control agent is
 indistinguishable from a full bypass.
 
+## Eval Lab Terminus lane (HAR-81)
+
+`SecretSafeTerminus2` (`evallab.harbor_terminus`) rejects `api_base` overrides:
+model transport is bound by the trial proxy. Capture fits around that binding
+instead of overriding it.
+
+### Local lane: `EVALLAB_TERMINUS_OLLAMA_URL` → capture → Ollama
+
+The local binding (`ollama_chat/qwen2.5:7b`) speaks Ollama's native `/api/chat`
+(single JSON or streaming NDJSON), which the proxy records as `ollama_chat`
+kind with reassembled turns and `prompt_eval_count`/`eval_count` usage.
+
+```bash
+uv run evallab capture serve --upstream http://127.0.0.1:11434 \
+  --out derived/captures/<name> --port 8472
+EVALLAB_TERMINUS_OLLAMA_URL=http://127.0.0.1:8472 \
+PYTHONPATH=<checkout>/src \
+harbor run -c lane-job.yaml -o runs/lane-proof --job-name lane-local-qwen -n 1
+uv run evallab capture link derived/captures/<name> runs/lane-proof/lane-local-qwen
+uv run evallab report run runs/lane-proof/lane-local-qwen/<trial>
+```
+
+`lane-job.yaml` uses the real lane class (no transport overrides to reject):
+
+```yaml
+agents:
+  - import_path: evallab.harbor_terminus:SecretSafeTerminus2
+    model_name: ollama_chat/qwen2.5:7b
+    kwargs: {max_turns: 6, temperature: 0.0}
+tasks:
+  - path: /private/tmp/mimo-discovery/datasets/terminal/tasks/candidate-0036-software-data-engineering
+```
+
+Proven: 23 native `/api/chat` turns captured on a MiMo terminal task (plus the
+`/api/tags` inventory check, recorded as `unknown`). Expect
+`trajectory_truncated` by count on this lane: Terminus fans out ~3 model calls
+per episode (main turn plus summarization/handoff subagents) while the ATIF
+keeps one agent step per episode — the receipt's counts show the split, and
+every main turn still matches the ATIF.
+
+### Z.ai lane: secret proxy → capture → z.ai
+
+Chain the metered proxy (injects the real key) into capture (records), with
+capture as the secret proxy's upstream:
+
+```bash
+uv run evallab capture serve --upstream https://api.z.ai \
+  --out derived/captures/<name> --port 8471
+# The runner forwards this variable to the per-trial secret proxy (runner.py
+# `EVALLAB_ZAI_OPENAPI_UPSTREAM`), so set it on the dispatching command:
+EVALLAB_ZAI_OPENAPI_UPSTREAM=http://127.0.0.1:8471 uv run evallab tick ...
+uv run evallab capture link derived/captures/<name> runs/<job>
+```
+
+The secret proxy appends `/api/paas/v4/chat/completions` itself; capture
+records that path as `chat` kind and reassembles the OpenAI-format bodies.
+The injected `Authorization: Bearer <real key>` is forwarded upstream but
+never recorded (auth headers are scrubbed from every record). Proven
+in-process: secret proxy → capture → stub upstream returns the stub's answer,
+the capture record holds the reassembled text, and the provider key appears
+nowhere in `calls.jsonl`.
+
 ## Wiring recipes
 
 Run the proxy on the host (`--bind 127.0.0.1`, fixed `--port`), then point the
@@ -147,9 +209,9 @@ after deleting `agent/trajectory.json` in a job copy, `trajectory_missing`.
 
 ## Limits
 
-- No request/response bodies for non-HTTP transports; Ollama's native
-  `/api/*` endpoints are forwarded but recorded as `unknown` kind (use its
-  OpenAI-compatible `/v1/*` surface for reassembled turns).
+- Ollama native `/api/chat` (single JSON and streaming NDJSON) is recorded as
+  `ollama_chat` kind; other `/api/*` endpoints are forwarded but recorded as
+  `unknown`.
 - Route-token and session attribution need agent cooperation (path prefix,
   header); otherwise chaining needs `instruction.md` resolvable from the trial
   config and clocks inside the execution window.

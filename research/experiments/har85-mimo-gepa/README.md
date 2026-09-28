@@ -20,12 +20,26 @@ Peter's approvals (see §6).
   `terminus-2-glm-5.3-flash`. Single swappable parameter:
   `target.base_spec_path` →
   `base-specs/student-terminus2-provisional.json`.
+- Execution: cloud. The base spec sets `environment: daytona`, which the
+  executor maps to `evallab.harbor_daytona:BoundedDaytonaEnvironment` for
+  Terminus-2 (named sandbox, provider-side TTL = timeout + 10 min = 70 min;
+  `execution_contracts.build_command`). Task containers never run on the Mac;
+  the Terminus-2 controller and its loopback metered proxy stay host-side and
+  drive the sandbox remotely. `make_paired_specs.py` copies route, environment
+  and limits from the same base spec, so search and held-out cannot diverge.
 - Candidate artifact: agent-side instruction addendum ONLY (Harbor
   `extra_instruction_path`, `candidate_kind=instructions`). Task files, tests,
   and task instructions untouched.
 - MiMo facts: no task ships `solution/` (nop is the only control); setup runs
   in `[environment.healthcheck]`; verifier timeout 240 s; terminal graders are
   deterministic pytest (no judge).
+- HAR-82/83 catalog (#491): terminal `split_group` = task id (matches this
+  split). `train_eligible` needs a `learnable` model verdict plus stability
+  evidence, and no MiMo terminal task has a model trial yet, so the eligible
+  set is empty today; this search keeps the full provisional train pool and
+  its trials become that evidence. Every terminal task carries the H1
+  `mimo-terminal-hook-planting` finding; selection-rule criterion (4) screens
+  held-out trajectories with the HAR-83 detector.
 
 ## 2. Dry-run evidence ($0 end-to-end through the real Lab path, 2026-09-28)
 
@@ -71,9 +85,9 @@ verifier`). No infra failures; all rewards the expected nop 0.
 ## 4. Files
 
 - `split.provisional.json` (frozen copy), `selection-rule.json` (preregistered
-  critical-W sign-test table + no-infra-loss + generality rule; criterion (1)
-  amended same-day before any paid trial), `BUDGET.md` (formula with measured
-  counts, $ as placeholders).
+  critical-W sign-test table + no-infra-loss + generality rule + HAR-83 exploit
+  screen; criteria (1) and (4) amended/added same-day before any paid trial),
+  `BUDGET.md` (formula with measured counts and per-trial estimates).
 - `candidates/seed-addendum-v1.txt` (general guidance, no task specifics).
 - `qualification-campaign.json` (dry-run source; outputs under
   `runs/gepa-har85-mimo-nop-qualification/`, runtime state, uncommitted).
@@ -84,12 +98,15 @@ verifier`). No infra failures; all rewards the expected nop 0.
   never run).
 - `proposer-options.json` (A/B/C: 4/8/2 reflection calls; stamp fields +
   fresh approval ref to switch).
-- `proposer-approval.template.json` (STAGED binding `becdc632…`, signer/date
+- `proposer-approval.template.json` (STAGED binding `e79f94e9…`, signer/date
   blank; signed materialization is runtime state, gitignored).
 - `search-round.sh` (per-round helper: no-args list + exact approve line,
-  `--dispatch --ref` gated tick + campaign rerun; refusals exercised).
-- `make_paired_specs.py` (final 32 held-out specs generator; refuses on
-  drift/missing bytes; refusal + schema validation exercised).
+  `--dispatch --ref [--max-specs N]` gated tick + campaign rerun; refusals
+  exercised).
+- `make_paired_specs.py` (final 32 held-out specs generator: route,
+  environment and limits copied from the base spec; also writes
+  `paired-specs/cohort.json` for the exploit screen; refuses on drift/missing
+  bytes).
 - `paired-specs/` (empty until the winner exists; `ids.txt` recorded at submit).
 - `run-after-approval.sh` (32/32 approval gate + key-scoped tick; bash-3.2
   safe; refusals exercised: missing `ids.txt` and 0/32 approved, both exit 2).
@@ -128,6 +145,8 @@ PREREQUISITES (once per worktree, $0):
 uv sync --locked
 uv pip install -r research/experiments/harness-gepa/requirements.txt   # pinned GEPA runtime (verify_release)
 # then run the §5 recipe to materialize the 48 train tasks
+# ~/.omp/agent/.env must hold ZAI_OPENAPI_API_KEY (student) and DAYTONA_API_KEY
+# (sandboxes); the scripts read both into the tick process only, never print them.
 ```
 
 STEP 1 — train search (iterative, approval-gated; one parked spec per round):
@@ -145,6 +164,11 @@ EOF
 # first round: park the 8 baseline specs ($0; no tick while nothing is approved)
 ./research/experiments/har85-mimo-gepa/search-round.sh --dispatch \
   --ref research/experiments/har85-mimo-gepa/proposer-approval.signed.json
+# approve the 8 printed by search-round.sh, then run ONE as the smoke: this is
+# the first Terminus-2 x MiMo x Daytona trial ever (≈ $0.05). Inspect it with
+# `uv run evallab report run <run>` before ticking the other 7.
+./research/experiments/har85-mimo-gepa/search-round.sh --dispatch \
+  --ref research/experiments/har85-mimo-gepa/proposer-approval.signed.json --max-specs 1
 # each round after that:
 ./research/experiments/har85-mimo-gepa/search-round.sh   # lists parked specs + exact approve line; changes nothing
 # for id in <...>; do uv run evallab approve "$id" --actor peter; done   (printed above)
@@ -164,8 +188,9 @@ frozen campaign binding + `approved_by` + `approved_at` (operator: Peter).
 The staged binding (`proposer-approval.template.json`) was precomputed with
 the real loader/pin/hash (`load_campaign`, `verify_release`,
 `hashlib.sha256(json.dumps(binding, sort_keys=True))` per workflow.py:592-606):
-`becdc632c2ba575b195069c8976cadd252a723e1b23e3f63f65716a8df2a2990`.
-Recompute after ANY byte change to `campaign-train.json`, the seed, or the
+`e79f94e9dc0378e98fd95f3aef84d3053163484cc5c814fa38719db46511c0ce`.
+Recompute after ANY byte change to `campaign-train.json`, the retained base
+spec, the seed, or the
 pinned GEPA release (reinstall first: `uv pip install -r
 research/experiments/harness-gepa/requirements.txt`, then):
 ```bash
@@ -205,15 +230,21 @@ concurrency field stays out until that race is fixed. See BUDGET.md.
 
 STEP 2 — final held-out eval (one-shot, after a reviewed winner exists):
 ```bash
+# materialize the 16 held-out tasks (§5 pattern over heldout_task_ids), then:
 uv run python research/experiments/har85-mimo-gepa/make_paired_specs.py \
   --winner <reviewed-winner-path> --winner-sha256 sha256:<64hex>
 # submit paired-specs/ (parks 32 specs), record the 32 queue IDs in paired-specs/ids.txt
 uv run evallab approve <SPEC_ID> --actor peter   # x 32
 ./research/experiments/har85-mimo-gepa/run-after-approval.sh
+# criterion (4): HAR-83 exploit screen over the 32 held-out job dirs ($0, local)
+uv run evallab tasks exploit-collect \
+  --cohort research/experiments/har85-mimo-gepa/paired-specs/cohort.json \
+  <32 held-out job dirs> --output runs/har85-heldout-exploits/task_exploits.parquet
 ```
 Then apply `selection-rule.json` verbatim (sign test via `src/evallab/power.py`,
 paired analysis via `src/evallab/gepa_optimizer/paired_analysis.py`,
-trajectory generality check); retain the seed unless ALL conditions hold.
+trajectory generality check, exploit screen); retain the seed unless ALL
+conditions hold.
 
 ## 7. Swap to HAR-81's sealed split/route
 
@@ -229,6 +260,10 @@ trajectory generality check); retain the seed unless ALL conditions hold.
 - No paid call of any kind was made; all trial evidence is nop controls plus
   staged (unapproved) artifacts. The staged per-trial ceilings ($2.00) and
   estimates ($0.25) are genuine caps/estimates, not measurements.
+- Terminus-2 has never run on a MiMo task, and no model-driven Terminus-2
+  trial has run on Daytona (the bounded-Daytona path is shared with GLM
+  mini-SWE, which has). Replay specs validate and build the bounded-Daytona
+  Harbor command at $0; the first real execution is the `--max-specs 1` smoke.
 - 3-task dry run: proves the loop mechanics on real MiMo packages, not search
   quality. The 8-task search config is staged, not run.
 - Proposer route is OpenCode-Flash only; any other reflection model needs its

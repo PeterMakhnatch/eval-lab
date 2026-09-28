@@ -22,12 +22,24 @@ transport. The RLM lane cannot use it without a lane change (agent kwarg +
 lane validation + key transport); the staged path keeps the coding-plan
 route. See README.md "Student route verdict".
 
+Task containers run in **Daytona** (`--harbor-env daytona`, bound into the
+approval): that part is **METERED** sandbox spend, billed per second at
+$0.0504/vCPU-h + $0.0162/GiB-h (https://www.daytona.io/pricing, read
+2026-09-28; storage free below 5 GiB). MiMo terminal tasks request 1 vCPU +
+2 GiB, so a sandbox costs $0.0834/h. It is reported as its own line, never
+folded into the model API-equivalent figure. The TTL (`ttl_minutes=40`)
+bounds a sandbox orphaned by a dead controller at ≈ $0.056.
+
 ## Formula (enforced by `verify_approval` via `expected_cost_usd`)
 
 Per phase binding:
 
 - phase gepa: `max_metric_calls × 2.5 × ($0.06 + $0.007) + ceil(trials/10) × $0.10`
-- phase heldout: `16 × 2 × attempts × $0.06`
+  (model API-equiv) `+ trials × $0.03` (Daytona)
+- phase heldout: `16 × 2 × attempts × $0.06` (model API-equiv) `+ trials × $0.03` (Daytona)
+
+`verify_approval` checks the SUM of both parts against the bound cap;
+`--print-binding` prints each part separately.
 
 Inputs and where they were measured ($0 work, this branch):
 
@@ -40,23 +52,27 @@ Inputs and where they were measured ($0 work, this branch):
 | reflection call $ | $0.10 | glm-5.3 (non-flash) planning assumption at list prices; recheck from real usage after the pilot |
 | per-trial ceiling | $1.00 (`cost_limit_usd`) | enforced in-harness by `LabRlm` (`src/evallab/rlm/harness.py`); worst case, never the plan |
 | held-out trials | 16 tasks × 2 arms × attempts | split manifest `fb645fed…52dab` (16 heldout ids); paired winner-vs-base |
+| Daytona sandbox $ per trial | $0.03 (≈ 22 min at $0.0834/h) | list price above × task.toml resources (1 vCPU / 2 GiB); planning estimate, no paid Daytona RLM trial yet |
 
 ## Costed scopes
 
-| scope | expected API-equiv | phase cap | ceiling change |
-|---|---|---|---|
-| pilot phase 1 (4 train + 2 val, 12 metric calls) | 30×$0.067 + 3×$0.10 = **$2.31** | $3 | none (standing `per_job_cost_ceiling_usd` 3 covers it) |
-| full phase 1 (48 train, 36 metric calls) | 90×$0.067 + 9×$0.10 = **$6.93** | $10 | raise `per_job_cost_ceiling_usd` 3 → 10 for that job |
-| phase 2 (16 heldout × 2 arms × 3 attempts) | 96×$0.06 = **$5.76** | $8 | raise `per_job_cost_ceiling_usd` 3 → 8 for that job |
+| scope | model API-equiv (subscription) | Daytona (metered) | total vs phase cap | ceiling change |
+|---|---|---|---|---|
+| pilot phase 1 (4 train + 2 val, 10 metric calls, 25 trials) | 25×$0.067 + 3×$0.10 = $1.98 | 25×$0.03 = $0.75 | **$2.73** / $3 | none (standing `per_job_cost_ceiling_usd` 3 covers it) |
+| full phase 1 (48 train, 36 metric calls, 90 trials) | 90×$0.067 + 9×$0.10 = $6.93 | $2.70 | **$9.63** / $10 | raise `per_job_cost_ceiling_usd` 3 → 10 for that job |
+| phase 2 (16 heldout × 2 arms × 3 attempts, 96 trials) | 96×$0.06 = $5.76 | $2.88 | **$8.64** / $9 | raise `per_job_cost_ceiling_usd` 3 → 9 for that job |
 
-The daily $20 ceiling covers any single phase. `verify_approval` refuses when
-`expected_cost_usd(binding) > cap_usd` (exercised: $0.50 cap against a $2.31
-binding refuses). The cap is part of the binding: raising it invalidates the
-approval sha and forces a re-derive + re-sign.
+The pilot was 12 metric calls before trials moved to Daytona; 12 calls now
+expect $3.21 and `verify_approval` refuses them at a $3 cap (exercised), so
+the pilot is 10 calls. The daily $20 ceiling covers any single phase. The cap
+is part of the binding: raising it invalidates the approval sha and forces a
+re-derive + re-sign.
 
-At ~7 credits per rollout-ish unit (840 credits / 124 units in the reference
-batch), the pilot (~33 units) burns roughly 230 credits ≈ 2% of one 5-hour
-window; full phase 1 (~99 units) ≈ 6%; phase 2 (96 short trials) ≈ 6%. No
-phase comes close to one window on credits. If the window is already
-partially consumed, run the phase in a fresh one; the launcher does not
-check this — the approver does, before signing.
+Subscription quota, two bounds from the same reference batch (840 credits):
+at ~7 credits per rollout-ish unit (840 / 124 units) the pilot (~28 units)
+uses ≈ 2% of one 5-hour window, full phase 1 (~99) ≈ 6%, phase 2 (96) ≈ 6%;
+if trials dominate (~47 credits/trial, above) the pilot's 25 trials use
+≈ 10%, full phase 1 ≈ 35%, phase 2 ≈ 38%. No phase needs more than one
+window. If the window is already partially consumed, run the phase in a
+fresh one; the launcher does not check this — the approver does, before
+signing.

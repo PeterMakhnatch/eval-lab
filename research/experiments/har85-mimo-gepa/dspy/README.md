@@ -82,7 +82,7 @@ Terminus-2 lane only.
 | `run-after-approval.sh` | Gated paid launcher (phase 1: GEPA train/val; phase 2: final paired held-out). Refuses without a bound approval. |
 | `approvals/` | Committed BLANK templates per phase (binding filled, approver blank for phase 1; binding filled post-phase-1 for phase 2). Signed refs live outside the repo, never committed. |
 | `APPROVAL.md` | Exact approval commands + gate design + no-bypass statement. |
-| `BUDGET.md` | Budget formula with measured inputs (subscription-quota framing). |
+| `BUDGET.md` | Budget formula with measured inputs: model API-equivalent (subscription quota) and metered Daytona sandbox time, reported separately. |
 
 The split manifest lives at `../split.provisional.json` (owned by Har85Gepa;
 PROVISIONAL until HAR-81 seals its split). This arm reads it at runtime and
@@ -101,8 +101,13 @@ re-checks the manifest digest.
   `stock` used here). Optimizer precedent: `src/evallab/rlm/gepa_rlm.py`
   (dspy.GEPA over `generate_action` on the synthetic suite — same target,
   new rollout path).
-- Launch: `harbor run --path <task> --agent <import-path> --env docker
+- Launch: `harbor run --path <task> --agent <import-path> --env <env>
   --model <route> --ak policy=<id|policy-JSON> --ak cost_limit_usd=<n>`.
+  Paid runs use `--env evallab.harbor_daytona:BoundedDaytonaEnvironment
+  --environment-kwarg ttl_minutes=40` (`gepa_mimo.harbor_env_args`, the Lab
+  queue's bounded lifecycle for host-side agents: named sandbox, provider-side
+  TTL). The RLM loop stays host-side and drives the sandbox through
+  `environment.exec`; `--env docker` is kept for $0 dry runs only.
   Agent import registry: `execution_contracts.AGENT_IMPORTS`
   (`rlm → evallab.harbor_rlm:LabRlmAgent`); profile `rlm-glm-5.3-flash`
   (`profiles.py`); lane validation `validate_request` (rlm binds exactly
@@ -125,10 +130,11 @@ re-checks the manifest digest.
 ## Reproduce ($0 only)
 
 ```bash
-# lane runtime (untracked): harbor 0.21.0 + dspy 3.3.1 + pytest
+# lane runtime (untracked): harbor 0.21.0 + daytona 0.210.0 (same as the Lab's
+# harbor tool) + dspy 3.3.1 + pytest
 uv venv runs/.harbor-dspy --python 3.12
 uv pip install --python runs/.harbor-dspy/bin/python \
-  "harbor[dspy]==0.21.0" "dspy==3.3.1" "litellm==1.101.0" "numpy==2.5.2" pytest
+  "harbor[dspy,daytona]==0.21.0" "daytona==0.210.0" "dspy==3.3.1" "litellm==1.101.0" "numpy==2.5.2" pytest
 # focused tests
 PYTHONPATH=src runs/.harbor-dspy/bin/python -m pytest tests/test_rlm_harness.py -q -o addopts=""
 # feasibility trial (~15 s + one docker image, already local)

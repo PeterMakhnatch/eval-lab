@@ -1,9 +1,12 @@
-# HAR-85 budget: formula with measured counts, $ as parent-filled placeholders
+# HAR-85 budget: formula with measured counts and per-trial estimates
 
 Status: STAGED ONLY. No paid call made; no approval recorded. Policy ceilings:
 per_job_cost_ceiling_usd 3, daily_cost_ceiling_usd 20
 (policy/standing-approvals.yaml). Every per-trial ceiling below is < $3, so no
-cap raise is needed for the staged plan.
+cap raise is needed for the staged plan. Trials run in Daytona (base spec
+`environment: daytona`), so each trial has two spend types, reported
+separately: model tokens (metered Z.ai OpenAPI balance) and sandbox time
+(metered Daytona).
 
 ## Formula
 
@@ -34,16 +37,26 @@ $heldout = 32 x C_STUDENT_TRIAL
 | Nop dry-run rewards | 0.0 x 3, verifier completed, no exceptions | campaign attempt-26a22eed result.json |
 | Deterministic proposer calls in dry run | 1, $0.00, review-gate stop | same report (candidate_review_required) |
 
-## $ placeholders (parent fills from live prices)
+## Per-trial estimates (the $0.25 queue estimate covers both spend types)
 
-- `C_STUDENT_TRIAL`: one Terminus-2 + zai/glm-5.3-flash trial (per-trial
-  cost_limit_usd 2.00, est_cost_usd 0.25 → search est 32 x $0.25 = $8.00).
+- `C_STUDENT_TRIAL` = model + sandbox, est_cost_usd 0.25 in the base spec
+  (the queue's policy estimate; per-trial model ceiling cost_limit_usd 2.00).
+  - Model: glm-5.3-flash Terminus-2 at list price ≈ $0.01–0.03/trial (proxy
+    from research/evidence/runs/zai-wave2-flash-matrix; LOW-MED confidence,
+    no Terminus-2 MiMo trial exists yet).
+  - Daytona sandbox: MiMo terminal tasks request 1 vCPU + 2 GiB →
+    $0.0504 + 2 × $0.0162 = $0.0834/h (https://www.daytona.io/pricing, read
+    2026-09-28; storage free below 5 GiB) ≈ $0.02–0.03 for a 15–20 min
+    trial; TTL-bounded worst case 70 min ≈ $0.10. Harness `cost_usd` does
+    NOT include sandbox time; settle it from the Daytona bill, never mixed
+    into model cost.
 - `C_PROPOSER_CALL`: one OpenCode Flash reflection call (per-call ceiling
   $0.05, max_proposer_cost_usd $0.20 for 4 calls).
-- Held-out est: 32 x $0.25 = $8.00 (ceilings $2.00/job).
+- Search est: 32 x $0.25 = $8.00; held-out est: 32 x $0.25 = $8.00.
 - Program est total ≈ $16.20 at estimates, under the $20 daily ceiling if both
-  phases dispatch the same day; actual Flash spend is expected in cents and is
-  settled from trial receipts, not estimates.
+  phases dispatch the same day. Expected actual: 64 trials × ($0.01–0.03 model
+  + $0.02–0.03 sandbox) + ≤ $0.20 proposer ≈ $2.12–4.04, settled from trial
+  receipts and the Daytona bill, not estimates.
 
 ## Options B/C deltas (proposer-options.json)
 

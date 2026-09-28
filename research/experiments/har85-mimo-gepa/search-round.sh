@@ -4,10 +4,11 @@
 # With no args: list THIS campaign's parked (queue/waiting) specs, print the
 # count, the estimated $, and the exact approve line. Changes nothing.
 #
-# With --dispatch --ref PATH: refuse while any campaign spec still awaits
-# approval; tick ONLY this campaign's approved IDs (key loaded into the tick
-# process only, never printed), or skip the tick when none are approved (the
-# first round); then rerun the campaign, which parks the next round.
+# With --dispatch --ref PATH [--max-specs N]: refuse while any campaign spec
+# still awaits approval; tick this campaign's approved IDs (at most N, default
+# all; key loaded into the tick process only, never printed), or skip the tick
+# when none are approved (the first round); then rerun the campaign, which
+# parks the next round (approved-but-unticked specs are reused, not resubmitted).
 #
 # Campaign-spec match: replayed search specs are named
 #   gepa-runs-gepa-har85-mimo-train-search-<tags>
@@ -40,13 +41,19 @@ EOF
 
 mode="list"
 ref=""
+max_specs=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --dispatch) mode="dispatch"; shift;;
     --ref) ref="${2:?--ref needs a path}"; shift 2;;
-    *) echo "usage: $0 [--dispatch --ref PROPOSER_APPROVAL_REF]" >&2; exit 2;;
+    --max-specs) max_specs="${2:?--max-specs needs a positive integer}"; shift 2;;
+    *) echo "usage: $0 [--dispatch --ref PROPOSER_APPROVAL_REF [--max-specs N]]" >&2; exit 2;;
   esac
 done
+case "$max_specs" in
+  '') ;;
+  *[!0-9]*|0) echo "refusing: --max-specs must be a positive integer" >&2; exit 2;;
+esac
 
 set --
 while IFS= read -r line || [ -n "$line" ]; do
@@ -92,18 +99,25 @@ done <<EOF
 $(list_specs queue/approved)
 EOF
 approved_n="$#"
+if [ -n "$max_specs" ] && [ "$approved_n" -gt "$max_specs" ]; then
+  approved_n="$max_specs"
+fi
 cd "$lab"
 if [ "$approved_n" -gt 0 ]; then
-  approved_ids=$(printf '%s\n' "$@" | awk '{print $1}')
+  approved_ids=$(printf '%s\n' "$@" | awk -v n="$approved_n" 'NR<=n {print $1}')
   key=$(awk 'index($0,"ZAI_OPENAPI_API_KEY=")==1{v=substr($0,21); gsub(/^["'"'"']|["'"'"']$/,"",v); print v}' "$HOME/.omp/agent/.env")
   [ -n "$key" ] || { echo "refusing: ZAI_OPENAPI_API_KEY missing" >&2; exit 2; }
+  # Trials run in Daytona (base spec environment); the runner forwards this key
+  # to Harbor only for Daytona environments (src/evallab/runner.py, include_daytona_credentials).
+  dkey=$(awk '{sub(/^export /,"")} index($0,"DAYTONA_API_KEY=")==1{v=substr($0,17); gsub(/^["'"'"']|["'"'"']$/,"",v); print v}' "$HOME/.omp/agent/.env")
+  [ -n "$dkey" ] || { echo "refusing: DAYTONA_API_KEY missing" >&2; exit 2; }
   args=(--max-specs "$approved_n")
   # shellcheck disable=SC2086
   for id in $approved_ids; do args+=(--spec-id "$id"); done
   env -i HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" LANG="${LANG:-en_US.UTF-8}" \
     PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
-    ZAI_OPENAPI_API_KEY="$key" \
+    ZAI_OPENAPI_API_KEY="$key" DAYTONA_API_KEY="$dkey" \
     /Users/petermakhnatch/.local/bin/uv run --no-sync evallab tick "${args[@]}"
 else
   # First round (nothing parked yet) or a round whose trials already ran: no

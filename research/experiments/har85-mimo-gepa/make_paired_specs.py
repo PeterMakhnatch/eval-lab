@@ -2,9 +2,11 @@
 """Generate the 32 paired seed-vs-GEPA model specs for the HAR-85 final held-out eval.
 
 16 held-out tasks x 2 arms (seed addendum vs best-GEPA addendum), 1 attempt
-each (Terminus-2 binds exactly one trial). Same provisional student
-(SecretSafeTerminus2 + zai/glm-5.3-flash), same per-trial limits; arms differ
-ONLY in extra_instruction_path. Decided under selection-rule.json.
+each (Terminus-2 binds exactly one trial). The student route, execution
+environment and per-trial limits are read from the SAME retained base spec the
+train search replays (--base-spec, default base-specs/student-terminus2-
+provisional.json), so swapping the route there swaps it here; arms differ ONLY
+in extra_instruction_path. Decided under selection-rule.json.
 
 Package digests are asserted against split.provisional.json at generation time;
 the script refuses on drift or on a missing worktree-local held-out
@@ -12,7 +14,9 @@ materialization (see README recipe -- held-out bytes are NEVER committed and
 NEVER enter the train search). Output specs go to paired-specs/ (committed
 sources); submission via `evallab submit` parks them in queue/waiting/
 (runtime state, never approved here). After submit, record the 32 queue IDs
-in paired-specs/ids.txt for run-after-approval.sh.
+in paired-specs/ids.txt for run-after-approval.sh. paired-specs/cohort.json
+lists the 16 held-out packages for the selection rule's exploit screen
+(`evallab tasks exploit-collect --cohort`, criterion 4).
 
 Usage:
   uv run python research/experiments/har85-mimo-gepa/make_paired_specs.py \
@@ -26,39 +30,53 @@ import json
 import re
 from pathlib import Path
 
-from evallab.registry import compute_task_digests, task_directory_digest
+from evallab.registry import compute_task_digests, harbor_task_digest, task_directory_digest
 
 REPO = Path(__file__).resolve().parents[3]
 EXP = REPO / "research/experiments/har85-mimo-gepa"
 TASKS = EXP / "tasks"
 SEED = EXP / "candidates/seed-addendum-v1.txt"
 SPLIT = EXP / "split.provisional.json"
+BASE_SPEC = EXP / "base-specs/student-terminus2-provisional.json"
 
 PINNED_MANIFEST_DIGEST = (
     "sha256:fb645fed8acf01a1df3eddcf3d235c0d72b8afba353993170923e43560052dab"
 )
 
-AGENT = "terminus-2"
-MODEL = "zai/glm-5.3-flash"
-TIMEOUT_SECONDS = 3600
-EST_COST_USD = 0.25
-MAX_REQUESTS = 500
-MAX_INPUT_TOKENS = 8_000_000
-MAX_OUTPUT_TOKENS = 262_144
-MAX_TOTAL_TOKENS = MAX_INPUT_TOKENS + MAX_OUTPUT_TOKENS
-COST_LIMIT_USD = 2.0
+# Fields copied verbatim from the retained base spec: the student route, where
+# it runs, and every per-trial limit. Nothing here is a second source of truth.
+ROUTE_FIELDS = (
+    "agent",
+    "model",
+    "environment",
+    "timeout_seconds",
+    "est_cost_usd",
+    "max_requests",
+    "max_input_tokens",
+    "max_output_tokens",
+    "max_total_tokens",
+    "cost_limit_usd",
+)
+
+
+def _route(base_spec: Path) -> dict:
+    base = json.loads(base_spec.read_text())
+    missing = [field for field in ROUTE_FIELDS if base.get(field) is None]
+    if missing:
+        raise SystemExit(f"refusing: base spec {base_spec} lacks {', '.join(missing)}")
+    return {field: base[field] for field in ROUTE_FIELDS}
 
 
 def _spec(
     name: str, arm: str, task_id: str, task_rel: str, package_digest: str,
-    verifier_digest: str, addendum_rel: str, addendum_sha256: str,
+    verifier_digest: str, addendum_rel: str, addendum_sha256: str, route: dict,
 ) -> dict:
     return {
         "schema_version": 1,
         "name": name,
         "hypothesis": (
             f"HAR-85 paired held-out trial, task={task_id}, arm={arm}: provisional "
-            f"Terminus-2 student + {MODEL} with "
+            f"{route['agent']} student + {route['model']} on {route['environment']} with "
             f"{'best-GEPA addendum' if arm == 'gepa' else 'seed addendum'}; "
             "arms differ only in extra_instruction_path; decided under selection-rule.json"
         ),
@@ -71,22 +89,13 @@ def _spec(
         "task_package_digest": package_digest,
         "extra_instruction_path": addendum_rel,
         "extra_instruction_sha256": addendum_sha256,
-        "agent": AGENT,
-        "model": MODEL,
-        "environment": "docker",
         "jobs_dir": "runs",
         "attempts": 1,
         "concurrency": 1,
-        "timeout_seconds": TIMEOUT_SECONDS,
         "submitted_by": "operator",
         "priority": 100,
-        "est_cost_usd": EST_COST_USD,
         "requires": [],
-        "max_requests": MAX_REQUESTS,
-        "max_input_tokens": MAX_INPUT_TOKENS,
-        "max_output_tokens": MAX_OUTPUT_TOKENS,
-        "max_total_tokens": MAX_TOTAL_TOKENS,
-        "cost_limit_usd": COST_LIMIT_USD,
+        **route,
     }
 
 
@@ -96,7 +105,10 @@ def main() -> int:
                         help="worktree path to the reviewed best-GEPA addendum text")
     parser.add_argument("--winner-sha256", required=True,
                         help="sha256:<64hex> digest of the winner file (asserted)")
+    parser.add_argument("--base-spec", type=Path, default=BASE_SPEC,
+                        help="retained student base spec shared with the train search")
     args = parser.parse_args()
+    route = _route(args.base_spec)
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", args.winner_sha256):
         raise SystemExit("refusing: --winner-sha256 must be sha256:<64hex>")
 
@@ -123,6 +135,7 @@ def main() -> int:
     out_dir = EXP / "paired-specs"
     out_dir.mkdir(exist_ok=True)
     names = []
+    cohort = []
     for task_id in heldout:
         row = by_id[task_id]
         task_dir = TASKS / task_id
@@ -137,6 +150,12 @@ def main() -> int:
         task_rel = task_dir.relative_to(REPO).as_posix()
         verifier_digest = compute_task_digests(task_dir).verifier
         short = task_id.replace("candidate-", "")
+        cohort.append({
+            "task_id": task_id,
+            "package_digest": digest,
+            "harbor_digest": harbor_task_digest(task_dir),
+            "split": "heldout",
+        })
         for arm, addendum_rel, addendum_sha in (
             ("seed", seed_rel, seed_sha256),
             ("gepa", winner_rel, args.winner_sha256),
@@ -145,15 +164,20 @@ def main() -> int:
             (out_dir / f"{name}.json").write_text(
                 json.dumps(
                     _spec(name, arm, task_id, task_rel, digest,
-                          verifier_digest, addendum_rel, addendum_sha),
+                          verifier_digest, addendum_rel, addendum_sha, route),
                     indent=2,
                 )
                 + "\n"
             )
             names.append(name)
-    print(f"wrote {len(names)} specs to {out_dir}")
-    print(f"per-trial est ${EST_COST_USD:.2f}, ceiling ${COST_LIMIT_USD:.2f}; "
-          f"total est ${len(names) * EST_COST_USD:.2f}")
+    (out_dir / "cohort.json").write_text(
+        json.dumps({"experiment": "HAR-85 held-out exploit screen", "cohort": cohort}, indent=2)
+        + "\n"
+    )
+    print(f"wrote {len(names)} specs + cohort.json ({len(cohort)} tasks) to {out_dir}")
+    print(f"route {route['agent']} + {route['model']} on {route['environment']}; "
+          f"per-trial est ${route['est_cost_usd']:.2f}, model ceiling "
+          f"${route['cost_limit_usd']:.2f}; total est ${len(names) * route['est_cost_usd']:.2f}")
     return 0
 
 

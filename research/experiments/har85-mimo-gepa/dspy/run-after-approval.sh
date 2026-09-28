@@ -46,16 +46,20 @@ DSPY_DIR="$SCRIPT_DIR"
 [ -f "$APPROVAL_FILE" ] || { echo "refusing: approval file not found: $APPROVAL_FILE" >&2; exit 2; }
 [ -n "$CAP_USD" ] || { echo "refusing: --cap-usd is required (bound into the approval)" >&2; exit 2; }
 [ -f "$SPLIT" ] || { echo "refusing: $SPLIT missing" >&2; exit 2; }
-command -v docker >/dev/null || { echo "refusing: docker is not on PATH" >&2; exit 2; }
+# Task containers run in Daytona (bounded lifecycle; binding field harbor_env).
+# The key is read from OMP's env file into this process only, never printed.
+DAYTONA_API_KEY="$(awk '{sub(/^export /,"")} index($0,"DAYTONA_API_KEY=")==1{v=substr($0,17); gsub(/^["'"'"']|["'"'"']$/,"",v); print v}' "$HOME/.omp/agent/.env")"
+[ -n "$DAYTONA_API_KEY" ] || { echo "refusing: DAYTONA_API_KEY missing from ~/.omp/agent/.env" >&2; exit 2; }
+export DAYTONA_API_KEY
+command -v uv >/dev/null || { echo "refusing: uv is not on PATH" >&2; exit 2; }
 
 VENV="$REPO/runs/.harbor-dspy"
-if [ ! -x "$VENV/bin/harbor" ]; then
-  echo "setup: creating lane venv at $VENV (harbor 0.21.0 + dspy 3.3.1, untracked)" >&2
-  uv venv "$VENV" --python 3.12
+if [ ! -x "$VENV/bin/harbor" ] || ! "$VENV/bin/python" -c 'import daytona' 2>/dev/null; then
+  echo "setup: lane venv at $VENV (harbor 0.21.0 + daytona 0.210.0 + dspy 3.3.1, untracked)" >&2
+  [ -x "$VENV/bin/python" ] || uv venv "$VENV" --python 3.12
   uv pip install --python "$VENV/bin/python" \
-    "harbor[dspy]==0.21.0" "dspy==3.3.1" "litellm==1.101.0" "numpy==2.5.2" pytest
+    "harbor[dspy,daytona]==0.21.0" "daytona==0.210.0" "dspy==3.3.1" "litellm==1.101.0" "numpy==2.5.2" pytest
 fi
-command -v uv >/dev/null || { echo "refusing: uv is not on PATH" >&2; exit 2; }
 
 # Stage byte-identical task copies (gitignored) and verify digests.
 TASKS_ROOT="$REPO/runs/har85-gepa-mimo/tasks"
@@ -82,7 +86,7 @@ if [ "$PHASE_NAME" = "gepa" ]; then
   exec env PYTHONPATH="$REPO/src" "${GEPA_PY[@]}" \
     --split "$SPLIT" --tasks-root "$TASKS_ROOT" --repo-root "$REPO" \
     --harbor-bin "$VENV/bin/harbor" --jobs-dir "$REPO/runs/har85-gepa-mimo/jobs" \
-    --job-tag har85-gepa-mimo-phase1 --base-policy stock \
+    --job-tag har85-gepa-mimo-phase1 --base-policy stock --harbor-env daytona \
     --train-tasks "$TRAIN_TASKS" ${VAL_TASKS:+--val-tasks "$VAL_TASKS"} \
     --max-metric-calls "$MAX_METRIC_CALLS" --approval-file "$APPROVAL_FILE" \
     --cap-usd "$CAP_USD" \
@@ -94,7 +98,7 @@ fi
 env PYTHONPATH="$REPO/src" "${GEPA_PY[@]}" \
   --phase heldout --verify-only --split "$SPLIT" --tasks-root "$TASKS_ROOT" \
   --repo-root "$REPO" --harbor-bin "$VENV/bin/harbor" --jobs-dir "$REPO/runs/har85-gepa-mimo/jobs" \
-  --job-tag har85-heldout-verify \
+  --job-tag har85-heldout-verify --harbor-env daytona \
   --winner "$WINNER" --attempts "$ATTEMPTS" \
   --approval-file "$APPROVAL_FILE" --cap-usd "$CAP_USD" --out "$REPO/runs/har85-gepa-mimo/phase2" \
   || { echo "refusing: phase-2 approval verification failed" >&2; exit 2; }
@@ -114,6 +118,8 @@ trap 'rm -rf "$SECRET_DIR"' EXIT
 task_workdir() {
   "$VENV/bin/python" -c "import sys,tomllib;print(tomllib.load(open(sys.argv[1],'rb')).get('environment',{}).get('workdir','/'))" "$1/task.toml"
 }
+# Same bounded-Daytona flags as phase 1 (single source: gepa_mimo.harbor_env_args).
+ENV_ARGS="$(PYTHONPATH="$REPO/src:$DSPY_DIR" "$VENV/bin/python" -c 'import gepa_mimo; print(" ".join(gepa_mimo.harbor_env_args("daytona")))')"
 for id in $HELDOUT_IDS; do
   stage_task "$id"
   for arm in winner base; do
@@ -125,9 +131,9 @@ for id in $HELDOUT_IDS; do
     env -i HOME="$HOME" TMPDIR="${TMPDIR:-/private/tmp}" LANG="${LANG:-en_US.UTF-8}" \
       PATH="$VENV/bin:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" \
       PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
-      "PYTHONPATH=$REPO/src" EVALLAB_ZAI_SECRET_FILE="$SECRET_FILE" \
+      "PYTHONPATH=$REPO/src" EVALLAB_ZAI_SECRET_FILE="$SECRET_FILE" DAYTONA_API_KEY="$DAYTONA_API_KEY" \
     "$VENV/bin/harbor" run --path "$TASKS_ROOT/$id" \
-      --agent evallab.harbor_rlm:LabRlmAgent --env docker \
+      --agent evallab.harbor_rlm:LabRlmAgent $ENV_ARGS \
       --model zai-coding-plan/glm-5.3-flash \
       --ak "policy=$POLICY" --ak cost_limit_usd=1.0 \
       --ak "working_dir=$(task_workdir "$TASKS_ROOT/$id")" \

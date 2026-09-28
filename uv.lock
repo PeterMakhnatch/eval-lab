@@ -795,6 +795,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "duckdb" },
+    { name = "huggingface-hub" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pyarrow" },
     { name = "pydantic" },
@@ -839,6 +840,7 @@ observability = [
 [package.metadata]
 requires-dist = [
     { name = "duckdb", specifier = ">=1.5.5" },
+    { name = "huggingface-hub", specifier = ">=1.29.0" },
     { name = "llm-verifier", marker = "extra == 'verifier'", specifier = ">=0.2.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
     { name = "pyarrow", specifier = ">=25.0.1" },

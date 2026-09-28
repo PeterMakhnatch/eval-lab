@@ -496,6 +496,60 @@ agent sandbox, separate verifier, and builds independently of model tokens.
 All five provider request/token/cost ceilings remain mandatory. Shorter pilot
 timeouts and budget terminations are diagnostic limits, not full TB4 results.
 
+### Teacher SFT export and Tinker training launcher (HAR-81)
+
+Free and local: sealing a split, exporting teacher trajectories, and the
+offline dry-run never spend. Only `sft_tinker train --confirm-spend` calls
+the Tinker service (paid; requires `TINKER_API_KEY` in the environment).
+
+```bash
+# 1. Freeze the sealed split from the shared MiMo task catalog
+#    (docs/mimo-task-catalog.md; task_versions.parquet under the primary
+#    checkout's derived root, never inside a worktree). Whole split_groups
+#    go to held-out in hash-rank order until each domain's requested task
+#    count is reached; the sealed manifest also carries the top-level
+#    {task_version_digest: train|heldout} splits map that
+#    `evallab tasks catalog export-eligible --split` consumes.
+uv run python -m evallab.sft_split freeze \
+  --salt "$SALT" --heldout-count code=270 --heldout-count cyber=100 \
+  --out split.json
+
+# 2. Export Terminus-2 teacher trials to chat_sl conversations. Any trial on
+#    a held-out task (matched by sealed task_version_digest when the pinned
+#    snapshot task directory is available, else by task name/id) REFUSES the
+#    export; exceptions and reward < threshold are excluded and counted by
+#    reason in manifest.json.
+uv run python -m evallab.sft_terminus export \
+  --root teacher=runs/mimo-teacher --split-manifest split.json --out export/
+
+# 3. Offline render + cost report (free; downloads tokenizer files only).
+#    The renderer runs inside the isolated, locked project tools/tinker-sft
+#    (tinker==0.30.4, tinker-cookbook==0.5.7, own uv.lock; never part of the
+#    root environment) via `uv run --project tools/tinker-sft --locked`,
+#    invoked internally — no root dependency group is needed.
+uv run python -m evallab.sft_tinker dry-run \
+  --data export/ --model Qwen/Qwen3.6-35B-A3B
+
+# 4. Real training (paid; refuses without --confirm-spend). Same isolated
+#    project hosts the chat_sl trainer. Writes <log-dir>/training-manifest.json
+#    linking data digest -> tinker run -> final sampler_path.
+uv run python -m evallab.sft_tinker train \
+  --data export/ --model Qwen/Qwen3.6-35B-A3B --log-dir logs/run1 --confirm-spend
+```
+
+Known deviation, reported machine-readably in every dry-run: the pinned
+`train_on_what=all_assistant_messages` renderers lack tinker-cookbook's
+sequence-extension property, so earlier assistant turns train on prefixes
+that differ from their generation-time prompts; the protocol keeps one
+conversation per linear segment and no per-turn export.
+
+The exporter only accepts trials recorded in raw-content mode (parsed
+`tool_calls` trajectories lost the model's raw emission and are excluded),
+and each Terminus continuation segment (`trajectory.cont-N.json`) becomes
+its own flagged conversation. Teacher reasoning is dropped by default
+(`--keep-reasoning` opts in). chat_sl 0.5.7 takes `key=value` arguments,
+not `--flags`; the launcher emits the verified form.
+
 ## Running on Modal (binding rules)
 
 **Any cloud/remote execution is `escalate_to_human` per

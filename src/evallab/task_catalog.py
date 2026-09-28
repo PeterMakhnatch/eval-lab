@@ -39,7 +39,6 @@ from typing import Any, Literal
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-
 from pydantic import Field
 
 from evallab.fetch import FetchError, parse_pin

@@ -67,7 +67,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/mimo-task-catalog.md
-    digest: sha256:1d9e9bf75248d09f7ce37164981694f76e21daacc4311a49ba1a5fe45645a8dc
+    digest: sha256:8af512a709211bb3b3783e760e8022ba0be16c171fa913f41d4bbd61d5722e40
   - path: docs/model-capture.md
     digest: sha256:f545bf75f0a2db4ed10f15803297ec5ec11a9fc466b5b9df59a071b54e2b4603
   - path: docs/observability.md
@@ -109,7 +109,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:3f34b7469d329d51d4dac9356f9655e03b5dd0a155494ddf380caff3dedc6e56
   - path: docs/task-quality.md
-    digest: sha256:85811ba77d87909afe69479f758f59e45dae2cfc5c3fe7f72cd6e4f11444671b
+    digest: sha256:286f44169e6142b8327d3ece70e18475a6ef65c349e3807f5c22382e663fcb43
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md

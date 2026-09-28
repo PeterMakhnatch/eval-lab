@@ -17,7 +17,6 @@ from evallab.task_qualification import (
     TABLE_FILENAME,
     classify_trial,
     collect_jobs,
-    collect_trial,
     detect_grader_collection_failure,
     estimate_cost_usd,
     export_broken,

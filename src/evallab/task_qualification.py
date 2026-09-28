@@ -133,7 +133,7 @@ _GRADER_ERROR_RES = (
     (1, re.compile(r"^\s*E?\s*SyntaxError(?::|\s).*$")),
     (2, re.compile(r"^\s*E?\s*ImportError while importing test module\b.*$")),
 )
-_WORD_RE_CACHE: dict[str, "re.Pattern[str]"] = {}
+_WORD_RE_CACHE: dict[str, re.Pattern[str]] = {}
 
 
 def _mentioned_as_word(text: str, word: str) -> bool:
@@ -915,7 +915,6 @@ def _error_findings(catalog: Path) -> list[dict[str, Any]]:
     ]
     findings.sort(key=lambda row: (str(row["task_version_digest"]), str(row["rule"])))
     return findings
-    return BrokenExportResult(path=out, sha256=sha, backend=backend, n_broken=len(items))
 
 
 def load_job_staging(job_dir: Path) -> dict[str, Any]:

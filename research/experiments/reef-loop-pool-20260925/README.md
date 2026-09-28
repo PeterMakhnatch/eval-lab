@@ -1,8 +1,11 @@
 # Reef loop pool: task pool, split proposal, and gate design (2026-09-25)
 
-Status: proposal for Peter and HAR-73. Nothing here is a registration, a committed
-split, or an executed model run. Produced on branch `feat/reef-loop-pool`
-(worktree `.worktrees/reef-loop-pool-20260925`) by the LoopPool worker.
+The original September 25 inventory, `split-proposal.json`, and gate design remain
+proposals produced by the LoopPool worker on `feat/reef-loop-pool`. They are not
+registration or execution authority. **HAR-73 continuation (September 26):**
+`har73-split.json` is the committed split for the authorized integration work:
+two already registered dev tasks and four exclusion-only held-out identities.
+No model run is implied by that commitment; every paid spec still needs approval.
 
 Question: which tasks, how many repeats, and what time and money does a
 trustworthy Reef harness decision cost when **Eval Lab runs the evaluation**?
@@ -17,6 +20,8 @@ trustworthy Reef harness decision cost when **Eval Lab runs the evaluation**?
 | `gate-design.json` | exact gate operating characteristics and planning grids; regenerate with `gate_tables.py` |
 | `harness-tree-baseline/` | byte-identical copy of HAR-71's baseline Terminus harness tree (digest `sha256:058bb47…e286d`), used by the parked noise-floor specs |
 | `morning-packet.md` | the 20 parked noise-floor specs, their ids, and Peter's exact approve/tick commands |
+| `har73-split.json` | committed HAR-73 dev/held-out IDs, paths and package digests; distinct from the original proposal |
+| `har73_candidate.py` | real Reef manual AGENTS.md candidate driver; `--prepare-only` submits waiting specs without evaluating |
 
 Code: the calculator is `src/evallab/power.py`
 (`paired_gate_publish_probability`, `paired_gate_plan_grid`, `PairedGateRule`),

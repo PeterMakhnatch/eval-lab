@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "name": "har73-registered-dev",
+  "status": "committed-before-evaluation",
+  "authority": "HAR-73 task scope; Peter directly activated implementation in the existing RE - Eval Lab tab on 2026-09-26.",
+  "rationale": "Two already registered tasks permit both measurement and training. No task is registered or promoted by this split. The proposed exp05 dev tasks remain excluded because they are unregistered. The four exp05 held-out identities are exclusion-only; this is not a claim that they form matched or previously unseen confirmation data for these dev tasks.",
+  "dev": [
+    {
+      "task_id": "event-summary",
+      "task_path": "library/tasks/event-summary",
+      "package_digest": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d"
+    },
+    {
+      "task_id": "travel-lisbon-002",
+      "task_path": "library/tasks/experimental/deepplanning-v1/travel-lisbon-002",
+      "package_digest": "sha256:8dec991845b4f20619581d6160440328f0ad9684dcfc6cdbebd103e83ba7e7aa"
+    }
+  ],
+  "held_out": [
+    {
+      "task_id": "exp05-holdout-fix-slugify",
+      "task_path": "~/Developer/research-context/reef/experiments/exp05/tasks/holdout/fix-slugify",
+      "package_digest": "sha256:7277decc4052921cf76d373be177b72c19728b68ae0d57f88e048d26171f8eb5"
+    },
+    {
+      "task_id": "exp05-holdout-inventory-value",
+      "task_path": "~/Developer/research-context/reef/experiments/exp05/tasks/holdout/inventory-value",
+      "package_digest": "sha256:1a85bd898e6f7a7885d16b294911f3f7b145d7965f5c46cfe5b105ff368503a9"
+    },
+    {
+      "task_id": "exp05-holdout-status-codes",
+      "task_path": "~/Developer/research-context/reef/experiments/exp05/tasks/holdout/status-codes",
+      "package_digest": "sha256:628122f4322615641cf44bd3e8ef20d1490897b5c2e01a53ad63e0f0a366e5e7"
+    },
+    {
+      "task_id": "exp05-holdout-top-tags",
+      "task_path": "~/Developer/research-context/reef/experiments/exp05/tasks/holdout/top-tags",
+      "package_digest": "sha256:b0a8b68be20d877f1dd02dfb3c763a5f9e53a7b35e74117c9047710b7f42b0b7"
+    }
+  ],
+  "limits": [
+    "Only dev entries may reach evaluation or Reef traffic; reject registry allowed_uses containing heldout even if listed as dev.",
+    "All dev task IDs, paths and package digests must agree with the current registered record and frozen prepared spec.",
+    "Held-out IDs, resolved paths and package digests are exclusions, including aliases of the same package.",
+    "No held-out execution, confirmation claim, task registration or paid execution is authorized by committing this file.",
+    "Per-spec recorded evallab approve remains required before non-control execution."
+  ]
+}

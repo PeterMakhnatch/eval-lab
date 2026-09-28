@@ -14,7 +14,7 @@
 # (evaluator.py:515 _campaign_path; intake.py _replay_spec_name, prefix
 # "gepa-"). The prefix is unambiguous to this campaign.
 set -euo pipefail
-lab=/Users/petermakhnatch/Developer/eval-lab/.worktrees/har85-gepa-mimo
+lab="$(cd "$(dirname "$0")/../../.." && pwd)"
 EXP=research/experiments/har85-mimo-gepa
 CAMPAIGN="$EXP/campaign-train.json"
 PREFIX='gepa-runs-gepa-har85-mimo-train-search-'

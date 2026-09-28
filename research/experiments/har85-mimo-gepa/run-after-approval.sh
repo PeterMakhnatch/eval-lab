@@ -7,7 +7,7 @@
 # Portable to macOS /bin/bash 3.2 (no mapfile): IDs accumulate in "$@" via a
 # while-read loop, exactly like HAR-67's run-after-approval.sh.
 set -euo pipefail
-lab=/Users/petermakhnatch/Developer/eval-lab/.worktrees/har85-gepa-mimo
+lab="$(cd "$(dirname "$0")/../../.." && pwd)"
 ids_file="$lab/research/experiments/har85-mimo-gepa/paired-specs/ids.txt"
 [ -f "$ids_file" ] || { echo "refusing: $ids_file missing (submit paired-specs/ first)" >&2; exit 2; }
 set --

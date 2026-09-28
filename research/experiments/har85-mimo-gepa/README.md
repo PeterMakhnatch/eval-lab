@@ -117,13 +117,23 @@ print('train materialized, digests match')
 # held-out (16 tasks) ONLY at final-eval time, same pattern over heldout_task_ids.
 ```
 
-## 6. Launch sequence (Peter's commands, from THIS worktree root)
+## 6. Launch sequence (Peter's commands, from a clean eval-lab worktree at main)
+
+The scripts resolve the repository root from their own location, so run them
+from any clean worktree containing this revision (never the dirty primary
+checkout). `.worktrees/har85-gepa-mimo` is left prepared for this.
+
+PREREQUISITES (once per worktree, $0):
+```bash
+uv sync --locked
+uv pip install -r research/experiments/harness-gepa/requirements.txt   # pinned GEPA runtime (verify_release)
+# then run the §5 recipe to materialize the 48 train tasks
+```
 
 STEP 1 — train search (iterative, approval-gated; one parked spec per round):
 ```bash
-cd /Users/petermakhnatch/Developer/eval-lab/.worktrees/har85-gepa-mimo
 # once: materialize the signed proposer authorization from the staged template
-uv run --no-sync python research/experiments/har85-mimo-gepa/proposer-approval.template.json <<'EOF'
+uv run --no-sync python - research/experiments/har85-mimo-gepa/proposer-approval.template.json <<'EOF'
 import json, sys
 from datetime import UTC, datetime
 t = json.load(open(sys.argv[1]))

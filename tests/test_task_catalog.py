@@ -602,6 +602,19 @@ def test_export_provisional_then_split_gated(tmp_path: Path, capsys) -> None:
         "task_stability", "task_exploits",
     }
 
+    _write_aux_table(derived, "task_qualification", [
+        {"task_version_digest": digests["alpha-task"]["task_version_digest"],
+         "harbor_digest": alpha_harbor, "task_id": "alpha-task",
+         "domain": "fake", "backend": "docker", "job_name": "j",
+         "trial_name": "a1", "status": "broken",
+         "reasons": ["nop_passes"],
+         "finished_at": "2026-09-28T00:00:00Z"},
+    ])
+    out3 = tmp_path / "eligible3.json"
+    broken = export_train_eligible(out3, repo_root=tmp_path, derived_root=derived)
+    assert broken.n_eligible == 0
+    assert broken.provisional is True
+
     digest = digests["alpha-task"]["task_version_digest"]
     split_path = tmp_path / "split.json"
     split_path.write_text(json.dumps({digest: "heldout"}))

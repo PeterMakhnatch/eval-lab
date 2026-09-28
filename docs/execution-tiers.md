@@ -166,8 +166,11 @@ implementations. Metered routes, all host-side through the same loopback proxy:
   replay uses `tinker/<base>@tinker://<run-id>:train:<i>/sampler_weights/<step>`;
   it pins the same base profile, prices, and credential. Tinker's 64K context
   window is bound at the adapter, so native summarization triggers before
-  overflow. A harness config `reasoning_effort: false` is forwarded verbatim
-  (the HAR-81 student protocol disables thinking).
+  overflow. Tinker reads `reasoning_effort` (`"none"` … `"xhigh"` or a float
+  in [0, 0.99]; 0.9 when omitted) only from the request body, and Harbor's
+  LiteLLM drops the top-level `reasoning_effort` knob for this unregistered
+  model. The HAR-81 student protocol therefore disables thinking through
+  `llm_call_kwargs.extra_body.reasoning_effort: "none"`.
 
 A separate local route, `ollama_chat/qwen2.5:7b`, uses an explicitly selected
 local Ollama service.

@@ -132,8 +132,8 @@ PROVIDERS: dict[str, Any] = {
         "expected_base_env": "EVALLAB_TINKER_EXPECTED_BASE",
         # ``tinker/<base>@tinker://<run>:train:<i>/sampler_weights/<step>``
         "checkpoint_models": True,
-        # Tinker's OpenAI-compatible endpoint honors reasoning_effort
-        # (including boolean false to disable thinking).
+        # Tinker's chat endpoint reads reasoning_effort ("none" … "xhigh" or a
+        # float in [0, 0.99]; 0.9 when omitted), so the student's "none" passes.
         "forwarded_fields": (
             "model",
             "messages",

@@ -1,0 +1,4 @@
+{
+  "llm_call_kwargs": {"extra_body": {"reasoning_effort": "none"}},
+  "trajectory_config": {"raw_content": true, "linear_history": true}
+}

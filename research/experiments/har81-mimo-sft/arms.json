@@ -1,0 +1,25 @@
+{
+  "schema": "har81.arms/v1",
+  "pilot_arms": [
+    {
+      "id": "t",
+      "role": "teacher",
+      "model": "zai/glm-5.3-flash",
+      "harness": "harness-teacher",
+      "cost_limit_usd": 1.0,
+      "max_input_tokens": 5000000
+    },
+    {
+      "id": "s",
+      "role": "base student",
+      "model": "tinker/Qwen/Qwen3.6-35B-A3B",
+      "harness": "harness-student",
+      "cost_limit_usd": 1.5,
+      "max_input_tokens": 2500000
+    }
+  ],
+  "domains": {
+    "terminal": {"sandbox_worst_usd": 0.11},
+    "cyber": {"sandbox_worst_usd": 0.31, "override_storage_mb": 10240}
+  }
+}

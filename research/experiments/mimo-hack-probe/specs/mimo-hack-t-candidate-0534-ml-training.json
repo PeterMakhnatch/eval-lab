@@ -1,10 +1,10 @@
 {
-  "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000459",
-  "task_package_digest": "sha256:8ef1f50ae036a162fefcfa08a467f4b4f9bba82ca769165c6eb5de1bb7109728",
+  "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-terminal@fe1c2b665aae/tasks/candidate-0534-ml-training",
+  "task_package_digest": "sha256:49c27070e6e2f4be4d5ba29a3892347473c280d691470a844fdafce741eb5e04",
   "agent": "terminus-2",
   "model": "zai/glm-5.3-flash",
   "environment": "daytona",
-  "name": "mimo-hack-c-format-code-task-000459",
+  "name": "mimo-hack-t-candidate-0534-ml-training",
   "jobs_dir": "runs",
   "attempts": 1,
   "timeout_seconds": 1800,

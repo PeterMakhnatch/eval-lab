@@ -1,10 +1,10 @@
 {
-  "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000459",
-  "task_package_digest": "sha256:8ef1f50ae036a162fefcfa08a467f4b4f9bba82ca769165c6eb5de1bb7109728",
+  "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000250",
+  "task_package_digest": "sha256:1b460af6f624a716d80caebd97203744e2ef167743ccd68a07ad01e255747589",
   "agent": "terminus-2",
   "model": "zai/glm-5.3-flash",
   "environment": "daytona",
-  "name": "mimo-hack-c-format-code-task-000459",
+  "name": "mimo-hack-c-format-code-task-000250",
   "jobs_dir": "runs",
   "attempts": 1,
   "timeout_seconds": 1800,

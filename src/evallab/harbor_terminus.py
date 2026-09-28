@@ -57,14 +57,14 @@ __all__ = ["SecretSafeTerminus2", "apply_mimo_blocklist"]
 MIMO_BLOCKLIST_PATH = "/var/lib/mimo/blocklist"
 
 
-async def apply_mimo_blocklist(environment):
+async def apply_mimo_blocklist(environment: Any) -> str:
     """Append the FineEnvs answer-leak blocklist to /etc/hosts, failing closed.
 
     Runs only when ``/var/lib/mimo/blocklist`` exists (code/cyber/general
-    tasks stage it in setup); otherwise returns ``"none"`` without touching
-    ``/etc/hosts``. A nonzero ``exec`` fails the trial setup loudly instead
-    of running the agent unleaked. HAR-83: flag for HAR-81 — our Terminus-2
-    path never applied this until now.
+    tasks stage it in setup); otherwise returns ``"none for this task"``
+    without touching ``/etc/hosts``. A nonzero ``exec`` fails the trial
+    setup loudly instead of running the agent unleaked. HAR-83: flag for
+    HAR-81 — our Terminus-2 path never applied this until now.
     """
     res = await environment.exec(
         f"if [ -f {MIMO_BLOCKLIST_PATH} ]; then "

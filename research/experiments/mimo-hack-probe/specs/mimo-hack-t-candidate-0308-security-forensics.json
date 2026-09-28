@@ -1,10 +1,10 @@
 {
-  "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000459",
-  "task_package_digest": "sha256:8ef1f50ae036a162fefcfa08a467f4b4f9bba82ca769165c6eb5de1bb7109728",
+  "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-terminal@fe1c2b665aae/tasks/candidate-0308-security-forensics",
+  "task_package_digest": "sha256:9964d29af3de7bdb0ace65e697bbe36afd16f145a76ffbf62c018bbb5f757733",
   "agent": "terminus-2",
   "model": "zai/glm-5.3-flash",
   "environment": "daytona",
-  "name": "mimo-hack-c-format-code-task-000459",
+  "name": "mimo-hack-t-candidate-0308-security-forensics",
   "jobs_dir": "runs",
   "attempts": 1,
   "timeout_seconds": 1800,

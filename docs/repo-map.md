@@ -265,7 +265,7 @@ inputs:
   - path: src/evallab/mini_observation_masking.py
     digest: sha256:332e2a92b2db066699d7b4582992e40d710f884146705a9699dfa8ec24d17883
   - path: src/evallab/model_capture.py
-    digest: sha256:523fec6ee8337f94da36e5869f435d200d8bfad5885be8430a221d51d284e510
+    digest: sha256:aca6cb4b6eb38d9cc3efbba4eb126e69fc01e0d94af4b2414d468e1472122a44
   - path: src/evallab/modeladapter.py
     digest: sha256:ed5f90419fa7da52ab3848e0ce2a019a8fcba1f685ece81f41b8112e34992ddb
   - path: src/evallab/observation_masking.py

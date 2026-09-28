@@ -2499,6 +2499,78 @@ def _tasks_lint_command(
     return 1 if any(finding.severity == "error" for finding in findings) else 0
 
 
+def _tasks_pull_hf_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.task_catalog import CatalogError, pull_hf_snapshot
+
+    try:
+        result = pull_hf_snapshot(
+            args.ref, repo_root=root, derived_root=getattr(args, "derived_root", None)
+        )
+    except CatalogError as exc:
+        print(f"refused: {exc}", file=sys.stderr)
+        return 2
+    print(f"{result.status}: {result.repo}@{result.revision}")
+    print(f"snapshot: {result.snapshot}")
+    print(f"tasks: {result.n_tasks}")
+    for task_id in result.manifest_mismatches:
+        print(f"manifest mismatch (finding, not fatal): {task_id}")
+    return 0
+
+
+def _tasks_catalog_build_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.task_catalog import build_catalog, render_build_report
+
+    report = build_catalog(
+        repo_root=root, derived_root=getattr(args, "derived_root", None)
+    )
+    print(render_build_report(report), end="")
+    return 0
+
+
+def _tasks_catalog_show_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.task_catalog import CatalogError, show_task
+
+    try:
+        print(
+            show_task(
+                args.selector,
+                repo_root=root,
+                derived_root=getattr(args, "derived_root", None),
+            ),
+            end="",
+        )
+    except CatalogError as exc:
+        print(f"catalog show: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def _tasks_catalog_export_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.task_catalog import CatalogError, export_train_eligible
+
+    try:
+        result = export_train_eligible(
+            _resolve(root, args.out),
+            repo_root=root,
+            derived_root=getattr(args, "derived_root", None),
+            split_path=_resolve(root, args.split) if args.split else None,
+        )
+    except CatalogError as exc:
+        print(f"catalog export: {exc}", file=sys.stderr)
+        return 1
+    print(f"wrote {result.path} ({result.n_eligible} eligible, provisional={result.provisional})")
+    print(f"sha256: {result.sha256}")
+    return 0
+
+
 def _tasks_import_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -2773,6 +2845,35 @@ def _tasks_stability_collect_command(
         for row in rows:
             print(f"{row['trial_name']}: {row['method']} n={row['n_runs']} "
                   f"rewards={row['rewards']} verdict={row['verdict']}")
+    return 0
+
+
+def _tasks_exploit_collect_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.mimo_exploit import (
+        TABLE_FILENAME,
+        collect_probe,
+        summarize,
+        write_exploits_parquet,
+    )
+    from evallab.storage.paths import derived_root_from_environment
+
+    cohort = json.loads(_resolve(root, args.cohort).read_text(encoding="utf-8"))["cohort"]
+    records = collect_probe(
+        cohort, [_resolve(root, job) for job in args.jobs], probe_config=args.probe_config
+    )
+    output = (
+        _resolve(root, args.output)
+        if args.output is not None
+        else derived_root_from_environment(root) / "external/task_catalog" / TABLE_FILENAME
+    )
+    write_exploits_parquet(records, output)
+    print(f"wrote {len(records)} rows to {output}: {json.dumps(summarize(records))}")
+    for record in records:
+        if record.exploit_status == "suspected":
+            print(f"suspected {record.trial_name}: {record.method} ({record.evidence_path})")
     return 0
 
 
@@ -4705,6 +4806,53 @@ def parser() -> argparse.ArgumentParser:
         help="Repo-relative lineage-record root",
     )
     tasks_status.set_defaults(func=_tasks_variant_status_command)
+    tasks_pull_hf = tasks_commands.add_parser(
+        "pull-hf", help="Download one pinned Hugging Face dataset snapshot (refuses unpinned refs)"
+    )
+    tasks_pull_hf.add_argument("ref", help="<org>/<repo>@<40-hex-sha>")
+    tasks_pull_hf.add_argument(
+        "--derived-root",
+        type=Path,
+        help="override the shared Parquet root (same resolution as library)",
+    )
+    tasks_pull_hf.set_defaults(func=_tasks_pull_hf_command)
+
+    tasks_catalog = tasks_commands.add_parser(
+        "catalog", help="Build and query the pinned task catalog"
+    )
+    catalog_commands = tasks_catalog.add_subparsers(dest="catalog_command", required=True)
+    catalog_build = catalog_commands.add_parser(
+        "build", help="Scan pulled snapshots and write the catalog Parquet tables"
+    )
+    catalog_build.add_argument(
+        "--derived-root",
+        type=Path,
+        help="override the shared Parquet root (same resolution as library)",
+    )
+    catalog_build.set_defaults(func=_tasks_catalog_build_command)
+    catalog_show = catalog_commands.add_parser(
+        "show", help="Print identity, digests, findings, lineage, and outcomes for one task"
+    )
+    catalog_show.add_argument("selector", help="task_id or (harbor/task-version) digest")
+    catalog_show.add_argument(
+        "--derived-root",
+        type=Path,
+        help="override the shared Parquet root (same resolution as library)",
+    )
+    catalog_show.set_defaults(func=_tasks_catalog_show_command)
+    catalog_export = catalog_commands.add_parser(
+        "export-eligible", help="Write the git-tracked train-eligible task JSON"
+    )
+    catalog_export.add_argument("--out", type=Path, required=True, help="output JSON path")
+    catalog_export.add_argument(
+        "--split", type=Path, help="optional JSON mapping task_version_digest to train|heldout"
+    )
+    catalog_export.add_argument(
+        "--derived-root",
+        type=Path,
+        help="override the shared Parquet root (same resolution as library)",
+    )
+    catalog_export.set_defaults(func=_tasks_catalog_export_command)
 
     tasks_stability_run = tasks_commands.add_parser(
         "stability-run",
@@ -4738,6 +4886,18 @@ def parser() -> argparse.ArgumentParser:
     tasks_stability_collect.add_argument("--output", type=Path, help="Parquet output path")
     tasks_stability_collect.add_argument("--json", action="store_true")
     tasks_stability_collect.set_defaults(func=_tasks_stability_collect_command)
+
+    tasks_exploit_collect = tasks_commands.add_parser(
+        "exploit-collect",
+        help="Run the hack-probe exploit detector over jobs into task_exploits.parquet (HAR-83)",
+    )
+    tasks_exploit_collect.add_argument("jobs", nargs="+", type=Path, help="Probe job directories")
+    tasks_exploit_collect.add_argument(
+        "--cohort", type=Path, required=True, help="Probe cohort.json (unprobed rows stay not_probed)"
+    )
+    tasks_exploit_collect.add_argument("--probe-config", default="redteam-v1")
+    tasks_exploit_collect.add_argument("--output", type=Path, help="Parquet output path")
+    tasks_exploit_collect.set_defaults(func=_tasks_exploit_collect_command)
 
     ladder = commands.add_parser(
         "ladder", help="Expand Cartesian evaluation grids into ExperimentSpecs"

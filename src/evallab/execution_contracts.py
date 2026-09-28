@@ -369,6 +369,7 @@ class RunRequest:
     cost_limit_usd: float | None = None
     harness_policy: str | None = None
     verifier_repeat_n: int | None = None
+    override_storage_mb: int | None = None
     requested_selector: str | None = None
     effective_endpoint_base: str | None = None
     provider_returned_model_id: str | None = None
@@ -967,6 +968,8 @@ def validate_request(request: RunRequest) -> None:
         raise ValueError("harness_policy is supported only by the rlm lane")
     if request.verifier_repeat_n is not None and not 2 <= request.verifier_repeat_n <= 10:
         raise ValueError("verifier_repeat_n must be between 2 and 10")
+    if request.override_storage_mb is not None and not 1024 <= request.override_storage_mb <= 1048576:
+        raise ValueError("override_storage_mb must be between 1024 and 1048576")
     if request.agent == RLM_AGENT:
         if request.attempts != 1 or request.concurrency != 1:
             raise ValueError(f"{request.agent} capabilities bind exactly one trial")
@@ -1144,6 +1147,8 @@ def build_command(request: RunRequest) -> list[str]:
         command.extend(
             ["--verifier", VERIFIER_IMPORT_PATH, "--verifier-kwarg", f"repeat_n={request.verifier_repeat_n}"]
         )
+    if request.override_storage_mb is not None:
+        command.extend(["--override-storage-mb", str(request.override_storage_mb)])
     harbor_model = resolve_harbor_model(request.agent, request.model)
     if harbor_model:
         command.extend(["--model", harbor_model])

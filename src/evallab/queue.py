@@ -2159,6 +2159,7 @@ class Executor:
             cost_limit_usd=spec.cost_limit_usd,
             harness_policy=spec.harness_policy,
             verifier_repeat_n=spec.verifier_repeat_n,
+            override_storage_mb=spec.override_storage_mb,
             lease_path=self.queue.lease_path(spec),
             lease_generation=lease_generation,
             experiment_spec=spec.model_copy(deep=True),

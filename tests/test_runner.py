@@ -1652,3 +1652,41 @@ def test_control_docker_argv_unchanged_without_repeat(tmp_path: Path) -> None:
         "--n-attempts", "1",
         "--plugin", HARBOR_STATE_JOURNAL_PLUGIN,
     ]
+
+def test_nop_daytona_storage_override_build_command(tmp_path: Path) -> None:
+    """A nop daytona spec with override_storage_mb=10240 yields the storage flag."""
+    from evallab.execution_contracts import BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH
+    from evallab.harbor_repeat_verifier import VERIFIER_IMPORT_PATH
+
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="nop",
+        name="mimo-nop-daytona",
+        jobs_dir=tmp_path / "runs",
+        environment="daytona",
+        timeout_seconds=10800,
+        verifier_repeat_n=3,
+        override_storage_mb=10240,
+    )
+    validate_request(request)
+    command = build_command(request)
+
+    assert command[command.index("--env") + 1] == BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH
+    assert command[command.index("--environment-kwarg") + 1] == "ttl_minutes=190"
+    assert command[command.index("--verifier") + 1] == VERIFIER_IMPORT_PATH
+    assert command[command.index("--verifier-kwarg") + 1] == "repeat_n=3"
+    assert command[command.index("--override-storage-mb") + 1] == "10240"
+    assert "--model" not in command
+
+
+def test_absent_storage_override_keeps_legacy_argv(tmp_path: Path) -> None:
+    """An absent storage field leaves the argv byte-identical to the legacy shape."""
+    task_dir = task(tmp_path)
+    jobs_dir = tmp_path / "runs"
+    base = {"task": task_dir, "agent": "nop", "name": "mimo-nop-daytona", "jobs_dir": jobs_dir,
+            "environment": "daytona", "timeout_seconds": 10800, "verifier_repeat_n": 3}
+    legacy = build_command(RunRequest(**base))  # type: ignore[arg-type]
+    explicit_absence = build_command(RunRequest(**base, override_storage_mb=None))  # type: ignore[arg-type]
+
+    assert legacy == explicit_absence
+    assert "--override-storage-mb" not in legacy

@@ -1812,7 +1812,7 @@ def _harness_execution_settings(
         fields = (
             "agent", "model", "environment", "attempts", "concurrency", "timeout_seconds",
             "max_requests", "max_input_tokens", "max_output_tokens", "max_total_tokens",
-            "cost_limit_usd", "harness_policy", "verifier_repeat_n",
+            "cost_limit_usd", "harness_policy", "verifier_repeat_n", "override_storage_mb",
         )
         settings = {name: getattr(request, name) for name in fields}
     settings["inference_settings"] = (

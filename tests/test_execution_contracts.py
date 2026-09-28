@@ -471,3 +471,28 @@ def test_validate_request_accepts_repeat_bounds(tmp_path: Path, repeat_n: int | 
         verifier_repeat_n=repeat_n,
     )
     validate_request(req)
+
+@pytest.mark.parametrize("storage_mb", [0, 1, 1023, 1048577, -5])
+def test_validate_request_rejects_storage_out_of_range(tmp_path: Path, storage_mb: int) -> None:
+    """RunRequest carries the spec range 1024..1048576 into the dispatch boundary."""
+    req = RunRequest(
+        task=_task_dir(tmp_path),
+        agent="nop",
+        name="valid-name",
+        jobs_dir=tmp_path / "jobs",
+        override_storage_mb=storage_mb,
+    )
+    with pytest.raises(ValueError, match="override_storage_mb must be between 1024 and 1048576"):
+        validate_request(req)
+
+
+@pytest.mark.parametrize("storage_mb", [None, 1024, 10240, 1048576])
+def test_validate_request_accepts_storage_bounds(tmp_path: Path, storage_mb: int | None) -> None:
+    req = RunRequest(
+        task=_task_dir(tmp_path),
+        agent="nop",
+        name="valid-name",
+        jobs_dir=tmp_path / "jobs",
+        override_storage_mb=storage_mb,
+    )
+    validate_request(req)

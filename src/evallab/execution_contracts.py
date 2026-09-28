@@ -405,12 +405,6 @@ def is_tinker_terminus_model(model: str | None) -> bool:
     return isinstance(model, str) and model.startswith(TINKER_MODEL_PREFIX)
 
 
-def terminus_metered_model(model: str | None) -> bool:
-    """Whether a Terminus model routes through the metered loopback proxy."""
-    if model == TERMINUS_LOCAL_MODEL_SELECTOR:
-        return False
-    return model in ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS or is_tinker_terminus_model(model)
-
 GLM_SELFHOSTED_BASE_MODEL_SELECTOR = "glm-selfhosted/glm-5.3-flash"
 GLM_SELFHOSTED_FT_MODEL_SELECTOR = "glm-ft/glm-5.3-flash-ft"
 GLM_SELFHOSTED_ALLOWED_PROVIDERS: frozenset[str] = frozenset({"glm-selfhosted", "glm-ft"})
@@ -797,6 +791,8 @@ def collected_secret_values(
     for key, placeholder in (
         *((key, "") for key in DAYTONA_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, DEEPSEEK_PROXY_TOKEN) for key in DEEPSEEK_CREDENTIAL_ENVIRONMENT_KEYS),
+        *((key, ZAI_PROXY_TOKEN) for key in ZAI_CREDENTIAL_ENVIRONMENT_KEYS),
+        *((key, ZAI_OPENAPI_PROXY_TOKEN) for key in ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, TINKER_PROXY_TOKEN) for key in TINKER_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, GLM_SELFHOSTED_PROXY_TOKEN) for key in GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS),
     ):
@@ -1075,10 +1071,16 @@ def _task_gpu_request(task: Path) -> int | None:
     gpus = environment.get("gpus")
     return gpus if isinstance(gpus, int) and not isinstance(gpus, bool) else None
 
+
 def uses_provider_proxy(agent: str, model: str | None) -> bool:
-    """Whether this model route can enforce the provider request/token/cost ceilings."""
+    """Whether this model route can enforce the provider request/token/cost ceilings.
+
+    Every non-local Terminus model counts as metered here, so an unsupported
+    selector reaches `validate_request`'s model grammar check and is refused
+    with that reason rather than a misleading ceiling error.
+    """
     return agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT} or (
-        agent == TERMINUS_AGENT and terminus_metered_model(model)
+        agent == TERMINUS_AGENT and model != TERMINUS_LOCAL_MODEL_SELECTOR
     )
 
 

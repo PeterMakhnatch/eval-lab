@@ -39,12 +39,35 @@ from evallab.rlm.harness import (
     run_rlm,
     zai_model_id,
 )
-from evallab.rlm.policies import RlmPolicy, resolve_policy
+from evallab.rlm.policies import RlmPolicy, policy_from_json, resolve_policy
 
 ADAPTER_VERSION = "0.1.0"
 AGENT_NAME = "rlm"
 SIGNATURE = "instruction, file_tree -> solution"
 FILE_TREE_COMMAND = "find . -maxdepth 3 -type f | head -200"
+
+
+def resolve_agent_policy(spec: str) -> RlmPolicy:
+    """Catalog policy id or path to a policy JSON (e.g. a GEPA candidate).
+
+    Mirrors ``bench_runner.load_policy`` so a Harbor trial runs the exact
+    candidate file GEPA wrote. Relative paths resolve against the caller cwd
+    (the Harbor working directory, host-side). Catalog ids never end in
+    ``.json``, so the suffix dispatch is unambiguous.
+    """
+    candidate = Path(spec)
+    if candidate.suffix == ".json":
+        try:
+            payload = json.loads(candidate.read_text())
+        except OSError as exc:
+            raise ValueError(f"rlm policy file {spec!r} is unreadable: {exc}") from exc
+        except ValueError as exc:
+            raise ValueError(f"rlm policy file {spec!r} is not valid JSON") from exc
+        try:
+            return policy_from_json(payload.get("policy", payload))
+        except (TypeError, AttributeError) as exc:
+            raise ValueError(f"rlm policy file {spec!r} holds no policy object: {exc}") from exc
+    return resolve_policy(spec)
 
 
 def provider_key_from_environment(environment: dict[str, str] | None = None) -> str:
@@ -89,7 +112,7 @@ class LabRlmAgent(BaseAgent):
         super().__init__(logs_dir=logs_dir, model_name=model_name, **kwargs)
         if not model_name:
             raise ValueError("rlm agent requires an explicit model selector")
-        self._policy: RlmPolicy = resolve_policy(policy)
+        self._policy: RlmPolicy = resolve_agent_policy(policy)
         self._cost_limit_usd = float(cost_limit_usd)
         if self._cost_limit_usd <= 0:
             raise ValueError("cost_limit_usd must be positive")

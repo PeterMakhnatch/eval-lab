@@ -824,6 +824,44 @@ def test_export_broken_lists_error_findings_on_any_backend(tmp_path: Path) -> No
     assert again.sha256 == first.sha256
 
 
+def test_export_broken_lists_findings_before_any_qualification_run(tmp_path: Path) -> None:
+    """A curated defect is exportable before the backend has been qualified."""
+    derived = tmp_path / "derived"
+    _write_findings_table(derived, [{
+        "task_version_digest": "sha256:" + "a" * 64,
+        "task_id": "qual-task", "domain": "terminal",
+        "rule": "grader-broken", "severity": "error",
+        "message": "collection imports stevedore",
+    }])
+    result = export_broken(
+        tmp_path / "broken.json", backend="daytona",
+        repo_root=tmp_path, derived_root=derived,
+    )
+    payload = json.loads(result.path.read_text())
+    (item,) = payload["items"]
+    assert item["task_id"] == "qual-task"
+    assert item["reasons"] == ["finding:grader-broken"]
+    assert payload["meta"]["table_digest"] is None
+    assert payload["meta"]["n_considered"] == 0
+
+
+def test_export_broken_refuses_with_only_warning_findings(tmp_path: Path) -> None:
+    from evallab.task_catalog import CatalogError
+
+    derived = tmp_path / "derived"
+    _write_findings_table(derived, [{
+        "task_version_digest": "sha256:" + "b" * 64,
+        "task_id": "warn-task", "domain": "terminal",
+        "rule": "mimo-no-oracle", "severity": "warning",
+        "message": "no oracle",
+    }])
+    with pytest.raises(CatalogError):
+        export_broken(
+            tmp_path / "broken.json", backend="daytona",
+            repo_root=tmp_path, derived_root=derived,
+        )
+
+
 def test_export_broken_merges_finding_into_qualification_item(tmp_path: Path) -> None:
     derived = tmp_path / "derived"
     staged = _write_staged_task(tmp_path)

@@ -803,12 +803,14 @@ def export_broken(
 
     derived = derived_root or derived_root_from_environment(repo_root)
     table_path = catalog_dir(derived) / TABLE_FILENAME
-    if not table_path.is_file():
+    has_table = table_path.is_file()
+    error_findings = _error_findings(catalog_dir(derived))
+    if not has_table and not error_findings:
         raise CatalogError(
-            f"no qualification table under {catalog_dir(derived)}; "
+            f"no qualification table or error-severity finding under {catalog_dir(derived)}; "
             "run tasks qualify-collect first"
         )
-    rows = read_task_qualification_parquet(table_path)
+    rows = read_task_qualification_parquet(table_path) if has_table else []
     scoped = [row for row in rows if (row.get("backend") or "unknown") == backend]
     by_version: dict[str, list[dict[str, Any]]] = {}
     for row in scoped:
@@ -841,7 +843,7 @@ def export_broken(
         digest = latest.get("task_version_digest")
         if isinstance(digest, str) and digest:
             item_by_digest[digest] = item
-    for finding in _error_findings(catalog_dir(derived)):
+    for finding in error_findings:
         digest = str(finding["task_version_digest"])
         reason = f"finding:{finding['rule']}"
         item = item_by_digest.get(digest)
@@ -870,7 +872,9 @@ def export_broken(
     meta = {
         "created_at": datetime.now(UTC).isoformat(),
         "table": TABLE_FILENAME,
-        "table_digest": f"sha256:{hashlib.sha256(table_path.read_bytes()).hexdigest()}",
+        "table_digest": (
+            f"sha256:{hashlib.sha256(table_path.read_bytes()).hexdigest()}" if has_table else None
+        ),
         "n_broken": len(items),
         "n_considered": len(scoped),
     }

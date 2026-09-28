@@ -67,7 +67,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/mimo-task-catalog.md
-    digest: sha256:8af512a709211bb3b3783e760e8022ba0be16c171fa913f41d4bbd61d5722e40
+    digest: sha256:82c9cca8e070acb6d9d85a064261ada2821934896a1b0f304963287c02a38a89
   - path: docs/model-capture.md
     digest: sha256:f545bf75f0a2db4ed10f15803297ec5ec11a9fc466b5b9df59a071b54e2b4603
   - path: docs/observability.md

@@ -4,9 +4,10 @@
 # With no args: list THIS campaign's parked (queue/waiting) specs, print the
 # count, the estimated $, and the exact approve line. Changes nothing.
 #
-# With --dispatch --ref PATH: refuse unless every listed spec is already
-# approved; tick ONLY this campaign's approved IDs (key loaded into the tick
-# process only, never printed); then rerun the campaign for the next round.
+# With --dispatch --ref PATH: refuse while any campaign spec still awaits
+# approval; tick ONLY this campaign's approved IDs (key loaded into the tick
+# process only, never printed), or skip the tick when none are approved (the
+# first round); then rerun the campaign, which parks the next round.
 #
 # Campaign-spec match: replayed search specs are named
 #   gepa-runs-gepa-har85-mimo-train-search-<tags>
@@ -90,19 +91,24 @@ while IFS= read -r line || [ -n "$line" ]; do
 done <<EOF
 $(list_specs queue/approved)
 EOF
-[ "$#" -gt 0 ] || { echo "refusing: no approved campaign specs to dispatch" >&2; exit 2; }
-approved_ids=$(printf '%s\n' "$@" | awk '{print $1}')
 approved_n="$#"
-key=$(awk 'index($0,"ZAI_OPENAPI_API_KEY=")==1{v=substr($0,21); gsub(/^["'"'"']|["'"'"']$/,"",v); print v}' "$HOME/.omp/agent/.env")
-[ -n "$key" ] || { echo "refusing: ZAI_OPENAPI_API_KEY missing" >&2; exit 2; }
 cd "$lab"
-args=(--max-specs "$approved_n")
-# shellcheck disable=SC2086
-for id in $approved_ids; do args+=(--spec-id "$id"); done
-env -i HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" LANG="${LANG:-en_US.UTF-8}" \
-  PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
-  PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
-  ZAI_OPENAPI_API_KEY="$key" \
-  /Users/petermakhnatch/.local/bin/uv run --no-sync evallab tick "${args[@]}"
+if [ "$approved_n" -gt 0 ]; then
+  approved_ids=$(printf '%s\n' "$@" | awk '{print $1}')
+  key=$(awk 'index($0,"ZAI_OPENAPI_API_KEY=")==1{v=substr($0,21); gsub(/^["'"'"']|["'"'"']$/,"",v); print v}' "$HOME/.omp/agent/.env")
+  [ -n "$key" ] || { echo "refusing: ZAI_OPENAPI_API_KEY missing" >&2; exit 2; }
+  args=(--max-specs "$approved_n")
+  # shellcheck disable=SC2086
+  for id in $approved_ids; do args+=(--spec-id "$id"); done
+  env -i HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" LANG="${LANG:-en_US.UTF-8}" \
+    PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+    PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
+    ZAI_OPENAPI_API_KEY="$key" \
+    /Users/petermakhnatch/.local/bin/uv run --no-sync evallab tick "${args[@]}"
+else
+  # First round (nothing parked yet) or a round whose trials already ran: no
+  # tick; the campaign run below parks the next batch (baseline gate: all 8).
+  echo "no approved campaign specs: advancing the campaign only (no tick)" >&2
+fi
 uv run --no-sync python -m evallab.gepa_optimizer run "$CAMPAIGN" --repo-root . \
   --proposer-approval-ref "$ref"

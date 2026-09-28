@@ -17,15 +17,19 @@ model-traffic capture to ModelCapture.
 ## Storage
 
 All runtime data lives under the shared checkout root resolved by
-`evallab.storage.paths.shared_checkout_root` (never inside a worktree):
+`evallab.storage.paths.shared_checkout_root` (never inside a worktree).
+Two different `derived/` trees hang off it — snapshots are NOT under the
+Parquet derived root:
 
-- `<derived>/task-store/hf/<org>__<repo>@<rev12>/` — pinned snapshots,
-  read-only (`555`/`444`), one `provenance.json` per snapshot
-  (`ProvenanceMetadata`, zone `01-external`).
-- `<derived>/external/task_catalog/` — `task_sources`, `task_versions`,
-  `task_findings`, `task_lineage` Parquet tables. (The resolved derived
-  root already ends in `/parquet`; the catalog path is `external/...`
-  relative to it.)
+- `<shared>/derived/task-store/hf/<org>__<repo>@<rev12>/` — pinned
+  snapshots, read-only (`555`/`444`), one `provenance.json` per snapshot
+  (`ProvenanceMetadata`, zone `01-external`). Resolved by
+  `default_task_store_root`, mirroring
+  `task_variants.default_variants_root` (`derived/task-store/variants`).
+- `<parquet-derived>/external/task_catalog/` — `task_sources`,
+  `task_versions`, `task_findings`, `task_lineage` Parquet tables. (The
+  resolved derived root already ends in `/parquet`; the catalog path is
+  `external/...` relative to it.)
 - `library/task-variants/**/*.json` — git-tracked lineage records
   (`evallab.task_variant/v1`, owned by TaskVariants).
 

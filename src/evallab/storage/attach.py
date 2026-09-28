@@ -411,13 +411,25 @@ def _attach_z4(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
     except Exception as exc:
         return ZoneStatus("z4", False, reason=f"{type(exc).__name__}: {exc}", detail=str(docs_dir))
 
+def _catalog_optional_tables() -> tuple[str, str]:
+    """Stability/exploit view names from their writer modules, not literals."""
+    from evallab.task_catalog import (
+        EXPLOITS_TABLE,
+        EXPLOITS_TABLE_FILENAME,
+        STABILITY_TABLE,
+        STABILITY_TABLE_FILENAME,
+    )
+
+    assert Path(STABILITY_TABLE_FILENAME).stem == STABILITY_TABLE
+    assert Path(EXPLOITS_TABLE_FILENAME).stem == EXPLOITS_TABLE
+    return (STABILITY_TABLE, EXPLOITS_TABLE)
+
 CATALOG_TABLES = (
     "task_sources",
     "task_versions",
     "task_findings",
     "task_lineage",
-    "task_stability",
-    "task_exploits",
+    *_catalog_optional_tables(),
 )
 
 _CATALOG_RELPATH = "external/task_catalog"
@@ -429,7 +441,12 @@ def _empty_view_sql() -> str:
 
 def _attach_task_catalog(conn: duckdb.DuckDBPyConnection, derived: Path) -> None:
     """Register catalog tables plus v_task_outcomes / v_task_audit (top-level and z3)."""
-    from evallab.task_catalog import task_audit_sql, task_outcomes_sql
+    from evallab.task_catalog import (
+        EXPLOITS_TABLE,
+        STABILITY_TABLE,
+        task_audit_sql,
+        task_outcomes_sql,
+    )
 
     catalog = derived / _CATALOG_RELPATH
     present = {
@@ -454,8 +471,8 @@ def _attach_task_catalog(conn: duckdb.DuckDBPyConnection, derived: Path) -> None
         conn.execute(f"CREATE OR REPLACE VIEW z3.v_task_outcomes AS {_empty_view_sql()}")
     try:
         audit = task_audit_sql(
-            has_stability="task_stability" in present,
-            has_exploits="task_exploits" in present,
+            has_stability=STABILITY_TABLE in present,
+            has_exploits=EXPLOITS_TABLE in present,
         )
         conn.execute("CREATE OR REPLACE VIEW v_task_audit AS " + audit)
         conn.execute("CREATE OR REPLACE VIEW z3.v_task_audit AS " + audit)
@@ -540,14 +557,19 @@ def build_sql_preamble(dsn: str, derived: Path, root: Path) -> str:
         lines.append(f"CREATE OR REPLACE VIEW {name} AS {select};")
         lines.append(f"CREATE OR REPLACE VIEW z3.{name} AS {select};")
     try:
-        from evallab.task_catalog import task_audit_sql, task_outcomes_sql
+        from evallab.task_catalog import (
+            EXPLOITS_TABLE,
+            STABILITY_TABLE,
+            task_audit_sql,
+            task_outcomes_sql,
+        )
 
         outcomes = task_outcomes_sql()
         lines.append(f"CREATE OR REPLACE VIEW v_task_outcomes AS {outcomes};")
         lines.append(f"CREATE OR REPLACE VIEW z3.v_task_outcomes AS {outcomes};")
         audit = task_audit_sql(
-            has_stability="task_stability" in present,
-            has_exploits="task_exploits" in present,
+            has_stability=STABILITY_TABLE in present,
+            has_exploits=EXPLOITS_TABLE in present,
         )
         lines.append("CREATE OR REPLACE VIEW v_task_audit AS " + audit + ";")
         lines.append("CREATE OR REPLACE VIEW z3.v_task_audit AS " + audit + ";")

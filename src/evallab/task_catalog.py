@@ -4,9 +4,9 @@ This module owns the data side of Peter's MiMo RL-environment experiments:
 
 1. ``pull_hf_snapshot`` downloads one pinned ``<org>/<repo>@<40-hex-sha>``
    Hugging Face dataset snapshot anonymously into the shared derived store at
-   ``<derived root>/task-store/hf/<org>__<repo>@<rev12>/`` (resolved with
-   ``evallab.storage.paths`` so every worktree shares the primary checkout's
-   store), makes it read-only, and records a ``ProvenanceMetadata`` sidecar
+   ``derived/task-store/hf/<org>__<repo>@<rev12>/`` under the primary
+   checkout root (``default_task_store_root``, shared across worktrees),
+   makes it read-only, and records a ``ProvenanceMetadata`` sidecar
    (zone ``01-external``). Idempotent: a complete snapshot whose provenance
    and material digest still match is reused; any mismatch is refused, never
    overwritten.
@@ -43,8 +43,9 @@ import pyarrow.parquet as pq
 from evallab.fetch import FetchError, parse_pin
 from evallab.registry import compute_task_digests, harbor_task_digest, task_directory_digest
 from evallab.schemas import ProvenanceMetadata
-from evallab.storage.paths import derived_root_from_environment
+from evallab.storage.paths import derived_root_from_environment, shared_checkout_root
 from evallab.task_lint import Finding, lint_mimo_task, mimo_manifest_sha
+from evallab.task_stability import TABLE_FILENAME as STABILITY_PARQUET_FILENAME
 
 
 def _as_dict(value: object) -> dict[str, Any]:
@@ -76,9 +77,14 @@ HF_SNAPSHOTS_DIRNAME = "hf"
 VARIANTS_DIRNAME = "variants"
 CATALOG_RELPATH = Path("external/task_catalog")
 CATALOG_TABLES = ("task_sources", "task_versions", "task_findings", "task_lineage")
+STABILITY_TABLE_FILENAME = STABILITY_PARQUET_FILENAME
+STABILITY_TABLE = Path(STABILITY_TABLE_FILENAME).stem
+# Contract table name; the mimo_exploit writer module (HackProbe #487) has not
+# landed, so no constant exists yet — reconcile on merge.
+EXPLOITS_TABLE = "task_exploits"
+EXPLOITS_TABLE_FILENAME = f"{EXPLOITS_TABLE}.parquet"
 PROVENANCE_FILENAME = "provenance.json"
 SNAPSHOT_SKIP_NAMES = frozenset({PROVENANCE_FILENAME})
-
 _HEX40 = re.compile(r"^[0-9a-f]{40}$")
 _RL_SUFFIX = re.compile(r"_rl_\d+$")
 _CJK = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\㐀-\䶿豈-\﫿]")
@@ -101,9 +107,9 @@ def snapshot_dir_name(org: str, repo: str, revision: str) -> str:
     return f"{org}__{repo}@{revision[:12]}"
 
 
-def hf_task_store(derived_root: Path) -> Path:
-    """Shared snapshot root: ``<derived root>/task-store/hf``."""
-    return derived_root / TASK_STORE_DIRNAME / HF_SNAPSHOTS_DIRNAME
+def hf_task_store(store_root: Path) -> Path:
+    """Snapshot root: ``<task store>/hf``."""
+    return store_root / HF_SNAPSHOTS_DIRNAME
 
 
 def catalog_dir(derived_root: Path) -> Path:
@@ -111,10 +117,21 @@ def catalog_dir(derived_root: Path) -> Path:
     return derived_root / CATALOG_RELPATH
 
 
+def default_task_store_root(repo_root: Path) -> Path:
+    """HF snapshot store: shared across worktrees, outside Git.
+
+    Resolves under the *primary* checkout's ``derived/task-store`` (not the
+    Parquet derived root), mirroring ``task_variants.default_variants_root``,
+    so every worktree pulls into the one store the catalog build scans.
+    """
+    return shared_checkout_root(repo_root) / "derived" / TASK_STORE_DIRNAME
+
+
 def task_store_root(repo_root: Path, *, derived_root: Path | None = None) -> Path:
     """Resolve the shared task-store root without touching the worktree."""
-    derived = derived_root or derived_root_from_environment(repo_root)
-    return derived / TASK_STORE_DIRNAME
+    if derived_root is not None:
+        return derived_root / TASK_STORE_DIRNAME
+    return default_task_store_root(repo_root)
 
 
 def parse_hf_pin(ref: str) -> tuple[str, str, str]:
@@ -328,7 +345,7 @@ def pull_hf_snapshot(
     """
     org, repo, revision = parse_hf_pin(ref)
     repo_id = f"{org}/{repo}"
-    store = hf_task_store(derived_root or derived_root_from_environment(repo_root))
+    store = hf_task_store(task_store_root(repo_root, derived_root=derived_root))
     dest = store / snapshot_dir_name(org, repo, revision)
 
     if dest.exists():
@@ -919,6 +936,14 @@ class CatalogBuildReport:
     cyber_dupe_tasks: int = 0
 
 
+def _snapshot_relpath(snapshot: Path, repo_root: Path) -> str:
+    """Store path relative to the shared checkout root (portable across worktrees)."""
+    try:
+        return snapshot.relative_to(shared_checkout_root(repo_root)).as_posix()
+    except ValueError:
+        return snapshot.name
+
+
 def _domain_of_snapshot(repo_id: str) -> str:
     return repo_id.rsplit("harbor-", 1)[-1] if "harbor-" in repo_id else repo_id
 
@@ -930,7 +955,7 @@ def build_catalog(
 ) -> CatalogBuildReport:
     """Scan pulled snapshots plus lineage records; write the four catalog tables."""
     derived = derived_root or derived_root_from_environment(repo_root)
-    store = hf_task_store(derived)
+    store = hf_task_store(task_store_root(repo_root, derived_root=derived_root))
     outdir = catalog_dir(derived)
     outdir.mkdir(parents=True, exist_ok=True)
     report = CatalogBuildReport(catalog_dir=outdir)
@@ -963,7 +988,7 @@ def build_catalog(
                 "source_repo": repo_id,
                 "source_revision": revision,
                 "domain": domain,
-                "snapshot_relpath": snapshot.relative_to(derived).as_posix(),
+                "snapshot_relpath": _snapshot_relpath(snapshot, repo_root),
                 "n_manifest": len(manifest),
                 "n_disk": len(task_dirs),
                 "n_registry": len(registry_names),
@@ -1301,8 +1326,8 @@ def show_task(
 def task_audit_sql(
     outcomes: str = "v_task_outcomes",
     versions: str = "task_versions",
-    stability: str = "task_stability",
-    exploits: str = "task_exploits",
+    stability: str | None = None,
+    exploits: str | None = None,
     *,
     has_stability: bool = True,
     has_exploits: bool = True,
@@ -1315,15 +1340,17 @@ def task_audit_sql(
     split-agnostic and ``train_eligible`` here means learnable, stable, and
     free of confirmed exploits.
     """
+    stability_table = stability or STABILITY_TABLE
+    exploits_table = exploits or EXPLOITS_TABLE
     stability_source = (
-        f"(SELECT task_version_digest, verdict, n_runs, evidence_path FROM {stability})"
+        f"(SELECT task_version_digest, verdict, n_runs, evidence_path FROM {stability_table})"
         if has_stability
         else "(SELECT CAST(NULL AS VARCHAR) AS task_version_digest, "
         "CAST(NULL AS VARCHAR) AS verdict, CAST(NULL AS INTEGER) AS n_runs, "
         "CAST(NULL AS VARCHAR) AS evidence_path WHERE FALSE)"
     )
     exploits_source = (
-        f"(SELECT task_version_digest, exploit_status, evidence_path FROM {exploits})"
+        f"(SELECT task_version_digest, exploit_status, evidence_path FROM {exploits_table})"
         if has_exploits
         else "(SELECT CAST(NULL AS VARCHAR) AS task_version_digest, "
         "CAST(NULL AS VARCHAR) AS exploit_status, "
@@ -1446,14 +1473,17 @@ def export_train_eligible(
     split file the export is marked provisional and splits stay unassigned.
     """
     from evallab.storage.attach import attach
-
     derived = derived_root or derived_root_from_environment(repo_root)
     catalog = catalog_dir(derived)
     if not (catalog / "task_versions.parquet").is_file():
         raise CatalogError(f"no catalog tables under {catalog}; run catalog build first")
     table_digests: dict[str, str | None] = {}
-    for name in (*CATALOG_TABLES, "task_stability", "task_exploits"):
-        path = catalog / f"{name}.parquet"
+    for name, filename in (
+        *((name, f"{name}.parquet") for name in CATALOG_TABLES),
+        (STABILITY_TABLE, STABILITY_TABLE_FILENAME),
+        (EXPLOITS_TABLE, EXPLOITS_TABLE_FILENAME),
+    ):
+        path = catalog / filename
         table_digests[name] = _sha256_file(path) if path.is_file() else None
 
     splits = _read_split_map(split_path)

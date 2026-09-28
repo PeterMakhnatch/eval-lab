@@ -67,7 +67,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/mimo-task-catalog.md
-    digest: sha256:99513d6f3c334e2b3c007cc8ac5277a8894e269c52ef808721ab4c1119e337ba
+    digest: sha256:5089f60a3eb9818a6d897f518909386ce68fabd8027a2ac26d5a1d34796e2800
   - path: docs/model-capture.md
     digest: sha256:f545bf75f0a2db4ed10f15803297ec5ec11a9fc466b5b9df59a071b54e2b4603
   - path: docs/observability.md
@@ -160,6 +160,7 @@ an operator can see what is archived.
 | `docs/join-spine.md` | Join Spine (E05) | `living` | `builder, analyst` |
 | `docs/lancedb.md` | LanceDB vector store | `living` | `analyst, builder` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
+| `docs/mimo-task-catalog.md` | MiMo task catalog | `living` | `builder, analyst, runner` |
 | `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
 | `docs/quality.md` | DirectoryQueue property-based fuzzing | `living` | `builder, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
@@ -212,6 +213,7 @@ an operator can see what is archived.
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lancedb.md` | LanceDB vector store | `living` | `analyst, builder` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
+| `docs/mimo-task-catalog.md` | MiMo task catalog | `living` | `builder, analyst, runner` |
 | `docs/observability.md` | Observability | `living` | `analyst, operator` |
 | `docs/parquet-compaction.md` | Parquet Compaction Engine | `living` | `operator, analyst` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
@@ -259,6 +261,7 @@ an operator can see what is archived.
 | `docs/engineering.md` | Engineering standards and performance baselines | `living` | `builder, analyst, runner, operator` |
 | `docs/execution-tiers.md` | Execution tiers: what runs where, and what it costs | `living` | `runner, operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
+| `docs/mimo-task-catalog.md` | MiMo task catalog | `living` | `builder, analyst, runner` |
 | `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
 | `docs/operations.md` | Operations | `living` | `runner, operator` |
 | `docs/quota-accounting.md` | Subscription quota accounting | `living` | `runner, operator` |

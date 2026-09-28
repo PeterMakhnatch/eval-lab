@@ -6,7 +6,7 @@
   "name": "mimo-qual-t-candidate-2836-ml-kernels",
   "jobs_dir": "runs",
   "attempts": 1,
-  "timeout_seconds": 3720,
+  "timeout_seconds": 4020,
   "purpose": "calibration",
   "hypothesis": "The MiMo task starts, passes its healthcheck and grades on Daytona: a nop control completes the verifier with reward 0.",
   "submitted_by": "har88-qualification",

@@ -6,7 +6,7 @@
   "name": "mimo-qual-c-format-code-task-000464",
   "jobs_dir": "runs",
   "attempts": 1,
-  "timeout_seconds": 5100,
+  "timeout_seconds": 5400,
   "purpose": "calibration",
   "hypothesis": "The MiMo task starts, passes its healthcheck and grades on Daytona: a nop control completes the verifier with reward 0.",
   "submitted_by": "har88-qualification"

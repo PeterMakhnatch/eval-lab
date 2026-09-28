@@ -34,15 +34,15 @@ Our org quota was read on 2026-09-28 with a read-only API call: **10 vCPU / 10 G
 
 Rates are Daytona list prices (https://www.daytona.io/pricing, retrieved 2026-09-28): $0.0504/vCPU-h, $0.0162/GiB-h memory, and $0.000108/GiB-h storage beyond 5 GiB.
 
-**Worst case.** Every sandbox is killed by its provider TTL, where `ttl_minutes = (timeout_seconds + 600 + 59) // 60` and `timeout_seconds = build + healthcheck + verifier × repeats` from each task.toml.
+**Worst case.** Every sandbox is killed by its provider TTL, where `ttl_minutes = (timeout_seconds + 600 + 59) // 60` and `timeout_seconds = build + healthcheck + verifier × repeats + 300 s`, taken from each task.toml. `timeout_seconds` is also the executor's per-trial watchdog; the 300 s margin keeps it from killing a trial that uses its full phase budgets.
 
 | domain | n | $/sandbox-h | TTL (min) | worst case |
 |---|---|---|---|---|
-| terminal | 64 | 0.08334 | 72 (one task: 78) | $6.41 |
-| music | 1 | 0.08280 | 70 | $0.10 |
-| code | 32 | 0.23040 | 95 | $11.67 |
-| cyber | 16 | 0.23040 | 65 | $3.99 |
-| **total** | 113 | | | **$22.17** (batch a $6.51, batch b $15.66) |
+| terminal | 64 | 0.08334 | 77 (one task: 83) | $6.85 |
+| music | 1 | 0.08280 | 75 | $0.10 |
+| code | 32 | 0.23040 | 100 | $12.29 |
+| cyber | 16 | 0.23040 | 70 | $4.30 |
+| **total** | 113 | | | **$23.55** (batch a $6.96, batch b $16.59) |
 
 **Expected** ≈ $2.5, assuming terminal 6 min, code 12 min, cyber 8 min and music 5 min per trial. No model tokens are used.
 

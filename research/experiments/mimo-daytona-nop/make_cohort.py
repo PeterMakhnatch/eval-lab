@@ -43,6 +43,11 @@ OUT = ROOT / "research/experiments/mimo-daytona-nop"
 SEED = "har88:"
 N_CODE, N_CYBER = 32, 16
 REPEAT_N = 3
+#: Trial overhead beyond Harbor's own phase timeouts (sandbox create/delete,
+#: uploads, log download). ``timeout_seconds`` is also the executor's per-trial
+#: watchdog, so without a margin a trial that uses its full phase budgets would
+#: be killed as a false failure.
+MARGIN_S = 300
 PINS = {
     "terminal": ("FineEnvs", "MiMo-V2.6-RL-harbor-terminal", "fe1c2b665aae1ba7a09a270d979724d32269ae6a"),
     "code": ("FineEnvs", "MiMo-V2.6-RL-harbor-code", "5746e2f0c5c61af12d7c5bf15d7efdd77d1f0785"),
@@ -130,9 +135,9 @@ def pick_cyber(rows: list[dict]) -> list[dict]:
 
 
 def trial_timeout(row: dict, repeat_n: int) -> int:
-    """Seconds a nop trial may take: build + healthcheck + every verifier run."""
+    """Seconds a nop trial may take: build + healthcheck + every verifier run + margin."""
     return int(row["build_timeout_sec"] + row["healthcheck_timeout_sec"]
-               + row["verifier_timeout_sec"] * repeat_n)
+               + row["verifier_timeout_sec"] * repeat_n + MARGIN_S)
 
 
 def spec_source(domain: str, row: dict, task_rel: str, package_digest: str) -> dict:

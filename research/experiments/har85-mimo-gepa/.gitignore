@@ -5,3 +5,5 @@
 # enter the merged tree). Regenerate with the README recipe; pins live in
 # split.provisional.json (manifest_digest sha256:fb645fed...).
 /tasks/
+# Signed proposer authorization refs are runtime approvals, never committed.
+/proposer-approval.signed.json

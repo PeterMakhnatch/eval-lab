@@ -71,8 +71,9 @@ verifier`). No infra failures; all rewards the expected nop 0.
 ## 4. Files
 
 - `split.provisional.json` (frozen copy), `selection-rule.json` (preregistered
-  12+/16 sign-test + no-infra-loss + generality rule), `BUDGET.md` (formula
-  with measured counts, $ as placeholders).
+  critical-W sign-test table + no-infra-loss + generality rule; criterion (1)
+  amended same-day before any paid trial), `BUDGET.md` (formula with measured
+  counts, $ as placeholders).
 - `candidates/seed-addendum-v1.txt` (general guidance, no task specifics).
 - `qualification-campaign.json` (dry-run source; outputs under
   `runs/gepa-har85-mimo-nop-qualification/`, runtime state, uncommitted).
@@ -83,11 +84,15 @@ verifier`). No infra failures; all rewards the expected nop 0.
   never run).
 - `proposer-options.json` (A/B/C: 4/8/2 reflection calls; stamp fields +
   fresh approval ref to switch).
+- `proposer-approval.template.json` (STAGED binding `becdc632…`, signer/date
+  blank; signed materialization is runtime state, gitignored).
+- `search-round.sh` (per-round helper: no-args list + exact approve line,
+  `--dispatch --ref` gated tick + campaign rerun; refusals exercised).
 - `make_paired_specs.py` (final 32 held-out specs generator; refuses on
   drift/missing bytes; refusal + schema validation exercised).
 - `paired-specs/` (empty until the winner exists; `ids.txt` recorded at submit).
-- `run-after-approval.sh` (32/32 approval gate + key-scoped tick; refusal
-  exercised: exit 2 with no `ids.txt`).
+- `run-after-approval.sh` (32/32 approval gate + key-scoped tick; bash-3.2
+  safe; refusals exercised: missing `ids.txt` and 0/32 approved, both exit 2).
 - `tasks/` (worktree-local, gitignored train materialization; held-out NEVER
   materialized here until the final eval).
 
@@ -114,22 +119,68 @@ print('train materialized, digests match')
 
 ## 6. Launch sequence (Peter's commands, from THIS worktree root)
 
-STEP 1 — train search (iterative, approval-gated):
+STEP 1 — train search (iterative, approval-gated; one parked spec per round):
 ```bash
 cd /Users/petermakhnatch/Developer/eval-lab/.worktrees/har85-gepa-mimo
-uv run evallab approve <SPEC_ID> --actor peter   # per parked search spec, each round
-uv run --no-sync python -m evallab.gepa_optimizer run \
-  research/experiments/har85-mimo-gepa/campaign-train.json --repo-root . \
-  --proposer-approval-ref <approval-ref-with-binding_sha256>.json
-# repeat approve/tick/rerun until status completed; review gate:
+# once: materialize the signed proposer authorization from the staged template
+uv run --no-sync python research/experiments/har85-mimo-gepa/proposer-approval.template.json <<'EOF'
+import json, sys
+from datetime import UTC, datetime
+t = json.load(open(sys.argv[1]))
+t['approved_by'] = 'peter'
+t['approved_at'] = datetime.now(UTC).isoformat(timespec='seconds')
+json.dump(t, open('research/experiments/har85-mimo-gepa/proposer-approval.signed.json', 'w'), indent=2)
+print('wrote signed ref')
+EOF
+# each round (single dispatch command after approvals):
+./research/experiments/har85-mimo-gepa/search-round.sh   # lists parked specs + exact approve line; changes nothing
+# for id in <...>; do uv run evallab approve "$id" --actor peter; done   (printed above)
+./research/experiments/har85-mimo-gepa/search-round.sh --dispatch \
+  --ref research/experiments/har85-mimo-gepa/proposer-approval.signed.json
+# repeat until status completed; review gate:
 uv run --no-sync python -m evallab.gepa_optimizer approve-candidate \
   research/experiments/har85-mimo-gepa/campaign-train.json --candidate <FULL_SHA256>
 ```
+`search-round.sh` lists only this campaign's parked specs (name prefix
+`gepa-runs-gepa-har85-mimo-train-search-`, derived from the evaluator
+output_dir); `--dispatch` refuses unless every listed spec is approved, ticks
+only those IDs with the key loaded non-printing, then reruns the campaign.
+The signed ref is runtime state (gitignored), never committed.
 The `--proposer-approval-ref` JSON must carry `binding_sha256` of the exact
-frozen campaign binding + `approved_by` + `approved_at` (operator: Peter);
-`run` computes the binding from `campaign-train.json` (`seed_sha256`,
-release pin, `qualification: false`). Any byte change (e.g. proposer option
-swap) needs a fresh ref.
+frozen campaign binding + `approved_by` + `approved_at` (operator: Peter).
+The staged binding (`proposer-approval.template.json`) was precomputed with
+the real loader/pin/hash (`load_campaign`, `verify_release`,
+`hashlib.sha256(json.dumps(binding, sort_keys=True))` per workflow.py:592-606):
+`becdc632c2ba575b195069c8976cadd252a723e1b23e3f63f65716a8df2a2990`.
+Recompute after ANY byte change to `campaign-train.json`, the seed, or the
+pinned GEPA release (reinstall first: `uv pip install -r
+research/experiments/harness-gepa/requirements.txt`, then):
+```bash
+uv run --no-sync python -c "
+import json, hashlib
+from pathlib import Path
+from evallab.gepa_optimizer.workflow import load_campaign
+from evallab.gepa_optimizer.release import verify_release
+root = Path('.').resolve()
+config = load_campaign(Path('research/experiments/har85-mimo-gepa/campaign-train.json'), root)
+seed = (root / config['seed_candidate_path']).read_text(encoding='utf-8')
+binding = {'config': config, 'seed_sha256': 'sha256:' + hashlib.sha256(seed.encode()).hexdigest(), 'release': verify_release(), 'qualification': False}
+print(hashlib.sha256(json.dumps(binding, sort_keys=True).encode()).hexdigest())
+"
+```
+
+Rounds (from the code): `evaluate()` converts EVERY evaluator exception —
+including the `EvaluationPending` raised when the first spec of a batch parks —
+into `_EvaluationHalt`, aborting the run with status `pending_evaluation`
+(workflow.py:685-703, :854-866). So each round parks exactly one new spec:
+the baseline gate evaluates the seed on each of the 8 examples first
+(:739-740) = 8 rounds minimum (reruns consume completed receipts and park the
+next), then the search (`max_evals: 24`) parks up to one spec per novel
+(candidate, example) evaluation, plus best-candidate selection re-evals on the
+8 train examples. Hard cap: `AggregateBudget` `max_target_attempts: 32`
+distinct target submissions. Expect ~8 baseline rounds + up to ~24 search
+rounds; each round is: `search-round.sh` → approve line → `search-round.sh
+--dispatch --ref …`.
 
 STEP 2 — final held-out eval (one-shot, after a reviewed winner exists):
 ```bash

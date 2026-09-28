@@ -316,6 +316,80 @@ def test_mimo_lint_true_positive_and_negative(tmp_path: Path) -> None:
     assert lint_mimo_task(clean, expected_manifest_sha=sha, domain="fake") == []
 
 
+def test_mimo_lint_names_oracle_disclosure(tmp_path: Path) -> None:
+    toml = SCRIPT_TOML.replace(
+        'source_id = "alpha-task"',
+        'source_id = "arvo_1"\nexpected_crash = { error_type = "x", '
+        'file = "g/magick/utility.c", function = "TranslateTextEx", '
+        'max_submits = 0, sanitizer = "AddressSanitizer" }',
+    )
+    task = _write_task(tmp_path / "cy", "arvo_1", toml=toml, instruction="Crash it.\n")
+    findings = {finding.rule: finding for finding in lint_mimo_task(
+        task, expected_manifest_sha=None, domain="cyber")}
+    assert "TranslateTextEx" in findings["mimo-answer-leak"].message
+    assert "g/magick/utility.c" in findings["mimo-answer-leak"].message
+
+
+def _write_setup(task: Path, text: str = "mv .git git-hidden\n") -> None:
+    setup = task / "environment" / "setup"
+    setup.mkdir(parents=True, exist_ok=True)
+    (setup / "setup.sh").write_text(text)
+
+
+def test_mimo_audit_exploitability_rules(tmp_path: Path) -> None:
+    go = _write_task(tmp_path / "go", "g-task", toml=SCRIPT_TOML,
+                     instruction="Fix it.\n", command="go test ./pkg -run TestX")
+    _write_setup(go)
+    findings = {f.rule: f for f in lint_mimo_task(go, domain="code")}
+    assert "mimo-testmain-plantable" in findings
+    assert "package-wide" not in findings["mimo-testmain-plantable"].message
+    assert "mimo-git-history-readable" in findings
+
+    wide = _write_task(tmp_path / "wide", "w-task", toml=SCRIPT_TOML,
+                       instruction="Fix it.\n", command="go test .")
+    findings = {f.rule: f for f in lint_mimo_task(wide, domain="code")}
+    assert "package-wide" in findings["mimo-testmain-plantable"].message
+
+    py = _write_task(tmp_path / "py", "p-task", toml=SCRIPT_TOML,
+                     instruction="Fix it.\n", command="pytest tests/ -x")
+    findings = {f.rule: f for f in lint_mimo_task(py, domain="code")}
+    assert "mimo-conftest-plantable" in findings
+    assert "mimo-testmain-plantable" not in findings
+
+    term = _write_task(tmp_path / "term", "t-task", toml=SCRIPT_TOML, instruction="Do.\n")
+    findings = {f.rule: f for f in lint_mimo_task(term, domain="terminal")}
+    assert "mimo-terminal-hook-planting" in findings
+
+    cy = _write_task(tmp_path / "cy", "c-task", toml=SCRIPT_TOML, instruction="Crash.\n")
+    (cy / "tests" / "verify.py").write_text("shutil.copytree(str(s.ROOT_BINARY), out)\n")
+    findings = {f.rule: f for f in lint_mimo_task(cy, domain="cyber")}
+    assert "mimo-cyber-binary-unchecksummed" in findings
+
+    mu = _write_task(tmp_path / "mu", "m-task", toml=SCRIPT_TOML, instruction="Compose.\n")
+    (mu / "tests" / "test.sh").write_text("#!/bin/sh\napt-get install -y abcmidi\n")
+    findings = {f.rule: f for f in lint_mimo_task(mu, domain="music")}
+    assert "abcmidi" in findings["mimo-verify-network-dep"].message
+
+    wd = _write_task(tmp_path / "wd", "w-task", toml=SCRIPT_TOML,
+                     instruction="Use https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4\n")
+    findings = {f.rule: f for f in lint_mimo_task(wd, domain="webdev")}
+    assert "CDN" in findings["mimo-verify-network-dep"].message
+
+
+def test_cyber_dupe_stats_merges_only_spanning_groups() -> None:
+    from evallab.task_catalog import _cyber_dupe_stats
+    rows = [
+        ("a1", "cyber:proj-a", "hash1"),
+        ("a2", "cyber:proj-a", "hash1"),
+        ("b1", "cyber:proj-b", "hash2"),
+        ("b2", "cyber:proj-c", "hash2"),
+        ("solo", "cyber:proj-d", "hash3"),
+    ]
+    overrides, n_groups, n_tasks = _cyber_dupe_stats(rows)
+    assert overrides == {"b1": "cyber:dupe-hash2", "b2": "cyber:dupe-hash2"}
+    assert (n_groups, n_tasks) == (2, 4)
+
+
 # ---------------------------------------------------------------- verdicts
 
 

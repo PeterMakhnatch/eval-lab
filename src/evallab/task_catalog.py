@@ -46,6 +46,12 @@ from evallab.schemas import ProvenanceMetadata
 from evallab.storage.paths import derived_root_from_environment
 from evallab.task_lint import Finding, lint_mimo_task, mimo_manifest_sha
 
+
+def _as_dict(value: object) -> dict[str, Any]:
+    """Narrow an untyped mapping lookup to a dict (ty cannot narrow call results)."""
+    return value if isinstance(value, dict) else {}
+
+
 MIMO_HF_PINS: dict[str, str] = {
     "code": "5746e2f0c5c61af12d7c5bf15d7efdd77d1f0785",
     "cyber": "763882ade5fc018892f1aa3c559f997138eb92cc",
@@ -591,8 +597,8 @@ def extract_code_repo(task_dir: Path) -> str | None:
                     votes[repo] = votes.get(repo, 0) + 1
     if not votes:
         toml = _read_task_toml(task_dir)
-        metadata = toml.get("metadata") if isinstance(toml.get("metadata"), dict) else {}
-        task_block = toml.get("task") if isinstance(toml.get("task"), dict) else {}
+        metadata = _as_dict(toml.get("metadata"))
+        task_block = _as_dict(toml.get("task"))
         try:
             instruction = (task_dir / "instruction.md").read_text(
                 encoding="utf-8", errors="replace"
@@ -721,11 +727,11 @@ def _build_external_task(
     jsonl_row: Mapping[str, Any] | None,
 ) -> _ExternalTask:
     toml = _read_task_toml(task_dir)
-    task_block = toml.get("task") if isinstance(toml.get("task"), dict) else {}
-    metadata = toml.get("metadata") if isinstance(toml.get("metadata"), dict) else {}
-    agent = toml.get("agent") if isinstance(toml.get("agent"), dict) else {}
-    verifier = toml.get("verifier") if isinstance(toml.get("verifier"), dict) else {}
-    environment = toml.get("environment") if isinstance(toml.get("environment"), dict) else {}
+    task_block = _as_dict(toml.get("task"))
+    metadata = _as_dict(toml.get("metadata"))
+    agent = _as_dict(toml.get("agent"))
+    verifier = _as_dict(toml.get("verifier"))
+    environment = _as_dict(toml.get("environment"))
     task_id = task_dir.name
     source_id = str(metadata.get("source_id") or (jsonl_row or {}).get("source_id") or task_id)
     instruction_path = task_dir / "instruction.md"
@@ -833,8 +839,8 @@ def load_lineage_dicts(repo_root: Path) -> tuple[list[tuple[dict[str, Any], str]
 
 
 def _variant_version_row(record: Mapping[str, Any]) -> dict[str, Any]:
-    parent = record.get("parent") if isinstance(record.get("parent"), dict) else {}
-    source = parent.get("source") if isinstance(parent.get("source"), dict) else {}
+    parent = _as_dict(record.get("parent"))
+    source = _as_dict(parent.get("source"))
     domain: str | None = None
     if source.get("kind") == "hf" and isinstance(source.get("repo"), str):
         domain = source["repo"].rsplit("harbor-", 1)[-1]
@@ -874,6 +880,30 @@ def _variant_version_row(record: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _cyber_dupe_stats(
+    rows: list[tuple[str, str, str]],
+) -> tuple[dict[str, str], int, int]:
+    """M0: exact-duplicate cyber instructions must share ``split_group``.
+
+    Input is ``(task_id, split_group, instruction_hash12)`` per cyber task.
+    Returns ``(overrides, n_groups, n_tasks)`` where ``overrides`` maps
+    task ids whose duplicate-instruction group spans more than one project
+    group to a merged ``cyber:dupe-<hash>`` key. Project-pure groups (all
+    194 on current data) need no override: the project key already keeps
+    them together.
+    """
+    by_hash: dict[str, list[tuple[str, str]]] = {}
+    for task_id, group, inst in rows:
+        by_hash.setdefault(inst, []).append((task_id, group))
+    multi = {inst: members for inst, members in by_hash.items() if len(members) > 1}
+    overrides: dict[str, str] = {}
+    for inst, members in multi.items():
+        if len({group for _, group in members}) > 1:
+            for task_id, _ in members:
+                overrides[task_id] = f"cyber:dupe-{inst}"
+    return overrides, len(multi), sum(len(members) for members in multi.values())
+
+
 @dataclass
 class CatalogBuildReport:
     """Counts and finding tallies from one catalog build."""
@@ -885,6 +915,8 @@ class CatalogBuildReport:
     skipped_variant_records: int = 0
     findings_by_rule_domain: dict[str, dict[str, int]] = field(default_factory=dict)
     unresolved_splits: dict[str, int] = field(default_factory=dict)
+    cyber_dupe_groups: int = 0
+    cyber_dupe_tasks: int = 0
 
 
 def _domain_of_snapshot(repo_id: str) -> str:
@@ -907,6 +939,7 @@ def build_catalog(
     versions: list[dict[str, Any]] = []
     finding_rows: list[dict[str, Any]] = []
     slug_index: dict[str, list[tuple[str, str]]] = {}
+    cyber_inst: list[tuple[str, str, str]] = []
 
     snapshots = sorted(
         (child for child in store.iterdir() if child.is_dir() and (child / PROVENANCE_FILENAME).is_file()),
@@ -948,6 +981,16 @@ def build_catalog(
                 jsonl_row=jsonl_rows.get(task_dir.name),
             )
             versions.append(built.version_row)
+            if domain == "cyber":
+                try:
+                    inst_hash = hashlib.sha256(
+                        (task_dir / "instruction.md").read_bytes()
+                    ).hexdigest()[:12]
+                except OSError:
+                    inst_hash = ""
+                cyber_inst.append(
+                    (task_dir.name, str(built.version_row["split_group"]), inst_hash)
+                )
             slug_index.setdefault(
                 slug_of(str(built.version_row["source_id"])), []
             ).append((domain, task_dir.name))
@@ -963,6 +1006,13 @@ def build_catalog(
                     }
                 )
 
+    dupe_overrides, n_dupe_groups, n_dupe_tasks = _cyber_dupe_stats(cyber_inst)
+    report.cyber_dupe_groups = n_dupe_groups
+    report.cyber_dupe_tasks = n_dupe_tasks
+    if dupe_overrides:
+        version_by_key = {(row["domain"], row["task_id"]): row for row in versions}
+        for task_id, group in dupe_overrides.items():
+            version_by_key[("cyber", task_id)]["split_group"] = group
     collisions = {
         slug: members for slug, members in slug_index.items() if len(set(members)) > 1
     }
@@ -989,7 +1039,7 @@ def build_catalog(
     report.skipped_variant_records = skipped
     for record, record_path in records:
         versions.append(_variant_version_row(record))
-        parent = record.get("parent") if isinstance(record.get("parent"), dict) else {}
+        parent = _as_dict(record.get("parent"))
         lineage.append(
             {
                 "child_digest": record.get("variant_digest"),
@@ -1139,6 +1189,11 @@ def render_build_report(report: CatalogBuildReport) -> str:
             f"{domain}={count}" for domain, count in sorted(report.unresolved_splits.items())
         )
         lines.append(f"split_group fallbacks (task_id, unresolved): {detail}")
+    if report.cyber_dupe_groups:
+        lines.append(
+            f"cyber instruction-dupe groups: {report.cyber_dupe_groups} groups, "
+            f"{report.cyber_dupe_tasks} tasks (share split_group via project key)"
+        )
     return "\n".join(lines) + "\n"
 
 

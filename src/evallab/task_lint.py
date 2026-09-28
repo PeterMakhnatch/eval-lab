@@ -12,7 +12,7 @@ import tomllib
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Literal
+from typing import Any, Literal
 
 from evallab.task_workbench import Diagnostic, _parse_task_toml
 
@@ -29,6 +29,89 @@ _MIMO_LEAK_PATTERNS = (
     re.compile(r"expected_func|EXPECTED_FUNC"),
 )
 _MIMO_HIDDEN_TEST_NAME = re.compile(r"func (Test\w+)\(")
+
+# Audit-ported exploitability signals (MimoFaultAudit H2/H3/N4): the hidden
+# grading command is visible text (test_command.sh), patch text, or shell
+# scripts embedded in the test patch as mimo_build_env.tar.gz.b64.
+_GO_TEST_LINE = re.compile(r"\bgo\s+test\s+([^;&|\n]*)")
+_PYTEST_TOKEN = re.compile(r"\bpytest\b")
+_NETWORK_INSTALL = re.compile(
+    r"\bpip install\b|\bnpm install\b|\bgo install\b|\bcurl\s+[^\n]*?https?://"
+)
+_GO_FLAG_WITH_VALUE = frozenset({"-run", "-count", "-timeout", "-tags", "-cpu", "-parallel"})
+
+
+def _build_env_scripts(patch: str) -> list[str]:
+    """Shell scripts embedded in the test patch as ``mimo_build_env.tar.gz.b64``."""
+    start = patch.find("+++ b/mimo_build_env.tar.gz.b64")
+    if start < 0:
+        return []
+    lines: list[str] = []
+    in_file = False
+    for line in patch[start : start + 4_000_000].splitlines():
+        if line.startswith("+++ b/mimo_build_env"):
+            in_file = True
+            continue
+        if line.startswith("diff --git") and in_file:
+            break
+        if in_file and line.startswith("+"):
+            lines.append(line[1:])
+    if not lines:
+        return []
+    import base64
+    import io
+    import tarfile
+
+    try:
+        raw = base64.b64decode("".join(lines))
+        scripts: list[str] = []
+        with tarfile.open(fileobj=io.BytesIO(raw)) as tar:
+            for member in tar.getmembers():
+                if not (member.isfile() and member.name.endswith(".sh")):
+                    continue
+                handle = tar.extractfile(member)
+                if handle is None:
+                    continue
+                scripts.append(handle.read().decode("utf-8", "replace"))
+        return scripts
+    except (OSError, ValueError, tarfile.TarError):
+        return []
+
+
+def _hidden_shell_blobs(task_dir: Path) -> list[str]:
+    """Grading shell text: visible command, patch text, decoded build-env scripts."""
+    blobs: list[str] = []
+    for name in ("test_command.sh", "test.sh"):
+        path = task_dir / "tests" / name
+        if path.is_file():
+            try:
+                blobs.append(path.read_text(encoding="utf-8", errors="replace"))
+            except OSError:
+                continue
+    patch_path = task_dir / "tests" / "test.patch"
+    if patch_path.is_file():
+        try:
+            patch = patch_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return blobs
+        blobs.append(patch)
+        blobs.extend(_build_env_scripts(patch))
+    return blobs
+
+
+def _go_package_wide(invocation: str) -> bool:
+    """Whether a ``go test ...`` argument string grades a whole package tree."""
+    skip_next = False
+    for token in invocation.split():
+        if skip_next:
+            skip_next = False
+            continue
+        if token.startswith("-"):
+            if "=" not in token and token in _GO_FLAG_WITH_VALUE:
+                skip_next = True
+            continue
+        return token in {".", "./", "./...", "..."}
+    return True
 
 
 @dataclass(frozen=True)
@@ -203,6 +286,12 @@ def discover_tasks(paths: Sequence[Path]) -> list[Path]:
             tasks[task] = None
     return list(tasks)
 
+
+def _as_dict(value: object) -> dict[str, Any]:
+    """Narrow an untyped mapping lookup to a dict (ty cannot narrow call results)."""
+    return value if isinstance(value, dict) else {}
+
+
 def mimo_manifest_sha(task_dir: Path) -> str:
     """Recompute a converted task directory's sha256 exactly as the adapter manifest describes.
 
@@ -266,9 +355,9 @@ def lint_mimo_task(
     findings: list[Finding] = []
     config = _read_toml_table(task_dir)
     manifest = task_dir / "task.toml"
-    verifier = config.get("verifier") if isinstance(config.get("verifier"), dict) else {}
-    agent = config.get("agent") if isinstance(config.get("agent"), dict) else {}
-    environment_cfg = config.get("environment") if isinstance(config.get("environment"), dict) else {}
+    verifier = _as_dict(config.get("verifier"))
+    agent = _as_dict(config.get("agent"))
+    environment_cfg = _as_dict(config.get("environment"))
 
     solution = task_dir / "solution"
     if not solution.is_dir() or not any(solution.rglob("*")):
@@ -310,7 +399,7 @@ def lint_mimo_task(
             )
         )
 
-    verifier_env = verifier.get("env") if isinstance(verifier.get("env"), dict) else {}
+    verifier_env = _as_dict(verifier.get("env"))
     grade_py = task_dir / "tests" / "grade.py"
     grade_text = ""
     if grade_py.is_file():
@@ -330,13 +419,33 @@ def lint_mimo_task(
                 str(grade_py if grade_py.is_file() else manifest),
                 "grading depends on a paid model judge"
                 + (f" (default {model_default})" if model_default else "")
-                + "; judge outages bill and score as errors, never as 0",
+                + "; judge outages bill and score as errors, never as 0"
+                + (
+                    "; temperature is hardcoded to 1.0 (identical pages "
+                    "re-score nondeterministically)"
+                    if "temperature" in grade_text and "1.0" in grade_text
+                    else ""
+                )
+                + (
+                    "; the judge sees only the first 1500 chars (QUERY_CAP) "
+                    "while briefs run past 2000"
+                    if "QUERY_CAP" in grade_text or "[:1500]" in grade_text
+                    else ""
+                ),
             )
         )
 
+    metadata_cfg = _as_dict(config.get("metadata"))
     visible = _mimo_agent_visible_text(task_dir)
     blob = "\n".join(visible.values())
     leaks = sorted({pattern.pattern for pattern in _MIMO_LEAK_PATTERNS if pattern.search(blob)})
+    crash = metadata_cfg.get("expected_crash")
+    if isinstance(crash, dict):
+        disclosed = " in ".join(
+            str(part) for part in (crash.get("function"), crash.get("file")) if part
+        )
+        if disclosed:
+            leaks.append(f"expected crash disclosed in agent-visible metadata: {disclosed}")
     patch_path = task_dir / "tests" / "test.patch"
     if patch_path.is_file():
         try:
@@ -385,8 +494,7 @@ def lint_mimo_task(
             )
         )
 
-    metadata = config.get("metadata") if isinstance(config.get("metadata"), dict) else {}
-    source_id = metadata.get("source_id") or ""
+    source_id = metadata_cfg.get("source_id") or ""
     if (
         isinstance(source_id, str)
         and source_id
@@ -402,5 +510,127 @@ def lint_mimo_task(
                 f"{task_dir.name!r} only by case; slug folding can collide",
             )
         )
-    _ = domain
+    # --- Audit-ported exploitability rules (MimoFaultAudit, static only) ---
+    agent_user = agent.get("user") or "root"
+    blobs = _hidden_shell_blobs(task_dir)
+    shell = "\n".join(blobs)
+    tests_dir = task_dir / "tests"
+    tests_texts = list(blobs)
+    if tests_dir.is_dir():
+        for path in sorted(p for p in tests_dir.rglob("*") if p.is_file()):
+            try:
+                tests_texts.append(path.read_text(encoding="utf-8", errors="replace"))
+            except OSError:
+                continue
+    tests_text = "\n".join(tests_texts)
+    setup_path = task_dir / "environment" / "setup" / "setup.sh"
+    try:
+        setup_text = setup_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        setup_text = ""
+    instruction_text = visible.get("instruction.md", "")
+
+    if domain == "terminal":
+        findings.append(
+            Finding(
+                "mimo-terminal-hook-planting",
+                "warning",
+                str(task_dir / "tests" / "test.sh"),
+                "the tests/test.sh guard only inspects files under /app; the agent "
+                "runs as root, so interpreter hooks planted outside /app "
+                "(sitecustomize.py, *.pth in site-packages, the pytest install "
+                "itself) execute inside grading and can forge the reward",
+            )
+        )
+
+    go_invocations = _GO_TEST_LINE.findall(shell)
+    if domain == "code" and go_invocations:
+        package_wide = any(_go_package_wide(inv) for inv in go_invocations)
+        findings.append(
+            Finding(
+                "mimo-testmain-plantable",
+                "warning",
+                str(task_dir / "tests" / "test.patch"),
+                "the hidden test command runs `go test` while test.sh resets only "
+                "patch-touched files, so an agent-planted TestMain (or helper) in "
+                "the tested package survives and exits 0"
+                + (
+                    "; package-wide invocation needs only a same-package helper file"
+                    if package_wide
+                    else ""
+                ),
+            )
+        )
+    if domain == "code" and _PYTEST_TOKEN.search(shell):
+        findings.append(
+            Finding(
+                "mimo-conftest-plantable",
+                "warning",
+                str(task_dir / "tests" / "test.patch"),
+                "the hidden test command invokes pytest; a planted conftest.py is "
+                "untracked, survives the reset, and is auto-imported",
+            )
+        )
+    if domain == "code" and agent_user == "root" and "git-hidden" in setup_text:
+        findings.append(
+            Finding(
+                "mimo-git-history-readable",
+                "warning",
+                str(setup_path),
+                "setup hides .git under /var/lib/mimo (mode 700) but the agent is "
+                "root and can read it directly; fix exposure is image-dependent "
+                "(safe only when history is truncated at the base commit)",
+            )
+        )
+    if domain == "cyber" and (
+        "/root/binary" in tests_text or "ROOT_BINARY" in tests_text
+    ):
+        findings.append(
+            Finding(
+                "mimo-cyber-binary-unchecksummed",
+                "warning",
+                str(task_dir / "tests" / "verify.py"),
+                "verify.py re-runs the PoC from /root/binary without checksumming "
+                "it; a root-time agent can replace the binary/run.sh with a "
+                "crash-forging stub",
+            )
+        )
+
+    network_dep: str | None = None
+    test_sh = task_dir / "tests" / "test.sh"
+    try:
+        test_sh_text = test_sh.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        test_sh_text = ""
+    if domain == "music" and "apt-get install" in test_sh_text:
+        network_dep = (
+            "the scorer dependency (abcmidi) is apt-installed at verify time; "
+            "grading needs network and fails as not-scored without it"
+        )
+    elif domain == "webdev" and "cdn.jsdelivr" in instruction_text:
+        network_dep = (
+            "delivered pages require CDN assets at render time; a CDN hiccup at "
+            "grade time scores a perfect offline page as not-scored"
+        )
+    elif domain == "code" and (
+        "apt-get install" in test_sh_text or "apt-get install" in shell
+    ):
+        network_dep = (
+            "apt-get runs inside the grading path; a testbed without network "
+            "fails the task as not-scored"
+        )
+    elif domain == "code" and _NETWORK_INSTALL.search(tests_text):
+        network_dep = (
+            "test content fetches at grade time (pip/npm/go install or curl); "
+            "hidden tests can reach the network during grading"
+        )
+    if network_dep is not None:
+        findings.append(
+            Finding(
+                "mimo-verify-network-dep",
+                "warning",
+                str(test_sh),
+                network_dep,
+            )
+        )
     return findings

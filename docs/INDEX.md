@@ -49,7 +49,7 @@ inputs:
   - path: docs/dashboard.md
     digest: sha256:ee56108fa8961f0e0bb6d6f7f2174973bfce4fd15337bfe2c9e3b9c8af61c42a
   - path: docs/data-architecture.md
-    digest: sha256:97ed28ea2069b008b702588420b6a65db870e74079350450ad1a586d4f1196c7
+    digest: sha256:36bb2f042881ff649a2634c795a3f67c189cf99402ae7082e36d9f5a80b57c26
   - path: docs/deepseek-v4-flash-lane.md
     digest: sha256:efe12fcfc333012d835c097f02b64535305bf108e7f9d820c97327d1072d3633
   - path: docs/engineering.md
@@ -66,6 +66,8 @@ inputs:
     digest: sha256:e9bead9abe3e94658028e68f592ff3ef8cf4d43bb86b5199d8031fb19a2cbbe5
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
+  - path: docs/mimo-task-catalog.md
+    digest: sha256:99513d6f3c334e2b3c007cc8ac5277a8894e269c52ef808721ab4c1119e337ba
   - path: docs/model-capture.md
     digest: sha256:f545bf75f0a2db4ed10f15803297ec5ec11a9fc466b5b9df59a071b54e2b4603
   - path: docs/observability.md

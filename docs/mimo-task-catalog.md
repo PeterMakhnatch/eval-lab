@@ -1,3 +1,11 @@
+---
+status: living
+audience:
+  - builder
+  - analyst
+  - runner
+---
+
 # MiMo task catalog
 
 Pinned intake, static findings, versioning, and outcome joins for the
@@ -48,10 +56,20 @@ findings, not crashes.
   `trials[].task.digest` and to `trial_facts.task_digest`.
 - `task_findings`: one row per `(task_version_digest, rule)` with
   severity and message. Rules are the `mimo-*` lint set
-  (`src/evallab/task_lint.py`): no solution/oracle, verifier not
-  isolated, network public, paid judge, answer leak, setup-only-in-
-  healthcheck, manifest digest mismatch, id/source_id case collisions,
-  plus `split-group-unresolved` when no family key is derivable.
+  (`src/evallab/task_lint.py`), each mapped to the MimoFaultAudit
+  finding it carries where statically detectable:
+  `mimo-no-oracle`, `mimo-verifier-not-isolated`, `mimo-network-public`
+  (H5: root + public = no network guarantee, hosts bypass), `mimo-paid-judge`
+  (N1: judge model, hardcoded temperature 1.0, webdev 1500-char QUERY_CAP),
+  `mimo-answer-leak` (incl. cyber expected-crash disclosure),
+  `mimo-setup-healthcheck-only`, `mimo-manifest-digest-mismatch` (M5 class),
+  `mimo-id-case-collision` (M1), `mimo-terminal-hook-planting` (H1),
+  `mimo-testmain-plantable` (H2, package-wide noted), `mimo-conftest-plantable`
+  (H3), `mimo-git-history-readable` (H4, image-dependent exposure),
+  `mimo-cyber-binary-unchecksummed` (H6), `mimo-verify-network-dep`
+  (N2 music abcmidi, N3 webdev CDN, N4 code test-time installs),
+  plus `split-group-unresolved` when no family key is derivable and the
+  builder-level cross-task slug-collision rows (same rule id).
 - `task_lineage`: parent/child digest links from lineage records
   (`variant` origin rows also appear in `task_versions`).
 
@@ -65,18 +83,25 @@ paid model judge (`vlm_judge` when vision markers are present, else
 Stable family key so sibling tasks never straddle train/held-out:
 
 - `code`: repository identity from graded test targets — tier 1:
-  module-style `go test` targets (visible command + hidden command in
-  `tests/test.patch`); tier 2: Go import paths in the patch (test-helper
-  modules excluded); tier 3: hosted code URLs in the instruction and task
-  description. Falls back to the task id (`split-group-unresolved`).
-  Format-style tasks carry no repo signal in any file, so most stay
-  unresolved by design — never merged silently.
-- `cyber`: ARVO project (first component of `expected_crash.file`).
-- `general`: task id minus the trailing `_rl_NNN` sibling suffix.
+  module-style `go test` targets (visible command, patch text, and shell
+  scripts embedded in the patch as `mimo_build_env.tar.gz.b64`); tier 2: Go
+  import paths in the patch (test-helper modules excluded); tier 3: hosted
+  code URLs in the instruction and task description. This is the audit's
+  go-import / test-import / issue-link union as one rule: test-target
+  signals outrank import signals outrank link signals; anything with no
+  signal stays a singleton (`split-group-unresolved`). Format-style tasks
+  carry no repo signal in any file, so most stay unresolved by design —
+  never merged silently.
+- `cyber`: ARVO project (first component of `expected_crash.file`). M0:
+  the 194 exact-duplicate instruction groups (501 tasks) are all
+  project-pure, so the project key already keeps every group together;
+  the builder verifies this per build and merges any future
+  cross-project dupe group under `cyber:dupe-<inst12>`.
 - `terminal`/`webdev`/`music`: task id until near-duplicate analysis lands.
 
 Docker image digests are per-task unique in this collection (64/64
-terminal, 276/276 sampled code), so they carry no family signal.
+terminal, 1000/1000 cyber, 2698/2698 code), so they carry no family
+signal; general/webdev/music share one image per domain (correctly ignored).
 
 ## Outcome joins
 
@@ -93,4 +118,40 @@ learnable (control, not training signal).
 
 ## Current numbers
 
-<!-- FILLED AFTER FULL BUILD -->
+Full six-domain build (2026-09-28): `task_sources` 6 rows,
+`task_versions` 7780 rows (code 2698 / cyber 1000 / general 925 /
+terminal 64 / webdev 2093 / music 1000 — exactly the contract counts),
+`task_findings` 47017 rows, `task_lineage` 0 rows (no variant records
+exist yet in `library/task-variants/`). Snapshots total 476M on disk
+(code 106M, cyber 52M, general 116M, music 71M, terminal 4.8M, webdev
+126M); catalog tables ~5M. Zero manifest digest mismatches: every task
+directory verifies against the adapter `manifest.json`.
+
+Findings per rule per domain:
+
+| rule | code | cyber | general | terminal | webdev | music |
+|---|---|---|---|---|---|---|
+| mimo-no-oracle | 2698 | 1000 | 925 | 64 | 2093 | 1000 |
+| mimo-verifier-not-isolated | 2698 | 1000 | 925 | 64 | 2093 | 1000 |
+| mimo-network-public | 2698 | 1000 | 925 | 64 | 2093 | 1000 |
+| mimo-setup-healthcheck-only | 2698 | 1000 | 925 | 64 | 2093 | 1000 |
+| mimo-paid-judge | 0 | 0 | 925 | 0 | 2093 | 0 |
+| mimo-answer-leak | 7 | 1000 | 0 | 0 | 0 | 0 |
+| mimo-id-case-collision | 0 | 0 | 0 | 0 | 0 | 1000 |
+| mimo-terminal-hook-planting (H1) | 0 | 0 | 0 | 64 | 0 | 0 |
+| mimo-testmain-plantable (H2) | 709 | 0 | 0 | 0 | 0 | 0 |
+| mimo-conftest-plantable (H3) | 1014 | 0 | 0 | 0 | 0 | 0 |
+| mimo-git-history-readable (H4) | 2698 | 0 | 0 | 0 | 0 | 0 |
+| mimo-cyber-binary-unchecksummed (H6) | 0 | 1000 | 0 | 0 | 0 | 0 |
+| mimo-verify-network-dep (N2/N3/N4) | 236 | 0 | 0 | 0 | 2093 | 1000 |
+| split-group-unresolved | 2058 | 0 | 0 | 0 | 0 | 0 |
+
+Cyber instruction-dupe groups (M0): 194 groups / 501 tasks, all sharing
+`split_group` via the ARVO project key (builder-verified per build).
+
+Notable: all 1000 cyber tasks disclose the expected crash
+(function/file/sanitizer) in the agent-visible instruction and task
+metadata; all 1000 music tasks carry a `source_id` differing from the
+directory name only by case (`music-gK-…` vs `music-gk-…`); 2058/2698
+code tasks (format-style, no repo signal in any file) fall back to the
+task id for `split_group` rather than merging silently.

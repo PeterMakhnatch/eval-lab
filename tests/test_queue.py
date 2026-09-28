@@ -1551,3 +1551,16 @@ def test_dispatch_refuses_toolbox_symlink(tmp_path: Path) -> None:
     with pytest.raises(ExecutionFailure) as error:
         svc.execute_spec(item)
     assert error.value.reason_code == "toolbox_symlink_rejected"
+
+
+def test_dispatch_carries_verifier_repeat_n_to_run_request(tmp_path: Path) -> None:
+    """The queue spec field reaches the Harbor argv boundary via RunRequest."""
+    requests: list[RunRequest] = []
+    service = executor(tmp_path, runner=lambda request: requests.append(request) or tmp_path)
+    item = spec("repeat-verifier", agent="nop").model_copy(
+        update={"verifier_repeat_n": 3}
+    )
+
+    service.execute_spec(item)
+
+    assert requests[0].verifier_repeat_n == 3

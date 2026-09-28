@@ -55,6 +55,9 @@ not a copied `model_json_schema()` dump. Tests cover rejected fields and
 digests, retained-spec replay, approval invalidation, and unchanged legacy
 serialization when the optional harness binding is absent. A Terminus harness
 path and digest must appear together; non-Terminus consumers reject them.
+`verifier_repeat_n` (2..10, default absent) forwards `--verifier
+evallab.harbor_repeat_verifier:RepeatVerifier --verifier-kwarg repeat_n=<N>`;
+controls on `daytona` resolve the bounded environment with a provider TTL.
 Adding a field does not justify repinning unrelated titles, descriptions, or
 incidental generated-schema details.
 

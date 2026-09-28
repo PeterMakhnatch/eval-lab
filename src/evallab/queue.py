@@ -2158,6 +2158,7 @@ class Executor:
             max_total_tokens=spec.max_total_tokens,
             cost_limit_usd=spec.cost_limit_usd,
             harness_policy=spec.harness_policy,
+            verifier_repeat_n=spec.verifier_repeat_n,
             lease_path=self.queue.lease_path(spec),
             lease_generation=lease_generation,
             experiment_spec=spec.model_copy(deep=True),

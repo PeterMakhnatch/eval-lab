@@ -192,8 +192,38 @@ def detect_grader_collection_failure(
                 continue  # expected under nop; keep scanning for real defects
             return error
         return None
-    for _, _, error, _module in candidates:
+    for _, lineno, error, _module in candidates:
+        if _import_fails_in_agent_code(combined.splitlines(), lineno):
+            continue
         return error
+    return None
+
+
+#: A pytest traceback frame line: ``<path>.py:<line>: in <name>``.
+_FRAME_RE = re.compile(r"^(?P<path>\S+\.py):\d+: in \S+")
+
+
+def _import_fails_in_agent_code(lines: Sequence[str], header_lineno: int) -> bool:
+    """True when the header's ImportError is raised inside agent-editable code.
+
+    With no missing-module or syntax root cause, ``ImportError while
+    importing test module`` means a name failed to import from code that
+    exists. When the innermost traceback frame is in the task workspace (a
+    path relative to the pytest rootdir, or under ``/app/``) rather than in
+    the grader (``/tests/``) or the interpreter/site-packages, repairing that
+    code can be part of the task (e.g. vendored sources the instruction asks
+    the agent to fix), so a nop failure there is not a grader defect.
+    """
+    innermost: str | None = None
+    for line in lines[header_lineno + 1 :]:
+        if re.match(r"^\s*E\s", line) or line.startswith("=") or "ERROR collecting" in line:
+            break
+        match = _FRAME_RE.match(line.strip())
+        if match is not None:
+            innermost = match.group("path")
+    if innermost is None:
+        return False
+    return not innermost.startswith("/") or innermost.startswith("/app/")
     return None
 
 
@@ -219,14 +249,12 @@ def grader_stdout_texts(trial_dir: Path) -> list[str]:
 
 
 def read_task_instruction(trial_dir: Path) -> str | None:
-    """The staged task's ``instruction.md`` (same task-dir resolution as task.toml)."""
-    lock = _read_json(trial_dir / "lock.json")
-    task = lock.get("task")
-    task_path = task.get("path") if isinstance(task, dict) else None
-    if not isinstance(task_path, str) or not task_path:
+    """The task's ``instruction.md`` (same resolution as :func:`task_dir_for_trial`)."""
+    task_dir = task_dir_for_trial(trial_dir)
+    if task_dir is None:
         return None
     try:
-        return (Path(task_path) / "instruction.md").read_text(encoding="utf-8")
+        return (task_dir / "instruction.md").read_text(encoding="utf-8")
     except OSError:
         return None
 
@@ -377,15 +405,36 @@ def _manifest_entry(job_dir: Path, trial_name: str) -> dict[str, Any]:
     return entry if isinstance(entry, dict) else {}
 
 
-def _task_toml(trial_dir: Path) -> dict[str, Any]:
-    """The staged task.toml Harbor ran (via the trial lock's task path)."""
+def task_dir_for_trial(trial_dir: Path) -> Path | None:
+    """The task directory a trial ran, even after the queue removed its stage.
+
+    Harbor's lock points at the executor's staged copy
+    (``<jobs>/.exec-stage/<job>``), which the queue deletes once the run
+    finishes. The job's ``experiment-spec.json`` keeps the source task path
+    (checkout-relative, e.g. ``derived/task-store/...``); it is resolved
+    against the checkout that owns the jobs directory.
+    """
     lock = _read_json(trial_dir / "lock.json")
     task = lock.get("task")
-    task_path = task.get("path") if isinstance(task, dict) else None
-    if not isinstance(task_path, str) or not task_path:
+    staged = task.get("path") if isinstance(task, dict) else None
+    if isinstance(staged, str) and staged and (Path(staged) / "task.toml").is_file():
+        return Path(staged)
+    job_dir = trial_dir.parent
+    source = _read_json(job_dir / "experiment-spec.json").get("task")
+    if not isinstance(source, str) or not source:
+        return None
+    path = Path(source)
+    candidates = [path] if path.is_absolute() else [job_dir.parent.parent / path, job_dir.parent / path]
+    return next((c for c in candidates if (c / "task.toml").is_file()), None)
+
+
+def _task_toml(trial_dir: Path) -> dict[str, Any]:
+    """The task.toml Harbor ran (see :func:`task_dir_for_trial`)."""
+    task_dir = task_dir_for_trial(trial_dir)
+    if task_dir is None:
         return {}
     try:
-        return tomllib.loads((Path(task_path) / "task.toml").read_text(encoding="utf-8"))
+        return tomllib.loads((task_dir / "task.toml").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 

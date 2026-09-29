@@ -163,6 +163,8 @@ def _write_trial(
     with_summarization: bool = False,
     session_id: str | None = None,
     main_trajectory: dict[str, Any] | None = None,
+    summarization_count: int | None = None,
+    continuation_sessions: list[str] | None = None,
 ) -> Path:
     job = root / "job-x"
     trial = job / f"{name}__abc123"
@@ -175,9 +177,11 @@ def _write_trial(
     payload = {**payload, "agent": {**payload.get("agent", {}), "name": agent_name}}
     (agent / "trajectory.json").write_text(json.dumps(payload))
     for index, continuation_steps in enumerate(continuations or [], start=1):
-        continuation = _trajectory(
-            continuation_steps, session_id=f"{session}-cont-{index}"
-        )
+        if continuation_sessions is not None:
+            session = continuation_sessions[index - 1]
+        else:
+            session = f"{session}-cont-{index}"
+        continuation = _trajectory(continuation_steps, session_id=session)
         continuation["agent"]["extra"] = {"continuation_index": index}
         (agent / f"trajectory.cont-{index}.json").write_text(json.dumps(continuation))
     if with_summarization:
@@ -194,8 +198,60 @@ def _write_trial(
     }
     if exception is not None:
         result["exception_info"] = exception
+    if summarization_count is not None:
+        result["agent_result"] = {"metadata": {"summarization_count": summarization_count}}
     (trial / "result.json").write_text(json.dumps(result))
     return trial
+
+
+def test_unsplit_summarization_refuses_trial(tmp_path: Path) -> None:
+    root = tmp_path / "runs"
+    root.mkdir()
+    unsplit = [
+        {"step_id": 1, "source": "user", "message": "TASK: keep going."},
+        {
+            "step_id": 2,
+            "source": "agent",
+            "message": '{"analysis":"again", "commands":[{"keystrokes":"pwd"}]}',
+            "observation": {"results": [{"content": "/app"}]},
+        },
+    ]
+    _write_trial(
+        root,
+        "trial-unsplit",
+        steps=_terminus_steps(reasoning=False),
+        continuations=[unsplit],
+        continuation_sessions=["session-trial-unsplit"],
+        summarization_count=31,
+    )
+    split = _freeze_split(tmp_path, ["task-a"], heldout=[])
+    manifest, out = _export(tmp_path, root, split)
+
+    assert manifest["exclusion_counts"] == {"unsplit_summarization": 1}
+    assert manifest["counts"]["conversations"] == 0
+    (trial,) = manifest["trials"]
+    assert trial["disposition"] == "excluded"
+    assert trial["summarization_attempts"] == 31
+    assert trial["summarization_splits"] == 0
+
+
+def test_split_summarization_still_selected(tmp_path: Path) -> None:
+    root = tmp_path / "runs"
+    root.mkdir()
+    _write_trial(
+        root,
+        "trial-split",
+        continuations=[_continuation_steps()],
+        summarization_count=1,
+    )
+    split = _freeze_split(tmp_path, ["task-a"], heldout=[])
+    manifest, out = _export(tmp_path, root, split)
+
+    assert manifest["counts"]["conversations"] == 2
+    (trial,) = manifest["trials"]
+    assert trial["disposition"] == "selected"
+    assert trial["summarization_attempts"] == 1
+    assert trial["summarization_splits"] == 1
 
 
 def _export(

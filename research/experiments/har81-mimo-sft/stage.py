@@ -587,6 +587,11 @@ STOP_REASONS = {
     "AgentTimeoutError": "agent timeout",
     "TrialBudgetExhaustedError": "ceiling",
 }
+CTX_EXCEEDED_MARK = "Context length exceeded"
+#: A trial with this many reactive overflow cycles has hit a context livelock:
+#: Harbor unwinds the chat without a split, so the stored history is no longer
+#: what the model saw. Stop the wave and report.
+LIVELOCK_OVERFLOW_CYCLES = 3
 
 
 def _agent_steps(trial: Path) -> list[dict]:
@@ -602,6 +607,42 @@ def _agent_steps(trial: Path) -> list[dict]:
         doc = json.loads(path.read_text())
         steps += [s for s in doc.get("steps", []) if s.get("source") == "agent"]
     return steps
+
+
+def _summarization_info(trial: Path) -> tuple[int | None, int, int | None]:
+    """(summarization attempts, genuine splits, reactive overflow cycles).
+
+    Attempts come from ``result.json``; a split is genuine under the same
+    definition the SFT export refuses on (``-cont-N`` session or copied
+    context); overflows count the mark in ``trial.log``.
+    """
+    attempts: int | None = None
+    with contextlib.suppress(OSError, ValueError):
+        meta = (json.loads((trial / "result.json").read_text()).get("agent_result") or {}).get(
+            "metadata"
+        ) or {}
+        if isinstance(meta.get("summarization_count"), int):
+            attempts = meta["summarization_count"]
+    splits = 0
+    for path in sorted((trial / "agent").glob("trajectory.cont-*.json")):
+        with contextlib.suppress(OSError, ValueError):
+            doc = json.loads(path.read_text())
+        if not isinstance(doc, dict):
+            continue
+        steps = doc.get("steps")
+        if not isinstance(steps, list):
+            continue
+        session = doc.get("session_id")
+        if (isinstance(session, str) and "-cont-" in session) or any(
+            isinstance(step, dict) and step.get("is_copied_context") for step in steps
+        ):
+            splits += 1
+    overflows: int | None = None
+    log = trial / "trial.log"
+    if log.is_file():
+        with contextlib.suppress(OSError):
+            overflows = log.read_text(errors="replace").count(CTX_EXCEEDED_MARK)
+    return attempts, splits, overflows
 
 
 def _key_mismatches(job: Path, fields: dict) -> list[str]:
@@ -639,16 +680,19 @@ def cmd_receipt(args: argparse.Namespace) -> None:
         runs = runs[: args.first]
     print(
         "| spec | domain | reward | stop | verifier result | unscored cause | suspect signal "
-        "| agent steps | parse errors | cut replies | trial s | key |"
+        "| agent steps | parse errors | cut replies | sum att/split | ctx-overflow | trial s | key |"
     )
-    print("|---|---|---|---|---|---|---|---|---|---|---|---|")
+    print("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
     scored, unscored, missing, sandbox_usd_sum, server_usd_sum = [], 0, 0, 0.0, 0.0
+    livelocked: list[str] = []
     for task, _, name, index in runs:
         job = ROOT / "runs" / name
         trials = sorted(p.parent for p in job.glob("*/result.json")) if job.is_dir() else []
         if not trials:
             missing += 1
-            print(f"| {name} | {task['domain']} | – | not run | – | – | – | – | – | – | – | – |")
+            print(
+                f"| {name} | {task['domain']} | – | not run | – | – | – | – | – | – | – | – | – | – | – |"
+            )
             continue
         key_note = (
             "no key pinned" if fields is None else "; ".join(_key_mismatches(job, fields)) or "ok"
@@ -682,12 +726,18 @@ def cmd_receipt(args: argparse.Namespace) -> None:
             sandbox_usd_sum += row["est_cost_usd"] or 0.0
             concurrency = spec_concurrency(args.batch, index)
             server_usd_sum += mimo_selfhosted_trial_cost_usd(hours, concurrency, 0.0)
+            attempts, splits, overflows = _summarization_info(trial)
+            overflow_cell = "–" if overflows is None else str(overflows)
+            if overflows is not None and overflows >= LIVELOCK_OVERFLOW_CYCLES:
+                overflow_cell += " LIVELOCK"
+                livelocked.append(f"{name}/{trial.name}")
             print(
                 f"| {name} | {task['domain']} | {'–' if reward is None else reward} | {stop} "
                 f"| {'yes' if reward is not None else 'no'} "
                 f"| {', '.join(row['reasons']) if reward is None else ''} | {', '.join(signal)} "
                 f"| {len(steps)} | {sum(PARSE_ERROR_MARK in o for o in observations)} "
                 f"| {sum(CUT_REPLY_MARK in o for o in observations)} "
+                f"| {'–' if attempts is None else attempts}/{splits} | {overflow_cell} "
                 f"| {row['trial_seconds'] or 0:.0f} | {key_note} |"
             )
     total = len(scored) + unscored
@@ -699,6 +749,8 @@ def cmd_receipt(args: argparse.Namespace) -> None:
     if total:
         share = unscored / total
         print(f"unscored share {share:.0%}{'  STOP: above 25%' if share > 0.25 else ''}")
+    if livelocked:
+        print(f"STOP: context livelock in {', '.join(livelocked)}")
     print(
         f"estimated spend: sandbox ${sandbox_usd_sum:.2f} (Daytona rate card) + server "
         f"${server_usd_sum:.2f} (HAR-90 formula at each spec's concurrency) + ${WARM_PERIOD_USD:.2f} per "

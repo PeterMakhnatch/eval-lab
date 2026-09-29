@@ -6,8 +6,10 @@
 - Everything here is staged at $0. Nothing is submitted or approved.
 - **Distill only** (Peter, about 03:45Z, via Research-Harbor): the distill is the only student. The Qwen3.5-9B/Tinker arm is parked. Its specs stay prepared, and `submit pair` no longer queues them; `--with-base` does, if Peter revives the arm.
   - Xiaomi's report already answers what that comparison was for. In its Table 6, base Qwen3.5-9B scores 19.5 on MiMo Code (mini) against the distill's 51.6, and 5.7 on Cyber against 31.3.
-- **Overnight plan** (Research-Harbor, about 04:45Z, on Peter's about 04:35Z "get some of those tasks from mimo running but not too many"): Infra runs [wave A and wave B](#overnight-waves) with a cap of **$12 actual spend**, starting when Research-Harbor reports HAR-90 accepted. Every trial runs under one [treatment key](#treatment-key).
+- **Overnight plan** (Research-Harbor, about 04:45Z, on Peter's about 04:35Z "get some of those tasks from mimo running but not too many"): Infra runs [wave A and wave B](#overnight-waves) with a cap of **$12 actual spend**, starting on Research-Harbor's page once HAR-90 is accepted and HAR-95 has reported (or blocked). Every trial runs under one [treatment key](#treatment-key).
   - In HAR-90 the distill wrapped its turns in `<tool_call>` tags, and only 15 of 200 turns parsed as Terminus. That is why the waves wait for HAR-90's normalizer and ceiling-trip fixes to be accepted.
+- **Re-key on #521** (Research-Harbor, about 05:15Z): #521 accepts bash `description` parameters and drops them, so the normalizer digest changed and key `sha256:f5f3120c` is retired. Nothing ran under it. The waves re-pin on the merge commit of this change (see the [treatment key](#treatment-key)).
+- **Nop pre-flight first** (Research-Harbor, about 05:15Z): 13 of the 20 pair tasks, all code/cyber, have no Daytona nop qualification. Data's HAR-95 (≤$0.50) qualifies them. If any task comes back other than ok, re-derive the pair with `stage.py cohort` under the pre-registered rule (sealed split minus export-broken), nop any new member, and re-stage before wave A. Wave B's first 8 follow the new order.
 - Research-Harbor's requirements (about 03:35Z; parser parity dropped with the parked arm):
   1. Re-prepare from the current `export-broken`. `cohort.json` already pins it (3 tasks out, held-out 386); `prepare` re-runs after HAR-90's changes merge.
   2. Pre-register a rule for unqualified tasks. Done: [grader-broken suspects](#pre-registered-grader-broken-suspects).
@@ -153,7 +155,7 @@ Research-Harbor's overnight plan (about 04:45Z) pins one treatment for every ove
 | field | value (origin/main eb549306 plus this change) | source |
 |---|---|---|
 | `eval_lab_commit` | the dispatching checkout's commit, pinned here before wave A | `git rev-parse HEAD`; must equal every trial's `lab-metadata.json` `repository.commit`, with `dirty: false` |
-| `normalizer_sha256` | `sha256:990d3d0e4cf5b444a687e80b407ea8e20cdfac4a0ee1e673499345edba5d9e00` | `src/evallab/mimo_tool_calls.py` (#512, #515) |
+| `normalizer_sha256` | `sha256:950817786d5e22d60d88cf3b15203719ced34df2ba3c544336f3d4ed78bf7f41` | `src/evallab/mimo_tool_calls.py` (#512, #515, #521: bash `description` accepted and dropped; proxy drains in-flight calls up to 120 s) |
 | `model` | `selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` | `execution_contracts.py` |
 | `hf_revision` | `2367e865d009c13ac81713a2878291d33ab28177` | `tools/modal-mimo-serve/serve.py` `MODEL_REVISION` |
 | `server_image` | `lmsysorg/sglang@sha256:00b02004501e402332827ffd5343a225a8960d99adc990b37d6f31085b8f6800` (v0.5.20-runtime) | `serve.py` `SGLANG_IMAGE` |
@@ -174,13 +176,15 @@ Enforcement:
 
 The commit and the key digest are recorded here and on HAR-81 before wave A. Trials dispatch from that commit; the README change that records it lands after, so the commit cannot contain its own hash.
 
-**Pinned for the overnight waves:** commit `b5bc430ec063426a036e44f1024d92d9bc588d93` (#518), key `sha256:f5f3120cc3aa51a7e4b5a9f52370726fa3f0779f035155f5295c3bf4fc99c4d1`. Dispatch from `.worktrees/har81-dispatch`, a clean checkout detached at that commit. Later commits, this README's included, do not move it; the SFT export can run from any later commit, since it reads the trials and does not change them.
+**Retired:** key `sha256:f5f3120cc3aa51a7e4b5a9f52370726fa3f0779f035155f5295c3bf4fc99c4d1` on commit `b5bc430e` (#518). #521 changed the normalizer, so this key no longer describes the treatment. No trial ran under it; nothing is lost.
+
+**Pinned for the overnight waves:** the merge commit of this change, with the key computed there by `stage.py key` and posted on HAR-81. Dispatch from a clean checkout detached at that commit (`.worktrees/har81-dispatch-521`). Later commits do not move it; the SFT export can run from any later commit, since it reads the trials and does not change them.
 
 ## Overnight waves
 
 Authority: Peter, 2026-09-29 about 04:35Z, in the Research-Harbor chat: "i want to get some of those tasks from mimo running but not too many" and "come up with the tasks and just assign them to whoever you think fit". Research-Harbor set Infra's share of the overnight cap at $12 of actual spend (Modal plus Daytona, by HAR-90's formula until the Modal bill settles). Approvals use `--actor peter`; `evallab approve` has no reason field, so this authority is recorded here and on HAR-81.
 
-Start: when Research-Harbor reports HAR-90 accepted (#515 merged and its confirmation pair passed).
+Start: on Research-Harbor's page, once HAR-90 is accepted and HAR-95 has reported (or blocked). HAR-90 runs its second confirmation pair (0036 + 0758) under its own $6 cap; HAR-95 nop-qualifies the 13 code/cyber tasks (≤$0.50).
 
 **Wave A: the train check.** The 20 staged pair tasks, one distill attempt each. Run 3 first (one per domain), then the other 17. Expected $2.95; spec-estimate sum $11.81.
 
@@ -194,6 +198,7 @@ Start: when Research-Harbor reports HAR-90 accepted (#515 merged and its confirm
   6. code `format-code-task-000240`
   7. terminal `candidate-1271-media-games`
   8. cyber `arvo_42496599`
+- If HAR-95 re-derives the pair, the first 8 are the new cohort order's, not this list's. Re-run `prepare learn` after `cohort`.
 - Specs: `har81-l-d-a<attempt>-<task>`, prepared with the same arguments as wave A's.
 - Cost: $2.65 expected at `c = 8`; spec-estimate sum $12.12.
 - Skip wave B if wave A's actual spend is above $6.
@@ -204,13 +209,14 @@ Start: when Research-Harbor reports HAR-90 accepted (#515 merged and its confirm
 - cumulative actual spend reaches $12;
 - a wave passes 2× its expected cost: $5.90 for A, $5.30 for B;
 - more than 25% of a wave's trials end without a verifier result (`receipt` flags it);
-- more than 5% of the distill's replies in wave A's first 3 were cut at `max_tokens`. Revisit the cap before the other 17.
+- any trial shows 3 or more "Context length exceeded" cycles in its `trial.log` (context livelock: Harbor unwinds the chat without a split, so the stored history is no longer what the model saw). `receipt` flags it per trial and prints STOP.
 
 Stop the Modal app after every wave (`modal app stop evallab-mimo-v26-9b`) and confirm it shows 0 containers.
 
 **Receipt per wave, as a HAR-81 comment:**
 - the spec ids and the treatment key;
 - for each trial: reward, stop reason, and whether a verifier result exists;
+- per trial, the summarization attempts (`result.json`), genuine splits (continuation handoffs) and reactive overflow cycles (`trial.log`), from `receipt`'s `sum att/split` and `ctx-overflow` columns;
 - suspects under the grader-broken rule;
 - actual spend and the Modal state.
 
@@ -295,6 +301,7 @@ Fixed in `sft_terminus` after the audit:
 1. **Graded timeouts were dropped.** The export excluded any trial with an exception, so it produced 0 conversations from HAR-90, 0036-e's pass included. It now follows the [scored-outcome rule](#pre-registered-scored-outcomes): a trial with a reward is selected whatever ended its agent phase, and the manifest records the exception type. On HAR-90 the default export now yields 0036-e: 83 assistant turns.
 2. **Harbor's stand-in reply was trained.** When a model call fails, Harbor records "Technical difficulties. Please continue with the task." as an agent step. The export made it an assistant target 31 times (0758-c `cont-31` steps 184–213, 0758-b step 761). A segment now ends before its first stand-in, and the manifest counts the dropped agent steps.
 3. **One segment was exported twice.** 0036-f's `trajectory.cont-1.json` holds the same 173 steps as its `trajectory.json`. Harbor counts a proactive summarization before it can fail, and swallows the failure, so the final dump takes a `cont-N` name without a split. A continuation whose steps equal an exported segment's is now skipped and recorded.
+4. **Attempts without splits are refused.** Harbor's summarization count rises on every attempt, but only a successful full summary splits the linear history; the reactive path unwinds the chat without a split (0758-c: 31 attempts, 0 splits, 31 "Context length exceeded" cycles). The export now refuses a trial whose attempt count exceeds its genuine handoffs (`-cont-N` session or copied-context steps) as `unsplit_summarization`, recording both counts. On HAR-90 this refuses 0758-c (31/0) and 0036-f (1/0) and keeps 0758-d (1/1).
 
 Open, for Research-Harbor before any training:
 - **Truncation at 32K.** 8 of 9 conversations exceed `sft.py`'s default `max_length` of 32,768 tokens and keep only their start. 0036-e's pass renders 52,303 tokens and trains on 13,201 of them.

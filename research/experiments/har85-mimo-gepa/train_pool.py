@@ -1,9 +1,11 @@
-"""HAR-85 train pool: provisional split train ids minus recorded exclusions.
+"""HAR-85 train pool: sealed-split train ids minus recorded exclusions.
 
-The split manifest stays frozen (its digest is pinned by make_paired_specs.py
-and bound into the DSPy approvals). A train task whose grader cannot score an
-honest solution is excluded beside it, in ``train-exclusions.json``, with the
-reason and the evidence, so the pool both arms draw from is auditable:
+The sealed split (HAR-81's ``../har81-mimo-sft/split.json``, read through
+``sealed_split.py`` -- never copied) stays frozen: its digest is pinned by
+make_paired_specs.py and bound into the DSPy approvals. A train task whose
+grader cannot score an honest solution is excluded beside it, in
+``train-exclusions.json``, with the reason and the evidence, so the pool both
+arms draw from is auditable:
 
     pool_digest = "sha256:" + sha256(json.dumps(
         [{"task_id": ..., "task_package_digest": ...} for each pool row,
@@ -25,8 +27,9 @@ import shutil
 import sys
 from pathlib import Path
 
+import sealed_split
+
 EXPERIMENT_DIR = Path(__file__).resolve().parent
-SPLIT_PATH = EXPERIMENT_DIR / "split.provisional.json"
 EXCLUSIONS_PATH = EXPERIMENT_DIR / "train-exclusions.json"
 TASKS_DIR = EXPERIMENT_DIR / "tasks"
 
@@ -79,7 +82,7 @@ def pool_digest(rows: list[dict]) -> str:
 
 
 def load_pool() -> tuple[dict, dict, list[dict]]:
-    split = load_json(SPLIT_PATH)
+    split = sealed_split.projected_split()
     exclusions = load_json(EXCLUSIONS_PATH)
     rows = pool_rows(split, exclusions)
     recorded = exclusions["train_pool"]

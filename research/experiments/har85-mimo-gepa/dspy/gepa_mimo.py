@@ -4,10 +4,11 @@ HAR-85 DSPy arm (second arm next to the GEPA/Terminus arm). STAGED: the paid
 path only runs via ``run-after-approval.sh`` with a recorded approval; the
 ``--dry-run`` path is $0 and proves every mechanical stage.
 
-Pipeline (train split ONLY; held-out appears solely in the final paired eval):
-  1. Load ``../split.provisional.json`` (PROVISIONAL until HAR-81 seals its
-     split). Trainset/valset ids MUST be a subset of ``train_task_ids``;
-     anything in ``heldout_task_ids`` is refused, and so is any train id in
+Pipeline (sealed train split ONLY; held-out appears solely in the final paired eval):
+  1. Load HAR-81's sealed split (``../har81-mimo-sft/split.json``, read
+     through ``../sealed_split.py`` -- never copied). Trainset/valset ids MUST
+     be a subset of the sealed terminal ``train_task_ids``; anything in the
+     sealed terminal held-out set is refused, and so is any train id in
      ``../train-exclusions.json`` (graders that cannot score an honest run).
   2. Each example is one real MiMo terminal task (instruction text + dir).
   3. ``dspy.GEPA`` optimises the *complete action instructions* of a
@@ -27,14 +28,16 @@ Spend-relevant facts, stated plainly:
     ``cost_limit_usd``, NOT ``evallab approve`` (there is no queue spec to
     approve; inventing one would be a bypass).
   - Student route is a single swappable parameter (``--student-route``;
-    PROVISIONAL default ``zai-coding-plan/glm-5.3-flash``; HAR-81's
-    Qwen-on-Tinker route later). Reflection model is ``--reflection-model``.
+    default ``zai-coding-plan/glm-5.3-flash``; the self-hosted MiMo distill
+    route is BLOCKED on this lane without new transport code -- see
+    README.md "Student route verdict (sealed rebind)"). Reflection model is
+    ``--reflection-model``.
 
 Usage ($0 dry run, 2 train + 1 val task, real local containers + verifier)::
 
     runs/.harbor-dspy/bin/python research/experiments/har85-mimo-gepa/dspy/gepa_mimo.py \\
         --dry-run --harbor-env docker \\
-        --train-tasks candidate-0758-ml-inference,candidate-0390-security-appsec \\
+        --train-tasks candidate-0758-ml-inference,candidate-1990-security-cryptography \\
         --val-tasks candidate-0688-hardware-rtl --max-metric-calls 8 --out runs/har85-dryrun/gepa
 """
 
@@ -54,12 +57,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 EXPERIMENT_DIR = Path(__file__).resolve().parent
-DEFAULT_SPLIT = EXPERIMENT_DIR.parent / "split.provisional.json"
+sys.path.insert(0, str(EXPERIMENT_DIR.parent))
+
+import sealed_split  # noqa: E402 (sibling import after path insert; cf. har81 stage.py)
+
+DEFAULT_SPLIT = sealed_split.SEALED_SPLIT_PATH
 #: Train tasks excluded from the pool with a recorded reason (train_pool.py).
 TRAIN_EXCLUSIONS = EXPERIMENT_DIR.parent / "train-exclusions.json"
 
-PROVISIONAL_STUDENT_ROUTE = "zai-coding-plan/glm-5.3-flash"
-PROVISIONAL_REFLECTION_MODEL = "zai-coding-plan/glm-5.3"
+CURRENT_STUDENT_ROUTE = "zai-coding-plan/glm-5.3-flash"
+CURRENT_REFLECTION_MODEL = "zai-coding-plan/glm-5.3"
 
 SIGNATURE = "instruction, file_tree -> solution"
 VERIFIER_TAIL_LINES = 30
@@ -72,13 +79,15 @@ MAX_FEEDBACK_STEPS = 6
 
 
 def load_split(split_path: Path) -> dict:
-    try:
-        payload = json.loads(split_path.read_text())
-    except OSError as exc:
-        raise ValueError(f"split manifest {split_path} is unreadable: {exc}") from exc
-    if payload.get("contract") != "har85.provisional_split/v1":
-        raise ValueError(f"split manifest {split_path} has unexpected contract")
-    return payload
+    """Sealed split in pool shape (terminal rows only); refuses on drift."""
+    manifest = sealed_split.load_sealed_manifest(Path(split_path))
+    rows = sealed_split.terminal_rows(manifest)
+    return {
+        "manifest_digest": manifest["manifest_digest"],
+        "tasks": rows,
+        "train_task_ids": sealed_split.train_task_ids(rows),
+        "heldout_task_ids": sealed_split.heldout_task_ids(rows),
+    }
 
 
 def excluded_task_ids(split: dict, exclusions_path: Path = TRAIN_EXCLUSIONS) -> set[str]:
@@ -99,7 +108,7 @@ def check_train_only(task_ids: list[str], split: dict) -> None:
     heldout = set(split["heldout_task_ids"])
     unknown = [tid for tid in task_ids if tid not in train and tid not in heldout]
     if unknown:
-        raise ValueError(f"task ids not in the provisional split: {unknown}")
+        raise ValueError(f"task ids not in the sealed split: {unknown}")
     leaked = [tid for tid in task_ids if tid in heldout]
     if leaked:
         raise ValueError(
@@ -722,9 +731,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="comma-separated task ids, MUST be ⊆ train_task_ids (phase gepa)")
     parser.add_argument("--val-tasks", default="",
                         help="comma-separated task ids, MUST be ⊆ train_task_ids")
-    parser.add_argument("--student-route", default=PROVISIONAL_STUDENT_ROUTE,
-                        help="single swappable student route parameter (PROVISIONAL default)")
-    parser.add_argument("--reflection-model", default=PROVISIONAL_REFLECTION_MODEL)
+    parser.add_argument("--student-route", default=CURRENT_STUDENT_ROUTE,
+                        help="single swappable student route parameter (lane default; self-hosted BLOCKED, see README)")
+    parser.add_argument("--reflection-model", default=CURRENT_REFLECTION_MODEL)
     parser.add_argument("--max-metric-calls", type=int, default=36)
     parser.add_argument("--reflection-minibatch-size", type=int, default=3)
     parser.add_argument("--cost-limit-usd", type=float, default=1.0)
@@ -753,6 +762,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     split = load_split(args.split)
     if args.phase == "heldout":
+        # Final eval runs the scorable held-out set: sealed held-out minus
+        # held-out exclusions (projected split keeps the full 16).
+        _, scorable = sealed_split.heldout_ids()
+        split = dict(split, heldout_task_ids=scorable)
         train_ids, val_ids = [], []
     else:
         train_ids = [t for t in args.train_tasks.split(",") if t]
@@ -884,9 +897,8 @@ def main(argv: list[str] | None = None) -> int:
             "policy_digest": candidate.digest(),
             "changed": changed,
             "dry_run": args.dry_run,
-            "base_policy": args.base_policy,
             "split_manifest": split.get("manifest_digest"),
-            "split_status": split.get("status"),
+            "split_salt": sealed_split.SEALED_SALT,
             "train_task_ids": train_ids,
             "val_task_ids": val_ids,
             "student_route": args.student_route,

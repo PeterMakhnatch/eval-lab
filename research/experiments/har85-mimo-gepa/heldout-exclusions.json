@@ -1,0 +1,51 @@
+{
+  "contract": "har85.heldout_exclusions/v1",
+  "excluded": [
+    {
+      "effect": "Dropped from the paired held-out eval (13 tasks x 2 arms = 26 specs). Its pairs are ungraded, never counted as ties; see selection-rule.json.",
+      "evidence": [
+        "research/experiments/mimo-daytona-nop/results/broken-on-daytona.json (export sha256:35f66da133e78e44b070c09843a7b021404b8acb4a6a40c10f96050f3441df57, committed as b56408b2 'MiMo Daytona nop qualification results: 110 ok, 3 grader-broken; findings for 0674 and 2376 (#513)')",
+        "research/experiments/mimo-daytona-nop/results/qualification.json row job mimo-qual-t-candidate-0260-security-appsec (status broken, grader_broken; 2026-09-29)",
+        "library/task-findings/terminal/candidate-0260-security-appsec.json (grader-broken error finding: No module named 'stevedore')",
+        "runs/har81-nop-terminal-0260/har81-nop-terminal-0260__ZhPhf4Z/verifier/test-stdout.txt",
+        "runs/har83-stab-candidate-0260-security-appsec/candidate-0260-security-appsec__iCDRyMK/verifier/test-stdout.txt"
+      ],
+      "reason": "Grader cannot score an honest solution: tests/test_outputs.py imports the vendored Bandit tree (/app/vendor/pycqa-bandit), which needs 'stevedore'; the image lacks it and the instruction forbids adding dependencies (offline). pytest stops at collection (ModuleNotFoundError: No module named 'stevedore'; 'Interrupted: 1 error during collection'), so every attempt scores 0 regardless of the agent's work. Confirmed on Daytona by HAR-88 (export-broken, all backends train-ineligible per the curated finding).",
+      "task_id": "candidate-0260-security-appsec",
+      "task_package_digest": "sha256:95d2df6678d8c999a4ded14f161eb65fadabd9bc15978471868b05908fbcf1c7"
+    },
+    {
+      "effect": "Dropped from the paired held-out eval (13 tasks x 2 arms = 26 specs). Its pairs are ungraded, never counted as ties; see selection-rule.json.",
+      "evidence": [
+        "research/experiments/mimo-daytona-nop/results/broken-on-daytona.json (export sha256:35f66da133e78e44b070c09843a7b021404b8acb4a6a40c10f96050f3441df57, committed as b56408b2 'MiMo Daytona nop qualification results: 110 ok, 3 grader-broken; findings for 0674 and 2376 (#513)')",
+        "research/experiments/mimo-daytona-nop/results/qualification.json row job mimo-qual-t-candidate-0674-ml-evaluation/mimo-qual-t-candidate-0674-ml-ev__S9ThpK7 (status broken, grader_broken, grader_error \"ModuleNotFoundError: No module named 'torch'\"; 3/3 RepeatVerifier grades 0.0; 2026-09-29)",
+        "library/task-findings/terminal/candidate-0674-ml-evaluation.json (grader-broken error finding, recorded 2026-09-29T02:10:00Z by har88-qualification)",
+        "runs/mimo-qual-t-candidate-0674-ml-evaluation/mimo-qual-t-candidate-0674-ml-ev__S9ThpK7/verifier/test-stdout.txt (sha256:b60a7cbdb4398d16ac76b721ff9f14031bb9dec8104cb0e2f3dade5c21575177) plus verifier/repeat/{0,1,2}/test-stdout.txt"
+      ],
+      "reason": "Grader cannot score an honest solution: the grader's pytest collection fails with ModuleNotFoundError: No module named 'torch' (not installed in the image, not named in the instruction), so every run scores 0 whatever the agent does. Seen on all 3 RepeatVerifier grades of the HAR-88 Daytona nop run.",
+      "task_id": "candidate-0674-ml-evaluation",
+      "task_package_digest": "sha256:90be868f403beffbd2da6923cfcec8cd7df50995e98a3265b4421b3072eec1f7"
+    },
+    {
+      "effect": "Dropped from the paired held-out eval (13 tasks x 2 arms = 26 specs). Its pairs are ungraded, never counted as ties; see selection-rule.json.",
+      "evidence": [
+        "research/experiments/mimo-daytona-nop/results/broken-on-daytona.json (export sha256:35f66da133e78e44b070c09843a7b021404b8acb4a6a40c10f96050f3441df57, committed as b56408b2 'MiMo Daytona nop qualification results: 110 ok, 3 grader-broken; findings for 0674 and 2376 (#513)')",
+        "research/experiments/mimo-daytona-nop/results/qualification.json row job mimo-qual-t-candidate-2376-security-cryptography/mimo-qual-t-candidate-2376-secur__DWGSbF9 (status broken, grader_broken, grader_error \"ModuleNotFoundError: No module named 'cryptography'\"; 3/3 RepeatVerifier grades 0.0; 2026-09-29)",
+        "library/task-findings/terminal/candidate-2376-security-cryptography.json (grader-broken error finding, recorded 2026-09-29T02:10:00Z by har88-qualification)",
+        "runs/mimo-qual-t-candidate-2376-security-cryptography/mimo-qual-t-candidate-2376-secur__DWGSbF9/verifier/test-stdout.txt (sha256:d59208258c608ad081bc501ebe0d2c71a2aecf66cacecde28a38b5e9f26cc721) plus verifier/repeat/{0,1,2}/test-stdout.txt"
+      ],
+      "reason": "Grader cannot score an honest solution: the grader's pytest collection fails with ModuleNotFoundError: No module named 'cryptography' (not installed in the image, not named in the instruction), so every run scores 0 whatever the agent does. Seen on all 3 RepeatVerifier grades of the HAR-88 Daytona nop run.",
+      "task_id": "candidate-2376-security-cryptography",
+      "task_package_digest": "sha256:06205dfca4a41a4b134da31e72efc29197522e0d4a1981cff7b9d7addb9675f8"
+    }
+  ],
+  "heldout": {
+    "count": 13,
+    "digest": "sha256:237da8fac105f60dbf49e85bfecadff09c3095871a1559622308101e9ab1f288",
+    "rule": "sealed split terminal held-out rows minus excluded, sorted by task_id; digest per train_pool.pool_digest over [{\"task_id\", \"task_package_digest\"}]"
+  },
+  "recorded_at": "2026-09-29T05:00Z",
+  "recorded_by": "RE - Eval Lab (HAR-85 sealed-split rebind)",
+  "scope": "HAR-85 held-out set only (both arms). The sealed split manifest is unchanged. All three are sealed held-out tasks; none is in the train pool, so the train pool needs no exclusion. Superseded only if HAR-81 seals a new split.",
+  "split_manifest_digest": "sha256:c3df70a5551c47d6c695abb3b8e51ca009b48d606289de4f637a7c1329e49f58"
+}

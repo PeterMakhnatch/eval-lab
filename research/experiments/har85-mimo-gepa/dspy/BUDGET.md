@@ -1,4 +1,4 @@
-# HAR-85 DSPy arm: budget formula + measured inputs (2026-09-28)
+# HAR-85 DSPy arm: budget formula + measured inputs (2026-09-28; sealed rebind 2026-09-29)
 
 ## Spend type (read first)
 
@@ -51,16 +51,48 @@ Inputs and where they were measured ($0 work, this branch):
 | reflection calls | ~1 per 10 rollouts | $0 dry run: 2 proposals / 19 metric calls (reflection calls ≥ proposals) |
 | reflection call $ | $0.10 | glm-5.3 (non-flash) planning assumption at list prices; recheck from real usage after the pilot |
 | per-trial ceiling | $1.00 (`cost_limit_usd`) | enforced in-harness by `LabRlm` (`src/evallab/rlm/harness.py`); worst case, never the plan |
-| held-out trials | 16 tasks × 2 arms × attempts | split manifest `fb645fed…52dab` (16 heldout ids); paired winner-vs-base |
+| held-out trials | 13 scorable tasks × 2 arms × attempts (16 sealed held-out minus 0260/0674/2376) | sealed manifest `c3df70a5…52dab` via `sealed_split.heldout_ids`; paired winner-vs-base |
 | Daytona sandbox $ per trial | $0.03 (≈ 22 min at $0.0834/h) | list price above × task.toml resources (1 vCPU / 2 GiB); planning estimate, no paid Daytona RLM trial yet |
 
-## Costed scopes
+## Costed scopes (staged coding-plan student)
 
 | scope | model API-equiv (subscription) | Daytona (metered) | total vs phase cap | ceiling change |
 |---|---|---|---|---|
 | pilot phase 1 (4 train + 2 val, 10 metric calls, 25 trials) | 25×$0.067 + 3×$0.10 = $1.98 | 25×$0.03 = $0.75 | **$2.73** / $3 | none (standing `per_job_cost_ceiling_usd` 3 covers it) |
-| full phase 1 (47-task train pool, 36 metric calls, 90 trials) | 90×$0.067 + 9×$0.10 = $6.93 | $2.70 | **$9.63** / $10 | raise `per_job_cost_ceiling_usd` 3 → 10 for that job |
-| phase 2 (16 heldout × 2 arms × 3 attempts, 96 trials) | 96×$0.06 = $5.76 | $2.88 | **$8.64** / $9 | raise `per_job_cost_ceiling_usd` 3 → 9 for that job |
+| full phase 1 (48-task sealed train pool, 36 metric calls, 90 trials) | 90×$0.067 + 9×$0.10 = $6.93 | $2.70 | **$9.63** / $10 | raise `per_job_cost_ceiling_usd` 3 → 10 for that job |
+| phase 2 (13 scorable heldout × 2 arms × 3 attempts, 78 trials) | 78×$0.06 = $4.68 | $2.34 | **$7.02** / $9 | raise `per_job_cost_ceiling_usd` 3 → 9 for that job |
+
+## Time-based student (self-hosted distill): planning numbers, BLOCKED
+
+The experiment student is the self-hosted distill, but this lane cannot dial
+it without new transport code (see README.md "Student route verdict (sealed
+rebind)": wrong endpoint/key, phantom ceiling accounting). No paid DSPy trial
+runs on that route until a lane change lands, so the staged binding above
+keeps the coding-plan student and these figures are planning-only. Per-trial
+price on the distill route is $0; cost is time-based per
+`evallab.execution_contracts.mimo_selfhosted_trial_cost_usd`
+(= 2.8149 × trial_hours ÷ concurrency + sandbox_usd; plus ≈ $0.40 per warm
+period). Model cost and sandbox/GPU cost are separate lines; missing data is
+`None` with a reason, never 0:
+
+- Model/GPU line per trial: 2.8149 × trial_h / c. Trial length for an RLM
+  rollout on this route is `None` (no RLM trial has run on the distill; the
+  539 s HAR-90 mean is Terminus-2, not RLM). Worst case at c=1 (direct
+  `harbor run`, sequential, `num_threads=1`): full 900 s agent timeout =
+  **$0.70**.
+- Sandbox line per trial: terminal $0.0834/h. Worst case (900 + 240 + 900 s
+  TTL): **$0.047**. At the HAR-81 expected 839 s: **$0.019**.
+- Warm line: **~$0.40 per warm period**; count per phase `None` (depends on
+  dispatch gaps vs the 300 s scale-to-zero).
+- Pilot scope (25 trials) worst case: 25 × ($0.70 + $0.047) = **$18.7** +
+  warms; phase 2 (78 trials) worst case: 78 × $0.747 = **$58.3** + warms --
+  both far above the staged $3/$9 caps, because direct sequential trials
+  share the server with nobody (c=1). Sharing (concurrent trials on one warm
+  server) divides the GPU line by c; the cap for a future self-hosted pilot
+  must be derived from measured RLM trial lengths, not from these bounds.
+- RLM-specific unknowns stay `None`: rollout length, parse-loop behaviour and
+  ceiling trips of the RLM loop on the distill (the HAR-90 loops are
+  Terminus-2 evidence and do not transfer).
 
 The pilot was 12 metric calls before trials moved to Daytona; 12 calls now
 expect $3.21 and `verify_approval` refuses them at a $3 cap (exercised), so

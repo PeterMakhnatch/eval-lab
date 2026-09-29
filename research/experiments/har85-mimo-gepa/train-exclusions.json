@@ -1,29 +1,13 @@
 {
   "contract": "har85.train_exclusions/v1",
-  "split_manifest_digest": "sha256:fb645fed8acf01a1df3eddcf3d235c0d72b8afba353993170923e43560052dab",
-  "recorded_at": "2026-09-28T21:35Z",
-  "recorded_by": "RE - Eval Lab (HAR-85), on Research-Harbor review of 2026-09-28T21:22Z",
-  "scope": "HAR-85 train pool only (both arms). The split manifest is unchanged; held-out is unaffected. Superseded when HAR-81 seals a split and HAR-83's catalog flags broken graders (Data is adding this one).",
-  "excluded": [
-    {
-      "task_id": "candidate-0260-security-appsec",
-      "task_package_digest": "sha256:95d2df6678d8c999a4ded14f161eb65fadabd9bc15978471868b05908fbcf1c7",
-      "reason": "Grader cannot score an honest solution: tests/test_outputs.py imports the vendored Bandit tree (/app/vendor/pycqa-bandit), which needs 'stevedore'; the image lacks it and the instruction forbids adding dependencies (offline). pytest stops at collection (ModuleNotFoundError: No module named 'stevedore'; 'Interrupted: 1 error during collection'), so every attempt scores 0 regardless of the agent's work.",
-      "evidence": [
-        "runs/har81-nop-terminal-0260/har81-nop-terminal-0260__ZhPhf4Z/verifier/test-stdout.txt",
-        "runs/har83-stab-candidate-0260-security-appsec/candidate-0260-security-appsec__iCDRyMK/verifier/test-stdout.txt",
-        "9/9 attributed Eval Lab verifier outputs for this task (primary + worktree runs/, by Harbor config task.path) stop at collection; 0 collected"
-      ],
-      "replaced_by": {
-        "gepa_campaign_example": "candidate-0390-security-appsec (same domain; 16/16 attributed verifier runs collect and run tests)",
-        "dspy_pilot_train": "candidate-0758-ml-inference (nop: collected 5 tests, 3 failed / 2 passed; runs/har81-nop-terminal-0758)"
-      },
-      "historical_runs": "The $0 nop qualification (qualification-campaign.json, attempt 26a22eed) and the DSPy dry run/workdir probe used this task; their 0.0 rewards on it are grader collection errors, not agent results."
-    }
-  ],
+  "excluded": [],
+  "recorded_at": "2026-09-29T05:00Z",
+  "recorded_by": "RE - Eval Lab (HAR-85 sealed-split rebind)",
+  "scope": "HAR-85 train pool only (both arms). The sealed split manifest is unchanged; held-out exclusions live in heldout-exclusions.json. Under the provisional split this file excluded candidate-0260-security-appsec (now a sealed held-out task; see heldout-exclusions.json and git history). No sealed-split train task is grader-broken: HAR-88's Daytona nop run graded all 64 terminal tasks, and its 3 broken tasks (0260, 0674, 2376) are all sealed held-out.",
+  "split_manifest_digest": "sha256:c3df70a5551c47d6c695abb3b8e51ca009b48d606289de4f637a7c1329e49f58",
   "train_pool": {
-    "count": 47,
-    "digest": "sha256:8f1c1fa7bdf7479015fe9831027cd1b6f6ce0aefc19bc16b67a094ff801dc372",
-    "rule": "provisional split train rows minus excluded, sorted by task_id; digest per train_pool.py"
+    "count": 48,
+    "digest": "sha256:e8ef53a11d02ef9293ec089e591e7c8eba3ff0e9ad78fbbcc4695f4ca55be56b",
+    "rule": "sealed split terminal train rows minus excluded, sorted by task_id; digest per train_pool.py"
   }
 }

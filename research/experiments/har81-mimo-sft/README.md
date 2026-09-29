@@ -4,34 +4,66 @@
 
 **Status (2026-09-29):**
 - Everything here is staged at $0. Nothing is submitted or approved.
-- **On hold** (Research-Harbor, 2026-09-29): don't request approval for the pair or the held-out baseline until HAR-90's tool-call normalizer lands.
-  - In HAR-90 the distill wrapped its turns in `<tool_call>` tags, and only 15 of 200 turns parsed as Terminus.
-  - After the normalizer lands, re-run `prepare`, and re-check the costs against its first measured trials.
-- Paid runs then go to Peter as costed approvals. Each spec also needs `approve --actor peter`.
+- **Distill only** (Peter, about 03:45Z, via Research-Harbor): the distill is the only student. The Qwen3.5-9B/Tinker arm is parked. Its specs stay prepared, and `submit pair` no longer queues them; `--with-base` does, if Peter revives the arm.
+  - Xiaomi's report already answers what that comparison was for. In its Table 6, base Qwen3.5-9B scores 19.5 on MiMo Code (mini) against the distill's 51.6, and 5.7 on Cyber against 31.3.
+- **Next paid step: the distill's 20-task train check** (`submit pair`). It waits for Peter's overnight cap and HAR-90's acceptance (its normalizer and ceiling-trip fixes). In HAR-90 the distill wrapped its turns in `<tool_call>` tags, and only 15 of 200 turns parsed as Terminus.
+- Research-Harbor's requirements (about 03:35Z; parser parity dropped with the parked arm):
+  1. Re-prepare from the current `export-broken`. `cohort.json` already pins it (3 tasks out, held-out 386); `prepare` re-runs after HAR-90's changes merge.
+  2. Pre-register a rule for unqualified tasks. Done: [grader-broken suspects](#pre-registered-grader-broken-suspects).
+  3. A context-overflow mitigation that would keep the arms equal. Done: [context overflow](#context-overflow-shared-harness).
+- When both are in: re-run `prepare pair`, send Research-Harbor the ids and `stage.py costs`, run wave 1, then the other 17. Stop and report if measured spend passes 2× expected, about $6. The held-out baseline waits for Peter. Each spec needs `approve --actor peter`.
+- Trace tagging for these trials is HAR-91.
 
 Decisions this design follows:
 - **Student and teacher** (Peter, 2026-09-28 about 22:40Z): the student is the distill, and there is no teacher. This supersedes the earlier glm-5.3-flash teacher + Qwen3.6-35B-A3B pilot, which e76b691b staged and this change removes.
 - **Server and route:** HAR-90 (#506) built the Modal SGLang server and the Terminus-2 route.
 - **Staging brief:** Research-Harbor, 2026-09-29 01:30Z. Authority: Peter's "let agents do w/e work they need" for $0 prep.
 
-## Fixed design (one variable per comparison)
+## Fixed design
 
 | part | pin |
 |---|---|
 | tasks | HAR-82 pinned snapshots `derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-<domain>@<rev12>/tasks/`: terminal, cyber and code only |
 | split | `split.json` (sealed, below) |
 | cohort | `cohort.json`, written by `stage.py cohort` |
-| harness | Terminus-2 (`SecretSafeTerminus2`), `harness/` tree sha256:01daa201…. Temperature 0.6, top_p 0.95, `trajectory_config {raw_content, linear_history}` for SFT export. Thinking stays on |
+| harness | Terminus-2 (`SecretSafeTerminus2`), `harness/` tree sha256:2a8fd70d…. Temperature 0.6, top_p 0.95, `max_tokens` 4096, `proactive_summarization_threshold` 16384, `trajectory_config {raw_content, linear_history}` for SFT export. Thinking stays on |
 | distill | `selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B`. Modal A100-80GB, SGLang v0.5.20, 64K context. The proxy forces `enable_thinking`, T 0.6, top_p 0.95, top_k 20 |
-| base (pair arm) | `tinker/Qwen/Qwen3.5-9B`, the distill's own base model. Tinker's default reasoning effort (0.9) means thinking is on, with `reasoning_content` split out |
+| base (parked arm) | `tinker/Qwen/Qwen3.5-9B`, the distill's own base model. Tinker's default reasoning effort (0.9) means thinking is on, with `reasoning_content` split out |
 | ceilings (both arms) | 200 requests, 2.5M input tokens, 131,072 output tokens per trial. Tinker `cost_limit_usd` $1.92 covers them. The distill's $0.01 is nominal: its tokens are priced at $0 |
-| backend | Daytona Tier 2 (100 vCPU / 200 GiB / 300 GiB), dispatched with `tick --parallel 16`. Cyber and code specs carry `override_storage_mb: 10240` |
+| backend | Daytona Tier 2 (100 vCPU / 200 GiB / 300 GiB). The train check dispatches 3, then 8 at a time (`tick --parallel`, printed by `submit`); the held-out batch 16. Cyber and code specs carry `override_storage_mb: 10240` |
 
-What the pair isolates:
+What the parked pair would isolate, if revived:
 - The two arms share the harness digest, the ceilings and the tasks. What differs is the model: the distill is Qwen3.5-9B plus Xiaomi's post-training.
 - Two known residual differences:
   - top_k: 20 for the distill; Tinker's default for the base.
   - wall-clock speed: the agent timeout is wall-clock, so a slower provider gets fewer turns.
+- The parser also differs until HAR-90 item 4 (deferred) makes the MiMo tool-call normalizer a harness setting. On 5a6f4be9 (#512) it wraps the parser on the self-hosted route only.
+
+## Context overflow (shared harness)
+
+Research-Harbor asked for a mitigation that keeps the arms equal. Both settings below live in the shared harness tree, so the distill and the parked base get them under one digest: `stage.py prepare pair` renders identical Terminus kwargs, ceilings and harness sha256 for all 40 specs.
+
+**Why overflow happens:**
+- Both routes declare 65,536 tokens for input plus output (`MIMO_SELFHOSTED_CONTEXT_TOKENS`, `TINKER_CONTEXT_TOKENS`).
+- Terminus counts tokens with LiteLLM's fallback tokenizer, which undercounts this model family. On HAR-90's 0758 trial it estimated about 54.1K where SGLang counted 57,382, about 6% more.
+- Terminus summarizes proactively once its estimate leaves fewer than 8,000 tokens free: about 61K real tokens.
+- With the default `max_tokens` 8192, any call over 57,344 real input tokens overflows. So a long session overflows before it ever summarizes: 0758-b and 0758-c got 13 and 93 HTTP 400s.
+
+**`max_tokens` 4096** (default 8192) halves the output reservation.
+- HAR-90's 1,912 distill turns (agent and summarization calls, thinking included) had completions of p50 31, p99 469 and max 1,571 tokens. None exceeded 2,048.
+- Alone it is not enough. It moves the overflow line to 61,440 input tokens, which is about where summarization triggers, and the check runs before the pending observation (up to 10 KB) is added.
+
+**`proactive_summarization_threshold` 16384** (default 8000) is the "smaller declared context" option, done in the harness so the route constants stay as HAR-90 built them.
+- Summarization starts at an estimate of 49,152 tokens, about 52K real.
+- The next call then carries at most about 52K + one observation (about 3K tokens) + the 4,096 reservation: about 60K.
+- The summarization subagents fit too: history + summary prompt + a summary of at most 4,096 + the 4,096 reservation.
+- That tolerates an undercount of up to about 13%, against the measured 6%.
+
+**What it costs:**
+- Summaries come earlier, so more trials will have continuation segments (`trajectory.cont-N.json`). `sft_terminus export` already exports each continuation as its own conversation.
+- The distill's longest completion in HAR-90 was 1,571 tokens, but harder tasks may think longer. A reply cut at 4,096 tokens performs none of its actions: Terminus answers "ERROR!! NONE of the actions you just requested were performed…" and asks again. The train check's wave 1 measures this (see the stop rule).
+- Qwen3.5-9B's thinking length under Terminus is unmeasured, so the equal cap may not have an equal effect. If the base arm is revived, its wave 1 checks it the same way.
+- Serving 128K on the distill alone is out: it would break parity (the Tinker route is 65,536) and raise Tinker's token cost.
 
 ## Sealed split (`split.json`)
 
@@ -64,24 +96,46 @@ HAR-85 still reads its own `har85.provisional_split/v1`. Switching to this split
 
 ## Cohorts (`cohort.json`)
 
-The pool is the sealed split minus `tasks catalog export-broken --backend daytona`. Today that removes `candidate-0260-security-appsec` (broken grader) only.
+The pool is the sealed split minus `tasks catalog export-broken --backend daytona`. `cohort.json` pins the export (sha256:35f66da1…). That export removes three grader-broken terminal tasks from HAR-88: `candidate-0260-security-appsec`, `candidate-0674-ml-evaluation` (torch) and `candidate-2376-security-cryptography` (cryptography).
 
-When HAR-88's Daytona qualification is ingested, re-run `stage.py cohort` and `prepare`. Its broken_on_daytona findings then drop out, and `cohort.json` records the export's sha256.
+- **pair (20 train tasks):** 7 terminal, 7 cyber, 6 code. Tasks are ranked per domain by sha256("har81-distill\0" + task_id), one task per `split_group`. The distill's 20 runs are the train check. The parked base has a prepared spec for every task.
+- **heldout (386 tasks):** every remaining held-out terminal (13), cyber (103) and code (270) task. The distill runs alone.
 
-- **pair (20 train tasks):** 7 terminal, 7 cyber, 6 code. Tasks are ranked per domain by sha256("har81-distill\0" + task_id), one task per `split_group`. Both arms run every task.
-- **heldout (388 tasks):** every held-out terminal (15), cyber (103) and code (270) task. The distill runs alone.
+Both lists alternate domains (terminal, cyber, code, …), so the first lines of each ids file cover every domain. With `--with-base`, `submit` queues each task's two arms together.
 
-Both lists alternate domains (terminal, cyber, code, …), and `submit` queues each task's arms together. So the first lines of the ids file cover every domain.
+## Pre-registered: grader-broken suspects
+
+Research-Harbor set this rule on 2026-09-29, about 03:35Z. It is written here before any HAR-81 trial runs, and it applies to every HAR-81 trial: the train check, the held-out baseline, the post-SFT held-out run, and the base arm if revived.
+
+**Coverage.** HAR-88's Daytona nop run qualified 22 of the 406 cohort tasks: every terminal task (20), plus 1 cyber and 1 code task, all held-out. The other 384 have never been graded on Daytona: 109 cyber and 275 code. Thirteen of them are in the train check (7 cyber, 6 code), including wave 1's cyber and code tasks.
+
+1. **Suspect.** An unqualified task becomes suspect when any of its trials, in any run, shows either signal:
+   - **(a) HAR-88's grader_broken rule.** In `evallab.task_qualification`, `detect_grader_collection_failure(grader_stdout_texts(trial_dir), instruction_text=read_task_instruction(trial_dir))` returns an error line. That means pytest could not collect a test module because of a `ModuleNotFoundError`, `ImportError` or `SyntaxError`. Its two guards still apply: a missing module that the instruction names, or an import that fails inside agent-editable workspace code, is not a grader defect.
+   - **(b) The verifier failed without scoring.** HAR-88's `classify_trial` returns `verifier_error`: a verifier-phase exception other than a timeout, such as Harbor finding no reward file.
+2. **Not suspect:** a scored reward of 0; a verifier timeout; a trial whose verifier never ran (a ceiling or agent failure, reported with the trial outcomes).
+3. **Re-check.** Suspects are collected into one nop re-check on Daytona using HAR-88's recipe (`../mimo-daytona-nop/`), bundled into a later Peter approval. At HAR-88's measured sandbox cost, that is about $0.01 per code task and $0.003 per cyber task.
+4. **Confirmed** means the nop trial comes out `broken` and `tasks catalog export-broken` lists the task.
+   - A confirmed task is excluded from every before/after comparison: the baseline and post-SFT runs, and both arms if the base is revived.
+   - The exclusion is per task. It never depends on which run raised it.
+   - Re-run `stage.py cohort` afterwards so the export drops the task from later pools.
+5. **Cleared** means the nop trial is `ok`. The task stays in, and the flagged trial counts as the agent's failure.
+6. **Unresolved.** No before/after number is final while a suspect is unresolved. Interim reports list suspects separately, with the signal and the trial. If the re-check is not approved, suspects stay in, flagged, and the comparison is also shown without them.
+
+Signal (b) is Infra's addition to the brief; Research-Harbor can strike it on review. Signal (a) only reads pytest output:
+- Among the 384 unqualified tasks, 81 code tasks run pytest (the `mimo_test_command.sh` in `tests/test.patch`).
+- The other 194 code tasks use Go, JS and other runners. All 109 cyber tasks grade with `verify.py`.
+- These fail before scoring in other ways. The code `test.sh` exits without a reward when it can't reset the test files or apply the hidden tests ("testbed problem, not scored"). A crash in `verify.py` also leaves no reward.
+- Without (b), 303 of the 384 tasks would have no grader signal. An agent can also cause (b), for example by breaking the repository so the hidden tests can't apply. The nop re-check separates the two cases.
 
 ## Staged runs (prepared at $0; nothing submitted)
 
 ```bash
 uv run python research/experiments/har81-mimo-sft/stage.py cohort            # cohort.json
 uv run python research/experiments/har81-mimo-sft/stage.py costs             # the table below
-uv run python research/experiments/har81-mimo-sft/stage.py prepare pair      # 40 specs
-uv run python research/experiments/har81-mimo-sft/stage.py prepare heldout   # 388 specs
+uv run python research/experiments/har81-mimo-sft/stage.py prepare pair      # 40 specs: 20 distill + 20 parked base
+uv run python research/experiments/har81-mimo-sft/stage.py prepare heldout   # 386 specs
 # after Peter's go-ahead, per batch:
-uv run python research/experiments/har81-mimo-sft/stage.py submit pair       # prints the approve + tick commands
+uv run python research/experiments/har81-mimo-sft/stage.py submit pair       # the distill's 20; prints the approve + tick commands
 ```
 
 Before submitting anything that runs the distill:
@@ -92,12 +146,12 @@ Before submitting anything that runs the distill:
 
 Per trial, for each arm:
 - distill (HAR-90's formula, `mimo_selfhosted_trial_cost_usd`): `2.8149 × trial_h ÷ c + daytona(sandbox_h)`, plus $0.40 per warm period (a 208 s cold start plus the 300 s idle tail).
-  - `c` is the number of distill trials sharing the one Modal container. `submit` interleaves the pair's arms, so:
-    - wave 1 runs `c = 3`;
-    - the rest of the pair at `tick --parallel 16` runs `c = 8`;
+  - `c` is the number of distill trials sharing the one Modal container. `submit` prints a `tick --parallel` that holds it:
+    - wave 1 of the train check runs `c = 3`;
+    - the other 17 run `c = 8` at `tick --parallel 8` (16 with the parked base interleaved);
     - the held-out batch runs `c = 16`.
   - Trials at the tail of a batch share with fewer trials and so cost more.
-- Qwen3.5-9B: `0.66 × input_M + 1.995 × output_M + daytona(sandbox_h)`.
+- Qwen3.5-9B (parked): `0.66 × input_M + 1.995 × output_M + daytona(sandbox_h)`.
 
 Daytona sandbox rates:
 - terminal (1 vCPU / 2 GiB): $0.0834/h
@@ -109,15 +163,15 @@ The spec estimate each spec carries is its worst case. It assumes:
 - the sandbox lives for agent timeout + verifier timeout + 900 s;
 - for the distill, the server share covers the full agent timeout at the `c` of the spec's wave.
 
-The largest spec estimate is $2.35 (Tinker, code), under the queue's $3 per-job cap.
+The largest distill spec estimate is $1.38 (train check, code); the parked base's is $2.35. Both are under the queue's $3 per-job cap.
 
 | segment | arm | n | c | expected | spec-estimate sum |
 |---|---|---|---|---|---|
-| pair wave 1 | distill | 3 | 3 | $0.95 | $2.94 |
-| pair wave 1 | Qwen3.5-9B (Tinker) | 3 | – | $1.20 at 0.48M input tokens per trial; $4.96 at HAR-90's measured 2.4M; $5.86 at the ceiling | $6.55 |
-| pair rest | distill | 17 | 8 | $2.00 | $8.87 |
-| pair rest | Qwen3.5-9B (Tinker) | 17 | – | $6.77 / $28.08 / $33.20 | $36.95 |
-| heldout | distill | 388 | 16 | $30.99 | $217.85 |
+| train check wave 1 | distill | 3 | 3 | $0.95 | $2.94 |
+| train check rest | distill | 17 | 8 | $2.00 | $8.87 |
+| heldout | distill | 386 | 16 | $30.90 | $217.63 |
+| pair wave 1 (parked) | Qwen3.5-9B (Tinker) | 3 | – | $1.20 at 0.48M input tokens per trial; $4.96 at HAR-90's measured 2.4M; $5.86 at the ceiling | $6.55 |
+| pair rest (parked) | Qwen3.5-9B (Tinker) | 17 | – | $6.77 / $28.08 / $33.20 | $36.95 |
 
 Expected values:
 - Trial time is the mean of HAR-90's two trials, 539 s (631 s and 447 s), plus 5 minutes of sandbox setup.
@@ -126,9 +180,11 @@ Expected values:
 
 The Tinker token range is wide: Peter's Search chat estimated $0.08–0.24 per run. At HAR-90's measured distill usage (2.4M input tokens on one terminal task), the base would cost about $1.60 per trial.
 
-A stop rule, as in HAR-88: approve the pair in two waves.
-- Wave 1 is one task per domain, both arms (6 trials). `submit pair` prints the approve loop for it (`head -n 6` of the ids file) and for the rest.
-- Before wave 2, compare the measured cost per trial with this table. For sandbox time use `evallab tasks qualify-collect --backend-rate-card daytona`; for the server use `modal billing report`.
+A stop rule, as in HAR-88: approve the train check in two waves.
+- Wave 1 is one task per domain (3 trials). `submit pair` prints the approve loop for it (`head -n 3` of the ids file) and for the other 17.
+- Before the 17, compare the measured cost per trial with this table. For sandbox time use `evallab tasks qualify-collect --backend-rate-card daytona`; for the server use `modal billing report`.
+- Also count the turns cut at `max_tokens`: Terminus's "ERROR!! NONE of the actions…" observation in the trajectory. If more than 5% of the distill's turns were cut, stop and revisit the cap before the 17.
+- Stop and report if measured spend passes 2× expected: $5.90 for the train check.
 
 ## SFT for the distill
 
@@ -150,12 +206,11 @@ Cloud nop qualification belongs to HAR-88 (`../mimo-daytona-nop/`).
 
 ## Limits
 
-- **Without a normalizer, the distill mostly measures a protocol mismatch.** In HAR-90 it kept emitting its native `<tool_call><function=exec_command>` wrapper instead of Terminus JSON; in one trial only 15 of 200 turns parsed. That is why these runs wait for HAR-90's tool-call normalizer. After it lands, check the pair's parse-error rate before approving the 388-task held-out baseline.
+- **Without a normalizer, the distill mostly measures a protocol mismatch.** In HAR-90 it kept emitting its native `<tool_call><function=exec_command>` wrapper instead of Terminus JSON; in one trial only 15 of 200 turns parsed. That is why these runs wait for HAR-90's acceptance. After it, check the train check's parse-error rate before approving the 386-task held-out baseline.
 - **In-sandbox harnesses can't reach Modal.** Daytona Tier 1 and 2 restrict sandbox egress, so agents running inside the sandbox cannot call the Modal server. Terminus-2 calls the model from the controller, which is why it is the harness here.
-- **Missing rewards.** When a ceiling fires, LiteLLM raises `RateLimitError` and Harbor skips the verifier, so the reward is missing, not 0. The paired analysis counts it as a failure under budget and reports how many such trials there were.
-- **Thinking on Tinker is untested.** Nothing has been sent to Tinker yet. Wave 1 is the check: calls must succeed, `reasoning_content` must come back separate, and `content` must parse.
-- **Throttling.** Tinker's OpenAI-compatible endpoint is a low-traffic beta. Sixteen concurrent trials may hit 429s, which end a trial the same way a ceiling does.
-- **The held-out baseline exceeds one day's $20 smoke budget** at the expected $30.99. Split it across days, or approve a subset.
+- **Missing rewards.** Until HAR-90 item 5 lands, a ceiling makes LiteLLM raise `RateLimitError` and Harbor skips the verifier, so the reward is missing, not 0. The analysis counts it as a failure under budget and reports how many such trials there were.
+- **The parked base arm is untested.** Nothing has been sent to Tinker. If it is revived, its wave 1 must show that calls succeed, `reasoning_content` comes back separate and `content` parses. Tinker's OpenAI-compatible endpoint is a low-traffic beta; concurrent trials may hit 429s, which end a trial the same way a ceiling does.
+- **The held-out baseline exceeds one day's $20 smoke budget** at the expected $30.90. Split it across days, or approve a subset.
 - **The queue can't see the server bill.** The queue's $20/day ceiling adds each spec's estimate to spend already measured in the catalog. Distill tokens are priced at $0 and Modal server time never enters the catalog, so the ceiling does not bound the server cost. The operator's controls for it are `modal billing report` and stopping the app.
-- **Statistical power.** 15 scorable terminal held-out tasks only show large effects. Cyber's 103 tasks sit in 21 groups, so analyze paired and by group.
+- **Statistical power.** 13 scorable terminal held-out tasks only show large effects. Cyber's 103 tasks sit in 21 groups, so analyze paired and by group.
 - Expected costs are list-price estimates, not invoices.

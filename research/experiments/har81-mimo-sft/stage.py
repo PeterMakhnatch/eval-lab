@@ -2,19 +2,19 @@
 
     uv run python research/experiments/har81-mimo-sft/stage.py cohort            # ($0) cohort.json
     uv run python research/experiments/har81-mimo-sft/stage.py costs             # ($0) cost table
-    uv run python research/experiments/har81-mimo-sft/stage.py prepare pair      # ($0) 40 specs
+    uv run python research/experiments/har81-mimo-sft/stage.py prepare pair      # ($0) 40 specs, both arms
     uv run python research/experiments/har81-mimo-sft/stage.py prepare heldout   # ($0) distill-only specs
-    uv run python research/experiments/har81-mimo-sft/stage.py submit pair       # queue; each spec waits for approval
+    uv run python research/experiments/har81-mimo-sft/stage.py submit pair       # queue the distill's 20; each waits for approval
 
 Batches:
-    pair     the distill and its base, Qwen3.5-9B on Tinker, on the same train tasks.
-             The two arms share the harness tree and ceilings; only the model differs.
+    pair     the train check: the distill on 20 train tasks. Its base, Qwen3.5-9B on Tinker,
+             is parked (Peter, 2026-09-29): its specs stay prepared, and only
+             `submit pair --with-base` queues them. Both arms share the harness tree and ceilings.
     heldout  the distill alone on every held-out terminal, cyber and code task.
 
 Tasks come from the sealed split minus `tasks catalog export-broken --backend daytona`.
-Re-run `cohort` after HAR-88's Daytona qualification lands so its broken_on_daytona
-findings drop out. Run from the checkout that will dispatch: prepared specs point at
-repo-relative snapshots under runs/.prepared-tasks.
+Re-run `cohort` whenever that export changes. Run from the checkout that will dispatch:
+prepared specs point at repo-relative snapshots under runs/.prepared-tasks.
 """
 
 from __future__ import annotations
@@ -50,9 +50,9 @@ CONCURRENCY = 16
 #: Tasks in the pair's first approval wave: one per domain (cohort lists alternate).
 WAVE1_TASKS = 3
 #: Distill trials sharing the single Modal container, which sets each trial's share of
-#: the server bill (HAR-90's formula divides by it). `submit` interleaves the pair's
-#: arms, so wave 1 runs 3 distill trials at once and a full-width tick runs 8. The
-#: held-out batch is distill only.
+#: the server bill (HAR-90's formula divides by it). Wave 1 runs 3 distill trials at
+#: once; the rest of the pair dispatches 8 distill trials at a time (16 specs when the
+#: parked base arm is interleaved); the held-out batch is distill only.
 DISTILL_CONCURRENCY = {"wave1": WAVE1_TASKS, "pair": CONCURRENCY // 2, "heldout": CONCURRENCY}
 #: Identical ceilings for both arms. HAR-90's distill trials reached 200 requests or
 #: about 2.4M input tokens in 7-10 minutes, so these ceilings, not the task's agent
@@ -78,6 +78,8 @@ ARMS = {
     "q": f"tinker/{TINKER_BASE}",
 }
 BATCH_ARMS = {"pair": ("d", "q"), "heldout": ("d",)}
+#: Arms staged but not submitted unless asked for (`submit --with-base`).
+PARKED_ARMS = frozenset({"q"})
 
 
 def _tinker_rates() -> tuple[float, float]:
@@ -315,12 +317,13 @@ def cmd_prepare(args: argparse.Namespace) -> None:
 def cmd_submit(args: argparse.Namespace) -> None:
     split = load_split()
     cohort = load_cohort(split)
+    arms = [arm for arm in BATCH_ARMS[args.batch] if args.with_base or arm not in PARKED_ARMS]
     ids_path = IDS_DIR / f"{args.batch}.ids"
     IDS_DIR.mkdir(parents=True, exist_ok=True)
     ids = []
     # Interleave arms per task so a pair's two trials share a dispatch window.
     for task in cohort[args.batch]:
-        for arm in BATCH_ARMS[args.batch]:
+        for arm in arms:
             spec = ROOT / "derived/prepared" / f"{spec_name(args.batch, arm, task['task_id'])}.json"
             out = subprocess.run(
                 ["uv", "run", "--no-sync", "evallab", "submit", str(spec.relative_to(ROOT))],
@@ -336,18 +339,23 @@ def cmd_submit(args: argparse.Namespace) -> None:
             ]
     ids_path.write_text("\n".join(ids) + "\n")
     rel = ids_path.relative_to(ROOT)
-    wave = WAVE1_TASKS * len(BATCH_ARMS[args.batch])
-    print(f"{len(ids)} specs waiting for approval -> {rel}")
-    print(f"  wave 1, one task per domain ({wave} specs):")
-    print(
-        f'    for id in $(head -n {wave} {rel}); do uv run evallab approve "$id" --actor peter; done'
-    )
-    print(f"    uv run evallab tick --parallel {CONCURRENCY}")
-    print("  the rest, after comparing measured cost with `stage.py costs`:")
-    print(
-        f'    for id in $(tail -n +{wave + 1} {rel}); do uv run evallab approve "$id" --actor peter; done'
-    )
-    print(f"    uv run evallab tick --parallel {CONCURRENCY}")
+    # Dispatch width keeps the distill's server share at the `costs` table's concurrency.
+    parallel = DISTILL_CONCURRENCY[args.batch] * len(arms)
+    print(f"{len(ids)} specs ({', '.join(ARMS[arm] for arm in arms)}) waiting for approval -> {rel}")
+    if args.batch == "pair":
+        wave = WAVE1_TASKS * len(arms)
+        print(f"  wave 1, one task per domain ({wave} specs):")
+        print(
+            f'    for id in $(head -n {wave} {rel}); do uv run evallab approve "$id" --actor peter; done'
+        )
+        print(f"    uv run evallab tick --parallel {wave}")
+        print("  the rest, after comparing measured cost with `stage.py costs`:")
+        print(
+            f'    for id in $(tail -n +{wave + 1} {rel}); do uv run evallab approve "$id" --actor peter; done'
+        )
+    else:
+        print(f'    for id in $(cat {rel}); do uv run evallab approve "$id" --actor peter; done')
+    print(f"    uv run evallab tick --parallel {parallel}")
 
 
 def spec_concurrency(batch: str, index: int) -> int:
@@ -385,6 +393,8 @@ def cmd_costs(_args: argparse.Namespace) -> None:
         for arm in BATCH_ARMS[batch]:
             worst = sum(worst_usd(arm, p, concurrency) for p in profiles)
             head = f"{label:11} {ARMS[arm]:48} n={len(profiles):3}"
+            if arm in PARKED_ARMS:
+                head += "  (parked)"
             if arm == "d":
                 exp = sum(expected_usd(arm, p, concurrency) for p in profiles) + WARM_PERIOD_USD
                 print(
@@ -408,6 +418,12 @@ def main() -> None:
     for name, func in (("prepare", cmd_prepare), ("submit", cmd_submit)):
         p = sub.add_parser(name)
         p.add_argument("batch", choices=sorted(BATCH_ARMS))
+        if name == "submit":
+            p.add_argument(
+                "--with-base",
+                action="store_true",
+                help="also queue the parked Qwen3.5-9B arm (Peter revives it)",
+            )
         p.set_defaults(func=func)
     args = parser.parse_args()
     args.func(args)

@@ -171,6 +171,33 @@ implementations. Metered routes, all host-side through the same loopback proxy:
   LiteLLM drops the top-level `reasoning_effort` knob for this unregistered
   model. The HAR-81 student protocol therefore disables thinking through
   `llm_call_kwargs.extra_body.reasoning_effort: "none"`.
+- `selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` — a self-hosted SGLang
+  server on Modal serving that id (`--served-model-name` equal to it, MIT
+  qwen3_5 hybrid, 64K context as served). The per-trial proxy runs with
+  `--provider mimo_selfhosted` and pins the chat-completions base URL from
+  `EVALLAB_MIMO_SELFHOSTED_UPSTREAM` (required, no default) to one Modal
+  serving label or routing region: `*.modal.run` (Web Functions) or a
+  documented routing region under `*.modal.direct`. The provider key comes
+  from `MIMO_SELFHOSTED_API_KEY` (the server's `--api-key`) and travels
+  upstream only as `Authorization: Bearer`. Before forwarding, the proxy
+  forces the model's generation_config over caller values —
+  `chat_template_kwargs.enable_thinking = true`, `temperature = 0.6`,
+  `top_p = 0.95`, `top_k = 20` — and strips `reasoning_effort` in both
+  places: SGLang's `mimo` reasoning parser only splits `<think>` when
+  `enable_thinking=True`, and without it reasoning lands in content and
+  breaks Terminus JSON. Self-hosted tokens have no per-token price (the
+  ledger pins `(0, 0)`); GPU time is billed by Modal ($0.000694/s for
+  A100-80GB = $2.4984/h, modal.com/pricing, 2026-09-28) and estimated as
+  `2.4984 x trial_hours / concurrency + sandbox_usd`
+  (`mimo_selfhosted_trial_cost_usd`). With zero rates the cost ceiling
+  cannot trip; the request/token ceilings still bound the run.
+
+The MiMo server lives in `tools/modal-mimo-serve/` (see its README for the
+deploy, smoke and stop commands). Daytona Tier 1/2 sandboxes cannot reach
+Modal endpoints, so the model is reachable only from this controller-side
+harness; never point a task container at the server. The server scales to
+zero after 5 idle minutes, and a cold start took 208 s on 2026-09-29, during
+which Modal answers 503. Warm the server before a trial.
 
 A separate local route, `ollama_chat/qwen2.5:7b`, uses an explicitly selected
 local Ollama service.

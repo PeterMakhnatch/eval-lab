@@ -1,0 +1,15 @@
+[project]
+name = "evallab-modal-mimo-serve"
+version = "0.1.0"
+description = "Isolated, locked Modal toolchain serving MiMo-V2.6-Distill-Qwen-9B with SGLang for Eval Lab HAR-90"
+requires-python = ">=3.12"
+dependencies = [
+    "modal==1.5.5",
+]
+
+[tool.uv]
+# Virtual project: never built or installed as a package; it only pins the
+# Modal client that `uv run --project tools/modal-mimo-serve --locked` uses
+# to deploy, stop, and smoke the server. Outside the root workspace so the
+# Modal client never enters the root uv.lock.
+package = false

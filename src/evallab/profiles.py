@@ -55,12 +55,14 @@ DEEPSEEK_CREDENTIAL_NAMES = frozenset({"DEEPSEEK_API_KEY", "MSWEA_API_KEY"})
 ZAI_OPENAPI_CREDENTIAL_NAMES = frozenset({"ZAI_OPENAPI_API_KEY"})
 GLM_SELFHOSTED_CREDENTIAL_NAMES = GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
 TINKER_CREDENTIAL_NAMES = frozenset({"TINKER_API_KEY"})
+MIMO_SELFHOSTED_CREDENTIAL_NAMES = frozenset({"MIMO_SELFHOSTED_API_KEY"})
 ADMITTED_ENV_SECRET_SETS: frozenset[frozenset[str]] = frozenset(
     {
         DEEPSEEK_CREDENTIAL_NAMES,
         ZAI_OPENAPI_CREDENTIAL_NAMES,
         GLM_SELFHOSTED_CREDENTIAL_NAMES,
         TINKER_CREDENTIAL_NAMES,
+        MIMO_SELFHOSTED_CREDENTIAL_NAMES,
     }
 )
 
@@ -811,6 +813,29 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 verified_facts=(
                     "2026-09-28: Thinking Machines Tinker OpenAI-compatible "
                     "route ($0.66 in / $1.995 out per 1M tokens, 64K context)",
+                ),
+            ),
+            AgentProfile(
+                profile_id="terminus-2-selfhosted-mimo-v2-6-9b",
+                adapter=TERMINUS_AGENT,
+                model="selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+                auth_mode="api-key-environment",
+                secret_source="env:MIMO_SELFHOSTED_API_KEY",
+                capabilities=(
+                    "credential-transport:host-loopback-proxy",
+                    "structured-trajectory:atif",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=28_800,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-09-28: self-hosted XiaomiMiMo MiMo-V2.6-Distill-Qwen-9B "
+                    "(MIT, qwen3_5 hybrid) served by SGLang with "
+                    "--reasoning-parser mimo; generation_config T=0.6/top_p 0.95/"
+                    "top_k 20 enforced by the proxy; 64K context as served; "
+                    "GPU time billed by Modal, no per-token charge",
                 ),
             ),
             AgentProfile(

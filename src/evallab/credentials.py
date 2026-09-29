@@ -49,6 +49,7 @@ DEEPSEEK_API_CREDENTIAL = "deepseek_api_environment"
 ZAI_OPENCODE_AUTH = "zai_opencode_auth"
 ZAI_OPENAPI_API_CREDENTIAL = "zai_openapi_api_environment"
 TINKER_API_CREDENTIAL = "tinker_api_environment"
+MIMO_SELFHOSTED_API_CREDENTIAL = "mimo_selfhosted_api_environment"
 GLM_SELFHOSTED_API_CREDENTIAL = "glm_selfhosted_api_environment"
 LOCAL_OLLAMA_ENDPOINT = "local_ollama_endpoint"
 # Agents whose runs require a credential. Control agents (oracle, nop) are
@@ -213,6 +214,24 @@ def probe_tinker_api_result(
     return probe(_TINKER_TERMINUS_PROFILE)
 
 
+def probe_mimo_selfhosted_api() -> bool:
+    return probe_mimo_selfhosted_api_result().ok
+
+
+def probe_mimo_selfhosted_api_result(
+    environment: Mapping[str, str] | None = None,
+) -> ProbeResult:
+    """Require both the SGLang api-key value and the pinned Modal upstream."""
+    source = os.environ if environment is None else environment
+    if source.get("MIMO_SELFHOSTED_API_KEY") and source.get(
+        "EVALLAB_MIMO_SELFHOSTED_UPSTREAM"
+    ):
+        return ProbeResult(ok=True)
+    return ProbeResult(
+        ok=False,
+        reason="credential environment missing: "
+        "MIMO_SELFHOSTED_API_KEY and EVALLAB_MIMO_SELFHOSTED_UPSTREAM",
+    )
 
 
 def probe_zai_opencode_auth_result(home: Path | None = None) -> ProbeResult:
@@ -242,6 +261,8 @@ def available_credentials(home: Path | None = None) -> frozenset[str]:
         found.add(ZAI_OPENAPI_API_CREDENTIAL)
     if probe_tinker_api():
         found.add(TINKER_API_CREDENTIAL)
+    if probe_mimo_selfhosted_api():
+        found.add(MIMO_SELFHOSTED_API_CREDENTIAL)
     if probe_glm_selfhosted_api():
         found.add(GLM_SELFHOSTED_API_CREDENTIAL)
     if os.environ.get(TERMINUS_LOCAL_ENDPOINT_ENV):
@@ -263,6 +284,8 @@ def missing_credential_for(
             return None if ZAI_OPENAPI_API_CREDENTIAL in available else ZAI_OPENAPI_API_CREDENTIAL
         if agent == TERMINUS_AGENT and model.startswith("tinker/"):
             return None if TINKER_API_CREDENTIAL in available else TINKER_API_CREDENTIAL
+        if agent == TERMINUS_AGENT and model.startswith("selfhosted/"):
+            return None if MIMO_SELFHOSTED_API_CREDENTIAL in available else MIMO_SELFHOSTED_API_CREDENTIAL
         if agent == "mini-swe-agent" and (
             model.startswith("glm-selfhosted/") or model.startswith("glm-ft/")
         ):

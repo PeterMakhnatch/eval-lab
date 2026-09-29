@@ -49,6 +49,16 @@ from evallab.execution_contracts import (
     HARBOR_STATE_JOURNAL_PLUGIN,
     LOCAL_TO_HARBOR_MODEL,
     MAX_TRIAL_TIMEOUT_SECONDS,
+    MIMO_SELFHOSTED_CAPABILITY_EXPIRES_AT_ENV,
+    MIMO_SELFHOSTED_MODEL_PRICES_MICROS,
+    MIMO_SELFHOSTED_NATIVE_MODEL,
+    MIMO_SELFHOSTED_PROXY_ATTEMPT_ID_ENV,
+    MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV,
+    MIMO_SELFHOSTED_PROXY_PROVIDER,
+    MIMO_SELFHOSTED_PROXY_USAGE_FILE_ENV,
+    MIMO_SELFHOSTED_SECRET_FILE_ENV,
+    MIMO_SELFHOSTED_SECRET_PATH_ENV,
+    MIMO_SELFHOSTED_UPSTREAM_ENV,
     REDACTED_SECRET_VALUE,
     RLM_AGENT,
     SUPPORT_COMMAND_TIMEOUT_SECONDS,
@@ -109,11 +119,14 @@ from evallab.execution_contracts import (
     build_command,
     collected_secret_values,
     is_lease_generation,
+    is_mimo_selfhosted_model,
     is_tinker_terminus_model,
     materialize_deepseek_secret_file,
+    materialize_mimo_selfhosted_secret_file,
     materialize_tinker_secret_file,
     materialize_zai_openapi_secret_file,
     materialize_zai_secret_file,
+    parse_mimo_selfhosted_model,
     parse_tinker_model,
     persist_private_bytes,
     proxy_runtime_identity,
@@ -711,6 +724,7 @@ def _terminus_proxy_env(
     limits: ProxyTrialLimits,
     timeout_seconds: float,
     tinker_spec: TinkerModelSpec | None = None,
+    mimo_native: str | None = None,
 ) -> dict[str, str]:
     """Build the minimal environment for the host-supervised proxy instance.
 
@@ -726,6 +740,25 @@ def _terminus_proxy_env(
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["PYTHONUNBUFFERED"] = "1"
     env["EVALLAB_PROXY_PROVIDER"] = provider
+    if provider == MIMO_SELFHOSTED_PROXY_PROVIDER:
+        if mimo_native != MIMO_SELFHOSTED_NATIVE_MODEL:
+            raise ValueError("mimo_selfhosted proxy env requires the parsed native model")
+        env[MIMO_SELFHOSTED_SECRET_PATH_ENV] = str(secret_path)
+        upstream = os.environ.get(MIMO_SELFHOSTED_UPSTREAM_ENV)
+        if upstream:
+            env[MIMO_SELFHOSTED_UPSTREAM_ENV] = upstream
+        env[MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV] = capability
+        env[MIMO_SELFHOSTED_PROXY_ATTEMPT_ID_ENV] = attempt_id
+        env[MIMO_SELFHOSTED_PROXY_USAGE_FILE_ENV] = str(usage_path)
+        env["EVALLAB_MIMO_SELFHOSTED_MAX_REQUESTS"] = str(limits.max_requests)
+        env["EVALLAB_MIMO_SELFHOSTED_MAX_INPUT_TOKENS"] = str(limits.max_input_tokens)
+        env["EVALLAB_MIMO_SELFHOSTED_MAX_OUTPUT_TOKENS"] = str(limits.max_output_tokens)
+        env["EVALLAB_MIMO_SELFHOSTED_MAX_TOTAL_TOKENS"] = str(limits.max_total_tokens)
+        env["EVALLAB_MIMO_SELFHOSTED_MAX_COST_MICROS"] = str(limits.max_cost_micros)
+        env[MIMO_SELFHOSTED_CAPABILITY_EXPIRES_AT_ENV] = str(
+            time.time() + float(timeout_seconds) + 60.0
+        )
+        return env
     if provider == "tinker":
         if tinker_spec is None:
             raise ValueError("tinker proxy env requires the parsed model spec")
@@ -796,6 +829,7 @@ def _start_terminus_proxy(
     timeout_seconds: float,
     work_dir: Path,
     tinker_spec: TinkerModelSpec | None = None,
+    mimo_native: str | None = None,
 ) -> tuple[subprocess.Popen[bytes], str]:
     """Start the per-trial loopback proxy; return (process, proxy URL).
 
@@ -819,6 +853,7 @@ def _start_terminus_proxy(
         limits=limits,
         timeout_seconds=timeout_seconds,
         tinker_spec=tinker_spec,
+        mimo_native=mimo_native,
     )
     with open(stderr_path, "wb") as stderr_handle:
         os.chmod(stderr_path, 0o600)
@@ -1214,8 +1249,12 @@ def run_harbor_process(
             if proxy_attempt_id is None or proxy_limits is None:
                 raise ValueError("Terminus execution requires a bound trial capability")
             # The command's --model value selects the provider profile: a
-            # ``tinker/`` selector routes to the Tinker profile, every other
+            # ``selfhosted/`` selector routes to the self-hosted MiMo profile,
+            # a ``tinker/`` selector to the Tinker profile, every other
             # metered Terminus model to Z.ai OpenAPI.
+            mimo_client = any(
+                isinstance(arg, str) and arg.startswith("selfhosted/") for arg in command
+            )
             tinker_client = any(
                 isinstance(arg, str) and arg.startswith("tinker/") for arg in command
             )
@@ -1225,8 +1264,13 @@ def run_harbor_process(
                 if arg == "--model" and index + 1 < len(command)
             ]
             model_value = model_args[-1] if model_args else None
+            mimo_native = parse_mimo_selfhosted_model(model_value) if mimo_client else None
             tinker_spec = parse_tinker_model(model_value) if tinker_client else None
-            provider = "tinker" if tinker_client else "zai_openapi"
+            provider = (
+                MIMO_SELFHOSTED_PROXY_PROVIDER
+                if mimo_client
+                else ("tinker" if tinker_client else "zai_openapi")
+            )
             capability = secrets.token_urlsafe(32)
             capability_id = "sha256:" + hashlib.sha256(capability.encode()).hexdigest()
             owned_usage_dir = Path(
@@ -1237,7 +1281,15 @@ def run_harbor_process(
             )
             os.chmod(owned_usage_dir, 0o700)
             owned_usage_path = owned_usage_dir / "terminus-proxy-usage.json"
-            if tinker_spec is not None:
+            if mimo_native is not None:
+                # Self-hosted tokens have no per-token price; spend is
+                # governed by the time-based GPU estimate, not this ledger.
+                input_rate, output_rate = MIMO_SELFHOSTED_MODEL_PRICES_MICROS[mimo_native]
+                proxy_pricing = {
+                    "input_cost_micros_per_million": input_rate,
+                    "output_cost_micros_per_million": output_rate,
+                }
+            elif tinker_spec is not None:
                 proxy_pricing = {
                     "input_cost_micros_per_million": tinker_spec.input_cost_micros_per_million,
                     "output_cost_micros_per_million": tinker_spec.output_cost_micros_per_million,
@@ -1261,7 +1313,9 @@ def run_harbor_process(
                     ),
                 }
             secret_file_env = (
-                TINKER_SECRET_FILE_ENV if tinker_client else ZAI_OPENAPI_SECRET_FILE_ENV
+                MIMO_SELFHOSTED_SECRET_FILE_ENV
+                if mimo_client
+                else (TINKER_SECRET_FILE_ENV if tinker_client else ZAI_OPENAPI_SECRET_FILE_ENV)
             )
             existing_secret = runtime_environment.get(secret_file_env) or os.environ.get(
                 secret_file_env
@@ -1289,7 +1343,9 @@ def run_harbor_process(
                 )
                 os.chmod(owned_secret_dir, 0o700)
                 owned_secret_path = owned_secret_dir / "key"
-                if tinker_client:
+                if mimo_client:
+                    materialize_mimo_selfhosted_secret_file(owned_secret_path)
+                elif tinker_client:
                     materialize_tinker_secret_file(owned_secret_path)
                 else:
                     materialize_zai_openapi_secret_file(owned_secret_path)
@@ -1308,8 +1364,15 @@ def run_harbor_process(
                 timeout_seconds=timeout_seconds,
                 work_dir=owned_usage_dir,
                 tinker_spec=tinker_spec,
+                mimo_native=mimo_native,
             )
-            if tinker_client:
+            if mimo_client:
+                runtime_environment[MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV] = capability
+                # litellm's openai-compatible lookup reads this in the
+                # controller process; the adapter overwrites it with the
+                # capability before any call. Never a task-container value.
+                runtime_environment["OPENAI_API_KEY"] = capability
+            elif tinker_client:
                 runtime_environment[TINKER_PROXY_CAPABILITY_ENV] = capability
                 # litellm's openai-compatible lookup reads this in the
                 # controller process; the adapter overwrites it with the
@@ -1370,15 +1433,22 @@ def run_harbor_process(
                     capability_id=capability_id,
                     attempt_id=proxy_attempt_id,
                     limits=proxy_limits,
-                    provider_label="Tinker"
+                    provider_label="Mimo self-hosted"
                     if any(
-                        isinstance(arg, str) and arg.startswith("tinker/")
+                        isinstance(arg, str) and arg.startswith("selfhosted/")
                         for arg in command
                     )
                     else (
-                        "Z.ai OpenAPI"
-                        if (zai_openapi_lane or terminus_lane)
-                        else ("Z.ai" if zai_lane else "DeepSeek")
+                        "Tinker"
+                        if any(
+                            isinstance(arg, str) and arg.startswith("tinker/")
+                            for arg in command
+                        )
+                        else (
+                            "Z.ai OpenAPI"
+                            if (zai_openapi_lane or terminus_lane)
+                            else ("Z.ai" if zai_lane else "DeepSeek")
+                        )
                     ),
                     expected_pricing=proxy_pricing,
                 )
@@ -2150,12 +2220,16 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             )
         if uses_provider_proxy(request.agent, request.model):
             provider_label = (
-                "Tinker"
-                if is_tinker_terminus_model(request.model)
+                "Mimo self-hosted"
+                if is_mimo_selfhosted_model(request.model)
                 else (
-                    "Z.ai OpenAPI"
-                    if (is_zai_openapi or is_terminus)
-                    else ("Z.ai" if request.agent == ZAI_OPENCODE_AGENT else "DeepSeek")
+                    "Tinker"
+                    if is_tinker_terminus_model(request.model)
+                    else (
+                        "Z.ai OpenAPI"
+                        if (is_zai_openapi or is_terminus)
+                        else ("Z.ai" if request.agent == ZAI_OPENCODE_AGENT else "DeepSeek")
+                    )
                 )
             )
             if process.proxy_usage is None:

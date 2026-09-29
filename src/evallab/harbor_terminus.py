@@ -32,6 +32,12 @@ from typing import Any
 from harbor.agents.terminus_2.terminus_2 import Terminus2  # ty: ignore[unresolved-import]
 
 from evallab.execution_contracts import (
+    MIMO_SELFHOSTED_CONTEXT_TOKENS,
+    MIMO_SELFHOSTED_MODEL_PREFIX,
+    MIMO_SELFHOSTED_MODEL_SELECTOR,
+    MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV,
+    MIMO_SELFHOSTED_PROXY_TOKEN,
+    MIMO_SELFHOSTED_TEMPERATURE,
     TERMINUS_LOCAL_MODEL_SELECTOR,
     TERMINUS_PROXY_URL_ENV,
     TINKER_CONTEXT_TOKENS,
@@ -44,6 +50,7 @@ from evallab.execution_contracts import (
     ZAI_OPENAPI_PROXY_TOKEN,
     TinkerModelSpec,
     collected_secret_values,
+    parse_mimo_selfhosted_model,
     parse_tinker_model,
 )
 from evallab.harbor_common import sanitize_native_trajectory
@@ -87,7 +94,7 @@ async def apply_mimo_blocklist(environment: Any) -> str:
 
 #: litellm resolves each provider's key from this process-environment name.
 #: The capability token (never the provider key) is what lands here.
-_PROVIDER_KEY_ENVS = {"zai": "ZAI_API_KEY", "tinker": "OPENAI_API_KEY"}
+_PROVIDER_KEY_ENVS = {"zai": "ZAI_API_KEY", "tinker": "OPENAI_API_KEY", "mimo_selfhosted": "OPENAI_API_KEY"}
 
 #: The loopback interface the runner binds the trial proxy to. Hostnames that
 #: merely resolve to loopback (``localhost``) are rejected: the binding must be
@@ -121,28 +128,34 @@ _FORBIDDEN_EXTRA_ENV_KEYS = frozenset(
 _FORBIDDEN_EXTRA_ENV_PREFIXES = (
     "evallab_zai_openapi",
     "evallab_tinker",
+    "evallab_mimo_selfhosted",
     "evallab_terminus",
     "evallab_zai_",
 )
 
 
-
-def _resolve_metered_model(model_name: str | None) -> tuple[str, TinkerModelSpec | None]:
-    """Return the validated model string plus its Tinker spec, if any.
+def _resolve_metered_model(model_name: str | None) -> tuple[str, TinkerModelSpec | None, bool]:
+    """Return the validated model string, its Tinker spec, and the MiMo flag.
 
     Z.ai routes must be one of the exact admitted selectors. Tinker routes
     are parsed strictly (fail-closed on unknown bases and malformed
     checkpoints) so the selector string fully identifies the sampled weights.
+    The self-hosted MiMo route admits exactly one selector; anything else
+    under ``selfhosted/`` fails closed.
     """
+    if isinstance(model_name, str) and model_name.startswith(MIMO_SELFHOSTED_MODEL_PREFIX):
+        parse_mimo_selfhosted_model(model_name)
+        return model_name, None, True
     if isinstance(model_name, str) and model_name.startswith(TINKER_MODEL_PREFIX):
         spec = parse_tinker_model(model_name)
-        return model_name, spec
+        return model_name, spec, False
     if model_name in ZAI_OPENAPI_ALLOWED_MODELS:
-        return model_name, None
+        return model_name, None, False
     raise ValueError(
         "SecretSafeTerminus2 requires an exact metered model: one of "
-        f"{sorted(ZAI_OPENAPI_ALLOWED_MODELS)} or a Tinker route "
-        "'tinker/<base>[@tinker://<run>:train:<i>/sampler_weights/<step>]'; "
+        f"{sorted(ZAI_OPENAPI_ALLOWED_MODELS)}, a Tinker route "
+        "'tinker/<base>[@tinker://<run>:train:<i>/sampler_weights/<step>]', "
+        f"or the self-hosted route {MIMO_SELFHOSTED_MODEL_SELECTOR!r}; "
         f"got {model_name!r}. Coding Plan credentials are not admitted."
     )
 
@@ -253,11 +266,12 @@ class SecretSafeTerminus2(Terminus2):
             )
         self._local_binding: OllamaBinding | None = None
         self._tinker_spec: TinkerModelSpec | None = None
+        self._mimo_selfhosted = False
         if model_name == TERMINUS_LOCAL_MODEL_SELECTOR:
             self._local_binding = resolve_ollama_binding(model_name)
             model = model_name
         else:
-            model, self._tinker_spec = _resolve_metered_model(model_name)
+            model, self._tinker_spec, self._mimo_selfhosted = _resolve_metered_model(model_name)
         if api_base is not None:
             raise ValueError(
                 "SecretSafeTerminus2 rejects api_base overrides: "
@@ -294,7 +308,31 @@ class SecretSafeTerminus2(Terminus2):
             }
         else:
             proxy_url = _require_loopback_proxy_url()
-            if self._tinker_spec is not None:
+            if self._mimo_selfhosted:
+                # Context/pricing of the served MiMo weights is runtime-bound:
+                # the 64K window drives native context summarization before
+                # overflow, and zero per-token prices mark the time-billed
+                # route (GPU hours, not tokens). A caller-supplied model_info
+                # can never override it.
+                if kwargs.get("model_info") is not None:
+                    raise ValueError(
+                        "self-hosted MiMo model context/pricing is runtime-bound, not a harness override"
+                    )
+                kwargs["model_info"] = {
+                    "max_input_tokens": MIMO_SELFHOSTED_CONTEXT_TOKENS,
+                    "max_output_tokens": MIMO_SELFHOSTED_CONTEXT_TOKENS,
+                    "input_cost_per_token": 0.0,
+                    "output_cost_per_token": 0.0,
+                    "litellm_provider": "openai",
+                }
+                # The trajectory must record the real sampling the proxy
+                # enforces; the proxy still overrides any caller value.
+                kwargs["temperature"] = MIMO_SELFHOSTED_TEMPERATURE
+                capability = _require_capability(
+                    MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV, MIMO_SELFHOSTED_PROXY_TOKEN
+                )
+                provider = "mimo_selfhosted"
+            elif self._tinker_spec is not None:
                 # Context/pricing of the pinned Tinker base is runtime-bound:
                 # the 64K window drives native context summarization before
                 # overflow, and the table price keeps native cost estimates

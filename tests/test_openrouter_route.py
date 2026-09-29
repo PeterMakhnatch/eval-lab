@@ -488,8 +488,8 @@ def test_adapter_binds_openrouter_context_prices_and_capability(
     model_info = agent.extra_kwargs["model_info"]
     assert model_info["max_input_tokens"] == 1_048_576
     assert model_info["max_output_tokens"] == 131_072
-    assert model_info["input_cost_per_token"] == 0.14
-    assert model_info["output_cost_per_token"] == 0.28
+    assert model_info["input_cost_per_token"] == pytest.approx(0.14e-6)
+    assert model_info["output_cost_per_token"] == pytest.approx(0.28e-6)
     assert model_info["litellm_provider"] == "openai"
     # Stock parser: the route never wraps the Terminus JSON parser.
     assert agent._mimo_selfhosted is False

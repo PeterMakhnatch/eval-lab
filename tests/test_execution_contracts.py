@@ -499,3 +499,35 @@ def test_validate_request_accepts_storage_bounds(tmp_path: Path, storage_mb: int
         override_storage_mb=storage_mb,
     )
     validate_request(req)
+
+
+@pytest.mark.parametrize(
+    ("model", "admitted"),
+    [
+        ("openrouter-metered/xiaomi/mimo-v2.6-flash", True),
+        ("openrouter-metered/xiaomi/mimo-v2.6-pro", False),
+        ("openrouter/xiaomi/mimo-v2.6-flash", False),
+    ],
+)
+def test_validate_request_gates_openrouter_terminus_selector(
+    tmp_path: Path, model: str, admitted: bool
+) -> None:
+    """The dispatch boundary admits exactly the pinned OpenRouter selector."""
+    req = RunRequest(
+        task=_task_dir(tmp_path),
+        agent="terminus-2",
+        model=model,
+        name="valid-name",
+        jobs_dir=tmp_path / "jobs",
+        max_requests=120,
+        max_input_tokens=2_500_000,
+        max_output_tokens=131_072,
+        max_total_tokens=2_631_072,
+        cost_limit_usd=0.5,
+        allow_billable=True,
+    )
+    if admitted:
+        validate_request(req)
+    else:
+        with pytest.raises(ValueError):
+            validate_request(req)

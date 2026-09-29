@@ -276,8 +276,8 @@ def test_adapter_binds_tinker_context_and_capability(
     model_info = agent.extra_kwargs["model_info"]
     assert model_info["max_input_tokens"] == 65_536
     assert model_info["max_output_tokens"] == 65_536
-    assert model_info["input_cost_per_token"] == pytest.approx(0.54)
-    assert model_info["output_cost_per_token"] == pytest.approx(1.335)
+    assert model_info["input_cost_per_token"] == pytest.approx(0.54e-6)
+    assert model_info["output_cost_per_token"] == pytest.approx(1.335e-6)
     # The litellm openai-compatible lookup receives the capability only in
     assert agent.api_base == "http://127.0.0.1:9"
     assert os.environ["OPENAI_API_KEY"] == CAPABILITY_SENTINEL

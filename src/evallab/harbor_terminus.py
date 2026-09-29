@@ -539,8 +539,8 @@ class SecretSafeTerminus2(Terminus2):
                 kwargs["model_info"] = {
                     "max_input_tokens": OPENROUTER_CONTEXT_INPUT_TOKENS,
                     "max_output_tokens": OPENROUTER_MAX_COMPLETION_TOKENS,
-                    "input_cost_per_token": OPENROUTER_INPUT_COST_MICROS_PER_MILLION / 1e6,
-                    "output_cost_per_token": OPENROUTER_OUTPUT_COST_MICROS_PER_MILLION / 1e6,
+                    "input_cost_per_token": OPENROUTER_INPUT_COST_MICROS_PER_MILLION / 1e12,
+                    "output_cost_per_token": OPENROUTER_OUTPUT_COST_MICROS_PER_MILLION / 1e12,
                     "litellm_provider": "openai",
                 }
                 capability = _require_capability(
@@ -560,8 +560,8 @@ class SecretSafeTerminus2(Terminus2):
                 kwargs["model_info"] = {
                     "max_input_tokens": TINKER_CONTEXT_TOKENS,
                     "max_output_tokens": TINKER_CONTEXT_TOKENS,
-                    "input_cost_per_token": spec.input_cost_micros_per_million / 1e6,
-                    "output_cost_per_token": spec.output_cost_micros_per_million / 1e6,
+                    "input_cost_per_token": spec.input_cost_micros_per_million / 1e12,
+                    "output_cost_per_token": spec.output_cost_micros_per_million / 1e12,
                     "litellm_provider": "openai",
                 }
                 capability = _require_capability(

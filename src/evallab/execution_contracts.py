@@ -1391,6 +1391,10 @@ def validate_request(request: RunRequest) -> None:
             # Exactly one self-hosted selector is admitted; anything else
             # under selfhosted/ refuses here.
             parse_mimo_selfhosted_model(model)
+        elif is_openrouter_model(model):
+            # Exactly one OpenRouter selector is admitted; anything else
+            # under openrouter-metered/ refuses here.
+            parse_openrouter_model(model)
         elif model not in {
             *ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS,
             TERMINUS_LOCAL_MODEL_SELECTOR,
@@ -1400,7 +1404,8 @@ def validate_request(request: RunRequest) -> None:
                 f"({sorted(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)}), a Tinker "
                 f"route ({TINKER_MODEL_PREFIX}<base>[@tinker://<run>:train:<i>"
                 "/sampler_weights/<step>]), the self-hosted route "
-                f"{MIMO_SELFHOSTED_MODEL_SELECTOR!r}, or installed local "
+                f"{MIMO_SELFHOSTED_MODEL_SELECTOR!r}, the OpenRouter route "
+                f"{OPENROUTER_MIMO_FLASH_MODEL_SELECTOR!r}, or installed local "
                 f"{TERMINUS_LOCAL_MODEL_SELECTOR!r}; Coding Plan credentials "
                 "are not admitted for this harness"
             )

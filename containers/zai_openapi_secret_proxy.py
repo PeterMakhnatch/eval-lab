@@ -133,13 +133,15 @@ PROVIDERS: dict[str, Any] = {
         # ``tinker/<base>@tinker://<run>:train:<i>/sampler_weights/<step>``
         "checkpoint_models": True,
         # Tinker's chat endpoint reads reasoning_effort ("none" … "xhigh" or a
-        # float in [0, 0.99]; 0.9 when omitted), so the student's "none" passes.
+        # float in [0, 0.99]; 0.9 when omitted) and OpenAI top_p, so a harness
+        # can match another route's nucleus sampling. top_k is not forwarded.
         "forwarded_fields": (
             "model",
             "messages",
             "tools",
             "tool_choice",
             "temperature",
+            "top_p",
             "reasoning_effort",
         ),
     },

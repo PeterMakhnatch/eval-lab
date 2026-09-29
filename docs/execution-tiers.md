@@ -169,8 +169,9 @@ implementations. Metered routes, all host-side through the same loopback proxy:
   overflow. Tinker reads `reasoning_effort` (`"none"` … `"xhigh"` or a float
   in [0, 0.99]; 0.9 when omitted) only from the request body, and Harbor's
   LiteLLM drops the top-level `reasoning_effort` knob for this unregistered
-  model. The HAR-81 student protocol therefore disables thinking through
-  `llm_call_kwargs.extra_body.reasoning_effort: "none"`.
+  model. To disable thinking, send it in the body through the harness
+  `llm_call_kwargs.extra_body.reasoning_effort: "none"`; `top_p` is forwarded
+  too, `top_k` is not.
 - `selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` — a self-hosted SGLang
   server on Modal serving that id (`--served-model-name` equal to it, MIT
   qwen3_5 hybrid, 64K context as served). The per-trial proxy runs with

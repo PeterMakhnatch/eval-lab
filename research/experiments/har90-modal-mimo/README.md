@@ -36,7 +36,7 @@ Both trials ran against a warm server, so neither includes a cold start.
 | | Setting / result | Trial 1 | Trial 2 |
 |---|---|---|---|
 | Setup | Task | `candidate-0036-software-data-engineering` | same task |
-| | Split / harness | HAR-81 train split, not held-out; HAR-81 `harness-student` tree (`raw_content`, `linear_history`) | same |
+| | Split / harness | HAR-81 train split, not held-out; HAR-81 `harness-student` tree as of e76b691b (`raw_content`, `linear_history`; removed when HAR-81 moved to the shared `harness/` tree) | same |
 | | Spec | `01M3NABR7H5SPBKE0K6J5E34QM` | `01M3NB2PRGZBTNTJ8120C545G1` |
 | | Evidence | `runs/har90-mimo-0036/har90-mimo-0036__mWHLdCT` | `runs/har90-mimo-0036-b/har90-mimo-0036-b__XfPjwNk` |
 | | Ceilings | 200 requests / 2.5M input tokens | 200 requests / 16M input tokens |

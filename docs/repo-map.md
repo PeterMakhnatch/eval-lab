@@ -263,7 +263,7 @@ inputs:
   - path: src/evallab/mimo_exploit.py
     digest: sha256:6cae5a54b46de6abd00f96790fde2081868bd45561cc4092bb78f56321bf56dc
   - path: src/evallab/mimo_tool_calls.py
-    digest: sha256:e59a243fb4d0ae26d7545f632ac7e7050226eff745e852fb1127fcb025e78b48
+    digest: sha256:9af52ee93326c0f78cdb2b016cfd0a1aa57657652dc0d89ed70ed15b05e0d578
   - path: src/evallab/mini_observation_masking.py
     digest: sha256:332e2a92b2db066699d7b4582992e40d710f884146705a9699dfa8ec24d17883
   - path: src/evallab/model_capture.py
@@ -343,7 +343,7 @@ inputs:
   - path: src/evallab/run_preflight.py
     digest: sha256:c6f34f15c3d8fc8a30ee5b09abda23195d983340d77ea7af2b05bc27c6d37624
   - path: src/evallab/runner.py
-    digest: sha256:6fb2a9c88f133d1d32a204446d723462693e7477a6618df362c7c7ffa0a684ba
+    digest: sha256:f4b2188c8dac5de66b6ef87c1e35e098a3d8d460ae45b91020a4611f285482a7
   - path: src/evallab/schemas/__init__.py
     digest: sha256:b6e0a6aea01d7ee73e8555adbc046e63c1cd5d343a08e1d15090bb9e90720294
   - path: src/evallab/screen.py

@@ -2,7 +2,7 @@
 
 Under Terminus-2, MiMo-V2.6-Distill-Qwen-9B keeps the tool-call wrapper of its
 training harnesses: ``<tool_call><function=NAME>…</function></tool_call>``.
-HAR-90's Daytona trials recorded four shapes (1,909 turns in all):
+HAR-90's Daytona trials recorded five shapes (2,310 turns in all):
 
 - ``<function=exec>{"analysis": …, "plan": …, "commands": […]}``: a whole
   Terminus object behind the wrapper, with no closing tags (trial 1);
@@ -11,6 +11,9 @@ HAR-90's Daytona trials recorded four shapes (1,909 turns in all):
 - ``<function=bash><parameter=command>ls -la /app</parameter>
   <parameter=duration>0.1</parameter>``, Qwen3-Coder XML arguments, one or
   more per turn (0036-d, 0758-b, 0036-e);
+- the same bash call with a ``description`` parameter instead of
+  ``duration``, as in Claude Code's Bash tool: after 0758-d's summarization
+  every one of its 177 turns used it, two calls per turn;
 - a bare Terminus object followed by ``</parameter><parameter=duration>0.5
   </parameter></function></tool_call>``: the object filled a bash call's
   ``command`` parameter whose opener never came (0758-c).
@@ -30,7 +33,8 @@ Terminus JSON parser:
    - A wrapped Terminus object passes through, re-serialized.
    - A response built only from ``exec``/``exec_command``/``bash`` command
      calls (``keystrokes`` or ``command``, optional ``duration``) becomes one
-     ``commands`` entry per call, in order.
+     ``commands`` entry per call, in order. A ``description`` parameter only
+     labels the call, so it is dropped; any other parameter rejects the turn.
    - A bare Terminus object followed by the native closing markup, or valid
      only with raw control characters, is re-serialized without the markup.
      The markup's ``duration`` is dropped; the object's commands keep theirs.
@@ -90,6 +94,8 @@ _WRAPPER_TAIL = re.compile(
 )
 _XML_PARAMETER = re.compile(r"\s*<parameter=([^>\s]+)>(.*?)</parameter>", re.DOTALL)
 _COMMAND_KEYS = ("keystrokes", "command")
+#: Parameters that label a call without changing what it executes.
+_LABEL_KEYS = frozenset({"description"})
 #: MiMo writes raw newlines inside JSON strings, as it would inside an XML
 #: parameter; strict JSON rejects them as control characters.
 _LENIENT_JSON = json.JSONDecoder(strict=False)
@@ -175,7 +181,7 @@ def _bare_terminus_object(response: str) -> str | None:
 def _terminus_command(arguments: dict[str, Any]) -> dict[str, Any] | None:
     """Map one command call's arguments onto a Terminus command."""
     present = [key for key in _COMMAND_KEYS if key in arguments]
-    if len(present) != 1 or not set(arguments) <= {present[0], "duration"}:
+    if len(present) != 1 or not set(arguments) <= {present[0], "duration", *_LABEL_KEYS}:
         return None
     keystrokes = arguments[present[0]]
     if not isinstance(keystrokes, str):

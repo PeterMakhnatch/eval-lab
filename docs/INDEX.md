@@ -57,7 +57,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:031d3736405e7a3fc20dd2199b9bd24d33bde2b43b598278ff7b30a434a0475c
+    digest: sha256:ab651c6b481285fb308dd8a219ee98aa2e23a4c345e19eddd6b691503ea15474
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md

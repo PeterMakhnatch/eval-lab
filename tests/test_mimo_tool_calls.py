@@ -1,7 +1,7 @@
 """MiMo native tool-call normalization on the Terminus-2 route (HAR-90).
 
 The fixtures are verbatim agent turns from the HAR-90 Daytona trials, from
-``runs/har90-mimo-0036*/…/agent/trajectory.json``.
+``runs/har90-mimo-*/…/agent/trajectory*.json``.
 """
 
 from __future__ import annotations
@@ -61,16 +61,59 @@ DANGLING_FRAGMENT = (
     '{"keystrokes": "ls -la /app/vendor/snakemake | head -50", "duration": 0.1},\n'
     "{\"keystrokes\": \"find /app -maxdepth 3 -name '*.py' | head -50\", \"duration\": 0.1}\n]\n}"
 )
+# Trial 0758-c: a bare Terminus object with raw newlines inside a string,
+# followed by the tail of the XML bash call it filled (the opener is absent).
+HYBRID_RAW_NEWLINES = (
+    '{\n"analysis": "Now I can see the Python bug clearly. In circular mode, the code applies '
+    "`np.mod(..., max_sequence_length)` to the ENTIRE cache_idx tuple, which includes prefix "
+    "coordinates (batch/head). The fix: only mod the sequence coordinate (the axis coordinate)."
+    '\n\nLet me look at the C++ file to find the corresponding circular-mode logic.",\n'
+    '"plan": "Find the TensorScatter circular logic in defs.cc.",\n"commands": [\n'
+    '{"keystrokes": "grep -n -i \\"tensor_scatter\\\\|circular\\\\|mod(\\" '
+    '/app/vendor/onnx/onnx/defs/tensor/defs.cc | head -80\\n", "duration": 0.2}\n]\n}'
+    "</parameter><parameter=duration>0.5</parameter></function></tool_call>"
+)
 
 
-@pytest.mark.parametrize("raw", [WRAPPED_TERMINUS, WRAPPED_TERMINUS_CLOSED])
-def test_wrapped_terminus_object_passes_through_verbatim(raw: str) -> None:
+@pytest.mark.parametrize(
+    "raw",
+    [
+        WRAPPED_TERMINUS,
+        WRAPPED_TERMINUS_CLOSED,
+        WRAPPED_TERMINUS.replace("different approach - use", "different approach -\nuse"),
+    ],
+)
+def test_wrapped_terminus_object_passes_through_unchanged(raw: str) -> None:
     normalized = normalize_mimo_tool_calls(raw)
 
-    assert normalized is not None
-    assert raw.index(normalized) > 0
-    assert normalized.startswith("{") and normalized.endswith("}")
-    assert set(json.loads(normalized)) == {"analysis", "plan", "commands"}
+    obj = json.loads(raw[raw.index("{") :].removesuffix("\n</function></tool_call>"), strict=False)
+    assert json.loads(normalized or "") == obj
+
+
+def test_bare_object_with_raw_newlines_and_native_tail_is_canonicalized() -> None:
+    normalized = json.loads(normalize_mimo_tool_calls(HYBRID_RAW_NEWLINES) or "")
+
+    assert normalized["analysis"].endswith("\n\nLet me look at the C++ file to find the corresponding circular-mode logic.")
+    assert normalized["commands"] == [
+        {
+            "keystrokes": 'grep -n -i "tensor_scatter\\|circular\\|mod(" '
+            "/app/vendor/onnx/onnx/defs/tensor/defs.cc | head -80\n",
+            "duration": 0.2,
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        pytest.param('{"analysis": "a", "plan": "", "commands": []}', id="valid-terminus-json"),
+        pytest.param('{"analysis": "a\nb", "plan": "", "commands": []} trailing prose', id="prose-tail"),
+        pytest.param('{"analysis": "a\nb", "plan": ""}</parameter></function>', id="not-terminus"),
+        pytest.param("The repair is complete and verified.", id="plain-prose"),
+    ],
+)
+def test_bare_responses_needing_no_rewrite_reach_terminus_unchanged(raw: str) -> None:
+    assert normalize_mimo_tool_calls(raw) is None
 
 
 def test_native_command_calls_become_commands_in_order() -> None:
@@ -196,6 +239,10 @@ class _JsonCommandsParser:
     [
         (NATIVE_SINGLE, ["pwd\n"]),
         (WRAPPED_TERMINUS_CLOSED, ["ls -la /app\n"]),
+        (
+            HYBRID_RAW_NEWLINES,
+            ['grep -n -i "tensor_scatter\\|circular\\|mod(" /app/vendor/onnx/onnx/defs/tensor/defs.cc | head -80\n'],
+        ),
         (
             NATIVE_BASH_MULTI,
             [

@@ -78,3 +78,73 @@ Per-token spend on this route is $0; the proxy ledger pins `(0, 0)`. Modal bills
 - **Each warm period** also costs a cold start plus the idle tail, (208 s + 300 s) × $2.8149/h ≈ $0.40.
 - **By the formula:** trial 1 = $0.494 server + $0.015 sandbox; trial 2 = $0.350 + $0.010.
 - **Concurrency:** `max_containers=1`, and SGLang batches concurrent trials on one GPU. At concurrency 8 each stream still decoded at about 81 tok/s, so the server share per trial falls roughly as 1 ÷ concurrency.
+
+## Follow-up: executing MiMo's native tool calls (2026-09-29)
+
+Research-Harbor reopened HAR-90 and asked for three things: a deterministic normalizer on the Terminus-2 side, two reruns, and at least 95% of turns parsing with the verifier running. Two changes landed:
+
+- **`evallab.mimo_tool_calls.MimoToolCallParser`**, route-only. It turns native calls into Terminus commands, decodes JSON with raw control characters allowed, strips native closing markup and appends the implied Enter. The raw output stays in every trajectory. See `docs/execution-tiers.md`.
+- **The per-trial watchdog** now allows the agent timeout plus 600 s for Harbor's other phases (`RunRequest.trial_watchdog_seconds`). Before, it killed Harbor at exactly the agent timeout, so a trial that ran to its timeout never reached the verifier.
+
+### Trials
+
+All ran on Daytona with the HAR-81 `harness/` tree and the 900 s task timeout. Each pair ran concurrently on one warm server.
+
+| Pair | Trial (spec) | What ran | End | Reward | Queue state | Turns | Tokens in / out |
+|---|---|---|---|---|---|---|---|
+| A | 0036-c `01M3NEJ704HHCQZQHH8FWPXCT6`, 0758-a `01M3NEJ7GYHG6129ZYQQW6YZQQ` | JSON-call normalizer | 401 on the first call | None | `failed` | 0 | 0 / 0 |
+| B | 0036-d `01M3NEXDKQ3RSJS0RG3E4ZSRMZ` | JSON-call normalizer | agent timeout | 0.0 | `done` | 529 | 11,106,053 / 16,626 |
+| B | 0758-b `01M3NEXEE0BCWZ2C45RDCJMK88` | JSON-call normalizer | agent timeout | 0.0 | `failed`, `proxy_usage_unreconciled` | 761 | 22,355,608 / 24,314 |
+| C | 0036-e `01M3NG7CMNRKG7MK9Q7XXAEAA4` | + XML bash calls | agent timeout | **1.0** | `done` | 83 | 2,350,970 / 30,929 |
+| C | 0758-c `01M3NG7DGDGCWYENFRPHFPWSTT` | + XML bash calls | agent timeout | 0.0 | `failed`, `proxy_usage_unreconciled` | 216 | 5,517,856 / 36,375 |
+
+What happened in each pair:
+
+- **Pair A** is an infrastructure failure. The key rotation used `modal secret create --from-dotenv`, which needs `python-dotenv`, and the tool's environment lacks it. The error was hidden, so the server kept the old key. The secret was rewritten with `--from-json`, and later runs checked `/v1/models` with the key before dispatch.
+- **Pair B**: the model switched to Qwen3-Coder XML (`<function=bash><parameter=command>…`), a shape the normalizer did not yet handle. No command ran in 1,290 turns. The verifier still ran and scored both trials, which confirms the watchdog fix.
+- **Pair C**:
+  - 0036-e solved the task: reward 1.0, and its final answer came at agent +468 s.
+  - 0758-c introduced a fourth shape: a bare Terminus object with raw newlines inside strings, followed by `</parameter><parameter=duration>0.5</parameter></function></tool_call>`. Every one of those turns failed strict JSON, and the model repeated one of them 176 times. The normalizer has handled this shape since pair C.
+- **In all three pairs:** the served-name identity matched, `<think>` never appeared in `content`, and `reasoning_content` was rare (1–5 turns per trial).
+
+### Parse rate: stock parser vs the current normalizer (replayed through Harbor 0.21.0)
+
+| Trajectory | Stock | Normalized | Still failing |
+|---|---|---|---|
+| 0036 (trial 1) | 119/120 | 120/120 | – |
+| 0036-b (trial 2) | 15/200 | 199/200 | 1 dangling list fragment |
+| 0036-d | 0/529 | 529/529 | – |
+| 0758-b | 0/761 | 760/761 | 1 Harbor fallback text |
+| 0036-e | 1/83 | 33/83 | 50 identical prose final answers |
+| 0758-c | 8/216 | 186/216 | 30 Harbor fallback texts |
+| **All** | **143/1,909 (7.5%)** | **1,827/1,909 (95.7%)** | |
+
+Two groups remain:
+
+- **Harbor's fallback turns (31):** "Technical difficulties. Please continue with the task." is Harbor's own text after a failed model call, not model output. Without those turns the rate is 1,827/1,878 (97.3%).
+- **Prose final answers (50):** the model's remaining gap. After solving 0036-e it answered with a prose summary and no tool call (its native end of episode) 50 times, until the timeout. The normalizer leaves prose to Terminus, which asks for JSON again.
+
+### Context overflow on 0758
+
+Both 0758 trials filled the 64K window after their parse-error loops:
+
+- Terminus unwound the history to an estimated 11.4K free tokens. SGLang then counted 57,382 input tokens plus the 8,192-token completion, 38 over 65,536, and answered 400.
+- A 400 carries no usage, so the proxy left those calls unresolved (13 on 0758-b, 93 on 0758-c). The runner then failed both trials with `proxy_usage_unreconciled`, although Harbor finished and the verifier scored them.
+
+Normalized turns should stop these loops, but a long healthy session can still come within about 3K tokens of Terminus's estimate.
+
+### Ceilings
+
+HAR-81's `stage.py` pins 200 requests and 2.5M input tokens. Those ceilings need raising for this route:
+
+- The healthy solve (0036-e) used 84 requests and 2.40M ledger input tokens in 900 s, 96% of the input cap.
+- Trial 1 hit the cap at agent +590 s.
+- A ceiling trip raises `RateLimitError`, which Harbor does not treat as an agent timeout, so the verifier never runs and the reward is missing (trials 1 and 2).
+
+Tokens cost $0 here and time is billed, so the 900 s agent timeout already bounds spend. The ceilings should sit above what 900 s can consume: loops reached 779 requests and 26.2M input tokens. Pair C ran with 2,000 requests, 64M input and 1M output, and nothing tripped.
+
+### Follow-up spend
+
+- **Modal:** $1.9752, the whole 02:00 UTC bucket of the billing report, covering three warm periods and pairs A–C.
+- **Daytona, by the formula:** about $0.087 (3,702 s of sandbox time over four full trials plus about 50 s for pair A).
+- **HAR-90 total so far:** about $3.56 of $5 (Modal $3.4516, Daytona about $0.11).

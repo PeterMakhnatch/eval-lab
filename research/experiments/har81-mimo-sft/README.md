@@ -11,7 +11,8 @@
   1. Re-prepare from the current `export-broken`. `cohort.json` already pins it (3 tasks out, held-out 386); `prepare` re-runs after HAR-90's changes merge.
   2. Pre-register a rule for unqualified tasks. Done: [grader-broken suspects](#pre-registered-grader-broken-suspects).
   3. A context-overflow mitigation that would keep the arms equal. Done: [context overflow](#context-overflow-shared-harness).
-- When both are in: re-run `prepare pair`, send Research-Harbor the ids and `stage.py costs`, run wave 1, then the other 17. Stop and report if measured spend passes 2× expected, about $6. The held-out baseline waits for Peter. Each spec needs `approve --actor peter`.
+- Research-Harbor's outcome rule (about 04:20Z), before wave 1. Done: [scored outcomes](#pre-registered-scored-outcomes).
+- When Peter's cap and HAR-90's acceptance are in: re-run `prepare pair`, send Research-Harbor the ids and `stage.py costs`, run wave 1, then the other 17. Stop and report if measured spend passes 2× expected, about $6. The held-out baseline waits for Peter. Each spec needs `approve --actor peter`.
 - Trace tagging for these trials is HAR-91.
 
 Decisions this design follows:
@@ -112,7 +113,7 @@ Research-Harbor set this rule on 2026-09-29, about 03:35Z. It is written here be
 1. **Suspect.** An unqualified task becomes suspect when any of its trials, in any run, shows either signal:
    - **(a) HAR-88's grader_broken rule.** In `evallab.task_qualification`, `detect_grader_collection_failure(grader_stdout_texts(trial_dir), instruction_text=read_task_instruction(trial_dir))` returns an error line. That means pytest could not collect a test module because of a `ModuleNotFoundError`, `ImportError` or `SyntaxError`. Its two guards still apply: a missing module that the instruction names, or an import that fails inside agent-editable workspace code, is not a grader defect.
    - **(b) The verifier failed without scoring.** HAR-88's `classify_trial` returns `verifier_error`: a verifier-phase exception other than a timeout, such as Harbor finding no reward file.
-2. **Not suspect:** a scored reward of 0; a verifier timeout; a trial whose verifier never ran (a ceiling or agent failure, reported with the trial outcomes).
+2. **Not suspect:** a scored reward of 0; a verifier timeout; a trial whose verifier never ran (a ceiling or agent failure; unscored, see [scored outcomes](#pre-registered-scored-outcomes)).
 3. **Re-check.** Suspects are collected into one nop re-check on Daytona using HAR-88's recipe (`../mimo-daytona-nop/`), bundled into a later Peter approval. At HAR-88's measured sandbox cost, that is about $0.01 per code task and $0.003 per cyber task.
 4. **Confirmed** means the nop trial comes out `broken` and `tasks catalog export-broken` lists the task.
    - A confirmed task is excluded from every before/after comparison: the baseline and post-SFT runs, and both arms if the base is revived.
@@ -126,6 +127,22 @@ Signal (b) is Infra's addition to the brief; Research-Harbor can strike it on re
 - The other 194 code tasks use Go, JS and other runners. All 109 cyber tasks grade with `verify.py`.
 - These fail before scoring in other ways. The code `test.sh` exits without a reward when it can't reset the test files or apply the hidden tests ("testbed problem, not scored"). A crash in `verify.py` also leaves no reward.
 - Without (b), 303 of the 384 tasks would have no grader signal. An agent can also cause (b), for example by breaking the repository so the hidden tests can't apply. The nop re-check separates the two cases.
+
+## Pre-registered: scored outcomes
+
+Research-Harbor set this rule on 2026-09-29, about 04:20Z. It is written here before any HAR-81 trial runs, and it applies to every HAR-81 trial.
+
+1. **Scored** means the verifier wrote a reward: `verifier_result.rewards.reward` in the trial's `result.json`, or its reward file. HAR-88's `collect_trial` reads both.
+   - The stop reason doesn't matter: the agent finishing (Terminus `task_complete` or the normalizer's prose completion), an agent timeout (`AgentTimeoutError`) and a ceiling stop all count, with the reward the verifier gave.
+2. **Unscored** means no verifier reward, and only that. Unscored trials stay out of the pass rate's denominator. Each is reported with its cause, from HAR-88's `classify_trial`: `setup_failed`, `backend_quota`, `verifier_error`, `verifier_timeout` or `reward_missing`.
+   - One exception: a trial flagged by grader-broken signal (b) on a task the nop re-check clears counts as a failure (rule 5 above). The grader worked, so the agent broke it.
+   - A ceiling stop leaves no reward until HAR-90 item 5 lands, so it would be unscored. The train check waits for HAR-90's acceptance, which includes item 5.
+3. **Pass rates come from the reward, never from `trial_diagnosis`'s outcome label.**
+   - That label marks any trial with `exception_info` as `infra_failed` (`trial_diagnosis.py:1001-1013`), graded agent timeouts included.
+   - The diagnosis still carries the reward.
+4. **Stop reasons are reported separately.** For each run and arm, report the scored trials and their pass rate by stop reason, and the unscored trials by cause.
+
+Why: HAR-90's two timed-out 0036 trials were both graded. 0036-e passed (reward 1.0) and 0036-d failed (0.0), yet `diagnose_trial` labels both `infra_failed`. Research-Harbor notes that timeouts are mostly failures, so dropping them would inflate the baseline. The Traces tab (HAR-91) found this.
 
 ## Staged runs (prepared at $0; nothing submitted)
 
@@ -208,7 +225,7 @@ Cloud nop qualification belongs to HAR-88 (`../mimo-daytona-nop/`).
 
 - **Without a normalizer, the distill mostly measures a protocol mismatch.** In HAR-90 it kept emitting its native `<tool_call><function=exec_command>` wrapper instead of Terminus JSON; in one trial only 15 of 200 turns parsed. That is why these runs wait for HAR-90's acceptance. After it, check the train check's parse-error rate before approving the 386-task held-out baseline.
 - **In-sandbox harnesses can't reach Modal.** Daytona Tier 1 and 2 restrict sandbox egress, so agents running inside the sandbox cannot call the Modal server. Terminus-2 calls the model from the controller, which is why it is the harness here.
-- **Missing rewards.** Until HAR-90 item 5 lands, a ceiling makes LiteLLM raise `RateLimitError` and Harbor skips the verifier, so the reward is missing, not 0. The analysis counts it as a failure under budget and reports how many such trials there were.
+- **Missing rewards.** Until HAR-90 item 5 lands, a ceiling makes LiteLLM raise `RateLimitError` and Harbor skips the verifier, so the reward is missing, not 0. Under the [outcome rule](#pre-registered-scored-outcomes) such a trial is unscored, which would drop mostly-failing trials from the denominator. That is one reason the train check waits for item 5. Any that still occur are counted beside the pass rate.
 - **The parked base arm is untested.** Nothing has been sent to Tinker. If it is revived, its wave 1 must show that calls succeed, `reasoning_content` comes back separate and `content` parses. Tinker's OpenAI-compatible endpoint is a low-traffic beta; concurrent trials may hit 429s, which end a trial the same way a ceiling does.
 - **The held-out baseline exceeds one day's $20 smoke budget** at the expected $30.90. Split it across days, or approve a subset.
 - **The queue can't see the server bill.** The queue's $20/day ceiling adds each spec's estimate to spend already measured in the catalog. Distill tokens are priced at $0 and Modal server time never enters the catalog, so the ceiling does not bound the server cost. The operator's controls for it are `modal billing report` and stopping the app.

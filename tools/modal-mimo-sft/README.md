@@ -43,4 +43,6 @@ SGLang serves PEFT LoRA adapters for the `qwen3_5` hybrid: `Qwen3_5ForCausalLM.s
 
 - Never run: image build, 32K-context LoRA memory fit on A100-80GB, or the 1000 tok/s guess are unverified until a gated run. `causal_conv1d`/`fla` kernels are intentionally absent (transformers has torch fallbacks); training works but linear-attention layers run un-fused.
 - Dry-run masking is O(turns^2) renders per conversation; fine for pilot scale, not for millions of rows.
+- **Reasoning in history.** Training renders every earlier assistant turn with its reasoning. At serving time, SGLang's `mimo` parser moves reasoning into `reasoning_content`, so earlier turns come back to the model with only their `content` unless the harness returns reasoning too. Check which one Terminus-2 sends before reading much into a tuned-vs-base difference. If only `content` comes back, drop reasoning from non-final turns in `to_template_messages`.
+- **No route for the adapter yet.** Evaluating an adapter needs the #506 server started with `--enable-lora --lora-paths`, plus a `selfhosted/…` selector that names the adapter. The route currently pins the base model name. Neither is built.
 - `train`/`merge` need Modal credentials and `--confirm-spend`; nothing starts without both. Root `pyproject.toml`/`uv.lock` are untouched by design.

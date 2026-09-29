@@ -42,7 +42,10 @@ module owns the recording):
     reason is ``agent_timeout``, not an infra failure.
   - ``execution_problems``: counts of parse errors, prose completions,
     provider 400s without usage, unreconciled proxy requests, and whether
-    proxy usage failed reconciliation.
+    proxy usage failed reconciliation (derived from the provider-usage ledger:
+    ``None`` only when there is no ledger). Layer-derived counts are ``None``
+    — never partial counts shown as totals — when any live agent step lacks
+    layers, with the reason carried alongside.
   - ``trajectory_coverage``: ``trajectory_head``,
     ``continuation_indices`` / ``continuation_count`` /
     ``continuations_missing`` (same names and meanings as the HAR-93 capture
@@ -605,10 +608,22 @@ def synthesize_atif_calls(
 
 
 def summarize_layers(
-    steps: Sequence[Any], layers_by_index: Mapping[int, Any]
+    steps: Sequence[Any],
+    layers_by_index: Mapping[int, Any],
+    *,
+    layers_missing_why: str | None = None,
 ) -> dict[str, Any]:
-    """Count layer outcomes over raw steps for execution-problem reporting."""
-    summary = {
+    """Count layer outcomes over raw steps for execution-problem reporting.
+
+    Provenance counts (recorded, reconstructed, copied, missing) are always
+    exact. The outcome counts (parse errors, prose completions, executed
+    calls, task-complete turns) are only exact when every live agent step has
+    layers: with any step missing, a partial count would read as a total, so
+    those fields are ``None`` with ``layers_unknown_reason`` carrying why.
+    Copied-context steps are context replay, not live turns: without layers
+    they count as copied, never missing.
+    """
+    summary: dict[str, Any] = {
         "agent_steps": 0,
         "recorded": 0,
         "reconstructed": 0,
@@ -618,6 +633,7 @@ def summarize_layers(
         "prose_completions": 0,
         "executed_calls": 0,
         "task_complete_turns": 0,
+        "layers_unknown_reason": None,
     }
     for index, step in enumerate(steps):
         if not isinstance(step, Mapping) or step.get("source") != "agent":
@@ -625,10 +641,13 @@ def summarize_layers(
         summary["agent_steps"] += 1
         layers = layers_by_index.get(index)
         if not isinstance(layers, Mapping):
-            summary["missing"] += 1
+            if step.get("is_copied_context"):
+                summary["copied"] += 1
+            else:
+                summary["missing"] += 1
             continue
         provenance = layers.get("provenance")
-        if provenance in summary:
+        if provenance in ("recorded", "reconstructed", "copied"):
             summary[provenance] += 1
         else:
             summary["missing"] += 1
@@ -644,6 +663,16 @@ def summarize_layers(
                 summary["executed_calls"] += 1
         if accepted.get("task_complete"):
             summary["task_complete_turns"] += 1
+    if summary["missing"]:
+        why = layers_missing_why or "no recorded step_layers and no reconstructed layers"
+        summary["layers_unknown_reason"] = (
+            f"layers missing for {summary['missing']} of {summary['agent_steps']} "
+            f"agent steps: {why}"
+        )
+        summary["parse_errors"] = None
+        summary["prose_completions"] = None
+        summary["executed_calls"] = None
+        summary["task_complete_turns"] = None
     return summary
 
 
@@ -1002,6 +1031,27 @@ def _provider_400s(provider_usage: Any) -> tuple[int | None, int | None]:
     return bad, unresolved
 
 
+def _ledger_unreconciled(provider_usage: Any) -> bool | None:
+    """Whether the proxy ledger shows unreconciled work, or ``None`` without one.
+
+    ``True`` when any call's ``state`` is not ``"reconciled"`` or
+    ``unresolved_requests`` is positive; ``False`` when a ledger is present
+    and every call reconciled with nothing unresolved.
+    """
+    if not isinstance(provider_usage, Mapping):
+        return None
+    calls = provider_usage.get("calls")
+    if not isinstance(calls, list):
+        return None
+    for call in calls:
+        if isinstance(call, Mapping) and call.get("state") != "reconciled":
+            return True
+    unresolved = provider_usage.get("unresolved_requests")
+    return (
+        isinstance(unresolved, int) and not isinstance(unresolved, bool) and unresolved > 0
+    )
+
+
 def execution_problems(
     *,
     layer_summary: Mapping[str, Any] | None = None,
@@ -1017,6 +1067,10 @@ def execution_problems(
         failure = metadata.get("failure_reason") or metadata.get("proxy_failure")
         if isinstance(failure, str) and "unreconciled" in failure:
             unreconciled = True
+    if unreconciled is None:
+        # A present ledger answers the question itself: ``None`` then means
+        # "no ledger", never "looked and found nothing".
+        unreconciled = _ledger_unreconciled(metadata.get("provider_usage"))
     problems: dict[str, Any] = {
         "parse_errors": summary.get("parse_errors"),
         "prose_completions": summary.get("prose_completions"),

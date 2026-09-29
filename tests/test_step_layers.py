@@ -318,8 +318,9 @@ def test_execution_problems_keep_unknowns_null() -> None:
     assert problems["parse_errors"] == 2
     assert problems["http_400_no_usage"] == 1
     assert problems["proxy_unresolved_requests"] == 1
-    assert problems["proxy_usage_unreconciled"] is None
-    assert problems["coverage"] != "complete"
+    assert problems["proxy_usage_unreconciled"] is True
+    # The ledger answers the last unknown, so this fixture is fully known.
+    assert problems["coverage"] == "complete"
     empty = execution_problems()
     assert all(value is None for key, value in empty.items() if key != "coverage")
 
@@ -331,6 +332,70 @@ def test_summarize_counts_provenance_not_zeros() -> None:
     assert summary["agent_steps"] == 2
     assert summary["reconstructed"] == 1
     assert summary["missing"] == 1
+
+
+def test_missing_layers_read_unknown_not_zero() -> None:
+    steps = [_agent("a"), _agent("b")]
+    summary = summarize_layers(steps, {})
+    assert summary["agent_steps"] == 2
+    assert summary["missing"] == 2
+    assert summary["parse_errors"] is None
+    assert summary["prose_completions"] is None
+    assert summary["executed_calls"] is None
+    assert summary["task_complete_turns"] is None
+    assert summary["layers_unknown_reason"] == (
+        "layers missing for 2 of 2 agent steps: "
+        "no recorded step_layers and no reconstructed layers"
+    )
+    problems = execution_problems(layer_summary=summary, lab_metadata={})
+    assert problems["parse_errors"] is None
+    assert problems["prose_completions"] is None
+    assert problems["proxy_usage_unreconciled"] is None
+    assert problems["coverage"] == (
+        "unknown: http_400_no_usage, parse_errors, prose_completions, "
+        "proxy_unresolved_requests, proxy_usage_unreconciled"
+    )
+
+
+def test_missing_layers_reason_names_parser_clause() -> None:
+    summary = summarize_layers(
+        [_agent("a")],
+        {},
+        layers_missing_why="no recorded step_layers and Harbor's Terminus parser is not importable",
+    )
+    assert summary["layers_unknown_reason"] == (
+        "layers missing for 1 of 1 agent steps: "
+        "no recorded step_layers and Harbor's Terminus parser is not importable"
+    )
+
+
+def test_copied_step_without_layers_is_copied_not_missing() -> None:
+    live = _agent("a")
+    replay = {"source": "agent", "message": "b", "is_copied_context": True}
+    summary = summarize_layers([live, replay], {})
+    assert summary["agent_steps"] == 2
+    assert summary["copied"] == 1
+    assert summary["missing"] == 1
+    assert summary["parse_errors"] is None
+    only_replay = summarize_layers([replay], {})
+    assert only_replay["copied"] == 1
+    assert only_replay["missing"] == 0
+    assert only_replay["layers_unknown_reason"] is None
+    assert only_replay["parse_errors"] == 0
+
+
+def test_ledger_reconciled_is_false_not_none() -> None:
+    lab = {"provider_usage": {
+        "calls": [
+            {"status": 200, "state": "reconciled"},
+            {"status": 200, "state": "reconciled"},
+        ],
+        "unresolved_requests": 0,
+    }}
+    problems = execution_problems(layer_summary={}, lab_metadata=lab)
+    assert problems["proxy_usage_unreconciled"] is False
+    assert problems["proxy_unresolved_requests"] == 0
+    assert problems["http_400_no_usage"] == 0
 
 
 def test_diagnose_atif_scored_timeout_is_scored() -> None:

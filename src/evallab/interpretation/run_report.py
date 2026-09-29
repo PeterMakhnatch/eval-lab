@@ -60,6 +60,7 @@ from evallab.step_layers import (
     STEP_LAYERS_KEY,
     StitchStats,
     classify_stop_reason,
+    copied_layers,
     coverage_record,
     discover_trajectory_parts,
     execution_problems,
@@ -616,13 +617,14 @@ def _observation_results(raw_step: dict[str, Any]) -> list[dict[str, Any]]:
         results.extend(r for r in raw_step["observation_results"] if isinstance(r, dict))
     return results
 
-
 def _replay_parser() -> Any:
     """Stock Terminus parser for offline layer reconstruction, or None.
 
     Harbor-free environments (and unit tests) get ``None``: steps then keep
     their recorded layers only, and anything else reads as missing instead
-    of being guessed.
+    of being guessed. To reconstruct pre-HAR-92 trials on such a machine,
+    run the report with Harbor on the path instead, e.g.
+    ``uv run --no-sync --with harbor==0.21.0 evallab report run --json <trial-dir>``.
     """
     try:
         from evallab.harbor_terminus import mimo_replay_parser
@@ -644,6 +646,11 @@ def _positioned_layers(
             layers.append(None)
             continue
         if parse is None:
+            if raw.get("is_copied_context"):
+                # Copied context is replay, not a live turn: its evidence is in
+                # the head segment, so it is never "missing", parser or not.
+                layers.append(copied_layers())
+                continue
             extra = raw.get("extra")
             stored = extra.get(STEP_LAYERS_KEY) if isinstance(extra, dict) else None
             layers.append(stored if isinstance(stored, dict) else None)
@@ -1990,10 +1997,16 @@ def build_run_report(
         if segments
         else None,
     )
-    for gap in coverage["gaps"]:
-        quality.append(f"trajectory coverage gap: {gap}")
     layer_summary = summarize_layers(
-        [raw for _, raw in positioned], dict(enumerate(layers))
+        [raw for _, raw in positioned],
+        dict(enumerate(layers)),
+        layers_missing_why=(
+            "no recorded step_layers and Harbor's Terminus parser is not importable "
+            "for reconstruction (retry with `uv run --no-sync --with harbor==0.21.0 "
+            "evallab report run --json <trial-dir>`)"
+            if parse is None
+            else None
+        ),
     )
     lab_metadata = _lab_metadata(trial)
     last_task_complete, last_prose_completion = _final_turn_flags(positioned, layers)
@@ -2299,9 +2312,15 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
     ]
     if problems.get("proxy_usage_unreconciled") is True:
         problem_bits.append("proxy usage failed reconciliation")
+    if problem_bits:
+        problems_text = ", ".join(problem_bits)
+    elif problems.get("coverage") != "complete":
+        problems_text = "unknown"
+    else:
+        problems_text = "none recorded"
     lines.append(
         "- Execution problems: "
-        + (", ".join(problem_bits) if problem_bits else "none recorded")
+        + problems_text
         + (f" ({problems['coverage']})" if problems.get("coverage") != "complete" else "")
         + "."
     )

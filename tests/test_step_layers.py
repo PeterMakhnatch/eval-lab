@@ -122,6 +122,18 @@ def test_recorded_layers_pass_through_untouched() -> None:
     assert reconstruct_layers(step, parse=_parse) == recorded
 
 
+def test_prompt_steps_get_no_layers_even_with_example_commands() -> None:
+    # Terminus's instruction prompt shows an example response; HAR-90's
+    # 0036-e report counted its commands as three executed tool calls.
+    example = json.dumps(
+        {"commands": [{"keystrokes": "ls -la\n"}, {"keystrokes": "cd project\n"}],
+         "task_complete": True}
+    )
+    for source in ("user", "system"):
+        step = {"source": source, "message": f"Respond like this:\n{example}"}
+        assert reconstruct_layers(step, parse=lambda _: _parse(example)) is None
+
+
 def test_prose_flag_maps_to_task_complete_without_finish_reason() -> None:
     step = _agent("done, all green", prose_completion=True)
     layers = reconstruct_layers(step, parse=_parse)

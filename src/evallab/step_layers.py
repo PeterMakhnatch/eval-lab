@@ -449,6 +449,8 @@ def reconstruct_layers(step: Mapping[str, Any], *, parse: ParserFn) -> dict[str,
     that already carry recorded layers are returned as-is; copied-context
     steps yield null layers (evidence is in the head segment).
     """
+    if step.get("source") != "agent":
+        return None
     extra = step.get("extra")
     extra = extra if isinstance(extra, Mapping) else {}
     stored = extra.get(STEP_LAYERS_KEY)

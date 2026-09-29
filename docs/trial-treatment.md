@@ -71,9 +71,20 @@ The command exits 0 and prints `POOLABLE` only when every setup field agrees. Ot
 | Column | Meaning |
 |---|---|
 | `trajectory_head` | `agent/trajectory.json` exists |
+| `trajectory_session_ids` | distinct top-level `session_id` values across the head and continuations (subagent sessions excluded) |
 | `continuation_indices`, `continuation_count` | which `trajectory.cont-N.json` files exist |
-| `summarization_count` | `result.json` `agent_result.metadata.summarization_count`, or null |
-| `continuations_missing` | continuation indices 1..`summarization_count` with no file, or null when the count is unknown |
+| `continuation_step_ranges` | per-file `[first, last]` step ids, as JSON (`{"head": [...], "cont": {index: [...]}}`) |
+| `continuation_full_copy` | every continuation starts at step 1: the trial never split, so index gaps are failed summarization attempts, not lost files. Null with no continuations. |
+| `continuation_split` | a continuation starts past step 1 or runs under a different session than the head: Harbor actually compacted the context |
+| `summarization_count` | `result.json` `agent_result.metadata.summarization_count`, or null. Harbor increments it on every attempt, so it should equal `overflow_cycles`. |
+| `trial_log_present`, `trial_log_lines` | the trial left a `trial.log` |
+| `overflow_reactive_cycles` | `trial.log` "Context length exceeded" lines: reactive fallback runs |
+| `overflow_proactive_attempts`, `overflow_proactive_errors` | `trial.log` "Proactively summarizing" / "Error in proactively summarizing" lines |
+| `overflow_cycles` | reactive plus proactive. The evidence for how many chances the context handling had. |
+| `summary_full_succeeded/failed`, `summary_short_succeeded/failed` | `trial.log` full/short summary outcomes |
+| `fallback_chat_failed/succeeded` | `trial.log` fallback-chat outcomes |
+| `summary_subagent_saves`, `questions_subagent_saves` | `trial.log` subagent-trajectory save lines |
+| `history_context_diverged` | the log unwound the chat without any split: the stored steps are complete, but the model never saw them as one context. Null without a log. |
 | `summarization_files` | `trajectory.summarization-*.json` files |
 | `n_episodes`, `trajectory_steps`, `trajectory_steps_unmetered` | Harbor's episode count, and the unique steps across head and continuations. Identical steps repeated in several files count once. Unmetered steps are agent steps without `metrics`. |
 | `verifier_stdout`, `verifier_reward_file`, `recording_cast` | files present |
@@ -82,7 +93,8 @@ The command exits 0 and prints `POOLABLE` only when every setup field agrees. Ot
 | `result_*_tokens` | `agent_result.n_input_tokens` / `n_output_tokens` |
 | `trajectory_*_tokens` | sum of per-step `metrics` over unique main-trajectory steps plus summarization trajectories |
 | `proxy_*_tokens` | ledger totals |
-| `input_tokens_unattributed` | ledger input minus trajectory-attributed input. This is traffic the saved trajectories don't account for, such as continuation files that were overwritten. |
+| `input_tokens_unattributed` | ledger input minus trajectory-attributed input |
+| `token_gap_basis` | what the gap is: overflow cycles plus unresolved ledger requests, i.e. calls that failed or were never recorded — not missing files |
 
 ## Example (HAR-90, 2026-09-29)
 
@@ -95,4 +107,4 @@ The six `har90-mimo-0036*` trials are refused as a pool. They ran under four par
 
 They also differ in `max_tokens`, the summarization threshold and the request and token ceilings.
 
-`har90-mimo-0758-c` saved only `trajectory.cont-31.json` of 31 continuations. Its trajectories account for 5.5M of the ledger's 26.2M input tokens.
+Neither `har90-mimo-0758-b` nor `0758-c` ever split. Both continuations reuse the main session and start at step 1 (`continuation_full_copy`, with the head's first steps byte-identical in 0758-c), so the index gaps count failed attempts: 0758-c ran 31 reactive fallback cycles (full summary failed every time, short summary succeeded, fallback chat failed 30 times and the 31st ended in the final dump), and 0758-b ran 9 proactive attempts (all errored, 2 summary saves) plus 2 fallback cycles. `history_context_diverged` is set on both: the stored steps are complete, but the model never saw them as one context. The ledger-vs-trajectory gaps (3.6M on 0758-b, 20.6M on 0758-c) are failed or unrecorded calls — `token_gap_basis` cites the cycle counts and the unresolved ledger requests instead of missing files.

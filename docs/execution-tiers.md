@@ -309,8 +309,16 @@ Two Terminus-specific knobs:
 
 - Harness config `trajectory_config` (exactly `raw_content` and
   `linear_history`, both booleans, both false unless set): passed through to
-  the native Terminus 2 kwarg and covered by the harness-tree digest. SFT
-  export sets both true for raw LLM responses and linear segments.
+  the native Terminus 2 kwarg and covered by the harness-tree digest. Set
+  them only for SFT export (raw LLM responses, linear segments), as
+  `research/experiments/har81-mimo-sft/harness/` does; runs meant for
+  evaluation or trace analysis keep the defaults. `raw_content` writes no
+  `tool_calls` and `linear_history` splits a summarized run into
+  `trajectory.cont-N.json` files. For trials already recorded that way, the
+  ATIF projection, `traj outline`/`card` and `report run` read the calls
+  the harness accepted from `extra.step_layers`
+  (`step_layers.effective_tool_calls`), in stock Terminus-2 shape
+  (`bash_command`, `mark_task_complete`).
 - `evallab tasks replay <retained-spec> --name <n> --model <selector>` swaps
   only the model (e.g. base to checkpoint), keeping the retained task,
   harness, and ceilings; the printed cost estimate must be re-checked before

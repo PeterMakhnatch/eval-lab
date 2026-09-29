@@ -28,7 +28,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from evallab.results import sha256_file
-from evallab.step_layers import StitchStats, stitch_steps
+from evallab.step_layers import StitchStats, effective_tool_calls, stitch_steps
 from evallab.storage.paths import (
     derived_root_from_environment,
     resolve_runs_roots,
@@ -684,7 +684,7 @@ def _extract_command_string(call_args: Any) -> str | None:
     if isinstance(call_args, str):
         return call_args.strip()
     if isinstance(call_args, dict):
-        for key in ("cmd", "command", "input", "script", "code"):
+        for key in ("cmd", "command", "keystrokes", "input", "script", "code"):
             if key in call_args and isinstance(call_args[key], str):
                 return call_args[key].strip()
         # Fallback to compact JSON string
@@ -785,8 +785,7 @@ def extract_loop_step(raw_step: dict[str, Any]) -> tuple[LoopStep, str | None, E
     classification (probe flag, category) from the same single
     ``classify_step_error`` call, so no consumer classifies twice.
     """
-    tool_calls_value = raw_step.get("tool_calls")
-    tool_calls = tool_calls_value if isinstance(tool_calls_value, list) else []
+    tool_calls = effective_tool_calls(raw_step)
     primary_tool_name = None
     primary_tool_cmd = None
     if tool_calls and isinstance(tool_calls[0], dict):
@@ -1713,8 +1712,7 @@ def outline_trajectory(
             is_redacted = True
             redaction_digest = redact_match.group("digest")
 
-        tool_calls_value = raw_step.get("tool_calls")
-        tool_calls = tool_calls_value if isinstance(tool_calls_value, list) else []
+        tool_calls = effective_tool_calls(raw_step)
         if tool_calls and isinstance(tool_calls[0], dict):
             for tc in tool_calls:
                 if not isinstance(tc, dict):

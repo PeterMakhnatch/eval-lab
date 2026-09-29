@@ -79,7 +79,7 @@ def test_exec_turn_reconstructs_calls_with_feedback_free_observation() -> None:
     assert layers["executed"]["keystrokes_sent"] == ["ls\n"]
     assert layers["observed"]["output"] == "app\n"
     calls = synthesize_atif_calls(step, layers)
-    assert calls[0]["function_name"] == "exec"
+    assert calls[0]["function_name"] == "bash_command"
     # Synthesized ATIF carries the parsed text; the Enter the harness sends
     # lives in the executed layer above.
     assert calls[0]["arguments"]["keystrokes"] == "ls"
@@ -141,7 +141,7 @@ def test_prose_flag_maps_to_task_complete_without_finish_reason() -> None:
     assert layers["accepted"]["kind"] == "prose_completion"
     assert layers["accepted"]["task_complete"] is True
     calls = synthesize_atif_calls(step, layers)
-    assert len(calls) == 1 and calls[0]["function_name"] == "task_complete"
+    assert len(calls) == 1 and calls[0]["function_name"] == "mark_task_complete"
 
 
 def test_task_complete_turn_synthesizes_completion_call() -> None:
@@ -150,7 +150,7 @@ def test_task_complete_turn_synthesizes_completion_call() -> None:
     layers = reconstruct_layers(step, parse=_parse)
     assert layers is not None
     assert layers["accepted"]["task_complete"] is True
-    assert synthesize_atif_calls(step, layers)[0]["function_name"] == "task_complete"
+    assert synthesize_atif_calls(step, layers)[0]["function_name"] == "mark_task_complete"
 
 
 def test_feedback_detector_and_executed_verdict() -> None:

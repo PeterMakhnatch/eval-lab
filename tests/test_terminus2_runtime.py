@@ -89,6 +89,17 @@ class _FakeTerminus2:
     def populate_context_post_run(self, context: Any) -> None:
         del context
 
+    def _dump_trajectory_with_continuation_index(self, continuation_index: int) -> None:
+        del continuation_index
+
+    def _dump_trajectory(self) -> None:
+        # Mirrors Harbor 0.21.0: the plain dump delegates to the indexed dump.
+        self._dump_trajectory_with_continuation_index(0)
+
+    async def _execute_commands(self, commands: Any, session: Any) -> Any:
+        del session
+        return False, "stub terminal output\n"
+
 
 def _module(name: str, **attributes: Any) -> ModuleType:
     module = ModuleType(name)
@@ -765,3 +776,68 @@ def test_list_swap_keeps_bridge_record_without_double_counting(
     assert layers["provenance"] == "recorded"
     assert layers["executed"]["keystrokes_sent"] == ["bridging turn"]
     assert agent._layer_queue == []
+
+
+def _parsed_pending(message: str, keystrokes: str, *, parse_error: str | None = None) -> dict[str, Any]:
+    """A ``_pending_layer`` as ``_handle_llm_interaction`` builds it after a parse."""
+    return {
+        "message": message,
+        "reasoning": None,
+        "prose_mapped": False,
+        "commands": [(keystrokes, 0.5)],
+        "task_complete": False,
+        "parse_error": parse_error,
+        "exec": None,
+    }
+
+
+def test_split_between_parse_and_execute_keeps_executed_layer(
+    trial_transport: Any, tmp_path: Path
+) -> None:
+    """A split dump must not abandon the live turn (HAR-92 follow-up).
+
+    Drives Harbor 0.21.0's real call order in ``linear_history`` mode: parse
+    (``_handle_llm_interaction``) leaves ``_pending_layer`` set, the pending
+    handoff splits (``_run_agent_loop``:1322 dumps via
+    ``_dump_trajectory_with_continuation_index`` *before* ``_execute_commands``
+    at :1399), then the turn executes, its step is appended (:1503), and the
+    episode dump (:1529) annotates.
+    """
+    agent = trial_transport.SecretSafeTerminus2(logs_dir=tmp_path, model_name="zai/glm-5.3-flash")
+    agent._save_raw_content_in_trajectory = True
+    agent._trajectory_steps = []
+    agent._pending_layer = _parsed_pending("run the migration", "run-migration\n")
+    agent._dump_trajectory_with_continuation_index(0)
+    assert agent._pending_layer is not None, "split dump abandoned a live turn"
+    command = SimpleNamespace(keystrokes="run-migration\n", duration_sec=0.5)
+    asyncio.run(agent._execute_commands([command], object()))
+    agent._trajectory_steps.append(_agent_step("run the migration"))
+    agent._dump_trajectory()
+    layers = (agent._trajectory_steps[0].extra or {}).get("step_layers")
+    assert layers is not None, "executed turn lost its episode record at the split"
+    assert layers["provenance"] == "recorded"
+    assert layers["accepted"]["kind"] == "calls"
+    assert layers["executed"]["keystrokes_sent"] == ["run-migration\n"]
+    assert layers["executed"]["reason"] is None
+    assert layers["observed"]["output"] == "stub terminal output\n"
+
+
+def test_cancelled_turn_before_execute_keeps_not_executed_reason(
+    trial_transport: Any, tmp_path: Path
+) -> None:
+    """A turn parsed but cancelled before execute still records a reason (HAR-92)."""
+    agent = trial_transport.SecretSafeTerminus2(logs_dir=tmp_path, model_name="zai/glm-5.3-flash")
+    agent._save_raw_content_in_trajectory = True
+    agent._trajectory_steps = []
+    agent._pending_layer = _parsed_pending("run the migration", "run-migration\n")
+    # Cancel/timeout: run()'s finally reaches _dump_trajectory (terminus_2.py:1643).
+    agent._dump_trajectory()
+    assert agent._pending_layer is None
+    agent._trajectory_steps.append(_agent_step("run the migration"))
+    agent._dump_trajectory()
+    layers = (agent._trajectory_steps[0].extra or {}).get("step_layers")
+    assert layers is not None, "cancelled turn lost its proposed/accepted layers"
+    assert layers["provenance"] == "recorded"
+    assert layers["executed"]["keystrokes_sent"] is None
+    assert layers["executed"]["reason"] == "episode interrupted before execution"
+    assert layers["observed"]["output"] is None

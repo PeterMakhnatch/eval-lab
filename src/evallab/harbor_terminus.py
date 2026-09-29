@@ -737,11 +737,30 @@ class SecretSafeTerminus2(Terminus2):
 
     def _dump_trajectory_with_continuation_index(self, continuation_index: int) -> None:
         self._flag_prose_completion_step()
-        # A turn interrupted after its parse (timeout, cancel) never reached
-        # execution; flush it so its proposed/accepted layers are still kept.
-        self._flush_pending_layer("episode interrupted before execution")
+        # Never flush the pending turn here: Harbor's summarization split
+        # dumps through this path *between* a turn's parse and its execution
+        # (``_split_trajectory_on_summarization`` runs before
+        # ``_execute_commands`` for the same turn), so the turn is still live
+        # and its executed layer must survive. Truly abandoned turns are
+        # flushed in ``_dump_trajectory`` (cancel/timeout end of run) or at
+        # the next ``_handle_llm_interaction`` (parse errors).
         self._annotate_step_layers()
         super()._dump_trajectory_with_continuation_index(continuation_index)
+
+    def _dump_trajectory(self) -> None:
+        # End-of-run (and per-episode) dump: a pending turn that never reached
+        # execution is truly abandoned here — cancel/timeout ended the run, or
+        # a parse-error turn never executes — so keep its proposed/accepted
+        # layers with a not-executed executed layer. The per-episode call runs
+        # after ``_execute_commands``, so a live pending never exists there.
+        pending = self._pending_layer
+        if pending is not None:
+            self._flush_pending_layer(
+                "parse_error: nothing executed"
+                if pending.get("parse_error")
+                else "episode interrupted before execution"
+            )
+        super()._dump_trajectory()
 
     def _flag_prose_completion_step(self) -> None:
         anchor = self._pending_prose_step

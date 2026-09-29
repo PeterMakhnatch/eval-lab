@@ -246,7 +246,14 @@ def cmd_prepare(args: argparse.Namespace) -> None:
         for arm in BATCH_ARMS[args.batch]:
             name = spec_name(args.batch, arm, task["task_id"])
             out = out_dir / f"{name}.json"
-            subprocess.run(
+            if out.exists():
+                # `tasks prepare` refuses to overwrite a spec that differs from its request.
+                # The storage override is the one field this script adds, so drop it before
+                # the comparison; any other drift still fails the run.
+                existing = json.loads(out.read_text())
+                if existing.pop("override_storage_mb", None) is not None:
+                    out.write_text(json.dumps(existing, indent=2) + "\n")
+            result = subprocess.run(
                 [
                     "uv",
                     "run",
@@ -280,9 +287,11 @@ def cmd_prepare(args: argparse.Namespace) -> None:
                     "--json",
                 ],
                 cwd=ROOT,
-                check=True,
                 capture_output=True,
+                text=True,
             )
+            if result.returncode:
+                raise SystemExit(f"prepare {name} failed:\n{result.stderr.strip()}")
             if profile["override_storage_mb"]:
                 spec = json.loads(out.read_text())
                 spec["override_storage_mb"] = profile["override_storage_mb"]

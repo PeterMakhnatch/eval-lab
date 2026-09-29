@@ -1,0 +1,29 @@
+{
+  "schema": "evallab.task_finding/v1",
+  "task_version_digest": "sha256:90be868f403beffbd2da6923cfcec8cd7df50995e98a3265b4421b3072eec1f7",
+  "task_id": "candidate-0674-ml-evaluation",
+  "domain": "terminal",
+  "rule": "grader-broken",
+  "severity": "error",
+  "message": "The grader's pytest collection fails with ModuleNotFoundError: No module named 'torch' (not installed in the image, not named in the instruction), so every run scores 0 whatever the agent does. Seen on all 3 RepeatVerifier grades of the HAR-88 Daytona nop run.",
+  "evidence": [
+    {
+      "path": "runs/mimo-qual-t-candidate-0674-ml-evaluation/mimo-qual-t-candidate-0674-ml-ev__S9ThpK7/verifier/test-stdout.txt",
+      "sha256": "sha256:b60a7cbdb4398d16ac76b721ff9f14031bb9dec8104cb0e2f3dade5c21575177"
+    },
+    {
+      "path": "runs/mimo-qual-t-candidate-0674-ml-evaluation/mimo-qual-t-candidate-0674-ml-ev__S9ThpK7/verifier/repeat/0/test-stdout.txt",
+      "sha256": "sha256:b60a7cbdb4398d16ac76b721ff9f14031bb9dec8104cb0e2f3dade5c21575177"
+    },
+    {
+      "path": "runs/mimo-qual-t-candidate-0674-ml-evaluation/mimo-qual-t-candidate-0674-ml-ev__S9ThpK7/verifier/repeat/1/test-stdout.txt",
+      "sha256": "sha256:abdb7a8e47c0728364a5b6e02b2df5cc9c29387c50d8245a6190c662a9f8b056"
+    },
+    {
+      "path": "runs/mimo-qual-t-candidate-0674-ml-evaluation/mimo-qual-t-candidate-0674-ml-ev__S9ThpK7/verifier/repeat/2/test-stdout.txt",
+      "sha256": "sha256:c46c7aed829f25c8852d2442ea2f9f328e207f3cce209b13768548255d45a2d2"
+    }
+  ],
+  "recorded_at": "2026-09-29T02:10:00Z",
+  "recorded_by": "har88-qualification"
+}

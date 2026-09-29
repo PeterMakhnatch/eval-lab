@@ -757,6 +757,67 @@ def test_collect_trial_grader_guard_from_staged_instruction(tmp_path: Path) -> N
     assert row["grader_error"] is None
 
 
+def test_collect_trial_resolves_task_after_queue_stage_removed(tmp_path: Path) -> None:
+    """Queue runs delete the staged copy; the source task path still resolves."""
+    checkout = tmp_path / "checkout"
+    source = checkout / "derived" / "task-store" / "qual-task"
+    source.mkdir(parents=True)
+    (source / "task.toml").write_text(TASK_TOML)
+    (source / "instruction.md").write_text("Create /app/solution.py now.\n")
+    gone = checkout / "runs" / ".exec-stage" / "jobq"
+    job = _write_job(checkout / "runs", "jobq", [
+        {"name": "t__nop", "agent": "nop", "reward": 0.0, "env_type": "daytona"},
+    ], staged=gone)
+    (job / "experiment-spec.json").write_text(
+        json.dumps({"task": "derived/task-store/qual-task"})
+    )
+    (job / "t__nop" / "verifier" / "test-stdout.txt").write_text(
+        "ERROR collecting tests/test_out.py\n"
+        "E   ModuleNotFoundError: No module named 'solution'\n"
+        "Interrupted: 1 error during collection\n"
+    )
+    (row,) = collect_jobs([job], rate_backend="daytona")
+    assert (row["cpus"], row["memory_mb"], row["storage_mb"]) == (2, 2048, 10240)
+    assert row["est_cost_usd"] is not None and row["est_cost_usd"] > 0
+    # The source instruction.md feeds the nop guard.
+    assert row["reasons"] == []
+    assert row["grader_error"] is None
+
+
+def _import_error_stdout(innermost_frame: str) -> str:
+    return (
+        "==================================== ERRORS ====================================\n"
+        "___________________ ERROR collecting ../tests/test_outputs.py ___________________\n"
+        "ImportError while importing test module '/tests/test_outputs.py'.\n"
+        "Hint: make sure your test modules/packages have valid Python names.\n"
+        "Traceback:\n"
+        "/usr/local/lib/python3.12/importlib/__init__.py:90: in import_module\n"
+        "    return _bootstrap._gcd_import(name[level:], package, level)\n"
+        "/tests/test_outputs.py:10: in <module>\n"
+        "    from peewee import SqliteDatabase\n"
+        f"{innermost_frame}:124: in <module>\n"
+        "    from collections import Callable\n"
+        "E   ImportError: cannot import name 'Callable' from 'collections'\n"
+        "=========================== short test summary info ============================\n"
+        "Interrupted: 1 error during collection\n"
+    )
+
+
+def test_detect_grader_skips_import_error_raised_in_agent_workspace() -> None:
+    """Broken code the agent may edit (vendored sources) is not a grader defect."""
+    for workspace in ("vendor/peewee/peewee.py", "/app/vendor/peewee/peewee.py"):
+        assert detect_grader_collection_failure(
+            [_import_error_stdout(workspace)], instruction_text="Repair the ORM.\n"
+        ) is None
+    for outside in (
+        "/usr/local/lib/python3.12/site-packages/peewee.py",
+        "/tests/helpers.py",
+    ):
+        assert detect_grader_collection_failure(
+            [_import_error_stdout(outside)], instruction_text="Repair the ORM.\n"
+        ) == "ImportError while importing test module '/tests/test_outputs.py'."
+
+
 def test_collect_trial_reads_repeat_stdout(tmp_path: Path) -> None:
     staged = _write_staged_task(tmp_path)
     job = _write_job(tmp_path, "jobr2", [

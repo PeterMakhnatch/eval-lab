@@ -32,6 +32,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "src"))
 from evallab.execution_contracts import (  # noqa: E402
     MIMO_SELFHOSTED_MODEL_SELECTOR,
+    MIMO_SELFHOSTED_SERVER_USD_PER_HOUR,
     TINKER_MODEL_PRICES_MICROS,
     mimo_selfhosted_trial_cost_usd,
 )
@@ -44,9 +45,15 @@ IDS_DIR = ROOT / "derived/har81"
 COHORT_SALT = "har81-distill"
 PAIR_COUNTS = {"terminal": 7, "cyber": 7, "code": 6}
 HELDOUT_DOMAINS = ("terminal", "cyber", "code")
-#: Queue dispatch width: Tier 2 Daytona fits it, and the server share per trial is
-#: the Modal container rate divided by the trials it batches at once.
+#: Queue dispatch width (`tick --parallel`); Daytona Tier 2 fits it.
 CONCURRENCY = 16
+#: Tasks in the pair's first approval wave: one per domain (cohort lists alternate).
+WAVE1_TASKS = 3
+#: Distill trials sharing the single Modal container, which sets each trial's share of
+#: the server bill (HAR-90's formula divides by it). `submit` interleaves the pair's
+#: arms, so wave 1 runs 3 distill trials at once and a full-width tick runs 8. The
+#: held-out batch is distill only.
+DISTILL_CONCURRENCY = {"wave1": WAVE1_TASKS, "pair": CONCURRENCY // 2, "heldout": CONCURRENCY}
 #: Identical ceilings for both arms. HAR-90's distill trials reached 200 requests or
 #: about 2.4M input tokens in 7-10 minutes, so these ceilings, not the task's agent
 #: timeout, usually end a looping trial.
@@ -59,9 +66,12 @@ TINKER_BASE = "Qwen/Qwen3.5-9B"
 SANDBOX_MARGIN_S = 900
 #: Tasks that declare no disk request Daytona's per-sandbox maximum (HAR-88, #499).
 DAYTONA_MAX_DISK_MB = 10240
-#: Expected-cost assumptions, labelled wherever they are printed.
-EXPECTED_TRIAL_HOURS = 10 / 60
+#: Expected-cost assumptions, labelled wherever they are printed. Trial length is the
+#: mean of HAR-90's two measured distill trials (631 s and 447 s; both ended at a
+#: ceiling before the verifier).
+EXPECTED_TRIAL_HOURS = (631 + 447) / 2 / 3600
 EXPECTED_SETUP_HOURS = 5 / 60
+#: One cold start plus the 300 s idle tail: (208 s + 300 s) x $2.8149/h (HAR-90).
 WARM_PERIOD_USD = 0.40
 ARMS = {
     "d": MIMO_SELFHOSTED_MODEL_SELECTOR,
@@ -112,20 +122,22 @@ def sandbox_usd(profile: dict, seconds: float) -> float:
     )
 
 
-def worst_usd(arm: str, profile: dict) -> float:
-    """Spec estimate: the ceiling plus a sandbox that lives to its TTL and, for the
-    distill, the server share for the full agent timeout at CONCURRENCY."""
+def worst_usd(arm: str, profile: dict, concurrency: int) -> float:
+    """Spec estimate: the ceiling, a sandbox that lives to its TTL and, for the distill,
+    HAR-90's server share for the full agent timeout at `concurrency`."""
     sandbox_s = profile["agent_timeout_s"] + profile["verifier_timeout_s"] + SANDBOX_MARGIN_S
     total = cost_limit_usd(arm) + sandbox_usd(profile, sandbox_s)
     if arm == "d":
-        total += mimo_selfhosted_trial_cost_usd(profile["agent_timeout_s"] / 3600, CONCURRENCY, 0.0)
+        total += mimo_selfhosted_trial_cost_usd(profile["agent_timeout_s"] / 3600, concurrency, 0.0)
     return math.ceil(total * 100) / 100
 
 
-def expected_usd(arm: str, profile: dict, tinker_tokens: tuple[int, int]) -> float:
+def expected_usd(
+    arm: str, profile: dict, concurrency: int, tinker_tokens: tuple[int, int] = (0, 0)
+) -> float:
     total = sandbox_usd(profile, (EXPECTED_TRIAL_HOURS + EXPECTED_SETUP_HOURS) * 3600)
     if arm == "d":
-        return total + mimo_selfhosted_trial_cost_usd(EXPECTED_TRIAL_HOURS, CONCURRENCY, 0.0)
+        return mimo_selfhosted_trial_cost_usd(EXPECTED_TRIAL_HOURS, concurrency, total)
     return total + tinker_token_usd(*tinker_tokens)
 
 
@@ -240,7 +252,7 @@ def cmd_prepare(args: argparse.Namespace) -> None:
     cohort = load_cohort(split)
     out_dir = ROOT / "derived/prepared"
     written = 0
-    for task in cohort[args.batch]:
+    for index, task in enumerate(cohort[args.batch]):
         snapshot = snapshot_dir(split, task)
         profile = task_profile(snapshot)
         for arm in BATCH_ARMS[args.batch]:
@@ -281,7 +293,7 @@ def cmd_prepare(args: argparse.Namespace) -> None:
                     "--cost-limit-usd",
                     f"{cost_limit_usd(arm):.2f}",
                     "--estimated-cost-usd",
-                    f"{worst_usd(arm, profile):.2f}",
+                    f"{worst_usd(arm, profile, spec_concurrency(args.batch, index)):.2f}",
                     "--output",
                     str(out.relative_to(ROOT)),
                     "--json",
@@ -324,7 +336,7 @@ def cmd_submit(args: argparse.Namespace) -> None:
             ]
     ids_path.write_text("\n".join(ids) + "\n")
     rel = ids_path.relative_to(ROOT)
-    wave = len(HELDOUT_DOMAINS) * len(BATCH_ARMS[args.batch])
+    wave = WAVE1_TASKS * len(BATCH_ARMS[args.batch])
     print(f"{len(ids)} specs waiting for approval -> {rel}")
     print(f"  wave 1, one task per domain ({wave} specs):")
     print(
@@ -338,38 +350,52 @@ def cmd_submit(args: argparse.Namespace) -> None:
     print(f"    uv run evallab tick --parallel {CONCURRENCY}")
 
 
+def spec_concurrency(batch: str, index: int) -> int:
+    """Distill trials sharing the server while the cohort's `index`-th task runs."""
+    if batch == "pair" and index < WAVE1_TASKS:
+        return DISTILL_CONCURRENCY["wave1"]
+    return DISTILL_CONCURRENCY[batch]
+
+
 def cmd_costs(_args: argparse.Namespace) -> None:
     split = load_split()
     cohort = load_cohort(split)
-    ceiling_tokens = (MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS)
-    har90_tokens = (2_400_000, 13_000)
-    light_tokens = (480_000, 20_000)
+    token_cases = {
+        "0.48M in": (480_000, 20_000),
+        "HAR-90 2.4M in": (2_400_000, 13_000),
+        "at ceiling": (MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS),
+    }
     print(
         f"Tinker {TINKER_BASE}: cost_limit ${cost_limit_usd('q'):.2f}/trial "
         f"(= {MAX_INPUT_TOKENS:,} in + {MAX_OUTPUT_TOKENS:,} out at list price)"
     )
     print(
-        f"assumptions: expected trial {EXPECTED_TRIAL_HOURS * 60:.0f} min + "
-        f"{EXPECTED_SETUP_HOURS * 60:.0f} min setup; distill server shared by {CONCURRENCY}; "
-        f"+${WARM_PERIOD_USD:.2f} per warm period"
+        f"distill (HAR-90): ${MIMO_SELFHOSTED_SERVER_USD_PER_HOUR:.4f}/h x trial_h / concurrent distill trials + sandbox, "
+        f"+${WARM_PERIOD_USD:.2f} per warm period. Expected trial "
+        f"{EXPECTED_TRIAL_HOURS * 3600:.0f} s (HAR-90 mean) + {EXPECTED_SETUP_HOURS * 60:.0f} min setup"
     )
-    for batch, arms in BATCH_ARMS.items():
-        for arm in arms:
-            rows = [task_profile(snapshot_dir(split, t)) for t in cohort[batch]]
-            worst = sum(worst_usd(arm, p) for p in rows)
+    segments = (
+        ("pair wave 1", "pair", cohort["pair"][:WAVE1_TASKS], 0),
+        ("pair rest", "pair", cohort["pair"][WAVE1_TASKS:], WAVE1_TASKS),
+        ("heldout", "heldout", cohort["heldout"], 0),
+    )
+    for label, batch, tasks, offset in segments:
+        profiles = [task_profile(snapshot_dir(split, t)) for t in tasks]
+        concurrency = spec_concurrency(batch, offset)
+        for arm in BATCH_ARMS[batch]:
+            worst = sum(worst_usd(arm, p, concurrency) for p in profiles)
+            head = f"{label:11} {ARMS[arm]:48} n={len(profiles):3}"
             if arm == "d":
-                exp = sum(expected_usd(arm, p, (0, 0)) for p in rows) + WARM_PERIOD_USD
+                exp = sum(expected_usd(arm, p, concurrency) for p in profiles) + WARM_PERIOD_USD
                 print(
-                    f"{batch:8} {ARMS[arm]:50} n={len(rows):3}  expected ${exp:7.2f}  spec-estimate sum ${worst:7.2f}"
+                    f"{head}  concurrency {concurrency:2}  expected ${exp:6.2f}  spec-estimate sum ${worst:7.2f}"
                 )
             else:
-                light = sum(expected_usd(arm, p, light_tokens) for p in rows)
-                har90 = sum(expected_usd(arm, p, har90_tokens) for p in rows)
-                ceil = sum(expected_usd(arm, p, ceiling_tokens) for p in rows)
-                print(
-                    f"{batch:8} {ARMS[arm]:50} n={len(rows):3}  expected ${light:.2f} (0.48M in) / "
-                    f"${har90:.2f} (HAR-90 2.4M in) / ${ceil:.2f} (at ceiling)  spec-estimate sum ${worst:.2f}"
+                cases = " / ".join(
+                    f"${sum(expected_usd(arm, p, concurrency, tokens) for p in profiles):.2f} ({name})"
+                    for name, tokens in token_cases.items()
                 )
+                print(f"{head}  expected {cases}  spec-estimate sum ${worst:.2f}")
 
 
 def main() -> None:

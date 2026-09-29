@@ -262,3 +262,7 @@ The change log below is historical, not a current inventory or work order.
   rule: the Modal client and the HAR-90 SGLang server app for the self-hosted
   MiMo Terminus-2 route. It is kept out of the root graph because the lab
   reaches the server over HTTP and never imports `modal`.
+- 2026-09-29 — `tools/modal-mimo-sft/` added under the `tools/` bucket rule:
+  the Modal TRL LoRA SFT toolchain for the HAR-81 self-hosted MiMo student.
+  Kept out of the root graph because the lab shells out to it and GPU
+  training deps live only in its Modal image, never in the root `uv.lock`.

@@ -23,9 +23,13 @@ What the model saw (Harbor 0.21.0 ``Terminus2``):
   segment becomes its own conversation, flagged with its continuation
   index. A continuation whose steps equal an already exported segment's
   (a summarization that failed without splitting the chat) is skipped and
-  counted, so the same turns are not trained twice. Summarization
-  *subagent* files (``trajectory.summarization-*``) are teacher-internal
-  context management, never exported, only counted.
+  counted, so the same turns are not trained twice. When Harbor's
+  summarization-attempt count (``agent_result.metadata.summarization_count``)
+  exceeds the continuations that are genuine handoffs (a ``-cont-N`` session
+  or ``is_copied_context`` steps), the stored history is no longer what the
+  model saw: the reactive path unwinds the chat without a split. Such a
+  trial is refused whole, with its attempt and split counts recorded, even
+  if one segment looks fine. Summarization
 * Harbor's stand-in reply when its model call fails ("Technical
   difficulties. Please continue with the task.") is recorded as an agent
   step but is not model output. Every assistant turn is a training target,
@@ -201,6 +205,10 @@ class TrialDisposition:
     #: steps repeat an exported segment's, ``harbor_fallback_only`` when the
     #: segment's first agent step is Harbor's stand-in reply.
     skipped_segments: dict[str, str] = field(default_factory=dict)
+    #: Harbor summarization attempts (None when result.json does not record one).
+    summarization_attempts: int | None = None
+    #: Continuation segments that are genuine handoffs.
+    summarization_splits: int | None = None
 
     def to_json(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -222,6 +230,10 @@ class TrialDisposition:
             out["exception_type"] = self.exception_type
         if self.skipped_segments:
             out["skipped_segments"] = dict(sorted(self.skipped_segments.items()))
+        if self.summarization_attempts is not None:
+            out["summarization_attempts"] = self.summarization_attempts
+        if self.summarization_splits is not None:
+            out["summarization_splits"] = self.summarization_splits
         return out
 
 
@@ -250,6 +262,28 @@ def _read_json(path: Path) -> Any:
         return json.loads(path.read_text())
     except (OSError, ValueError):
         return None
+
+
+def _summarization_attempts(result: dict[str, Any]) -> int | None:
+    """Harbor summarization attempts, None when result.json does not record one."""
+    agent_result = result.get("agent_result")
+    metadata = agent_result.get("metadata") if isinstance(agent_result, dict) else None
+    count = metadata.get("summarization_count") if isinstance(metadata, dict) else None
+    return count if isinstance(count, int) else None
+
+
+def _is_genuine_handoff(payload: dict[str, Any], steps: list[Any]) -> bool:
+    """Whether a continuation segment is a successful summary handoff.
+
+    A split rewinds the chat the continuing model saw: its session id carries
+    a ``-cont-N`` suffix and its first steps are ``is_copied_context``. A dump
+    after a failed attempt has neither (0758-c's cont-31 repeats the unbroken
+    history under the same session after 31 failed attempts).
+    """
+    session_id = payload.get("session_id")
+    if isinstance(session_id, str) and "-cont-" in session_id:
+        return True
+    return any(isinstance(step, dict) and step.get("is_copied_context") for step in steps)
 
 
 def discover_segments(trial_dir: Path) -> tuple[list[SegmentFile], int, int]:
@@ -679,12 +713,33 @@ def export_conversations(
             _exclude(disposition, "no_trajectory")
             continue
 
+        payloads: dict[str, dict[str, Any]] = {}
+        for segment in segments:
+            payload = _read_json(segment.path)
+            payloads[segment.name] = payload if isinstance(payload, dict) else {}
+        attempts = _summarization_attempts(trial.result)
+        splits = sum(
+            1
+            for segment in segments
+            if segment.segment == "continuation"
+            and isinstance(payloads[segment.name].get("steps"), list)
+            and _is_genuine_handoff(payloads[segment.name], payloads[segment.name]["steps"])
+        )
+        disposition.summarization_attempts = attempts
+        disposition.summarization_splits = splits
+        if attempts is not None and attempts > splits:
+            # Attempts rise on every try, but only a successful full summary
+            # splits the linear history; the reactive path unwinds the chat
+            # without a split. The stored files are then not what the model saw.
+            _exclude(disposition, "unsplit_summarization")
+            continue
+
         trial_conversations: list[SegmentConversation] = []
         trial_reasons: list[str] = []
         exported_steps: dict[str, str] = {}
         for segment in segments:
-            payload = _read_json(segment.path)
-            if not isinstance(payload, dict):
+            payload = payloads[segment.name]
+            if not payload:
                 trial_reasons.append("unparseable_trajectory_segment")
                 continue
             steps = payload.get("steps")

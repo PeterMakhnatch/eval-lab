@@ -710,7 +710,10 @@ def _read_proxy_usage(
 
 _TERMINUS_PROXY_HOST = "127.0.0.1"
 _TERMINUS_PROXY_READY_TIMEOUT_SECONDS = 20.0
-_TERMINUS_PROXY_STOP_TIMEOUT_SECONDS = 10.0
+# The proxy drains in-flight provider calls for up to SHUTDOWN_DRAIN_SECONDS
+# (120 s, containers/zai_openapi_secret_proxy.py) on SIGTERM, so a call the
+# agent abandoned at its timeout still settles with real usage. Wait past it.
+_TERMINUS_PROXY_STOP_TIMEOUT_SECONDS = 130.0
 _TERMINUS_PROXY_STDERR_TAIL_BYTES = 4096
 
 

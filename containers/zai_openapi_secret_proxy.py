@@ -11,6 +11,8 @@ Hardening features:
 - Worker bounding before thread creation: rejects excess connections with nonblocking 503.
 - Inbound request deadline: wall-clock timer covers headers+body acquisition.
 - Separate upstream timeout (120s) allowing long model generation without client socket cancellation.
+- Graceful SIGTERM: stop accepting, let in-flight provider calls settle with their real usage,
+  then fail closed on calls still in flight after the drain deadline.
 - Pre-body capability authentication: rejects unauthenticated requests before reading body.
 - Strict upstream response reading: requires bytes_read == declared Content-Length; EOF-short payloads return 502.
 - Size-bounded upstream response reading (limit+1) with sanitized 502 classification.
@@ -30,6 +32,7 @@ import http.client
 import json
 import os
 import re
+import signal
 import socket
 import ssl
 import stat
@@ -59,6 +62,13 @@ REQUEST_TIMEOUT_SECONDS = 15.0
 # Model generation may legitimately outlast a short HTTP request deadline.
 # The trial watchdog and pre-call token/cost reservations remain authoritative.
 UPSTREAM_TIMEOUT_SECONDS = 600.0
+# On SIGTERM, how long in-flight provider calls may run on to settle. A call
+# whose client has gone (Harbor cancels the agent at its timeout) still
+# completes upstream and is reconciled with its real usage; a call still in
+# flight after this deadline is marked unresolved (``in_flight_at_shutdown``).
+# The host supervisor's stop timeout must exceed it (runner.py
+# ``_TERMINUS_PROXY_STOP_TIMEOUT_SECONDS``).
+SHUTDOWN_DRAIN_SECONDS = 120.0
 MAX_CONCURRENT_WORKERS = 32
 
 ALLOWED_HTTP_HOSTS = frozenset(
@@ -851,6 +861,17 @@ class TrialBudget:
             self._sequence += 1
             self._persist_locked()
 
+    def mark_in_flight_unresolved(self, *, reason: str) -> None:
+        """Fail closed on every call still reserved: its usage is unknown."""
+        with self._lock:
+            in_flight = [call for call in self._calls if call["state"] == "reserved"]
+            if not in_flight:
+                return
+            for call in in_flight:
+                call.update({"state": "unresolved", "reason": reason})
+                self._sequence += 1
+            self._persist_locked()
+
     def mark_exceeded(
         self,
         *,
@@ -898,6 +919,8 @@ class ProxyServer(ThreadingHTTPServer):
     ) -> None:
         super().__init__(server_address, RequestHandlerClass)
         self.semaphore = threading.BoundedSemaphore(max_workers)
+        self._in_flight = 0
+        self._idle = threading.Condition()
 
     def process_request(self, request: Any, client_address: Any) -> None:
         """Acquire worker permit before spawning thread; reject 503 if capacity exceeded."""
@@ -921,6 +944,8 @@ class ProxyServer(ThreadingHTTPServer):
             args=(request, client_address),
             daemon=True,
         )
+        with self._idle:
+            self._in_flight += 1
         thread.start()
 
     def _bounded_process_request(self, request: Any, client_address: Any) -> None:
@@ -931,6 +956,22 @@ class ProxyServer(ThreadingHTTPServer):
         finally:
             self.close_request(request)
             self.semaphore.release()
+            with self._idle:
+                self._in_flight -= 1
+                self._idle.notify_all()
+
+    def drain(self, timeout: float = SHUTDOWN_DRAIN_SECONDS) -> None:
+        """Stop accepting and let in-flight calls settle; fail closed after ``timeout``.
+
+        Call after ``serve_forever`` has returned. Each handler reconciles its
+        call before writing the reply, so a call whose client has gone still
+        records its real usage.
+        """
+        self.server_close()
+        with self._idle:
+            settled = self._idle.wait_for(lambda: self._in_flight == 0, timeout)
+        if not settled:
+            self.budget.mark_in_flight_unresolved(reason="in_flight_at_shutdown")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -1434,7 +1475,7 @@ def serve(
     port: int | None = None,
     max_workers: int = MAX_CONCURRENT_WORKERS,
     ready_file: Path | str | None = None,
-) -> ThreadingHTTPServer:
+) -> ProxyServer:
     bound_port = int(os.environ.get("PORT", "8080") if port is None else port)
     # Fail closed at startup on a misconfigured upstream. Providers with a
     # default always pass; providers without one (mimo_selfhosted) refuse to
@@ -1471,13 +1512,27 @@ def _host_entrypoint_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _serve_until_terminated(server: ProxyServer) -> None:
+    """Serve until SIGTERM, then drain in-flight calls before exiting."""
+    # ``shutdown`` blocks until ``serve_forever`` returns, so it cannot run on
+    # the main thread that the signal interrupts.
+    signal.signal(
+        signal.SIGTERM,
+        lambda _signum, _frame: threading.Thread(target=server.shutdown, daemon=True).start(),
+    )
+    server.serve_forever()
+    server.drain()
+
+
 if __name__ == "__main__":
     _entry_args = _host_entrypoint_args()
     if _entry_args.provider is not None:
         os.environ[PROVIDER_ENV] = _entry_args.provider
     _provider_name()  # fail closed on an unknown provider before binding
-    serve(
-        host=_entry_args.host,
-        port=_entry_args.port,
-        ready_file=_entry_args.ready_file,
-    ).serve_forever()
+    _serve_until_terminated(
+        serve(
+            host=_entry_args.host,
+            port=_entry_args.port,
+            ready_file=_entry_args.ready_file,
+        )
+    )

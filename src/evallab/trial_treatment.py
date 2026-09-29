@@ -567,6 +567,105 @@ def _step_identity(step: Mapping[str, Any]) -> str:
     return hashlib.sha256(_canonical(content).encode("utf-8")).hexdigest()
 
 
+def _main_steps(payload: Mapping[str, Any]) -> list[int]:
+    steps = payload.get("steps")
+    if not isinstance(steps, list):
+        return []
+    return [
+        step["step_id"]
+        for step in steps
+        if isinstance(step, dict) and isinstance(step.get("step_id"), int)
+    ]
+
+
+#: Markers Harbor's Terminus-2 loop writes to trial.log while handling an
+#: overflowing context (exact substrings, grounded in HAR-90 0758-b/c).
+_LOG_REACTIVE = "Context length exceeded"
+_LOG_PROACTIVE = "Proactively summarizing"
+_LOG_PROACTIVE_ERROR = "Error in proactively summarizing"
+_LOG_FULL_FAILED = "SUMMARIZATION: Full summary failed"
+_LOG_FULL_OK = "SUMMARIZATION: Full summary succeeded"
+_LOG_SHORT_FAILED = "SUMMARIZATION: Short summary failed"
+_LOG_SHORT_OK = "SUMMARIZATION: Short summary succeeded"
+_LOG_FALLBACK_FAILED = "Even fallback chat failed"
+_LOG_FALLBACK_OK = "Even fallback chat succeeded"
+_LOG_SUMMARY_SAVED = "Summary subagent trajectory saved to"
+_LOG_QUESTIONS_SAVED = "Questions subagent trajectory saved to"
+
+
+def _parse_trial_log(trial_dir: Path) -> dict[str, int]:
+    """Overflow-handling counts from trial.log; empty when the log is absent."""
+    try:
+        lines = (trial_dir / "trial.log").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return {}
+
+    def count(marker: str) -> int:
+        return sum(1 for line in lines if marker in line)
+
+    reactive = count(_LOG_REACTIVE)
+    proactive = count(_LOG_PROACTIVE)
+    return {
+        "trial_log_lines": len(lines),
+        "overflow_reactive_cycles": reactive,
+        "overflow_proactive_attempts": proactive,
+        "overflow_proactive_errors": count(_LOG_PROACTIVE_ERROR),
+        "summary_full_succeeded": count(_LOG_FULL_OK),
+        "summary_full_failed": count(_LOG_FULL_FAILED),
+        "summary_short_succeeded": count(_LOG_SHORT_OK),
+        "summary_short_failed": count(_LOG_SHORT_FAILED),
+        "fallback_chat_failed": count(_LOG_FALLBACK_FAILED),
+        "fallback_chat_succeeded": count(_LOG_FALLBACK_OK),
+        "summary_subagent_saves": count(_LOG_SUMMARY_SAVED),
+        "questions_subagent_saves": count(_LOG_QUESTIONS_SAVED),
+        "overflow_cycles": reactive + proactive,
+    }
+
+
+def _continuity(
+    head: Path, continuations: list[tuple[int, Path]]
+) -> tuple[list[str], str, bool | None, bool]:
+    """Session/step continuity across the head and continuation files.
+
+    Returns the distinct main-loop session ids, the per-file step ranges as
+    JSON text, whether every continuation is a full-history copy (starts at
+    step 1, so the trial never split), and whether any continuation shows an
+    actual split (starts past step 1 or runs under a different session than
+    the head). File-index gaps are failed summarization attempts, not lost
+    files, so they play no part here.
+    """
+    sessions: list[str] = []
+    ranges: dict[str, Any] = {"head": None, "cont": {}}
+    full_copy: bool | None = None
+    split = False
+    head_session: str | None = None
+    if head.is_file():
+        payload = _read_json(head)
+        session = payload.get("session_id")
+        head_session = session if isinstance(session, str) else None
+        if head_session and head_session not in sessions:
+            sessions.append(head_session)
+        ids = _main_steps(payload)
+        ranges["head"] = [min(ids), max(ids)] if ids else None
+    for index, path in continuations:
+        payload = _read_json(path)
+        session = payload.get("session_id")
+        session = session if isinstance(session, str) else None
+        if session and session not in sessions:
+            sessions.append(session)
+        ids = _main_steps(payload)
+        ranges["cont"][index] = [min(ids), max(ids)] if ids else None
+        if not ids:
+            continue
+        first = min(ids)
+        full_copy = (first == 1) if full_copy is None else (full_copy and first == 1)
+        if first > 1:
+            split = True
+        if head_session and session and session != head_session:
+            split = True
+    return sessions, _canonical(ranges), full_copy, split
+
+
 def _trajectory_tokens(paths: Iterable[Path]) -> tuple[int, int, int, int]:
     """(prompt, completion, steps, steps without metrics) over unique steps."""
     prompt = completion = steps = unmetered = 0
@@ -606,11 +705,10 @@ def collect_capture(job_dir: Path, trial_dir: Path) -> dict[str, Any]:
     metadata = _dict((agent_result or {}).get("metadata"))
     summarization_count = metadata.get("summarization_count")
     present = [index for index, _ in continuations]
-    missing = (
-        sorted(set(range(1, int(summarization_count) + 1)) - set(present))
-        if isinstance(summarization_count, int)
-        else None
-    )
+    sessions, ranges, full_copy, split = _continuity(head, continuations)
+    log = _parse_trial_log(trial_dir)
+    reactive = log.get("overflow_reactive_cycles", 0) if log else None
+    diverged = (reactive > 0 and not split) if reactive is not None else None
     main = ([head] if head.is_file() else []) + [path for _, path in continuations]
     main_prompt, main_completion, main_steps, unmetered = _trajectory_tokens(main)
     summary_prompt, summary_completion, _, _ = _trajectory_tokens(summaries)
@@ -625,6 +723,21 @@ def collect_capture(job_dir: Path, trial_dir: Path) -> dict[str, Any]:
     attributed_output = main_completion + summary_completion if has_trajectory else None
     proxy_input = totals.get("input_tokens") if usage else None
     proxy_output = totals.get("output_tokens") if usage else None
+    unresolved = usage.get("unresolved_requests") if usage else None
+    gap = (
+        proxy_input - attributed_input
+        if isinstance(proxy_input, int) and attributed_input is not None
+        else None
+    )
+    basis = None
+    if gap is not None:
+        parts = [f"ledger {proxy_input} vs trajectory {attributed_input}"]
+        if log:
+            parts.append(f"{log['overflow_cycles']} overflow cycles")
+        if isinstance(unresolved, int):
+            parts.append(f"{unresolved} unresolved ledger requests")
+        parts.append("failed/unrecorded calls, not missing files")
+        basis = "; ".join(parts)
     rollout = (agent_result or {}).get("rollout_details")
     exception = _dict(result.get("exception_info"))
     return {
@@ -633,12 +746,30 @@ def collect_capture(job_dir: Path, trial_dir: Path) -> dict[str, Any]:
         "result_json": bool(result),
         "exception_type": exception.get("exception_type"),
         "trajectory_head": head.is_file(),
+        "trajectory_session_ids": sessions,
         "continuation_indices": present,
         "continuation_count": len(present),
+        "continuation_step_ranges": ranges,
+        "continuation_full_copy": full_copy,
+        "continuation_split": split,
         "summarization_count": summarization_count
         if isinstance(summarization_count, int)
         else None,
-        "continuations_missing": missing,
+        "trial_log_present": bool(log),
+        "trial_log_lines": log.get("trial_log_lines"),
+        "overflow_reactive_cycles": log.get("overflow_reactive_cycles"),
+        "overflow_proactive_attempts": log.get("overflow_proactive_attempts"),
+        "overflow_proactive_errors": log.get("overflow_proactive_errors"),
+        "overflow_cycles": log.get("overflow_cycles"),
+        "summary_full_succeeded": log.get("summary_full_succeeded"),
+        "summary_full_failed": log.get("summary_full_failed"),
+        "summary_short_succeeded": log.get("summary_short_succeeded"),
+        "summary_short_failed": log.get("summary_short_failed"),
+        "fallback_chat_failed": log.get("fallback_chat_failed"),
+        "fallback_chat_succeeded": log.get("fallback_chat_succeeded"),
+        "summary_subagent_saves": log.get("summary_subagent_saves"),
+        "questions_subagent_saves": log.get("questions_subagent_saves"),
+        "history_context_diverged": diverged,
         "summarization_files": len(summaries),
         "n_episodes": metadata.get("n_episodes")
         if isinstance(metadata.get("n_episodes"), int)
@@ -656,18 +787,15 @@ def collect_capture(job_dir: Path, trial_dir: Path) -> dict[str, Any]:
         "proxy_calls_shaped": sum(1 for call in calls if call.get("shaping_applied") is True)
         if usage
         else None,
-        "proxy_unresolved_requests": usage.get("unresolved_requests") if usage else None,
+        "proxy_unresolved_requests": unresolved if isinstance(unresolved, int) else None,
         "result_input_tokens": result_input if isinstance(result_input, int) else None,
         "result_output_tokens": result_output if isinstance(result_output, int) else None,
         "trajectory_input_tokens": attributed_input,
         "trajectory_output_tokens": attributed_output,
         "proxy_input_tokens": proxy_input if isinstance(proxy_input, int) else None,
         "proxy_output_tokens": proxy_output if isinstance(proxy_output, int) else None,
-        "input_tokens_unattributed": (
-            proxy_input - attributed_input
-            if isinstance(proxy_input, int) and attributed_input is not None
-            else None
-        ),
+        "input_tokens_unattributed": gap,
+        "token_gap_basis": basis,
         "schema": TREATMENT_SCHEMA,
     }
 
@@ -730,10 +858,28 @@ def capture_schema() -> Any:
             ("result_json", flag),
             ("exception_type", pa.string()),
             ("trajectory_head", flag),
+            ("trajectory_session_ids", pa.list_(pa.string())),
             ("continuation_indices", pa.list_(integer)),
             ("continuation_count", integer),
+            ("continuation_step_ranges", pa.string()),
+            ("continuation_full_copy", flag),
+            ("continuation_split", flag),
             ("summarization_count", integer),
-            ("continuations_missing", pa.list_(integer)),
+            ("trial_log_present", flag),
+            ("trial_log_lines", integer),
+            ("overflow_reactive_cycles", integer),
+            ("overflow_proactive_attempts", integer),
+            ("overflow_proactive_errors", integer),
+            ("overflow_cycles", integer),
+            ("summary_full_succeeded", integer),
+            ("summary_full_failed", integer),
+            ("summary_short_succeeded", integer),
+            ("summary_short_failed", integer),
+            ("fallback_chat_failed", integer),
+            ("fallback_chat_succeeded", integer),
+            ("summary_subagent_saves", integer),
+            ("questions_subagent_saves", integer),
+            ("history_context_diverged", flag),
             ("summarization_files", integer),
             ("n_episodes", integer),
             ("trajectory_steps", integer),
@@ -753,6 +899,7 @@ def capture_schema() -> Any:
             ("proxy_input_tokens", integer),
             ("proxy_output_tokens", integer),
             ("input_tokens_unattributed", integer),
+            ("token_gap_basis", pa.string()),
             ("schema", pa.string()),
             ("produced_at", pa.string()),
         ]

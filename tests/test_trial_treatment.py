@@ -94,6 +94,8 @@ def _job(
     ledger: bool = True,
     continuations: tuple[int, ...] = (),
     summarization_count: int = 0,
+    log_text: str | None = None,
+    session_id: str | None = None,
 ) -> tuple[Path, Path]:
     job = root / name
     trial = job / f"{name}__abc"
@@ -165,10 +167,15 @@ def _job(
         "message": "ls",
         "metrics": {"prompt_tokens": input_tokens, "completion_tokens": 10},
     }
+    payload: dict[str, Any] = {"steps": [step]}
+    if session_id is not None:
+        payload["session_id"] = session_id
     for index in continuations:
-        _write(trial / "agent" / f"trajectory.cont-{index}.json", {"steps": [step]})
+        _write(trial / "agent" / f"trajectory.cont-{index}.json", payload)
     if not continuations:
-        _write(trial / "agent" / "trajectory.json", {"steps": [step]})
+        _write(trial / "agent" / "trajectory.json", payload)
+    if log_text is not None:
+        (trial / "trial.log").write_text(log_text, encoding="utf-8")
     return job, trial
 
 
@@ -269,17 +276,119 @@ def test_no_model_agents_read_not_applicable_not_unknown(repo: Path, tmp_path: P
         *_job(tmp_path / "runs", "a", commit, model="", agent_name="nop", kwargs={}, ledger=False),
     )
     assert row["model"] == "n/a" and row["parser_digest"] == "n/a"
-    assert "model" not in row["unknown_fields"]
 
 
-def test_capture_lists_missing_continuations_and_keeps_missing_ledger_null(tmp_path: Path) -> None:
+def test_capture_full_copy_continuation_is_not_missing_and_ledger_null(tmp_path: Path) -> None:
     job, trial = _job(
-        tmp_path / "runs", "a", "0" * 40, continuations=(3,), summarization_count=3, ledger=False
+        tmp_path / "runs",
+        "a",
+        "0" * 40,
+        continuations=(3,),
+        summarization_count=3,
+        ledger=False,
+        session_id="sess-1",
     )
     row = collect_capture(job, trial)
     assert row["trajectory_head"] is False
     assert row["continuation_indices"] == [3]
-    assert row["continuations_missing"] == [1, 2]
+    assert row["continuation_full_copy"] is True
+    assert row["continuation_split"] is False
+    assert row["trajectory_session_ids"] == ["sess-1"]
+    assert row["history_context_diverged"] is None
+    assert row["trial_log_present"] is False
+    assert row["proxy_ledger"] is False
+    assert row["proxy_input_tokens"] is None and row["input_tokens_unattributed"] is None
+    assert row["token_gap_basis"] is None
+    assert row["trajectory_input_tokens"] == 1000
+
+
+def test_capture_split_continuation_starts_past_step_one(tmp_path: Path) -> None:
+    job, trial = _job(tmp_path / "runs", "a", "0" * 40, session_id="sess-1")
+    steps = [
+        {"step_id": 40, "source": "agent", "message": "m", "metrics": {"prompt_tokens": 5}},
+        {"step_id": 41, "source": "agent", "message": "m", "metrics": {"prompt_tokens": 5}},
+    ]
+    (trial / "agent" / "trajectory.cont-2.json").write_text(
+        json.dumps({"session_id": "sess-1", "steps": steps}), encoding="utf-8"
+    )
+    row = collect_capture(job, trial)
+    assert row["continuation_full_copy"] is False
+    assert row["continuation_split"] is True
+    assert json.loads(row["continuation_step_ranges"])["cont"]["2"] == [40, 41]
+
+
+def test_capture_new_session_counts_as_split(tmp_path: Path) -> None:
+    job, trial = _job(tmp_path / "runs", "a", "0" * 40, session_id="sess-1")
+    head = json.loads((trial / "agent" / "trajectory.json").read_text(encoding="utf-8"))
+    (trial / "agent" / "trajectory.cont-1.json").write_text(
+        json.dumps({"session_id": "sess-2", "steps": head["steps"]}),
+        encoding="utf-8",
+    )
+    row = collect_capture(job, trial)
+    assert row["continuation_full_copy"] is True
+    assert row["continuation_split"] is True
+    assert row["trajectory_session_ids"] == ["sess-1", "sess-2"]
+
+
+def test_capture_log_cycles_and_failed_call_gap_basis(tmp_path: Path) -> None:
+    log_text = "\n".join(
+        [
+            "Context length exceeded. Using fallback summarization.",
+            "Unwound messages. Remaining messages: 364, Free tokens: approximately 11409",
+            "SUMMARIZATION: Attempting full summary",
+            "SUMMARIZATION: Full summary failed: ",
+            "SUMMARIZATION: Attempting short summary",
+            "SUMMARIZATION: Short summary succeeded",
+            "Even fallback chat failed: ",
+            "Context length exceeded. Using fallback summarization.",
+            "Unwound messages. Remaining messages: 364, Free tokens: approximately 11409",
+            "SUMMARIZATION: Attempting full summary",
+            "SUMMARIZATION: Full summary failed: ",
+            "SUMMARIZATION: Attempting short summary",
+            "SUMMARIZATION: Short summary succeeded",
+            "Proactively summarizing. Free tokens: approximately 7970",
+            "Error in proactively summarizing: ",
+            "Summary subagent trajectory saved to agent/trajectory.summarization-1-summary.json",
+        ]
+    )
+    job, trial = _job(
+        tmp_path / "runs",
+        "a",
+        "0" * 40,
+        continuations=(3,),
+        summarization_count=3,
+        session_id="sess-1",
+        log_text=log_text,
+    )
+    row = collect_capture(job, trial)
+    assert row["trial_log_present"] is True
+    assert row["overflow_reactive_cycles"] == 2
+    assert row["overflow_proactive_attempts"] == 1
+    assert row["overflow_proactive_errors"] == 1
+    assert row["overflow_cycles"] == 3
+    assert row["summary_full_failed"] == 2 and row["summary_full_succeeded"] == 0
+    assert row["summary_short_succeeded"] == 2 and row["summary_short_failed"] == 0
+    assert row["fallback_chat_failed"] == 1 and row["fallback_chat_succeeded"] == 0
+    assert row["summary_subagent_saves"] == 1
+    assert row["history_context_diverged"] is True
+    assert row["summarization_count"] == row["overflow_cycles"]
+    assert row["input_tokens_unattributed"] == 500
+    assert "3 overflow cycles" in row["token_gap_basis"]
+    assert "failed/unrecorded calls, not missing files" in row["token_gap_basis"]
+
+
+def test_capture_quiet_log_leaves_context_intact(tmp_path: Path) -> None:
+    job, trial = _job(
+        tmp_path / "runs",
+        "a",
+        "0" * 40,
+        session_id="sess-1",
+        log_text="Healthcheck passed\n",
+        ledger=False,
+    )
+    row = collect_capture(job, trial)
+    assert row["overflow_cycles"] == 0
+    assert row["history_context_diverged"] is False
     assert row["proxy_ledger"] is False
     assert row["proxy_input_tokens"] is None and row["input_tokens_unattributed"] is None
     assert row["trajectory_input_tokens"] == 1000

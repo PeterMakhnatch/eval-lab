@@ -1739,8 +1739,9 @@ class CampaignOrchestrator:
             "max_cost_micros": math.ceil(attempt.limits.max_cost_usd * 1_000_000),
         }
         capability_id = provider.get("capability_id")
+        version = provider.get("schema_version")
         if (
-            provider.get("schema_version") != 1
+            version not in (1, 2)
             or provider.get("attempt_id") != attempt.attempt_id
             or provider.get("limits") != expected_limits
             or not isinstance(capability_id, str)
@@ -1753,6 +1754,15 @@ class CampaignOrchestrator:
         totals = provider.get("totals")
         if not isinstance(calls, list) or not isinstance(totals, dict):
             raise CampaignAmbiguityError("provider usage report is invalid")
+        if version == 2:
+            # v2 totals are used-only; a billable campaign needs every call
+            # reconciled, hence an empty attempted block.
+            attempted = provider.get("attempted")
+            if not isinstance(attempted, dict) or any(
+                provider_integer(attempted, name) != 0
+                for name in ("requests", "input_tokens", "output_tokens", "cost_micros")
+            ):
+                raise CampaignAmbiguityError("provider usage totals do not reconcile")
         computed_input = 0
         computed_output = 0
         computed_cost = 0

@@ -930,7 +930,10 @@ def _trial_model(result: dict[str, Any]) -> str | None:
 
 
 def _tokens_and_cost(
-    result: dict[str, Any], terminal: dict[str, Any], steps: Sequence[_Step]
+    result: dict[str, Any],
+    terminal: dict[str, Any],
+    steps: Sequence[_Step],
+    lab_metadata: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
     agent_result = _dict(result.get("agent_result"))
     final = _dict(terminal.get("final_metrics"))
@@ -1052,12 +1055,21 @@ def _tokens_and_cost(
     if not metered and chosen["input"] is None:
         warnings.append("no token usage recorded anywhere for this run")
 
+    # The metered proxy ledger (lab-metadata ``cost`` block, used tokens
+    # times pinned pricing) is authoritative for proxy-metered trials and
+    # wins over Harbor/litellm's own estimate. Anything else keeps the
+    # existing precedence below.
+    ledger_block = _dict((lab_metadata or {}).get("cost"))
+    ledger_usd = ledger_block.get("cost_usd")
     cost_value, cost_source = None, None
-    for source in ("result_json", "trajectory_final_metrics"):
-        value = declared[source]["cost_usd"]
-        if value is not None:
-            cost_value, cost_source = value, source
-            break
+    if isinstance(ledger_usd, (int, float)) and not isinstance(ledger_usd, bool):
+        cost_value, cost_source = ledger_usd, "proxy_ledger"
+    else:
+        for source in ("result_json", "trajectory_final_metrics"):
+            value = declared[source]["cost_usd"]
+            if value is not None:
+                cost_value, cost_source = value, source
+                break
     steps_with_cost = [s for s in llm_steps if s.cost_usd is not None]
     lower_bound = False
     if cost_value is None and steps_with_cost:
@@ -1106,8 +1118,13 @@ def _tokens_and_cost(
         "note": (
             "Estimate from pinned provider list prices; not a metered charge or provider invoice."
             if estimated
-            else "Harness-reported native ledger; not a provider invoice."
+            else (
+                "Metered proxy usage times pinned pricing; not a provider invoice."
+                if cost_source == "proxy_ledger"
+                else "Harness-reported native ledger; not a provider invoice."
+            )
         ),
+        "ledger": ledger_block or None,
         "price_table": (
             {
                 "model": price_model,
@@ -2022,7 +2039,7 @@ def build_run_report(
     timing, origin = _timing(result, steps)
     if timing["phases_overlap"]:
         quality.append("Harbor phase timestamps overlap or exceed the trial wall time")
-    tokens, cost, token_warnings = _tokens_and_cost(result, terminal_doc, steps)
+    tokens, cost, token_warnings = _tokens_and_cost(result, terminal_doc, steps, lab_metadata)
     if availability["reason"] != _CONTROL_REASON:
         quality.extend(token_warnings)
     if steps and not any(s.timestamp for s in steps):

@@ -148,6 +148,7 @@ from evallab.harbor_network import (
     adapt_task_toml_for_host,
     with_agent_network_allowlist,
 )
+from evallab.ledger import build_cost_block, split_calls
 from evallab.results import JobRecord, load_job
 from evallab.schemas import ExperimentMatrix, MatrixRun
 from evallab.terminus_local import local_ollama_endpoint, resolve_ollama_binding
@@ -631,8 +632,9 @@ def _read_proxy_usage(
         payload.get("pricing") != expected_pricing
         and not (not calls and payload.get("pricing") is None)
     )
+    version = payload.get("schema_version")
     binding_invalid = (
-        payload.get("schema_version") != 1
+        version not in (1, 2)
         or payload.get("capability_id") != capability_id
         or payload.get("attempt_id") != attempt_id
         or payload.get("limits") != asdict(limits)
@@ -643,6 +645,53 @@ def _read_proxy_usage(
             "proxy_usage_invalid",
             f"{provider_label} proxy usage binding does not match this trial",
         )
+    if version == 2:
+        # Schema v2: ``totals`` is actual usage only (reconciled + exceeded
+        # actuals); reservations of still-reserved/unresolved calls sit in
+        # ``attempted``. Both blocks must recompute exactly from the calls.
+        try:
+            recomputed = split_calls([dict(call) for call in calls])
+        except ValueError as exc:
+            raise ExecutionFailure(
+                "proxy_usage_invalid",
+                f"{provider_label} proxy call sequence is invalid",
+            ) from exc
+        attempted = payload.get("attempted")
+        if not isinstance(attempted, dict):
+            raise ExecutionFailure(
+                "proxy_usage_invalid",
+                f"{provider_label} proxy usage report is invalid",
+            )
+        expected_totals = {
+            **recomputed["used"],
+            "total_tokens": recomputed["used"]["input_tokens"]
+            + recomputed["used"]["output_tokens"],
+        }
+        expected_attempted = {
+            name: recomputed["attempted"][name]
+            for name in ("requests", "input_tokens", "output_tokens", "cost_micros")
+        }
+        if (
+            {name: integer(totals.get(name), name) for name in expected_totals}
+            != expected_totals
+            or {
+                name: integer(attempted.get(name), name)
+                for name in expected_attempted
+            }
+            != expected_attempted
+            or integer(payload.get("unresolved_requests"), "unresolved_requests")
+            != recomputed["unresolved_requests"]
+            or integer(payload.get("sequence"), "sequence") != recomputed["sequence"]
+        ):
+            raise ExecutionFailure(
+                "proxy_usage_invalid",
+                f"{provider_label} proxy totals do not reconcile with provider calls",
+            )
+        return payload
+    # Schema v1 (historic): totals include reservations of calls that never
+    # reconciled. Validate the legacy invariant exactly as written; readers
+    # derive used vs attempted from the calls list (evallab.ledger) and the
+    # file itself is never rewritten.
     computed = {
         "requests": len(calls),
         "input_tokens": 0,
@@ -1785,6 +1834,11 @@ def _write_run_metadata(
             "cost_micros": None,
             "usage_status": "missing",
         }
+    # Authoritative per-run spend: ledger usage times the ledger's pinned
+    # pricing (evallab.ledger). This wins over Harbor/litellm's own
+    # agent_result estimate for proxy-metered trials at catalog ingest; the
+    # gate spends used + attempted as a conservative ceiling.
+    metadata["cost"] = build_cost_block(process.proxy_usage)
     calls = (
         process.proxy_usage.get("calls")
         if isinstance(process.proxy_usage, dict)

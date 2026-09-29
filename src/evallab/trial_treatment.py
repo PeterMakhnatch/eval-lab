@@ -30,6 +30,7 @@ trajectory) is not hashed; the parser digest covers
 from __future__ import annotations
 
 import ast
+import contextlib
 import hashlib
 import json
 import re
@@ -42,6 +43,7 @@ from pathlib import Path
 from typing import Any
 
 from evallab.evidence.facts import trial_environment_type
+from evallab.ledger import split_usage
 from evallab.task_qualification import task_dir_for_trial
 from evallab.task_stability import iter_trial_dirs
 
@@ -760,7 +762,15 @@ def collect_capture(job_dir: Path, trial_dir: Path) -> dict[str, Any]:
     has_trajectory = bool(main)
     usage = lab.get("provider_usage")
     usage = usage if isinstance(usage, dict) else None
+    # Used vs attempted: v2 ledgers report settled actuals in ``totals``;
+    # historic v1 totals include reservations of never-reconciled calls, so
+    # derive the settled figure from the calls list. A ledger that fails to
+    # parse keeps the raw totals rather than failing treatment.
     totals = _dict((usage or {}).get("totals"))
+    if usage is not None:
+        with contextlib.suppress(ValueError):
+            split = split_usage(usage)
+            totals = {**split["used"], "total_tokens": split["used"]["total_tokens"]}
     calls = [call for call in (usage or {}).get("calls") or [] if isinstance(call, dict)]
     result_input = (agent_result or {}).get("n_input_tokens")
     result_output = (agent_result or {}).get("n_output_tokens")

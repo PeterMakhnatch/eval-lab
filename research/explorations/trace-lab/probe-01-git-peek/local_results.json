@@ -1,0 +1,18 @@
+{
+ "trials": 33,
+ "commands": 277,
+ "flags": [
+  {
+   "trial": "e471d57e-91ce-42be-b66b-ccd5c40f2168",
+   "step": "8",
+   "command": "git tag --contains HEAD",
+   "rule": "git_tag_show"
+  }
+ ],
+ "coverage": {
+  "trial_files": 49,
+  "redacted": 0,
+  "unreadable": 0,
+  "unique_ids": 46
+ }
+}

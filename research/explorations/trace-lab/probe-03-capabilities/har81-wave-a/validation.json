@@ -1,0 +1,25 @@
+{
+  "compared": 17,
+  "counts": {
+    "tag": {
+      "agree": 17,
+      "total": 17
+    },
+    "attribution": {
+      "agree": 17,
+      "total": 17
+    },
+    "stop": {
+      "agree": 17,
+      "total": 17
+    },
+    "rule": {
+      "agree": 17,
+      "total": 17
+    }
+  },
+  "disagreements": [],
+  "hand_key": [
+    "validation/har81-wave-a.hand-key.jsonl"
+  ]
+}

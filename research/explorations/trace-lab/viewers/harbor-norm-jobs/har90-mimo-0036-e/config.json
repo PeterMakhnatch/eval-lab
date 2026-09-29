@@ -1,0 +1,35 @@
+{
+    "job_name": "har90-mimo-0036-e",
+    "jobs_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har90-modal-mimo/runs",
+    "agent_timeout_multiplier": 1.0,
+    "n_concurrent_trials": 1,
+    "environment": {
+        "import_path": "evallab.harbor_daytona:BoundedDaytonaEnvironment",
+        "kwargs": {
+            "ttl_minutes": 25
+        }
+    },
+    "agents": [
+        {
+            "name": "evallab.harbor_terminus:SecretSafeTerminus2",
+            "model_name": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+            "n_concurrent": 1,
+            "kwargs": {
+                "llm_call_kwargs": {
+                    "max_tokens": 8192,
+                    "top_p": 0.95
+                },
+                "temperature": 0.6,
+                "trajectory_config": {
+                    "raw_content": true,
+                    "linear_history": true
+                }
+            }
+        }
+    ],
+    "tasks": [
+        {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har90-modal-mimo/runs/.exec-stage/har90-mimo-0036-e"
+        }
+    ]
+}

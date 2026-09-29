@@ -1,0 +1,240 @@
+{
+    "id": "89cecc24-98b1-42c1-8c2b-e0f86e1dd1ab",
+    "task_name": "mimo-v2.6-rl/arvo_42496599",
+    "trial_name": "har81-l-d-a4-arvo-42496599__XC6B4Ue",
+    "trial_uri": "file:///Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a4-arvo-42496599/har81-l-d-a4-arvo-42496599__XC6B4Ue",
+    "task_id": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/.exec-stage/har81-l-d-a4-arvo-42496599"
+    },
+    "source": null,
+    "task_checksum": "a196ca9dc413f28a0d8a7a0f9a1d9d356295b8c249e271615953848561051dbe",
+    "config": {
+        "task": {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/.exec-stage/har81-l-d-a4-arvo-42496599",
+            "git_url": null,
+            "git_commit_id": null,
+            "name": null,
+            "ref": null,
+            "overwrite": false,
+            "download_dir": null,
+            "source": null
+        },
+        "trial_name": "har81-l-d-a4-arvo-42496599__XC6B4Ue",
+        "trials_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a4-arvo-42496599",
+        "install_only": false,
+        "timeout_multiplier": 1.0,
+        "agent_timeout_multiplier": 1.0,
+        "verifier_timeout_multiplier": null,
+        "agent_setup_timeout_multiplier": null,
+        "environment_build_timeout_multiplier": null,
+        "agent": {
+            "name": "evallab.harbor_terminus:SecretSafeTerminus2",
+            "import_path": null,
+            "model_name": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+            "n_concurrent": 1,
+            "concurrency_group": null,
+            "skills": [],
+            "override_timeout_sec": null,
+            "override_setup_timeout_sec": null,
+            "max_timeout_sec": null,
+            "resume_trajectory": false,
+            "load_trajectory": null,
+            "extra_allowed_hosts": [],
+            "kwargs": {
+                "llm_call_kwargs": {
+                    "max_tokens": 4096,
+                    "top_p": 0.95
+                },
+                "proactive_summarization_threshold": 16384,
+                "temperature": 0.6,
+                "trajectory_config": {
+                    "raw_content": true,
+                    "linear_history": true
+                }
+            },
+            "mcp_servers": []
+        },
+        "environment": {
+            "type": null,
+            "import_path": "evallab.harbor_daytona:BoundedDaytonaEnvironment",
+            "force_build": false,
+            "delete": true,
+            "cpu_enforcement_policy": "auto",
+            "memory_enforcement_policy": "auto",
+            "override_cpus": null,
+            "override_memory_mb": null,
+            "override_storage_mb": 10240,
+            "override_gpus": null,
+            "override_tpu": null,
+            "mounts": null,
+            "extra_docker_compose": [],
+            "kwargs": {
+                "ttl_minutes": 70
+            },
+            "extra_allowed_hosts": []
+        },
+        "verifier": {
+            "override_timeout_sec": null,
+            "max_timeout_sec": null,
+            "disable": false
+        },
+        "artifacts": [],
+        "extra_instruction_paths": [],
+        "job_id": "695c3437-e855-412c-b8b7-6997d45de939",
+        "source_trial": null
+    },
+    "agent_info": {
+        "name": "terminus-2",
+        "version": "2.0.0",
+        "model_info": {
+            "name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+            "provider": "selfhosted"
+        }
+    },
+    "agent_result": {
+        "n_input_tokens": 2403315,
+        "n_cache_tokens": 0,
+        "n_output_tokens": 13628,
+        "cost_usd": null,
+        "rollout_details": [],
+        "metadata": {
+            "n_episodes": 98,
+            "api_request_times_msec": [
+                2887.148141860962,
+                2822.927951812744,
+                2010.7760429382324,
+                2658.134937286377,
+                3546.3361740112305,
+                1557.9421520233154,
+                4731.767177581787,
+                2561.176061630249,
+                1406.1088562011719,
+                1642.9030895233154,
+                2172.029972076416,
+                1979.6011447906494,
+                1120.2638149261475,
+                1270.8420753479004,
+                3178.727149963379,
+                1120.9280490875244,
+                1634.8652839660645,
+                1359.6868515014648,
+                1732.5050830841064,
+                12463.088035583496,
+                2378.6211013793945,
+                2665.680170059204,
+                1856.7790985107422,
+                1835.9620571136475,
+                2261.173963546753,
+                2170.7170009613037,
+                1858.4368228912354,
+                1878.5326480865479,
+                2840.1169776916504,
+                1544.311761856079,
+                1908.2651138305664,
+                1927.7369976043701,
+                2220.560073852539,
+                1925.8859157562256,
+                1867.786169052124,
+                1981.5218448638916,
+                2087.3663425445557,
+                1961.2758159637451,
+                1964.9569988250732,
+                1967.0751094818115,
+                2208.4717750549316,
+                1931.9071769714355,
+                2269.1991329193115,
+                2134.9072456359863,
+                2164.9882793426514,
+                2074.3818283081055,
+                2134.2880725860596,
+                2268.0509090423584,
+                2106.7872047424316,
+                1966.5160179138184,
+                2264.2178535461426,
+                2115.2758598327637,
+                2667.4141883850098,
+                2218.074083328247,
+                2022.3021507263184,
+                2016.258955001831,
+                2289.667844772339,
+                2111.721992492676,
+                2570.4431533813477,
+                5911.970138549805,
+                4480.857133865356,
+                13185.13822555542,
+                1940.5808448791504,
+                1624.7849464416504,
+                1071.9280242919922,
+                1447.9470252990723,
+                1580.3899765014648,
+                1051.4297485351562,
+                1124.7961521148682,
+                1132.8377723693848,
+                1058.1438541412354,
+                1690.69504737854,
+                909.2509746551514,
+                12191.863059997559,
+                2308.1870079040527,
+                2706.281900405884,
+                1431.2491416931152,
+                1437.964916229248,
+                2222.839117050171,
+                1176.1999130249023,
+                1492.570161819458,
+                1229.083776473999,
+                1889.5747661590576,
+                1343.7559604644775,
+                1422.6160049438477,
+                1162.0092391967773,
+                2180.582284927368,
+                1120.4619407653809,
+                1426.3229370117188,
+                1107.0692539215088,
+                1337.0909690856934,
+                1750.547170639038,
+                1885.5440616607666,
+                1207.0279121398926,
+                4712.900876998901,
+                1998.5129833221436,
+                1549.6678352355957,
+                1837.5680446624756,
+                1225.2979278564453,
+                4365.7591342926025
+            ],
+            "summarization_count": 1,
+            "stop_reason": "trial_budget_exhausted",
+            "prose_completions": 0
+        }
+    },
+    "verifier_result": {
+        "rewards": {
+            "reward": 0.0
+        }
+    },
+    "verifier_environment_mode": "shared",
+    "exception_info": {
+        "exception_type": "TrialBudgetExhaustedError",
+        "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+        "exception_traceback": "Traceback (most recent call last):\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/litellm/llms/openai/openai.py\", line 876, in acompletion\n    headers, response = await self.make_openai_chat_completion_request(\n                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/litellm/litellm_core_utils/logging_utils.py\", line 289, in async_wrapper\n    result = await func(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/litellm/llms/openai/openai.py\", line 439, in make_openai_chat_completion_request\n    raise e\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/litellm/llms/openai/openai.py\", line 419, in make_openai_chat_completion_request\n    raw_response = await openai_aclient.chat.completions.with_raw_response.create(**data, timeout=timeout)\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/openai/_legacy_response.py\", line 386, in wrapped\n    return cast(LegacyAPIResponse[R], await func(*args, **kwargs))\n                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/openai/resources/chat/completions/completions.py\", line 2907, in create\n    return await self._post(\n           ^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/openai/_base_client.py\", line 1992, in post\n    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/openai/_base_client.py\", line 1777, in request\n    raise self._make_status_error_from_response(err.response) from None\nopenai.RateLimitError: trial budget exhausted\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/litellm/main.py\", line 647, in acompletion\n    response = await init_response\n               ^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/litellm/llms/openai/openai.py\", line 936, in acompletion\n    raise OpenAIError(\nlitellm.llms.openai.common_utils.OpenAIError: trial budget exhausted\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/src/evallab/harbor_terminus.py\", line 789, in run\n    await super().run(instruction, environment, context)\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/agents/terminus_2/terminus_2.py\", line 1607, in run\n    await self._run_agent_loop(\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/agents/terminus_2/terminus_2.py\", line 1286, in _run_agent_loop\n    ) = await self._handle_llm_interaction(\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/src/evallab/harbor_terminus.py\", line 587, in _handle_llm_interaction\n    outcome = await super()._handle_llm_interaction(*args, **kwargs)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/agents/terminus_2/terminus_2.py\", line 1164, in _handle_llm_interaction\n    llm_response = await self._query_llm(\n                   ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/tenacity/asyncio/__init__.py\", line 193, in async_wrapped\n    return await copy(fn, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/tenacity/asyncio/__init__.py\", line 112, in __call__\n    do = await self.iter(retry_state=retry_state)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/tenacity/asyncio/__init__.py\", line 157, in iter\n    result = await action(retry_state)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/tenacity/_utils.py\", line 111, in inner\n    return call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/tenacity/__init__.py\", line 413, in exc_check\n    raise retry_exc.reraise()\n          ^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/tenacity/__init__.py\", line 184, in reraise\n    raise self.last_attempt.result()\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/concurrent/futures/_base.py\", line 449, in result\n    return self.__get_result()\n           ^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/concurrent/futures/_base.py\", line 401, in __get_result\n    raise self._exception\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/tenacity/asyncio/__init__.py\", line 116, in __call__\n    result = await fn(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/agents/terminus_2/terminus_2.py\", line 1155, in _query_llm\n    raise e\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/agents/terminus_2/terminus_2.py\", line 1004, in _query_llm\n    llm_response = await chat.chat(\n                   ^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/llms/chat.py\", line 89, in chat\n    llm_response: LLMResponse = await self._model.call(\n                                ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/src/evallab/harbor_terminus.py\", line 141, in call\n    return await super().call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/tenacity/asyncio/__init__.py\", line 193, in async_wrapped\n    return await copy(fn, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/tenacity/asyncio/__init__.py\", line 112, in __call__\n    do = await self.iter(retry_state=retry_state)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/tenacity/asyncio/__init__.py\", line 157, in iter\n    result = await action(retry_state)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/tenacity/_utils.py\", line 111, in inner\n    return call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/tenacity/__init__.py\", line 413, in exc_check\n    raise retry_exc.reraise()\n          ^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/tenacity/__init__.py\", line 184, in reraise\n    raise self.last_attempt.result()\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/concurrent/futures/_base.py\", line 449, in result\n    return self.__get_result()\n           ^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/concurrent/futures/_base.py\", line 401, in __get_result\n    raise self._exception\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/tenacity/asyncio/__init__.py\", line 116, in __call__\n    result = await fn(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/llms/lite_llm.py\", line 406, in call\n    self._handle_litellm_error(e)\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/llms/lite_llm.py\", line 641, in _handle_litellm_error\n    raise e\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/llms/lite_llm.py\", line 370, in call\n    response = await litellm.acompletion(**completion_kwargs)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/litellm/utils.py\", line 1864, in wrapper_async\n    raise e\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/litellm/utils.py\", line 1681, in wrapper_async\n    result = await original_function(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/litellm/main.py\", line 700, in acompletion\n    raise exception_type(\n          ^^^^^^^^^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/litellm/litellm_core_utils/exception_mapping_utils.py\", line 2505, in exception_type\n    raise e  # it's already mapped\n    ^^^^^^^\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/litellm/litellm_core_utils/exception_mapping_utils.py\", line 2274, in exception_type\n    _map_openai_exception(\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/litellm/litellm_core_utils/exception_mapping_utils.py\", line 434, in _map_openai_exception\n    raise RateLimitError(\nlitellm.exceptions.RateLimitError: litellm.RateLimitError: RateLimitError: OpenAIException - trial budget exhausted\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 77, in _run_agent\n    await self._run_agent_phase(\n  File \"/Users/petermakhnatch/.local/share/uv/tools/harbor/lib/python3.12/site-packages/harbor/trial/trial.py\", line 480, in _run_agent_phase\n    await asyncio.wait_for(\n  File \"/Users/petermakhnatch/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/asyncio/tasks.py\", line 520, in wait_for\n    return await fut\n           ^^^^^^^^^\n  File \"/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/src/evallab/harbor_terminus.py\", line 794, in run\n    raise TrialBudgetExhaustedError(\nevallab.harbor_terminus.TrialBudgetExhaustedError: the trial proxy refused a model call: trial budget exhausted\n",
+        "occurred_at": "2026-09-29T10:27:11.727109Z"
+    },
+    "started_at": "2026-09-29T10:15:59.289657Z",
+    "finished_at": "2026-09-29T10:27:17.232094Z",
+    "environment_setup": {
+        "started_at": "2026-09-29T10:15:59.328090Z",
+        "finished_at": "2026-09-29T10:16:00.485735Z"
+    },
+    "agent_setup": {
+        "started_at": "2026-09-29T10:16:01.731454Z",
+        "finished_at": "2026-09-29T10:16:13.772098Z"
+    },
+    "agent_execution": {
+        "started_at": "2026-09-29T10:16:13.797450Z",
+        "finished_at": "2026-09-29T10:27:11.723879Z"
+    },
+    "verifier": {
+        "started_at": "2026-09-29T10:27:14.488431Z",
+        "finished_at": "2026-09-29T10:27:17.093148Z"
+    },
+    "step_results": null
+}

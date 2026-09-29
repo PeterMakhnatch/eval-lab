@@ -1,0 +1,22 @@
+{
+  "wedge_key": "validation/har99-wedge.hand-key.jsonl",
+  "trials": {
+    "agree": 10,
+    "total": 10,
+    "hand_positive": 0,
+    "detector_positive": 0
+  },
+  "trial_disagreements": [],
+  "hand_stretches": 0,
+  "matched": 0,
+  "counts": {
+    "start_exact": 0,
+    "start_within_3": 0,
+    "end_exact": 0,
+    "end_within_1": 0,
+    "interrupt": 0,
+    "prompt_returned": 0,
+    "cause": 0
+  },
+  "stretches": []
+}

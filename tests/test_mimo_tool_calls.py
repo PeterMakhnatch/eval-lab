@@ -1,7 +1,7 @@
 """MiMo native tool-call normalization on the Terminus-2 route (HAR-90).
 
 The fixtures are verbatim agent turns from the HAR-90 Daytona trials, from
-``runs/har90-mimo-*/…/agent/trajectory*.json``.
+``runs/har90-mimo-*/…/agent/trajectory*.json``, and from the HAR-81 pilot.
 """
 
 from __future__ import annotations
@@ -76,6 +76,27 @@ NATIVE_BASH_DESCRIBED = (
     '<parameter=command>cd /app && grep -n -A 30 "def _run" vendor/onnx/onnx/defs/tensor/defs.cc'
     " | head -60</parameter><parameter=description>Show the C++ pseudocode section</parameter>"
     "</function></tool_call>"
+)
+# HAR-81 pilot candidate-2684 (head steps 2 and 5): command calls whose body is
+# the command text itself.
+RAW_COMMAND_PAIR = (
+    "<tool_call><function=command>ls -la /app && ls -la /app/vendor/bandit 2>/dev/null</function>"
+    "</tool_call><tool_call><function=command>find /app -maxdepth 3 -type f | head -100"
+    "</function></tool_call>"
+)
+RAW_COMMAND_LINES = (
+    "<tool_call><function=command>ls -la /app\nls -la /app/vendor/bandit 2>/dev/null\n"
+    "find /app -maxdepth 4 -type f 2>/dev/null | head -100</function></tool_call>"
+)
+# The same trial's step 8: a Terminus object inside the command call, which
+# the stock parser already finds (25 such turns parsed).
+COMMAND_WRAPPED_TERMINUS = (
+    '<tool_call><function=command>{"analysis": "I need to inspect the /app directory to '
+    'understand the project structure.","plan": "List the contents of /app and /app/vendor/bandit '
+    'to see the files present.","commands": [{"keystrokes": "ls -la /app","duration": 0.1},'
+    '{"keystrokes": "ls -la /app/vendor/bandit 2>/dev/null","duration": 0.1},{"keystrokes": '
+    '"find /app -maxdepth 4 -type f 2>/dev/null | head -100","duration": 0.1}]}]</function>'
+    "</tool_call>"
 )
 # Trial 2's one turn that stays unparseable: a dangling fragment of a commands list.
 DANGLING_FRAGMENT = (
@@ -219,6 +240,37 @@ def test_text_before_native_calls_becomes_the_analysis() -> None:
     assert json.loads(normalized or "")["analysis"] == "Check the tree first."
 
 
+def test_raw_command_calls_become_commands_in_order() -> None:
+    pair = json.loads(normalize_mimo_tool_calls(RAW_COMMAND_PAIR) or "")
+    lines = json.loads(normalize_mimo_tool_calls(RAW_COMMAND_LINES) or "")
+    mixed = json.loads(
+        normalize_mimo_tool_calls("Look first." + RAW_COMMAND_LINES + NATIVE_BASH_NO_DURATION) or ""
+    )
+    framed = normalize_mimo_tool_calls("<tool_call><function=command>\nmake -j4\n\n</function></tool_call>")
+
+    assert pair == {
+        "analysis": "",
+        "plan": "",
+        "commands": [
+            {"keystrokes": "ls -la /app && ls -la /app/vendor/bandit 2>/dev/null"},
+            {"keystrokes": "find /app -maxdepth 3 -type f | head -100"},
+        ],
+    }
+    assert lines["commands"] == [
+        {
+            "keystrokes": "ls -la /app\nls -la /app/vendor/bandit 2>/dev/null\n"
+            "find /app -maxdepth 4 -type f 2>/dev/null | head -100"
+        }
+    ]
+    assert mixed["analysis"] == "Look first."
+    assert [c["keystrokes"] for c in mixed["commands"]] == [
+        lines["commands"][0]["keystrokes"],
+        "cat /app/vendor/onnx/onnx/reference/ops/op_tensor_scatter.py",
+    ]
+    assert json.loads(framed or "")["commands"] == [{"keystrokes": "make -j4\n"}]
+
+
+
 @pytest.mark.parametrize(
     "raw",
     [
@@ -255,6 +307,17 @@ def test_text_before_native_calls_becomes_the_analysis() -> None:
         pytest.param(NATIVE_BASH_NO_DURATION + NATIVE_COMPLETE, id="command-then-completion"),
         pytest.param("<tool_call><function=task_complete>", id="completion-cut-off"),
         pytest.param(NATIVE_COMPLETE + "\nDone.", id="completion-trailing-prose"),
+        pytest.param(COMMAND_WRAPPED_TERMINUS, id="command-call-with-terminus-object"),
+        pytest.param("<tool_call><function=command>ls -la /app", id="raw-command-cut-off"),
+        pytest.param(
+            "<tool_call><function=command> \n</function></tool_call>", id="raw-command-empty"
+        ),
+        pytest.param(RAW_COMMAND_PAIR + "\nWaiting.", id="raw-command-trailing-prose"),
+        pytest.param(
+            "<tool_call><function=command><parameter=cmd>ls</parameter></function></tool_call>",
+            id="command-call-with-parameters",
+        ),
+        pytest.param(RAW_COMMAND_PAIR + COMMAND_WRAPPED_TERMINUS, id="raw-command-plus-object"),
     ],
 )
 def test_other_shapes_are_left_to_terminus(raw: str) -> None:
@@ -321,6 +384,13 @@ def _parser(finish_reason: str | None = "stop") -> MimoToolCallParser:
     ("raw", "sent"),
     [
         (NATIVE_SINGLE, ["pwd\n"]),
+        (
+            RAW_COMMAND_PAIR,
+            [
+                "ls -la /app && ls -la /app/vendor/bandit 2>/dev/null\n",
+                "find /app -maxdepth 3 -type f | head -100\n",
+            ],
+        ),
         (WRAPPED_TERMINUS_CLOSED, ["ls -la /app\n"]),
         (
             HYBRID_RAW_NEWLINES,

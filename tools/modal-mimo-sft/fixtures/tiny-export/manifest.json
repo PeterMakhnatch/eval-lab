@@ -1,0 +1,85 @@
+{
+  "contract": "evallab.sft_terminus/1",
+  "counts": {
+    "conversations": 3,
+    "trials_selected": 3,
+    "trials_excluded": 0,
+    "duplicates": 0,
+    "segments_main": 3,
+    "segments_continuation": 0
+  },
+  "exclusion_counts": {},
+  "summarization_subagent_files": 0,
+  "teacher_model": "synthetic-fixture",
+  "teacher_models_distinct": [
+    "synthetic-fixture"
+  ],
+  "reward_threshold": 1.0,
+  "reasoning_policy": "kept_as_think_prefix",
+  "split_manifest": {
+    "path": "fixtures/tiny-export/split.json",
+    "manifest_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "harness_tree_digests": {},
+  "roots": [
+    {
+      "label": "fixture",
+      "path": "fixtures/tiny-export"
+    }
+  ],
+  "conversations": [
+    {
+      "conversation_id": "fixture001",
+      "root": "fixture",
+      "trial": "trial-001",
+      "job": "fixture-job",
+      "task_id": "fixture-task-1",
+      "model": "synthetic-fixture",
+      "reward": 1.0,
+      "session_id": null,
+      "segment": "main",
+      "continuation_index": 0,
+      "trajectory_name": "trajectory.json",
+      "trajectory_sha256": "sha256:fixture",
+      "message_count": 6,
+      "character_count": 1024,
+      "copied_context_messages": 0
+    },
+    {
+      "conversation_id": "fixture002",
+      "root": "fixture",
+      "trial": "trial-002",
+      "job": "fixture-job",
+      "task_id": "fixture-task-2",
+      "model": "synthetic-fixture",
+      "reward": 1.0,
+      "session_id": null,
+      "segment": "main",
+      "continuation_index": 0,
+      "trajectory_name": "trajectory.json",
+      "trajectory_sha256": "sha256:fixture",
+      "message_count": 2,
+      "character_count": 128,
+      "copied_context_messages": 0
+    },
+    {
+      "conversation_id": "fixture003",
+      "root": "fixture",
+      "trial": "trial-003",
+      "job": "fixture-job",
+      "task_id": "fixture-task-3",
+      "model": "synthetic-fixture",
+      "reward": 1.0,
+      "segment": "main",
+      "continuation_index": 0,
+      "trajectory_name": "trajectory.json",
+      "trajectory_sha256": "sha256:fixture",
+      "message_count": 2,
+      "character_count": 64,
+      "copied_context_messages": 0
+    }
+  ],
+  "duplicates": {},
+  "trials": [],
+  "conversations_sha256": "sha256:7aea9a36026269f9b97495e34e491473888259be8628beb2c3dfd3a8404c90ab"
+}

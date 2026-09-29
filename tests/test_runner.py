@@ -901,21 +901,17 @@ def test_quiet_failure_count_excludes_transient_provider_capacity() -> None:
     )
 
 
-def test_quiet_failure_count_ends_at_a_verifier_scored_agent_timeout() -> None:
-    # A timed-out agent whose final state the verifier scored ran end to end.
+@pytest.mark.parametrize("stop", ["AgentTimeoutError", "TrialBudgetExhaustedError"])
+def test_quiet_failure_count_ends_at_a_verifier_scored_agent_stop(stop: str) -> None:
+    # An agent stopped by its timeout or a trial ceiling, then scored, ran end to end.
     assert (
         count_consecutive_harness_failures(
-            [("VerifierError", None), ("AgentTimeoutError", 0.0), ("AgentRunError", None)]
+            [("VerifierError", None), (stop, 0.0), ("AgentRunError", None)]
         )
         == 1
     )
-    # Without a verifier result the timeout is still a harness failure.
-    assert (
-        count_consecutive_harness_failures(
-            [("AgentTimeoutError", None), ("AgentTimeoutError", None), (None, 0.0)]
-        )
-        == 2
-    )
+    # Without a verifier result the stop is still a harness failure.
+    assert count_consecutive_harness_failures([(stop, None), (stop, None), (None, 0.0)]) == 2
 
 
 def test_orphan_cleanup_removes_only_new_harbor_tagged_task_containers(

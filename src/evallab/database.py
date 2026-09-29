@@ -60,6 +60,11 @@ def _exception_type(result: dict[str, Any]) -> str | None:
     return str(value) if value else None
 
 
+#: Exceptions that end the agent's run while Harbor still runs the verifier:
+#: the agent timeout, and the trial proxy refusing a call at a ceiling (#515).
+AGENT_STOP_EXCEPTIONS = frozenset({"AgentTimeoutError", "TrialBudgetExhaustedError"})
+
+
 def count_consecutive_harness_failures(
     trials: Iterable[tuple[str | None, float | None]],
 ) -> int:
@@ -67,14 +72,17 @@ def count_consecutive_harness_failures(
 
     Each trial is ``(exception_type, primary_reward)``. Provider capacity
     (``transient_harness``) is neutral noise. A trial the verifier scored after
-    the agent ran out of time ran end to end: the timeout is the agent's
-    outcome, not a broken harness, so it ends the run like a clean trial.
+    the agent ran out of time or hit a trial ceiling ran end to end: the stop
+    is the agent's outcome, not a broken harness, so it ends the run like a
+    clean trial.
     """
     count = 0
     for exception_type, reward in trials:
         if exception_type == "transient_harness":
             continue
-        if exception_type is None or (exception_type == "AgentTimeoutError" and reward is not None):
+        if exception_type is None or (
+            exception_type in AGENT_STOP_EXCEPTIONS and reward is not None
+        ):
             break
         count += 1
     return count

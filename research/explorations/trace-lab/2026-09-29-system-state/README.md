@@ -21,7 +21,7 @@ Snapshot at 17:10Z, by Research-Harbor. It was checked against code in the `har8
 
    All three have $0 fixes (section 3).
 4. **Processing traces is all manual.** Every analysis is a script an agent runs by hand after the fact. Nothing runs when a job lands. Stitching continuation files alone is implemented four separate times.
-5. **Choosing experiments has no fixed method.** The good experiment READMEs (HAR-81/90/85) pin the setup and budget, but none says why it runs that many trials. At 44 runs, a pass rate is only known to ±11 points. Section 5 proposes a one-page experiment card, a processing pipeline that runs on every job, and an ordered ladder of the next experiments.
+5. **Choosing experiments has no fixed method.** The good experiment READMEs (HAR-81/90/85) pin the setup and budget, but none says why it runs that many trials. At 44 runs, a pass rate is only known to ±11 points. Section 5 proposes a one-page experiment card and a processing pipeline that runs on every job. Section 5e now holds Peter's 22:25Z reset: explore with a few runs, no SFT or RL.
 
 ## Posters
 
@@ -173,18 +173,20 @@ When a job lands, one command (and later the tick itself) should:
 - **Four attempts per task** separate "never" from "sometimes". They don't estimate a rate.
 - **Cost:** HAR-81 cost ≈$0.21 per run all-in ($9.10 / 44) **[INFERENCE: includes server idle time]**. A 277-run arm is ≈$60, before the savings from the confirmation-loop fix.
 
-### 5e. The experiment ladder, in order
+### 5e. What we do next (reset, Peter 2026-09-29 ~22:25Z)
 
-| Step | Experiment | Cost | Decision it informs |
+The SFT ladder first written here (held-out baseline, data collection, fine-tune) is withdrawn. Poster 2's ladder panel shows that old version. Peter's direction: no SFT or RL for now. Get a minimal setup right, run a few tasks, and learn to analyse them well; fix tasks where needed.
+
+| Step | Work | Card | Cost |
 |---|---|---|---|
-| 0 | $0 fixes: section 3 fixes 1–3, auto-processing (5b) steps 1–2, grader exclusions, key rotation | $0 | whether the numbers can be trusted at scale |
-| 1 | Freeze the harness. Confirmation-loop fix (HAR-96 option A3/A5) proven by replay: ≈22% fewer tokens, 0 edits cut. Re-pin the key at or after main 91eafa2d. | $0 | which setup the baseline measures |
-| 2 | Held-out baseline on the frozen setup | ≈$31 expected / $218 worst | the anchor for every later claim |
-| 3 | Collect data on the train pool: many attempts per task, e.g. 48 × 8 ≈ 384 runs **[estimate ≈$80]** | needs approval | how much clean training data we get, and on which tasks |
-| 4 | Fine-tune the distill on clean passes. max_length decision first: 32,768 truncates half the passing conversations. | not yet priced | — |
-| 5 | Same held-out tasks and setup, new weights, compared task by task with step 2 | ≈ step 2 | did training help |
+| 1 | Exploration setup: Harbor's default trajectory settings (one file per run, real tool calls), MiMo-V2.6-Flash by API instead of the self-hosted distill, 500K-token / 60-call limits, cost written per run | HAR-104 (Engineering) | $0 + one proof run |
+| 2 | One run understood end to end: every view agrees on `arvo-18737`, with a short walkthrough; check the lower ceiling loses no past pass | HAR-106 (Traces) | $0 |
+| 3 | About 10 tasks across all six domains, nop-checked | HAR-105 (Data) | cents |
+| 4 | One run per task on the new setup | HAR-104 | under $1 expected, $3 cap |
+| 5 | Analyse the batch: Eval Lab first, then Scout and Docent compared against hand reads; fix Eval Lab gaps | HAR-106 | ≤ $2 for tool model calls |
+| 6 | Task-fix loop: fix 1634 / 1789 / 1702 and the cyber submit instruction in local copies, nop before and after, then 1–2 model runs to check they are fixed and still useful | HAR-105 | cents |
 
-Harness changes go before the baseline; otherwise the baseline measures an old setup and step 5 compares two changes at once.
+**Why the model changed.** Overnight Modal cost $13.68 for 58 runs, about 4.9 A100-hours. Runs read about 2.8M input tokens each (the median failing run hit the 2.5M ceiling) and wrote about 14K. The same tokens would cost about $3 on MiMo-V2.6-Flash or DeepSeek V4.1 Flash off-peak with 90% prefix-cache hits **[INFERENCE: hit rate assumed]**, and about $16.6 on Qwen3.5-9B via OpenRouter, which lists no cache discount. The bigger saving is the lower ceiling: 10 runs at 500K tokens is about 5M tokens.
 
 ### 5f. Where professional tools fit
 
@@ -192,11 +194,7 @@ Traces' survey, [`LANDSCAPE.md`](../LANDSCAPE.md) (2026-09-29), puts Inspect Sco
 
 ## 6. Decisions for Peter
 
-1. **Adopt the experiment card (5a) as a gate for paid runs?** My recommendation is yes.
-2. **Order of work:** $0 fixes and the harness freeze first, then the held-out baseline, $31 expected and $218 worst. This bundles the HAR-81 and HAR-96 decisions.
-3. **Who builds auto-processing (5b).** My proposal: Engineering moves probe-03 and the shared stitching library into Eval Lab, Data owns the integrity and cost checks, and Traces owns detector validation.
-4. **max_length for SFT:** raise it to 65,536, or split conversations at summarisation points.
-5. **Suspect graders:** exclude 1634, 1789 and 1702.
+Superseded by the reset in 5e (Peter approved it at ~22:25Z). The held-out baseline and SFT `max_length` questions are withdrawn. The suspect graders get fixed and re-checked (HAR-105) instead of just being excluded. Still open: whether 5a's experiment card becomes a gate, and who builds 5b's automatic processing. Both come back after the exploration batch.
 
 ## Evidence
 

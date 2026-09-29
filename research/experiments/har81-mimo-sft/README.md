@@ -4,7 +4,10 @@
 
 **Status (2026-09-29):**
 - Everything here is staged at $0. Nothing is submitted or approved.
-- Paid runs go to Peter as costed approvals. Each spec also needs `approve --actor peter`.
+- **On hold** (Research-Harbor, 2026-09-29): don't request approval for the pair or the held-out baseline until HAR-90's tool-call normalizer lands.
+  - In HAR-90 the distill wrapped its turns in `<tool_call>` tags, and only 15 of 200 turns parsed as Terminus.
+  - After the normalizer lands, re-run `prepare`, and re-check the costs against its first measured trials.
+- Paid runs then go to Peter as costed approvals. Each spec also needs `approve --actor peter`.
 
 Decisions this design follows:
 - **Student and teacher** (Peter, 2026-09-28 about 22:40Z): the student is the distill, and there is no teacher. This supersedes the earlier glm-5.3-flash teacher + Qwen3.6-35B-A3B pilot, which e76b691b staged and this change removes.
@@ -88,7 +91,12 @@ Before submitting anything that runs the distill:
 ### Cost formulas
 
 Per trial, for each arm:
-- distill: `2.8149 × trial_h ÷ 16 + daytona(sandbox_h)`, plus $0.40 per warm period (HAR-90 measured the $2.8149/h container rate and the 208 s cold start).
+- distill (HAR-90's formula, `mimo_selfhosted_trial_cost_usd`): `2.8149 × trial_h ÷ c + daytona(sandbox_h)`, plus $0.40 per warm period (a 208 s cold start plus the 300 s idle tail).
+  - `c` is the number of distill trials sharing the one Modal container. `submit` interleaves the pair's arms, so:
+    - wave 1 runs `c = 3`;
+    - the rest of the pair at `tick --parallel 16` runs `c = 8`;
+    - the held-out batch runs `c = 16`.
+  - Trials at the tail of a batch share with fewer trials and so cost more.
 - Qwen3.5-9B: `0.66 × input_M + 1.995 × output_M + daytona(sandbox_h)`.
 
 Daytona sandbox rates:
@@ -99,15 +107,22 @@ Daytona sandbox rates:
 The spec estimate each spec carries is its worst case. It assumes:
 - the ceiling spend is reached;
 - the sandbox lives for agent timeout + verifier timeout + 900 s;
-- for the distill, the server is shared by 16 trials for the whole agent timeout.
+- for the distill, the server share covers the full agent timeout at the `c` of the spec's wave.
 
-| batch | arm | n | expected | spec-estimate sum |
-|---|---|---|---|---|
-| pair | distill | 20 | $1.88 | $7.93 |
-| pair | Qwen3.5-9B (Tinker) | 20 | $8.03 at 0.48M input tokens per trial; $33.10 at HAR-90's measured 2.4M; $39.13 at the ceiling | $43.50 |
-| heldout | distill | 388 | $33.62 | $217.85 |
+The largest spec estimate is $2.35 (Tinker, code), under the queue's $3 per-job cap.
 
-Expected values assume 10-minute trials plus 5 minutes of sandbox setup, with the server shared by 16 trials. HAR-90's two trials ran 447 s and 631 s.
+| segment | arm | n | c | expected | spec-estimate sum |
+|---|---|---|---|---|---|
+| pair wave 1 | distill | 3 | 3 | $0.95 | $2.94 |
+| pair wave 1 | Qwen3.5-9B (Tinker) | 3 | – | $1.20 at 0.48M input tokens per trial; $4.96 at HAR-90's measured 2.4M; $5.86 at the ceiling | $6.55 |
+| pair rest | distill | 17 | 8 | $2.00 | $8.87 |
+| pair rest | Qwen3.5-9B (Tinker) | 17 | – | $6.77 / $28.08 / $33.20 | $36.95 |
+| heldout | distill | 388 | 16 | $30.99 | $217.85 |
+
+Expected values:
+- Trial time is the mean of HAR-90's two trials, 539 s (631 s and 447 s), plus 5 minutes of sandbox setup.
+- Each distill segment includes one warm period.
+- Both HAR-90 trials ended at a ceiling before the verifier ran. Once the normalizer lets turns parse, trials may run longer; the spec estimates cover that up to the agent timeout.
 
 The Tinker token range is wide: Peter's Search chat estimated $0.08–0.24 per run. At HAR-90's measured distill usage (2.4M input tokens on one terminal task), the base would cost about $1.60 per trial.
 
@@ -135,12 +150,12 @@ Cloud nop qualification belongs to HAR-88 (`../mimo-daytona-nop/`).
 
 ## Limits
 
-- **The distill may mostly measure a protocol mismatch.** In HAR-90 it kept emitting its native `<tool_call><function=exec_command>` wrapper instead of Terminus JSON; in one trial only 15 of 200 turns parsed. A Terminus-2 baseline may therefore score format failure more than capability. Check the pair's parse-error rate before approving the 388-task held-out baseline.
+- **Without a normalizer, the distill mostly measures a protocol mismatch.** In HAR-90 it kept emitting its native `<tool_call><function=exec_command>` wrapper instead of Terminus JSON; in one trial only 15 of 200 turns parsed. That is why these runs wait for HAR-90's tool-call normalizer. After it lands, check the pair's parse-error rate before approving the 388-task held-out baseline.
 - **In-sandbox harnesses can't reach Modal.** Daytona Tier 1 and 2 restrict sandbox egress, so agents running inside the sandbox cannot call the Modal server. Terminus-2 calls the model from the controller, which is why it is the harness here.
 - **Missing rewards.** When a ceiling fires, LiteLLM raises `RateLimitError` and Harbor skips the verifier, so the reward is missing, not 0. The paired analysis counts it as a failure under budget and reports how many such trials there were.
 - **Thinking on Tinker is untested.** Nothing has been sent to Tinker yet. Wave 1 is the check: calls must succeed, `reasoning_content` must come back separate, and `content` must parse.
 - **Throttling.** Tinker's OpenAI-compatible endpoint is a low-traffic beta. Sixteen concurrent trials may hit 429s, which end a trial the same way a ceiling does.
-- **The held-out baseline exceeds one day's $20 smoke budget** at the expected $33.62. Split it across days, or approve a subset.
+- **The held-out baseline exceeds one day's $20 smoke budget** at the expected $30.99. Split it across days, or approve a subset.
 - **The queue can't see the server bill.** The queue's $20/day ceiling adds each spec's estimate to spend already measured in the catalog. Distill tokens are priced at $0 and Modal server time never enters the catalog, so the ceiling does not bound the server cost. The operator's controls for it are `modal billing report` and stopping the app.
 - **Statistical power.** 15 scorable terminal held-out tasks only show large effects. Cyber's 103 tasks sit in 21 groups, so analyze paired and by group.
 - Expected costs are list-price estimates, not invoices.

@@ -1,0 +1,14 @@
+{
+  "task": "derived/task-store/variants/mimo-v2.6-rl__arvo_18737/2c9c97a36419",
+  "task_package_digest": "sha256:2c9c97a364197eb03d4b66b3846d899007df1e9a141009b5ec464ff9103ad66e",
+  "agent": "nop",
+  "environment": "daytona",
+  "name": "har105-fix-arvo-18737-2c9c97a36419",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "timeout_seconds": 3600,
+  "purpose": "calibration",
+  "hypothesis": "The fixed variant sets up and grades on Daytona: a nop control completes the verifier with reward 0 and no setup or import error.",
+  "submitted_by": "har105-qualification",
+  "override_storage_mb": 10240
+}

@@ -1,0 +1,234 @@
+{
+  "card": "HAR-105",
+  "fixes": [
+    {
+      "task_id": "arvo_18737",
+      "transform": "instruction-submit@1",
+      "components_changed": [
+        "instruction"
+      ],
+      "rationale": "arvo_18737: disclose PoC-via-submit.sh grading channel (path, server, crash+match criteria); no change to measured bug",
+      "parent_digest": "sha256:f1a27f3e78b35f324d35db6c5694f84f5262c0f007bb15c08f41690d8acc4783",
+      "variant_digest": "sha256:2c9c97a364197eb03d4b66b3846d899007df1e9a141009b5ec464ff9103ad66e",
+      "files": [
+        "instruction.md"
+      ],
+      "package": "derived/task-store/variants/mimo-v2.6-rl__arvo_18737/2c9c97a36419",
+      "spec": "specs/har105-fix-arvo-18737-2c9c97a36419.json",
+      "nop_before": {
+        "job_name": "har95-qual-y-arvo-18737",
+        "reward": 0.0,
+        "exception": null,
+        "setup_error_lines": 0,
+        "first_setup_error": null,
+        "verifier_last_line": "{\"submitted\": false, \"message\": \"No PoC was submitted with submit.sh.\"}",
+        "clean": true
+      },
+      "nop_after": {
+        "job_name": "har105-fix-arvo-18737-2c9c97a36419",
+        "reward": 0.0,
+        "exception": null,
+        "setup_error_lines": 0,
+        "first_setup_error": null,
+        "verifier_last_line": "{\"submitted\": false, \"message\": \"No PoC was submitted with submit.sh.\"}",
+        "clean": true
+      },
+      "earlier_attempts": []
+    },
+    {
+      "task_id": "arvo_57589",
+      "transform": "instruction-submit@1",
+      "components_changed": [
+        "instruction"
+      ],
+      "rationale": "arvo_57589: disclose PoC-via-submit.sh grading channel (path, server, crash+match criteria); no change to measured bug",
+      "parent_digest": "sha256:92e716bd27b350b9f72671e978cacd3f65614f5e85df0a745ad97194b27e9def",
+      "variant_digest": "sha256:634bbec7b6023102b66296a09101d8d46cdf995cc3ab4c0afb36fb5ee415d734",
+      "files": [
+        "instruction.md"
+      ],
+      "package": "derived/task-store/variants/mimo-v2.6-rl__arvo_57589/634bbec7b602",
+      "spec": "specs/har105-fix-arvo-57589-634bbec7b602.json",
+      "nop_before": {
+        "job_name": "har95-qual-y-arvo-57589",
+        "reward": 0.0,
+        "exception": null,
+        "setup_error_lines": 0,
+        "first_setup_error": null,
+        "verifier_last_line": "{\"submitted\": false, \"message\": \"No PoC was submitted with submit.sh.\"}",
+        "clean": true
+      },
+      "nop_after": {
+        "job_name": "har105-fix-arvo-57589-634bbec7b602",
+        "reward": 0.0,
+        "exception": null,
+        "setup_error_lines": 0,
+        "first_setup_error": null,
+        "verifier_last_line": "{\"submitted\": false, \"message\": \"No PoC was submitted with submit.sh.\"}",
+        "clean": true
+      },
+      "earlier_attempts": []
+    },
+    {
+      "task_id": "candidate-1634-software-databases",
+      "transform": "task-fix@1",
+      "components_changed": [
+        "task_toml",
+        "environment",
+        "verifier"
+      ],
+      "rationale": "1634: replace undiscoverable literal-signature assert with lock_type-acceptance AST check; add Python 3.12 Callable compat patch so pristine imports and nop fails on behavior; setup.sh is re-embedded in the task.toml healthcheck payload, which is what actually runs",
+      "parent_digest": "sha256:04ef36dcfe615098fab6ab39156559555deec02c76198ca8d754e9cac326c8d8",
+      "variant_digest": "sha256:8de24f28a7489773c25550cb796823c312b38c930bcffb87932563248ace9f12",
+      "files": [
+        "environment/setup/setup.sh",
+        "task.toml",
+        "tests/test_outputs.py"
+      ],
+      "package": "derived/task-store/variants/mimo-v2.6-rl__candidate-1634-software-databases/8de24f28a748",
+      "spec": "specs/har105-fix-candidate-1634-software-databases-8de24f28a748.json",
+      "nop_before": {
+        "job_name": "mimo-qual-t-candidate-1634-software-databases",
+        "reward": 0.0,
+        "exception": null,
+        "setup_error_lines": 1,
+        "first_setup_error": "_______________________ ERROR collecting test_outputs.py _______________________",
+        "verifier_last_line": "1 warning, 1 error in 0.18s",
+        "clean": false
+      },
+      "nop_after": {
+        "job_name": "har105-fix-candidate-1634-software-databases-8de24f28a748",
+        "reward": 0.0,
+        "exception": null,
+        "setup_error_lines": 0,
+        "first_setup_error": null,
+        "verifier_last_line": "5 failed, 1 passed, 3 warnings in 0.18s",
+        "clean": true
+      },
+      "earlier_attempts": [
+        {
+          "what": "edited environment/setup/setup.sh only; the healthcheck runs the copy embedded in task.toml (setup_payload.py), so the nop matched the parent exactly",
+          "nop": {
+            "job_name": "har105-fix-candidate-1634-software-databases",
+            "reward": 0.0,
+            "exception": null,
+            "setup_error_lines": 1,
+            "first_setup_error": "_______________________ ERROR collecting test_outputs.py _______________________",
+            "verifier_last_line": "1 warning, 1 error in 0.21s",
+            "clean": false
+          }
+        }
+      ]
+    },
+    {
+      "task_id": "candidate-1702-ml-inference",
+      "transform": "env-dependency@1",
+      "components_changed": [
+        "task_toml",
+        "environment"
+      ],
+      "rationale": "1702: install missing tqdm at setup so tools/run_fixture.py imports for both agent workflow and verifier; nop then fails on behavior without import errors; setup.sh is re-embedded in the task.toml healthcheck payload, which is what actually runs",
+      "parent_digest": "sha256:a2a1fda29150f53687f641535c6f83b5c47778895c0ad6a871e683130e514eaf",
+      "variant_digest": "sha256:2da2a320d7f9a5d5338bf5e8af3a1b5a08d2255ba1572e849d567b7577def019",
+      "files": [
+        "environment/setup/setup.sh",
+        "task.toml"
+      ],
+      "package": "derived/task-store/variants/mimo-v2.6-rl__candidate-1702-ml-inference/2da2a320d7f9",
+      "spec": "specs/har105-fix-candidate-1702-ml-inference-2da2a320d7f9.json",
+      "nop_before": {
+        "job_name": "mimo-qual-t-candidate-1702-ml-inference",
+        "reward": 0.0,
+        "exception": null,
+        "setup_error_lines": 7,
+        "first_setup_error": "ModuleNotFoundError: No module named 'tqdm'",
+        "verifier_last_line": "6 failed in 1.82s",
+        "clean": false
+      },
+      "nop_after": {
+        "job_name": "har105-fix-candidate-1702-ml-inference-2da2a320d7f9",
+        "reward": 0.0,
+        "exception": null,
+        "setup_error_lines": 0,
+        "first_setup_error": null,
+        "verifier_last_line": "6 failed in 4.56s",
+        "clean": true
+      },
+      "earlier_attempts": [
+        {
+          "what": "edited environment/setup/setup.sh only; the healthcheck runs the copy embedded in task.toml (setup_payload.py), so the nop matched the parent exactly",
+          "nop": {
+            "job_name": "har105-fix-candidate-1702-ml-inference",
+            "reward": 0.0,
+            "exception": null,
+            "setup_error_lines": 7,
+            "first_setup_error": "ModuleNotFoundError: No module named 'tqdm'",
+            "verifier_last_line": "6 failed in 1.77s",
+            "clean": false
+          }
+        }
+      ]
+    },
+    {
+      "task_id": "candidate-1789-security-appsec",
+      "transform": "env-dependency@1",
+      "components_changed": [
+        "task_toml",
+        "environment"
+      ],
+      "rationale": "1789: the image runs vendored Bandit from source but never installed it; install its requirement stevedore and register the vendored tree's metadata and entry points (from its setup.cfg) in site-packages so import bandit and plugin discovery work for agent and verifier; /app untouched; setup.sh is re-embedded in the task.toml healthcheck payload, which is what actually runs",
+      "parent_digest": "sha256:3bb4e1a6626adc35d5837ad7ecea65d89a288be20dd362697b751ef4809a17c2",
+      "variant_digest": "sha256:caa7772d131ecc5f972f13992e2b2133cc96bf1d2845d0c5bf43b438434c3a6c",
+      "files": [
+        "environment/setup/setup.sh",
+        "task.toml"
+      ],
+      "package": "derived/task-store/variants/mimo-v2.6-rl__candidate-1789-security-appsec/caa7772d131e",
+      "spec": "specs/har105-fix-candidate-1789-security-appsec-caa7772d131e.json",
+      "nop_before": {
+        "job_name": "mimo-qual-t-candidate-1789-security-appsec",
+        "reward": 0.0,
+        "exception": null,
+        "setup_error_lines": 12,
+        "first_setup_error": "______________ ERROR at setup of test_core_private_utf8_location _______________",
+        "verifier_last_line": "1 failed, 2 passed, 4 errors in 0.08s",
+        "clean": false
+      },
+      "nop_after": {
+        "job_name": "har105-fix-candidate-1789-security-appsec-caa7772d131e",
+        "reward": 0.0,
+        "exception": null,
+        "setup_error_lines": 0,
+        "first_setup_error": null,
+        "verifier_last_line": "4 failed, 3 passed, 4 warnings in 0.20s",
+        "clean": true
+      },
+      "earlier_attempts": [
+        {
+          "what": "edited environment/setup/setup.sh only; the healthcheck runs the copy embedded in task.toml (setup_payload.py), so the nop matched the parent exactly",
+          "nop": {
+            "job_name": "har105-fix-candidate-1789-security-appsec",
+            "reward": 0.0,
+            "exception": null,
+            "setup_error_lines": 12,
+            "first_setup_error": "______________ ERROR at setup of test_core_private_utf8_location _______________",
+            "verifier_last_line": "1 failed, 2 passed, 4 errors in 0.10s",
+            "clean": false
+          }
+        },
+        {
+          "what": "installed stevedore only: `import bandit` then fails on missing package metadata, because the vendored Bandit was never installed",
+          "nop": {
+            "job_name": "har105-fix-candidate-1789-security-appsec-3e09b8e67f4f",
+            "reward": 0.0,
+            "exception": null,
+            "setup_error_lines": 24,
+            "first_setup_error": "______________ ERROR at setup of test_core_private_utf8_location _______________",
+            "verifier_last_line": "1 failed, 2 passed, 3 warnings, 4 errors in 0.21s",
+            "clean": false
+          }
+        }
+      ]
+    }
+  ]
+}

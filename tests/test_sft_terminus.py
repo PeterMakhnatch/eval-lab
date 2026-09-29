@@ -407,6 +407,62 @@ def test_reward_and_exception_filtering_counts_by_reason(tmp_path: Path) -> None
     assert timed_out["exception_type"] == "AgentTimeoutError"
 
 
+def _curation(path: Path, flags: list[dict[str, Any]]) -> Path:
+    path.write_text(json.dumps({"schema": "evallab.sft_curation/1", "flags": flags}))
+    return path
+
+
+def test_curation_flag_excludes_a_passing_trial_and_keeps_its_reward(tmp_path: Path) -> None:
+    root = tmp_path / "runs"
+    root.mkdir()
+    _write_trial(root, "trial-tainted", task_name="mimo-v2.6-rl/task-a")
+    _write_trial(root, "trial-clean", task_name="mimo-v2.6-rl/task-b")
+    split = _freeze_split(tmp_path, ["task-a", "task-b"], heldout=[])
+    decision = "decision on the card"
+    curation = _curation(
+        tmp_path / "curation.json",
+        [
+            {"job": "job-x", "trial": "trial-tainted__abc123", "flag": "pass_tainted",
+             "source": decision},
+            {"job": "job-gone", "trial": "t__1", "flag": "pass_tainted", "source": decision},
+        ],
+    )
+    out = tmp_path / "out"
+    assert cli_main(
+        ["export", "--root", f"teacher={root}", "--split-manifest", str(split),
+         "--out", str(out), "--curation", str(curation)]
+    ) == 0
+
+    manifest = json.loads((out / "manifest.json").read_text())
+    tainted = next(t for t in manifest["trials"] if "trial-tainted" in t["trial"])
+    assert tainted["disposition"] == "excluded"
+    assert tainted["reasons"] == ["curation:pass_tainted"]
+    assert tainted["reward"] == 1.0
+    assert tainted["curation_flags"] == [{"flag": "pass_tainted", "source": decision}]
+    assert [c["task_id"] for c in manifest["conversations"]] == ["task-b"]
+    assert manifest["exclusion_counts"] == {"curation:pass_tainted": 1}
+    assert [(u["job"], u["trial"]) for u in manifest["curation"]["unmatched"]] == [
+        ("job-gone", "t__1")
+    ]
+
+
+def test_curation_flag_without_source_refuses_export(tmp_path: Path) -> None:
+    root = tmp_path / "runs"
+    root.mkdir()
+    _write_trial(root, "trial-a")
+    split = _freeze_split(tmp_path, ["task-a"], heldout=[])
+    curation = _curation(
+        tmp_path / "curation.json",
+        [{"job": "job-x", "trial": "trial-a__abc123", "flag": "pass_tainted"}],
+    )
+    out = tmp_path / "out"
+    assert cli_main(
+        ["export", "--root", f"teacher={root}", "--split-manifest", str(split),
+         "--out", str(out), "--curation", str(curation)]
+    ) == 2
+    assert not out.exists() or not any(out.iterdir())
+
+
 _ASAN_REPORT = (
     "==42==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x602000000011\n"
     "    #0 0x4c2f1a in ZSTD_decompressBlock /src/zstd/lib/decompress/zstd_decompress_block.c:1502\n"

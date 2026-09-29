@@ -94,7 +94,8 @@ The command exits 0 and prints `POOLABLE` only when every setup field agrees. Ot
 | `trajectory_*_tokens` | sum of per-step `metrics` over unique main-trajectory steps plus summarization trajectories |
 | `proxy_*_tokens` | ledger totals |
 | `input_tokens_unattributed` | ledger input minus trajectory-attributed input |
-| `token_gap_basis` | what the gap is: overflow cycles plus unresolved ledger requests, i.e. calls that failed or were never recorded — not missing files |
+| `ledger_orphan_{truncated,final,other}_calls`, `ledger_orphan_input_tokens` | ledger calls no recorded step accounts for (matched on `input_tokens` = step `prompt_tokens`), by shape: `truncated` hit the reserved `max_tokens`, was discarded and retried; `final` is the last call of a trial whose agent phase ended in an exception, cut off before a step was written; `other` is anything else |
+| `token_gap_basis` | what the gap is: orphan calls by shape and how much of the gap they cover, overflow cycles, unresolved ledger requests — calls that failed or were never recorded, not missing files |
 
 ## Example (HAR-90, 2026-09-29)
 

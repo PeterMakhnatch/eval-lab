@@ -377,6 +377,56 @@ def test_capture_log_cycles_and_failed_call_gap_basis(tmp_path: Path) -> None:
     assert "failed/unrecorded calls, not missing files" in row["token_gap_basis"]
 
 
+def test_capture_gap_from_truncated_and_final_orphan_calls(tmp_path: Path) -> None:
+    job, trial = _job(tmp_path / "runs", "a", "0" * 40, input_tokens=1000)
+    lab = json.loads((job / "lab-metadata.json").read_text(encoding="utf-8"))
+    call = {"shaping_applied": True, "reserved_output_tokens": 4096}
+    lab["provider_usage"] = {
+        "calls": [
+            {**call, "call_id": 1, "input_tokens": 400, "output_tokens": 4096},
+            {**call, "call_id": 2, "input_tokens": 1000, "output_tokens": 10},
+            {**call, "call_id": 3, "input_tokens": 1100, "output_tokens": 7},
+        ],
+        "totals": {"input_tokens": 2500, "output_tokens": 4113},
+        "unresolved_requests": 0,
+    }
+    _write(job / "lab-metadata.json", lab)
+    result = json.loads((trial / "result.json").read_text(encoding="utf-8"))
+    result["exception_info"] = {"exception_type": "AgentTimeoutError"}
+    _write(trial / "result.json", result)
+
+    row = collect_capture(job, trial)
+
+    assert row["input_tokens_unattributed"] == 1500
+    assert row["ledger_orphan_truncated_calls"] == 1
+    assert row["ledger_orphan_final_calls"] == 1
+    assert row["ledger_orphan_other_calls"] == 0
+    assert row["ledger_orphan_input_tokens"] == 1500
+    assert "truncated at max_tokens and retried" in row["token_gap_basis"]
+    assert "final call cut off by AgentTimeoutError" in row["token_gap_basis"]
+    assert "the whole gap" in row["token_gap_basis"]
+
+
+def test_capture_orphan_without_agent_exception_is_not_final(tmp_path: Path) -> None:
+    job, trial = _job(tmp_path / "runs", "a", "0" * 40, input_tokens=1000)
+    lab = json.loads((job / "lab-metadata.json").read_text(encoding="utf-8"))
+    lab["provider_usage"] = {
+        "calls": [
+            {"input_tokens": 1000, "output_tokens": 10, "reserved_output_tokens": 4096},
+            {"input_tokens": 300, "output_tokens": 12, "reserved_output_tokens": 4096},
+        ],
+        "totals": {"input_tokens": 1500, "output_tokens": 22},
+        "unresolved_requests": 0,
+    }
+    _write(job / "lab-metadata.json", lab)
+
+    row = collect_capture(job, trial)
+
+    assert row["ledger_orphan_final_calls"] == 0
+    assert row["ledger_orphan_other_calls"] == 1
+    assert "300 of the gap, 200 left" in row["token_gap_basis"]
+
+
 def test_capture_quiet_log_leaves_context_intact(tmp_path: Path) -> None:
     job, trial = _job(
         tmp_path / "runs",

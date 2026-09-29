@@ -196,6 +196,17 @@ def test_timeless_steps_never_merge() -> None:
     assert len(unique) == 2
     assert stats.duplicated_steps == 0
 
+def test_within_part_repeats_are_kept() -> None:
+    # A loop of identical timestamped calls inside one part is evidence,
+    # not a recording duplicate: only cross-part repeats merge.
+    loop = {"steps": [
+        {"source": "agent", "message": "same", "timestamp": "2026-09-01T00:02:00Z"},
+        {"source": "agent", "message": "same", "timestamp": "2026-09-01T00:02:00Z"},
+    ]}
+    unique, stats = stitch_steps([loop])
+    assert len(unique) == 2
+    assert stats.duplicated_steps == 0
+
 
 def test_whole_duplicate_segments_use_sft_vocabulary() -> None:
     steps_a = [{"source": "agent", "message": "a"}]

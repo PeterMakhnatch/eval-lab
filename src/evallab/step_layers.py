@@ -750,13 +750,15 @@ def stitch_steps(
     parts — a sealed head re-dumped as a continuation (duplicate files), or a
     head prefix restated by a cumulative continuation — are identified by
     (timestamp, source, message, reasoning, observation) and kept once, with
-    later parts superseding. Non-dict entries pass through untouched so
-    malformed shapes still fail closed in strict consumers.
+    later parts superseding. Repeats *within* one part are always kept: a
+    loop of identical calls is evidence, not a recording duplicate.
+    Non-dict entries pass through untouched so malformed shapes still fail
+    closed in strict consumers.
     """
     stats = StitchStats()
-    seen: set[str] = set()
+    first_seen_in: dict[str, int] = {}
     unique: list[Any] = []
-    for doc in docs_in_order:
+    for part_index, doc in enumerate(docs_in_order):
         raw_steps = doc.get("steps") if isinstance(doc, Mapping) else None
         if not isinstance(raw_steps, list):
             continue
@@ -773,11 +775,11 @@ def stitch_steps(
                 stats.copied_context_steps += 1
                 continue
             key = _step_key(raw_step)
-            if key is not None and key in seen:
+            if key is not None and first_seen_in.get(key, part_index) < part_index:
                 stats.duplicated_steps += 1
                 continue
             if key is not None:
-                seen.add(key)
+                first_seen_in.setdefault(key, part_index)
             unique.append(raw_step)
         stats.per_part_steps.append(part_steps)
         stats.per_part_copied.append(part_copied)

@@ -258,3 +258,7 @@ The change log below is historical, not a current inventory or work order.
   execution-path support that must stay out of the root dependency graph);
   first entry is `tools/tinker-sft/` for the HAR-81 Tinker chat_sl trainer
   and offline renderer.
+- 2026-09-29 — `tools/modal-mimo-serve/` added under the `tools/` bucket
+  rule: the Modal client and the HAR-90 SGLang server app for the self-hosted
+  MiMo Terminus-2 route. It is kept out of the root graph because the lab
+  reaches the server over HTTP and never imports `modal`.

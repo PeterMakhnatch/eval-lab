@@ -14,6 +14,12 @@ subdirectory pins its own dependencies with its own committed `uv.lock`.
   `tinker_cookbook.recipes.chat_sl.train` entrypoint. Invoked only as
   `uv run --project tools/tinker-sft --locked ...` from
   `src/evallab/sft_tinker.py`.
+- `modal-mimo-serve/` — the Modal client (`modal==1.5.5`) plus the HAR-90
+  SGLang server app for `XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B`: `serve.py`
+  (the deploy and weight-download targets), `smoke.py` (a stdlib latency and
+  reasoning-split probe) and a README covering deploy, stop and cost. It is
+  invoked only as `uv run --project tools/modal-mimo-serve --locked modal ...`;
+  the lab reaches the server through the `mimo_selfhosted` proxy provider.
 
 ## Invariants or rules
 
@@ -30,6 +36,9 @@ subdirectory pins its own dependencies with its own committed `uv.lock`.
   contract of `tools/tinker-sft/measure.py` offline via an injected runner.
 - `uv run --project tools/tinker-sft --locked python tools/tinker-sft/measure.py
   --help` is the smoke check for the isolated environment.
+- `uv run --project tools/modal-mimo-serve --locked python
+  tools/modal-mimo-serve/smoke.py --help` is the offline check for the
+  Modal toolchain. A live smoke needs a deployed server and spends GPU time.
 
 ## What not to add here
 

@@ -143,6 +143,49 @@ PROVIDERS: dict[str, Any] = {
             "reasoning_effort",
         ),
     },
+    "mimo_selfhosted": {
+        "label": "Mimo self-hosted",
+        "secret_path_envs": ("EVALLAB_MIMO_SELFHOSTED_SECRET_PATH",),
+        "default_secret_path": Path("/run/secrets/evallab_mimo_selfhosted_api_key"),
+        # No default upstream: the Modal deployment URL is operator config.
+        # Unset fails closed with a clear error (see upstream_base()).
+        "upstream_env": "EVALLAB_MIMO_SELFHOSTED_UPSTREAM",
+        "default_upstream": None,
+        "upstream_path": "/v1/chat/completions",
+        # https hosts pin to one Modal label (*.modal.run or a routing-region
+        # *.modal.direct; see _MIMO_SELFHOSTED_MODAL_{RUN,DIRECT}_RE);
+        # fixed-name pinning does not apply.
+        "https_host": None,
+        "capability_env": "EVALLAB_MIMO_SELFHOSTED_PROXY_CAPABILITY",
+        "expires_env": "EVALLAB_MIMO_SELFHOSTED_CAPABILITY_EXPIRES_AT",
+        "attempt_env": "EVALLAB_MIMO_SELFHOSTED_ATTEMPT_ID",
+        "usage_env": "EVALLAB_MIMO_SELFHOSTED_USAGE_FILE",
+        "limit_env_prefix": "EVALLAB_MIMO_SELFHOSTED",
+        "model_prefix": "selfhosted/",
+        "allowed_models_env": None,
+        "default_allowed_models": frozenset({"XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"}),
+        "flat_input_price_env": None,
+        "flat_output_price_env": None,
+        # Self-hosted tokens have no per-token price. Modal bills the server
+        # container by time, and the lab accounts it with
+        # mimo_selfhosted_trial_cost_usd, not with this ledger.
+        "model_prices": {"XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B": (0, 0)},
+        "expected_base_env": None,
+        "checkpoint_models": False,
+        # Base passthrough; the MiMo branch below forces the generation_config
+        # (enable_thinking, temperature, top_p, top_k) and strips
+        # reasoning_effort on top of these.
+        "forwarded_fields": (
+            "model",
+            "messages",
+            "tools",
+            "tool_choice",
+            "temperature",
+            "top_p",
+            "top_k",
+            "chat_template_kwargs",
+        ),
+    },
 }
 
 PROVIDER_ENV = "EVALLAB_PROXY_PROVIDER"
@@ -197,7 +240,28 @@ def secret_path() -> Path:
 
 def upstream_base() -> str:
     profile = _profile()
-    return os.environ.get(profile["upstream_env"], profile["default_upstream"]).rstrip("/")
+    raw = os.environ.get(profile["upstream_env"], profile.get("default_upstream"))
+    if not raw:
+        raise RuntimeError(
+            f"{profile['label']} upstream is not configured: "
+            f"set {profile['upstream_env']} to the pinned chat-completions base URL"
+        )
+    return raw.rstrip("/")
+
+
+#: Admitted https hosts for the self-hosted MiMo route, full match only:
+#: one Modal serving label under ``*.modal.run`` (Web Functions) or under a
+#: documented routing region ``*.modal.direct`` (Servers, e.g.
+#: ``https://p-makhnatch--evallab-mimo-v26-9b-mimoserver.us-east.modal.direct``).
+#: ``modal.run.evil.com``, ``x.evil.modal.direct`` (not a routing region),
+#: ``modal.direct.evil.com`` and multi-label ``a.b.us-east.modal.direct``
+#: never match.
+_MIMO_SELFHOSTED_MODAL_RUN_RE = re.compile(
+    r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.modal\.run$"
+)
+_MIMO_SELFHOSTED_MODAL_DIRECT_RE = re.compile(
+    r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.(?:us-east|us-west|ca-central|eu-west|ap-south|ap-southeast-2)\.modal\.direct$"
+)
 
 
 def _env(suffix: str) -> str:
@@ -253,6 +317,37 @@ def _pinned_upstream_url() -> str:
     https_host = profile["https_host"]
     upstream_path = profile["upstream_path"]
     parsed = urllib.parse.urlsplit(upstream_base())
+    if profile.get("https_host") is None and _provider_name() == "mimo_selfhosted":
+        # Self-hosted route: https pins to one Modal label (*.modal.run Web
+        # Functions, or a documented routing region *.modal.direct Servers)
+        # on 443 with no userinfo, path, query, or fragment. Loopback http
+        # stays for tests.
+        if parsed.scheme == "https":
+            if parsed.username is not None or parsed.password is not None:
+                raise RuntimeError("upstream userinfo is not pinned")
+            host = parsed.hostname or ""
+            if not (
+                _MIMO_SELFHOSTED_MODAL_RUN_RE.fullmatch(host)
+                or _MIMO_SELFHOSTED_MODAL_DIRECT_RE.fullmatch(host)
+            ):
+                raise RuntimeError("upstream host is not pinned")
+            port = parsed.port or 443
+            if port != 443:
+                raise RuntimeError("upstream port is not pinned")
+            if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+                raise RuntimeError("upstream path is not pinned")
+            return f"https://{host}:443{upstream_path}"
+        if parsed.scheme == "http":
+            host = parsed.hostname
+            if not host or host not in ALLOWED_HTTP_HOSTS:
+                raise RuntimeError("http upstream is not pinned")
+            port = parsed.port
+            if port is None:
+                raise RuntimeError("http upstream port is not pinned")
+            if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+                raise RuntimeError("upstream path is not pinned")
+            return f"http://{host}:{port}{upstream_path}"
+        raise RuntimeError("upstream scheme is not pinned")
     if parsed.scheme == "https":
         if parsed.hostname != https_host:
             raise RuntimeError("upstream host is not pinned")
@@ -661,6 +756,7 @@ class TrialBudget:
         cost_micros: int,
         requested_model: str,
         rates: tuple[int, int],
+        shaping_applied: bool = False,
     ) -> int | None:
         with self._lock:
             self._freeze_pricing_locked(rates)
@@ -690,6 +786,7 @@ class TrialBudget:
                     "reserved_output_tokens": output_tokens,
                     "reserved_cost_micros": cost_micros,
                     "requested_model": requested_model,
+                    **({"shaping_applied": True} if shaping_applied else {}),
                 }
             )
             self._sequence += 1
@@ -1024,6 +1121,7 @@ class Handler(BaseHTTPRequestHandler):
                 cost_micros=cost,
                 requested_model=full_model,
                 rates=rates,
+                shaping_applied=_provider_name() == "mimo_selfhosted",
             )
         except (OSError, ValueError):
             self._reject(503, b"budget accounting unavailable\n")
@@ -1065,6 +1163,25 @@ class Handler(BaseHTTPRequestHandler):
         forwarded["stream"] = requested_stream
         if requested_stream:
             forwarded["stream_options"] = {"include_usage": True}
+        if _provider_name() == "mimo_selfhosted":
+            # Proxy-enforced generation_config for the self-hosted MiMo
+            # route only. SGLang's ``mimo`` reasoning parser only splits
+            # ``<think>`` when enable_thinking=True; without it reasoning
+            # lands in content and breaks Terminus JSON. Values mirror
+            # MIMO_SELFHOSTED_* in execution_contracts.py (this standalone
+            # script cannot import it). reasoning_effort — e.g. the HAR-81
+            # student's "none", top-level or inside chat_template_kwargs —
+            # would map into thinking modes that silently disable MiMo
+            # thinking, so it is stripped in both places.
+            forwarded.pop("reasoning_effort", None)
+            template = forwarded.get("chat_template_kwargs")
+            template = dict(template) if isinstance(template, dict) else {}
+            template.pop("reasoning_effort", None)
+            template["enable_thinking"] = True
+            forwarded["chat_template_kwargs"] = template
+            forwarded["temperature"] = 0.6
+            forwarded["top_p"] = 0.95
+            forwarded["top_k"] = 20
 
         forwarded_body = json.dumps(forwarded, ensure_ascii=False, separators=(",", ":")).encode(
             "utf-8"
@@ -1296,6 +1413,10 @@ def serve(
     ready_file: Path | str | None = None,
 ) -> ThreadingHTTPServer:
     bound_port = int(os.environ.get("PORT", "8080") if port is None else port)
+    # Fail closed at startup on a misconfigured upstream. Providers with a
+    # default always pass; providers without one (mimo_selfhosted) refuse to
+    # bind until their upstream env is set, with a clear error.
+    _pinned_upstream_url()
     server = ProxyServer((host, bound_port), Handler, max_workers=max_workers)
     server.budget = TrialBudget()
     if ready_file is not None:
@@ -1313,7 +1434,7 @@ def _host_entrypoint_args(argv: list[str] | None = None) -> argparse.Namespace:
     loopback instance never depends on ambient ``PORT`` state.
     """
     parser = argparse.ArgumentParser(
-        description="Least-privilege metered provider proxy (Z.ai OpenAPI, Tinker)",
+        description="Least-privilege metered provider proxy (Z.ai OpenAPI, Tinker, self-hosted MiMo)",
     )
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=None)

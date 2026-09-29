@@ -10,6 +10,7 @@ Key invariants:
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import secrets
@@ -405,6 +406,100 @@ def is_tinker_terminus_model(model: str | None) -> bool:
     return isinstance(model, str) and model.startswith(TINKER_MODEL_PREFIX)
 
 
+#: Self-hosted MiMo route for Terminus-2: a single SGLang server on Modal
+#: serving ``XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B`` (run with
+#: ``--served-model-name`` equal to the native id below). The Eval Lab
+#: selector carries a ``selfhosted/`` prefix so it can never collide with a
+#: hosted provider id; exactly one selector is admitted and anything else
+#: under ``selfhosted/`` fails closed in :func:`parse_mimo_selfhosted_model`.
+MIMO_SELFHOSTED_MODEL_PREFIX = "selfhosted/"
+MIMO_SELFHOSTED_NATIVE_MODEL = "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
+MIMO_SELFHOSTED_MODEL_SELECTOR = f"{MIMO_SELFHOSTED_MODEL_PREFIX}{MIMO_SELFHOSTED_NATIVE_MODEL}"
+#: LiteLLM/OpenAI-compatible id sent upstream (served-model-name).
+MIMO_SELFHOSTED_LITELLM_MODEL = f"openai/{MIMO_SELFHOSTED_NATIVE_MODEL}"
+#: Context window as served (input+output).
+MIMO_SELFHOSTED_CONTEXT_TOKENS = 65_536
+#: Sampling the proxy enforces on every call (the model's generation_config):
+#: SGLang's ``mimo`` reasoning parser only splits ``<think>`` when
+#: ``enable_thinking=True``; without it reasoning lands in content and breaks
+#: Terminus JSON. Mirrored in ``containers/zai_openapi_secret_proxy.py``,
+#: which cannot import this module (standalone container script).
+MIMO_SELFHOSTED_TEMPERATURE = 0.6
+MIMO_SELFHOSTED_TOP_P = 0.95
+MIMO_SELFHOSTED_TOP_K = 20
+MIMO_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS: frozenset[str] = frozenset({"MIMO_SELFHOSTED_API_KEY"})
+MIMO_SELFHOSTED_PROXY_TOKEN = "evallab-proxy-placeholder"
+MIMO_SELFHOSTED_SECRET_FILE_ENV = "EVALLAB_MIMO_SELFHOSTED_SECRET_FILE"
+MIMO_SELFHOSTED_SECRET_PATH_ENV = "EVALLAB_MIMO_SELFHOSTED_SECRET_PATH"
+MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV = "EVALLAB_MIMO_SELFHOSTED_PROXY_CAPABILITY"
+MIMO_SELFHOSTED_CAPABILITY_EXPIRES_AT_ENV = "EVALLAB_MIMO_SELFHOSTED_CAPABILITY_EXPIRES_AT"
+MIMO_SELFHOSTED_UPSTREAM_ENV = "EVALLAB_MIMO_SELFHOSTED_UPSTREAM"
+MIMO_SELFHOSTED_PROXY_ATTEMPT_ID_ENV = "EVALLAB_MIMO_SELFHOSTED_ATTEMPT_ID"
+MIMO_SELFHOSTED_PROXY_USAGE_FILE_ENV = "EVALLAB_MIMO_SELFHOSTED_USAGE_FILE"
+MIMO_SELFHOSTED_PROXY_PROVIDER_ENV = "EVALLAB_PROXY_PROVIDER"
+MIMO_SELFHOSTED_PROXY_PROVIDER = "mimo_selfhosted"
+#: Self-hosted tokens have no per-token price. The server container is billed
+#: by Modal per second and accounted by the time-based estimate
+#: (:func:`mimo_selfhosted_trial_cost_usd`), not the token ledger.
+MIMO_SELFHOSTED_MODEL_PRICES_MICROS: Mapping[str, tuple[int, int]] = MappingProxyType(
+    {MIMO_SELFHOSTED_NATIVE_MODEL: (0, 0)}
+)
+#: Modal rate (USD per hour) for the whole server container, from
+#: modal.com/pricing on 2026-09-28:
+#:   A100-80GB $0.000694/s = $2.4984/h
+#:   4 CPU cores × $0.0000131/s = $0.18864/h
+#:   16 GiB × $0.00000222/s = $0.127872/h
+#: Modal bills CPU and memory on top of the GPU.
+MIMO_SELFHOSTED_SERVER_USD_PER_HOUR = 2.814912
+
+
+def parse_mimo_selfhosted_model(model: str | None) -> str:
+    """Strictly parse the self-hosted MiMo Terminus selector, returning the native id.
+
+    Exactly ``selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B`` is admitted;
+    any other ``selfhosted/...`` string — other models, suffixes, or
+    transport kwargs smuggled in the string — fails closed here before any
+    execution or spec freeze.
+    """
+    if model != MIMO_SELFHOSTED_MODEL_SELECTOR:
+        raise ValueError(
+            "self-hosted Terminus model must be exactly "
+            f"{MIMO_SELFHOSTED_MODEL_SELECTOR!r}, got {model!r}"
+        )
+    return MIMO_SELFHOSTED_NATIVE_MODEL
+
+
+def is_mimo_selfhosted_model(model: str | None) -> bool:
+    return isinstance(model, str) and model.startswith(MIMO_SELFHOSTED_MODEL_PREFIX)
+
+
+def mimo_selfhosted_trial_cost_usd(
+    trial_hours: float, concurrency: int, sandbox_usd: float
+) -> float:
+    """Estimate one trial's cost: server $/h x trial_hours / concurrency + sandbox_usd.
+
+    This excludes the one-off cost of each warm period: a cold start plus
+    the 300 s idle tail before scale-to-zero. With zero per-token rates the
+    proxy's cost ceiling cannot trip; its request and token ceilings still
+    bound the run.
+    """
+    if (
+        isinstance(concurrency, bool)
+        or not isinstance(concurrency, int)
+        or concurrency < 1
+    ):
+        raise ValueError(f"concurrency must be a positive integer, got {concurrency!r}")
+    for label, value in (("trial_hours", trial_hours), ("sandbox_usd", sandbox_usd)):
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            or value < 0
+        ):
+            raise ValueError(f"{label} must be a finite non-negative number, got {value!r}")
+    return MIMO_SELFHOSTED_SERVER_USD_PER_HOUR * trial_hours / concurrency + sandbox_usd
+
+
 GLM_SELFHOSTED_BASE_MODEL_SELECTOR = "glm-selfhosted/glm-5.3-flash"
 GLM_SELFHOSTED_FT_MODEL_SELECTOR = "glm-ft/glm-5.3-flash-ft"
 GLM_SELFHOSTED_ALLOWED_PROVIDERS: frozenset[str] = frozenset({"glm-selfhosted", "glm-ft"})
@@ -766,6 +861,29 @@ def materialize_tinker_secret_file(
     return destination
 
 
+def materialize_mimo_selfhosted_secret_file(
+    destination: Path,
+    environment: Mapping[str, str] | None = None,
+) -> Path:
+    """Write the self-hosted MiMo SGLang API key to a 0400 file for the host loopback proxy."""
+    source = os.environ if environment is None else environment
+    value = source.get("MIMO_SELFHOSTED_API_KEY")
+    if value == MIMO_SELFHOSTED_PROXY_TOKEN:
+        value = None
+    if not value:
+        existing = source.get(MIMO_SELFHOSTED_SECRET_FILE_ENV)
+        if existing:
+            path = Path(existing)
+            try:
+                read_owner_secret_file(path)
+            except OSError as exc:
+                raise RuntimeError("Mimo self-hosted provider credential is missing") from exc
+            return path
+        raise RuntimeError("Mimo self-hosted provider credential is missing")
+    persist_private_bytes(destination, f"{value}\n".encode(), secrets=(), mode=0o400)
+    return destination
+
+
 def proxy_runtime_identity(path: Path) -> tuple[int, int]:
     """Return the numeric uid/gid the proxy must run as to read *path*.
 
@@ -794,6 +912,7 @@ def collected_secret_values(
         *((key, ZAI_PROXY_TOKEN) for key in ZAI_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, ZAI_OPENAPI_PROXY_TOKEN) for key in ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, TINKER_PROXY_TOKEN) for key in TINKER_CREDENTIAL_ENVIRONMENT_KEYS),
+        *((key, MIMO_SELFHOSTED_PROXY_TOKEN) for key in MIMO_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, GLM_SELFHOSTED_PROXY_TOKEN) for key in GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS),
     ):
         value = source.get(key)
@@ -804,6 +923,7 @@ def collected_secret_values(
         (ZAI_SECRET_FILE_ENV, ZAI_PROXY_TOKEN),
         (ZAI_OPENAPI_SECRET_FILE_ENV, ZAI_OPENAPI_PROXY_TOKEN),
         (TINKER_SECRET_FILE_ENV, TINKER_PROXY_TOKEN),
+        (MIMO_SELFHOSTED_SECRET_FILE_ENV, MIMO_SELFHOSTED_PROXY_TOKEN),
     ):
         secret_file = source.get(secret_file_env)
         if secret_file:
@@ -818,6 +938,7 @@ def collected_secret_values(
         (ZAI_PROXY_CAPABILITY_ENV, ZAI_PROXY_TOKEN),
         (ZAI_OPENAPI_PROXY_CAPABILITY_ENV, ZAI_OPENAPI_PROXY_TOKEN),
         (TINKER_PROXY_CAPABILITY_ENV, TINKER_PROXY_TOKEN),
+        (MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV, MIMO_SELFHOSTED_PROXY_TOKEN),
     ):
         capability = source.get(capability_env)
         if capability and capability != placeholder:
@@ -1045,6 +1166,7 @@ def redact_environment(environment: Mapping[str, str]) -> dict[str, str]:
         | ZAI_CREDENTIAL_ENVIRONMENT_KEYS
         | ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS
         | TINKER_CREDENTIAL_ENVIRONMENT_KEYS
+        | MIMO_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
         | GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
         | DAYTONA_CREDENTIAL_ENVIRONMENT_KEYS
     )
@@ -1150,6 +1272,10 @@ def validate_request(request: RunRequest) -> None:
             # Strict fail-closed parse: unknown base or malformed checkpoint
             # refuses here, before any spec freeze or execution.
             parse_tinker_model(model)
+        elif is_mimo_selfhosted_model(model):
+            # Exactly one self-hosted selector is admitted; anything else
+            # under selfhosted/ refuses here.
+            parse_mimo_selfhosted_model(model)
         elif model not in {
             *ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS,
             TERMINUS_LOCAL_MODEL_SELECTOR,
@@ -1158,7 +1284,8 @@ def validate_request(request: RunRequest) -> None:
                 "terminus-2 requires a Z.ai standard-API model "
                 f"({sorted(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)}), a Tinker "
                 f"route ({TINKER_MODEL_PREFIX}<base>[@tinker://<run>:train:<i>"
-                "/sampler_weights/<step>]), or installed local "
+                "/sampler_weights/<step>]), the self-hosted route "
+                f"{MIMO_SELFHOSTED_MODEL_SELECTOR!r}, or installed local "
                 f"{TERMINUS_LOCAL_MODEL_SELECTOR!r}; Coding Plan credentials "
                 "are not admitted for this harness"
             )

@@ -29,7 +29,9 @@ from evallab.execution_contracts import (
     ZAI_OPENCODE_AGENT,
     ZAI_OPENCODE_MODEL_SELECTORS,
     RunRequest,
+    is_mimo_selfhosted_model,
     is_tinker_terminus_model,
+    parse_mimo_selfhosted_model,
     parse_tinker_model,
     uses_provider_proxy,
     validate_request,
@@ -281,13 +283,18 @@ def prepare_task(
             # Fail closed on unknown bases/malformed checkpoints at prepare
             # time, not at dispatch.
             parse_tinker_model(model)
+        elif is_mimo_selfhosted_model(model):
+            # Exactly one self-hosted selector is admitted; anything else
+            # under selfhosted/ refuses here.
+            parse_mimo_selfhosted_model(model)
         elif model not in ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS | {TERMINUS_LOCAL_MODEL_SELECTOR}:
             raise ValueError(
                 "terminus-2 requires a Z.ai standard-API model "
                 f"{sorted(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)}, a "
                 "'tinker/<base>[@tinker://<run>:train:<i>/sampler_weights/"
-                f"<step>]' selector, or the installed local selector "
-                f"{TERMINUS_LOCAL_MODEL_SELECTOR!r}, got {model!r}"
+                f"<step>]' selector, the self-hosted MiMo selector, or the "
+                f"installed local selector {TERMINUS_LOCAL_MODEL_SELECTOR!r}, "
+                f"got {model!r}"
             )
     if (
         agent in (ZAI_OPENCODE_AGENT, RLM_AGENT)
@@ -513,12 +520,15 @@ def replay_task(
     if model is not None and model != base.model:
         if is_tinker_terminus_model(model):
             parse_tinker_model(model)
+        elif is_mimo_selfhosted_model(model):
+            parse_mimo_selfhosted_model(model)
         elif model not in ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS | {TERMINUS_LOCAL_MODEL_SELECTOR}:
             raise ValueError(
                 "model replay requires a Terminus-admitted model: one of "
-                f"{sorted(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)} or a "
+                f"{sorted(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)}, a "
                 "'tinker/<base>[@tinker://<run>:train:<i>/sampler_weights/"
-                f"<step>]' selector, got {model!r}"
+                f"<step>]' selector, or the self-hosted MiMo selector, "
+                f"got {model!r}"
             )
         replayed = replay_spec_for_model(base, campaign_name=name, model=model)
         if harness_tree_path is None:

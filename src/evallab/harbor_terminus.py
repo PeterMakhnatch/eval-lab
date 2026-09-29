@@ -32,7 +32,14 @@ Episode endings:
   :mod:`evallab.mimo_tool_calls`). Each mapped agent step carries
   ``extra.prose_completion: true``; each trajectory file's
   ``final_metrics.extra.prose_completions`` and the agent metadata's
-  ``prose_completions`` count them.
+  ``prose_completions`` count them, including on the agent-timeout path.
+
+Step layers (HAR-92, recording only):
+
+- Every agent step records ``extra.step_layers`` with what the model
+  proposed, what the parser accepted, what executed, and what came back
+  (see :mod:`evallab.step_layers`). Raw messages, observations, and rollout
+  details are untouched; parser decisions are identical.
 """
 
 from __future__ import annotations
@@ -40,6 +47,7 @@ from __future__ import annotations
 import json
 import os
 import urllib.parse
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -71,9 +79,19 @@ from evallab.execution_contracts import (
 )
 from evallab.harbor_common import sanitize_native_trajectory
 from evallab.mimo_tool_calls import MimoToolCallParser
+from evallab.step_layers import (
+    attach_layers,
+    build_recorded_layers,
+    copied_layers,
+)
 from evallab.terminus_local import OllamaBinding, resolve_ollama_binding
 
-__all__ = ["SecretSafeTerminus2", "TrialBudgetExhaustedError", "apply_mimo_blocklist"]
+__all__ = [
+    "SecretSafeTerminus2",
+    "TrialBudgetExhaustedError",
+    "apply_mimo_blocklist",
+    "mimo_replay_parser",
+]
 
 #: The metered proxy's 429 body when a trial ceiling (requests, tokens or
 #: cost) is spent (``containers/zai_openapi_secret_proxy.py``).
@@ -155,6 +173,49 @@ def _record_prose_completions(path: Path) -> None:
     metrics["extra"] = {**(extra if isinstance(extra, dict) else {}), "prose_completions": count}
     payload["final_metrics"] = metrics
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def mimo_replay_parser() -> Any:
+    """Stock Terminus JSON parser wrapped as a HAR-92 replay callback.
+
+    Offline layer reconstruction replays the raw (or normalized) response
+    text through this — the same stock parser the live
+    :class:`evallab.mimo_tool_calls.MimoToolCallParser` delegates to — so
+    replayed decisions are identical by construction. The MiMo prose rule is
+    deliberately NOT applied here: reconstruction consults the recorded
+    ``prose_completion`` step flag instead of assuming a finish reason.
+    Durations mirror upstream's ``min(duration, 60)`` cap
+    (``terminus_2.py`` ``_handle_llm_interaction``); the Enter keystrokes the
+    live parser appends are applied by the caller
+    (:func:`evallab.step_layers.executed_keystrokes` path), so commands here
+    carry the parsed text verbatim.
+    """
+    from harbor.agents.terminus_2.terminus_json_plain_parser import (  # ty: ignore[unresolved-import]
+        TerminusJSONPlainParser,
+    )
+
+    from evallab.step_layers import ReplayedCommand, ReplayedParse
+
+    inner = TerminusJSONPlainParser()
+
+    def parse(text: str) -> ReplayedParse:
+        result = inner.parse_response(text)
+        commands = tuple(
+            ReplayedCommand(
+                keystrokes=command.keystrokes,
+                duration_sec=min(command.duration, 60)
+                if isinstance(getattr(command, "duration", None), (int, float))
+                else None,
+            )
+            for command in result.commands
+        )
+        return ReplayedParse(
+            error=getattr(result, "error", None),
+            commands=commands,
+            task_complete=bool(getattr(result, "is_task_complete", False)),
+        )
+
+    return parse
 
 
 #: Marks "no prose completion awaiting its trajectory step".
@@ -371,6 +432,12 @@ class SecretSafeTerminus2(Terminus2):
         self._mimo_selfhosted = False
         self._prose_completions = 0
         self._pending_prose_step: Any = _NO_PENDING_PROSE_STEP
+        # HAR-92 step layers: one episode record per LLM turn, queued in
+        # episode order until the appended agent step is annotated at dump.
+        self._pending_layer: dict[str, Any] | None = None
+        self._layer_queue: list[dict[str, Any]] = []
+        self._layer_steps_id: int | None = None
+        self._layer_annotated: int = 0
         if model_name == TERMINUS_LOCAL_MODEL_SELECTOR:
             self._local_binding = resolve_ollama_binding(model_name)
             model = model_name
@@ -506,9 +573,18 @@ class SecretSafeTerminus2(Terminus2):
         super()._reset_per_run_state()
         self._prose_completions = 0
         self._pending_prose_step = _NO_PENDING_PROSE_STEP
+        self._pending_layer = None
+        self._layer_queue = []
+        self._layer_steps_id = None
+        self._layer_annotated = 0
 
     async def _handle_llm_interaction(self, *args: Any, **kwargs: Any) -> Any:
+        # A previous turn that never executed (a parse error appends its step
+        # without touching the terminal) still deserves its layers: flush it
+        # as not-executed so episode records stay aligned with appended steps.
+        self._flush_pending_layer("parse_error: nothing executed")
         outcome = await super()._handle_llm_interaction(*args, **kwargs)
+        commands, is_task_complete, feedback, _analysis, _plan, llm_response = outcome
         parser = self._parser
         if isinstance(parser, MimoToolCallParser) and parser.last_prose_completion:
             # Upstream appends this turn's agent step later in the episode.
@@ -517,11 +593,132 @@ class SecretSafeTerminus2(Terminus2):
             self._pending_prose_step = (
                 self._trajectory_steps[-1] if self._trajectory_steps else None
             )
+        if isinstance(parser, MimoToolCallParser):
+            prose_mapped = parser.last_prose_completion
+            parse_error = parser.last_error
+        else:
+            prose_mapped = False
+            parse_error = (
+                feedback[len("ERROR:") :].strip()
+                if isinstance(feedback, str) and feedback.startswith("ERROR:")
+                else None
+            )
+        content = getattr(llm_response, "content", None)
+        self._pending_layer = {
+            "message": content,
+            "reasoning": getattr(llm_response, "reasoning_content", None),
+            "prose_mapped": prose_mapped,
+            "commands": [
+                (command.keystrokes, command.duration_sec) for command in commands
+            ],
+            "task_complete": bool(is_task_complete),
+            "parse_error": parse_error,
+            "exec": None,
+        }
         return outcome
 
-    def _dump_trajectory(self) -> None:
+    async def _execute_commands(self, commands: Any, session: Any) -> Any:
+        timeout, output = await super()._execute_commands(commands, session)
+        pending = self._pending_layer
+        if pending is not None:
+            pending["exec"] = {
+                "keystrokes_sent": [command.keystrokes for command in commands],
+                "durations_sec": [command.duration_sec for command in commands],
+                "sent_at": datetime.now(UTC).isoformat(),
+                "timeout": bool(timeout),
+                "output": output,
+            }
+            self._layer_queue.append(pending)
+            self._pending_layer = None
+        return timeout, output
+
+    def _flush_pending_layer(self, reason: str) -> None:
+        """Queue a turn that never reached execution (parse error, interrupt)."""
+        pending = self._pending_layer
+        if pending is None:
+            return
+        pending["exec"] = None
+        pending["not_executed_reason"] = reason
+        self._layer_queue.append(pending)
+        self._pending_layer = None
+
+    def _annotate_step_layers(self) -> None:
+        """Attach queued episode records to newly appended agent steps, in order.
+
+        In ``raw_content`` mode the step message is the raw model text, so a
+        record is consumed only when its message matches the step's: a turn
+        lost between parse and step append drops its record instead of
+        misattaching it to the next turn. On other parsers steps are paired
+        by order. Steps left without records stay layer-free here; consumers
+        reconstruct them offline and label the provenance.
+
+        Progress is a prefix count over the step list object: upstream only
+        appends, and a summarization split swaps in a fresh list, which
+        restarts progress and drops orphan records belonging to the sealed
+        head. Object ids are never used (a freed step's address can be
+        reused by a later step).
+        """
+        steps = getattr(self, "_trajectory_steps", None) or []
+        if id(steps) != self._layer_steps_id:
+            self._layer_steps_id = id(steps)
+            self._layer_annotated = 0
+            self._layer_queue = []
+        raw_content = bool(getattr(self, "_save_raw_content_in_trajectory", False))
+        for step in steps[self._layer_annotated :]:
+            if getattr(step, "source", None) != "agent":
+                self._layer_annotated += 1
+                continue
+            if getattr(step, "is_copied_context", False):
+                step.extra = attach_layers(getattr(step, "extra", None), copied_layers())
+                self._layer_annotated += 1
+                continue
+            while self._layer_queue and raw_content and self._layer_queue[0].get(
+                "message"
+            ) != getattr(step, "message", None):
+                self._layer_queue.pop(0)
+            if self._layer_queue:
+                record = self._layer_queue.pop(0)
+                exec_info = record.get("exec") or {}
+                if record.get("exec") is None:
+                    layers = build_recorded_layers(
+                        message=record.get("message"),
+                        reasoning=record.get("reasoning"),
+                        prose_mapped=record.get("prose_mapped", False),
+                        commands=record.get("commands") or [],
+                        task_complete=record.get("task_complete", False),
+                        parse_error=record.get("parse_error"),
+                        keystrokes_sent=None,
+                        durations_sec=None,
+                        sent_at=None,
+                        timeout=None,
+                        output=None,
+                        not_executed_reason=record.get("not_executed_reason")
+                        or "no execution recorded",
+                    )
+                else:
+                    layers = build_recorded_layers(
+                        message=record.get("message"),
+                        reasoning=record.get("reasoning"),
+                        prose_mapped=record.get("prose_mapped", False),
+                        commands=record.get("commands") or [],
+                        task_complete=record.get("task_complete", False),
+                        parse_error=record.get("parse_error"),
+                        keystrokes_sent=exec_info.get("keystrokes_sent"),
+                        durations_sec=exec_info.get("durations_sec"),
+                        sent_at=exec_info.get("sent_at"),
+                        timeout=exec_info.get("timeout"),
+                        output=exec_info.get("output"),
+                    )
+                step.extra = attach_layers(getattr(step, "extra", None), layers)
+            self._layer_annotated += 1
+
+    def _dump_trajectory_with_continuation_index(self, continuation_index: int) -> None:
         self._flag_prose_completion_step()
-        super()._dump_trajectory()
+        # A turn interrupted after its parse (timeout, cancel) never reached
+        # execution; flush it so its proposed/accepted layers are still kept.
+        self._flush_pending_layer("episode interrupted before execution")
+        self._annotate_step_layers()
+        super()._dump_trajectory_with_continuation_index(continuation_index)
 
     def _flag_prose_completion_step(self) -> None:
         anchor = self._pending_prose_step
@@ -561,6 +758,15 @@ class SecretSafeTerminus2(Terminus2):
                 metadata["stop_reason"] = stop_reason
             if self._mimo_selfhosted:
                 metadata["prose_completions"] = self._prose_completions
+                # HAR-92: the trial-level prose count must reach consumers on
+                # every path, including the agent-timeout path that never
+                # reaches populate_context_post_run. This runs after Harbor's
+                # final dump, so the counts land on the sealed files.
+                for path in self._trajectory_files():
+                    try:
+                        _record_prose_completions(path)
+                    except Exception:
+                        continue
             if self._local_binding is not None:
                 # Installed local inference has no provider API charge. This is
                 # a billing fact, not invented missing token or call telemetry.

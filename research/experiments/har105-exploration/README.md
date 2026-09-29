@@ -11,7 +11,7 @@
 3. **general: drop "final response" tasks.** These are 501 of the 925. The grader reads the agent's final message from an OpenCode event log (`/logs/agent/*.txt`), which Terminus-2 does not write. It falls back to `answer.md`, but only 1 of 925 instructions mentions that file. A Terminus-2 agent therefore cannot deliver the graded answer. Music has the same log fallback, but every music instruction says "Write your complete reply to /app/answer.md", so music is unaffected.
 4. **Order.** Rank tasks by `sha256("har105:" + task_id)` and take at most one task per `split_group` and per `metadata.category`.
 5. **Nop check.**
-   - **code, cyber, terminal:** a task needs an existing `ok` Daytona nop row for its `task_version_digest`. Its nop verifier output must also show no setup or import error. That second condition is HAR-97's proposed rule, and a plain `ok` does not include it.
+   - **code, cyber, terminal:** a task needs an existing `ok` Daytona nop row for its `task_version_digest`. Its nop verifier output must also show no setup error (`SETUP_ERROR` in `nopspec.py`: a raised missing module or package, a pytest collection or fixture-setup error, or a missing command). That second condition is HAR-97's proposed rule, and a plain `ok` does not include it.
    - **general, music, webdev:** the top 3 per domain are candidates. The first 2 whose nop comes back clean make the set.
 
 ## The set (10 tasks)
@@ -63,3 +63,62 @@ Three facts, all read from the code, block both nop and real runs:
 - **The cyber pick is unfixed on purpose.** `arvo_41330` carries HAR-97's submit-step gap: none of the 1,000 cyber instructions mention submitting. The whole instruction is three lines: role, tools, and the sanitizer crash line. It runs as an unfixed control next to the fixed `arvo_18737` and `arvo_57589` variants from part 2.
 - **Code picks inherit HAR-98.** `tests/test.sh` diffs against git HEAD, which inflates diff sizes on some images. No reward changed in the pilot.
 - **Timeouts** come from each task's own `[agent].timeout_sec`: code 3,600 s, cyber 3,600 s, terminal 900 s, music 900 s.
+
+## Part 2: task fixes
+
+Each fix is a task variant under `library/task-variants/`, derived with `evallab tasks derive` from the pinned snapshot. The snapshot itself is never edited. `fixes.py` writes a Daytona nop spec for each variant and `fixes.json`, which pairs the parent's existing nop with the variant's nop.
+
+**Clean** means the variant's nop grades with reward 0, raises no exception, and hits no `SETUP_ERROR`.
+
+All five are clean, and all five stay `candidate` until the model check.
+
+| task | problem | fix | variant | nop before (parent) | nop after (variant) |
+|---|---|---|---|---|---|
+| candidate-1634-software-databases | (1) The grader asserts a literal source line, `def atomic(self, transaction_type=None, **kwargs):`, that the instruction never asks for. (2) Pristine `peewee.py` does `from collections import Callable`, which fails on the image's Python 3.12, so nothing imports. | `tests/test_outputs.py`: an AST check that `atomic` accepts `lock_type`, the instruction's requirement 1. `setup.sh`: rewrite that one import to fall back to `collections.abc`. | `8de24f28a748` | reward 0, pytest `ERROR collecting` (ImportError `Callable`) | reward 0: 5 failed, 1 passed, 0 setup errors |
+| candidate-1702-ml-inference | The image lacks `tqdm`. The instruction's own runner, `tools/run_fixture.py`, dies importing it, both for the agent and inside the grader. | `setup.sh`: `pip install tqdm`. | `2da2a320d7f9` | reward 0, 7 `ModuleNotFoundError: tqdm` lines | reward 0: 6 failed. The runner now stops at `cannot import name 'resolve_max_length'`, the shared function the instruction's requirement 5 asks the agent to write. |
+| candidate-1789-security-appsec | The image runs the vendored Bandit from source but never installed it. Its requirement `stevedore` is missing, and so is its distribution metadata: `import bandit` itself reads `metadata("bandit")`. | `setup.sh`: `pip install stevedore`, then register the vendored tree's metadata and entry points, taken from its own `setup.cfg`, as a dist-info in site-packages. `/app` is untouched. | `caa7772d131e` | reward 0, 4 tests `ERROR at setup` (stevedore) | reward 0: 4 failed, 3 passed, 0 setup errors |
+| arvo_18737 | The grader scores only a PoC sent with `/home/agent/submit.sh`. The instruction never says so: none of the 1,000 cyber instructions mention submitting. | `instruction.md`: say to write a PoC, submit it with `bash /home/agent/submit.sh <poc>`, and that the last submission must crash in the named function with the named sanitizer error. | `2c9c97a36419` | reward 0, `submitted: false` | reward 0, `submitted: false` |
+| arvo_57589 | Same as 18737. | Same text. | `634bbec7b602` | reward 0, `submitted: false` | reward 0, `submitted: false` |
+
+The cyber nops are identical before and after by design: the fix changes only what the agent is told. Only a model run can show it works.
+
+**Design choices worth a second look:**
+- The 1634 check also accepts a bare `**kwargs`. The `lock_type` behavior tests still decide the reward.
+- 1702 and 1789 install from PyPI at setup, which relies on the task's `network_mode = "public"`. Versions are unpinned: stevedore is `>=1.20.0`, from Bandit's own requirements.
+- 1789 registers Bandit as version `0.0.0`, because the vendored tree carries no version.
+- 1789's nop logs `Could not load 'sarif': No module named 'sarif_om'`. That is Bandit's optional sarif formatter, and a stock `pip install bandit` logs the same line.
+
+### Superseded attempts (kept in `fixes.json` as `earlier_attempts`)
+
+1. **The first three environment fixes edited `environment/setup/setup.sh` and nothing else. Their nops matched the parent exactly.**
+   - **Why:** MiMo tasks never run that folder from disk. `[environment.healthcheck].command` carries it as an inline base64 tar.gz, unpacks it into `/var/lib/mimo` and runs `setup.sh`. The folder is a readable copy.
+   - **Checked across the whole collection:** that copy matches the payload in all 7,780 tasks.
+   - **Encoder:** `setup_payload.py` re-encodes the folder byte for byte as the adapter does, a USTAR tar with mode 0700, mtime 0 and a gzip header with mtime 0. `--check` reproduces every payload in the collection.
+   - Each environment fix now changes `setup.sh` and `task.toml` together.
+2. **1789, stevedore only:** `import bandit` then failed on the missing package metadata. The actual defect is that Bandit was never installed.
+3. **1634, the first patch had a Python syntax error in its setup heredoc** (a string literal split across lines). `bash -n` passes it, and the subagent's own static checks missed it. It was caught in review, before any run.
+
+### What the `tasks` commands cannot do cleanly
+
+- **`derive` and `lint` don't know that the setup folder is only a copy.** An edit to `environment/setup/` produces a new digest but runs the old setup. A lint rule flagging "setup folder differs from the healthcheck payload" would have caught all three first attempts, with zero false positives upstream. Alternatively, `derive` could re-embed the folder automatically.
+- **`lint` didn't detect any of the five problems.** Findings were the same before and after for all five: a verifier-isolation warning and a solution-present error. It has no check for a missing dependency, a literal-source assert, or a grading channel the instruction never mentions.
+- **`derive` fails on the read-only snapshot**, because `copytree` keeps mode 0444 and the write then fails. It needs a writable copy of the parent. `--parent-source` has to be written by hand, even though the snapshot's `provenance.json` has it.
+- **`replay` can't run a nop on a variant.** It swaps model and harness only. Variant nops went through queue specs instead. The queue accepts a variant package path once it's staged under the submitting checkout (`nopspec.stage`), because a worktree's `derived/` starts empty.
+- **`qualify-collect` only collects existing jobs, and it rewrites the whole table.** Every earlier job has to be passed again. No verb runs a nop or an oracle.
+- **`variant-status` records only a final verdict** (`validated` or `rejected`). It can't attach interim evidence such as a nop while a model check is pending. That is why these variants stay `candidate`.
+- **Qualification `ok` is not a clean nop.** 1634, 1702 and 1789 were `ok` in the table while their graders crashed on imports.
+- **`evallab tick --parallel`: 2 of 14 jobs failed catalog ingest with Postgres `DeadlockDetected`.** Re-running `evallab ingest runs/<job>` fixed each one.
+
+### Model check for HAR-104 (1–2 runs each)
+
+Packages live in the shared store, `derived/task-store/variants/<slug>/<digest12>` in the primary checkout. A queue spec in a worktree must stage the package under that worktree first. The specs in `specs/har105-fix-*.json` show the fields.
+
+| task | package | what a run should show |
+|---|---|---|
+| candidate-1634-software-databases | `mimo-v2.6-rl__candidate-1634-software-databases/8de24f28a748` | a correct `lock_type` fix scores without matching one literal signature |
+| candidate-1702-ml-inference | `mimo-v2.6-rl__candidate-1702-ml-inference/2da2a320d7f9` | the runner starts; the score reflects the context-length repair |
+| candidate-1789-security-appsec | `mimo-v2.6-rl__candidate-1789-security-appsec/caa7772d131e` | Bandit imports offline; no agent `pip install` needed (compare 2684) |
+| arvo_18737 | `mimo-v2.6-rl__arvo_18737/2c9c97a36419` | the agent submits (`submitted: true`) |
+| arvo_57589 | `mimo-v2.6-rl__arvo_57589/634bbec7b602` | the agent submits (`submitted: true`) |
+
+**Spend:** 14 Daytona nop jobs over both parts cost $0.0059: 3 music, 11 fix nops, superseded attempts included. No model calls.

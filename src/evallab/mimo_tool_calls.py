@@ -2,7 +2,7 @@
 
 Under Terminus-2, MiMo-V2.6-Distill-Qwen-9B keeps the tool-call wrapper of its
 training harnesses: ``<tool_call><function=NAME>…</function></tool_call>``.
-HAR-90's Daytona trials recorded five shapes (2,310 turns in all):
+HAR-90's Daytona trials recorded six shapes (2,718 turns in all):
 
 - ``<function=exec>{"analysis": …, "plan": …, "commands": […]}``: a whole
   Terminus object behind the wrapper, with no closing tags (trial 1);
@@ -16,7 +16,11 @@ HAR-90's Daytona trials recorded five shapes (2,310 turns in all):
   every one of its 177 turns used it, two calls per turn;
 - a bare Terminus object followed by ``</parameter><parameter=duration>0.5
   </parameter></function></tool_call>``: the object filled a bash call's
-  ``command`` parameter whose opener never came (0758-c).
+  ``command`` parameter whose opener never came (0758-c);
+- ``<function=task_complete><parameter=task_complete>true</parameter>``, the
+  model's own completion call, alone or after a one-line summary: 0036-g
+  solved its task, and after Terminus's "are you sure" sent this call 307
+  times until the timeout.
 
 The keystrokes almost never end in a newline. In the model's own harnesses a
 call executes its command. Terminus sends keystrokes verbatim, so HAR-90's
@@ -38,6 +42,10 @@ Terminus JSON parser:
    - A bare Terminus object followed by the native closing markup, or valid
      only with raw control characters, is re-serialized without the markup.
      The markup's ``duration`` is dropped; the object's commands keep theirs.
+   - A turn whose only call is ``task_complete``, with the argument ``true``
+     or no arguments, becomes ``task_complete: true`` with no commands. Text
+     before the call becomes the analysis. Any other argument, or a
+     completion call beside other calls, rejects the turn.
    - Anything else returns ``None``: valid Terminus JSON, prose, and unknown
      shapes reach the stock parser untouched and get its usual feedback.
 2. :func:`executed_keystrokes` appends the Enter that the model's harnesses
@@ -59,9 +67,10 @@ Terminus JSON parser:
    Terminus's "are you sure" prompt, and only a second completion ends the
    episode. The adapter flags every mapped step in the trajectory.
 
-No native completion call occurs in HAR-90's trajectories, so none is mapped.
-Anything the rules above do not cover reaches Terminus unchanged and gets its
-usual parse-error feedback.
+A native ``task_complete`` call passes through the same double confirmation;
+it needs no ``finish_reason`` check, because its closing markup shows the
+call is whole. Anything the rules above do not cover reaches Terminus
+unchanged and gets its usual parse-error feedback.
 """
 
 from __future__ import annotations
@@ -73,6 +82,7 @@ from typing import Any, Protocol
 
 __all__ = [
     "HARBOR_FALLBACK_RESPONSE",
+    "MIMO_COMPLETE_FUNCTION",
     "MIMO_EXEC_FUNCTIONS",
     "MimoToolCallParser",
     "executed_keystrokes",
@@ -82,9 +92,13 @@ __all__ = [
 
 #: Native function names whose calls map onto Terminus commands.
 MIMO_EXEC_FUNCTIONS = frozenset({"exec", "exec_command", "bash"})
+#: The native function name of MiMo's end-of-episode call.
+MIMO_COMPLETE_FUNCTION = "task_complete"
 
 _CALL_OPENER = re.compile(r"(?:<tool_call>\s*)?<function=([^>\s]+)>")
 _CALL_CLOSER = re.compile(r"\s*(?:</function>\s*)?(?:</tool_call>\s*)?")
+#: A call with no arguments must at least close its function tag.
+_EMPTY_CALL_BODY = re.compile(r"\s*</function>\s*(?:</tool_call>\s*)?")
 #: The native markup after a bare Terminus object: the rest of an XML call
 #: whose ``command`` parameter the object filled, without its opener.
 _WRAPPER_TAIL = re.compile(
@@ -192,6 +206,20 @@ def _terminus_command(arguments: dict[str, Any]) -> dict[str, Any] | None:
     return command
 
 
+def _completion_call(body: str) -> bool:
+    """Whether one call body completes the task: ``true`` or no arguments."""
+    parsed = _call_arguments(body)
+    if parsed is None:
+        return _EMPTY_CALL_BODY.fullmatch(body) is not None
+    arguments, _, stop = parsed
+    if _CALL_CLOSER.fullmatch(body, stop) is None:
+        return False
+    if not arguments:
+        return True
+    value = arguments.get(MIMO_COMPLETE_FUNCTION)
+    return set(arguments) == {MIMO_COMPLETE_FUNCTION} and (value is True or value == "true")
+
+
 def normalize_mimo_tool_calls(response: str) -> str | None:
     """Return one Terminus JSON object for a native MiMo response.
 
@@ -203,6 +231,12 @@ def normalize_mimo_tool_calls(response: str) -> str | None:
     if not openers:
         return _bare_terminus_object(response)
     outside = response[: openers[0].start()].replace("</tool_call>", "").strip()
+    if openers[0].group(1) == MIMO_COMPLETE_FUNCTION:
+        if len(openers) != 1 or not _completion_call(response[openers[0].end() :]):
+            return None
+        return json.dumps(
+            {"analysis": outside, "plan": "", "commands": [], "task_complete": True}
+        )
     commands: list[dict[str, Any]] = []
     passthrough: dict[str, Any] | None = None
     for index, opener in enumerate(openers):

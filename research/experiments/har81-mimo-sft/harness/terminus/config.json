@@ -1,3 +1,5 @@
 {
+  "temperature": 0.6,
+  "llm_call_kwargs": {"top_p": 0.95},
   "trajectory_config": {"raw_content": true, "linear_history": true}
 }

@@ -7,7 +7,7 @@ Covers the consumer-visible boundaries of HAR-81's Terminus additions:
 - Adapter binding: 64K context/pricing model_info, capability in the
   controller environment, rejection of caller overrides.
 - The generic metered proxy under the Tinker provider profile: native model
-  rewrite (including checkpoints), ``reasoning_effort: false`` passthrough,
+  rewrite (including checkpoints), ``reasoning_effort``/``top_p`` passthrough,
   pinned table pricing in the frozen ledger, and the Z.ai glm-5.3 price row.
     - Credential gating for the Tinker route.
     - Harness-tree opt-in ``trajectory_config`` (exactly ``raw_content`` and
@@ -632,17 +632,22 @@ def test_tinker_proxy_meters_checkpoint_call_with_table_pricing(
                 "model": CHECKPOINT_SELECTOR,
                 "messages": [{"role": "user", "content": "hi"}],
                 "max_tokens": 100,
-                "reasoning_effort": False,
+                "reasoning_effort": "none",
+                "top_p": 0.95,
+                "top_k": 20,
             },
             capability=CAPABILITY_SENTINEL,
         )
         assert status == 200, body
         # The proxy rewrote the selector to the native checkpoint id and
-        # forwarded the harness protocol's reasoning_effort: false verbatim.
+        # forwarded the harness protocol's sampling fields verbatim; fields
+        # outside the Tinker profile (top_k) never reach the upstream.
         assert len(_TinkerUpstream.seen) == 1
         forwarded = _TinkerUpstream.seen[0]
         assert forwarded["model"] == CHECKPOINT
-        assert forwarded["reasoning_effort"] is False
+        assert forwarded["reasoning_effort"] == "none"
+        assert forwarded["top_p"] == 0.95
+        assert "top_k" not in forwarded
 
         usage = json.loads(usage_path.read_text())
         assert usage["calls"][0]["requested_model"] == CHECKPOINT_SELECTOR

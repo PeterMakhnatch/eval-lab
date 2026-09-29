@@ -1,0 +1,81 @@
+{
+  "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+  "server": "https://p-makhnatch--evallab-mimo-v26-9b-mimoserver.us-east.modal.direct",
+  "cold_start": {
+    "ready_after_s": 208.0,
+    "non_200_responses": {
+      "503": 40
+    }
+  },
+  "reasoning_split": {
+    "wall_s": 0.72,
+    "returned_model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "reasoning_chars": 48,
+    "content": "36",
+    "think_tag_in_content": false,
+    "split_ok": true,
+    "usage": {
+      "prompt_tokens": 24,
+      "total_tokens": 63,
+      "completion_tokens": 39,
+      "prompt_tokens_details": null,
+      "reasoning_tokens": 36
+    }
+  },
+  "terminus_json_turn": {
+    "json_object": true,
+    "keys": [
+      "analysis",
+      "commands",
+      "plan",
+      "task_complete"
+    ],
+    "reasoning_chars": 0,
+    "usage": {
+      "prompt_tokens": 88,
+      "total_tokens": 229,
+      "completion_tokens": 141,
+      "prompt_tokens_details": null,
+      "reasoning_tokens": 2
+    }
+  },
+  "c1_short": [
+    {
+      "prompt_tokens": 19,
+      "completion_tokens": 512,
+      "ttft_s": 0.231,
+      "decode_tok_s": 84.5,
+      "wall_s": 6.28
+    },
+    {
+      "prompt_tokens": 19,
+      "completion_tokens": 512,
+      "ttft_s": 0.23,
+      "decode_tok_s": 84.6,
+      "wall_s": 6.27
+    },
+    {
+      "prompt_tokens": 19,
+      "completion_tokens": 512,
+      "ttft_s": 0.237,
+      "decode_tok_s": 84.5,
+      "wall_s": 6.29
+    }
+  ],
+  "c1_long_prefill": {
+    "prompt_tokens": 13824,
+    "completion_tokens": 512,
+    "ttft_s": 1.501,
+    "decode_tok_s": 82.1,
+    "wall_s": 7.73
+  },
+  "c8_short": {
+    "concurrency": 8,
+    "ok": 8,
+    "errors": [],
+    "ttft_s_median": 0.444,
+    "decode_tok_s_per_stream_median": 80.65,
+    "aggregate_tok_s": 603.6,
+    "wall_s": 6.79
+  }
+}

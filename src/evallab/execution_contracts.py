@@ -46,6 +46,12 @@ SAFE_JOB_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
 LEASE_GENERATION_PATTERN = re.compile(r"^[0-9a-f]{32}$")
 DEFAULT_TRIAL_TIMEOUT_SECONDS = 1_800
 MAX_TRIAL_TIMEOUT_SECONDS = 28_800
+#: Time a Harbor trial spends outside its agent timeout: environment start and
+#: agent setup before, the verifier, artifact sync and teardown after. The
+#: executor's per-trial fail-safe and the Daytona sandbox TTL both allow it on
+#: top of the agent timeout. Otherwise a trial that runs its agent to the
+#: timeout is killed before Harbor can verify it.
+TRIAL_PHASE_ALLOWANCE_SECONDS = 600
 DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 30.0
 SUPPORT_COMMAND_TIMEOUT_SECONDS = 10
 WATCHDOG_POLL_SECONDS = 0.1
@@ -628,9 +634,14 @@ class RunRequest:
     inference_settings: ProfileInferenceSettings | None = None
 
     @property
+    def trial_watchdog_seconds(self) -> int:
+        """Per-trial fail-safe: the agent timeout plus Harbor's other phases."""
+        return self.timeout_seconds + TRIAL_PHASE_ALLOWANCE_SECONDS
+
+    @property
     def job_timeout_seconds(self) -> int:
-        """Conservative process deadline: one wall-clock allowance per attempt."""
-        return self.timeout_seconds * self.attempts
+        """Conservative process deadline: one trial fail-safe per attempt."""
+        return self.trial_watchdog_seconds * self.attempts
 
     @property
     def resolved_skills(self) -> tuple[str, ...]:
@@ -1467,7 +1478,7 @@ def build_command(request: RunRequest) -> list[str]:
     ]
     if zai_daytona or terminus_daytona or control_daytona:
         # Provider-side destruction still applies if the local controller dies.
-        ttl_minutes = (request.timeout_seconds + 600 + 59) // 60
+        ttl_minutes = (request.trial_watchdog_seconds + 59) // 60
         command.extend(["--environment-kwarg", f"ttl_minutes={ttl_minutes}"])
     command.extend(["--plugin", HARBOR_STATE_JOURNAL_PLUGIN])
     if request.verifier_repeat_n is not None:

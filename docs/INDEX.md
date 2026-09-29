@@ -57,7 +57,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:e9f77f0de2cb35a827c2cb6c38aca38ab3c196031df98dd99e5752fd6799a278
+    digest: sha256:e1e8ebae18cf77cb1f41b57b23fd966baa25e339c03f33f1ced3ec39034099ff
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md
@@ -75,7 +75,7 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:9fd4828f1fc648b7429821ed042c9a1089dfa691ed24577a481afd60bf4c3e2b
+    digest: sha256:572a5b6d7a2c53a42635f567ca3efe9d15ebe4db8ac7e172fa1ed8ffb2a383ba
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/quality.md

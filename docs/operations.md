@@ -804,12 +804,20 @@ Nightly Step Report:
 
 ## Executor resilience boundary
 
-Every queue spec carries `timeout_seconds` (default 1,800; maximum 21,600). The
-executor watches each active Harbor trial directory independently and terminates
-the Harbor process group when any trial exceeds its own wall-clock allowance.
-The looser `timeout_seconds * attempts` process deadline remains only a pre-trial
-and discovery fail-safe. Timeout metadata names the triggering trial when one
-was active. Docker discovery, inspection/removal, tool-version probes, and Git
+Every queue spec carries `timeout_seconds` (default 1,800; maximum 21,600). It
+becomes Harbor's agent timeout (through `--agent-timeout-multiplier`).
+
+The executor watches each active Harbor trial directory independently. It
+terminates the Harbor process group when any trial exceeds its wall-clock
+allowance, `timeout_seconds` + 600 s (`TRIAL_PHASE_ALLOWANCE_SECONDS`).
+- **Why the 600 s:** it covers environment start, agent setup, the verifier
+  and teardown. With it, an agent that runs to its own timeout is still
+  verified.
+- **Daytona:** the sandbox TTL uses the same bound.
+
+The looser `(timeout_seconds + 600) * attempts` process deadline remains only a
+pre-trial and discovery fail-safe. Timeout metadata names the triggering trial
+when one was active. Docker discovery, inspection/removal, tool-version probes, and Git
 metadata probes also have fixed subprocess timeouts; cleanup failure is recorded
 as secondary evidence and cannot replace `trial_wall_clock_timeout` as the
 primary reason.

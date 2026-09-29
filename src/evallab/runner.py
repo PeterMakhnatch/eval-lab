@@ -1604,7 +1604,7 @@ def _write_executor_state(
         "status": status,
         "started_at": started_at.isoformat(),
         "finished_at": finished_at.isoformat() if finished_at is not None else None,
-        "trial_timeout_seconds": request.timeout_seconds,
+        "trial_timeout_seconds": request.trial_watchdog_seconds,
         "job_timeout_seconds": request.job_timeout_seconds,
         "log_path": str(log_path.relative_to(request.jobs_dir)),
     }
@@ -1727,7 +1727,7 @@ def _write_run_metadata(
         "exit_code": process.returncode,
         "timed_out": process.timed_out,
         "timed_out_trial": process.timed_out_trial,
-        "trial_timeout_seconds": request.timeout_seconds,
+        "trial_timeout_seconds": request.trial_watchdog_seconds,
         "job_timeout_seconds": request.job_timeout_seconds,
         "executor_log": process.log_path.relative_to(request.jobs_dir).as_posix(),
         "host": {
@@ -2139,7 +2139,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 timeout_seconds=request.job_timeout_seconds,
                 log_path=executor_log,
                 job_dir=job_dir,
-                trial_timeout_seconds=request.timeout_seconds,
+                trial_timeout_seconds=request.trial_watchdog_seconds,
                 lease_path=request.lease_path,
                 lease_generation=request.lease_generation,
                 proxy_attempt_id=_proxy_attempt_id(request),

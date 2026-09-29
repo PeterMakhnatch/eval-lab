@@ -202,6 +202,22 @@ harness; never point a task container at the server. The server scales to
 zero after 5 idle minutes, and a cold start took 208 s on 2026-09-29, during
 which Modal answers 503. Warm the server before a trial.
 
+The model keeps the tool-call format of its training harness,
+`<tool_call><function=exec_command>{"keystrokes": …}</function></tool_call>`,
+and almost never ends keystrokes with a newline. On this route only,
+`SecretSafeTerminus2` wraps the Terminus JSON parser with
+`evallab.mimo_tool_calls.MimoToolCallParser`, which does three things:
+- It hands a Terminus object that sits behind an `exec`/`exec_command`
+  wrapper to the stock parser verbatim.
+- It turns a turn made only of `{keystrokes, duration}` exec calls into
+  Terminus commands, in order.
+- It appends Enter to every executed command, except empty waits and lone
+  tmux key names such as `C-c`.
+
+Any other shape reaches the stock parser unchanged and gets the usual
+parse-error feedback. Only the executed commands change: the chat history,
+the ATIF trajectory and the rollout details keep the raw model output.
+
 A separate local route, `ollama_chat/qwen2.5:7b`, uses an explicitly selected
 local Ollama service.
 

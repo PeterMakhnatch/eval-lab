@@ -22,6 +22,7 @@ Everything runs against scripted loopback fakes: no paid provider calls.
 
 from __future__ import annotations
 
+import hashlib
 import importlib
 import importlib.util
 import json
@@ -229,6 +230,8 @@ class _MimoUpstream(BaseHTTPRequestHandler):
 
     protocol_version = "HTTP/1.1"
     seen: list[dict[str, Any]] = []
+    #: Scripted (status, JSON body) replies served before any success.
+    errors: list[tuple[int, dict[str, Any]]] = []
 
     def do_POST(self) -> None:  # noqa: N802
         if self.path != "/v1/chat/completions":
@@ -240,6 +243,10 @@ class _MimoUpstream(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(length))
         type(self).seen.append(body)
+        if type(self).errors:
+            status, error = type(self).errors.pop(0)
+            self._reply(status, json.dumps(error).encode(), content_type="application/json")
+            return
         response = {
             "id": "cmpl-local",
             "object": "chat.completion",
@@ -268,6 +275,7 @@ class _MimoUpstream(BaseHTTPRequestHandler):
 @pytest.fixture
 def mimo_upstream() -> Any:
     _MimoUpstream.seen = []
+    _MimoUpstream.errors = []
     server = ThreadingHTTPServer(("127.0.0.1", 0), _MimoUpstream)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -438,6 +446,103 @@ def test_mimo_proxy_enforces_request_ceiling(
         process.wait(10)
 
 
+# SGLang's reply when prompt + max_tokens exceed the served context (HAR-90
+# trial 0758-b): an error body that carries no usage.
+SGLANG_CONTEXT_OVERFLOW = {
+    "object": "error",
+    "message": (
+        "Requested token count exceeds the model's maximum context length of 65536 tokens. "
+        "You requested a total of 65574 tokens: 57382 tokens from the input messages and "
+        "8192 tokens for the completion. Please reduce the number of tokens in the input "
+        "messages or the completion to fit within the limit."
+    ),
+    "type": "BadRequestError",
+    "param": None,
+    "code": 400,
+}
+
+
+def test_mimo_proxy_settles_a_usage_less_400_as_a_zero_usage_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mimo_upstream: Any
+) -> None:
+    _MimoUpstream.errors = [
+        (400, SGLANG_CONTEXT_OVERFLOW),
+        (503, {"object": "error", "message": "server overloaded", "code": 503}),
+    ]
+    process, url, usage_path = _launch_mimo_proxy(
+        tmp_path, monkeypatch, mimo_upstream, CAPABILITY_SENTINEL, _proxy_limits()
+    )
+    payload = {
+        "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
+        "messages": [{"role": "user", "content": "hi"}],
+        "max_tokens": 100,
+    }
+    endpoint = f"{url}/v1/chat/completions"
+    try:
+        status, body = _post(endpoint, payload, capability=CAPABILITY_SENTINEL)
+        # The caller still sees the provider's rejection, so Terminus's
+        # context-length handling runs unchanged.
+        assert status == 400
+        assert b"maximum context length" in body
+        ledger = json.loads(usage_path.read_text())
+        assert ledger["unresolved_requests"] == 0
+        assert ledger["totals"]["input_tokens"] == 0
+        assert ledger["calls"][0]["state"] == "reconciled"
+        assert ledger["calls"][0]["error"] == "provider_http_400_no_usage"
+        assert ledger["calls"][0]["input_tokens"] == 0
+        assert ledger["calls"][0]["output_tokens"] == 0
+
+        status, _ = _post(endpoint, payload, capability=CAPABILITY_SENTINEL)
+        assert status == 503
+    finally:
+        process.terminate()
+        process.wait(10)
+
+    ledger = json.loads(usage_path.read_text())
+    # Only a 400 settles: other usage-less errors stay unresolved.
+    assert [call["state"] for call in ledger["calls"]] == ["reconciled", "unresolved"]
+    assert ledger["unresolved_requests"] == 1
+
+
+def test_runner_accepts_a_ledger_whose_only_failure_was_a_usage_less_400(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mimo_upstream: Any
+) -> None:
+    _MimoUpstream.errors = [(400, SGLANG_CONTEXT_OVERFLOW)]
+    process, url, usage_path = _launch_mimo_proxy(
+        tmp_path, monkeypatch, mimo_upstream, CAPABILITY_SENTINEL, _proxy_limits()
+    )
+    payload = {
+        "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
+        "messages": [{"role": "user", "content": "hi"}],
+        "max_tokens": 100,
+    }
+    try:
+        for expected in (400, 200):
+            status, _ = _post(
+                f"{url}/v1/chat/completions", payload, capability=CAPABILITY_SENTINEL
+            )
+            assert status == expected
+    finally:
+        process.terminate()
+        process.wait(10)
+
+    usage = runner_module._read_proxy_usage(
+        usage_path,
+        capability_id="sha256:" + hashlib.sha256(CAPABILITY_SENTINEL.encode()).hexdigest(),
+        attempt_id="mimo-test-attempt",
+        limits=_proxy_limits(),
+        provider_label="MiMo self-hosted",
+        expected_pricing={
+            "input_cost_micros_per_million": 0,
+            "output_cost_micros_per_million": 0,
+        },
+    )
+    assert usage["unresolved_requests"] == 0
+    assert usage["totals"]["requests"] == 2
+    assert usage["totals"]["input_tokens"] == UPSTREAM_USAGE["prompt_tokens"]
+    assert usage["totals"]["output_tokens"] == UPSTREAM_USAGE["completion_tokens"]
+
+
 def test_mimo_proxy_rejects_unknown_models_with_null_pricing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mimo_upstream: Any
 ) -> None:
@@ -512,8 +617,25 @@ def _package(name: str) -> ModuleType:
 
 @pytest.fixture
 def terminus_module(monkeypatch: pytest.MonkeyPatch) -> Any:
-    for name in ("harbor", "harbor.agents", "harbor.agents.terminus_2"):
+    for name in (
+        "harbor",
+        "harbor.agents",
+        "harbor.agents.installed",
+        "harbor.agents.terminus_2",
+        "harbor.llms",
+    ):
         monkeypatch.setitem(sys.modules, name, _package(name))
+    monkeypatch.setitem(
+        sys.modules,
+        "harbor.agents.installed.base",
+        _module(
+            "harbor.agents.installed.base",
+            NonZeroAgentExitCodeError=type("NonZeroAgentExitCodeError", (RuntimeError,), {}),
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules, "harbor.llms.lite_llm", _module("harbor.llms.lite_llm", LiteLLM=type("LiteLLM", (), {}))
+    )
     monkeypatch.setitem(
         sys.modules,
         "harbor.agents.terminus_2.terminus_2",

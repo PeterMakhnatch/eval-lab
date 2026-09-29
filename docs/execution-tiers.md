@@ -222,10 +222,22 @@ characters allowed and does four things:
 - It appends Enter to every executed command, except empty waits and lone
   tmux key names such as `C-c`.
 
-Valid Terminus JSON, prose and any other shape reach the stock parser
-unchanged and get the usual parse-error feedback. Only the executed commands
-change: the chat history, the ATIF trajectory and the rollout details keep the
-raw model output.
+MiMo also ends an episode natively with a prose answer and no tool call; after
+solving its task, trial 0036-e repeated one summary 50 times as parse errors
+until the timeout. A prose-only turn therefore counts as `task_complete: true`
+with no commands, only when all of these hold: the completion's
+`finish_reason` was `stop`, the text after any `<think>` block is not blank,
+it contains no tool-call markup and no JSON object, and it is not Harbor's own
+"Technical difficulties" fallback. Terminus's usual confirmation turn still
+applies, so the episode ends only on a second completion. Each mapped agent
+step carries `extra.prose_completion: true`; every trajectory file's
+`final_metrics.extra.prose_completions` and the agent metadata's
+`prose_completions` count them.
+
+Valid Terminus JSON and any other shape reach the stock parser unchanged and
+get the usual parse-error feedback. Only the executed commands and the
+completion flag change: the chat history, the ATIF trajectory and the rollout
+details keep the raw model output.
 
 A separate local route, `ollama_chat/qwen2.5:7b`, uses an explicitly selected
 local Ollama service.
@@ -261,7 +273,15 @@ task/backend combinations are not a promise of universal portability.
 
 The model client stays on the controller, so the task receives neither the
 provider key nor the proxy capability. On the metered route, main, summarizer,
-and retried model calls share one trial's request/token/cost ceilings. The
+and retried model calls share one trial's request/token/cost ceilings. When a
+ceiling is spent, the proxy answers 429 "trial budget exhausted" and the
+adapter ends the agent phase with `TrialBudgetExhaustedError`. Harbor records
+it like an agent timeout and still runs the verifier; the agent metadata
+records `stop_reason: trial_budget_exhausted`, and cohort comparisons treat it
+as budget exhaustion. A provider 400 without usage (SGLang's context overflow)
+generated nothing, so the proxy settles it as a zero-token call with
+`error: provider_http_400_no_usage` instead of leaving it unresolved; other
+usage-less errors stay unresolved and fail the trial's accounting. The
 default per-response output limit is 8,192 tokens, separate from the cumulative
 output allowance. The proxy binds an ephemeral loopback port and stops before
 final accounting is collected.

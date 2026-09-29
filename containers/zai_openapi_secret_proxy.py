@@ -805,6 +805,7 @@ class TrialBudget:
         status: int,
         returned_model: str | None = None,
         returned_model_reason: str | None = None,
+        error: str | None = None,
     ) -> None:
         with self._lock:
             call = self._calls[call_id - 1]
@@ -823,6 +824,7 @@ class TrialBudget:
                     "cost_micros": used_cost,
                     "returned_model": returned_model,
                     "returned_model_reason": returned_model_reason,
+                    **({"error": error} if error is not None else {}),
                 }
             )
             self._sequence += 1
@@ -1308,6 +1310,25 @@ class Handler(BaseHTTPRequestHandler):
                     returned_model_reason=returned_model_reason,
                 )
                 self._reject(502, b"unsupported upstream body\n")
+                return
+
+            if status == 400 and not isinstance(usage, dict):
+                # The provider rejected the request before generating
+                # anything (SGLang's context overflow is a usage-less 400), so
+                # it used no tokens. Settle it as a zero-usage error call that
+                # releases its reservation, instead of leaving it unresolved
+                # and failing a trial the verifier already scored.
+                self._budget().reconcile(
+                    call_id=call_id,
+                    used_input=0,
+                    used_output=0,
+                    used_cost=0,
+                    status=status,
+                    returned_model=returned_model,
+                    returned_model_reason=returned_model_reason,
+                    error="provider_http_400_no_usage",
+                )
+                self._reject(status, sanitized_body)
                 return
 
             if status >= 400 and not isinstance(usage, dict):

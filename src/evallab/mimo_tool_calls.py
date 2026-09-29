@@ -39,23 +39,41 @@ Terminus JSON parser:
 2. :func:`executed_keystrokes` appends the Enter that the model's harnesses
    implied to every parsed command. It leaves empty keystrokes (pure waits)
    and lone tmux key names (``C-c``, ``Escape``, …) alone.
+3. :func:`prose_completion` recognizes MiMo's native end of episode: a reply
+   with no tool call. After HAR-90's 0036-e solved its task, the model
+   answered with the same prose summary 50 times, each a parse error, until
+   the timeout. The parser maps such a turn to ``task_complete: true`` with no
+   commands, and only when all of these hold:
+
+   - the completion's ``finish_reason`` is ``stop``, so a reply cut off at
+     ``max_tokens`` never ends an episode;
+   - the text left after the reasoning split is non-empty;
+   - it carries no tool-call markup and no JSON object;
+   - it is not Harbor's own fallback reply.
+
+   Terminus's double confirmation still applies: the first mapped turn gets
+   Terminus's "are you sure" prompt, and only a second completion ends the
+   episode. The adapter flags every mapped step in the trajectory.
 
 No native completion call occurs in HAR-90's trajectories, so none is mapped.
-Completion stays Terminus's ``task_complete`` field. A prose-only turn (MiMo's
-native end of episode) is left to Terminus as a parse error.
+Anything the rules above do not cover reaches Terminus unchanged and gets its
+usual parse-error feedback.
 """
 
 from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from typing import Any, Protocol
 
 __all__ = [
+    "HARBOR_FALLBACK_RESPONSE",
     "MIMO_EXEC_FUNCTIONS",
     "MimoToolCallParser",
     "executed_keystrokes",
     "normalize_mimo_tool_calls",
+    "prose_completion",
 ]
 
 #: Native function names whose calls map onto Terminus commands.
@@ -75,6 +93,12 @@ _COMMAND_KEYS = ("keystrokes", "command")
 #: MiMo writes raw newlines inside JSON strings, as it would inside an XML
 #: parameter; strict JSON rejects them as control characters.
 _LENIENT_JSON = json.JSONDecoder(strict=False)
+#: Harbor's stand-in reply when even its summarization fallback call fails
+#: (``Terminus2._query_llm``). It is not model output, so it never ends an
+#: episode.
+HARBOR_FALLBACK_RESPONSE = "Technical difficulties. Please continue with the task."
+#: Any piece of native tool-call markup.
+_NATIVE_MARKUP = re.compile(r"</?tool_call>|<function=|</function>|<parameter=|</parameter>")
 
 #: A lone tmux key name (optionally with C-/M-/S- modifiers or ``^X``). tmux
 #: reads these as keys only when they are the whole argument, so appending a
@@ -205,6 +229,39 @@ def executed_keystrokes(keystrokes: str) -> str:
     return keystrokes + "\n"
 
 
+def _has_json_object(text: str) -> bool:
+    start = text.find("{")
+    while start != -1:
+        try:
+            value, _ = _LENIENT_JSON.raw_decode(text, start)
+        except json.JSONDecodeError:
+            pass
+        else:
+            if isinstance(value, dict):
+                return True
+        start = text.find("{", start + 1)
+    return False
+
+
+def prose_completion(response: str) -> str | None:
+    """Return the answer of a prose-only turn, or ``None`` for anything else.
+
+    Reasoning inside ``<think>`` tags is split off first, as a server-side
+    reasoning parser would. What remains must be non-empty, free of tool-call
+    markup and JSON objects, and not Harbor's fallback reply. The caller
+    checks ``finish_reason`` separately.
+    """
+    text = response
+    if "</think>" in text:
+        text = text.rsplit("</think>", 1)[1]
+    text = text.split("<think>", 1)[0].strip()
+    if not text or text == HARBOR_FALLBACK_RESPONSE or _NATIVE_MARKUP.search(text):
+        return None
+    if _has_json_object(text):
+        return None
+    return text
+
+
 class _ParsedCommand(Protocol):
     keystrokes: str
 
@@ -221,16 +278,32 @@ class MimoToolCallParser:
     """Terminus JSON parser that executes MiMo's native tool calls.
 
     Terminus records ``llm_response.content``, never the parser input, so the
-    raw model text is untouched everywhere it is stored.
+    raw model text is untouched everywhere it is stored. ``finish_reason``
+    returns the finish reason of the completion being parsed; only ``stop``
+    lets a prose-only turn end the episode. :attr:`last_prose_completion`
+    tells the caller whether the latest parsed turn was mapped that way.
     """
 
-    def __init__(self, inner: _TerminusParser) -> None:
+    def __init__(
+        self, inner: _TerminusParser, *, finish_reason: Callable[[], str | None]
+    ) -> None:
         self._inner = inner
+        self._finish_reason = finish_reason
+        self.last_prose_completion = False
 
     def parse_response(self, response: str) -> Any:
-        result: _ParseResult = self._inner.parse_response(
-            normalize_mimo_tool_calls(response) or response
+        normalized = normalize_mimo_tool_calls(response)
+        answer = (
+            prose_completion(response)
+            if normalized is None and self._finish_reason() == "stop"
+            else None
         )
+        self.last_prose_completion = answer is not None
+        if answer is not None:
+            normalized = json.dumps(
+                {"analysis": answer, "plan": "", "commands": [], "task_complete": True}
+            )
+        result: _ParseResult = self._inner.parse_response(normalized or response)
         for command in result.commands:
             command.keystrokes = executed_keystrokes(command.keystrokes)
         return result

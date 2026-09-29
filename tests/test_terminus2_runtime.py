@@ -17,6 +17,7 @@ Covers, with real behavior throughout (no mock-echo or wiring tautologies):
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import importlib
 import json
@@ -28,7 +29,7 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from typing import Any
 
 import pytest
@@ -78,6 +79,13 @@ class _FakeTerminus2:
         self._extra_env = dict(extra_env) if extra_env else {}
         self.extra_kwargs = kwargs
 
+    run_error: BaseException | None = None
+
+    async def run(self, instruction: str, environment: Any, context: Any) -> None:
+        del instruction, environment, context
+        if self.run_error is not None:
+            raise self.run_error
+
     def populate_context_post_run(self, context: Any) -> None:
         del context
 
@@ -97,8 +105,25 @@ def _package(name: str) -> ModuleType:
 
 @pytest.fixture
 def terminus_module(monkeypatch: pytest.MonkeyPatch) -> Any:
-    for name in ("harbor", "harbor.agents", "harbor.agents.terminus_2"):
+    for name in (
+        "harbor",
+        "harbor.agents",
+        "harbor.agents.installed",
+        "harbor.agents.terminus_2",
+        "harbor.llms",
+    ):
         monkeypatch.setitem(sys.modules, name, _package(name))
+    monkeypatch.setitem(
+        sys.modules,
+        "harbor.agents.installed.base",
+        _module(
+            "harbor.agents.installed.base",
+            NonZeroAgentExitCodeError=type("NonZeroAgentExitCodeError", (RuntimeError,), {}),
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules, "harbor.llms.lite_llm", _module("harbor.llms.lite_llm", LiteLLM=type("LiteLLM", (), {}))
+    )
     monkeypatch.setitem(
         sys.modules,
         "harbor.agents.terminus_2.terminus_2",
@@ -278,6 +303,62 @@ def test_adapter_sanitizes_trajectory_files(
         payload = json.loads(text)
         assert payload.get("authorization", "<redacted>") == "<redacted>"
         assert path.stat().st_mode & 0o777 == PRIVATE_PERSIST_MODE
+
+
+# litellm's error when the proxy refuses a call at a trial ceiling, as the
+# HAR-90 adapter smoke observed it through real Harbor.
+CEILING_429 = "litellm.RateLimitError: RateLimitError: OpenAIException - trial budget exhausted"
+
+
+def _wrapped(message: str) -> BaseException:
+    try:
+        raise RuntimeError(message)
+    except RuntimeError as inner:
+        try:
+            raise ValueError("Terminus episode failed") from inner
+        except ValueError as outer:
+            return outer
+
+
+@pytest.mark.parametrize(
+    "error",
+    [pytest.param(RuntimeError(CEILING_429), id="direct"), pytest.param(_wrapped(CEILING_429), id="wrapped")],
+)
+def test_ceiling_trip_ends_the_agent_as_an_exit_error_with_a_stop_reason(
+    trial_transport: Any, tmp_path: Path, error: BaseException
+) -> None:
+    agent = trial_transport.SecretSafeTerminus2(
+        logs_dir=tmp_path, model_name=ZAI_OPENAPI_MODEL_SELECTOR
+    )
+    agent.run_error = error
+    context = SimpleNamespace(metadata={"n_episodes": 3})
+
+    # Harbor's trial catches NonZeroAgentExitCodeError and still runs the
+    # verifier; any other agent exception skips it.
+    with pytest.raises(trial_transport.NonZeroAgentExitCodeError) as caught:
+        asyncio.run(agent.run("task", None, context))
+
+    assert type(caught.value).__name__ == "TrialBudgetExhaustedError"
+    assert caught.value.__cause__ is error
+    assert context.metadata == {"n_episodes": 3, "stop_reason": "trial_budget_exhausted"}
+
+
+def test_other_agent_errors_propagate_without_a_stop_reason(
+    trial_transport: Any, tmp_path: Path
+) -> None:
+    agent = trial_transport.SecretSafeTerminus2(
+        logs_dir=tmp_path, model_name=ZAI_OPENAPI_MODEL_SELECTOR
+    )
+    # A provider's own rate limit is transient, not a trial ceiling.
+    error = RuntimeError("litellm.RateLimitError: RateLimitError: OpenAIException - rate limit reached")
+    agent.run_error = error
+    context = SimpleNamespace(metadata=None)
+
+    with pytest.raises(RuntimeError) as caught:
+        asyncio.run(agent.run("task", None, context))
+
+    assert caught.value is error
+    assert context.metadata is None
 
 
 # ---------------------------------------------------------------------------

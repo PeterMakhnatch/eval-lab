@@ -12,9 +12,11 @@ from dataclasses import dataclass
 import pytest
 
 from evallab.mimo_tool_calls import (
+    HARBOR_FALLBACK_RESPONSE,
     MimoToolCallParser,
     executed_keystrokes,
     normalize_mimo_tool_calls,
+    prose_completion,
 )
 
 # Trial 1: a whole Terminus object behind an unterminated exec wrapper.
@@ -72,6 +74,32 @@ HYBRID_RAW_NEWLINES = (
     '{"keystrokes": "grep -n -i \\"tensor_scatter\\\\|circular\\\\|mod(\\" '
     '/app/vendor/onnx/onnx/defs/tensor/defs.cc | head -80\\n", "duration": 0.2}\n]\n}'
     "</parameter><parameter=duration>0.5</parameter></function></tool_call>"
+)
+# Trial 0036-e: the final answer MiMo repeated 50 times after solving the task.
+PROSE_FINAL = (
+    'The repair is complete and verified.\n\n## Summary\n\n**Diagnosis.** The two modules disagre'
+    'ed about where output flag categories live:\n\n- `rules.py` stored the *unexpanded* rule-l'
+    'evel category sets `self.temp_output`, `self.protected_output`, and `self.touch_output` '
+    '(built from pattern-level `is_flagged(item, ...)` checks on the wildcard-constrained `An'
+    'notatedString`).\n- `jobs.py` reconstructed the *concrete* job sets by membership-testing'
+    ' the expanded `IOFile` `f` against those unexpanded rule sets via `if f_ in self.rule.te'
+    'mp_output`. Since an expanded `IOFile` is never identical to a rule-level placeholder, t'
+    'hat lookup silently dropped every category — so a concrete job lost `temp`/`protected`/`'
+    'touch` classification even though the flags were attached to the expanded output object.'
+    '\n\n**Repair.**\n\n1. `src/snakemake/rules.py` — removed the unexpanded category bookkeeping'
+    ': the `self.temp_output / self.protected_output / self.touch_output` attributes in `Rule'
+    '.__init__` and the `is_flagged(item, "temp"/"protected"/"touch")` accumulation block in '
+    '`_set_inoutput_item`. Flag classification is now left to the concrete expanded output.\n2'
+    '. `src/snakemake/jobs.py` — `Job.__init__` now classifies each concrete output directly '
+    'from its expanded `IOFile` via `is_flagged(f, ...)`, filling `self.temp_output`, `self.p'
+    'rotected_output`, `self.touch_output`, and `self.pipe_or_service_output`. The old member'
+    'ship-based loop was replaced; `__slots__` was kept intact so the job attributes still ex'
+    'ist.\n\nNo wildcard constraints were removed, no sample names were special-cased, and no m'
+    'arker files were manufactured.\n\n**Verification.** `python3 workflow_probe.py` passes and'
+    ' writes `/app/output.json` with schema `workflow-repair-1`, two concrete wildcard jobs ('
+    '`alpha`, `beta`), exactly one `touch` output per job, preserved `temp`+`protected` and `'
+    'pipe`/`service` categories, and a completed downstream aggregate (`aggregate.complete: t'
+    'rue`) with SHA-256 witnesses for both repaired modules.'
 )
 
 
@@ -219,6 +247,8 @@ class _Command:
 class _Result:
     commands: list[_Command]
     error: str = ""
+    is_task_complete: bool = False
+    analysis: str = ""
 
 
 class _JsonCommandsParser:
@@ -231,7 +261,15 @@ class _JsonCommandsParser:
             return _Result([], "Invalid JSON")
         if not isinstance(data, dict) or "commands" not in data:
             return _Result([], "Missing required fields")
-        return _Result([_Command(c["keystrokes"]) for c in data["commands"]])
+        return _Result(
+            [_Command(c["keystrokes"]) for c in data["commands"]],
+            is_task_complete=data.get("task_complete") is True,
+            analysis=data.get("analysis", ""),
+        )
+
+
+def _parser(finish_reason: str | None = "stop") -> MimoToolCallParser:
+    return MimoToolCallParser(_JsonCommandsParser(), finish_reason=lambda: finish_reason)
 
 
 @pytest.mark.parametrize(
@@ -254,13 +292,80 @@ class _JsonCommandsParser:
     ],
 )
 def test_parser_executes_every_mimo_command(raw: str, sent: list[str]) -> None:
-    result = MimoToolCallParser(_JsonCommandsParser()).parse_response(raw)
+    parser = _parser()
+    result = parser.parse_response(raw)
 
     assert result.error == ""
     assert [c.keystrokes for c in result.commands] == sent
+    assert not result.is_task_complete and not parser.last_prose_completion
 
 
 def test_parser_reports_unnormalizable_turns_as_parse_errors() -> None:
-    result = MimoToolCallParser(_JsonCommandsParser()).parse_response(DANGLING_FRAGMENT)
+    result = _parser().parse_response(DANGLING_FRAGMENT)
 
     assert result.error and result.commands == []
+
+
+def test_stopped_prose_final_answer_completes_the_task() -> None:
+    parser = _parser("stop")
+    result = parser.parse_response(PROSE_FINAL)
+
+    assert result.error == ""
+    assert result.is_task_complete and result.commands == []
+    assert result.analysis == PROSE_FINAL
+    assert parser.last_prose_completion
+
+
+@pytest.mark.parametrize("finish_reason", ["length", None, "abort", "tool_calls"])
+def test_prose_ends_the_episode_only_when_the_completion_stopped(
+    finish_reason: str | None,
+) -> None:
+    parser = _parser(finish_reason)
+    result = parser.parse_response(PROSE_FINAL)
+
+    assert result.error and not result.is_task_complete
+    assert not parser.last_prose_completion
+
+
+def test_mapping_flag_follows_the_latest_turn() -> None:
+    parser = _parser("stop")
+    parser.parse_response(PROSE_FINAL)
+    parser.parse_response(NATIVE_SINGLE)
+
+    assert not parser.last_prose_completion
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        pytest.param("", id="empty"),
+        pytest.param("  \n", id="blank"),
+        pytest.param(HARBOR_FALLBACK_RESPONSE, id="harbor-fallback"),
+        pytest.param("<think>The task is done.</think>\n", id="reasoning-only"),
+        pytest.param("<think>Still checking the diff", id="unterminated-reasoning"),
+        pytest.param("All done.</tool_call>", id="stray-closing-markup"),
+        pytest.param(DANGLING_FRAGMENT, id="dangling-fragment"),
+        pytest.param(
+            'Finished: {"analysis": "done", "plan": "", "commands": []}', id="json-object"
+        ),
+        pytest.param("Result {} recorded.", id="empty-json-object"),
+    ],
+)
+def test_turns_that_are_not_prose_never_complete(raw: str) -> None:
+    assert prose_completion(raw) is None
+
+
+@pytest.mark.parametrize(
+    ("raw", "answer"),
+    [
+        ("<think>Verify once more.</think>\nThe fix is in place.", "The fix is in place."),
+        ("Verified the diff.</think>All checks pass.", "All checks pass."),
+        (
+            "Patched `if (n) { return n; }` in util.c.",
+            "Patched `if (n) { return n; }` in util.c.",
+        ),
+        (PROSE_FINAL, PROSE_FINAL),
+    ],
+)
+def test_prose_answer_is_the_text_after_the_reasoning(raw: str, answer: str) -> None:
+    assert prose_completion(raw) == answer

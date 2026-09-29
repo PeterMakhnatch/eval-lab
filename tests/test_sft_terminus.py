@@ -407,6 +407,54 @@ def test_reward_and_exception_filtering_counts_by_reason(tmp_path: Path) -> None
     assert timed_out["exception_type"] == "AgentTimeoutError"
 
 
+_ASAN_REPORT = (
+    "==42==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x602000000011\n"
+    "    #0 0x4c2f1a in ZSTD_decompressBlock /src/zstd/lib/decompress/zstd_decompress_block.c:1502\n"
+    "    #1 0x4c1d2b in LLVMFuzzerTestOneInput /src/zstd/tests/fuzz/block_decompress.c:41\n"
+    "DEDUP_TOKEN: ZSTD_decompressBlock--LLVMFuzzerTestOneInput--main\n"
+    "SUMMARY: AddressSanitizer: heap-buffer-overflow\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("observation", "selected"),
+    [
+        (_ASAN_REPORT, True),
+        (json.dumps(_ASAN_REPORT), True),
+        (_ASAN_REPORT + "export API_TOKEN=abcd1234efgh5678ijkl\n", False),
+        ("DEDUP_TOKEN=abcd1234efgh5678ijkl\n", False),
+        ("MY_DEDUP_TOKEN: abcd1234efgh5678ijkl\n", False),
+        ("dedup_token: abcd1234efgh5678ijkl\n", False),
+    ],
+    ids=[
+        "asan-report",
+        "asan-report-json-escaped",
+        "asan-report-plus-real-token",
+        "dedup-token-assignment",
+        "prefixed-dedup-token",
+        "lowercase-dedup-token",
+    ],
+)
+def test_sanitizer_dedup_token_is_not_a_secret(
+    tmp_path: Path, observation: str, selected: bool
+) -> None:
+    root = tmp_path / "runs"
+    root.mkdir()
+    steps = _terminus_steps(reasoning=False)
+    steps[1]["observation"] = {"results": [{"content": observation}]}
+    _write_trial(root, "trial-asan", steps=steps)
+    split = _freeze_split(tmp_path, ["task-a"], heldout=[])
+    manifest, _ = _export(tmp_path, root, split)
+
+    (trial,) = manifest["trials"]
+    if selected:
+        assert trial["disposition"] == "selected"
+        assert manifest["counts"]["conversations"] == 1
+    else:
+        assert trial["disposition"] == "excluded"
+        assert trial["reasons"] == ["secret_pattern_in_context"]
+
+
 def _fallback_step(step_id: int) -> dict[str, Any]:
     return {
         "step_id": step_id,

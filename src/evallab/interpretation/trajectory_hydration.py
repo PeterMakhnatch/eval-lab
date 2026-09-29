@@ -34,6 +34,26 @@ _DEFAULT_SECRET_PATTERNS = (
     re.compile(r"-----BEGIN [A-Z ]+ PRIVATE KEY-----[\s\S]+?-----END [A-Z ]+ PRIVATE KEY-----"),
 )
 
+# AddressSanitizer and UBSan print ``DEDUP_TOKEN: frame--frame--frame`` to
+# deduplicate crash reports. The generic ``token:`` rule above matches inside it,
+# so every trajectory that shows a sanitizer report would read as secret-bearing.
+# Only that exact shape is exempt: the whole uppercase word ``DEDUP_TOKEN``
+# followed by a colon. The word may also follow a literal ``\n``/``\r``/``\t``
+# escape, as when a report is printed inside a JSON or repr string.
+# ``DEDUP_TOKEN=``, ``MY_DEDUP_TOKEN:`` and any other match in the same text
+# still count.
+_SANITIZER_DEDUP_TOKEN_RE = re.compile(r"(?:(?<![A-Za-z0-9_])|(?<=\\[nrt]))DEDUP_TOKEN\s*:")
+
+
+def secret_pattern_hits(text: str) -> int:
+    """Number of secret patterns with at least one match in ``text``, sanitizer dedup lines aside."""
+    exempt = {match.start() + len("DEDUP_") for match in _SANITIZER_DEDUP_TOKEN_RE.finditer(text)}
+    return sum(
+        1
+        for pattern in _DEFAULT_SECRET_PATTERNS
+        if any(match.start() not in exempt for match in pattern.finditer(text))
+    )
+
 
 class CitationPathJailError(ValueError):
     """Raised when a citation source_path is absolute or escapes the trial jail directory."""

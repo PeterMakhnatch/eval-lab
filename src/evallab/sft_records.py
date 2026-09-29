@@ -51,7 +51,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from evallab.interpretation.trajectory_hydration import _DEFAULT_SECRET_PATTERNS
+from evallab.interpretation.trajectory_hydration import secret_pattern_hits
 from evallab.tracing import (
     REDACTION_MARKER_RE,
     TraceError,
@@ -730,7 +730,7 @@ def _scan_secrets(messages: Iterable[Message]) -> int:
         ):
             if not text:
                 continue
-            hits += sum(1 for pattern in _DEFAULT_SECRET_PATTERNS if pattern.search(text))
+            hits += secret_pattern_hits(text)
     return hits
 
 

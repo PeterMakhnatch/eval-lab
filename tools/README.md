@@ -20,6 +20,10 @@ subdirectory pins its own dependencies with its own committed `uv.lock`.
   reasoning-split probe) and a README covering deploy, stop and cost. It is
   invoked only as `uv run --project tools/modal-mimo-serve --locked modal ...`;
   the lab reaches the server through the `mimo_selfhosted` proxy provider.
+- `modal-mimo-sft/` — the Modal TRL LoRA SFT toolchain for HAR-81
+  (`modal==1.5.5`, `transformers==5.12.1`, CPU-only lock; GPU deps pinned
+  inside the Modal image): `sft.py` (`dry-run` offline render/mask/cost
+  check, gated `train`/`merge` on one A100-80GB) plus a fixture export.
 
 ## Invariants or rules
 
@@ -39,6 +43,10 @@ subdirectory pins its own dependencies with its own committed `uv.lock`.
 - `uv run --project tools/modal-mimo-serve --locked python
   tools/modal-mimo-serve/smoke.py --help` is the offline check for the
   Modal toolchain. A live smoke needs a deployed server and spends GPU time.
+- `uv run --project tools/modal-mimo-sft --locked python
+  tools/modal-mimo-sft/sft.py dry-run --data
+  tools/modal-mimo-sft/fixtures/tiny-export` is the offline mask/cost check;
+  `train`/`merge` refuse without `--confirm-spend` and start Modal GPUs.
 
 ## What not to add here
 

@@ -1,0 +1,20 @@
+[project]
+name = "evallab-modal-mimo-sft"
+version = "0.1.0"
+description = "Isolated, locked Modal toolchain for TRL LoRA SFT of MiMo-V2.6-Distill-Qwen-9B (Eval Lab HAR-81)"
+requires-python = ">=3.12"
+dependencies = [
+    "modal==1.5.5",
+    "transformers==5.12.1",
+    "huggingface_hub==1.9.2",
+    "jinja2==3.1.6",
+]
+
+[tool.uv]
+# Virtual project: never built or installed as a package; it only pins the
+# client environment that `uv run --project tools/modal-mimo-sft --locked`
+# uses for the $0 dry run and for submitting the gated Modal train/merge.
+# Outside the root workspace so modal/transformers never enter the root
+# uv.lock. GPU training deps (torch, trl, peft, accelerate, datasets) live
+# ONLY in the Modal image defined in sft.py, never in this lock.
+package = false

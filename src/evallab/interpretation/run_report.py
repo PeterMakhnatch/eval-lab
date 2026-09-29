@@ -63,10 +63,10 @@ from evallab.step_layers import (
     copied_layers,
     coverage_record,
     discover_trajectory_parts,
+    effective_tool_calls,
     execution_problems,
     reconstruct_layers,
     summarize_layers,
-    synthesize_atif_calls,
     verifier_outcome,
 )
 from evallab.traj import (
@@ -709,9 +709,7 @@ def _step_actions(
     the harness accepted (and executed) are synthesized from the step layers
     instead, so executed work counts instead of reading as zero.
     """
-    raw_calls = [c for c in raw_step.get("tool_calls") or [] if isinstance(c, dict)]
-    if not raw_calls and layer is not None:
-        raw_calls = synthesize_atif_calls(raw_step, layer)
+    raw_calls = effective_tool_calls(raw_step, layer)
     if not raw_calls:
         return [], []
     calls = [_call_from_raw(c) for c in raw_calls]

@@ -97,6 +97,7 @@ __all__ = [
     "coverage_record",
     "discover_trajectory_parts",
     "duplicate_segments",
+    "effective_tool_calls",
     "executed_layer",
     "executed_output",
     "execution_problems",
@@ -578,11 +579,14 @@ def reconstruct_layers(step: Mapping[str, Any], *, parse: ParserFn) -> dict[str,
 def synthesize_atif_calls(
     step: Mapping[str, Any], layers: Mapping[str, Any] | None
 ) -> list[dict[str, Any]]:
-    """ATIF-shaped ``tool_calls`` synthesized from step layers.
+    """Stock Terminus-2 ``tool_calls`` synthesized from step layers.
 
-    Lets consumers built for parsed trajectories (run reports, diagnosis
-    views) count executed MiMo calls on ``raw_content`` trials. Returns []
-    when the step accepted nothing (parse errors) or carries no layers.
+    ``raw_content`` trials store the raw model reply and no ``tool_calls``;
+    this rebuilds the calls the harness accepted in the shape stock
+    Terminus-2 writes (``bash_command`` with ``keystrokes``/``duration``,
+    ``mark_task_complete``), so parsed-trajectory consumers read MiMo runs
+    like any other Terminus-2 run. Returns [] when the step accepted nothing
+    (parse errors) or carries no layers.
     """
     if not isinstance(layers, Mapping):
         return []
@@ -593,32 +597,56 @@ def synthesize_atif_calls(
         "prose_completion",
     ):
         return []
+    step_id = step.get("step_id")
     synthesized: list[dict[str, Any]] = []
     for position, call in enumerate(accepted.get("calls") or []):
         if not isinstance(call, Mapping):
             continue
+        call_id = f"call_{step_id}_{position + 1}"
         if call.get("task_complete") is True:
             synthesized.append(
                 {
-                    "function_name": "task_complete",
+                    "tool_call_id": call_id,
+                    "function_name": "mark_task_complete",
                     "arguments": {},
-                    "tool_call_id": f"har92-{provenance}-{position}",
                     "extra": {"provenance": provenance},
                 }
             )
         elif isinstance(call.get("keystrokes"), str):
             synthesized.append(
                 {
-                    "function_name": "exec",
+                    "tool_call_id": call_id,
+                    "function_name": "bash_command",
                     "arguments": {
                         "keystrokes": call["keystrokes"],
                         "duration": call.get("duration_sec"),
                     },
-                    "tool_call_id": f"har92-{provenance}-{position}",
                     "extra": {"provenance": provenance},
                 }
             )
     return synthesized
+
+
+def effective_tool_calls(
+    step: Mapping[str, Any], layers: Mapping[str, Any] | None = None
+) -> list[dict[str, Any]]:
+    """The step's tool calls: native ``tool_calls`` when present, else synthesized.
+
+    The single read path for consumers that count or inspect tool calls.
+    Native calls win; a step without them falls back to ``layers`` (the
+    caller's recorded or reconstructed layers) or, when none are passed, the
+    layers recorded in ``step.extra``.
+    """
+    native = step.get("tool_calls")
+    if isinstance(native, list):
+        calls = [call for call in native if isinstance(call, dict)]
+        if calls:
+            return calls
+    if layers is None:
+        extra = step.get("extra")
+        stored = extra.get(STEP_LAYERS_KEY) if isinstance(extra, Mapping) else None
+        layers = stored if isinstance(stored, Mapping) else None
+    return synthesize_atif_calls(step, layers)
 
 
 def summarize_layers(

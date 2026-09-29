@@ -15,6 +15,7 @@ from pydantic import ValidationError
 
 from evallab.eventlog import read_event_log_lines
 from evallab.results import JobRecord, TrialRecord, sha256_file
+from evallab.step_layers import effective_tool_calls
 
 JsonObject = dict[str, Any]
 ValidationStatus = Literal["valid", "invalid", "unsupported"]
@@ -571,7 +572,9 @@ def _project_payload(
         metrics = _as_object(raw_step.get("metrics"))
         if metrics is None:
             metrics = {}
-        calls = _as_list(raw_step.get("tool_calls"))
+        # raw_content Terminus steps carry no native tool_calls; the calls the
+        # harness accepted come from the recorded step layers instead.
+        calls = effective_tool_calls(raw_step)
         observation = _as_object(raw_step.get("observation"))
         if observation is None:
             observation = {}

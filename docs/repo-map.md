@@ -77,7 +77,7 @@ inputs:
   - path: src/evallab/evidence/__init__.py
     digest: sha256:3031abfbdcb7707dc2e227c4929f5f37f695a7413dc036f18b10eef44bdc1b95
   - path: src/evallab/evidence/atif.py
-    digest: sha256:43bcae4b87662fcd34814915b297cb8daf3adfc267e04ec78a9874001ea299b3
+    digest: sha256:5d329ce3cd292c970169aabf93636e6ad58b0c78bb62b917795fc316265533a0
   - path: src/evallab/evidence/capture_authority.py
     digest: sha256:9edfa4f7d3aa95937d91d2ccb669622b26aead6a7a5d96687cb1992edd2b8c3b
   - path: src/evallab/evidence/event_mart.py
@@ -199,7 +199,7 @@ inputs:
   - path: src/evallab/interpretation/producers/memory_continuity.py
     digest: sha256:8c336083f4397f444c637bd1753258b8a289891e666335c74aad5eafa08d9523
   - path: src/evallab/interpretation/run_report.py
-    digest: sha256:6ec6cd0f28a58f396ebf9408437b594f3ac40873435e1c19d7d8f8bce76142bc
+    digest: sha256:6f880181016185772d2f3c67b4b858435ea2383d6231448bb29828faf0c1fbd2
   - path: src/evallab/interpretation/run_report_scale.py
     digest: sha256:a74f2e35d1091c108aa938e6fcfa189510f6a296d20886521adf2312dcacdaa5
   - path: src/evallab/interpretation/trace_readiness.py
@@ -373,7 +373,7 @@ inputs:
   - path: src/evallab/status_generator.py
     digest: sha256:c61016ce6fce4c3f1a977a702590f5b89a1d63e0f906708c9fd563e09138e185
   - path: src/evallab/step_layers.py
-    digest: sha256:97b9ba67366a8430c81371abf287c87e9767c400436371bec1161c0d2cb35450
+    digest: sha256:35feca0550d76cde9cf6816572a3ffd039fea474aa55cb3c7f3c7b931ba5ea52
   - path: src/evallab/storage/__init__.py
     digest: sha256:7276bb505f87769117c2c3e16f7e2c83dbd33806fc791adbdfc6353dd6fc0b11
   - path: src/evallab/storage/attach.py
@@ -427,7 +427,7 @@ inputs:
   - path: src/evallab/training_pool.py
     digest: sha256:64a25ca6ff005c8e51a5cc92329392c768bd9b970d632d6abf784627708e75f4
   - path: src/evallab/traj.py
-    digest: sha256:4690d6833255ce2751a011b297824bc0329e5f9ed8eadc409e12554880f51215
+    digest: sha256:1954d159f94ba48e22402721fee49685874a92c845584165baa1547b42a127a0
   - path: src/evallab/trajectory_action_taxonomy.py
     digest: sha256:7480e6e809f617002afae2b363c9c861ec38e890f2b5760adba2d197564d72e0
   - path: src/evallab/trajectory_error_taxonomy.py

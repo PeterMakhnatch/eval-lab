@@ -254,3 +254,58 @@ def test_unsupported_schema_is_recorded(tmp_path: Path) -> None:
 
     root = next(item for item in projection.trajectories if item.embedded_path is None)
     assert root.validation_status == "unsupported"
+
+
+def _layers(kind: str, calls: list[dict[str, object]] | None) -> dict[str, object]:
+    return {
+        "schema": "evallab.step_layers/v1",
+        "provenance": "recorded",
+        "accepted": {"kind": kind, "calls": calls},
+    }
+
+
+def test_raw_content_steps_project_recorded_calls_as_stock_terminus_calls(
+    tmp_path: Path,
+) -> None:
+    # Terminus-2 raw_content mode writes the model's raw reply and no
+    # tool_calls; the harness records what it accepted in step layers.
+    job = load_job(_make_job(tmp_path))
+    trajectory_path = job.trials[0].path / "agent/trajectory.json"
+    raw_reply = "<tool_call><function=bash><parameter=command>ls</parameter></function></tool_call>"
+    _write_json(
+        trajectory_path,
+        {
+            "schema_version": "ATIF-v1.7",
+            "session_id": "mimo-session",
+            "agent": {"name": "terminus-2", "version": "2.0.0", "model_name": "mimo"},
+            "steps": [
+                {"step_id": 1, "source": "user", "message": "task"},
+                {
+                    "step_id": 2,
+                    "source": "agent",
+                    "message": raw_reply,
+                    "extra": {
+                        "step_layers": _layers(
+                            "calls",
+                            [{"keystrokes": "ls\n", "duration_sec": 1.0}, {"task_complete": True}],
+                        )
+                    },
+                    "observation": {"results": [{"content": "a.txt"}]},
+                },
+                {
+                    "step_id": 3,
+                    "source": "agent",
+                    "message": "unparseable reply",
+                    "extra": {"step_layers": _layers("parse_error", None)},
+                },
+            ],
+        },
+    )
+
+    projection = project_trial(job, job.trials[0])
+    root_steps = [step for step in projection.steps if step.source_path == "agent/trajectory.json"]
+    assert [step.tool_call_count for step in root_steps] == [0, 2, 0]
+    assert [(call.step_id, call.function_name, call.tool_call_id) for call in projection.tool_calls] == [
+        (2, "bash_command", "call_2_1"),
+        (2, "mark_task_complete", "call_2_2"),
+    ]

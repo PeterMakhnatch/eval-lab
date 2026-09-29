@@ -639,9 +639,9 @@ def test_mimo_probe_requires_key_and_upstream() -> None:
 
 
 def test_mimo_trial_cost_arithmetic() -> None:
-    # GPU $/h x hours / concurrency + sandbox.
-    assert mimo_selfhosted_trial_cost_usd(2.0, 1, 0.5) == pytest.approx(5.4968)
-    assert mimo_selfhosted_trial_cost_usd(1.0, 2, 0.0) == pytest.approx(1.2492)
+    # Server $/h (GPU + CPU + memory) x hours / concurrency + sandbox.
+    assert mimo_selfhosted_trial_cost_usd(2.0, 1, 0.5) == pytest.approx(6.129824)
+    assert mimo_selfhosted_trial_cost_usd(1.0, 2, 0.0) == pytest.approx(1.407456)
     assert mimo_selfhosted_trial_cost_usd(0.0, 1, 0.0) == 0.0
 
 
@@ -662,3 +662,20 @@ def test_mimo_trial_cost_rejects_bad_inputs(
 ) -> None:
     with pytest.raises(ValueError):
         mimo_selfhosted_trial_cost_usd(hours, concurrency, sandbox)
+
+
+@pytest.mark.parametrize(
+    "returned,accepted",
+    [
+        # SGLang echoes --served-model-name; the first live trial failed
+        # model_identity_mismatch on exactly this before the fix.
+        (MIMO_SELFHOSTED_NATIVE_MODEL, True),
+        (MIMO_SELFHOSTED_MODEL_SELECTOR, True),
+        ("Qwen/Qwen3.5-9B", False),
+        ("XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B-evil", False),
+        ("other/MiMo-V2.6-Distill-Qwen-9B-x", False),
+    ],
+)
+def test_mimo_returned_model_identity(returned: str, accepted: bool) -> None:
+    allowed = runner_module._accepted_returned_models(MIMO_SELFHOSTED_MODEL_SELECTOR)
+    assert (returned in allowed) is accepted

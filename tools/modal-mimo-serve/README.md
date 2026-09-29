@@ -45,6 +45,6 @@ Rates are from modal.com/pricing, 2026-09-28. `modal billing report --for today 
 
 A trial's cost is time-based, not token-based:
 
-  GPU $/h × trial hours ÷ concurrent trials + Daytona sandbox time
+  server $/h ($2.8149 for GPU, CPU and memory together) × trial hours ÷ concurrent trials + Daytona sandbox time
 
 A cold start and the 5-minute idle tail are billed once per warm period.

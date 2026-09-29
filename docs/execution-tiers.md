@@ -186,11 +186,13 @@ implementations. Metered routes, all host-side through the same loopback proxy:
   places: SGLang's `mimo` reasoning parser only splits `<think>` when
   `enable_thinking=True`, and without it reasoning lands in content and
   breaks Terminus JSON. Self-hosted tokens have no per-token price (the
-  ledger pins `(0, 0)`); GPU time is billed by Modal ($0.000694/s for
-  A100-80GB = $2.4984/h, modal.com/pricing, 2026-09-28) and estimated as
-  `2.4984 x trial_hours / concurrency + sandbox_usd`
-  (`mimo_selfhosted_trial_cost_usd`). With zero rates the cost ceiling
-  cannot trip; the request/token ceilings still bound the run.
+  ledger pins `(0, 0)`). Modal bills the server container per second. The
+  rate is $2.8149/h: A100-80GB $2.4984/h, 4 cores $0.1886/h and 16 GiB
+  $0.1279/h (modal.com/pricing, 2026-09-28).
+  `mimo_selfhosted_trial_cost_usd` estimates
+  `2.8149 x trial_hours / concurrency + sandbox_usd`. With zero rates the
+  proxy's cost ceiling cannot trip; its request and token ceilings still
+  bound the run.
 
 The MiMo server lives in `tools/modal-mimo-serve/` (see its README for the
 deploy, smoke and stop commands). Daytona Tier 1/2 sandboxes cannot reach

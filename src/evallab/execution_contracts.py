@@ -438,15 +438,19 @@ MIMO_SELFHOSTED_PROXY_ATTEMPT_ID_ENV = "EVALLAB_MIMO_SELFHOSTED_ATTEMPT_ID"
 MIMO_SELFHOSTED_PROXY_USAGE_FILE_ENV = "EVALLAB_MIMO_SELFHOSTED_USAGE_FILE"
 MIMO_SELFHOSTED_PROXY_PROVIDER_ENV = "EVALLAB_PROXY_PROVIDER"
 MIMO_SELFHOSTED_PROXY_PROVIDER = "mimo_selfhosted"
-#: Self-hosted tokens have no per-token price. GPU time is billed by Modal
-#: ($0.000694/s for A100-80GB = $2.4984/h, modal.com/pricing, 2026-09-28)
-#: and accounted by the time-based estimate
+#: Self-hosted tokens have no per-token price. The server container is billed
+#: by Modal per second and accounted by the time-based estimate
 #: (:func:`mimo_selfhosted_trial_cost_usd`), not the token ledger.
 MIMO_SELFHOSTED_MODEL_PRICES_MICROS: Mapping[str, tuple[int, int]] = MappingProxyType(
     {MIMO_SELFHOSTED_NATIVE_MODEL: (0, 0)}
 )
-#: Modal A100-80GB GPU price (USD per hour) backing the time-based estimate.
-MIMO_SELFHOSTED_GPU_USD_PER_HOUR = 2.4984
+#: Modal rate (USD per hour) for the whole server container, from
+#: modal.com/pricing on 2026-09-28:
+#:   A100-80GB $0.000694/s = $2.4984/h
+#:   4 CPU cores × $0.0000131/s = $0.18864/h
+#:   16 GiB × $0.00000222/s = $0.127872/h
+#: Modal bills CPU and memory on top of the GPU.
+MIMO_SELFHOSTED_SERVER_USD_PER_HOUR = 2.814912
 
 
 def parse_mimo_selfhosted_model(model: str | None) -> str:
@@ -472,12 +476,12 @@ def is_mimo_selfhosted_model(model: str | None) -> bool:
 def mimo_selfhosted_trial_cost_usd(
     trial_hours: float, concurrency: int, sandbox_usd: float
 ) -> float:
-    """Estimate one trial's cost: GPU $/h x trial_hours / concurrency + sandbox_usd.
+    """Estimate one trial's cost: server $/h x trial_hours / concurrency + sandbox_usd.
 
-    Request, token and cost ceilings keep working on this route, but with
-    zero per-token rates the token-ledger cost ceiling cannot trip; the
-    request/token ceilings still bound the run, and spend is governed by
-    this time-based GPU estimate plus the sandbox cost.
+    This excludes the one-off cost of each warm period: a cold start plus
+    the 300 s idle tail before scale-to-zero. With zero per-token rates the
+    proxy's cost ceiling cannot trip; its request and token ceilings still
+    bound the run.
     """
     if (
         isinstance(concurrency, bool)
@@ -493,7 +497,7 @@ def mimo_selfhosted_trial_cost_usd(
             or value < 0
         ):
             raise ValueError(f"{label} must be a finite non-negative number, got {value!r}")
-    return MIMO_SELFHOSTED_GPU_USD_PER_HOUR * trial_hours / concurrency + sandbox_usd
+    return MIMO_SELFHOSTED_SERVER_USD_PER_HOUR * trial_hours / concurrency + sandbox_usd
 
 
 GLM_SELFHOSTED_BASE_MODEL_SELECTOR = "glm-selfhosted/glm-5.3-flash"

@@ -166,9 +166,9 @@ PROVIDERS: dict[str, Any] = {
         "default_allowed_models": frozenset({"XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"}),
         "flat_input_price_env": None,
         "flat_output_price_env": None,
-        # Self-hosted tokens have no per-token price. GPU time is billed by
-        # Modal ($0.000694/s for A100-80GB = $2.4984/h, modal.com/pricing,
-        # 2026-09-28) and accounted by the time-based estimate, not this ledger.
+        # Self-hosted tokens have no per-token price. Modal bills the server
+        # container by time, and the lab accounts it with
+        # mimo_selfhosted_trial_cost_usd, not with this ledger.
         "model_prices": {"XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B": (0, 0)},
         "expected_base_env": None,
         "checkpoint_models": False,

@@ -1283,7 +1283,7 @@ def run_harbor_process(
             owned_usage_path = owned_usage_dir / "terminus-proxy-usage.json"
             if mimo_native is not None:
                 # Self-hosted tokens have no per-token price; spend is
-                # governed by the time-based GPU estimate, not this ledger.
+                # governed by the time-based server estimate, not this ledger.
                 input_rate, output_rate = MIMO_SELFHOSTED_MODEL_PRICES_MICROS[mimo_native]
                 proxy_pricing = {
                     "input_cost_micros_per_million": input_rate,
@@ -1693,6 +1693,15 @@ def _task_staging_provenance(
     }
 
 
+def _accepted_returned_models(model: str) -> frozenset[str]:
+    """Model ids a provider may legitimately echo back for the requested selector."""
+    accepted = {model, model.rsplit("/", 1)[-1]}
+    if is_mimo_selfhosted_model(model):
+        # SGLang echoes its --served-model-name: the selector minus ``selfhosted/``.
+        accepted.add(parse_mimo_selfhosted_model(model))
+    return frozenset(accepted)
+
+
 def _write_run_metadata(
     request: RunRequest,
     *,
@@ -1785,8 +1794,8 @@ def _write_run_metadata(
             if isinstance(call, dict) and call.get("returned_model")
         ]
         if returned_models:
-            norm_requested = request.model.rsplit("/", 1)[-1]
-            mismatch = any(m != norm_requested and m != request.model for m in returned_models)
+            accepted = _accepted_returned_models(request.model)
+            mismatch = any(m not in accepted for m in returned_models)
             metadata["model_identity"] = {
                 "requested": request.model,
                 "returned": returned_models[0] if len(set(returned_models)) == 1 else returned_models,

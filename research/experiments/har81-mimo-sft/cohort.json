@@ -1,8 +1,10 @@
 {
   "schema": "har81.distill_cohort/v1",
   "split_manifest_digest": "sha256:c3df70a5551c47d6c695abb3b8e51ca009b48d606289de4f637a7c1329e49f58",
-  "broken_export_sha256": "sha256:a10411bcdbe5f7470badfa27d8cc5637b45bbe1feef1317caf88a8e403efd48e",
+  "broken_export_sha256": "sha256:35f66da133e78e44b070c09843a7b021404b8acb4a6a40c10f96050f3441df57",
   "excluded_task_version_digests": [
+    "sha256:06205dfca4a41a4b134da31e72efc29197522e0d4a1981cff7b9d7addb9675f8",
+    "sha256:90be868f403beffbd2da6923cfcec8cd7df50995e98a3265b4421b3072eec1f7",
     "sha256:95d2df6678d8c999a4ded14f161eb65fadabd9bc15978471868b05908fbcf1c7"
   ],
   "rule": "sealed split minus `tasks catalog export-broken --backend daytona`. pair: train only, per domain rank sha256('har81-distill\\0'+task_id), one task per split_group, {'terminal': 7, 'cyber': 7, 'code': 6}. heldout: every held-out task in ['terminal', 'cyber', 'code'], by task_id. Both lists alternate domains so any prefix spans all three.",
@@ -203,9 +205,9 @@
     },
     {
       "domain": "terminal",
-      "task_id": "candidate-0674-ml-evaluation",
-      "split_group": "terminal:candidate-0674-ml-evaluation",
-      "task_version_digest": "sha256:90be868f403beffbd2da6923cfcec8cd7df50995e98a3265b4421b3072eec1f7"
+      "task_id": "candidate-0847-software-languages",
+      "split_group": "terminal:candidate-0847-software-languages",
+      "task_version_digest": "sha256:fda581033863b7cc1250b44c0da8939402ec20c92dc37bb1d462b33c17362f2f"
     },
     {
       "domain": "cyber",
@@ -221,9 +223,9 @@
     },
     {
       "domain": "terminal",
-      "task_id": "candidate-0847-software-languages",
-      "split_group": "terminal:candidate-0847-software-languages",
-      "task_version_digest": "sha256:fda581033863b7cc1250b44c0da8939402ec20c92dc37bb1d462b33c17362f2f"
+      "task_id": "candidate-1305-software-data-engineering",
+      "split_group": "terminal:candidate-1305-software-data-engineering",
+      "task_version_digest": "sha256:5d3d8262534a7e930d591c57bc0cdde828b41b5d2aed07afcd171fb5602db2db"
     },
     {
       "domain": "cyber",
@@ -239,9 +241,9 @@
     },
     {
       "domain": "terminal",
-      "task_id": "candidate-1305-software-data-engineering",
-      "split_group": "terminal:candidate-1305-software-data-engineering",
-      "task_version_digest": "sha256:5d3d8262534a7e930d591c57bc0cdde828b41b5d2aed07afcd171fb5602db2db"
+      "task_id": "candidate-1682-science-physics",
+      "split_group": "terminal:candidate-1682-science-physics",
+      "task_version_digest": "sha256:fea0e3db409bbf20cee4863becfe2f54dc7c9b37a0ae9c1b0d9383bb919762b8"
     },
     {
       "domain": "cyber",
@@ -257,9 +259,9 @@
     },
     {
       "domain": "terminal",
-      "task_id": "candidate-1682-science-physics",
-      "split_group": "terminal:candidate-1682-science-physics",
-      "task_version_digest": "sha256:fea0e3db409bbf20cee4863becfe2f54dc7c9b37a0ae9c1b0d9383bb919762b8"
+      "task_id": "candidate-1824-media-design",
+      "split_group": "terminal:candidate-1824-media-design",
+      "task_version_digest": "sha256:8fd0a9d3d2af87771030c71f3c5a4cb3995efa76d29a054e264dd4f568acfa1e"
     },
     {
       "domain": "cyber",
@@ -275,9 +277,9 @@
     },
     {
       "domain": "terminal",
-      "task_id": "candidate-1824-media-design",
-      "split_group": "terminal:candidate-1824-media-design",
-      "task_version_digest": "sha256:8fd0a9d3d2af87771030c71f3c5a4cb3995efa76d29a054e264dd4f568acfa1e"
+      "task_id": "candidate-2329-software-languages",
+      "split_group": "terminal:candidate-2329-software-languages",
+      "task_version_digest": "sha256:a96c71f77bae8d6a38c35629709436b3f64cfb0c24abd9c0eeccdf0b780a12df"
     },
     {
       "domain": "cyber",
@@ -293,9 +295,9 @@
     },
     {
       "domain": "terminal",
-      "task_id": "candidate-2329-software-languages",
-      "split_group": "terminal:candidate-2329-software-languages",
-      "task_version_digest": "sha256:a96c71f77bae8d6a38c35629709436b3f64cfb0c24abd9c0eeccdf0b780a12df"
+      "task_id": "candidate-2487-security-cryptography",
+      "split_group": "terminal:candidate-2487-security-cryptography",
+      "task_version_digest": "sha256:e05dfcf2260ddbdffef6f644b676da5d6f3466462aca28ab0cc78f1f239f5cb5"
     },
     {
       "domain": "cyber",
@@ -311,9 +313,9 @@
     },
     {
       "domain": "terminal",
-      "task_id": "candidate-2376-security-cryptography",
-      "split_group": "terminal:candidate-2376-security-cryptography",
-      "task_version_digest": "sha256:06205dfca4a41a4b134da31e72efc29197522e0d4a1981cff7b9d7addb9675f8"
+      "task_id": "candidate-2760-ml-inference",
+      "split_group": "terminal:candidate-2760-ml-inference",
+      "task_version_digest": "sha256:cb34c27a5e85e4d73a0219174c2b5816057ba7032207d3b9bad268c302c14ef2"
     },
     {
       "domain": "cyber",
@@ -329,9 +331,9 @@
     },
     {
       "domain": "terminal",
-      "task_id": "candidate-2487-security-cryptography",
-      "split_group": "terminal:candidate-2487-security-cryptography",
-      "task_version_digest": "sha256:e05dfcf2260ddbdffef6f644b676da5d6f3466462aca28ab0cc78f1f239f5cb5"
+      "task_id": "candidate-2790-ml-evaluation",
+      "split_group": "terminal:candidate-2790-ml-evaluation",
+      "task_version_digest": "sha256:e877e6cf348642dccf71e6cfd1798374ca2995dcc08bf41ccb7d2c6ccff26ba8"
     },
     {
       "domain": "cyber",
@@ -347,9 +349,9 @@
     },
     {
       "domain": "terminal",
-      "task_id": "candidate-2760-ml-inference",
-      "split_group": "terminal:candidate-2760-ml-inference",
-      "task_version_digest": "sha256:cb34c27a5e85e4d73a0219174c2b5816057ba7032207d3b9bad268c302c14ef2"
+      "task_id": "candidate-2838-ml-evaluation",
+      "split_group": "terminal:candidate-2838-ml-evaluation",
+      "task_version_digest": "sha256:549a1dadbd8b852c70ceb604413be9c941214cc56ab955d69cbf06c2711078ac"
     },
     {
       "domain": "cyber",
@@ -364,12 +366,6 @@
       "task_version_digest": "sha256:9eb4c6b78c7cf21df6fae1de55ebe7eee1bea4bb7e2c1c019d1dd744d2881089"
     },
     {
-      "domain": "terminal",
-      "task_id": "candidate-2790-ml-evaluation",
-      "split_group": "terminal:candidate-2790-ml-evaluation",
-      "task_version_digest": "sha256:e877e6cf348642dccf71e6cfd1798374ca2995dcc08bf41ccb7d2c6ccff26ba8"
-    },
-    {
       "domain": "cyber",
       "task_id": "arvo_1304",
       "split_group": "cyber:gnutls",
@@ -380,12 +376,6 @@
       "task_id": "format-code-task-000126",
       "split_group": "code:format-code-task-000126",
       "task_version_digest": "sha256:32f1e07da5170ebf5ee255453e0e42bab3239c337d8d505e6ec76c83565e2ed8"
-    },
-    {
-      "domain": "terminal",
-      "task_id": "candidate-2838-ml-evaluation",
-      "split_group": "terminal:candidate-2838-ml-evaluation",
-      "task_version_digest": "sha256:549a1dadbd8b852c70ceb604413be9c941214cc56ab955d69cbf06c2711078ac"
     },
     {
       "domain": "cyber",

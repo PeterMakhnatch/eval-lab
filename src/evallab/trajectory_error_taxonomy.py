@@ -8,6 +8,7 @@ Provides zero-LLM classification of trajectory errors, separating:
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 from dataclasses import dataclass
@@ -26,6 +27,7 @@ class ErrorCategory(StrEnum):
     TIMEOUT = "timeout"
     RUNTIME_EXCEPTION = "runtime_exception"
     EXPECTED_PROBE_MISS = "expected_probe_miss"
+    INFERRED_FROM_OUTPUT = "inferred_from_output"
     NONE = "none"
 
 
@@ -90,6 +92,45 @@ _RUNTIME_EXCEPTION_PATTERNS = re.compile(
 # long output are data the agent read (for example source code that raises
 # "Invalid JSON"), not a rejection of the call.
 _REJECTION_HEAD_CHARS = 400
+# Strong command-output text that names a failure even when the harness
+# records no exit code and no error flag (shared with the run report: both
+# views infer errors from the same single pattern).
+STRONG_ERROR_TEXT_RE = re.compile(
+    r"Traceback \(most recent call last\)|command not found|No such file or directory"
+    r"|Permission denied|SyntaxError:|ModuleNotFoundError:"
+)
+
+# A code-mode harness lead declaring the script completed is an explicit
+# success signal: output-text inference must not second-guess it (the run
+# report short-circuits the same way and only consults STRONG_ERROR_TEXT_RE
+# when the outcome is genuinely unknown).
+_CODE_MODE_SUCCESS_LEAD_RE = re.compile(r"^\s*Script completed\b")
+
+
+def has_script_completed_lead(output_content: str | None) -> bool:
+    """Whether code-mode output parts lead with an explicit success status.
+
+    Codex code-mode results arrive as a Python-repr list of ``input_text``
+    parts; when the first part leads with ``Script completed``, the harness
+    accepted the call even if later output mentions failures the command
+    itself handled or reported. Plain (non-code-mode) text has no such
+    status channel, so only an unwrapped code-mode lead counts.
+    """
+    if not output_content:
+        return False
+    text = output_content.lstrip()
+    if not text.startswith("[{'type': 'input_text'"):
+        return False
+    try:
+        parts = ast.literal_eval(text)
+    except (ValueError, SyntaxError, MemoryError, RecursionError):
+        return False
+    if not isinstance(parts, list):
+        return False
+    texts = [p["text"] for p in parts if isinstance(p, dict) and isinstance(p.get("text"), str)]
+    if not texts:
+        return False
+    return bool(_CODE_MODE_SUCCESS_LEAD_RE.match(texts[0]))
 
 
 @dataclass(frozen=True)

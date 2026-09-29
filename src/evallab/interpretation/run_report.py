@@ -79,7 +79,11 @@ from evallab.traj import (
     resolve_trial_target,
     stitched_chain_action_steps,
 )
-from evallab.trajectory_error_taxonomy import classify_step_error, split_envelope
+from evallab.trajectory_error_taxonomy import (
+    STRONG_ERROR_TEXT_RE,
+    classify_step_error,
+    split_envelope,
+)
 from evallab.trajectory_ir import _extract_reasoning_tokens
 from evallab.trial_diagnosis import sanitize_excerpt
 
@@ -105,10 +109,8 @@ _CODE_MODE_STATUS_RE = re.compile(r"^\s*Script (completed|failed)\b")
 _WALL_TIME_RE = re.compile(r"Wall time:?\s*[\d.]+\s*(?:seconds|s)\b", re.IGNORECASE)
 _WS_RE = re.compile(r"\s+")
 _EXIT_PREFIX_RE = re.compile(r"^\s*exit (-?\d+)\b")
-_STRONG_ERROR_TEXT_RE = re.compile(
-    r"Traceback \(most recent call last\)|command not found|No such file or directory"
-    r"|Permission denied|SyntaxError:|ModuleNotFoundError:"
-)
+# Error-text inference uses the taxonomy's shared pattern (D3): the report and
+# the trajectory outline infer errors from command output through one regex.
 # Reef native harness text-only failures (``reef/harness/runners/native/seed.py``:
 # ``run_bash``/``execute`` return ``"timed out after 60s"`` on tool timeout and
 # the native tools return ``"refused: <reason>"`` when they decline to run).
@@ -561,7 +563,7 @@ def _status(call: _Call, output: _Output | None) -> tuple[str, str | None, str, 
         )
     if output.failed is False:
         return "ok", output.signal, "none", None
-    strong = _STRONG_ERROR_TEXT_RE.search(output.text)
+    strong = STRONG_ERROR_TEXT_RE.search(output.text)
     if strong:
         start = max(0, strong.start() - 80)
         return "error", "output_text", "inferred_from_output", _clip(output.text[start:], 240)
@@ -1667,6 +1669,7 @@ def _errors(
         "first_error": {
             "step": errors[0].step,
             "offset_seconds": _seconds(origin, errors[0].timestamp),
+            "evidence": errors[0].evidence,
         }
         if errors
         else None,
@@ -1692,6 +1695,149 @@ def _errors(
     }
 
 
+def _binding_ceiling(trial_dir: Path, result: dict[str, Any]) -> str | None:
+    """Name the binding trial-budget ceiling, or None when caps are unknown.
+
+    Compares the job's recorded caps (``lab-metadata.json`` first, then the
+    top-level ``experiment-spec.json`` keys) against the trial's utilization
+    the way probe-03 ``ceiling_which`` does, plus the cost ceiling. Unknown
+    caps read as None, never a guess.
+    """
+    caps: dict[str, float | None] = {
+        "max_input_tokens": None,
+        "max_output_tokens": None,
+        "max_requests": None,
+        "max_total_tokens": None,
+        "cost_limit_usd": None,
+    }
+
+    def _collect(node: Any) -> None:
+        if isinstance(node, dict):
+            for key in ("max_input_tokens", "max_output_tokens", "max_requests", "max_total_tokens"):
+                value = node.get(key)
+                if caps[key] is None and isinstance(value, (int, float)) and not isinstance(value, bool):
+                    caps[key] = value
+            if caps["cost_limit_usd"] is None:
+                for key in ("cost_limit_usd", "max_cost_usd"):
+                    value = node.get(key)
+                    if isinstance(value, (int, float)) and not isinstance(value, bool):
+                        caps["cost_limit_usd"] = float(value)
+                        break
+                micros = node.get("max_cost_micros")
+                if caps["cost_limit_usd"] is None and isinstance(micros, (int, float)) and not isinstance(micros, bool):
+                    caps["cost_limit_usd"] = float(micros) / 1_000_000
+            for value in node.values():
+                _collect(value)
+        elif isinstance(node, list):
+            for value in node:
+                _collect(value)
+
+    job_dir = trial_dir.parent
+    for name in ("lab-metadata.json", "experiment-spec.json"):
+        try:
+            document = json.loads((job_dir / name).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        _collect(document)
+        if all(value is not None for value in caps.values()):
+            break
+
+    agent_result = _dict(result.get("agent_result"))
+    agent_metadata = _dict(agent_result.get("metadata"))
+    n_input = _int(agent_result.get("n_input_tokens"))
+    n_output = _int(agent_result.get("n_output_tokens"))
+    n_episodes = _int(agent_metadata.get("n_episodes"))
+    cost_usd = _float(agent_result.get("cost_usd"))
+    if cost_usd is None:
+        cost_usd = _float(result.get("cost_usd"))
+    candidates: list[tuple[str, float | None, float | None]] = [
+        ("input_tokens", n_input, caps["max_input_tokens"]),
+        ("output_tokens", n_output, caps["max_output_tokens"]),
+        ("requests", n_episodes, caps["max_requests"]),
+        ("cost", cost_usd, caps["cost_limit_usd"]),
+    ]
+    total = None
+    if n_input is not None and n_output is not None:
+        total = n_input + n_output
+    candidates.append(("total_tokens", total, caps["max_total_tokens"]))
+    best: str | None = None
+    best_share = -1.0
+    for name, used, cap in candidates:
+        if isinstance(used, (int, float)) and isinstance(cap, (int, float)) and cap:
+            share = used / cap
+            if share > best_share:
+                best, best_share = name, share
+    return best
+
+
+_COMPLETION_TOOL = "mark_task_complete"
+# A shell command that only echoes the completion token (the model retrying
+# "task_complete" in prose after the harness demanded the real call).
+_COMPLETION_ECHO_RE = re.compile(r"""['"]?echo\s+['"]?task_complete['"]?['"]?""")
+
+
+def _completion_claim_steps(
+    positioned: Sequence[tuple[int, Any]],
+    layers: Sequence[dict[str, Any] | None],
+    actions: Sequence[_Action],
+) -> list[int]:
+    """Ordinals where the model claimed completion (layer flag or completion call)."""
+    padded = list(layers) + [None] * max(0, len(positioned) - len(layers))
+    well_formed = [
+        (raw, layer)
+        for (_, raw), layer in zip(positioned, padded, strict=False)
+        if isinstance(raw, dict)
+    ]
+    claims: set[int] = set()
+    for ordinal, (_raw, layer) in enumerate(well_formed, start=1):
+        accepted = layer.get("accepted") if isinstance(layer, Mapping) else None
+        if isinstance(accepted, Mapping) and accepted.get("task_complete") is True:
+            claims.add(ordinal)
+    claims |= {a.step for a in actions if a.tool == _COMPLETION_TOOL}
+    return sorted(claims)
+
+
+def _completion_verdict(
+    *,
+    claim_steps: Sequence[int],
+    steps: Sequence[_Step],
+    last_task_complete: bool | None,
+) -> str | None:
+    """One-line completion verdict: first claim, confirmation, and final turn."""
+    if not steps:
+        return None
+    last = steps[-1]
+    if last.actions:
+        targets = [a.target for a in last.actions if a.target]
+        if targets:
+            detail = targets[0] if len(targets) == 1 else "; ".join(targets)
+        else:
+            detail = _action_preview(last.actions) or "no tool call"
+        detail = _clip(detail, 120) or "no tool call"
+    elif last.message.strip():
+        detail = _clip(last.message, 120) or "no tool call"
+    else:
+        detail = "no tool call"
+    if not claim_steps:
+        return f"Completion: never claimed; the run ended on step {last.step} ({detail})."
+    first = claim_steps[0]
+    if last_task_complete is True:
+        confirmed = claim_steps[-1]
+        if confirmed == first:
+            return (
+                f"Completion: claimed at step {first} on the final turn (confirmed); "
+                f"the run ended on step {last.step} ({detail})."
+            )
+        return (
+            f"Completion: claimed at step {first}, confirmed at step {confirmed}; "
+            f"the run ended on step {last.step} ({detail})."
+        )
+    return (
+        f"Completion: claimed at step {first}, never confirmed; "
+        f"the run ended on step {last.step} ({detail})."
+    )
+
+
 def _outcome(
     result: dict[str, Any],
     steps: Sequence[_Step],
@@ -1700,6 +1846,7 @@ def _outcome(
     layer_summary: Mapping[str, Any] | None = None,
     stop: tuple[str | None, str] | None = None,
     problems: Mapping[str, Any] | None = None,
+    completion: str | None = None,
 ) -> dict[str, Any]:
     verifier = _dict(result.get("verifier_result"))
     rewards = {
@@ -1735,6 +1882,7 @@ def _outcome(
         "verifier_outcome": verifier_outcome(rewards),
         "stop_reason": stop_reason,
         "stop_detail": stop_detail,
+        "completion": completion,
         "execution_problems": dict(problems) if problems is not None else {},
         "final_agent_message": _clip(final_message, 600) if final_message else None,
         "verifier_files": sorted(
@@ -1747,7 +1895,7 @@ def _outcome(
 
 def _step_flags(
     step: _Step, revisit_steps: set[int], error_steps: set[int], spawn_steps: set[int],
-    event_steps: set[int],
+    event_steps: set[int], completion_steps: frozenset[int] | set[int] = frozenset(),
 ) -> list[str]:
     flags: list[str] = []
     if step.step in error_steps:
@@ -1758,6 +1906,8 @@ def _step_flags(
         flags.append("subagent")
     if step.step in event_steps:
         flags.append("context")
+    if step.step in completion_steps:
+        flags.append("completion")
     if step.is_sidechain:
         flags.append("sidechain")
     return flags
@@ -1784,7 +1934,18 @@ def _timeline(
     spawn_steps = {i["spawned_at_step"] for i in subagents["items"] if i["spawned_at_step"]}
     spawn_steps |= {d["step"] for d in subagents["delegation_calls"]}
     event_steps = {e["step"] for e in context["events"]}
-    notable = revisit_steps | error_steps | spawn_steps | event_steps
+    completion_steps = {
+        a.step
+        for a in actions
+        if a.tool == _COMPLETION_TOOL
+        or (a.shell and _COMPLETION_ECHO_RE.fullmatch(a.target.strip()))
+    }
+    # The step after a completion claim carries the harness's answer to it
+    # (for example the "are you sure" confirm prompt), so it stays visible too.
+    notable = (
+        revisit_steps | error_steps | spawn_steps | event_steps
+        | completion_steps | {step + 1 for step in completion_steps}
+    )
 
     def entry(step: _Step) -> dict[str, Any]:
         statuses = {a.status for a in step.actions}
@@ -1802,7 +1963,7 @@ def _timeline(
             "message": _clip(step.message, 140 if step.source == "agent" else 80)
             if step.message.strip()
             else None,
-            "flags": _step_flags(step, revisit_steps, error_steps, spawn_steps, event_steps),
+            "flags": _step_flags(step, revisit_steps, error_steps, spawn_steps, event_steps, completion_steps),
         }
 
     if limit is None or len(steps) <= limit:
@@ -2031,8 +2192,20 @@ def build_run_report(
         last_task_complete=last_task_complete,
         last_prose_completion=last_prose_completion,
     )
+    if stop_reason == "trial_budget_exhausted":
+        ceiling = _binding_ceiling(trial, result)
+        stop_detail = (
+            f"{stop_detail}; binding ceiling: {ceiling}"
+            if ceiling is not None
+            else f"{stop_detail}; binding ceiling unknown (no trial caps recorded)"
+        )
     problems = execution_problems(layer_summary=layer_summary, lab_metadata=lab_metadata)
     actions = [a for s in steps for a in s.actions]
+    completion = _completion_verdict(
+        claim_steps=_completion_claim_steps(positioned, layers, actions),
+        steps=steps,
+        last_task_complete=last_task_complete,
+    )
     root_doc = segments[0][1] if segments else {}
     terminal_doc = segments[-1][1] if segments else {}
 
@@ -2076,6 +2249,7 @@ def build_run_report(
             layer_summary=layer_summary,
             stop=(stop_reason, stop_detail),
             problems=problems,
+            completion=completion,
         ),
         "timing": timing,
         "tokens": tokens,
@@ -2314,6 +2488,8 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
         f"; stop reason: {outcome.get('stop_reason') or 'unknown'}"
         + (f" ({outcome['stop_detail']})" if outcome.get("stop_detail") else "")
     )
+    if outcome.get("completion"):
+        lines.append(f"- {outcome['completion']}")
     problems = outcome.get("execution_problems") or {}
     problem_bits = [
         f"{problems[key]} {label}"
@@ -2632,6 +2808,14 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
             else ""
         )
     )
+    first_error = errors.get("first_error")
+    if first_error is not None:
+        if first_error.get("evidence") == "output_text":
+            how = "inferred from output text"
+        else:
+            channel = first_error.get("evidence") or "no channel recorded"
+            how = f"signalled by the harness ({channel})"
+        lines.append(f"- First tool error: step {first_error['step']} ({how}).")
     if errors["by_category"]:
         lines.append("By category: " + ", ".join(f"{k}×{v}" for k, v in errors["by_category"].items()))
     lines += [

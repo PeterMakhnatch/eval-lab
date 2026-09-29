@@ -541,6 +541,15 @@ def _command_exit_code(result: JsonObject) -> int | None:
     return None
 
 
+def _step_llm_call_count(raw_step: JsonObject, metrics: JsonObject) -> int:
+    """Declared ``llm_call_count``; Harbor ATIF omits it, so a step with token usage counts one call."""
+    declared = _optional_int(raw_step.get("llm_call_count"))
+    if declared is not None:
+        return declared
+    has_usage = any(_optional_int(metrics.get(key)) is not None for key in ("prompt_tokens", "completion_tokens"))
+    return 1 if has_usage else 0
+
+
 def _project_payload(
     job: JobRecord,
     trial: TrialRecord,
@@ -591,7 +600,7 @@ def _project_payload(
                 timestamp=_string_or_none(raw_step.get("timestamp")),
                 model_name=_string_or_none(raw_step.get("model_name")),
                 is_copied_context=bool(raw_step.get("is_copied_context", False)),
-                llm_call_count=_optional_int(raw_step.get("llm_call_count")) or 0,
+                llm_call_count=_step_llm_call_count(raw_step, metrics),
                 prompt_tokens=_optional_int(metrics.get("prompt_tokens")),
                 completion_tokens=_optional_int(metrics.get("completion_tokens")),
                 cached_tokens=_optional_int(metrics.get("cached_tokens")),

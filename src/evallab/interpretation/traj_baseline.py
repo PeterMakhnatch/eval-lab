@@ -260,6 +260,19 @@ TRACE_BASELINE_PROVENANCE: dict[str, BaselineProvenance] = {
         null_condition="0 for unavailable trajectories",
         description="Number of steps that resulted in execution or tool errors.",
     ),
+    "inferred_error_count": BaselineProvenance(
+        column_name="inferred_error_count",
+        data_type="BIGINT",
+        category="mechanical_fact",
+        is_screening=False,
+        source_table="traj_features",
+        formula_or_rule=(
+            "Count of error steps with no harness exit code or error flag, "
+            "marked by the shared STRONG_ERROR_TEXT_RE output-text match"
+        ),
+        null_condition="0 for unavailable trajectories",
+        description="Number of error steps inferred from command output text (subset of error_count).",
+    ),
     "recovery_count": BaselineProvenance(
         column_name="recovery_count",
         data_type="BIGINT",
@@ -861,6 +874,7 @@ class TraceBaselineRecord:
     path_reference_validity_rate_screening: float | None
     citation_reference_validity_rate_screening: float | None
     created_at: str
+    inferred_error_count: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -954,6 +968,7 @@ def compute_trace_baseline(outline: TrajectoryOutline) -> TraceBaselineRecord:
         tool_call_count=feat.tool_call_count,
         unique_tools_count=feat.unique_tools_count,
         error_count=feat.error_count,
+        inferred_error_count=feat.inferred_error_count,
         recovery_count=feat.recovery_count,
         linear_innocence_screening=li_screening,
         tool_error_rate_screening=ter_screening,
@@ -1033,6 +1048,7 @@ TRACE_BASELINE_PARQUET_SCHEMA = pa.schema(
         pa.field("tool_call_count", pa.int64(), nullable=False),
         pa.field("unique_tools_count", pa.int64(), nullable=False),
         pa.field("error_count", pa.int64(), nullable=False),
+        pa.field("inferred_error_count", pa.int64(), nullable=False),
         pa.field("recovery_count", pa.int64(), nullable=False),
         pa.field("linear_innocence_screening", pa.float64(), nullable=True),
         pa.field("tool_error_rate_screening", pa.float64(), nullable=True),

@@ -6,6 +6,7 @@ from pathlib import Path
 import duckdb
 
 from evallab.evidence.facts import (
+    exception_phase_for,
     extract_job_facts,
     extract_trial_fact,
     rebuild_from_raw,
@@ -142,3 +143,9 @@ def test_rebuild_from_raw_refreshes_when_input_modified_in_same_process(tmp_path
         # Even reusing the same JobRecord must reopen changed trajectory bytes.
         rebuild_from_raw([job], output)
         assert connection.execute(query, [str(steps_path)]).fetchall() == [("agent", 99)]
+
+
+def test_budget_exhaustion_and_agent_timeout_map_to_agent_phase() -> None:
+    assert exception_phase_for("TrialBudgetExhaustedError") == "agent"
+    assert exception_phase_for("AgentTimeoutError") == "agent"
+    assert exception_phase_for(None) is None

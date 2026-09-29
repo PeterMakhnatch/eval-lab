@@ -8,6 +8,7 @@ from typing import Any
 
 from evallab.traj import outline_trajectory
 from evallab.trajectory_error_taxonomy import (
+    STRONG_ERROR_TEXT_RE,
     ErrorCategory,
     classify_step_error,
     split_envelope,
@@ -163,3 +164,82 @@ def test_outline_terminal_envelope_error_is_unrecovered(tmp_path: Path) -> None:
     assert outline.total_errors == 1
     assert outline.unrecovered_at_terminal is True
     assert outline.steps[0].error_category == ErrorCategory.RUNTIME_EXCEPTION.value
+
+
+_TRACEBACK_OUTPUT = (
+    "Traceback (most recent call last):\n"
+    '  File "t.py", line 1, in <module>\n'
+    "AssertionError: Pattern not found"
+)
+
+
+def _plain_step(message: str, command: str, output: str) -> dict[str, Any]:
+    """A step whose observation carries raw output with no exit code or error flag."""
+    return {
+        "source": "agent",
+        "message": message,
+        "tool_calls": [{"function_name": "bash", "arguments": {"command": command}}],
+        "observation": {"results": [{"content": output}]},
+    }
+
+
+def test_strong_error_text_re_matches_report_pattern() -> None:
+    """The shared pattern is the report's exact strong-error pattern."""
+    for snippet in (
+        "Traceback (most recent call last):",
+        "bash: gcc: command not found",
+        "No such file or directory",
+        "Permission denied",
+        "SyntaxError: bad syntax",
+        "ModuleNotFoundError: No module named 'x'",
+    ):
+        assert STRONG_ERROR_TEXT_RE.search(snippet) is not None
+    assert STRONG_ERROR_TEXT_RE.search("all 12 checks passed") is None
+
+
+def test_outline_infers_error_from_output_without_exit_code(tmp_path: Path) -> None:
+    """A no-exit-code step whose output names a failure counts as inferred."""
+    trial = _trial(
+        tmp_path / "trial",
+        [_plain_step("run", "pytest -q", _TRACEBACK_OUTPUT)],
+    )
+    outline = outline_trajectory(trial, explicit_runs_root=trial)
+    assert outline.status == "featured"
+    assert outline.total_errors == 1
+    assert outline.inferred_errors == 1
+    assert outline.step_to_first_error == 1
+    failing = outline.steps[0]
+    assert failing.is_error is True
+    assert failing.is_inferred_error is True
+    assert failing.error_category == ErrorCategory.INFERRED_FROM_OUTPUT.value
+
+
+def test_outline_does_not_infer_error_on_exit_code_zero(tmp_path: Path) -> None:
+    """The same failure text with an explicit exit code 0 is accepted output."""
+    trial = _trial(
+        tmp_path / "trial",
+        [_envelope_step("run", "pytest -q", 0, _TRACEBACK_OUTPUT)],
+    )
+    outline = outline_trajectory(trial, explicit_runs_root=trial)
+    assert outline.status == "featured"
+    assert outline.total_errors == 0
+    assert outline.inferred_errors == 0
+    assert outline.steps[0].is_error is False
+    assert outline.steps[0].is_inferred_error is False
+
+
+def test_outline_completed_script_lead_is_not_an_error(tmp_path: Path) -> None:
+    """A code-mode ``Script completed`` lead beats failure text later in the output."""
+    output = (
+        "[{'type': 'input_text', 'text': 'Script completed\\nWall time 0.1 seconds\\nOutput:\\n'}, "
+        "{'type': 'input_text', 'text': '8 events\\n/bin/bash: line 1: jq: command not found\\n'}]"
+    )
+    trial = _trial(
+        tmp_path / "trial",
+        [_plain_step("run", "python3 check.py", output)],
+    )
+    outline = outline_trajectory(trial, explicit_runs_root=trial)
+    assert outline.status == "featured"
+    assert outline.total_errors == 0
+    assert outline.inferred_errors == 0
+    assert outline.steps[0].is_error is False

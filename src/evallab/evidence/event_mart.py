@@ -159,7 +159,7 @@ EVENT_MART_SCHEMAS: dict[str, pa.Schema] = {
             pa.field("prompt_tokens", pa.int64(), nullable=False),
             pa.field("completion_tokens", pa.int64(), nullable=False),
             pa.field("cached_tokens", pa.int64(), nullable=False),
-            pa.field("cost_usd", pa.float64(), nullable=False),
+            pa.field("cost_usd", pa.float64()),
             pa.field("algorithm_version", pa.string(), nullable=False),
             pa.field("source_path", pa.string(), nullable=False),
         ]

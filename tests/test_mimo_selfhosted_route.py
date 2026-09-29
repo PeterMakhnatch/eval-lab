@@ -507,6 +507,13 @@ def test_mimo_proxy_settles_a_usage_less_400_as_a_zero_usage_call(
     # Only a 400 settles: other usage-less errors stay unresolved.
     assert [call["state"] for call in ledger["calls"]] == ["reconciled", "unresolved"]
     assert ledger["unresolved_requests"] == 1
+    # The open reservation never inflates the totals: used covers only the
+    # settled zero-usage 400, the reservation sits in ``attempted``.
+    assert ledger["totals"]["requests"] == 1
+    assert ledger["totals"]["input_tokens"] == 0
+    assert ledger["totals"]["output_tokens"] == 0
+    assert ledger["attempted"]["requests"] == 1
+    assert ledger["attempted"]["input_tokens"] > 0
 
 
 def test_runner_accepts_a_ledger_whose_only_failure_was_a_usage_less_400(

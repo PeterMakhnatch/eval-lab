@@ -9,7 +9,8 @@ import psycopg
 from psycopg.conninfo import conninfo_to_dict
 from psycopg.types.json import Jsonb
 
-from evallab.results import JobRecord, duration_seconds
+from evallab.ledger import build_cost_block
+from evallab.results import JobRecord, TrialRecord, duration_seconds
 from evallab.runner import transient_provider_exception
 from evallab.schemas import CanaryDriftObservation
 
@@ -102,6 +103,65 @@ def _executemany(
         connection.executemany(query, parameters)  # type: ignore[attr-defined]
 
 
+def _job_cost_block(job: JobRecord) -> dict[str, Any]:
+    """Authoritative per-run spend block for one job's lab-metadata.
+
+    Prefers the runner's finalize ``cost`` block; recomputes from the proxy
+    ledger for jobs finalized before it existed (e.g. recovered runs). The
+    ledger-derived figure wins over Harbor/litellm's ``agent_result`` estimate
+    whenever a proxy ledger exists for the job.
+    """
+    metadata = job.metadata if isinstance(job.metadata, dict) else {}
+    block = metadata.get("cost")
+    if (
+        isinstance(block, dict)
+        and "cost_usd" in block
+        and "attempted_cost_usd" in block
+    ):
+        return dict(block)
+    provider_usage = metadata.get("provider_usage")
+    return build_cost_block(
+        provider_usage if isinstance(provider_usage, dict) else None
+    )
+
+
+def trial_cost_columns(job: JobRecord, trial: TrialRecord) -> dict[str, float | None]:
+    """Per-trial ``(cost_usd, attempted_cost_usd)`` for one catalog row.
+
+    One proxy ledger covers the whole Harbor process, so a multi-trial job
+    splits the ledger's used/attempted cost evenly across its trials: the
+    daily sums still equal the ledger. Without any proxy ledger the trial
+    keeps Harbor's own ``agent_result.cost_usd`` figure (controls and
+    subscription lanes bill nothing through the proxy).
+    """
+    metadata = job.metadata if isinstance(job.metadata, dict) else {}
+    provider_usage = metadata.get("provider_usage")
+    if isinstance(provider_usage, dict) and isinstance(
+        provider_usage.get("calls"), list
+    ):
+        block = _job_cost_block(job)
+        trial_count = max(1, len(job.trials))
+        cost = block.get("cost_usd")
+        attempted = block.get("attempted_cost_usd")
+        return {
+            "cost_usd": (
+                cost / trial_count if isinstance(cost, (int, float)) else None
+            ),
+            "attempted_cost_usd": (
+                attempted / trial_count
+                if isinstance(attempted, (int, float))
+                else None
+            ),
+        }
+    agent_cost = (trial.result.get("agent_result") or {}).get("cost_usd")
+    return {
+        "cost_usd": (
+            float(agent_cost) if isinstance(agent_cost, (int, float)) else None
+        ),
+        "attempted_cost_usd": None,
+    }
+
+
 def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Path) -> None:
     stats = job.result.get("stats") or {}
     evidence_path = _relative_or_absolute(job.path, root)
@@ -175,39 +235,49 @@ def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Pat
         )
 
     if job.trials:
-        trial_rows = [
-            {
-                "id": trial.id,
-                "job_id": job.id,
-                "trial_name": trial.name,
-                "evidence_path": _relative_or_absolute(trial.path, root),
-                "task_name": trial.result.get("task_name"),
-                "task_checksum": trial.result.get("task_checksum"),
-                "agent_name": (trial.result.get("agent_info") or {}).get("name"),
-                "agent_version": (trial.result.get("agent_info") or {}).get("version"),
-                "model_name": (
-                    ((trial.result.get("agent_info") or {}).get("model_info") or {}).get("name")
-                    or ((trial.result.get("agent_info") or {}).get("model_info") or {}).get(
-                        "model_name"
-                    )
-                ),
-                "primary_reward": trial.primary_reward,
-                "exception_type": _exception_type(trial.result),
-                "started_at": trial.result.get("started_at"),
-                "finished_at": trial.result.get("finished_at"),
-                "duration_seconds": duration_seconds(
-                    trial.result.get("started_at"), trial.result.get("finished_at")
-                ),
-                "input_tokens": (trial.result.get("agent_result") or {}).get("n_input_tokens"),
-                "cache_tokens": (trial.result.get("agent_result") or {}).get("n_cache_tokens"),
-                "output_tokens": (trial.result.get("agent_result") or {}).get("n_output_tokens"),
-                "cost_usd": (trial.result.get("agent_result") or {}).get("cost_usd"),
-                "raw_config": Jsonb(trial.config),
-                "raw_lock": Jsonb(trial.lock),
-                "raw_result": Jsonb(trial.result),
-            }
-            for trial in job.trials
-        ]
+        trial_rows = []
+        for trial in job.trials:
+            # ONE authoritative path: the proxy ledger (via the finalize cost
+            # block) wins over Harbor/litellm's agent_result estimate whenever
+            # a ledger exists for the job; otherwise the trial keeps Harbor's
+            # own figure. Attempted (unresolved-reservation) cost rides along
+            # so the policy gate can spend used + attempted as a ceiling.
+            spend = trial_cost_columns(job, trial)
+            trial_rows.append(
+                {
+                    "id": trial.id,
+                    "job_id": job.id,
+                    "trial_name": trial.name,
+                    "evidence_path": _relative_or_absolute(trial.path, root),
+                    "task_name": trial.result.get("task_name"),
+                    "task_checksum": trial.result.get("task_checksum"),
+                    "agent_name": (trial.result.get("agent_info") or {}).get("name"),
+                    "agent_version": (trial.result.get("agent_info") or {}).get("version"),
+                    "model_name": (
+                        ((trial.result.get("agent_info") or {}).get("model_info") or {}).get(
+                            "name"
+                        )
+                        or ((trial.result.get("agent_info") or {}).get("model_info") or {}).get(
+                            "model_name"
+                        )
+                    ),
+                    "primary_reward": trial.primary_reward,
+                    "exception_type": _exception_type(trial.result),
+                    "started_at": trial.result.get("started_at"),
+                    "finished_at": trial.result.get("finished_at"),
+                    "duration_seconds": duration_seconds(
+                        trial.result.get("started_at"), trial.result.get("finished_at")
+                    ),
+                    "input_tokens": (trial.result.get("agent_result") or {}).get("n_input_tokens"),
+                    "cache_tokens": (trial.result.get("agent_result") or {}).get("n_cache_tokens"),
+                    "output_tokens": (trial.result.get("agent_result") or {}).get("n_output_tokens"),
+                    "cost_usd": spend["cost_usd"],
+                    "attempted_cost_usd": spend["attempted_cost_usd"],
+                    "raw_config": Jsonb(trial.config),
+                    "raw_lock": Jsonb(trial.lock),
+                    "raw_result": Jsonb(trial.result),
+                }
+            )
         _executemany(
             connection,
             """
@@ -216,6 +286,7 @@ def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Pat
                 agent_name, agent_version, model_name, primary_reward,
                 exception_type, started_at, finished_at, duration_seconds,
                 input_tokens, cache_tokens, output_tokens, cost_usd,
+                attempted_cost_usd,
                 raw_config, raw_lock, raw_result, updated_at
             ) VALUES (
                 %(id)s, %(job_id)s, %(trial_name)s, %(evidence_path)s,
@@ -223,8 +294,8 @@ def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Pat
                 %(agent_version)s, %(model_name)s, %(primary_reward)s,
                 %(exception_type)s, %(started_at)s, %(finished_at)s,
                 %(duration_seconds)s, %(input_tokens)s, %(cache_tokens)s,
-                %(output_tokens)s, %(cost_usd)s, %(raw_config)s, %(raw_lock)s,
-                %(raw_result)s, now()
+                %(output_tokens)s, %(cost_usd)s, %(attempted_cost_usd)s,
+                %(raw_config)s, %(raw_lock)s, %(raw_result)s, now()
             )
             ON CONFLICT (id) DO UPDATE SET
                 job_id = EXCLUDED.job_id,
@@ -244,6 +315,7 @@ def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Pat
                 cache_tokens = EXCLUDED.cache_tokens,
                 output_tokens = EXCLUDED.output_tokens,
                 cost_usd = EXCLUDED.cost_usd,
+                attempted_cost_usd = EXCLUDED.attempted_cost_usd,
                 raw_config = EXCLUDED.raw_config,
                 raw_lock = EXCLUDED.raw_lock,
                 raw_result = EXCLUDED.raw_result,
@@ -347,11 +419,21 @@ def identity(database_url: str) -> str:
 
 
 def daily_cost_usd(database_url: str, day: date) -> float:
-    """Return spend for the explicit UTC policy day, independent of DB settings."""
+    """Return spend for the explicit UTC policy day, independent of DB settings.
+
+    Gate rule (HAR-104): the policy gate spends ``used + attempted`` as a
+    conservative ceiling. Catalog ``cost_usd`` is settled ledger usage only;
+    ``attempted_cost_usd`` is the unresolved-reservation ceiling for trials
+    whose calls never reconciled. Summing both keeps the $20/day gate from
+    spending reservations twice (once as attempted, later as used would
+    double-count if a trial re-ingested after settling — instead each ingest
+    overwrites both columns from the same ledger, so used + attempted always
+    equals the ledger's current ceiling).
+    """
     with psycopg.connect(database_url, connect_timeout=2) as connection:
         row = connection.execute(
             """
-            SELECT COALESCE(sum(cost_usd), 0)
+            SELECT COALESCE(sum(cost_usd), 0) + COALESCE(sum(attempted_cost_usd), 0)
             FROM trials
             WHERE finished_at IS NOT NULL
               AND (finished_at::timestamptz AT TIME ZONE 'UTC')::date = %s

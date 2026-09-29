@@ -714,20 +714,57 @@ class TrialBudget:
             raise ValueError("proxy pricing changed mid-trial")
 
     def _persist_locked(self) -> None:
-        unresolved = sum(1 for call in self._calls if call["state"] != "reconciled")
+        # Schema v2: ``totals`` is actual usage only (reconciled + exceeded
+        # actuals); reservations of calls still reserved/unresolved sit in
+        # ``attempted`` and never inflate the totals. Enforcement counters
+        # (self._requests/...) still include in-flight reservations so
+        # concurrent calls cannot overshoot the ceilings; only the reported
+        # blocks are derived here from the calls list.
+        used_requests = 0
+        used_input = 0
+        used_output = 0
+        used_cost = 0
+        attempted_requests = 0
+        attempted_input = 0
+        attempted_output = 0
+        attempted_cost = 0
+        unresolved = 0
+        for call in self._calls:
+            state = call["state"]
+            if state in ("reconciled", "exceeded"):
+                used_requests += 1
+                used_input += call["input_tokens"]
+                used_output += call["output_tokens"]
+                used_cost += call["cost_micros"]
+                if state != "reconciled":
+                    unresolved += 1
+            elif state in ("reserved", "unresolved"):
+                attempted_requests += 1
+                attempted_input += call["reserved_input_tokens"]
+                attempted_output += call["reserved_output_tokens"]
+                attempted_cost += call["reserved_cost_micros"]
+                unresolved += 1
+            else:  # pragma: no cover - states are set only by the methods below
+                raise ValueError(f"invalid proxy call state: {state!r}")
         payload = {
-            "schema_version": 1,
+            "schema_version": 2,
             "capability_id": self._capability_id,
             "attempt_id": self._attempt_id,
             "sequence": self._sequence,
             "limits": self._limits,
             "pricing": self._pricing,
             "totals": {
-                "requests": self._requests,
-                "input_tokens": self._input_tokens,
-                "output_tokens": self._output_tokens,
-                "total_tokens": self._input_tokens + self._output_tokens,
-                "cost_micros": self._cost_micros,
+                "requests": used_requests,
+                "input_tokens": used_input,
+                "output_tokens": used_output,
+                "total_tokens": used_input + used_output,
+                "cost_micros": used_cost,
+            },
+            "attempted": {
+                "requests": attempted_requests,
+                "input_tokens": attempted_input,
+                "output_tokens": attempted_output,
+                "cost_micros": attempted_cost,
             },
             "unresolved_requests": unresolved,
             "calls": self._calls,

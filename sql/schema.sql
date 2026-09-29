@@ -65,12 +65,18 @@ CREATE TABLE IF NOT EXISTS trials (
     cache_tokens bigint,
     output_tokens bigint,
     cost_usd double precision,
+    attempted_cost_usd double precision,
     raw_config jsonb NOT NULL DEFAULT '{}'::jsonb,
     raw_lock jsonb NOT NULL DEFAULT '{}'::jsonb,
     raw_result jsonb NOT NULL DEFAULT '{}'::jsonb,
     updated_at timestamptz NOT NULL DEFAULT now(),
     UNIQUE (job_id, trial_name)
 );
+
+-- HAR-104: unresolved-reservation ceiling per trial. The policy gate spends
+-- used + attempted as a conservative ceiling; catalog cost_usd stays settled
+-- usage only. Idempotent for catalogs created before this column existed.
+ALTER TABLE trials ADD COLUMN IF NOT EXISTS attempted_cost_usd double precision;
 
 CREATE INDEX IF NOT EXISTS trials_task_idx ON trials (task_name);
 CREATE INDEX IF NOT EXISTS trials_agent_model_idx ON trials (agent_name, model_name);

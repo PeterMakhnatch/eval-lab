@@ -2587,6 +2587,11 @@ class Executor:
         )
 
     def _catalog_spend(self) -> float:
+        # Gate rule (HAR-104): the gate spends used + attempted as a
+        # conservative ceiling (database.daily_cost_usd sums both columns)
+        # while the catalog cost_usd stays settled ledger usage only.
+        # In-flight queue reservations ride on top via
+        # _effective_spend_today, not in this figure.
         try:
             return database.daily_cost_usd(
                 database_url_from_environment(),

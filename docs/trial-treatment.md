@@ -92,7 +92,7 @@ The command exits 0 and prints `POOLABLE` only when every setup field agrees. Ot
 | `proxy_ledger`, `proxy_calls`, `proxy_calls_shaped`, `proxy_unresolved_requests` | from the proxy's per-call ledger (`lab-metadata.json` `provider_usage`), or null without one |
 | `result_*_tokens` | `agent_result.n_input_tokens` / `n_output_tokens` |
 | `trajectory_*_tokens` | sum of per-step `metrics` over unique main-trajectory steps plus summarization trajectories |
-| `proxy_*_tokens` | ledger totals |
+| `proxy_*_tokens` | ledger *used* totals: settled actuals only (reconciled + exceeded calls). Reservations of never-reconciled calls are excluded — on schema-v1 ledgers they are derived out of the `calls` list (the `attempted` reservation block lives on in `lab-metadata.json` and the catalog, not in this table) |
 | `input_tokens_unattributed` | ledger input minus trajectory-attributed input |
 | `ledger_orphan_{truncated,final,other}_calls`, `ledger_orphan_input_tokens` | ledger calls no recorded step accounts for (matched on `input_tokens` = step `prompt_tokens`), by shape: `truncated` hit the reserved `max_tokens`, was discarded and retried; `final` is the last call of a trial whose agent phase ended in an exception, cut off before a step was written; `other` is anything else |
 | `token_gap_basis` | what the gap is: orphan calls by shape and how much of the gap they cover, overflow cycles, unresolved ledger requests — calls that failed or were never recorded, not missing files |

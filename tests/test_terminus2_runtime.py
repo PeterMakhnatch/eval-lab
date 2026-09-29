@@ -563,6 +563,8 @@ def test_host_proxy_binds_loopback_and_meters_calls(
     assert ledger["totals"]["input_tokens"] == 2 * UPSTREAM_USAGE["prompt_tokens"]
     assert ledger["totals"]["output_tokens"] == 2 * UPSTREAM_USAGE["completion_tokens"]
     assert ledger["unresolved_requests"] == 0
+    assert ledger["schema_version"] == 2
+    assert ledger["attempted"]["requests"] == 0
 
     # The runner's real reconciliation accepts the host-proxy ledger.
     usage = runner_module._read_proxy_usage(

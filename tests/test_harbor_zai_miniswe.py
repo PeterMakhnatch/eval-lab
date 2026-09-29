@@ -387,6 +387,8 @@ def test_proxy_lifecycle_and_accounting(tmp_path: Path, monkeypatch: pytest.Monk
         assert usage["totals"]["input_tokens"] == 20
         assert usage["totals"]["output_tokens"] == 10
         assert usage["unresolved_requests"] == 0
+        assert usage["schema_version"] == 2
+        assert usage["attempted"]["requests"] == 0
     finally:
         proxy.shutdown()
         upstream.shutdown()

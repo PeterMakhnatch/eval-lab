@@ -121,7 +121,7 @@ inputs:
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
   - path: docs/trial-treatment.md
-    digest: sha256:2871d9bc60643592ebab10c755876ffadd6e595b6d65f939fb054d86477598db
+    digest: sha256:c5d7fe39ddb423bca9bdb89a6657a4dd6bd8e570839db42626f0c6d7c479068d
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md

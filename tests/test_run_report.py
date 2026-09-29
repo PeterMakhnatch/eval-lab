@@ -468,3 +468,63 @@ def test_status_channels_beyond_exit_codes(tmp_path: Path) -> None:
 
     assert evidence == {(3, "exit_prefix"), (4, "result_payload"), (5, "error_flag")}
     assert report["tools"]["by_tool"][0] == {**report["tools"]["by_tool"][0], "ok": 1, "errors": 1}
+
+
+def _terminus_step(message: str) -> dict[str, Any]:
+    """A raw_content Terminus agent step with no recorded layers (pre-HAR-92)."""
+    return {
+        "step_id": 2,
+        "timestamp": "2026-09-01T00:02:05Z",
+        "source": "agent",
+        "message": message,
+        "observation": {"results": [{"content": "root@task:/app# "}]},
+    }
+
+
+def _write_lab_metadata(root: Path, provider_usage: dict[str, Any] | None) -> None:
+    payload: dict[str, Any] = {}
+    if provider_usage is not None:
+        payload["provider_usage"] = provider_usage
+    (root / "lab-metadata.json").write_text(json.dumps(payload), encoding="utf-8")
+
+
+def test_missing_layers_report_unknown_with_reconciled_ledger_false(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    import evallab.interpretation.run_report as run_report
+
+    monkeypatch.setattr(run_report, "_replay_parser", lambda: None)
+    trial = _trial(tmp_path, [_terminus_step("look around")])
+    _write_lab_metadata(tmp_path, {
+        "calls": [{"state": "reconciled", "status": 200}],
+        "unresolved_requests": 0,
+    })
+    report = build_run_report(trial)
+    layers = report["step_layers"]
+    assert layers["agent_steps"] == 1 and layers["missing"] == 1
+    assert layers["parse_errors"] is None
+    assert layers["prose_completions"] is None
+    assert layers["executed_calls"] is None
+    assert layers["task_complete_turns"] is None
+    assert "layers missing for 1 of 1 agent steps" in layers["layers_unknown_reason"]
+    assert "harbor==0.21.0" in layers["layers_unknown_reason"]
+    problems = report["outcome"]["execution_problems"]
+    assert problems["parse_errors"] is None
+    assert problems["proxy_usage_unreconciled"] is False
+    assert problems["coverage"] == "unknown: parse_errors, prose_completions"
+
+
+def test_missing_layers_and_ledger_markdown_unknown(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    import evallab.interpretation.run_report as run_report
+    from evallab.interpretation.run_report import render_run_report_markdown
+
+    monkeypatch.setattr(run_report, "_replay_parser", lambda: None)
+    trial = _trial(tmp_path, [_terminus_step("look around")])
+    _write_lab_metadata(tmp_path, None)
+    report = build_run_report(trial)
+    assert report["outcome"]["execution_problems"]["proxy_usage_unreconciled"] is None
+    markdown = render_run_report_markdown(report)
+    assert "- Execution problems: unknown (unknown:" in markdown
+    assert "none recorded" not in markdown.split("## Time")[0]

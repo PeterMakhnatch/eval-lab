@@ -1,1 +1,7 @@
-{"approved_at":"","approved_by":"","binding_sha256":"<fill after phase 1: research/experiments/har85-mimo-gepa/dspy/gepa_mimo.py --phase heldout --print-binding --winner <phase1-policy.json> --attempts 3 --cap-usd 9 --harbor-env daytona [--split ...] [--cost-limit-usd 1.0]>","cap_usd":9,"note":"STAGED template (cap $9 covers expected $8.64 = $5.76 model API-equiv + $2.88 Daytona), NOT an authorization: binding_sha256/approved_by/approved_at are blank. The winner digest is unknown until phase 1 completes, so this binding cannot be precomputed. After phase 1, run --print-binding with the EXACT phase-2 flags from APPROVAL.md, paste the sha above, and have Peter sign approved_by/approved_at. Signed file is runtime state: keep outside the repo, never commit."}
+{
+  "approved_at": "",
+  "approved_by": "",
+  "binding_sha256": "<fill after phase 1: research/experiments/har85-mimo-gepa/dspy/gepa_mimo.py --phase heldout --print-binding --winner <phase1-policy.json> --attempts 3 --cap-usd 9 --harbor-env daytona [--split ...] [--cost-limit-usd 1.0]>",
+  "cap_usd": 9,
+  "note": "STAGED template (cap $9 covers expected $7.02 = $4.68 model API-equiv + $2.34 Daytona for 13 scorable heldout x 2 arms x 3 attempts = 78 trials), NOT an authorization: binding_sha256/approved_by/approved_at are blank. The winner digest is unknown until phase 1 completes, so this binding cannot be precomputed. After phase 1, run --print-binding with the EXACT phase-2 flags from APPROVAL.md, paste the sha above, and have Peter sign approved_by/approved_at. Signed file is runtime state: keep outside the repo, never commit."
+}

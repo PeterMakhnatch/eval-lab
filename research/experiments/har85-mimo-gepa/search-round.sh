@@ -109,19 +109,22 @@ fi
 cd "$lab"
 if [ "$approved_n" -gt 0 ]; then
   approved_ids=$(printf '%s\n' "$@" | awk -v n="$approved_n" 'NR<=n {print $1}')
-  key=$(awk 'index($0,"ZAI_OPENAPI_API_KEY=")==1{v=substr($0,21); gsub(/^["'"'"']|["'"'"']$/,"",v); print v}' "$HOME/.omp/agent/.env")
-  [ -n "$key" ] || { echo "refusing: ZAI_OPENAPI_API_KEY missing" >&2; exit 2; }
-  # Trials run in Daytona (base spec environment); the runner forwards this key
-  # to Harbor only for Daytona environments (src/evallab/runner.py, include_daytona_credentials).
+  mkey=$(awk '{sub(/^export /,"")} index($0,"MIMO_SELFHOSTED_API_KEY=")==1{v=substr($0,24); gsub(/^["'"'"']|["'"'"']$/,"",v); print v}' "$HOME/.omp/agent/.env")
+  [ -n "$mkey" ] || { echo "refusing: MIMO_SELFHOSTED_API_KEY missing" >&2; exit 2; }
+  mup=$(awk '{sub(/^export /,"")} index($0,"EVALLAB_MIMO_SELFHOSTED_UPSTREAM=")==1{v=substr($0,32); gsub(/^["'"'"']|["'"'"']$/,"",v); print v}' "$HOME/.omp/agent/.env")
+  [ -n "$mup" ] || { echo "refusing: EVALLAB_MIMO_SELFHOSTED_UPSTREAM missing" >&2; exit 2; }
   dkey=$(awk '{sub(/^export /,"")} index($0,"DAYTONA_API_KEY=")==1{v=substr($0,17); gsub(/^["'"'"']|["'"'"']$/,"",v); print v}' "$HOME/.omp/agent/.env")
   [ -n "$dkey" ] || { echo "refusing: DAYTONA_API_KEY missing" >&2; exit 2; }
+  # Trials run in Daytona (base spec environment); the runner forwards the
+  # Daytona key to Harbor only for Daytona environments
+  # (src/evallab/runner.py, include_daytona_credentials).
   args=(--max-specs "$approved_n")
   # shellcheck disable=SC2086
   for id in $approved_ids; do args+=(--spec-id "$id"); done
   env -i HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" LANG="${LANG:-en_US.UTF-8}" \
     PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
-    ZAI_OPENAPI_API_KEY="$key" DAYTONA_API_KEY="$dkey" \
+    MIMO_SELFHOSTED_API_KEY="$mkey" EVALLAB_MIMO_SELFHOSTED_UPSTREAM="$mup" DAYTONA_API_KEY="$dkey" \
     /Users/petermakhnatch/.local/bin/uv run --no-sync evallab tick "${args[@]}"
 else
   # First round (nothing parked yet) or a round whose trials already ran: no

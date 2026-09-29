@@ -22,8 +22,8 @@ spend-relevant launch parameter for that phase:
   id lists, `max_metric_calls`, per-trial `cost_limit_usd`, phase `cap_usd`,
   `harbor_env` (where task containers run; the launcher always passes `daytona`).
 - phase heldout: launcher sha256, split `manifest_digest`, student route,
-  winner policy digest, the 16 heldout ids, attempts, `cost_limit_usd`,
-  `cap_usd`, `harbor_env`.
+  winner policy digest, the 13 scorable heldout ids, attempts,
+  `cost_limit_usd`, `cap_usd`, `harbor_env`.
 
 The paid path recomputes the binding and refuses (exit 2) on: binding
 mismatch (ANY param change: tasks, calls, cap, environment, code edits, split
@@ -37,17 +37,19 @@ Only the blank templates in `approvals/` are committed.
 ## Exact commands
 
 Pilot phase 1 (4 train + 2 val, 10 metric calls, cap $3; expected $2.73 =
-$1.98 model API-equiv + $0.75 Daytona). Every id is a train task whose grader
-ran its tests in an Eval Lab run; `candidate-0260-security-appsec` is excluded
-(grader cannot import its vendored Bandit tree, see `../train-exclusions.json`)
-and `gepa_mimo.py` refuses it:
+$1.98 model API-equiv + $0.75 Daytona). Every id is a sealed-split train task
+whose grader ran its tests in an Eval Lab run (0758: local nop collected 5
+tests 3 failed / 2 passed; 1990: 4 failed / 1 passed; 2836: 3 failed / 4
+passed; 0308/0688/0036: HAR-88 Daytona nop `ok`); the sealed held-out tasks
+0390/0109 from the provisional pilot are replaced by 1990/2836, and
+`gepa_mimo.py` refuses held-out or excluded ids:
 
 ```bash
 # 1. Print the binding for the EXACT pilot flags (from the worktree root):
 PYTHONPATH=src runs/.harbor-dspy/bin/python research/experiments/har85-mimo-gepa/dspy/gepa_mimo.py \
-  --print-binding --split research/experiments/har85-mimo-gepa/split.provisional.json \
+  --print-binding --split research/experiments/har81-mimo-sft/split.json \
   --tasks-root runs/har85-gepa-mimo/tasks --repo-root . --jobs-dir runs/har85-gepa-mimo/jobs \
-  --train-tasks candidate-0758-ml-inference,candidate-0390-security-appsec,candidate-0109-science-robotics,candidate-0308-security-forensics \
+  --train-tasks candidate-0758-ml-inference,candidate-1990-security-cryptography,candidate-2836-ml-kernels,candidate-0308-security-forensics \
   --val-tasks candidate-0688-hardware-rtl,candidate-0036-software-data-engineering \
   --max-metric-calls 10 --cost-limit-usd 1.0 --cap-usd 3 --harbor-env daytona --out runs/har85-gepa-mimo/phase1
 # 2. Paste binding_sha256 into a copy of approvals/phase1-pilot.template.json
@@ -57,18 +59,19 @@ PYTHONPATH=src runs/.harbor-dspy/bin/python research/experiments/har85-mimo-gepa
 #    read from ~/.omp/agent/.env, both fail closed when absent):
 research/experiments/har85-mimo-gepa/dspy/run-after-approval.sh --phase gepa \
   --approval-file /private/tmp/har85-phase1.signed.json --cap-usd 3 \
-  --train-tasks candidate-0758-ml-inference,candidate-0390-security-appsec,candidate-0109-science-robotics,candidate-0308-security-forensics \
+  --train-tasks candidate-0758-ml-inference,candidate-1990-security-cryptography,candidate-2836-ml-kernels,candidate-0308-security-forensics \
   --val-tasks candidate-0688-hardware-rtl,candidate-0036-software-data-engineering \
   --max-metric-calls 10
 ```
 
-Phase 2 (heldout, once; winner digest known only after phase 1; 96 trials,
-expected $8.64 = $5.76 model API-equiv + $2.88 Daytona, cap $9):
+Phase 2 (heldout, once; winner digest known only after phase 1; 78 trials:
+13 tasks x 2 arms x 3 attempts; expected cost recomputed at bind time, cap
+covers it):
 
 ```bash
 # 1. Derive the binding with the phase-1 winner policy:
 PYTHONPATH=src runs/.harbor-dspy/bin/python research/experiments/har85-mimo-gepa/dspy/gepa_mimo.py \
-  --phase heldout --print-binding --split research/experiments/har85-mimo-gepa/split.provisional.json \
+  --phase heldout --print-binding --split research/experiments/har81-mimo-sft/split.json \
   --tasks-root runs/har85-gepa-mimo/tasks --repo-root . --jobs-dir runs/har85-gepa-mimo/jobs \
   --job-tag x --winner <phase1-policy.json> --attempts 3 --cost-limit-usd 1.0 --cap-usd 9 \
   --harbor-env daytona --out runs/har85-gepa-mimo/phase2

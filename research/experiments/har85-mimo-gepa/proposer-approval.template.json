@@ -1,1 +1,7 @@
-{"approved_at":"","approved_by":"","binding_sha256":"d21878de56284edaf30152fff33b27dffa50e058b26ef2f1b54132e4ef06b97e","campaign":"research/experiments/har85-mimo-gepa/campaign-train.json","note":"STAGED template, NOT an authorization: approved_by/approved_at are blank. Precomputed binding for campaign-train.json as committed (config after retained-target derivation + seed sha256:399ec113 + release pin commit 0632cdb5; workflow.py binding check). Recompute after ANY byte change to campaign-train.json, the retained base spec (base-specs/student-terminus2-provisional.json), the seed, or the pinned GEPA release (see README). The signed file materialized from this template is runtime state and must never be committed."}
+{
+  "approved_at": "",
+  "approved_by": "",
+  "binding_sha256": "161026722648190bc6b15fa7af1218fa95a2df25fe3c9a637e52abd5f99c4ad1",
+  "campaign": "research/experiments/har85-mimo-gepa/campaign-train.json",
+  "note": "STAGED template, NOT an authorization: approved_by/approved_at are blank. Precomputed binding for campaign-train.json as committed (8 sealed-split train examples; config after retained-target derivation from base-specs/student-terminus2-selfhosted.json + seed sha256:399ec113 + release pin commit 0632cdb5; workflow.py binding check). Recompute after ANY byte change to campaign-train.json, the retained base spec, the seed, or the pinned GEPA release (see README). The signed file materialized from this template is runtime state and must never be committed."
+}

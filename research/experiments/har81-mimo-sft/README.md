@@ -68,6 +68,8 @@ When HAR-88's Daytona qualification is ingested, re-run `stage.py cohort` and `p
 - **pair (20 train tasks):** 7 terminal, 7 cyber, 6 code. Tasks are ranked per domain by sha256("har81-distill\0" + task_id), one task per `split_group`. Both arms run every task.
 - **heldout (388 tasks):** every held-out terminal (15), cyber (103) and code (270) task. The distill runs alone.
 
+Both lists alternate domains (terminal, cyber, code, …), and `submit` queues each task's arms together. So the first lines of the ids file cover every domain.
+
 ## Staged runs (prepared at $0; nothing submitted)
 
 ```bash
@@ -110,8 +112,8 @@ Expected values assume 10-minute trials plus 5 minutes of sandbox setup, with th
 The Tinker token range is wide: Peter's Search chat estimated $0.08–0.24 per run. At HAR-90's measured distill usage (2.4M input tokens on one terminal task), the base would cost about $1.60 per trial.
 
 A stop rule, as in HAR-88: approve the pair in two waves.
-- Wave 1 is one task per domain, both arms (6 trials).
-- Before wave 2, compare the measured cost per trial (`qualify-collect --backend-rate-card daytona` for sandbox time, `modal billing report` for the server) with this table.
+- Wave 1 is one task per domain, both arms (6 trials). `submit pair` prints the approve loop for it (`head -n 6` of the ids file) and for the rest.
+- Before wave 2, compare the measured cost per trial with this table. For sandbox time use `evallab tasks qualify-collect --backend-rate-card daytona`; for the server use `modal billing report`.
 
 ## SFT for the distill
 

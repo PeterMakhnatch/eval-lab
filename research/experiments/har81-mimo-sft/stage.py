@@ -183,22 +183,27 @@ def cmd_cohort(_args: argparse.Namespace) -> None:
     def row(task: dict) -> dict:
         return {k: task[k] for k in ("domain", "task_id", "split_group", "task_version_digest")}
 
-    pair = []
+    per_domain: dict[str, list[dict]] = {}
     for domain, n in PAIR_COUNTS.items():
         groups: set[str] = set()
+        picked = per_domain.setdefault(domain, [])
         for task in sorted(
             (t for t in usable if t["split"] == "train" and t["domain"] == domain), key=rank
         ):
             if task["split_group"] not in groups:
                 groups.add(task["split_group"])
-                pair.append(row(task))
+                picked.append(row(task))
             if len(groups) == n:
                 break
-    heldout = [
-        row(t)
-        for t in sorted(usable, key=lambda t: (t["domain"], t["task_id"]))
-        if t["split"] == "heldout" and t["domain"] in HELDOUT_DOMAINS
-    ]
+    heldout_by_domain = {
+        domain: [
+            row(t)
+            for t in sorted(usable, key=lambda t: t["task_id"])
+            if t["split"] == "heldout" and t["domain"] == domain
+        ]
+        for domain in HELDOUT_DOMAINS
+    }
+    pair, heldout = round_robin(per_domain), round_robin(heldout_by_domain)
     cohort = {
         "schema": "har81.distill_cohort/v1",
         "split_manifest_digest": split["manifest_digest"],
@@ -207,7 +212,8 @@ def cmd_cohort(_args: argparse.Namespace) -> None:
         "rule": (
             "sealed split minus `tasks catalog export-broken --backend daytona`. pair: train only, "
             f"per domain rank sha256('{COHORT_SALT}\\0'+task_id), one task per split_group, "
-            f"{PAIR_COUNTS}. heldout: every held-out task in {list(HELDOUT_DOMAINS)}."
+            f"{PAIR_COUNTS}. heldout: every held-out task in {list(HELDOUT_DOMAINS)}, by task_id. "
+            "Both lists alternate domains so any prefix spans all three."
         ),
         "pair": pair,
         "heldout": heldout,
@@ -217,6 +223,12 @@ def cmd_cohort(_args: argparse.Namespace) -> None:
     print(
         f"pair: {len(pair)} train tasks; heldout: {len(heldout)} {counts}; excluded {len(excluded)}"
     )
+
+
+def round_robin(per_domain: dict[str, list[dict]]) -> list[dict]:
+    """Alternate domains, so a first approval wave (a prefix) covers each of them."""
+    longest = max(len(rows) for rows in per_domain.values())
+    return [rows[i] for i in range(longest) for rows in per_domain.values() if i < len(rows)]
 
 
 def spec_name(batch: str, arm: str, task_id: str) -> str:
@@ -302,11 +314,19 @@ def cmd_submit(args: argparse.Namespace) -> None:
                 if line.startswith("spec_id: ")
             ]
     ids_path.write_text("\n".join(ids) + "\n")
-    print(f"{len(ids)} specs waiting for approval -> {ids_path.relative_to(ROOT)}")
+    rel = ids_path.relative_to(ROOT)
+    wave = len(HELDOUT_DOMAINS) * len(BATCH_ARMS[args.batch])
+    print(f"{len(ids)} specs waiting for approval -> {rel}")
+    print(f"  wave 1, one task per domain ({wave} specs):")
     print(
-        f'  for id in $(cat {ids_path.relative_to(ROOT)}); do uv run evallab approve "$id" --actor peter; done'
+        f'    for id in $(head -n {wave} {rel}); do uv run evallab approve "$id" --actor peter; done'
     )
-    print(f"  uv run evallab tick --parallel {CONCURRENCY}")
+    print(f"    uv run evallab tick --parallel {CONCURRENCY}")
+    print("  the rest, after comparing measured cost with `stage.py costs`:")
+    print(
+        f'    for id in $(tail -n +{wave + 1} {rel}); do uv run evallab approve "$id" --actor peter; done'
+    )
+    print(f"    uv run evallab tick --parallel {CONCURRENCY}")
 
 
 def cmd_costs(_args: argparse.Namespace) -> None:

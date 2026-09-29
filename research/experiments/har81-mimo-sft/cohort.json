@@ -5,7 +5,7 @@
   "excluded_task_version_digests": [
     "sha256:95d2df6678d8c999a4ded14f161eb65fadabd9bc15978471868b05908fbcf1c7"
   ],
-  "rule": "sealed split minus `tasks catalog export-broken --backend daytona`. pair: train only, per domain rank sha256('har81-distill\\0'+task_id), one task per split_group, {'terminal': 7, 'cyber': 7, 'code': 6}. heldout: every held-out task in ['terminal', 'cyber', 'code'].",
+  "rule": "sealed split minus `tasks catalog export-broken --backend daytona`. pair: train only, per domain rank sha256('har81-distill\\0'+task_id), one task per split_group, {'terminal': 7, 'cyber': 7, 'code': 6}. heldout: every held-out task in ['terminal', 'cyber', 'code'], by task_id. Both lists alternate domains so any prefix spans all three.",
   "pair": [
     {
       "domain": "terminal",
@@ -14,10 +14,34 @@
       "task_version_digest": "sha256:3bb4e1a6626adc35d5837ad7ecea65d89a288be20dd362697b751ef4809a17c2"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_18737",
+      "split_group": "cyber:ndpi",
+      "task_version_digest": "sha256:f1a27f3e78b35f324d35db6c5694f84f5262c0f007bb15c08f41690d8acc4783"
+    },
+    {
+      "domain": "code",
+      "task_id": "format-code-task-001520",
+      "split_group": "code:format-code-task-001520",
+      "task_version_digest": "sha256:c6a5ecfbd44433d886c0b8eef1a8a5b41353c848a00aad76ae86ac0d7f427dee"
+    },
+    {
       "domain": "terminal",
       "task_id": "candidate-1634-software-databases",
       "split_group": "terminal:candidate-1634-software-databases",
       "task_version_digest": "sha256:04ef36dcfe615098fab6ab39156559555deec02c76198ca8d754e9cac326c8d8"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42485576",
+      "split_group": "cyber:ffmpeg",
+      "task_version_digest": "sha256:fdc4f0b06f78612a7e8ea57c3c682e9377dcb200eecbec7f55f1d09ef9fb535e"
+    },
+    {
+      "domain": "code",
+      "task_id": "format-code-task-000240",
+      "split_group": "code:github.com/SAP/node-hdb",
+      "task_version_digest": "sha256:828bddfb30d203b9107611294f0de0f64e9e41f88ea1d89f640c9de341f54022"
     },
     {
       "domain": "terminal",
@@ -26,10 +50,34 @@
       "task_version_digest": "sha256:e850dc33146d627344a2c5bfaf245332cb58649ef45198152f5e05376bc44d54"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42496599",
+      "split_group": "cyber:zstd",
+      "task_version_digest": "sha256:4264eeb66456bd88bf56787987a0d9898d56c3c0f1e55fc9ea0eae3d6e40b78b"
+    },
+    {
+      "domain": "code",
+      "task_id": "format-code-task-001645",
+      "split_group": "code:format-code-task-001645",
+      "task_version_digest": "sha256:f71b29e908438ae6c4485b65bc5cde12b7c21481f11c70ed881a1aef1bc0e92b"
+    },
+    {
       "domain": "terminal",
       "task_id": "candidate-1702-ml-inference",
       "split_group": "terminal:candidate-1702-ml-inference",
       "task_version_digest": "sha256:a2a1fda29150f53687f641535c6f83b5c47778895c0ad6a871e683130e514eaf"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42528228",
+      "split_group": "cyber:lldpd",
+      "task_version_digest": "sha256:66f4444b660e2fd94284b099a5fbdab8e2d710caf6704ca7a093a8d1a6258fcb"
+    },
+    {
+      "domain": "code",
+      "task_id": "format-code-task-002537",
+      "split_group": "code:format-code-task-002537",
+      "task_version_digest": "sha256:e1e94add4d1c9061d6c0ebcaf7518d9741f4fc55716469a0cbe466d58156c03c"
     },
     {
       "domain": "terminal",
@@ -38,10 +86,34 @@
       "task_version_digest": "sha256:1c999aa97dcc9f0c875547a162f120d6fc974c31b31a751a3562d7d342f9de07"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_41330",
+      "split_group": "cyber:matio",
+      "task_version_digest": "sha256:0a5d369292bfb56049419f09ec247fa034428edab720cd261159e2b5401d6c77"
+    },
+    {
+      "domain": "code",
+      "task_id": "format-code-task-000434",
+      "split_group": "code:format-code-task-000434",
+      "task_version_digest": "sha256:3fd1934ac72699f814699dc236ec630c1c0e1c8837a63c727f0c905b19afd38d"
+    },
+    {
       "domain": "terminal",
       "task_id": "candidate-2684-security-appsec",
       "split_group": "terminal:candidate-2684-security-appsec",
       "task_version_digest": "sha256:d37b71fe7c29f4d96333e488152c6ad3e2c27d6e504b171303e7b86c67c77164"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42514310",
+      "split_group": "cyber:zlib",
+      "task_version_digest": "sha256:becc4acf5962a94a99e996e92cfc5575c33b99538134d698771dc3979a83b08e"
+    },
+    {
+      "domain": "code",
+      "task_id": "format-code-task-003011",
+      "split_group": "code:format-code-task-003011",
+      "task_version_digest": "sha256:7a2b1be4fecd05d550259238135d1149d8e6b648b255b7235357dca6d34f58d7"
     },
     {
       "domain": "terminal",
@@ -51,89 +123,41 @@
     },
     {
       "domain": "cyber",
-      "task_id": "arvo_18737",
-      "split_group": "cyber:ndpi",
-      "task_version_digest": "sha256:f1a27f3e78b35f324d35db6c5694f84f5262c0f007bb15c08f41690d8acc4783"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42485576",
-      "split_group": "cyber:ffmpeg",
-      "task_version_digest": "sha256:fdc4f0b06f78612a7e8ea57c3c682e9377dcb200eecbec7f55f1d09ef9fb535e"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42496599",
-      "split_group": "cyber:zstd",
-      "task_version_digest": "sha256:4264eeb66456bd88bf56787987a0d9898d56c3c0f1e55fc9ea0eae3d6e40b78b"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42528228",
-      "split_group": "cyber:lldpd",
-      "task_version_digest": "sha256:66f4444b660e2fd94284b099a5fbdab8e2d710caf6704ca7a093a8d1a6258fcb"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_41330",
-      "split_group": "cyber:matio",
-      "task_version_digest": "sha256:0a5d369292bfb56049419f09ec247fa034428edab720cd261159e2b5401d6c77"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42514310",
-      "split_group": "cyber:zlib",
-      "task_version_digest": "sha256:becc4acf5962a94a99e996e92cfc5575c33b99538134d698771dc3979a83b08e"
-    },
-    {
-      "domain": "cyber",
       "task_id": "arvo_57589",
       "split_group": "cyber:libredwg",
       "task_version_digest": "sha256:92e716bd27b350b9f72671e978cacd3f65614f5e85df0a745ad97194b27e9def"
-    },
-    {
-      "domain": "code",
-      "task_id": "format-code-task-001520",
-      "split_group": "code:format-code-task-001520",
-      "task_version_digest": "sha256:c6a5ecfbd44433d886c0b8eef1a8a5b41353c848a00aad76ae86ac0d7f427dee"
-    },
-    {
-      "domain": "code",
-      "task_id": "format-code-task-000240",
-      "split_group": "code:github.com/SAP/node-hdb",
-      "task_version_digest": "sha256:828bddfb30d203b9107611294f0de0f64e9e41f88ea1d89f640c9de341f54022"
-    },
-    {
-      "domain": "code",
-      "task_id": "format-code-task-001645",
-      "split_group": "code:format-code-task-001645",
-      "task_version_digest": "sha256:f71b29e908438ae6c4485b65bc5cde12b7c21481f11c70ed881a1aef1bc0e92b"
-    },
-    {
-      "domain": "code",
-      "task_id": "format-code-task-002537",
-      "split_group": "code:format-code-task-002537",
-      "task_version_digest": "sha256:e1e94add4d1c9061d6c0ebcaf7518d9741f4fc55716469a0cbe466d58156c03c"
-    },
-    {
-      "domain": "code",
-      "task_id": "format-code-task-000434",
-      "split_group": "code:format-code-task-000434",
-      "task_version_digest": "sha256:3fd1934ac72699f814699dc236ec630c1c0e1c8837a63c727f0c905b19afd38d"
-    },
-    {
-      "domain": "code",
-      "task_id": "format-code-task-003011",
-      "split_group": "code:format-code-task-003011",
-      "task_version_digest": "sha256:7a2b1be4fecd05d550259238135d1149d8e6b648b255b7235357dca6d34f58d7"
     }
   ],
   "heldout": [
+    {
+      "domain": "terminal",
+      "task_id": "candidate-0109-science-robotics",
+      "split_group": "terminal:candidate-0109-science-robotics",
+      "task_version_digest": "sha256:617b646f5cb5bb72d6b0f1d40de48ac2f4c4b6388fb289e6713aed7ee2d39120"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_10055",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:8305e8ac9ff8f6108d8accdc92cc831ef1aeb5c0707cbd180f191ff754519cd2"
+    },
     {
       "domain": "code",
       "task_id": "format-code-task-000024",
       "split_group": "code:format-code-task-000024",
       "task_version_digest": "sha256:89b8ce469f8cfa2869b9adf4bbffcd9ddd314fb82c88ebaf0f629eab41188bb9"
+    },
+    {
+      "domain": "terminal",
+      "task_id": "candidate-0390-security-appsec",
+      "split_group": "terminal:candidate-0390-security-appsec",
+      "task_version_digest": "sha256:ffec7cd6a3d6348dc8b44249424f2848aaa54f75b5f370e330a5e7bdfc0ec5c2"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_10096",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:885edaa809ac4ca7be7a30e6fff60ed911a5d8ea87752d77571b095d35233b27"
     },
     {
       "domain": "code",
@@ -142,10 +166,34 @@
       "task_version_digest": "sha256:059196ecf0ed636b2fcc3dda72f7aa020ab7f5b0401e2aec4452cb9f0b107186"
     },
     {
+      "domain": "terminal",
+      "task_id": "candidate-0534-ml-training",
+      "split_group": "terminal:candidate-0534-ml-training",
+      "task_version_digest": "sha256:49c27070e6e2f4be4d5ba29a3892347473c280d691470a844fdafce741eb5e04"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_10125",
+      "split_group": "cyber:gnutls",
+      "task_version_digest": "sha256:842838bab1f94938b158394ff5fc8db64078cd59693eeec8717165bbc1b69f39"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000027",
       "split_group": "code:format-code-task-000027",
       "task_version_digest": "sha256:a9a816bf63259baab87471f1f709bb1045cfee9642630590e8b846e4914b5bee"
+    },
+    {
+      "domain": "terminal",
+      "task_id": "candidate-0628-media-music",
+      "split_group": "terminal:candidate-0628-media-music",
+      "task_version_digest": "sha256:885163b60de3207ea0778990bb29c19214d18d0036158416672e45194db68b12"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_10135",
+      "split_group": "cyber:gnutls",
+      "task_version_digest": "sha256:c55ab5eec420833e33521a3234e06a1ca33e18503dabaf5ea2a904f13282b5de"
     },
     {
       "domain": "code",
@@ -154,10 +202,34 @@
       "task_version_digest": "sha256:11d6e391f39c8ee8a127a9bf19876f8a7bdbde87ad0b747850a97cc8e8a41df0"
     },
     {
+      "domain": "terminal",
+      "task_id": "candidate-0674-ml-evaluation",
+      "split_group": "terminal:candidate-0674-ml-evaluation",
+      "task_version_digest": "sha256:90be868f403beffbd2da6923cfcec8cd7df50995e98a3265b4421b3072eec1f7"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_10136",
+      "split_group": "cyber:gnutls",
+      "task_version_digest": "sha256:553747aaef34300f9dbc6c43a07b11537fd9300a60ba6d253e515520d4778a8e"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000045",
       "split_group": "code:format-code-task-000045",
       "task_version_digest": "sha256:9e79c1bf98ed96c6ab9b3ff655a57ed6217f234434b6899ff3d3aa5ac655965d"
+    },
+    {
+      "domain": "terminal",
+      "task_id": "candidate-0847-software-languages",
+      "split_group": "terminal:candidate-0847-software-languages",
+      "task_version_digest": "sha256:fda581033863b7cc1250b44c0da8939402ec20c92dc37bb1d462b33c17362f2f"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_10137",
+      "split_group": "cyber:gnutls",
+      "task_version_digest": "sha256:402a558242a83a1561b5025a43975a6238f846a3ae71291320198c74033226cc"
     },
     {
       "domain": "code",
@@ -166,10 +238,34 @@
       "task_version_digest": "sha256:828ad8f052ba846fb5b55327617a724a4ec6c39aa7c196c59296fe180310be8e"
     },
     {
+      "domain": "terminal",
+      "task_id": "candidate-1305-software-data-engineering",
+      "split_group": "terminal:candidate-1305-software-data-engineering",
+      "task_version_digest": "sha256:5d3d8262534a7e930d591c57bc0cdde828b41b5d2aed07afcd171fb5602db2db"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_10216",
+      "split_group": "cyber:gnutls",
+      "task_version_digest": "sha256:e1ee895a6bd515780c3ea12e080edc804050a985039c555ef6939aa1f40e30d2"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000073",
       "split_group": "code:format-code-task-000073",
       "task_version_digest": "sha256:c926855272e34f1ee7675b522df31c66f1a96c87ed81cf38431b62943c8d0531"
+    },
+    {
+      "domain": "terminal",
+      "task_id": "candidate-1682-science-physics",
+      "split_group": "terminal:candidate-1682-science-physics",
+      "task_version_digest": "sha256:fea0e3db409bbf20cee4863becfe2f54dc7c9b37a0ae9c1b0d9383bb919762b8"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_1065",
+      "split_group": "cyber:file",
+      "task_version_digest": "sha256:fb12a723ce2339a80bff4633b8cda90e5f1e3887e5bd665918e0285fb3c56bb1"
     },
     {
       "domain": "code",
@@ -178,10 +274,34 @@
       "task_version_digest": "sha256:3a8defcffafb4d0bdeba0ad32a36b9a1d90a9ca727e320aeac98170a2f432303"
     },
     {
+      "domain": "terminal",
+      "task_id": "candidate-1824-media-design",
+      "split_group": "terminal:candidate-1824-media-design",
+      "task_version_digest": "sha256:8fd0a9d3d2af87771030c71f3c5a4cb3995efa76d29a054e264dd4f568acfa1e"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_10999",
+      "split_group": "cyber:libgit2",
+      "task_version_digest": "sha256:365124a574ed6e48eebdbbbb58a41878fa86540bc3903c90770bcc4c7c90c827"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000078",
       "split_group": "code:format-code-task-000078",
       "task_version_digest": "sha256:39705226d05b5cba482c045a9694bb75fb58929fe64b74caf48287d6be4efc53"
+    },
+    {
+      "domain": "terminal",
+      "task_id": "candidate-2329-software-languages",
+      "split_group": "terminal:candidate-2329-software-languages",
+      "task_version_digest": "sha256:a96c71f77bae8d6a38c35629709436b3f64cfb0c24abd9c0eeccdf0b780a12df"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_11007",
+      "split_group": "cyber:libgit2",
+      "task_version_digest": "sha256:c2adf85b9e6faa5448db977ba601d4e4dd63130280d2a4be4d22c981216370a8"
     },
     {
       "domain": "code",
@@ -190,10 +310,34 @@
       "task_version_digest": "sha256:64bc3ceeae5950080d5866b11819a3760646698829250c2c08c4e47644be2d63"
     },
     {
+      "domain": "terminal",
+      "task_id": "candidate-2376-security-cryptography",
+      "split_group": "terminal:candidate-2376-security-cryptography",
+      "task_version_digest": "sha256:06205dfca4a41a4b134da31e72efc29197522e0d4a1981cff7b9d7addb9675f8"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_11167",
+      "split_group": "cyber:libgit2",
+      "task_version_digest": "sha256:739813c62fe0a2add0a4ac1fd07b48f1a5a14d067276f7a134f886f758c3929d"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000103",
       "split_group": "code:github.com/GoogleCloudPlatform/elcarro-oracle-operator",
       "task_version_digest": "sha256:010fef8cb057a0818c89ab5ea78cac51699c4ea50cc35ff55ec8db07bf80e90b"
+    },
+    {
+      "domain": "terminal",
+      "task_id": "candidate-2487-security-cryptography",
+      "split_group": "terminal:candidate-2487-security-cryptography",
+      "task_version_digest": "sha256:e05dfcf2260ddbdffef6f644b676da5d6f3466462aca28ab0cc78f1f239f5cb5"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_11752",
+      "split_group": "cyber:yara",
+      "task_version_digest": "sha256:7a1e458669b96ada6c66d350a3824116f6a1f76f244da15daa42a587ed0bf532"
     },
     {
       "domain": "code",
@@ -202,10 +346,34 @@
       "task_version_digest": "sha256:efec5ad340e5bfac3a653f47a0058d92f1330647eeb7dc8b7c7ba58dd4464330"
     },
     {
+      "domain": "terminal",
+      "task_id": "candidate-2760-ml-inference",
+      "split_group": "terminal:candidate-2760-ml-inference",
+      "task_version_digest": "sha256:cb34c27a5e85e4d73a0219174c2b5816057ba7032207d3b9bad268c302c14ef2"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_12424",
+      "split_group": "cyber:yara",
+      "task_version_digest": "sha256:197d394dafa4624acf290a2ab10c92ed2342ff404a41039669fc216ac2661e2b"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000112",
       "split_group": "code:format-code-task-000112",
       "task_version_digest": "sha256:9eb4c6b78c7cf21df6fae1de55ebe7eee1bea4bb7e2c1c019d1dd744d2881089"
+    },
+    {
+      "domain": "terminal",
+      "task_id": "candidate-2790-ml-evaluation",
+      "split_group": "terminal:candidate-2790-ml-evaluation",
+      "task_version_digest": "sha256:e877e6cf348642dccf71e6cfd1798374ca2995dcc08bf41ccb7d2c6ccff26ba8"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_1304",
+      "split_group": "cyber:gnutls",
+      "task_version_digest": "sha256:dae8b5083d0141c5ebcff285237b7f348c90fdb2784535f0fea2ff580624f1ab"
     },
     {
       "domain": "code",
@@ -214,10 +382,28 @@
       "task_version_digest": "sha256:32f1e07da5170ebf5ee255453e0e42bab3239c337d8d505e6ec76c83565e2ed8"
     },
     {
+      "domain": "terminal",
+      "task_id": "candidate-2838-ml-evaluation",
+      "split_group": "terminal:candidate-2838-ml-evaluation",
+      "task_version_digest": "sha256:549a1dadbd8b852c70ceb604413be9c941214cc56ab955d69cbf06c2711078ac"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_1442",
+      "split_group": "cyber:fdk-aac",
+      "task_version_digest": "sha256:d14ac0957552ca8e59e864843083b412ff1826873c6a0493326c0a7bc2847a51"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000127",
       "split_group": "code:format-code-task-000127",
       "task_version_digest": "sha256:cf52d5ed9169ab4dfaf0f8c08d31108383ef71b870a036fd9b2f76f2b2b442ce"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_14813",
+      "split_group": "cyber:yara",
+      "task_version_digest": "sha256:cfd6c5bce39a4c57e6ef24b1ff621226550bef19f6f5498b4cefa61c29815c86"
     },
     {
       "domain": "code",
@@ -226,10 +412,22 @@
       "task_version_digest": "sha256:933f3c32e9720d8e2168c318e33c01a7ac9fdad9ed701d89f9b4b4d053c1d8ef"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_16531",
+      "split_group": "cyber:aspell",
+      "task_version_digest": "sha256:fa4b15a4077b89997eec141c6b684cc667012520231e4de6158396416077792f"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000143",
       "split_group": "code:github.com/PyTorchLightning/pytorch-lightning",
       "task_version_digest": "sha256:d05069cbc1ef8773f9908166f304cf46c90e1e1d4c2b935c3128d6842097c931"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_20271",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:34ac7b9d240ac0e47f4564d22e2726007e15154bffaf7cf3daa15b7f86287509"
     },
     {
       "domain": "code",
@@ -238,10 +436,22 @@
       "task_version_digest": "sha256:5c8228be4129e94f3bed23adb1e24c9a058f10f6b223cb3ec1c8ac6e4c7accd2"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_20702",
+      "split_group": "cyber:file",
+      "task_version_digest": "sha256:71213d37a59857df05c909723182bb3918a4560f1b1227dca87fb29b53b637ed"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000147",
       "split_group": "code:github.com/PyTorchLightning/pytorch-lightning",
       "task_version_digest": "sha256:9137dcdee8c8c6e8916cf542cd471fe567bff213bf6afc202f3a2cd4e29d32ff"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_20729",
+      "split_group": "cyber:file",
+      "task_version_digest": "sha256:bbddcb59113d3ff001bcfa86ef208280aabaf8bfa723e948dae26651bda18489"
     },
     {
       "domain": "code",
@@ -250,10 +460,22 @@
       "task_version_digest": "sha256:807622b07c8b460b1b44eae2e381133b7bd07f23d5d5ab57a2392da81d5d7375"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_24293",
+      "split_group": "cyber:yara",
+      "task_version_digest": "sha256:901deb0b0169f944da6448dd36500627fba0c3e909d97e0c3353fec712699394"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000169",
       "split_group": "code:format-code-task-000169",
       "task_version_digest": "sha256:8d85e8accf1b321af4c9a2a98855480a3e0899d0fac8a8574359d43f7957f141"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_24895",
+      "split_group": "cyber:sleuthkit",
+      "task_version_digest": "sha256:db4ba62d2f15edb88c27a761cbbd36a11fdd07cfcded9c4590763602aff47153"
     },
     {
       "domain": "code",
@@ -262,10 +484,22 @@
       "task_version_digest": "sha256:acdbcfc39de68d302e0b8843da3d2bbe29158c8837a901cc7b9acf751959c41c"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_25911",
+      "split_group": "cyber:libavif",
+      "task_version_digest": "sha256:ea07e1e8ac6a5124b29e964924775cd61b8abeff55ff28386220c13bd5fc72e5"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000204",
       "split_group": "code:format-code-task-000204",
       "task_version_digest": "sha256:0ea560d2dd17cd81f098defdbc541495df05b615b1d3511bef0b3beea98236c0"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_26674",
+      "split_group": "cyber:libass",
+      "task_version_digest": "sha256:def714c8d1e2a526346996e289b8b0b48280574eac39be68b743ca42710d47ab"
     },
     {
       "domain": "code",
@@ -274,10 +508,22 @@
       "task_version_digest": "sha256:6bad3e9e93b9fc34050bd69af4cfc73bea4e73b38ad512ab2b96b72af2b3b6bb"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_29792",
+      "split_group": "cyber:htslib",
+      "task_version_digest": "sha256:c167017c90c53064ac95872456c45ac0238a65fdfda07d7ddb6812f650cd682d"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000217",
       "split_group": "code:format-code-task-000217",
       "task_version_digest": "sha256:701dcf9ee8ea298b6ba7fe689d0dd4f2714c040a593cd723317b3b1550bbab85"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_30217",
+      "split_group": "cyber:yara",
+      "task_version_digest": "sha256:d1d1d341558acc6379b560934ce7609c54c2ae9a6ee31f0971ff54e0e3ed0e07"
     },
     {
       "domain": "code",
@@ -286,10 +532,22 @@
       "task_version_digest": "sha256:97258faf681985160ea8f5a6088f045b4cff1f7f868425a7af00c72125023d29"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_3095",
+      "split_group": "cyber:gnutls",
+      "task_version_digest": "sha256:3501fac8db3e0c92aea3fe7e2d9ce8006c9f2f22d7e68bbd94a633268eb716fc"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000254",
       "split_group": "code:format-code-task-000254",
       "task_version_digest": "sha256:c051deaa739e48223a30dfd89fce3721a9e46b6034a84957f4dcbc483891210a"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_34869",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:3bcff9f6c1d1e5cae43c590b3bbc0055a40dfc097a1fdc84558f4c1652203d25"
     },
     {
       "domain": "code",
@@ -298,10 +556,22 @@
       "task_version_digest": "sha256:914030707bce61e7141482a86286827f0cdf086d959d80751f4698fe433fb0c1"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_35362",
+      "split_group": "cyber:wolfssl-sp-math-all",
+      "task_version_digest": "sha256:512f02cbf2e8cd9b60dcec30a85bc343226cba4308f47bd3cb4daac4b561587b"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000285",
       "split_group": "code:format-code-task-000285",
       "task_version_digest": "sha256:598c6f337b9b26bc1ea8ada9c33dfeb19667017d58932e19df801b44e7f3aa79"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_35927",
+      "split_group": "cyber:rapidjson",
+      "task_version_digest": "sha256:641d09b3cd61bb27c189b3dffe426fabec94e2d1a0d7cee547646046861d9b56"
     },
     {
       "domain": "code",
@@ -310,10 +580,22 @@
       "task_version_digest": "sha256:c481103476e8076a5bc9d5e77dd5f51a3e819b5e0b6b734723f2e1f33421e90d"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_37443",
+      "split_group": "cyber:yara",
+      "task_version_digest": "sha256:92b2ff0ed46ea9c2eb81b8c16d8511c6e603cd4c45a8be68f5b70525f9eaef0a"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000298",
       "split_group": "code:format-code-task-000298",
       "task_version_digest": "sha256:ec02b203f60c1672a2e00b1ab349eb5a3e7fccd925d3533503e2c3c3bc426b0d"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_377955861",
+      "split_group": "cyber:file",
+      "task_version_digest": "sha256:1249bd96d643a48d78f30616ed30dac2727820719a819622c72529524ed52140"
     },
     {
       "domain": "code",
@@ -322,10 +604,22 @@
       "task_version_digest": "sha256:7eee85e472a7675acfdc42ac7d10720e8e095ff2e6f0e296f8e0b673fe7cefdf"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_388905046",
+      "split_group": "cyber:libbpf",
+      "task_version_digest": "sha256:ae9cd04fd37f006ad2d3f9b015ddc2b9d5ffa1a0f8a660d3d2dd5a8a4cf59c98"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000332",
       "split_group": "code:format-code-task-000332",
       "task_version_digest": "sha256:1c6eb3e5ca30206d84196c652294a029849378cb92ff6be40e4d3ec0026a012c"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_39056",
+      "split_group": "cyber:wolfmqtt",
+      "task_version_digest": "sha256:29bef334c63d35e5c8aa387b57f96b2673de69c71fd89ec82e66e569df81a94b"
     },
     {
       "domain": "code",
@@ -334,10 +628,22 @@
       "task_version_digest": "sha256:95ccf5db6b6d359c65ba8e5ae1561ca13b21b556335a9ba9c6a21388b8af5e2f"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_39083",
+      "split_group": "cyber:wolfmqtt",
+      "task_version_digest": "sha256:997666589f5d2507baeba64371cc01d91bf72073f6ebd8647ae7a6f7919a9d33"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000357",
       "split_group": "code:format-code-task-000357",
       "task_version_digest": "sha256:bd03399c59d7c2ed389f7d2dc0239ef08fb84a4b4d9f9f8daf9a77a600e464d7"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_39094",
+      "split_group": "cyber:wolfmqtt",
+      "task_version_digest": "sha256:e4dcbe54544cdfe94a2914ed5b2deccb103b35ec407196255c946658156e6a8d"
     },
     {
       "domain": "code",
@@ -346,10 +652,22 @@
       "task_version_digest": "sha256:3687382f7b6193f4beeb64f4ee64f96a5b497075c6d94d7b31e5b259fc1e4797"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_39103",
+      "split_group": "cyber:wolfmqtt",
+      "task_version_digest": "sha256:b3cb243f0d272417e04e629178a26279aee974881418e2f451e2f3972295b39e"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000379",
       "split_group": "code:format-code-task-000379",
       "task_version_digest": "sha256:b48ff892a260336d562b3486bca0e471179a95e0736875382fbe4a9617c31b50"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_391975647",
+      "split_group": "cyber:libconfig",
+      "task_version_digest": "sha256:52cd67820f17a9905b2d68cedebace49e78fc725804c7afb2acd270174ff4f5b"
     },
     {
       "domain": "code",
@@ -358,10 +676,22 @@
       "task_version_digest": "sha256:09fcb4fb8c8739c1f9c6e80e51ae1472e89cb9f498ae12498958095e902ba15c"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_40317",
+      "split_group": "cyber:libbpf",
+      "task_version_digest": "sha256:66f87a53f7d1cce56329d071cc3de0b1572879915c9205a17e5c0a9c6ba39fe6"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000417",
       "split_group": "code:format-code-task-000417",
       "task_version_digest": "sha256:dcfd6520a776dcaf72f4bc883d69eb20019a33ca04c54a2a8a3009ebe12374fd"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42454",
+      "split_group": "cyber:ghostpdl",
+      "task_version_digest": "sha256:626bf3e3c9248bb28d9f1eb2eeeefd75d0b74d725a4fc705a9f98298232aba0e"
     },
     {
       "domain": "code",
@@ -370,10 +700,22 @@
       "task_version_digest": "sha256:645d7c48366cda810aeb6f00bf2280882834d086cb2a525004d3c58ab693d208"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42470109",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:1b625a89dcb93ed1647675bc306880e6b89b02dcd86a84a9d34d743451786236"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000461",
       "split_group": "code:format-code-task-000461",
       "task_version_digest": "sha256:363c889d170ebf96d06ea74c3fc305cdd2a903f1b665dfeede7af29e09ba9389"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42470142",
+      "split_group": "cyber:gnutls",
+      "task_version_digest": "sha256:56e5086f14a20ec8f82dd457d0373df75a7e45970ec07698e8bf7496e2d5f4bf"
     },
     {
       "domain": "code",
@@ -382,10 +724,22 @@
       "task_version_digest": "sha256:6123a429abde468b56b46aa0d0443940e4883d63b5afaeb106d68adc6a7f7bbe"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42470155",
+      "split_group": "cyber:gnutls",
+      "task_version_digest": "sha256:b1e018cec79a14cc80084a750050f62a04ef21efc90472d68c6ad730d76db94b"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000478",
       "split_group": "code:format-code-task-000478",
       "task_version_digest": "sha256:9b13d10454c2923943a758aef2e2816a2a667f44f6e83b507cba4bc3810c7032"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42470443",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:4849664d2c92d8122f2d9b17cb80b7e4fb8221bd1c116701e03ff4a543e2d64e"
     },
     {
       "domain": "code",
@@ -394,10 +748,22 @@
       "task_version_digest": "sha256:b1410e0b89d06d80b5ff4c1951b429d60037287c8445892bf6f73708154210a7"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42470716",
+      "split_group": "cyber:file",
+      "task_version_digest": "sha256:f9b45ac2b05096928c66396c06f06699380e2926303de785c605b2dfd0bf6e16"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000507",
       "split_group": "code:github.com/aws/aws-sdk-go",
       "task_version_digest": "sha256:7771632bb0b0e81b58f4122f2075375e8f22baf67cdab333ecce291a99e64924"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42471100",
+      "split_group": "cyber:libgit2",
+      "task_version_digest": "sha256:567b369084e776312182b5a4314ad93f330d6809061c17721247b43ee7e91385"
     },
     {
       "domain": "code",
@@ -406,10 +772,22 @@
       "task_version_digest": "sha256:9cdbe3833d247b3412228705675cdfb619b44cc144f3e30f0c0d9c4613b08395"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42471111",
+      "split_group": "cyber:libgit2",
+      "task_version_digest": "sha256:d7c9de12f2ff858b9339e931fd03085bab29355ba87de93e170d0183cf552517"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000521",
       "split_group": "code:format-code-task-000521",
       "task_version_digest": "sha256:a37768d9102ababe1f27030a6cfa37aa71bc7fb7f0377cfc8820121a3583ad47"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42471294",
+      "split_group": "cyber:libgit2",
+      "task_version_digest": "sha256:ae729ec4676c96965aa2d24a6f69d30d4ca5605e9d3698e438347b4a846a57ef"
     },
     {
       "domain": "code",
@@ -418,10 +796,22 @@
       "task_version_digest": "sha256:9fd74495defb5414be987055f9909072bba7414988d6f3dec7096508162f595f"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42472681",
+      "split_group": "cyber:yara",
+      "task_version_digest": "sha256:e11e3a8e843d9fbb91ad70c53b908c9b68f8bf242c3c8e55b82e2f0178af1be4"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000540",
       "split_group": "code:format-code-task-000540",
       "task_version_digest": "sha256:a3087bc9382642955d8a629c366d3a0a4a4eae84acc6d4b9a492cfe0b1aa2c89"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42473565",
+      "split_group": "cyber:file",
+      "task_version_digest": "sha256:cf78400d2545911729e23a57f1fc028c4857c4254f650bf90295fee55144d200"
     },
     {
       "domain": "code",
@@ -430,10 +820,22 @@
       "task_version_digest": "sha256:185d3330e16e7ec4c3b1e93f27c068cda54e300d7b01c71f7a83ad80b0a7f19f"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42474668",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:d80c118ffabfd5de15e9b4dc270b53a1a0b9404ef090db5ed48ff5ee155eb053"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000566",
       "split_group": "code:format-code-task-000566",
       "task_version_digest": "sha256:ea3969eda63c780031267d596cc3e75d4291b998c226be762d1a30fb45ced705"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42475596",
+      "split_group": "cyber:readstat",
+      "task_version_digest": "sha256:a84e57eb6a046e777c633b3b8cd809e8a25a829d4378b56ba2263965c2b5b7d3"
     },
     {
       "domain": "code",
@@ -442,10 +844,22 @@
       "task_version_digest": "sha256:11021499591d1aba69448515beb0565c7401339c77a9de36f44fdd92d4f5a543"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42479",
+      "split_group": "cyber:ghostpdl",
+      "task_version_digest": "sha256:fb44777752d3a8dcc29b0522d492ea11aea4a3d4d8c82956981b4c0e3702dad1"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000585",
       "split_group": "code:format-code-task-000585",
       "task_version_digest": "sha256:8c7715cf8df6d109558314d70c1758720b478e168f695282cea99eefac115ce3"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42481904",
+      "split_group": "cyber:file",
+      "task_version_digest": "sha256:bbdb5f95d11946e3931fb5d80d50c28e87fd986580d41f7bb94e22cc7cc738a1"
     },
     {
       "domain": "code",
@@ -454,10 +868,22 @@
       "task_version_digest": "sha256:b655798e09afcc3fc84265643f38e99a7c39e94c5ad216912f7187b7f1317142"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42486531",
+      "split_group": "cyber:sleuthkit",
+      "task_version_digest": "sha256:6e2241173f5d66319873df82a6ea069dd2814e655e3567b314e586e6c472a95c"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000601",
       "split_group": "code:format-code-task-000601",
       "task_version_digest": "sha256:c87c320ac9b81e42604250105e86ee8fdf4da3465f79ebe5594e9fe36c5ff5a5"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42486539",
+      "split_group": "cyber:sleuthkit",
+      "task_version_digest": "sha256:8806ff8ffb43705f9e8e04056b7c25d538408d1128f37efd03904b62db69be5c"
     },
     {
       "domain": "code",
@@ -466,10 +892,22 @@
       "task_version_digest": "sha256:68987d20c74ea29e7f21d5f7922c06c9dea8428c104fd5e5a11be632c062b89e"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42486540",
+      "split_group": "cyber:sleuthkit",
+      "task_version_digest": "sha256:de3fd28682825099625850afdb4606de6bce80888ce3491e7039988068ab27af"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000638",
       "split_group": "code:format-code-task-000638",
       "task_version_digest": "sha256:e8dd57504ef9e88bdf00e44c55441847506ea18fbf3ee3703f053f5a068f3742"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42486541",
+      "split_group": "cyber:sleuthkit",
+      "task_version_digest": "sha256:ccc72cb8f2cf0d7b8c65a9f525b6dcd0deefb11067e09582060dbf3b5ac03e95"
     },
     {
       "domain": "code",
@@ -478,10 +916,22 @@
       "task_version_digest": "sha256:d8c186f49c3407cd2ca71f5d0c919d376c8096007c85e7ebfe3c2de39891da9c"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42487652",
+      "split_group": "cyber:libavif",
+      "task_version_digest": "sha256:12b01ceaa7b1e0e9638a7c8af63f2f29d5a758d331f20ae9e512e1bebead3847"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000655",
       "split_group": "code:format-code-task-000655",
       "task_version_digest": "sha256:ad513925879416d4bd000fbc9f73afcd626c9d1852a698c2ed635dc00e76709f"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42487660",
+      "split_group": "cyber:libavif",
+      "task_version_digest": "sha256:8584d46f5941d7fdb5853c197c65dbf0af55f344b08103e66963105c84aa1c0d"
     },
     {
       "domain": "code",
@@ -490,10 +940,22 @@
       "task_version_digest": "sha256:96cf320ab0974b75656497469ecc4cc97f521eacb7a9f8560baf6bc6a01def7c"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42487661",
+      "split_group": "cyber:libavif",
+      "task_version_digest": "sha256:1ffaf5885046d0bd71271f60f55f7ddcf5e76349b23280a2b36caace2bea6a1b"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000669",
       "split_group": "code:format-code-task-000669",
       "task_version_digest": "sha256:5e2ad2c0c63640d458668daeccea2af2ea98fa29de62c052198ca19b9ec9494b"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42487732",
+      "split_group": "cyber:sleuthkit",
+      "task_version_digest": "sha256:c806554ef6f99ea06e28db9d7fcae7069110c841b4c2a74da7921f2e98344ac0"
     },
     {
       "domain": "code",
@@ -502,10 +964,22 @@
       "task_version_digest": "sha256:8be54e83d4fc42ea9e14ce6ab3e6c934aa69147d4531a9bfc72ed29bb63d9bd9"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42488508",
+      "split_group": "cyber:libass",
+      "task_version_digest": "sha256:94ca7a5aafdef0cb9b5679cb92c2a371edd25faf14fb875084c7b386b6f21eae"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000751",
       "split_group": "code:format-code-task-000751",
       "task_version_digest": "sha256:7932c47b733e0f680003f21732c8917260da33be0ec5d9e888f7ecd42207d6a1"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42491972",
+      "split_group": "cyber:htslib",
+      "task_version_digest": "sha256:2a54ee7dc812690032307a52de37e40d36ad41c5c4ea15b096184bc87eb6e720"
     },
     {
       "domain": "code",
@@ -514,10 +988,22 @@
       "task_version_digest": "sha256:e85780121a89cdb5d38c47af1cca8d498cc5737e34e616fcfdd4e59e3523fe86"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42491975",
+      "split_group": "cyber:htslib",
+      "task_version_digest": "sha256:9ea2757606b57c7468b1b56f00f725095886b61ed5216cd1f2780434750c7c1c"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000764",
       "split_group": "code:format-code-task-000764",
       "task_version_digest": "sha256:a61790ccc0f8dd7ab538e3a97a6f7e6e98fbede4481d16b4b9bb6ab16e6fd0df"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42501252",
+      "split_group": "cyber:wolfmqtt",
+      "task_version_digest": "sha256:566d8115414ed1b7a5d3df0cfc06393941c577e4596331283c8c49730f252281"
     },
     {
       "domain": "code",
@@ -526,10 +1012,22 @@
       "task_version_digest": "sha256:05f9ba0e9a19d8700a9ae1c058b3232b7f59272d2777928c7982ec6e2c03626c"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42505828",
+      "split_group": "cyber:ghostpdl",
+      "task_version_digest": "sha256:7a5b32b4b39f22c33a1a5be75ad6727be83457bae9325aac7593b93a1dadfc28"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000771",
       "split_group": "code:format-code-task-000771",
       "task_version_digest": "sha256:8fd4aacdb37359b845708396f6d71ddc32ad8b7ce39f09ecd26afc997ebaac5d"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42506044",
+      "split_group": "cyber:ghostpdl",
+      "task_version_digest": "sha256:2341816041ec70515db80864050379acde17597fad3f280b53c3c3ad19926298"
     },
     {
       "domain": "code",
@@ -538,10 +1036,22 @@
       "task_version_digest": "sha256:ed1afd9ec390aca8ccae44d45e54ba71f34cb97ba7522af49674b7fe34ba1ba8"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42506064",
+      "split_group": "cyber:ghostpdl",
+      "task_version_digest": "sha256:d9220d41ac725cec0e6a1329dc09731ecc4465f384a87c6d00884e6bb53304c5"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000797",
       "split_group": "code:format-code-task-000797",
       "task_version_digest": "sha256:28d6c2d474aa16db6e79671903931da8a5d85c9311dd3128491f37f78c0db3af"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42506541",
+      "split_group": "cyber:ghostpdl",
+      "task_version_digest": "sha256:e693312ad2398e734457d0b7696205d11f82ff89163720a4ba046d8ea23ba60d"
     },
     {
       "domain": "code",
@@ -550,10 +1060,22 @@
       "task_version_digest": "sha256:fa6fea94876d1976235b49462ccf2757324eb38fe954bf24c646a91ca5f82b92"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42507587",
+      "split_group": "cyber:file",
+      "task_version_digest": "sha256:b1e1756b96c7febb59840b26fbcaa6312c04d772f5594ae4ea4858b4d12bb842"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000821",
       "split_group": "code:github.com/doccano/doccano",
       "task_version_digest": "sha256:8d6ee6f489ba74fd0432052520bd828f097080ac74acebdc7dda9720c72ff494"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42507791",
+      "split_group": "cyber:ghostpdl",
+      "task_version_digest": "sha256:e41318e6e2dc45b3746535bc9a0de7deb5c49b3f7811297c1d6a78ae974eeddb"
     },
     {
       "domain": "code",
@@ -562,10 +1084,22 @@
       "task_version_digest": "sha256:7f9b720d8441d7bbe0711ea9a6c31c9ae7f5199560b4318c22e4a3ae18efc5f6"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42507851",
+      "split_group": "cyber:libplist",
+      "task_version_digest": "sha256:ecc1f3c23fa080aa97b58efa9a204d2224dd7756f2da7ee8a8bf59b978d31e76"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000829",
       "split_group": "code:format-code-task-000829",
       "task_version_digest": "sha256:636081b99c41f293e6f45bd8991b6ec38e1aef491074f05447fc3695e1e5e2ab"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42508844",
+      "split_group": "cyber:ghostpdl",
+      "task_version_digest": "sha256:911567d273cd59c348fd4786dcd106f64fa6a7db29ab7ffb017074a29f85bca7"
     },
     {
       "domain": "code",
@@ -574,10 +1108,22 @@
       "task_version_digest": "sha256:a9c2cc71303fbc1db84adea538949790a3aa0ab76c1800101d8a30a2a0e218f2"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42517657",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:0e9ef244f19e15c5bd8c53c5e1e5f8fe4fe931eb6191d9df80c540c622d7172a"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000842",
       "split_group": "code:format-code-task-000842",
       "task_version_digest": "sha256:5c4ed18d658e9594719de5e4455e121450ba41290a1863beeff845e1deb0a96c"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42519761",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:a16a0794d50fdabd32a32c76f6702c237dd403219e93e6f67bc20f3127fa0822"
     },
     {
       "domain": "code",
@@ -586,10 +1132,22 @@
       "task_version_digest": "sha256:3cb413bfbc825d02078463fb1249c21e36d0b08b801363f11d101153c32f301f"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42520011",
+      "split_group": "cyber:libplist",
+      "task_version_digest": "sha256:41399b86e8c881094863936d4cfe0932c3470b264760ae70620f13cce0b14a4b"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000847",
       "split_group": "code:format-code-task-000847",
       "task_version_digest": "sha256:a4f5adc9786868367f9d44a858a32936316b52dbd36ad724c9d859cd992f60d6"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42523169",
+      "split_group": "cyber:ghostpdl",
+      "task_version_digest": "sha256:ef594f2a301a8b35a88df527305ed7d8d6eab462b66334f9ba1042fba85997be"
     },
     {
       "domain": "code",
@@ -598,10 +1156,22 @@
       "task_version_digest": "sha256:f1c9d9ca3ee7409784759aecb920b82ab1962a87a62e8a99a3980ccb0fb5058a"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42524899",
+      "split_group": "cyber:file",
+      "task_version_digest": "sha256:cf2b6745cb14dfd007fb337080891ffe4cea07906fdbd6f252db078c3e4c3b89"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000880",
       "split_group": "code:format-code-task-000880",
       "task_version_digest": "sha256:9c9e1fbf88e94de08f1015e2516c30db576b0a2a8221b4ec3a97782d95f1ffad"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42534105",
+      "split_group": "cyber:hdf5",
+      "task_version_digest": "sha256:c39fd4a1d0f4add690cc02978ba80281e889edba22d9402dde9991ac9b85ee9a"
     },
     {
       "domain": "code",
@@ -610,10 +1180,22 @@
       "task_version_digest": "sha256:47a3a8aba804ec16d81a84f77cbcc1a7a863ad909065b188bd778e9142ca66af"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42538811",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:0b45276f8a97b3c6965033544adcbf96f48e3ea0be235f16e2a1755ed9d7d0ca"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000889",
       "split_group": "code:github.com/esimov/caire",
       "task_version_digest": "sha256:d4d57034a89f368dd92d4ad9935ca568093e4089319d2ed3e1d3d79b99085f93"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42539239",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:df5c6fbb32d861ff0278995e0b1148bd1138d773ec691244bc39b0c35ea7fc63"
     },
     {
       "domain": "code",
@@ -622,10 +1204,22 @@
       "task_version_digest": "sha256:b502f1c9c29a7171d496db6ee5a92cc967c6858895b53487d292cdad1e18aad4"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42540213",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:932659ddb8692f7071728ff04489f1f47dc951d540cdbbb3e11e85144cdfbe5a"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000911",
       "split_group": "code:format-code-task-000911",
       "task_version_digest": "sha256:d43d623bffc09acfb5503da6ae1f253f44844a96269eb487faef933eb5badc39"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42540578",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:43fd6465dc4af1b48498438b2d00a549bd06bc1fa627ee5696447d953ab15c02"
     },
     {
       "domain": "code",
@@ -634,10 +1228,22 @@
       "task_version_digest": "sha256:c704046f7e3334eb3137465fc24d4d5eb220fb58c0690674c9bc4b6344c5a2d2"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42541364",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:45be7cd89812a0bd2d7651dbb8cf669d7a854587241139f003a736b2b21bf12e"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000931",
       "split_group": "code:format-code-task-000931",
       "task_version_digest": "sha256:39a86fe68f06a0b9205ae8b9efbe02bf8c43cf1fd76eb5e88e59f3bc8a86a1a6"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42541581",
+      "split_group": "cyber:file",
+      "task_version_digest": "sha256:24c4d86fba12ffc77af662cd6a1dec97eec2be1b3d843d6010a063c9603b429d"
     },
     {
       "domain": "code",
@@ -646,10 +1252,22 @@
       "task_version_digest": "sha256:f8eade9decd131301fb56320ee609262250d847e97154a1e9f7235aecb9faaeb"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_42813",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:d7f53a8b86c9fe63e48d817081411ca15900bca3da28a39be463660b0a372285"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000943",
       "split_group": "code:github.com/cheeriojs/cheerio",
       "task_version_digest": "sha256:7a02de987bae21d45ab16659af41c6e91bcd7c8715ee017ae96bc6c0f071d6cf"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_42908",
+      "split_group": "cyber:ghostpdl",
+      "task_version_digest": "sha256:7f52fb143ed2769927a89e98b18f0f9cd34b178888667ba36bc8fab2c0a0bc87"
     },
     {
       "domain": "code",
@@ -658,10 +1276,22 @@
       "task_version_digest": "sha256:d9bf84cf7e33135c63913aead729f007b2073523755f3f51d3e15e16117dec87"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_43156",
+      "split_group": "cyber:ghostpdl",
+      "task_version_digest": "sha256:f6e63f8d0227aee13ad2a6cf768a796b70df615ac6d9ea748757eda0677dbd21"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000969",
       "split_group": "code:format-code-task-000969",
       "task_version_digest": "sha256:299011106a533b3dea0c3b26464cfada502f5c2c979d53f494936878428d77c5"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_4385",
+      "split_group": "cyber:file",
+      "task_version_digest": "sha256:7d74a8c6e34606e74f8a9f960e6501eac35d85b9787bad6a796877a09d4f3dc4"
     },
     {
       "domain": "code",
@@ -670,10 +1300,22 @@
       "task_version_digest": "sha256:e25c71ceaf7d3311c36eb7ea91e4d6f27aff9351db1568deb522089db3c33ea7"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_44089",
+      "split_group": "cyber:libplist",
+      "task_version_digest": "sha256:2416ee9b98749187606e90dc942c961b62d2a9ed1cc4e52b61289c60ea3e78b5"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-000992",
       "split_group": "code:format-code-task-000992",
       "task_version_digest": "sha256:b594897fc27d5b285718b6e9587687d689095e5e7b4a7d1cdd989b0a267a9649"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_44258",
+      "split_group": "cyber:ghostpdl",
+      "task_version_digest": "sha256:be11c2f429487bdd8a3ef16a57ea31ab92c75f1e6c577f96079986c4c8f5da09"
     },
     {
       "domain": "code",
@@ -682,10 +1324,22 @@
       "task_version_digest": "sha256:e1c731de42b2c3e997facc88dc0c1d7026fc7396119f1c723748b046a0377aa4"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_44695",
+      "split_group": "cyber:libplist",
+      "task_version_digest": "sha256:67e29ba833e06c71d8b847e74ee6915646149f903e71a0786ecb757bd10b9f38"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-001009",
       "split_group": "code:format-code-task-001009",
       "task_version_digest": "sha256:b1be71fca723901efdbb1796eac89dbe5d144d2cec7f0c346b40a04726ef28e4"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_456486373",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:571c471485f94f82ab69486f972b95c9f79fd01df51afa5bab744261e31f57b8"
     },
     {
       "domain": "code",
@@ -694,10 +1348,22 @@
       "task_version_digest": "sha256:459e82435c5a078bacc03897cf0e94658cbbf83cf1808981064e65f12f6fe400"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_48736",
+      "split_group": "cyber:file",
+      "task_version_digest": "sha256:63c64da8f33fac084cf63d34d7f86e6b600dfeff3fc716cbbbd6bc9fba578a4d"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-001032",
       "split_group": "code:format-code-task-001032",
       "task_version_digest": "sha256:1cc6618945f916ce1ffeb66f1ce309a74484aaedb4f819fbcf3d7203615c75d1"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_49819",
+      "split_group": "cyber:S2OPC",
+      "task_version_digest": "sha256:2a1df583d19ecec17c89fd1fc5e75bf484424b0d079b10e5e37cd2f77eab76be"
     },
     {
       "domain": "code",
@@ -706,10 +1372,22 @@
       "task_version_digest": "sha256:8454c2cf4af0f772de9c10d6ae49e8c115b395dbd288013601fa797e58ec636b"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_52917",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:ca4a261c8874d2d3a62db38c643f6f3ffb25a21c9371f8cbb713b24365b54cf6"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-001063",
       "split_group": "code:format-code-task-001063",
       "task_version_digest": "sha256:19f7403a90d2e0cd38f7f03ee7dc0bd170200405f25d284d8eb65329a17aea0b"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_54810",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:7b25c0fe305c0d89c40f6c0cf0691af63078644a3ead8b06b11ebfa9b01a2e85"
     },
     {
       "domain": "code",
@@ -718,10 +1396,22 @@
       "task_version_digest": "sha256:53ff52b6e7b80c8c582074026c7b35c44f3159d265e9e9913e5a6b1b66744d33"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_55035",
+      "split_group": "cyber:libplist",
+      "task_version_digest": "sha256:e5fd36c3089060c94ede99c9cf28a2738286284b995dbde57d5dde2b7ce30c88"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-001116",
       "split_group": "code:format-code-task-001116",
       "task_version_digest": "sha256:709b1c494513d4148fa7a4fea3d6039e8160f926a87f09ee54525404f12706e5"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_55724",
+      "split_group": "cyber:libgit2",
+      "task_version_digest": "sha256:a7ec2c02db310645f5827a2eab2622f97031c4034beef3240d6c7e41317455be"
     },
     {
       "domain": "code",
@@ -730,16 +1420,34 @@
       "task_version_digest": "sha256:6eb6414b215a2c2586db96a9503ee64eb70ab92a20c4dd8f12afcc64f08c671f"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_56156",
+      "split_group": "cyber:ghostpdl",
+      "task_version_digest": "sha256:4b7a7f9670b578b8c5b5c5985a9a31226a8cf88bc99c2382d8b3b7dda3005f31"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-001135",
       "split_group": "code:format-code-task-001135",
       "task_version_digest": "sha256:f242ed2b703fa2633cc0979ff114fc4cdbff0593d1faefdf1620eada36b984fe"
     },
     {
+      "domain": "cyber",
+      "task_id": "arvo_58661",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:8656dcba2a9d7652e89c1d8b124aee53b81f4f440438cb7f6bbba9b024a68afa"
+    },
+    {
       "domain": "code",
       "task_id": "format-code-task-001136",
       "split_group": "code:format-code-task-001136",
       "task_version_digest": "sha256:913418f2b8631912ddfc8132ecd9efcca801da78c6798d5d6c07410b65ed7434"
+    },
+    {
+      "domain": "cyber",
+      "task_id": "arvo_8944",
+      "split_group": "cyber:graphicsmagick",
+      "task_version_digest": "sha256:53015676b51984c7b3b7d65452be7d717f9bb70f93bb37d9d551b920006a9951"
     },
     {
       "domain": "code",
@@ -1748,714 +2456,6 @@
       "task_id": "format-code-task-003058",
       "split_group": "code:format-code-task-003058",
       "task_version_digest": "sha256:af5477c4a5c71e936b9293ba383e8e7992a7ea404f0fc514cf153aed6b2f0c76"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_10055",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:8305e8ac9ff8f6108d8accdc92cc831ef1aeb5c0707cbd180f191ff754519cd2"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_10096",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:885edaa809ac4ca7be7a30e6fff60ed911a5d8ea87752d77571b095d35233b27"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_10125",
-      "split_group": "cyber:gnutls",
-      "task_version_digest": "sha256:842838bab1f94938b158394ff5fc8db64078cd59693eeec8717165bbc1b69f39"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_10135",
-      "split_group": "cyber:gnutls",
-      "task_version_digest": "sha256:c55ab5eec420833e33521a3234e06a1ca33e18503dabaf5ea2a904f13282b5de"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_10136",
-      "split_group": "cyber:gnutls",
-      "task_version_digest": "sha256:553747aaef34300f9dbc6c43a07b11537fd9300a60ba6d253e515520d4778a8e"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_10137",
-      "split_group": "cyber:gnutls",
-      "task_version_digest": "sha256:402a558242a83a1561b5025a43975a6238f846a3ae71291320198c74033226cc"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_10216",
-      "split_group": "cyber:gnutls",
-      "task_version_digest": "sha256:e1ee895a6bd515780c3ea12e080edc804050a985039c555ef6939aa1f40e30d2"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_1065",
-      "split_group": "cyber:file",
-      "task_version_digest": "sha256:fb12a723ce2339a80bff4633b8cda90e5f1e3887e5bd665918e0285fb3c56bb1"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_10999",
-      "split_group": "cyber:libgit2",
-      "task_version_digest": "sha256:365124a574ed6e48eebdbbbb58a41878fa86540bc3903c90770bcc4c7c90c827"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_11007",
-      "split_group": "cyber:libgit2",
-      "task_version_digest": "sha256:c2adf85b9e6faa5448db977ba601d4e4dd63130280d2a4be4d22c981216370a8"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_11167",
-      "split_group": "cyber:libgit2",
-      "task_version_digest": "sha256:739813c62fe0a2add0a4ac1fd07b48f1a5a14d067276f7a134f886f758c3929d"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_11752",
-      "split_group": "cyber:yara",
-      "task_version_digest": "sha256:7a1e458669b96ada6c66d350a3824116f6a1f76f244da15daa42a587ed0bf532"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_12424",
-      "split_group": "cyber:yara",
-      "task_version_digest": "sha256:197d394dafa4624acf290a2ab10c92ed2342ff404a41039669fc216ac2661e2b"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_1304",
-      "split_group": "cyber:gnutls",
-      "task_version_digest": "sha256:dae8b5083d0141c5ebcff285237b7f348c90fdb2784535f0fea2ff580624f1ab"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_1442",
-      "split_group": "cyber:fdk-aac",
-      "task_version_digest": "sha256:d14ac0957552ca8e59e864843083b412ff1826873c6a0493326c0a7bc2847a51"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_14813",
-      "split_group": "cyber:yara",
-      "task_version_digest": "sha256:cfd6c5bce39a4c57e6ef24b1ff621226550bef19f6f5498b4cefa61c29815c86"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_16531",
-      "split_group": "cyber:aspell",
-      "task_version_digest": "sha256:fa4b15a4077b89997eec141c6b684cc667012520231e4de6158396416077792f"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_20271",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:34ac7b9d240ac0e47f4564d22e2726007e15154bffaf7cf3daa15b7f86287509"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_20702",
-      "split_group": "cyber:file",
-      "task_version_digest": "sha256:71213d37a59857df05c909723182bb3918a4560f1b1227dca87fb29b53b637ed"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_20729",
-      "split_group": "cyber:file",
-      "task_version_digest": "sha256:bbddcb59113d3ff001bcfa86ef208280aabaf8bfa723e948dae26651bda18489"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_24293",
-      "split_group": "cyber:yara",
-      "task_version_digest": "sha256:901deb0b0169f944da6448dd36500627fba0c3e909d97e0c3353fec712699394"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_24895",
-      "split_group": "cyber:sleuthkit",
-      "task_version_digest": "sha256:db4ba62d2f15edb88c27a761cbbd36a11fdd07cfcded9c4590763602aff47153"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_25911",
-      "split_group": "cyber:libavif",
-      "task_version_digest": "sha256:ea07e1e8ac6a5124b29e964924775cd61b8abeff55ff28386220c13bd5fc72e5"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_26674",
-      "split_group": "cyber:libass",
-      "task_version_digest": "sha256:def714c8d1e2a526346996e289b8b0b48280574eac39be68b743ca42710d47ab"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_29792",
-      "split_group": "cyber:htslib",
-      "task_version_digest": "sha256:c167017c90c53064ac95872456c45ac0238a65fdfda07d7ddb6812f650cd682d"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_30217",
-      "split_group": "cyber:yara",
-      "task_version_digest": "sha256:d1d1d341558acc6379b560934ce7609c54c2ae9a6ee31f0971ff54e0e3ed0e07"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_3095",
-      "split_group": "cyber:gnutls",
-      "task_version_digest": "sha256:3501fac8db3e0c92aea3fe7e2d9ce8006c9f2f22d7e68bbd94a633268eb716fc"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_34869",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:3bcff9f6c1d1e5cae43c590b3bbc0055a40dfc097a1fdc84558f4c1652203d25"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_35362",
-      "split_group": "cyber:wolfssl-sp-math-all",
-      "task_version_digest": "sha256:512f02cbf2e8cd9b60dcec30a85bc343226cba4308f47bd3cb4daac4b561587b"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_35927",
-      "split_group": "cyber:rapidjson",
-      "task_version_digest": "sha256:641d09b3cd61bb27c189b3dffe426fabec94e2d1a0d7cee547646046861d9b56"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_37443",
-      "split_group": "cyber:yara",
-      "task_version_digest": "sha256:92b2ff0ed46ea9c2eb81b8c16d8511c6e603cd4c45a8be68f5b70525f9eaef0a"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_377955861",
-      "split_group": "cyber:file",
-      "task_version_digest": "sha256:1249bd96d643a48d78f30616ed30dac2727820719a819622c72529524ed52140"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_388905046",
-      "split_group": "cyber:libbpf",
-      "task_version_digest": "sha256:ae9cd04fd37f006ad2d3f9b015ddc2b9d5ffa1a0f8a660d3d2dd5a8a4cf59c98"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_39056",
-      "split_group": "cyber:wolfmqtt",
-      "task_version_digest": "sha256:29bef334c63d35e5c8aa387b57f96b2673de69c71fd89ec82e66e569df81a94b"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_39083",
-      "split_group": "cyber:wolfmqtt",
-      "task_version_digest": "sha256:997666589f5d2507baeba64371cc01d91bf72073f6ebd8647ae7a6f7919a9d33"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_39094",
-      "split_group": "cyber:wolfmqtt",
-      "task_version_digest": "sha256:e4dcbe54544cdfe94a2914ed5b2deccb103b35ec407196255c946658156e6a8d"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_39103",
-      "split_group": "cyber:wolfmqtt",
-      "task_version_digest": "sha256:b3cb243f0d272417e04e629178a26279aee974881418e2f451e2f3972295b39e"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_391975647",
-      "split_group": "cyber:libconfig",
-      "task_version_digest": "sha256:52cd67820f17a9905b2d68cedebace49e78fc725804c7afb2acd270174ff4f5b"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_40317",
-      "split_group": "cyber:libbpf",
-      "task_version_digest": "sha256:66f87a53f7d1cce56329d071cc3de0b1572879915c9205a17e5c0a9c6ba39fe6"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42454",
-      "split_group": "cyber:ghostpdl",
-      "task_version_digest": "sha256:626bf3e3c9248bb28d9f1eb2eeeefd75d0b74d725a4fc705a9f98298232aba0e"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42470109",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:1b625a89dcb93ed1647675bc306880e6b89b02dcd86a84a9d34d743451786236"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42470142",
-      "split_group": "cyber:gnutls",
-      "task_version_digest": "sha256:56e5086f14a20ec8f82dd457d0373df75a7e45970ec07698e8bf7496e2d5f4bf"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42470155",
-      "split_group": "cyber:gnutls",
-      "task_version_digest": "sha256:b1e018cec79a14cc80084a750050f62a04ef21efc90472d68c6ad730d76db94b"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42470443",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:4849664d2c92d8122f2d9b17cb80b7e4fb8221bd1c116701e03ff4a543e2d64e"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42470716",
-      "split_group": "cyber:file",
-      "task_version_digest": "sha256:f9b45ac2b05096928c66396c06f06699380e2926303de785c605b2dfd0bf6e16"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42471100",
-      "split_group": "cyber:libgit2",
-      "task_version_digest": "sha256:567b369084e776312182b5a4314ad93f330d6809061c17721247b43ee7e91385"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42471111",
-      "split_group": "cyber:libgit2",
-      "task_version_digest": "sha256:d7c9de12f2ff858b9339e931fd03085bab29355ba87de93e170d0183cf552517"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42471294",
-      "split_group": "cyber:libgit2",
-      "task_version_digest": "sha256:ae729ec4676c96965aa2d24a6f69d30d4ca5605e9d3698e438347b4a846a57ef"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42472681",
-      "split_group": "cyber:yara",
-      "task_version_digest": "sha256:e11e3a8e843d9fbb91ad70c53b908c9b68f8bf242c3c8e55b82e2f0178af1be4"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42473565",
-      "split_group": "cyber:file",
-      "task_version_digest": "sha256:cf78400d2545911729e23a57f1fc028c4857c4254f650bf90295fee55144d200"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42474668",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:d80c118ffabfd5de15e9b4dc270b53a1a0b9404ef090db5ed48ff5ee155eb053"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42475596",
-      "split_group": "cyber:readstat",
-      "task_version_digest": "sha256:a84e57eb6a046e777c633b3b8cd809e8a25a829d4378b56ba2263965c2b5b7d3"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42479",
-      "split_group": "cyber:ghostpdl",
-      "task_version_digest": "sha256:fb44777752d3a8dcc29b0522d492ea11aea4a3d4d8c82956981b4c0e3702dad1"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42481904",
-      "split_group": "cyber:file",
-      "task_version_digest": "sha256:bbdb5f95d11946e3931fb5d80d50c28e87fd986580d41f7bb94e22cc7cc738a1"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42486531",
-      "split_group": "cyber:sleuthkit",
-      "task_version_digest": "sha256:6e2241173f5d66319873df82a6ea069dd2814e655e3567b314e586e6c472a95c"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42486539",
-      "split_group": "cyber:sleuthkit",
-      "task_version_digest": "sha256:8806ff8ffb43705f9e8e04056b7c25d538408d1128f37efd03904b62db69be5c"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42486540",
-      "split_group": "cyber:sleuthkit",
-      "task_version_digest": "sha256:de3fd28682825099625850afdb4606de6bce80888ce3491e7039988068ab27af"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42486541",
-      "split_group": "cyber:sleuthkit",
-      "task_version_digest": "sha256:ccc72cb8f2cf0d7b8c65a9f525b6dcd0deefb11067e09582060dbf3b5ac03e95"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42487652",
-      "split_group": "cyber:libavif",
-      "task_version_digest": "sha256:12b01ceaa7b1e0e9638a7c8af63f2f29d5a758d331f20ae9e512e1bebead3847"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42487660",
-      "split_group": "cyber:libavif",
-      "task_version_digest": "sha256:8584d46f5941d7fdb5853c197c65dbf0af55f344b08103e66963105c84aa1c0d"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42487661",
-      "split_group": "cyber:libavif",
-      "task_version_digest": "sha256:1ffaf5885046d0bd71271f60f55f7ddcf5e76349b23280a2b36caace2bea6a1b"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42487732",
-      "split_group": "cyber:sleuthkit",
-      "task_version_digest": "sha256:c806554ef6f99ea06e28db9d7fcae7069110c841b4c2a74da7921f2e98344ac0"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42488508",
-      "split_group": "cyber:libass",
-      "task_version_digest": "sha256:94ca7a5aafdef0cb9b5679cb92c2a371edd25faf14fb875084c7b386b6f21eae"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42491972",
-      "split_group": "cyber:htslib",
-      "task_version_digest": "sha256:2a54ee7dc812690032307a52de37e40d36ad41c5c4ea15b096184bc87eb6e720"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42491975",
-      "split_group": "cyber:htslib",
-      "task_version_digest": "sha256:9ea2757606b57c7468b1b56f00f725095886b61ed5216cd1f2780434750c7c1c"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42501252",
-      "split_group": "cyber:wolfmqtt",
-      "task_version_digest": "sha256:566d8115414ed1b7a5d3df0cfc06393941c577e4596331283c8c49730f252281"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42505828",
-      "split_group": "cyber:ghostpdl",
-      "task_version_digest": "sha256:7a5b32b4b39f22c33a1a5be75ad6727be83457bae9325aac7593b93a1dadfc28"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42506044",
-      "split_group": "cyber:ghostpdl",
-      "task_version_digest": "sha256:2341816041ec70515db80864050379acde17597fad3f280b53c3c3ad19926298"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42506064",
-      "split_group": "cyber:ghostpdl",
-      "task_version_digest": "sha256:d9220d41ac725cec0e6a1329dc09731ecc4465f384a87c6d00884e6bb53304c5"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42506541",
-      "split_group": "cyber:ghostpdl",
-      "task_version_digest": "sha256:e693312ad2398e734457d0b7696205d11f82ff89163720a4ba046d8ea23ba60d"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42507587",
-      "split_group": "cyber:file",
-      "task_version_digest": "sha256:b1e1756b96c7febb59840b26fbcaa6312c04d772f5594ae4ea4858b4d12bb842"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42507791",
-      "split_group": "cyber:ghostpdl",
-      "task_version_digest": "sha256:e41318e6e2dc45b3746535bc9a0de7deb5c49b3f7811297c1d6a78ae974eeddb"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42507851",
-      "split_group": "cyber:libplist",
-      "task_version_digest": "sha256:ecc1f3c23fa080aa97b58efa9a204d2224dd7756f2da7ee8a8bf59b978d31e76"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42508844",
-      "split_group": "cyber:ghostpdl",
-      "task_version_digest": "sha256:911567d273cd59c348fd4786dcd106f64fa6a7db29ab7ffb017074a29f85bca7"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42517657",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:0e9ef244f19e15c5bd8c53c5e1e5f8fe4fe931eb6191d9df80c540c622d7172a"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42519761",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:a16a0794d50fdabd32a32c76f6702c237dd403219e93e6f67bc20f3127fa0822"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42520011",
-      "split_group": "cyber:libplist",
-      "task_version_digest": "sha256:41399b86e8c881094863936d4cfe0932c3470b264760ae70620f13cce0b14a4b"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42523169",
-      "split_group": "cyber:ghostpdl",
-      "task_version_digest": "sha256:ef594f2a301a8b35a88df527305ed7d8d6eab462b66334f9ba1042fba85997be"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42524899",
-      "split_group": "cyber:file",
-      "task_version_digest": "sha256:cf2b6745cb14dfd007fb337080891ffe4cea07906fdbd6f252db078c3e4c3b89"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42534105",
-      "split_group": "cyber:hdf5",
-      "task_version_digest": "sha256:c39fd4a1d0f4add690cc02978ba80281e889edba22d9402dde9991ac9b85ee9a"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42538811",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:0b45276f8a97b3c6965033544adcbf96f48e3ea0be235f16e2a1755ed9d7d0ca"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42539239",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:df5c6fbb32d861ff0278995e0b1148bd1138d773ec691244bc39b0c35ea7fc63"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42540213",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:932659ddb8692f7071728ff04489f1f47dc951d540cdbbb3e11e85144cdfbe5a"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42540578",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:43fd6465dc4af1b48498438b2d00a549bd06bc1fa627ee5696447d953ab15c02"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42541364",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:45be7cd89812a0bd2d7651dbb8cf669d7a854587241139f003a736b2b21bf12e"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42541581",
-      "split_group": "cyber:file",
-      "task_version_digest": "sha256:24c4d86fba12ffc77af662cd6a1dec97eec2be1b3d843d6010a063c9603b429d"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42813",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:d7f53a8b86c9fe63e48d817081411ca15900bca3da28a39be463660b0a372285"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_42908",
-      "split_group": "cyber:ghostpdl",
-      "task_version_digest": "sha256:7f52fb143ed2769927a89e98b18f0f9cd34b178888667ba36bc8fab2c0a0bc87"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_43156",
-      "split_group": "cyber:ghostpdl",
-      "task_version_digest": "sha256:f6e63f8d0227aee13ad2a6cf768a796b70df615ac6d9ea748757eda0677dbd21"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_4385",
-      "split_group": "cyber:file",
-      "task_version_digest": "sha256:7d74a8c6e34606e74f8a9f960e6501eac35d85b9787bad6a796877a09d4f3dc4"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_44089",
-      "split_group": "cyber:libplist",
-      "task_version_digest": "sha256:2416ee9b98749187606e90dc942c961b62d2a9ed1cc4e52b61289c60ea3e78b5"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_44258",
-      "split_group": "cyber:ghostpdl",
-      "task_version_digest": "sha256:be11c2f429487bdd8a3ef16a57ea31ab92c75f1e6c577f96079986c4c8f5da09"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_44695",
-      "split_group": "cyber:libplist",
-      "task_version_digest": "sha256:67e29ba833e06c71d8b847e74ee6915646149f903e71a0786ecb757bd10b9f38"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_456486373",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:571c471485f94f82ab69486f972b95c9f79fd01df51afa5bab744261e31f57b8"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_48736",
-      "split_group": "cyber:file",
-      "task_version_digest": "sha256:63c64da8f33fac084cf63d34d7f86e6b600dfeff3fc716cbbbd6bc9fba578a4d"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_49819",
-      "split_group": "cyber:S2OPC",
-      "task_version_digest": "sha256:2a1df583d19ecec17c89fd1fc5e75bf484424b0d079b10e5e37cd2f77eab76be"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_52917",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:ca4a261c8874d2d3a62db38c643f6f3ffb25a21c9371f8cbb713b24365b54cf6"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_54810",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:7b25c0fe305c0d89c40f6c0cf0691af63078644a3ead8b06b11ebfa9b01a2e85"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_55035",
-      "split_group": "cyber:libplist",
-      "task_version_digest": "sha256:e5fd36c3089060c94ede99c9cf28a2738286284b995dbde57d5dde2b7ce30c88"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_55724",
-      "split_group": "cyber:libgit2",
-      "task_version_digest": "sha256:a7ec2c02db310645f5827a2eab2622f97031c4034beef3240d6c7e41317455be"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_56156",
-      "split_group": "cyber:ghostpdl",
-      "task_version_digest": "sha256:4b7a7f9670b578b8c5b5c5985a9a31226a8cf88bc99c2382d8b3b7dda3005f31"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_58661",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:8656dcba2a9d7652e89c1d8b124aee53b81f4f440438cb7f6bbba9b024a68afa"
-    },
-    {
-      "domain": "cyber",
-      "task_id": "arvo_8944",
-      "split_group": "cyber:graphicsmagick",
-      "task_version_digest": "sha256:53015676b51984c7b3b7d65452be7d717f9bb70f93bb37d9d551b920006a9951"
-    },
-    {
-      "domain": "terminal",
-      "task_id": "candidate-0109-science-robotics",
-      "split_group": "terminal:candidate-0109-science-robotics",
-      "task_version_digest": "sha256:617b646f5cb5bb72d6b0f1d40de48ac2f4c4b6388fb289e6713aed7ee2d39120"
-    },
-    {
-      "domain": "terminal",
-      "task_id": "candidate-0390-security-appsec",
-      "split_group": "terminal:candidate-0390-security-appsec",
-      "task_version_digest": "sha256:ffec7cd6a3d6348dc8b44249424f2848aaa54f75b5f370e330a5e7bdfc0ec5c2"
-    },
-    {
-      "domain": "terminal",
-      "task_id": "candidate-0534-ml-training",
-      "split_group": "terminal:candidate-0534-ml-training",
-      "task_version_digest": "sha256:49c27070e6e2f4be4d5ba29a3892347473c280d691470a844fdafce741eb5e04"
-    },
-    {
-      "domain": "terminal",
-      "task_id": "candidate-0628-media-music",
-      "split_group": "terminal:candidate-0628-media-music",
-      "task_version_digest": "sha256:885163b60de3207ea0778990bb29c19214d18d0036158416672e45194db68b12"
-    },
-    {
-      "domain": "terminal",
-      "task_id": "candidate-0674-ml-evaluation",
-      "split_group": "terminal:candidate-0674-ml-evaluation",
-      "task_version_digest": "sha256:90be868f403beffbd2da6923cfcec8cd7df50995e98a3265b4421b3072eec1f7"
-    },
-    {
-      "domain": "terminal",
-      "task_id": "candidate-0847-software-languages",
-      "split_group": "terminal:candidate-0847-software-languages",
-      "task_version_digest": "sha256:fda581033863b7cc1250b44c0da8939402ec20c92dc37bb1d462b33c17362f2f"
-    },
-    {
-      "domain": "terminal",
-      "task_id": "candidate-1305-software-data-engineering",
-      "split_group": "terminal:candidate-1305-software-data-engineering",
-      "task_version_digest": "sha256:5d3d8262534a7e930d591c57bc0cdde828b41b5d2aed07afcd171fb5602db2db"
-    },
-    {
-      "domain": "terminal",
-      "task_id": "candidate-1682-science-physics",
-      "split_group": "terminal:candidate-1682-science-physics",
-      "task_version_digest": "sha256:fea0e3db409bbf20cee4863becfe2f54dc7c9b37a0ae9c1b0d9383bb919762b8"
-    },
-    {
-      "domain": "terminal",
-      "task_id": "candidate-1824-media-design",
-      "split_group": "terminal:candidate-1824-media-design",
-      "task_version_digest": "sha256:8fd0a9d3d2af87771030c71f3c5a4cb3995efa76d29a054e264dd4f568acfa1e"
-    },
-    {
-      "domain": "terminal",
-      "task_id": "candidate-2329-software-languages",
-      "split_group": "terminal:candidate-2329-software-languages",
-      "task_version_digest": "sha256:a96c71f77bae8d6a38c35629709436b3f64cfb0c24abd9c0eeccdf0b780a12df"
-    },
-    {
-      "domain": "terminal",
-      "task_id": "candidate-2376-security-cryptography",
-      "split_group": "terminal:candidate-2376-security-cryptography",
-      "task_version_digest": "sha256:06205dfca4a41a4b134da31e72efc29197522e0d4a1981cff7b9d7addb9675f8"
-    },
-    {
-      "domain": "terminal",
-      "task_id": "candidate-2487-security-cryptography",
-      "split_group": "terminal:candidate-2487-security-cryptography",
-      "task_version_digest": "sha256:e05dfcf2260ddbdffef6f644b676da5d6f3466462aca28ab0cc78f1f239f5cb5"
-    },
-    {
-      "domain": "terminal",
-      "task_id": "candidate-2760-ml-inference",
-      "split_group": "terminal:candidate-2760-ml-inference",
-      "task_version_digest": "sha256:cb34c27a5e85e4d73a0219174c2b5816057ba7032207d3b9bad268c302c14ef2"
-    },
-    {
-      "domain": "terminal",
-      "task_id": "candidate-2790-ml-evaluation",
-      "split_group": "terminal:candidate-2790-ml-evaluation",
-      "task_version_digest": "sha256:e877e6cf348642dccf71e6cfd1798374ca2995dcc08bf41ccb7d2c6ccff26ba8"
-    },
-    {
-      "domain": "terminal",
-      "task_id": "candidate-2838-ml-evaluation",
-      "split_group": "terminal:candidate-2838-ml-evaluation",
-      "task_version_digest": "sha256:549a1dadbd8b852c70ceb604413be9c941214cc56ab955d69cbf06c2711078ac"
     }
   ]
 }

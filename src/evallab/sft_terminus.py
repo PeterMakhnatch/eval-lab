@@ -50,10 +50,13 @@ REFUSES the whole export: held-out contamination is a protocol violation,
 not a filterable row. Teacher ``reasoning_content`` is dropped by default
 (``--keep-reasoning`` keeps it as a ``<think>`` prefix). Reward/verifier
 metadata never enters the JSONL: rows carry only ``messages`` with
-``role``/``content`` keys.
+``role``/``content`` keys. A ``--curation`` record flags individual trials
+(e.g. ``pass_tainted``: the pass relied on something the task forbids); a
+flagged trial is excluded as ``curation:<flag>`` with the flag's deciding
+source in the manifest, and its verifier reward is left as recorded.
 
 Run with ``python -m evallab.sft_terminus export --root LABEL=PATH ...
---split-manifest split.json --out DIR``.
+--split-manifest split.json --out DIR [--curation curation.json]``.
 """
 
 from __future__ import annotations
@@ -92,6 +95,7 @@ DEFAULT_REWARD_THRESHOLD = 1.0
 TERMINUS_AGENT_NAMES = frozenset({"terminus-2", "terminus2"})
 _CONTINUATION_RE = re.compile(r"^trajectory\.cont-(\d+)\.json$")
 _SUMMARIZATION_RE = re.compile(r"^trajectory\.summarization-")
+CURATION_SCHEMA = "evallab.sft_curation/1"
 
 #: Roles the chat_sl renderer accepts; observations become ``user`` turns.
 ALLOWED_ROLES = frozenset({"system", "user", "assistant"})
@@ -209,6 +213,8 @@ class TrialDisposition:
     summarization_attempts: int | None = None
     #: Continuation segments that are genuine handoffs.
     summarization_splits: int | None = None
+    #: Curation flags on this trial (``flag`` + deciding ``source``).
+    curation_flags: list[dict[str, str]] = field(default_factory=list)
 
     def to_json(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -234,7 +240,44 @@ class TrialDisposition:
             out["summarization_attempts"] = self.summarization_attempts
         if self.summarization_splits is not None:
             out["summarization_splits"] = self.summarization_splits
+        if self.curation_flags:
+            out["curation_flags"] = self.curation_flags
         return out
+
+
+@dataclass(frozen=True)
+class Curation:
+    """Curation flags on individual trials, from a reviewed decision record.
+
+    A flag (e.g. ``pass_tainted``) excludes the trial from selection whatever
+    its reward; the verifier reward itself is never rewritten. Each flag names
+    its job and trial directory, and carries the decision that set it.
+    """
+
+    path: Path
+    sha256: str
+    flags: dict[tuple[str, str], list[dict[str, str]]]
+
+
+def load_curation(path: Path) -> Curation:
+    """Read a curation record; any malformed flag refuses the export."""
+    payload = _read_json(path)
+    if not isinstance(payload, dict) or payload.get("schema") != CURATION_SCHEMA:
+        raise TraceError(f"curation record {path} is not {CURATION_SCHEMA}")
+    flags: dict[tuple[str, str], list[dict[str, str]]] = {}
+    for entry in payload.get("flags") or []:
+        fields: dict[str, str] = {}
+        for name in ("job", "trial", "flag", "source"):
+            value = entry.get(name) if isinstance(entry, dict) else None
+            if isinstance(value, str) and value:
+                fields[name] = value
+        missing = [n for n in ("job", "trial", "flag", "source") if n not in fields]
+        if missing:
+            raise TraceError(f"curation flag {entry!r} in {path} lacks {', '.join(missing)}")
+        flags.setdefault((fields["job"], fields["trial"]), []).append(
+            {"flag": fields["flag"], "source": fields["source"]}
+        )
+    return Curation(path=path, sha256=_sha256_file(path), flags=flags)
 
 
 @dataclass
@@ -246,6 +289,9 @@ class TerminusExportResult:
     duplicates: dict[str, list[str]]
     split_manifest_digest: str
     harness_trees: dict[str, dict[str, Any] | None] = field(default_factory=dict)
+    curation: Curation | None = None
+    #: Curation flags naming a trial that is not among the export's roots.
+    curation_unmatched: list[dict[str, str]] = field(default_factory=list)
 
     @property
     def selected_trials(self) -> int:
@@ -583,6 +629,7 @@ def export_conversations(
     reward_threshold: float = DEFAULT_REWARD_THRESHOLD,
     keep_reasoning: bool = False,
     task_store_root: Path | None = None,
+    curation: Curation | None = None,
 ) -> TerminusExportResult:
     """Select and convert trials. Raises TraceError on held-out contamination.
 
@@ -592,6 +639,9 @@ def export_conversations(
     the trial's task dir digest must equal the sealed ``task_version_digest``;
     a recomputed digest that differs excludes the trial as
     ``task_version_drift``. Without the store, matching is by name/id alone.
+
+    A trial flagged in ``curation`` is excluded as ``curation:<flag>`` after
+    the held-out check (a flag never hides contamination); its reward stays.
     """
     split_manifest = load_split(split_manifest_path)
     digest = split_manifest_digest_of(split_manifest)
@@ -646,6 +696,8 @@ def export_conversations(
             reward=outcome.reward,
             disposition="selected",
         )
+        flags = (curation.flags if curation else {}).get((job, trial_dir.name), [])
+        disposition.curation_flags = flags
         if job not in harness_trees:
             harness_trees[job] = _harness_tree_binding(trial_dir.parent)
         dispositions.append(disposition)
@@ -706,6 +758,10 @@ def export_conversations(
                     "task_version_digest": entry["task_version_digest"],
                 }
             )
+            continue
+        if flags:
+            for item in flags:
+                _exclude(disposition, f"curation:{item['flag']}")
             continue
         if not segments or not any(segment.segment == "main" for segment in segments):
             _exclude(disposition, "no_trajectory")
@@ -823,6 +879,7 @@ def export_conversations(
         )
 
     dispositions.sort(key=lambda item: (item.root, item.trial))
+    matched = {(trial_dir.parent.name, trial_dir.name) for _, trial_dir, _ in loaded}
     return TerminusExportResult(
         dispositions=dispositions,
         conversations=conversations,
@@ -831,6 +888,13 @@ def export_conversations(
         duplicates=dict(sorted(duplicates.items())),
         split_manifest_digest=digest,
         harness_trees=harness_trees,
+        curation=curation,
+        curation_unmatched=[
+            {"job": job, "trial": trial, **item}
+            for (job, trial), items in sorted((curation.flags if curation else {}).items())
+            if (job, trial) not in matched
+            for item in items
+        ],
     )
 
 
@@ -886,6 +950,13 @@ def write_export(
         "conversations": [c.to_manifest_entry() for c in result.conversations],
         "duplicates": result.duplicates,
         "trials": [d.to_json() for d in result.dispositions],
+        "curation": {
+            "path": result.curation.path.as_posix(),
+            "sha256": result.curation.sha256,
+            "unmatched": result.curation_unmatched,
+        }
+        if result.curation is not None
+        else None,
     }
     manifest["conversations_sha256"] = _sha256_file(conversations_path)
     (out_dir / MANIFEST_FILE).write_text(
@@ -932,6 +1003,12 @@ def main(argv: list[str] | None = None) -> int:
         help="snapshot store root enabling task_version_digest verification "
         "(default: shared store when it exists, else name/id matching only)",
     )
+    export.add_argument(
+        "--curation",
+        type=Path,
+        default=None,
+        help=f"{CURATION_SCHEMA} record of flagged trials (e.g. pass_tainted) to exclude",
+    )
     args = parser.parse_args(argv)
     try:
         result = export_conversations(
@@ -940,6 +1017,7 @@ def main(argv: list[str] | None = None) -> int:
             reward_threshold=args.reward_threshold,
             keep_reasoning=args.keep_reasoning,
             task_store_root=args.task_store_root,
+            curation=load_curation(args.curation) if args.curation else None,
         )
         manifest = write_export(
             result,

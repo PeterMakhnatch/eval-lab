@@ -1,0 +1,12 @@
+{
+  "schema": "evallab.sft_curation/1",
+  "flags": [
+    {
+      "job": "har81-p-d-candidate-2684-security-appsec",
+      "trial": "har81-p-d-candidate-2684-securit__uwoAzn7",
+      "flag": "pass_tainted",
+      "source": "Research-Harbor decision on HAR-81, 2026-09-29 ~10:35Z: the pass depends on a forbidden network install; reward stays 1.0, excluded from SFT training and learnability pass counts",
+      "evidence": "job.log line 159 sends 'pip3 install stevedore'; trajectory.json step 33 observation 'Successfully installed stevedore-5.9.1'; the task instruction forbids network access and new dependencies, and the nop control fails on the same missing stevedore module (HAR-94 part 2, O1)"
+    }
+  ]
+}

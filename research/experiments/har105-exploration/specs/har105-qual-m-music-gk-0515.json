@@ -1,0 +1,14 @@
+{
+  "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-music@e1a66d4553ee/tasks/music-gk-0515",
+  "task_package_digest": "sha256:94993ea7cb18b72fa0620ada118cfee4b54ef3ade9d8eac304a5596ef371b307",
+  "agent": "nop",
+  "environment": "daytona",
+  "name": "har105-qual-m-music-gk-0515",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "timeout_seconds": 3900,
+  "purpose": "calibration",
+  "hypothesis": "The MiMo task starts, passes its healthcheck and grades on Daytona: a nop control completes the verifier with reward 0.",
+  "submitted_by": "har105-qualification",
+  "override_storage_mb": 10240
+}

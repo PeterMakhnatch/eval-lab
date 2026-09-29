@@ -687,6 +687,51 @@ def _trajectory_tokens(paths: Iterable[Path]) -> tuple[int, int, int, int]:
     return prompt, completion, steps, unmetered
 
 
+def _ledger_orphans(
+    paths: Iterable[Path], calls: Sequence[dict[str, Any]], exception_type: str | None
+) -> dict[str, int]:
+    """Ledger calls no recorded step accounts for, by shape.
+
+    A call matches a step when its ``input_tokens`` equal the step's
+    ``prompt_tokens`` (multiset, over unique steps of the head, continuations
+    and summarization files). What is left is an orphan:
+
+    * ``truncated``: its output reached the reserved ``max_tokens``; Terminus
+      discards the cut reply and retries, so no step records it;
+    * ``final``: the last ledger call of a trial whose agent phase ended with
+      an exception (timeout, ceiling), cut off before a step was written;
+    * ``other``: anything else.
+    """
+    prompts: dict[int, int] = {}
+    seen: set[str] = set()
+    for path in paths:
+        for step in _read_json(path).get("steps") or []:
+            if not isinstance(step, dict):
+                continue
+            identity = _step_identity(step)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            prompt = _dict(step.get("metrics")).get("prompt_tokens")
+            if isinstance(prompt, int):
+                prompts[prompt] = prompts.get(prompt, 0) + 1
+    shapes = {"truncated": 0, "final": 0, "other": 0, "input_tokens": 0}
+    for index, call in enumerate(calls):
+        tokens = call.get("input_tokens")
+        if isinstance(tokens, int) and prompts.get(tokens, 0) > 0:
+            prompts[tokens] -= 1
+            continue
+        output, reserved = call.get("output_tokens"), call.get("reserved_output_tokens")
+        if isinstance(output, int) and isinstance(reserved, int) and output >= reserved:
+            shapes["truncated"] += 1
+        elif index == len(calls) - 1 and exception_type:
+            shapes["final"] += 1
+        else:
+            shapes["other"] += 1
+        shapes["input_tokens"] += tokens if isinstance(tokens, int) else 0
+    return shapes
+
+
 def collect_capture(job_dir: Path, trial_dir: Path) -> dict[str, Any]:
     """One ``trial_capture.parquet`` row."""
     result = _read_json(trial_dir / "result.json")
@@ -729,9 +774,37 @@ def collect_capture(job_dir: Path, trial_dir: Path) -> dict[str, Any]:
         if isinstance(proxy_input, int) and attributed_input is not None
         else None
     )
+    exception = _dict(result.get("exception_info"))
+    exception_type = exception.get("exception_type")
+    orphans = (
+        _ledger_orphans(main + summaries, calls, exception_type)
+        if usage and has_trajectory
+        else None
+    )
     basis = None
     if gap is not None:
         parts = [f"ledger {proxy_input} vs trajectory {attributed_input}"]
+        if orphans:
+            count = orphans["truncated"] + orphans["final"] + orphans["other"]
+            shapes = ", ".join(
+                f"{orphans[name]} {label}"
+                for name, label in (
+                    ("truncated", "truncated at max_tokens and retried"),
+                    ("final", f"final call cut off by {exception_type}"),
+                    ("other", "other"),
+                )
+                if orphans[name]
+            )
+            covered = orphans["input_tokens"]
+            share = (
+                "the whole gap" if covered == gap else f"{covered} of the gap, {gap - covered} left"
+            )
+            parts.append(
+                f"{count} orphan ledger calls with no step ({shapes}) = {covered} input "
+                f"tokens, {share}"
+                if count
+                else "0 orphan ledger calls"
+            )
         if log:
             parts.append(f"{log['overflow_cycles']} overflow cycles")
         if isinstance(unresolved, int):
@@ -739,7 +812,6 @@ def collect_capture(job_dir: Path, trial_dir: Path) -> dict[str, Any]:
         parts.append("failed/unrecorded calls, not missing files")
         basis = "; ".join(parts)
     rollout = (agent_result or {}).get("rollout_details")
-    exception = _dict(result.get("exception_info"))
     return {
         "job_name": job_dir.name,
         "trial_name": trial_dir.name,
@@ -795,6 +867,10 @@ def collect_capture(job_dir: Path, trial_dir: Path) -> dict[str, Any]:
         "proxy_input_tokens": proxy_input if isinstance(proxy_input, int) else None,
         "proxy_output_tokens": proxy_output if isinstance(proxy_output, int) else None,
         "input_tokens_unattributed": gap,
+        "ledger_orphan_truncated_calls": orphans["truncated"] if orphans else None,
+        "ledger_orphan_final_calls": orphans["final"] if orphans else None,
+        "ledger_orphan_other_calls": orphans["other"] if orphans else None,
+        "ledger_orphan_input_tokens": orphans["input_tokens"] if orphans else None,
         "token_gap_basis": basis,
         "schema": TREATMENT_SCHEMA,
     }
@@ -899,6 +975,10 @@ def capture_schema() -> Any:
             ("proxy_input_tokens", integer),
             ("proxy_output_tokens", integer),
             ("input_tokens_unattributed", integer),
+            ("ledger_orphan_truncated_calls", integer),
+            ("ledger_orphan_final_calls", integer),
+            ("ledger_orphan_other_calls", integer),
+            ("ledger_orphan_input_tokens", integer),
             ("token_gap_basis", pa.string()),
             ("schema", pa.string()),
             ("produced_at", pa.string()),

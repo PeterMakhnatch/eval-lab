@@ -49,7 +49,10 @@ def test_run_request_immutability_and_job_timeout(tmp_path: Path) -> None:
         attempts=3,
         timeout_seconds=300,
     )
-    assert req.job_timeout_seconds == 900
+    # The agent gets its full 300 s; the fail-safes add Harbor's setup and
+    # verifier phases so an agent that runs to its timeout is still verified.
+    assert req.trial_watchdog_seconds == 900
+    assert req.job_timeout_seconds == 2_700
     with pytest.raises(AttributeError):
         req.name = "new-name"  # type: ignore[misc]
 

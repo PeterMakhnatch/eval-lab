@@ -54,6 +54,7 @@ from evallab.execution_contracts import (
     parse_tinker_model,
 )
 from evallab.harbor_common import sanitize_native_trajectory
+from evallab.mimo_tool_calls import MimoToolCallParser
 from evallab.terminus_local import OllamaBinding, resolve_ollama_binding
 
 __all__ = ["SecretSafeTerminus2", "apply_mimo_blocklist"]
@@ -374,6 +375,15 @@ class SecretSafeTerminus2(Terminus2):
         # container), or any task exec call.
         if capability is not None and provider is not None:
             os.environ[_PROVIDER_KEY_ENVS[provider]] = capability
+
+    def _get_parser(self) -> Any:
+        # MiMo's native exec_command calls become Terminus commands (HAR-90).
+        # The parser sees normalized text; the chat, trajectory and rollout
+        # details keep the raw model output.
+        parser = super()._get_parser()
+        if self._mimo_selfhosted and self._parser_name == "json":
+            return MimoToolCallParser(parser)
+        return parser
 
 
     async def setup(self, environment: Any) -> None:

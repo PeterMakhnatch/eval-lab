@@ -254,6 +254,93 @@ def test_route_shaping_overrides_requested_sampling(repo: Path, tmp_path: Path) 
     assert requested["treatment_key"] == explicit["treatment_key"]
 
 
+OPENROUTER_PROXY = '''OPENROUTER_PROVIDER_PIN = {"order": ["xiaomi"], "allow_fallbacks": False}
+OPENROUTER_REASONING_PIN = {"enabled": True}
+OPENROUTER_MIMO_FLASH_PRICES = {"xiaomi/mimo-v2.6-flash": (140000, 280000)}
+OPENROUTER_ENDPOINT_PIN = "xiaomi/fp8"
+OPENROUTER_CONTEXT_INPUT_TOKENS = 1048576
+'''
+
+
+def _openrouter_sources(proxy: str = OPENROUTER_PROXY) -> dict[str, str]:
+    sources = _base_sources()
+    sources["containers/zai_openapi_secret_proxy.py"] = proxy
+    return sources
+
+
+def test_openrouter_route_pins_land_in_the_treatment_key(
+    repo: Path, tmp_path: Path
+) -> None:
+    commit = _commit(repo, _openrouter_sources(), "base")
+    row = _row(
+        repo,
+        *_job(
+            tmp_path / "runs",
+            "a",
+            commit,
+            model="openrouter-metered/xiaomi/mimo-v2.6-flash",
+            kwargs={
+                "llm_call_kwargs": {"max_tokens": 4096, "top_p": 0.95},
+                "temperature": 0.6,
+                "proactive_summarization_threshold": 16384,
+            },
+        ),
+    )
+    assert row["complete"]
+    # Serving identity comes from the proxy's OpenRouter pins at the commit.
+    assert json.loads(row["model_revision"]) == {
+        "provider": {"order": ["xiaomi"], "allow_fallbacks": False},
+        "reasoning": {"enabled": True},
+        "prices": {"xiaomi/mimo-v2.6-flash": [140000, 280000]},
+    }
+    assert row["serving_image"] == "xiaomi/fp8"
+    assert row["serving_context_tokens"] == 1048576
+    # Sampling passes through (no forced literals); thinking records the pin.
+    assert (row["temperature"], row["top_p"]) == (0.6, 0.95)
+    assert row["top_k"] == "default"
+    assert row["thinking"] == "reasoning_enabled=true"
+    # HAR-104 keeps the stock parser on this route.
+    assert row["parser_digest"] == "none"
+    # The Harbor-default tree omits trajectory_config: ATIF defaults land in
+    # the harness digest.
+    harness = json.loads(row["harness_config"])
+    assert harness["trajectory_config"] == {"raw_content": False, "linear_history": False}
+
+
+def test_openrouter_pin_change_splits_the_treatment_key(repo: Path, tmp_path: Path) -> None:
+    base = _commit(repo, _openrouter_sources(), "base")
+    repinned = _commit(
+        repo,
+        _openrouter_sources(
+            OPENROUTER_PROXY.replace('"xiaomi/fp8"', '"xiaomi/nightly"')
+        ),
+        "repin endpoint",
+    )
+    a = _row(
+        repo,
+        *_job(
+            tmp_path / "runs",
+            "a",
+            base,
+            model="openrouter-metered/xiaomi/mimo-v2.6-flash",
+        ),
+    )
+    b = _row(
+        repo,
+        *_job(
+            tmp_path / "runs",
+            "b",
+            repinned,
+            model="openrouter-metered/xiaomi/mimo-v2.6-flash",
+        ),
+    )
+    assert a["serving_image"] == "xiaomi/fp8"
+    assert b["serving_image"] == "xiaomi/nightly"
+    assert a["treatment_key"] != b["treatment_key"]
+    check = pool_check([a, b])
+    assert not check.ok and "serving_image" in check.differing
+
+
 def test_dirty_or_missing_evidence_reads_unknown_and_refuses_pooling(
     repo: Path, tmp_path: Path
 ) -> None:

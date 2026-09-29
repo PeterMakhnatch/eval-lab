@@ -76,6 +76,32 @@ ALLOWED_HTTP_HOSTS = frozenset(
 )
 
 # ---------------------------------------------------------------------------
+# OpenRouter route pins (HAR-104). Mirrors OPENROUTER_* in
+# src/evallab/execution_contracts.py — this standalone container script cannot
+# import that module. The treatment key reads these literals back from this
+# file at the run's commit, so they must stay plain assignments.
+
+# The pinned Xiaomi endpoint (tag xiaomi/fp8) serves and prices every call:
+# pinning the serving provider keeps upstream behavior and the per-token price
+# exact, and refuses OpenRouter's fallback pool.
+OPENROUTER_PROVIDER_PIN = {"order": ["xiaomi"], "allow_fallbacks": False}
+# MiMo thinking on, matching the self-hosted MiMo treatment.
+OPENROUTER_REASONING_PIN = {"enabled": True}
+# OpenRouter list price for xiaomi/mimo-v2.6-flash (verified 2026-09-29):
+# $0.14 per 1M input, $0.28 per 1M output (cache read $0.0028/M). The pinned
+# endpoint reports supports_implicit_caching=false, so uncached input pricing
+# is exact; the conservative no-cache-credit rule stays.
+OPENROUTER_MIMO_FLASH_PRICES = {"xiaomi/mimo-v2.6-flash": (140_000, 280_000)}
+OPENROUTER_ENDPOINT_PIN = "xiaomi/fp8"
+OPENROUTER_CONTEXT_INPUT_TOKENS = 1_048_576
+
+# Providers whose forwarding rewrites caller request fields: their ledger
+# calls carry ``shaping_applied`` so downstream accounting can treat the
+# forced values, not the requested ones, as the treatment.
+_SHAPED_PROVIDERS = frozenset({"mimo_selfhosted", "openrouter"})
+
+
+# ---------------------------------------------------------------------------
 # Provider profiles. One metered implementation, pinned per provider: env
 # names, upstream host/path, admitted models, and list prices (USD per 1M
 # tokens, micros). Rates are conservative: every input token is priced as
@@ -197,6 +223,37 @@ PROVIDERS: dict[str, Any] = {
             "top_k",
             "chat_template_kwargs",
         ),
+    },
+    "openrouter": {
+        "label": "OpenRouter",
+        "secret_path_envs": ("EVALLAB_OPENROUTER_SECRET_PATH",),
+        "default_secret_path": Path("/run/secrets/evallab_openrouter_api_key"),
+        "upstream_env": "EVALLAB_OPENROUTER_UPSTREAM",
+        "default_upstream": "https://openrouter.ai",
+        "upstream_path": "/api/v1/chat/completions",
+        "https_host": "openrouter.ai",
+        "capability_env": "EVALLAB_OPENROUTER_PROXY_CAPABILITY",
+        "expires_env": "EVALLAB_OPENROUTER_CAPABILITY_EXPIRES_AT",
+        "attempt_env": "EVALLAB_OPENROUTER_ATTEMPT_ID",
+        "usage_env": "EVALLAB_OPENROUTER_USAGE_FILE",
+        "limit_env_prefix": "EVALLAB_OPENROUTER",
+        # ``openrouter-metered/`` — NOT ``openrouter/``: litellm's
+        # get_llm_provider routes that prefix to its own OpenRouter provider
+        # and would bypass the openai-compatible path this proxy serves. With
+        # the metered prefix and litellm_provider "openai" the selector
+        # resolves to provider "openai" (verified 2026-09-29).
+        "model_prefix": "openrouter-metered/",
+        "allowed_models_env": None,
+        "default_allowed_models": frozenset({"xiaomi/mimo-v2.6-flash"}),
+        "flat_input_price_env": None,
+        "flat_output_price_env": None,
+        "model_prices": dict(OPENROUTER_MIMO_FLASH_PRICES),
+        "expected_base_env": None,
+        "checkpoint_models": False,
+        # The openrouter branch below forces the provider/reasoning pins and
+        # strips caller-supplied provider/reasoning/reasoning_effort on top
+        # of these.
+        "forwarded_fields": ("model", "messages", "temperature", "top_p"),
     },
 }
 
@@ -361,6 +418,10 @@ def _pinned_upstream_url() -> str:
             return f"http://{host}:{port}{upstream_path}"
         raise RuntimeError("upstream scheme is not pinned")
     if parsed.scheme == "https":
+        if parsed.username is not None or parsed.password is not None:
+            # Credentials ride the Authorization header the proxy injects,
+            # never the upstream URL.
+            raise RuntimeError("upstream userinfo is not pinned")
         if parsed.hostname != https_host:
             raise RuntimeError("upstream host is not pinned")
         port = parsed.port or 443
@@ -1203,7 +1264,7 @@ class Handler(BaseHTTPRequestHandler):
                 cost_micros=cost,
                 requested_model=full_model,
                 rates=rates,
-                shaping_applied=_provider_name() == "mimo_selfhosted",
+                shaping_applied=_provider_name() in _SHAPED_PROVIDERS,
             )
         except (OSError, ValueError):
             self._reject(503, b"budget accounting unavailable\n")
@@ -1264,6 +1325,21 @@ class Handler(BaseHTTPRequestHandler):
             forwarded["temperature"] = 0.6
             forwarded["top_p"] = 0.95
             forwarded["top_k"] = 20
+        if _provider_name() == "openrouter":
+            # Proxy-enforced request shaping for the OpenRouter route only.
+            # The provider pin (endpoint tag xiaomi/fp8) fixes which upstream
+            # serves and prices the call — OpenRouter's fallback pool is
+            # refused — and reasoning stays enabled, matching the self-hosted
+            # MiMo treatment. Values mirror OPENROUTER_* in
+            # execution_contracts.py (this standalone script cannot import
+            # it). Caller-supplied provider/reasoning/reasoning_effort — any
+            # of which could reroute or silently disable thinking — are
+            # stripped first.
+            forwarded.pop("provider", None)
+            forwarded.pop("reasoning", None)
+            forwarded.pop("reasoning_effort", None)
+            forwarded["provider"] = dict(OPENROUTER_PROVIDER_PIN)
+            forwarded["reasoning"] = dict(OPENROUTER_REASONING_PIN)
 
         forwarded_body = json.dumps(forwarded, ensure_ascii=False, separators=(",", ":")).encode(
             "utf-8"

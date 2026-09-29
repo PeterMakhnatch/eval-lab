@@ -30,8 +30,10 @@ from evallab.execution_contracts import (
     ZAI_OPENCODE_MODEL_SELECTORS,
     RunRequest,
     is_mimo_selfhosted_model,
+    is_openrouter_model,
     is_tinker_terminus_model,
     parse_mimo_selfhosted_model,
+    parse_openrouter_model,
     parse_tinker_model,
     uses_provider_proxy,
     validate_request,
@@ -287,12 +289,17 @@ def prepare_task(
             # Exactly one self-hosted selector is admitted; anything else
             # under selfhosted/ refuses here.
             parse_mimo_selfhosted_model(model)
+        elif is_openrouter_model(model):
+            # Exactly one OpenRouter selector is admitted; anything else
+            # under openrouter-metered/ refuses here.
+            parse_openrouter_model(model)
         elif model not in ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS | {TERMINUS_LOCAL_MODEL_SELECTOR}:
             raise ValueError(
                 "terminus-2 requires a Z.ai standard-API model "
                 f"{sorted(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)}, a "
                 "'tinker/<base>[@tinker://<run>:train:<i>/sampler_weights/"
-                f"<step>]' selector, the self-hosted MiMo selector, or the "
+                "<step>]' selector, the self-hosted MiMo selector, the "
+                "OpenRouter selector, or the "
                 f"installed local selector {TERMINUS_LOCAL_MODEL_SELECTOR!r}, "
                 f"got {model!r}"
             )
@@ -522,6 +529,8 @@ def replay_task(
             parse_tinker_model(model)
         elif is_mimo_selfhosted_model(model):
             parse_mimo_selfhosted_model(model)
+        elif is_openrouter_model(model):
+            parse_openrouter_model(model)
         elif model not in ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS | {TERMINUS_LOCAL_MODEL_SELECTOR}:
             raise ValueError(
                 "model replay requires a Terminus-admitted model: one of "

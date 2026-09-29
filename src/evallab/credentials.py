@@ -50,6 +50,7 @@ ZAI_OPENCODE_AUTH = "zai_opencode_auth"
 ZAI_OPENAPI_API_CREDENTIAL = "zai_openapi_api_environment"
 TINKER_API_CREDENTIAL = "tinker_api_environment"
 MIMO_SELFHOSTED_API_CREDENTIAL = "mimo_selfhosted_api_environment"
+OPENROUTER_API_CREDENTIAL = "openrouter_api_environment"
 GLM_SELFHOSTED_API_CREDENTIAL = "glm_selfhosted_api_environment"
 LOCAL_OLLAMA_ENDPOINT = "local_ollama_endpoint"
 # Agents whose runs require a credential. Control agents (oracle, nop) are
@@ -81,6 +82,7 @@ _ZAI_MINISWE_PROFILE = _PROFILES["mini-swe-agent-glm-5.3-flash"]
 _GLM_SELFHOSTED_BASE_PROFILE = _PROFILES["glm-selfhosted-base"]
 _GLM_SELFHOSTED_FT_PROFILE = _PROFILES["glm-selfhosted-ft"]
 _TINKER_TERMINUS_PROFILE = _PROFILES["terminus-2-tinker-qwen3-6-35b-a3b"]
+_OPENROUTER_TERMINUS_PROFILE = _PROFILES["terminus-2-openrouter-mimo-v2-6-flash"]
 
 
 def _security_exit_status(args: list[str]) -> int:
@@ -243,6 +245,20 @@ def probe_zai_opencode_auth_result(home: Path | None = None) -> ProbeResult:
     return probe(_ZAI_PROFILE)
 
 
+def probe_openrouter_api() -> bool:
+    return probe_openrouter_api_result().ok
+
+
+def probe_openrouter_api_result(
+    environment: Mapping[str, str] | None = None,
+) -> ProbeResult:
+    probe = EnvironmentPresenceProbe(
+        environment=os.environ if environment is None else environment,
+        names=("OPENROUTER_API_KEY",),
+    )
+    return probe(_OPENROUTER_TERMINUS_PROFILE)
+
+
 def available_credentials(home: Path | None = None) -> frozenset[str]:
     found: set[str] = set()
     if probe_claude_keychain():
@@ -263,6 +279,8 @@ def available_credentials(home: Path | None = None) -> frozenset[str]:
         found.add(TINKER_API_CREDENTIAL)
     if probe_mimo_selfhosted_api():
         found.add(MIMO_SELFHOSTED_API_CREDENTIAL)
+    if probe_openrouter_api():
+        found.add(OPENROUTER_API_CREDENTIAL)
     if probe_glm_selfhosted_api():
         found.add(GLM_SELFHOSTED_API_CREDENTIAL)
     if os.environ.get(TERMINUS_LOCAL_ENDPOINT_ENV):
@@ -286,6 +304,10 @@ def missing_credential_for(
             return None if TINKER_API_CREDENTIAL in available else TINKER_API_CREDENTIAL
         if agent == TERMINUS_AGENT and model.startswith("selfhosted/"):
             return None if MIMO_SELFHOSTED_API_CREDENTIAL in available else MIMO_SELFHOSTED_API_CREDENTIAL
+        if agent == TERMINUS_AGENT and model.startswith("openrouter-metered/"):
+            return (
+                None if OPENROUTER_API_CREDENTIAL in available else OPENROUTER_API_CREDENTIAL
+            )
         if agent == "mini-swe-agent" and (
             model.startswith("glm-selfhosted/") or model.startswith("glm-ft/")
         ):

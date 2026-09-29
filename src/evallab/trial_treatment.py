@@ -60,6 +60,7 @@ NOT_APPLICABLE = "n/a"
 PROVIDER_DEFAULT = "default"
 
 MIMO_SELFHOSTED_PREFIX = "selfhosted/"
+OPENROUTER_PREFIX = "openrouter-metered/"
 PARSER_SOURCE = "src/evallab/mimo_tool_calls.py"
 PROXY_SOURCE = "containers/zai_openapi_secret_proxy.py"
 SERVE_SOURCE = "tools/modal-mimo-serve/serve.py"
@@ -240,6 +241,39 @@ class _Treatment:
         self.fields[name] = _Field(value, source)
 
 
+
+_OPENROUTER_PIN_NAMES = (
+    "OPENROUTER_PROVIDER_PIN",
+    "OPENROUTER_REASONING_PIN",
+    "OPENROUTER_MIMO_FLASH_PRICES",
+    "OPENROUTER_ENDPOINT_PIN",
+    "OPENROUTER_CONTEXT_INPUT_TOKENS",
+)
+
+
+def openrouter_route_pins(proxy_text: str) -> dict[str, Any]:
+    """The OpenRouter pins the proxy forces, as literal values from its source.
+
+    The proxy's OpenRouter branch pins the upstream serving provider
+    (endpoint tag xiaomi/fp8, no fallbacks), keeps reasoning enabled, and
+    prices every call at the pinned list price. Reading the literals back at
+    the run's commit keeps a changed pin from silently pooling trials run
+    under the old one.
+    """
+    wanted = set(_OPENROUTER_PIN_NAMES)
+    pins: dict[str, Any] = {}
+    for node in ast.parse(proxy_text).body:
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name) and target.id in wanted:
+                try:
+                    pins[target.id] = ast.literal_eval(node.value)
+                except ValueError:
+                    continue
+    return pins
+
+
 def _agent_kwargs(config: Mapping[str, Any]) -> dict[str, Any]:
     return dict(_dict(_dict(config.get("agent")).get("kwargs")))
 
@@ -357,6 +391,7 @@ def collect_treatment(job_dir: Path, trial_dir: Path, sources: CommitSources) ->
     llm = _dict(kwargs.get("llm_call_kwargs"))
     no_model = agent_name in NO_MODEL_AGENTS or (agent_path or "") in NO_MODEL_AGENTS or not model
     selfhosted = isinstance(model, str) and model.startswith(MIMO_SELFHOSTED_PREFIX)
+    openrouter = isinstance(model, str) and model.startswith(OPENROUTER_PREFIX)
 
     if no_model:
         for name in (
@@ -374,9 +409,11 @@ def collect_treatment(job_dir: Path, trial_dir: Path, sources: CommitSources) ->
             t.set(name, NOT_APPLICABLE, f"agent {agent_name or agent_path} calls no model")
     else:
         t.set("model", model, "trial config.json agent.model_name")
-        _serving_fields(t, selfhosted, commit, commit_note, sources)
-        _sampling_fields(t, kwargs, llm, selfhosted, lab, commit, commit_note, sources)
-        _parser_field(t, selfhosted, commit, commit_note, sources)
+        _serving_fields(t, selfhosted, openrouter, commit, commit_note, sources)
+        _sampling_fields(
+            t, kwargs, llm, selfhosted, openrouter, lab, commit, commit_note, sources
+        )
+        _parser_field(t, selfhosted, openrouter, commit, commit_note, sources)
 
     harness = harness_config(agent_name, kwargs, job_dir)
     t.set(
@@ -469,8 +506,54 @@ def _task_agent_timeout(trial_dir: Path) -> float | None:
 
 
 def _serving_fields(
-    t: _Treatment, selfhosted: bool, commit: str | None, note: str, sources: CommitSources
+    t: _Treatment,
+    selfhosted: bool,
+    openrouter: bool,
+    commit: str | None,
+    note: str,
+    sources: CommitSources,
 ) -> None:
+    if openrouter:
+        # The OpenRouter route pins its serving identity in the proxy source:
+        # the upstream provider pin (endpoint tag xiaomi/fp8, no fallbacks),
+        # reasoning on, and the pinned list prices. ``model_revision`` carries
+        # all of them as one canonical value so a changed pin splits the key.
+        text = sources.read(commit, PROXY_SOURCE)
+        if not isinstance(text, str):
+            reason = note if text is None else f"unknown: {PROXY_SOURCE} absent {note}"
+            for name in ("model_revision", "serving_image", "serving_context_tokens"):
+                t.set(name, None, reason)
+            return
+        pins = openrouter_route_pins(text)
+        source = f"{PROXY_SOURCE} {note}"
+        provider_pin = pins.get("OPENROUTER_PROVIDER_PIN")
+        reasoning_pin = pins.get("OPENROUTER_REASONING_PIN")
+        prices_pin = pins.get("OPENROUTER_MIMO_FLASH_PRICES")
+        if provider_pin is None or reasoning_pin is None or prices_pin is None:
+            t.set(
+                "model_revision",
+                None,
+                f"unknown: OpenRouter route pins missing from {PROXY_SOURCE} {note}",
+            )
+        else:
+            t.set(
+                "model_revision",
+                _canonical(
+                    {
+                        "provider": provider_pin,
+                        "reasoning": reasoning_pin,
+                        "prices": prices_pin,
+                    }
+                ),
+                source + " OPENROUTER_PROVIDER_PIN/REASONING_PIN/MIMO_FLASH_PRICES",
+            )
+        t.set("serving_image", pins.get("OPENROUTER_ENDPOINT_PIN"), source + " OPENROUTER_ENDPOINT_PIN")
+        t.set(
+            "serving_context_tokens",
+            pins.get("OPENROUTER_CONTEXT_INPUT_TOKENS"),
+            source + " OPENROUTER_CONTEXT_INPUT_TOKENS",
+        )
+        return
     if not selfhosted:
         for name in ("model_revision", "serving_image", "serving_context_tokens"):
             t.set(name, None, "unknown: the route does not record serving pins")
@@ -493,6 +576,7 @@ def _sampling_fields(
     kwargs: Mapping[str, Any],
     llm: Mapping[str, Any],
     selfhosted: bool,
+    openrouter: bool,
     lab: Mapping[str, Any],
     commit: str | None,
     note: str,
@@ -516,6 +600,33 @@ def _sampling_fields(
         if isinstance(call, dict)
     ]
     shaped = bool(calls) and all(call.get("shaping_applied") is True for call in calls)
+    if openrouter:
+        # The OpenRouter proxy forwards caller temperature/top_p verbatim and
+        # forces only the provider/reasoning pins; sampling values stay the
+        # agent kwargs, and thinking records the forced reasoning pin once
+        # every ledger call is shaped.
+        for name, value in requested.items():
+            t.set(
+                name,
+                value if value is not None else PROVIDER_DEFAULT,
+                "agent kwargs (OpenRouter forwards temperature/top_p verbatim)",
+            )
+        text = sources.read(commit, PROXY_SOURCE)
+        pins = openrouter_route_pins(text) if isinstance(text, str) else {}
+        reasoning_pin = pins.get("OPENROUTER_REASONING_PIN")
+        if not calls:
+            t.set("thinking", None, "unknown: OpenRouter route without a proxy ledger")
+        elif shaped and isinstance(reasoning_pin, dict) and reasoning_pin.get("enabled") is True:
+            t.set(
+                "thinking",
+                "reasoning_enabled=true",
+                f"proxy shaping {PROXY_SOURCE} {note} (every ledger call shaping_applied)",
+            )
+        elif not isinstance(text, str):
+            t.set("thinking", None, f"unknown: proxy shaping code {note}")
+        else:
+            t.set("thinking", thinking, "agent kwargs (reasoning pin not observed)")
+        return
     if not selfhosted or not shaped:
         reason = (
             "agent kwargs (no route shaping)"
@@ -550,8 +661,23 @@ def _sampling_fields(
 
 
 def _parser_field(
-    t: _Treatment, selfhosted: bool, commit: str | None, note: str, sources: CommitSources
+    t: _Treatment,
+    selfhosted: bool,
+    openrouter: bool,
+    commit: str | None,
+    note: str,
+    sources: CommitSources,
 ) -> None:
+    if openrouter:
+        # HAR-104 keeps the stock Terminus JSON parser on this route; whether
+        # MiMo's native tool-call wrappers need a normalizer is decided from
+        # the proof run's raw outputs, not preset here.
+        t.set(
+            "parser_digest",
+            "none",
+            "OpenRouter route keeps the stock Terminus JSON parser",
+        )
+        return
     if not selfhosted:
         t.set("parser_digest", "none", "route has no tool-call normalizer")
         return

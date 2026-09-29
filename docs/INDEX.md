@@ -57,7 +57,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:4c4f2128c6f633fd79373b1377c1ac7d206b416e6e8374380e280647e0798863
+    digest: sha256:9759d8526469bc23b9ae2c981bcaefb4e3c4a988d8f8638437fd560cfc39e2ad
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md
@@ -121,7 +121,7 @@ inputs:
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
   - path: docs/trial-treatment.md
-    digest: sha256:c5d7fe39ddb423bca9bdb89a6657a4dd6bd8e570839db42626f0c6d7c479068d
+    digest: sha256:ee00f5bf1819589fd4d6431c32a68712e36ddb4a1185b0a529d0ee366251ce98
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md

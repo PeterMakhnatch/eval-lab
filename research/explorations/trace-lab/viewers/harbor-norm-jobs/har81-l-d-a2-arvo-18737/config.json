@@ -1,0 +1,37 @@
+{
+    "job_name": "har81-l-d-a2-arvo-18737",
+    "jobs_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs",
+    "agent_timeout_multiplier": 1.0,
+    "n_concurrent_trials": 1,
+    "environment": {
+        "import_path": "evallab.harbor_daytona:BoundedDaytonaEnvironment",
+        "override_storage_mb": 10240,
+        "kwargs": {
+            "ttl_minutes": 70
+        }
+    },
+    "agents": [
+        {
+            "name": "evallab.harbor_terminus:SecretSafeTerminus2",
+            "model_name": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+            "n_concurrent": 1,
+            "kwargs": {
+                "llm_call_kwargs": {
+                    "max_tokens": 4096,
+                    "top_p": 0.95
+                },
+                "proactive_summarization_threshold": 16384,
+                "temperature": 0.6,
+                "trajectory_config": {
+                    "raw_content": true,
+                    "linear_history": true
+                }
+            }
+        }
+    ],
+    "tasks": [
+        {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/.exec-stage/har81-l-d-a2-arvo-18737"
+        }
+    ]
+}

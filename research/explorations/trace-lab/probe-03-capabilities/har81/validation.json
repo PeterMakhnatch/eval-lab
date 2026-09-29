@@ -1,0 +1,168 @@
+{
+  "compared": 44,
+  "counts": {
+    "tag": {
+      "agree": 43,
+      "total": 44
+    },
+    "attribution": {
+      "agree": 43,
+      "total": 44
+    },
+    "stop": {
+      "agree": 44,
+      "total": 44
+    },
+    "rule": {
+      "agree": 43,
+      "total": 44
+    }
+  },
+  "disagreements": [
+    {
+      "job": "har81-l-d-a3-candidate-1789-security-appsec",
+      "tagger": {
+        "tag": "environment",
+        "attribution": "harness",
+        "stop": "ceiling:input_tokens",
+        "rule": "R-ENV-02"
+      },
+      "hand": {
+        "tag": "planning",
+        "attribution": "model",
+        "stop": "ceiling:input_tokens",
+        "rule": "R-PLAN-01"
+      },
+      "agree": {
+        "tag": false,
+        "attribution": false,
+        "stop": true,
+        "rule": false
+      },
+      "mechanism": "Model chased the bandit env failure (pip install stevedore head#7, dist-info fabrication) instead of editing task sources, then looped 91x identical 'ls site-packages | grep bandit' (head#25-115) to ceiling; verifier shows setup errors plus the genuine missing /app deliverable."
+    }
+  ],
+  "hand_key": [
+    "validation/har81-wave-a.hand-key.jsonl",
+    "validation/har81-holdout.hand-key.jsonl",
+    "validation/har81-holdout2.hand-key.jsonl",
+    "validation/har81-late.hand-key.jsonl"
+  ],
+  "sets": [
+    {
+      "hand_key": "validation/har81-wave-a.hand-key.jsonl",
+      "compared": 17,
+      "counts": {
+        "tag": {
+          "agree": 17,
+          "total": 17
+        },
+        "attribution": {
+          "agree": 17,
+          "total": 17
+        },
+        "stop": {
+          "agree": 17,
+          "total": 17
+        },
+        "rule": {
+          "agree": 17,
+          "total": 17
+        }
+      },
+      "disagreements": []
+    },
+    {
+      "hand_key": "validation/har81-holdout.hand-key.jsonl",
+      "compared": 11,
+      "counts": {
+        "tag": {
+          "agree": 10,
+          "total": 11
+        },
+        "attribution": {
+          "agree": 10,
+          "total": 11
+        },
+        "stop": {
+          "agree": 11,
+          "total": 11
+        },
+        "rule": {
+          "agree": 10,
+          "total": 11
+        }
+      },
+      "disagreements": [
+        {
+          "job": "har81-l-d-a3-candidate-1789-security-appsec",
+          "tagger": {
+            "tag": "environment",
+            "attribution": "harness",
+            "stop": "ceiling:input_tokens",
+            "rule": "R-ENV-02"
+          },
+          "hand": {
+            "tag": "planning",
+            "attribution": "model",
+            "stop": "ceiling:input_tokens",
+            "rule": "R-PLAN-01"
+          },
+          "agree": {
+            "tag": false,
+            "attribution": false,
+            "stop": true,
+            "rule": false
+          },
+          "mechanism": "Model chased the bandit env failure (pip install stevedore head#7, dist-info fabrication) instead of editing task sources, then looped 91x identical 'ls site-packages | grep bandit' (head#25-115) to ceiling; verifier shows setup errors plus the genuine missing /app deliverable."
+        }
+      ]
+    },
+    {
+      "hand_key": "validation/har81-holdout2.hand-key.jsonl",
+      "compared": 14,
+      "counts": {
+        "tag": {
+          "agree": 14,
+          "total": 14
+        },
+        "attribution": {
+          "agree": 14,
+          "total": 14
+        },
+        "stop": {
+          "agree": 14,
+          "total": 14
+        },
+        "rule": {
+          "agree": 14,
+          "total": 14
+        }
+      },
+      "disagreements": []
+    },
+    {
+      "hand_key": "validation/har81-late.hand-key.jsonl",
+      "compared": 2,
+      "counts": {
+        "tag": {
+          "agree": 2,
+          "total": 2
+        },
+        "attribution": {
+          "agree": 2,
+          "total": 2
+        },
+        "stop": {
+          "agree": 2,
+          "total": 2
+        },
+        "rule": {
+          "agree": 2,
+          "total": 2
+        }
+      },
+      "disagreements": []
+    }
+  ]
+}

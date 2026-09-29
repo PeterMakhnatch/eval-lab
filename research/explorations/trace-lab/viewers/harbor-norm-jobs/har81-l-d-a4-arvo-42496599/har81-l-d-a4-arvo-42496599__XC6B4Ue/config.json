@@ -1,0 +1,33 @@
+{
+    "task": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/.exec-stage/har81-l-d-a4-arvo-42496599"
+    },
+    "trial_name": "har81-l-d-a4-arvo-42496599__XC6B4Ue",
+    "trials_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a4-arvo-42496599",
+    "agent_timeout_multiplier": 1.0,
+    "agent": {
+        "name": "evallab.harbor_terminus:SecretSafeTerminus2",
+        "model_name": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+        "n_concurrent": 1,
+        "kwargs": {
+            "llm_call_kwargs": {
+                "max_tokens": 4096,
+                "top_p": 0.95
+            },
+            "proactive_summarization_threshold": 16384,
+            "temperature": 0.6,
+            "trajectory_config": {
+                "raw_content": true,
+                "linear_history": true
+            }
+        }
+    },
+    "environment": {
+        "import_path": "evallab.harbor_daytona:BoundedDaytonaEnvironment",
+        "override_storage_mb": 10240,
+        "kwargs": {
+            "ttl_minutes": 70
+        }
+    },
+    "job_id": "695c3437-e855-412c-b8b7-6997d45de939"
+}

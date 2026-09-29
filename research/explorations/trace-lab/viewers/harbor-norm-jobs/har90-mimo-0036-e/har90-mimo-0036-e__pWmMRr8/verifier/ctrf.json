@@ -1,0 +1,74 @@
+{
+    "reportFormat": "CTRF",
+    "specVersion": "0.0.0",
+    "timestamp": "2026-09-29T02:53:45.421319+00:00",
+    "generatedBy": "pytest",
+    "results": {
+        "tool": {
+            "name": "pytest",
+            "version": "9.1.1"
+        },
+        "summary": {
+            "tests": 5,
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0,
+            "pending": 0,
+            "other": 0,
+            "start": 1790650425303,
+            "stop": 1790650425421
+        },
+        "environment": {
+            "buildName": "Pytest JSON CTRF Report",
+            "buildNumber": "000",
+            "buildUrl": "https://ctrf.io"
+        },
+        "tests": [
+            {
+                "name": "test_outputs.py::test_gate_source_tree_and_report_contract",
+                "status": "passed",
+                "duration": 1,
+                "start": 1790650425321,
+                "stop": 1790650425322,
+                "retries": 0,
+                "file_path": "test_outputs.py"
+            },
+            {
+                "name": "test_outputs.py::test_core_independent_touch_and_wildcard_recompute",
+                "status": "passed",
+                "duration": 1,
+                "start": 1790650425322,
+                "stop": 1790650425323,
+                "retries": 0,
+                "file_path": "test_outputs.py"
+            },
+            {
+                "name": "test_outputs.py::test_core_independent_non_touch_flags_recompute",
+                "status": "passed",
+                "duration": 0,
+                "start": 1790650425323,
+                "stop": 1790650425323,
+                "retries": 0,
+                "file_path": "test_outputs.py"
+            },
+            {
+                "name": "test_outputs.py::test_edge_constraint_and_downstream_replay",
+                "status": "passed",
+                "duration": 97,
+                "start": 1790650425323,
+                "stop": 1790650425420,
+                "retries": 0,
+                "file_path": "test_outputs.py"
+            },
+            {
+                "name": "test_outputs.py::test_edge_all_categories_are_derived_from_expanded_item",
+                "status": "passed",
+                "duration": 1,
+                "start": 1790650425420,
+                "stop": 1790650425421,
+                "retries": 0,
+                "file_path": "test_outputs.py"
+            }
+        ]
+    }
+}

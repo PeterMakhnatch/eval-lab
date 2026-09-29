@@ -1,0 +1,64 @@
+{
+  "scan_id": "WeuebA7h4i7aMnq6d525mH",
+  "scan_name": "har90-mimo-scout",
+  "timestamp": "2026-09-29T00:41:31.357651-04:00",
+  "tags": [
+    "har90",
+    "mimo",
+    "no-llm"
+  ],
+  "revision": {
+    "type": "git",
+    "origin": "git@github.com:PeterMakhnatch/research-context.git",
+    "version": "0.0.0-dev.0+unknown",
+    "commit": "742ec6e"
+  },
+  "packages": {
+    "inspect_ai": "0.3.272",
+    "inspect_scout": "0.5.3"
+  },
+  "options": {
+    "max_transcripts": 25,
+    "max_processes": 4
+  },
+  "transcripts": {
+    "type": "database",
+    "location": "./data/transcripts",
+    "filter": [],
+    "transcript_ids": {
+      "5b93b2cd-bcf0-4357-9524-734204ced556-trajectory.cont-31": "transcripts_20260929T043821_ba34537d.parquet",
+      "0558608a-02c6-4d95-b21c-304ebbf9f3fc-trajectory": "transcripts_20260929T043801_e9679aaf.parquet",
+      "6e24b37b-873b-4678-b635-0425e857c0d8-summarization-11-summary-trajectory.summarization-11-summary": "transcripts_20260929T043819_a3aafd5f.parquet",
+      "735fbba2-83bb-40a9-bb77-468498e58fad-trajectory": "transcripts_20260929T043805_02230a11.parquet",
+      "15b917c6-e5b1-42a9-8b30-342d3241cc09-trajectory": "transcripts_20260929T043811_31c71111.parquet",
+      "5caa86c6-b573-4d65-9759-e5ca8f8320fa-trajectory": "transcripts_20260929T043803_aa18e085.parquet",
+      "6e24b37b-873b-4678-b635-0425e857c0d8-trajectory.cont-11": "transcripts_20260929T043819_a3aafd5f.parquet",
+      "b2fab56f-cc9d-4c2d-ad50-7dd46eaca313-trajectory": "transcripts_20260929T043812_60abdc85.parquet",
+      "5b93b2cd-bcf0-4357-9524-734204ced556-trajectory": "transcripts_20260929T043821_ba34537d.parquet",
+      "6e24b37b-873b-4678-b635-0425e857c0d8-summarization-1-questions-trajectory.summarization-1-questions": "transcripts_20260929T043819_a3aafd5f.parquet",
+      "082714c8-5603-40c7-9d74-60d6afca667b-trajectory": "transcripts_20260929T043809_b0f0eb0a.parquet",
+      "6e24b37b-873b-4678-b635-0425e857c0d8-summarization-1-summary-trajectory.summarization-1-summary": "transcripts_20260929T043819_a3aafd5f.parquet"
+    },
+    "count": 0
+  },
+  "scanners": {
+    "repeated_assistant_message": {
+      "name": "repeated_assistant_message",
+      "version": 0,
+      "file": "scanners.py",
+      "params": {}
+    },
+    "harness_parse_errors": {
+      "name": "harness_parse_errors",
+      "version": 0,
+      "file": "scanners.py",
+      "params": {}
+    },
+    "native_tool_call_markup": {
+      "name": "native_tool_call_markup",
+      "version": 0,
+      "file": "scanners.py",
+      "params": {}
+    }
+  }
+}

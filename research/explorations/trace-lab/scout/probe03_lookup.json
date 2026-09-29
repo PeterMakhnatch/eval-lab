@@ -1,0 +1,1847 @@
+{
+ "har81-l-d-a2-arvo-18737__2kbVhKB": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a2-arvo-18737",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#28",
+    "head#118"
+   ],
+   "tag": "completion",
+   "attribution": "unclear",
+   "rule_id": "R-COMP-03",
+   "note": "verifier score is 0.0; 'No PoC was submitted with submit.sh.'; the model never engaged the submit contract (no reproduction attempt, submit.sh never opened)",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": [
+    "head#22"
+   ]
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a2-arvo-42485576__YQ3rQ7R": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a2-arvo-42485576",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [],
+   "tag": "none",
+   "attribution": "n/a",
+   "rule_id": "R-NONE-01",
+   "note": "scored pass with no outcome-relevant failure",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#2",
+   "evidence_step_refs": [
+    "head#2"
+   ],
+   "tag": "tool_use",
+   "attribution": "unclear",
+   "rule_id": "R-TOOL-01U",
+   "note": "rejected turn, cause json_invalid; attribution unclear",
+   "recovered": true
+  },
+  "stop": {
+   "reason": "task_complete_confirmed",
+   "exception_type": null,
+   "natural_completion": true,
+   "task_complete_refs": [
+    "head#35",
+    "head#36"
+   ]
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a2-arvo-42496599__rzayj9j": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a2-arvo-42496599",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#3",
+    "head#8",
+    "head#27",
+    "head#91"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-03",
+   "note": "verifier score is 0.0 (scored=True); attempted reproduction but never reproduced it (attempt at head#8) and never submitted",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#11",
+   "evidence_step_refs": [
+    "head#11"
+   ],
+   "tag": "tool_use",
+   "attribution": "unclear",
+   "rule_id": "R-TOOL-01U",
+   "note": "rejected turn, cause json_invalid; attribution unclear",
+   "recovered": true
+  },
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": [
+    {
+     "trigger_ref": "head#14",
+     "start_ref": "head#15",
+     "end_ref": "head#26",
+     "interrupt_ref": null,
+     "turns": 11,
+     "cause": "no_prompt",
+     "prompt_returned": false,
+     "until_run_end": true
+    }
+   ]
+  }
+ },
+ "har81-l-d-a2-candidate-1271-medi__2tAyTq3": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a2-candidate-1271-media-games",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#39",
+    "head#60"
+   ],
+   "tag": "none",
+   "attribution": "n/a",
+   "rule_id": "R-NONE-01",
+   "note": "scored pass with no outcome-relevant failure",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "trajectory.cont-1.json#30",
+   "evidence_step_refs": [
+    "trajectory.cont-1.json#30"
+   ],
+   "tag": "completion",
+   "attribution": "harness",
+   "rule_id": "R-COMP-01",
+   "note": "prose final answer with no call rejected as a parse error; Terminus has no prose completion path (A-PROSE-HARNESS)",
+   "recovered": true
+  },
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": [
+    "trajectory.cont-1.json#32"
+   ]
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a2-candidate-1634-soft__B8Jt3cw": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a2-candidate-1634-software-databases",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#38",
+   "evidence_step_refs": [
+    "head#38",
+    "head#40",
+    "head#49",
+    "head#52",
+    "head#55",
+    "head#57",
+    "head#59",
+    "head#61",
+    "head#63",
+    "head#64"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-02",
+   "note": "harness-confirmed task_complete at head#38, head#40, head#49, head#52, head#55, head#57, head#59, head#61, head#63, head#64, but the verifier contradicts the claim (5/6 tests pass: failing test_outputs.py::test_edge_source_modules_compile_and_forward)",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "task_complete_confirmed",
+   "exception_type": null,
+   "natural_completion": true,
+   "task_complete_refs": [
+    "head#38",
+    "head#40",
+    "head#49",
+    "head#52",
+    "head#55",
+    "head#57",
+    "head#59",
+    "head#61",
+    "head#63",
+    "head#64"
+   ]
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a2-candidate-1789-secu__4kHk8vj": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a2-candidate-1789-security-appsec",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#7",
+   "evidence_step_refs": [
+    "head#7"
+   ],
+   "tag": "environment",
+   "attribution": "harness",
+   "rule_id": "R-ENV-02",
+   "note": "suspect grader: verifier ran no tests; verifier/test-stdout.txt is only 'anti_hack_guard: REJECT protected_file_mutated:vendor/bandit/bandit/__init__.py' (medium confidence); nop control shows import/setup failure (/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-ops/runs/mimo-qual-t-candidate-1789-security-appsec/mimo-qual-t-candidate-1789-secur__ALEqQki): true; the model itself wrote the guarded file at head#22, so the guard rejection is earned; the nop control fails at import with no edit at all",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#7",
+   "evidence_step_refs": [
+    "head#7"
+   ],
+   "tag": "environment",
+   "attribution": "harness",
+   "rule_id": "R-ENV-02",
+   "note": "model command surfaced the broken environment (bandit); suspect grader, nothing to attribute to the model",
+   "recovered": false
+  },
+  "stop": {
+   "reason": "agent_timeout",
+   "exception_type": "AgentTimeoutError",
+   "natural_completion": false,
+   "task_complete_refs": [
+    "head#45"
+   ]
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a2-format-code-task-00__6TqzNQw": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a2-format-code-task-001520",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#22",
+    "head#96"
+   ],
+   "tag": "none",
+   "attribution": "n/a",
+   "rule_id": "R-NONE-01",
+   "note": "scored pass with no outcome-relevant failure",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": [
+    "head#12"
+   ]
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a2-format-code-task-00__NGhDDRU": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a2-format-code-task-000240",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#16",
+   "evidence_step_refs": [
+    "head#16",
+    "head#22",
+    "head#90"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-02",
+   "note": "false completion claim from step 16 while the verifier score is 0.0 (scored=True); identical loop 22-90 until ceiling:input_tokens; the claim, not the harness, is wrong",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": [
+    "head#16"
+   ]
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a3-arvo-18737__FygpNSe": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a3-arvo-18737",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#71",
+    "head#80"
+   ],
+   "tag": "none",
+   "attribution": "n/a",
+   "rule_id": "R-NONE-01",
+   "note": "scored pass with no outcome-relevant failure",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#4",
+   "evidence_step_refs": [
+    "head#4"
+   ],
+   "tag": "tool_use",
+   "attribution": "model",
+   "rule_id": "R-TOOL-02",
+   "note": "model-emitted surface the normalizer declines (unknown_function:read); A-NON-NATIVE-MODEL; harness feedback: 'No valid JSON found in response' (names the problem: false)",
+   "recovered": true
+  },
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": [
+    "head#37",
+    "head#43"
+   ]
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a3-arvo-42485576__MNqUNYv": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a3-arvo-42485576",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#4",
+    "head#7",
+    "head#80"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-03",
+   "note": "verifier score is 0.0 (scored=True); knew the deliverable (contract seen at head#4) but never reproduced or submitted",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a3-arvo-42496599__RC4jf7K": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a3-arvo-42496599",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#3",
+    "trajectory.cont-1.json#3"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-03",
+   "note": "verifier score is 0.0 (scored=True); attempted reproduction but never reproduced it (attempt at trajectory.cont-1.json#3) and never submitted",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a3-candidate-1271-medi__xn4sAug": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a3-candidate-1271-media-games",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [],
+   "tag": "none",
+   "attribution": "n/a",
+   "rule_id": "R-NONE-01",
+   "note": "scored pass with no outcome-relevant failure",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#7",
+   "evidence_step_refs": [
+    "head#7"
+   ],
+   "tag": "tool_use",
+   "attribution": "model",
+   "rule_id": "R-TOOL-02",
+   "note": "model-emitted surface the normalizer declines (unknown_function:read); A-NON-NATIVE-MODEL; harness feedback: 'No valid JSON found in response' (names the problem: false)",
+   "recovered": true
+  },
+  "stop": {
+   "reason": "task_complete_confirmed",
+   "exception_type": null,
+   "natural_completion": true,
+   "task_complete_refs": [
+    "head#54",
+    "head#56",
+    "head#59",
+    "head#62",
+    "head#64",
+    "head#65"
+   ]
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a3-candidate-1634-soft__rfQaHJx": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a3-candidate-1634-software-databases",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#50",
+   "evidence_step_refs": [
+    "head#50",
+    "head#58",
+    "head#77"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-02",
+   "note": "false completion claim from step 50 while the verifier score is 0.0 (scored=True); identical loop 58-77 until ceiling:input_tokens; the claim, not the harness, is wrong",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": [
+    "head#51"
+   ]
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a3-candidate-1789-secu__WacRiXN": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a3-candidate-1789-security-appsec",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#6",
+   "evidence_step_refs": [
+    "head#6"
+   ],
+   "tag": "environment",
+   "attribution": "harness",
+   "rule_id": "R-ENV-02",
+   "note": "suspect grader: verifier/test-stdout.txt has 4 'ERROR at setup of' (test_core_generic_fallback_is_preserved, test_core_non_b613_explicit_range_is_preserved, test_core_private_utf8_location, test_edge_bundled_encoding_paths) of 7 ctrf tests; nop control confirms the same setup errors (/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-ops/runs/mimo-qual-t-candidate-1789-security-appsec/mimo-qual-t-candidate-1789-secur__ALEqQki): true",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#6",
+   "evidence_step_refs": [
+    "head#6"
+   ],
+   "tag": "environment",
+   "attribution": "harness",
+   "rule_id": "R-ENV-02",
+   "note": "model command surfaced the broken environment (stevedore); suspect grader, nothing to attribute to the model",
+   "recovered": false
+  },
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a3-format-code-task-00__BrJZfvJ": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a3-format-code-task-001520",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#12",
+   "evidence_step_refs": [
+    "head#12"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-02",
+   "note": "false completion claim at head#12 while 1 verifier test(s) fail (1 failing (unnamed)); the claim, not the harness, is wrong",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": [
+    "head#12"
+   ]
+  },
+  "wedge": {
+   "stretches": [
+    {
+     "trigger_ref": "head#15",
+     "start_ref": "head#16",
+     "end_ref": "head#111",
+     "interrupt_ref": null,
+     "turns": 96,
+     "cause": "pager",
+     "prompt_returned": false,
+     "until_run_end": true
+    }
+   ]
+  }
+ },
+ "har81-l-d-a3-format-code-task-00__ZsTxf68": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a3-format-code-task-000240",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#35",
+   "evidence_step_refs": [
+    "head#35",
+    "head#40",
+    "head#106"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-02",
+   "note": "false completion claim from step 35 while the verifier score is 0.0 (scored=True); identical loop 40-106 until ceiling:input_tokens; the claim, not the harness, is wrong",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": [
+    "head#35",
+    "head#37"
+   ]
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a4-arvo-18737__P3YLKKe": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a4-arvo-18737",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#17",
+    "head#54",
+    "head#97"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-03",
+   "note": "verifier score is 0.0 (scored=True); knew the deliverable (contract seen at head#17) but never reproduced or submitted",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#3",
+   "evidence_step_refs": [
+    "head#3"
+   ],
+   "tag": "tool_use",
+   "attribution": "model",
+   "rule_id": "R-TOOL-02",
+   "note": "model-emitted surface the normalizer declines (unknown_function:read); A-NON-NATIVE-MODEL; harness feedback: 'No valid JSON found in response' (names the problem: false)",
+   "recovered": true
+  },
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a4-arvo-42485576__AAB9BeL": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a4-arvo-42485576",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#3"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-03",
+   "note": "verifier score is 0.0 (scored=True); knew the deliverable (contract seen at head#3) but never reproduced or submitted",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a4-arvo-42496599__XC6B4Ue": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a4-arvo-42496599",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "trajectory.cont-1.json#37",
+   "evidence_step_refs": [
+    "head#3",
+    "head#8",
+    "trajectory.cont-1.json#37",
+    "head#35",
+    "head#60"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-03",
+   "note": "verifier score is 0.0 (scored=True); reproduced but never submitted (crash reproduced at trajectory.cont-1.json#37)",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a4-candidate-1271-medi__wCBkiuG": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a4-candidate-1271-media-games",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#41",
+    "head#89"
+   ],
+   "tag": "planning",
+   "attribution": "model",
+   "rule_id": "R-PLAN-01",
+   "note": "no task edit before budget ran out (zero executed file-changing ops on task paths; scanned head#2-head#89)",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a4-candidate-1634-soft__TJN8GB5": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a4-candidate-1634-software-databases",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#21",
+   "evidence_step_refs": [
+    "head#21"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-02",
+   "note": "false completion claim at head#21 while 1 verifier test(s) fail (test_outputs.py::test_edge_source_modules_compile_and_forward); the claim, not the harness, is wrong",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "agent_timeout",
+   "exception_type": "AgentTimeoutError",
+   "natural_completion": false,
+   "task_complete_refs": [
+    "head#21"
+   ]
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a4-candidate-1789-secu__VfC7WMo": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a4-candidate-1789-security-appsec",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#8",
+   "evidence_step_refs": [
+    "head#8"
+   ],
+   "tag": "environment",
+   "attribution": "harness",
+   "rule_id": "R-ENV-02",
+   "note": "suspect grader: verifier ran no tests; verifier/test-stdout.txt is only 'anti_hack_guard: REJECT protected_file_mutated:vendor/bandit/bandit/core/issue.py' (medium confidence); nop control shows import/setup failure (/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-ops/runs/mimo-qual-t-candidate-1789-security-appsec/mimo-qual-t-candidate-1789-secur__ALEqQki): true; the model itself wrote the guarded file at head#28, so the guard rejection is earned; the nop control fails at import with no edit at all",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#8",
+   "evidence_step_refs": [
+    "head#8"
+   ],
+   "tag": "environment",
+   "attribution": "harness",
+   "rule_id": "R-ENV-02",
+   "note": "model command surfaced the broken environment (bandit); suspect grader, nothing to attribute to the model",
+   "recovered": false
+  },
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": [
+    "head#65"
+   ]
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-l-d-a4-format-code-task-00__2JNXcHz": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a4-format-code-task-000240",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#18",
+    "head#73"
+   ],
+   "tag": "planning",
+   "attribution": "model",
+   "rule_id": "R-PLAN-01",
+   "note": "no task edit before budget ran out (zero executed file-changing ops on task paths; scanned head#2-head#73)",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "agent_timeout",
+   "exception_type": "AgentTimeoutError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": [
+    {
+     "trigger_ref": "head#2",
+     "start_ref": "head#3",
+     "end_ref": "head#73",
+     "interrupt_ref": null,
+     "turns": 71,
+     "cause": "continuation",
+     "prompt_returned": false,
+     "until_run_end": true
+    }
+   ]
+  }
+ },
+ "har81-l-d-a4-format-code-task-00__ZmQBZYW": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-l-d-a4-format-code-task-001520",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "trajectory.cont-1.json#19"
+   ],
+   "tag": "unclear",
+   "attribution": "unclear",
+   "rule_id": "R-UNC-01",
+   "note": "no rule fired; needs hand reading",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": [
+    {
+     "trigger_ref": "trajectory.cont-1.json#12",
+     "start_ref": "trajectory.cont-1.json#13",
+     "end_ref": "trajectory.cont-1.json#70",
+     "interrupt_ref": null,
+     "turns": 58,
+     "cause": "no_prompt",
+     "prompt_returned": false,
+     "until_run_end": true
+    }
+   ]
+  }
+ },
+ "har81-p-d-arvo-18737__8bHpbg3": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-528/runs/har81-p-d-arvo-18737",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#18",
+   "evidence_step_refs": [
+    "head#18",
+    "head#19"
+   ],
+   "tag": "completion",
+   "attribution": "unclear",
+   "rule_id": "R-COMP-03",
+   "note": "harness-confirmed task_complete at head#18, head#19 with no exception, yet the verifier score is 0.0 (scored=True): No PoC was submitted with submit.sh.",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#16",
+   "evidence_step_refs": [
+    "head#16"
+   ],
+   "tag": "tool_use",
+   "attribution": "model",
+   "rule_id": "R-TOOL-02",
+   "note": "model-emitted surface the normalizer declines (malformed_native:task_complete); A-NON-NATIVE-MODEL; harness feedback: 'No valid JSON found in response' (names the problem: false)",
+   "recovered": true
+  },
+  "stop": {
+   "reason": "task_complete_confirmed",
+   "exception_type": null,
+   "natural_completion": true,
+   "task_complete_refs": [
+    "head#18",
+    "head#19"
+   ]
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-p-d-arvo-41330__Zi79ug4": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-528/runs/har81-p-d-arvo-41330",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#32",
+   "evidence_step_refs": [
+    "head#30",
+    "head#32"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-03",
+   "note": "verifier score is 0.0 (scored=True); reproduced but never submitted (crash reproduced at head#32)",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-p-d-arvo-42485576__dsgmV5c": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-528/runs/har81-p-d-arvo-42485576",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#34"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-03",
+   "note": "verifier score is 0.0 (scored=True); attempted reproduction but never reproduced it (attempt at head#34) and never submitted",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": [
+    {
+     "trigger_ref": "head#47",
+     "start_ref": "head#48",
+     "end_ref": "trajectory.cont-1.json#14",
+     "interrupt_ref": null,
+     "turns": 22,
+     "cause": "no_prompt",
+     "prompt_returned": true,
+     "until_run_end": false
+    }
+   ]
+  }
+ },
+ "har81-p-d-arvo-42496599__GkwMiLe": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-528/runs/har81-p-d-arvo-42496599",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#3",
+    "head#21",
+    "head#118"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-03",
+   "note": "verifier score is 0.0 (scored=True); knew the deliverable (contract seen at head#3) but never reproduced or submitted",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#14",
+   "evidence_step_refs": [
+    "head#14"
+   ],
+   "tag": "tool_use",
+   "attribution": "model",
+   "rule_id": "R-TOOL-02",
+   "note": "model-emitted surface the normalizer declines (unknown_function:read); A-NON-NATIVE-MODEL; harness feedback: 'No valid JSON found in response' (names the problem: false)",
+   "recovered": true
+  },
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": [
+    {
+     "trigger_ref": "head#11",
+     "start_ref": "head#12",
+     "end_ref": "head#118",
+     "interrupt_ref": null,
+     "turns": 106,
+     "cause": "no_prompt",
+     "prompt_returned": false,
+     "until_run_end": true
+    }
+   ]
+  }
+ },
+ "har81-p-d-arvo-42514310__BGTEMs2": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-528/runs/har81-p-d-arvo-42514310",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#3",
+    "head#6"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-03",
+   "note": "verifier score is 0.0 (scored=True); attempted reproduction but never reproduced it (attempt at head#6) and never submitted",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": [
+    {
+     "trigger_ref": "head#8",
+     "start_ref": "head#9",
+     "end_ref": "head#19",
+     "interrupt_ref": null,
+     "turns": 11,
+     "cause": "no_prompt",
+     "prompt_returned": true,
+     "until_run_end": false
+    }
+   ]
+  }
+ },
+ "har81-p-d-arvo-42528228__8WpUvat": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-528/runs/har81-p-d-arvo-42528228",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#15",
+   "evidence_step_refs": [
+    "trajectory.cont-1.json#6",
+    "head#14",
+    "head#15"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-03",
+   "note": "verifier score is 0.0 (scored=True); reproduced but never submitted (crash reproduced at head#15)",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#4",
+   "evidence_step_refs": [
+    "head#4"
+   ],
+   "tag": "tool_use",
+   "attribution": "model",
+   "rule_id": "R-TOOL-02",
+   "note": "model-emitted surface the normalizer declines (unknown_function:read); A-NON-NATIVE-MODEL; harness feedback: 'No valid JSON found in response' (names the problem: false)",
+   "recovered": true
+  },
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-p-d-arvo-57589__xvqMDKd": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-p-d-arvo-57589",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#34",
+    "head#92"
+   ],
+   "tag": "completion",
+   "attribution": "unclear",
+   "rule_id": "R-COMP-03",
+   "note": "verifier score is 0.0; 'No PoC was submitted with submit.sh.'; the model never engaged the submit contract (no reproduction attempt, submit.sh never opened)",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-p-d-candidate-1048-operati__Rh9y42B": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-p-d-candidate-1048-operations-virtualization",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#49",
+    "head#91"
+   ],
+   "tag": "planning",
+   "attribution": "model",
+   "rule_id": "R-PLAN-01",
+   "note": "no task edit before budget ran out (zero executed file-changing ops on task paths; scanned head#2-head#91)",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#39",
+   "evidence_step_refs": [
+    "head#39"
+   ],
+   "tag": "tool_use",
+   "attribution": "unclear",
+   "rule_id": "R-TOOL-01U",
+   "note": "rejected turn, cause other_native; attribution unclear",
+   "recovered": true
+  },
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-p-d-candidate-1271-media-g__grehkae": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-528/runs/har81-p-d-candidate-1271-media-games",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#40",
+    "head#94"
+   ],
+   "tag": "planning",
+   "attribution": "model",
+   "rule_id": "R-PLAN-01",
+   "note": "no task edit before budget ran out (zero executed file-changing ops on task paths; scanned head#2-head#94)",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-p-d-candidate-1559-ml-eval__bqBv49S": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-528/runs/har81-p-d-candidate-1559-ml-evaluation",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [],
+   "tag": "none",
+   "attribution": "n/a",
+   "rule_id": "R-NONE-01",
+   "note": "scored pass with no outcome-relevant failure",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#7",
+   "evidence_step_refs": [
+    "head#7"
+   ],
+   "tag": "completion",
+   "attribution": "harness",
+   "rule_id": "R-COMP-01",
+   "note": "prose final answer with no call rejected as a parse error; Terminus has no prose completion path (A-PROSE-HARNESS)",
+   "recovered": true
+  },
+  "stop": {
+   "reason": "task_complete_confirmed",
+   "exception_type": null,
+   "natural_completion": true,
+   "task_complete_refs": [
+    "head#8",
+    "head#9"
+   ]
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-p-d-candidate-1634-softwar__PaSTYBj": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-528/runs/har81-p-d-candidate-1634-software-databases",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#39",
+   "evidence_step_refs": [
+    "head#39",
+    "head#41",
+    "head#42"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-02",
+   "note": "harness-confirmed task_complete at head#39, head#41, head#42, but the verifier contradicts the claim (5/6 tests pass: failing test_outputs.py::test_edge_source_modules_compile_and_forward)",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "task_complete_confirmed",
+   "exception_type": null,
+   "natural_completion": true,
+   "task_complete_refs": [
+    "head#39",
+    "head#41",
+    "head#42"
+   ]
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-p-d-candidate-1702-ml-infe__izs4jgG": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-528/runs/har81-p-d-candidate-1702-ml-inference",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#2",
+   "evidence_step_refs": [
+    "head#2"
+   ],
+   "tag": "environment",
+   "attribution": "harness",
+   "rule_id": "R-ENV-02",
+   "note": "suspect grader: verifier ran no tests; verifier/test-stdout.txt is only 'anti_hack_guard: REJECT protected_file_mutated:tools/run_fixture.py' (medium confidence); nop control shows import/setup failure (/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-ops/runs/mimo-qual-t-candidate-1702-ml-inference/mimo-qual-t-candidate-1702-ml-in__vneiu92): true; the model itself wrote the guarded file at head#15, head#16, head#19, so the guard rejection is earned; the nop control fails at import with no edit at all",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#2",
+   "evidence_step_refs": [
+    "head#2"
+   ],
+   "tag": "environment",
+   "attribution": "harness",
+   "rule_id": "R-ENV-02",
+   "note": "model command surfaced the broken environment (torch); suspect grader, nothing to attribute to the model",
+   "recovered": false
+  },
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": [
+    "head#30"
+   ]
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-p-d-candidate-1789-securit__Nhf2HdJ": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-528/runs/har81-p-d-candidate-1789-security-appsec",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#7",
+   "evidence_step_refs": [
+    "head#7"
+   ],
+   "tag": "environment",
+   "attribution": "harness",
+   "rule_id": "R-ENV-02",
+   "note": "suspect grader: verifier/test-stdout.txt has 4 'ERROR at setup of' (test_core_generic_fallback_is_preserved, test_core_non_b613_explicit_range_is_preserved, test_core_private_utf8_location, test_edge_bundled_encoding_paths) of 7 ctrf tests; nop control confirms the same setup errors (/Users/petermakhnatch/Developer/eval-lab/.worktrees/mimo-ops/runs/mimo-qual-t-candidate-1789-security-appsec/mimo-qual-t-candidate-1789-secur__ALEqQki): true",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#7",
+   "evidence_step_refs": [
+    "head#7"
+   ],
+   "tag": "environment",
+   "attribution": "harness",
+   "rule_id": "R-ENV-02",
+   "note": "model command surfaced the broken environment (stevedore); suspect grader, nothing to attribute to the model",
+   "recovered": false
+  },
+  "stop": {
+   "reason": "agent_timeout",
+   "exception_type": "AgentTimeoutError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-p-d-candidate-2684-securit__uwoAzn7": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-528/runs/har81-p-d-candidate-2684-security-appsec",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#38",
+    "head#69"
+   ],
+   "tag": "none",
+   "attribution": "n/a",
+   "rule_id": "R-NONE-01",
+   "note": "scored pass with no outcome-relevant failure",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#2",
+   "evidence_step_refs": [
+    "head#2"
+   ],
+   "tag": "tool_use",
+   "attribution": "model",
+   "rule_id": "R-TOOL-02",
+   "note": "model-emitted surface the normalizer declines (unknown_function:command); A-NON-NATIVE-MODEL; harness feedback: 'No valid JSON found in response' (names the problem: false)",
+   "recovered": true
+  },
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": [
+    "trajectory.cont-1.json#19"
+   ]
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-p-d-format-code-task-00024__9KYGvwT": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-528/runs/har81-p-d-format-code-task-000240",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [],
+   "tag": "none",
+   "attribution": "n/a",
+   "rule_id": "R-NONE-01",
+   "note": "scored pass with no outcome-relevant failure",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "task_complete_confirmed",
+   "exception_type": null,
+   "natural_completion": true,
+   "task_complete_refs": [
+    "head#20",
+    "head#21"
+   ]
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-p-d-format-code-task-00043__iT2yUa7": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-528/runs/har81-p-d-format-code-task-000434",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#31",
+   "evidence_step_refs": [
+    "head#31"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-02",
+   "note": "false completion claim at head#31 while 6 verifier test(s) fail (produces YAML loadable by dredd when language is not provided, produces YAML loadable by dredd when language is explicitly undefined, produces YAML free of the js/undefined tag when language is omitted); the claim, not the harness, is wrong",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": [
+    "head#31"
+   ]
+  },
+  "wedge": {
+   "stretches": [
+    {
+     "trigger_ref": "head#18",
+     "start_ref": "head#19",
+     "end_ref": "head#23",
+     "interrupt_ref": null,
+     "turns": 5,
+     "cause": "interactive",
+     "prompt_returned": true,
+     "until_run_end": false
+    }
+   ]
+  }
+ },
+ "har81-p-d-format-code-task-00152__P9EP83h": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-528/runs/har81-p-d-format-code-task-001520",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "trajectory.cont-1.json#27",
+   "evidence_step_refs": [
+    "trajectory.cont-1.json#27",
+    "trajectory.cont-1.json#51"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-02",
+   "note": "false completion claim from step 27 while the verifier score is 0.0 (scored=True); claim regime of 25 steps to trajectory.cont-1.json#51 until ceiling:input_tokens; the claim, not the harness, is wrong",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": [
+    "trajectory.cont-1.json#35",
+    "trajectory.cont-1.json#38",
+    "trajectory.cont-1.json#40",
+    "trajectory.cont-1.json#44",
+    "trajectory.cont-1.json#46",
+    "trajectory.cont-1.json#48",
+    "trajectory.cont-1.json#50"
+   ]
+  },
+  "wedge": {
+   "stretches": [
+    {
+     "trigger_ref": "trajectory.cont-1.json#6",
+     "start_ref": "trajectory.cont-1.json#7",
+     "end_ref": "trajectory.cont-1.json#9",
+     "interrupt_ref": "trajectory.cont-1.json#8",
+     "turns": 3,
+     "cause": "pager",
+     "prompt_returned": true,
+     "until_run_end": false
+    },
+    {
+     "trigger_ref": "trajectory.cont-1.json#26",
+     "start_ref": "trajectory.cont-1.json#27",
+     "end_ref": "trajectory.cont-1.json#29",
+     "interrupt_ref": "trajectory.cont-1.json#29",
+     "turns": 3,
+     "cause": "pager",
+     "prompt_returned": true,
+     "until_run_end": false
+    }
+   ]
+  }
+ },
+ "har81-p-d-format-code-task-00164__bMN27md": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-528/runs/har81-p-d-format-code-task-001645",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#35",
+    "head#100"
+   ],
+   "tag": "planning",
+   "attribution": "model",
+   "rule_id": "R-PLAN-01",
+   "note": "no task edit before budget ran out (zero executed file-changing ops on task paths; scanned head#2-head#100)",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-p-d-format-code-task-00253__7xmXPRq": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-528/runs/har81-p-d-format-code-task-002537",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#66",
+    "head#78"
+   ],
+   "tag": "planning",
+   "attribution": "model",
+   "rule_id": "R-PLAN-01",
+   "note": "no task edit before budget ran out (zero executed file-changing ops on task paths; scanned head#2-head#78)",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har81-p-d-format-code-task-00301__4KvLSba": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/har81-p-d-format-code-task-003011",
+  "source_file": "probe-03-capabilities/har81/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [
+    "head#2",
+    "head#74"
+   ],
+   "tag": "planning",
+   "attribution": "model",
+   "rule_id": "R-PLAN-01",
+   "note": "no task edit before budget ran out (zero executed file-changing ops on task paths; scanned head#2-head#74)",
+   "recovered": null
+  },
+  "first_failure": null,
+  "stop": {
+   "reason": "ceiling:input_tokens",
+   "exception_type": "TrialBudgetExhaustedError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har90-mimo-0036-b__XfPjwNk": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har90-modal-mimo/runs/har90-mimo-0036-b",
+  "source_file": "probe-03-capabilities/har90/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#3",
+   "evidence_step_refs": [
+    "head#3",
+    "head#32",
+    "head#201"
+   ],
+   "tag": "tool_use",
+   "attribution": "harness",
+   "rule_id": "R-TOOL-01",
+   "note": "rejected turn that today's normalizer accepts -- harness gap, since fixed by mimo_tool_calls.py (#512)",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#2",
+   "evidence_step_refs": [
+    "head#2"
+   ],
+   "tag": "tool_use",
+   "attribution": "unclear",
+   "rule_id": "R-TOOL-00",
+   "note": "Terminus JSON executed, but keystrokes lacked the protocol's trailing newline, so commands concatenated (warning notice + garbage terminal); attribution unclear per A-CONCAT-UNCLEAR",
+   "recovered": true
+  },
+  "stop": {
+   "reason": "trial_budget_exhausted",
+   "exception_type": "RateLimitError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har90-mimo-0036-c__drbtqaU": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har90-modal-mimo/runs/har90-mimo-0036-c",
+  "source_file": "probe-03-capabilities/har90/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [],
+   "tag": "environment",
+   "attribution": "unclear",
+   "rule_id": "R-ENV-01",
+   "note": "no model turns; infra-only failure, nothing to attribute to the model",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": null,
+   "evidence_step_refs": [],
+   "tag": "environment",
+   "attribution": "unclear",
+   "rule_id": "R-ENV-01",
+   "note": "no model turns; infra-only failure, nothing to attribute to the model",
+   "recovered": false
+  },
+  "stop": {
+   "reason": "model_auth_error",
+   "exception_type": "AuthenticationError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har90-mimo-0036-d__aN5ARFu": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har90-modal-mimo/runs/har90-mimo-0036-d",
+  "source_file": "probe-03-capabilities/har90/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#2",
+   "evidence_step_refs": [
+    "head#2",
+    "head#7",
+    "head#530"
+   ],
+   "tag": "tool_use",
+   "attribution": "harness",
+   "rule_id": "R-TOOL-01",
+   "note": "rejected turn that today's normalizer accepts -- harness gap, since fixed by mimo_tool_calls.py (#512)",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#2",
+   "evidence_step_refs": [
+    "head#2"
+   ],
+   "tag": "tool_use",
+   "attribution": "harness",
+   "rule_id": "R-TOOL-01",
+   "note": "rejected turn that today's normalizer accepts -- harness gap, since fixed by mimo_tool_calls.py (#512)",
+   "recovered": false
+  },
+  "stop": {
+   "reason": "agent_timeout",
+   "exception_type": "AgentTimeoutError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har90-mimo-0036-e__pWmMRr8": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har90-modal-mimo/runs/har90-mimo-0036-e",
+  "source_file": "probe-03-capabilities/har90/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#35",
+   "evidence_step_refs": [
+    "head#35",
+    "head#84"
+   ],
+   "tag": "completion",
+   "attribution": "harness",
+   "rule_id": "R-COMP-01",
+   "note": "solved (reward 1.0) at or before step 34; prose final answer re-prompted as a parse error for steps 35-84 until the timeout",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#35",
+   "evidence_step_refs": [
+    "head#35"
+   ],
+   "tag": "completion",
+   "attribution": "harness",
+   "rule_id": "R-COMP-01",
+   "note": "prose final answer with no call rejected as a parse error; Terminus has no prose completion path (A-PROSE-HARNESS)",
+   "recovered": false
+  },
+  "stop": {
+   "reason": "agent_timeout",
+   "exception_type": "AgentTimeoutError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har90-mimo-0036-f__8T3nkCz": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har90-modal-mimo/runs/har90-mimo-0036-f",
+  "source_file": "probe-03-capabilities/har90/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#44",
+   "evidence_step_refs": [
+    "head#44",
+    "head#55",
+    "head#172"
+   ],
+   "tag": "completion",
+   "attribution": "model",
+   "rule_id": "R-COMP-02",
+   "note": "false completion claim from step 44 while the verifier score is 0.0 (scored=True); identical loop 55-172 until agent_timeout; the claim, not the harness, is wrong",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#27",
+   "evidence_step_refs": [
+    "head#27"
+   ],
+   "tag": "tool_use",
+   "attribution": "model",
+   "rule_id": "R-TOOL-02",
+   "note": "model-emitted surface the normalizer declines (unknown_function:keystrokes); A-NON-NATIVE-MODEL",
+   "recovered": true
+  },
+  "stop": {
+   "reason": "agent_timeout",
+   "exception_type": "AgentTimeoutError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har90-mimo-0036__mWHLdCT": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har90-modal-mimo/runs/har90-mimo-0036",
+  "source_file": "probe-03-capabilities/har90/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "head#17",
+   "evidence_step_refs": [
+    "head#17",
+    "head#121"
+   ],
+   "tag": "tool_use",
+   "attribution": "unclear",
+   "rule_id": "R-TOOL-00",
+   "note": "identical turns 17-121 each send a command without a trailing newline; the terminal echo shows it fused onto the previous copy, so it never executed (A-CONCAT-UNCLEAR: model omitted the newline, harness sent it verbatim)",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "head#2",
+   "evidence_step_refs": [
+    "head#2"
+   ],
+   "tag": "tool_use",
+   "attribution": "unclear",
+   "rule_id": "R-TOOL-00",
+   "note": "Terminus JSON executed, but keystrokes lacked the protocol's trailing newline, so commands concatenated (warning notice + garbage terminal); attribution unclear per A-CONCAT-UNCLEAR",
+   "recovered": true
+  },
+  "stop": {
+   "reason": "trial_budget_exhausted",
+   "exception_type": "RateLimitError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har90-mimo-0758-a__TheXwyy": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har90-modal-mimo/runs/har90-mimo-0758-a",
+  "source_file": "probe-03-capabilities/har90/capabilities.jsonl",
+  "outcome": {
+   "step_ref": null,
+   "evidence_step_refs": [],
+   "tag": "environment",
+   "attribution": "unclear",
+   "rule_id": "R-ENV-01",
+   "note": "no model turns; infra-only failure, nothing to attribute to the model",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": null,
+   "evidence_step_refs": [],
+   "tag": "environment",
+   "attribution": "unclear",
+   "rule_id": "R-ENV-01",
+   "note": "no model turns; infra-only failure, nothing to attribute to the model",
+   "recovered": false
+  },
+  "stop": {
+   "reason": "model_auth_error",
+   "exception_type": "AuthenticationError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har90-mimo-0758-b__85WkohB": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har90-modal-mimo/runs/har90-mimo-0758-b",
+  "source_file": "probe-03-capabilities/har90/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "trajectory.cont-11.json#8",
+   "evidence_step_refs": [
+    "trajectory.cont-11.json#8"
+   ],
+   "tag": "context",
+   "attribution": "harness",
+   "rule_id": "R-CTX-01",
+   "note": "context livelock: trial.log lines 781-791 repeat 'Context length exceeded -> full summary failed -> short summary succeeded -> Even fallback chat failed' (2 attempts per metadata), each unwinding to the same state; steps after the first cycle were produced under degraded context and are not attributed to the model (incl. harness stand-ins)",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "trajectory.cont-11.json#2",
+   "evidence_step_refs": [
+    "trajectory.cont-11.json#2"
+   ],
+   "tag": "tool_use",
+   "attribution": "harness",
+   "rule_id": "R-TOOL-01",
+   "note": "rejected turn that today's normalizer accepts -- harness gap, since fixed by mimo_tool_calls.py (#512)",
+   "recovered": false
+  },
+  "stop": {
+   "reason": "agent_timeout",
+   "exception_type": "AgentTimeoutError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har90-mimo-0758-c__tdpbmxw": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har90-modal-mimo/runs/har90-mimo-0758-c",
+  "source_file": "probe-03-capabilities/har90/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "trajectory.cont-31.json#8",
+   "evidence_step_refs": [
+    "trajectory.cont-31.json#8"
+   ],
+   "tag": "context",
+   "attribution": "harness",
+   "rule_id": "R-CTX-01",
+   "note": "context livelock: trial.log lines 192-432 repeat 'Context length exceeded -> full summary failed -> short summary succeeded -> Even fallback chat failed' (31 attempts per metadata), each unwinding to the same state; steps after the first cycle were produced under degraded context and are not attributed to the model (incl. harness stand-ins)",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "trajectory.cont-31.json#6",
+   "evidence_step_refs": [
+    "trajectory.cont-31.json#6"
+   ],
+   "tag": "tool_use",
+   "attribution": "harness",
+   "rule_id": "R-TOOL-01",
+   "note": "rejected turn that today's normalizer accepts -- harness gap, since fixed by mimo_tool_calls.py (#512)",
+   "recovered": false
+  },
+  "stop": {
+   "reason": "agent_timeout",
+   "exception_type": "AgentTimeoutError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ },
+ "har90-mimo-0758-d__vDCScf3": {
+  "job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har90-modal-mimo/runs/har90-mimo-0758-d",
+  "source_file": "probe-03-capabilities/har90/capabilities.jsonl",
+  "outcome": {
+   "step_ref": "trajectory.cont-1.json#5",
+   "evidence_step_refs": [
+    "trajectory.cont-1.json#5",
+    "trajectory.cont-1.json#6",
+    "trajectory.cont-1.json#181"
+   ],
+   "tag": "tool_use",
+   "attribution": "harness",
+   "rule_id": "R-TOOL-03",
+   "note": "native signature accepted 56x before the summarization/new-session boundary, then rejected 177x from this step (cause extra_param:description); stock feedback only says 'No valid JSON found', never naming the parameter, so the model could not self-correct",
+   "recovered": null
+  },
+  "first_failure": {
+   "step_ref": "trajectory.cont-1.json#5",
+   "evidence_step_refs": [
+    "trajectory.cont-1.json#5"
+   ],
+   "tag": "tool_use",
+   "attribution": "harness",
+   "rule_id": "R-TOOL-03",
+   "note": "same native signature accepted earlier, then rejected from this step (cause extra_param:description) after the summarization/new-session boundary; feedback never named the parameter",
+   "recovered": false
+  },
+  "stop": {
+   "reason": "agent_timeout",
+   "exception_type": "AgentTimeoutError",
+   "natural_completion": false,
+   "task_complete_refs": []
+  },
+  "wedge": {
+   "stretches": []
+  }
+ }
+}

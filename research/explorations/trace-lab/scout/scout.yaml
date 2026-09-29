@@ -1,0 +1,5 @@
+name: harbor-trace-lab
+transcripts: ./data/transcripts_norm
+scans: ./scans
+max_processes: 4
+tags: [har81, har90, no-llm]

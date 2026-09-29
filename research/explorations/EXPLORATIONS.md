@@ -48,3 +48,7 @@ bash explorations/harbor-021/demos/run-allowlist.sh    # expected fail on Deskto
 ```
 
 Captures: `explorations/harbor-021/captures/`.
+
+## Trace Lab
+
+`trace-lab/` (moved 2026-09-29 from the reading library): tools to read Harbor/Eval Lab run traces — run normalizer, probe-03 capability tags, Inspect Scout scans, Docent blind readings, viewer fixtures. Start at `trace-lab/README.md`; large data lives local-only in `derived/trace-lab/`.

@@ -1,0 +1,28 @@
+# Hand-picked HAR-81 reading sheet (for-peter/reading_sheet.md explains each).
+# One job-directory name per line; order = sheet order.
+# 1. passes
+har81-p-d-format-code-task-000240
+har81-l-d-a2-format-code-task-001520
+har81-l-d-a3-arvo-18737
+har81-p-d-candidate-2684-security-appsec
+har81-l-d-a2-arvo-42485576
+# 2. false completion claims
+har81-p-d-candidate-1634-software-databases
+har81-l-d-a4-candidate-1634-software-databases
+har81-l-d-a2-format-code-task-000240
+har81-p-d-format-code-task-000434
+# 3. cyber: crash file never handed in
+har81-p-d-arvo-42528228
+har81-l-d-a3-arvo-42485576
+har81-p-d-arvo-57589
+har81-p-d-arvo-18737
+har81-p-d-arvo-42496599
+# 4. never edited a task file
+har81-p-d-candidate-1271-media-games
+har81-p-d-format-code-task-003011
+har81-p-d-candidate-1048-operations-virtualization
+har81-l-d-a4-format-code-task-000240
+# 5. broken grader
+har81-p-d-candidate-1789-security-appsec
+har81-p-d-candidate-1702-ml-inference
+har81-l-d-a3-candidate-1789-security-appsec

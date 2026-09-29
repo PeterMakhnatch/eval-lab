@@ -1,0 +1,43 @@
+{
+    "id": "85600ea9-c7b8-4a00-8961-a95c6040ed73",
+    "started_at": "2026-09-29T05:44:44.456473",
+    "updated_at": "2026-09-29T05:53:32.318920",
+    "finished_at": "2026-09-29T05:53:32.318920",
+    "n_total_trials": 1,
+    "stats": {
+        "n_completed_trials": 1,
+        "n_errored_trials": 1,
+        "n_running_trials": 0,
+        "n_pending_trials": 0,
+        "n_cancelled_trials": 0,
+        "n_retries": 0,
+        "evals": {
+            "terminus-2__XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B__adhoc": {
+                "n_trials": 1,
+                "n_errors": 1,
+                "metrics": [
+                    {
+                        "mean": 0.0
+                    }
+                ],
+                "pass_at_k": {},
+                "reward_stats": {
+                    "reward": {
+                        "0.0": [
+                            "har81-l-d-a2-arvo-18737__2kbVhKB"
+                        ]
+                    }
+                },
+                "exception_stats": {
+                    "TrialBudgetExhaustedError": [
+                        "har81-l-d-a2-arvo-18737__2kbVhKB"
+                    ]
+                }
+            }
+        },
+        "n_input_tokens": 2414586,
+        "n_cache_tokens": 0,
+        "n_output_tokens": 6193,
+        "cost_usd": null
+    }
+}

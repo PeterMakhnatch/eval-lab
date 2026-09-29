@@ -28,20 +28,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
-import sys
 import tomllib
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(ROOT / "src"))
-import pyarrow.parquet as pq  # noqa: E402
+import pyarrow.parquet as pq
+from nopspec import OUT, PRIMARY, ROOT, SETUP_ERROR, nop_spec, nop_verifier_text
 
-from evallab.registry import compute_task_digests  # noqa: E402
-from evallab.storage.paths import shared_checkout_root  # noqa: E402
-
-OUT = Path(__file__).resolve().parent
-PRIMARY = shared_checkout_root(ROOT)
 SEED = "har105:"
 PICKS = {"code": 2, "cyber": 1, "terminal": 1, "general": 2, "music": 2, "webdev": 2}
 CANDIDATES = 3
@@ -63,20 +55,10 @@ SUSPECTS = {
     "arvo_18737",
     "arvo_57589",
 }
-NOP_ROOTS = (
-    PRIMARY / ".worktrees/mimo-ops/runs",
-    PRIMARY / ".worktrees/har95-nop-20260929/runs",
-    ROOT / "runs",
-)
 JUDGE_BLOCK = (
     "the grader needs a model-judge key (task.toml [verifier.env] = ${HF_TOKEN}); Harbor refuses "
     "the job at start when HF_TOKEN is unset, and Eval Lab's executor passes no such key"
 )
-SETUP_ERROR = re.compile(
-    r"ModuleNotFoundError|ImportError|No module named|ERROR collecting|command not found"
-)
-MARGIN_S = 300
-DAYTONA_MAX_DISK_MB = 10240
 
 
 def rank(task_id: str) -> str:
@@ -85,14 +67,6 @@ def rank(task_id: str) -> str:
 
 def task_dir(domain: str, task_id: str) -> Path:
     return PRIMARY / "derived/task-store/hf" / SNAPSHOTS[domain] / "tasks" / task_id
-
-
-def nop_verifier_text(job_name: str, trial_name: str) -> str | None:
-    for root in NOP_ROOTS:
-        stdout = root / job_name / trial_name / "verifier" / "test-stdout.txt"
-        if stdout.is_file():
-            return stdout.read_text(errors="replace")
-    return None
 
 
 def main() -> None:
@@ -148,7 +122,7 @@ def main() -> None:
                 "mcp_servers": len(config.get("environment", {}).get("mcp_servers", [])),
             }
             nop = nops.get(digest)
-            text = nop_verifier_text(nop["job_name"], nop["trial_name"]) if nop else None
+            text = nop_verifier_text(nop["job_name"]) if nop else None
             if nop is not None and text is not None and not SETUP_ERROR.search(text):
                 entry["nop"] = {
                     "status": "ok",
@@ -181,34 +155,13 @@ def main() -> None:
     for old in specs.glob("har105-qual-m-*.json"):
         old.unlink()
     for entry in selection["music"]:
-        path = PRIMARY / entry["task"]
-        config = tomllib.loads((path / "task.toml").read_text())
-        env = config.get("environment", {})
-        timeout = int(
-            env.get("build_timeout_sec", 0)
-            + (env.get("healthcheck", {}).get("timeout_sec", 0))
-            + config.get("verifier", {}).get("timeout_sec", 0)
-            + MARGIN_S
-        )
         name = f"har105-qual-m-{entry['task_id']}"
-        spec = {
-            "task": entry["task"],
-            "task_package_digest": compute_task_digests(path).package,
-            "agent": "nop",
-            "environment": "daytona",
-            "name": name,
-            "jobs_dir": "runs",
-            "attempts": 1,
-            "timeout_seconds": timeout,
-            "purpose": "calibration",
-            "hypothesis": (
-                "The MiMo task starts, passes its healthcheck and grades on Daytona: "
-                "a nop control completes the verifier with reward 0."
-            ),
-            "submitted_by": "har105-qualification",
-        }
-        if env.get("storage_mb") is None:
-            spec["override_storage_mb"] = DAYTONA_MAX_DISK_MB
+        spec = nop_spec(
+            entry["task"],
+            name,
+            "The MiMo task starts, passes its healthcheck and grades on Daytona: "
+            "a nop control completes the verifier with reward 0.",
+        )
         (specs / f"{name}.json").write_text(json.dumps(spec, indent=2) + "\n")
         entry["spec"] = f"specs/{name}.json"
 

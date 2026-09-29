@@ -174,6 +174,8 @@ Enforcement:
 
 The commit and the key digest are recorded here and on HAR-81 before wave A. Trials dispatch from that commit; the README change that records it lands after, so the commit cannot contain its own hash.
 
+**Pinned for the overnight waves:** commit `b5bc430ec063426a036e44f1024d92d9bc588d93` (#518), key `sha256:f5f3120cc3aa51a7e4b5a9f52370726fa3f0779f035155f5295c3bf4fc99c4d1`. Dispatch from `.worktrees/har81-dispatch`, a clean checkout detached at that commit. Later commits, this README's included, do not move it; the SFT export can run from any later commit, since it reads the trials and does not change them.
+
 ## Overnight waves
 
 Authority: Peter, 2026-09-29 about 04:35Z, in the Research-Harbor chat: "i want to get some of those tasks from mimo running but not too many" and "come up with the tasks and just assign them to whoever you think fit". Research-Harbor set Infra's share of the overnight cap at $12 of actual spend (Modal plus Daytona, by HAR-90's formula until the Modal bill settles). Approvals use `--actor peter`; `evallab approve` has no reason field, so this authority is recorded here and on HAR-81.
@@ -277,6 +279,30 @@ The [overnight waves](#overnight-waves) section holds the stop rules. Before A's
 ## SFT for the distill
 
 See `tools/modal-mimo-sft/README.md`: TRL LoRA SFT on one A100-80GB, using the distill's own chat template and assistant-only loss. It has a $0 dry run. Training and merging are gated behind `--confirm-spend`. Its input is an `evallab.sft_terminus export` of the distill's own reward-1 train trajectories, taken with `--keep-reasoning` so the training text matches the thinking-on serving format.
+
+### Export fidelity audit (2026-09-29, $0)
+
+Research-Harbor's overnight plan, step 4. Input: HAR-90's six scored distill trials (reward 1.0 on 0036-e, 0.0 on the others; all ended in `AgentTimeoutError`), exported with `--keep-reasoning`, then `sft.py dry-run`. No training.
+
+What holds:
+- **Raw output is the target.** All 2,167 exported assistant turns equal the trajectory's `message` byte for byte, plus the `<think>` prefix where the turn has `reasoning_content`. The normalizer's rewritten JSON never appears in a target; native `<tool_call>` text and prose/JSON hybrids stay as emitted.
+- **Harness feedback stays on the user side.** "Previous response had parsing errors", "ERROR!! NONE of the actions…" and the completion confirmation are all in user turns.
+- **Prose completions stay raw.** 0036-f's two #515-flagged turns (steps 45 and 173) are exported as the model's prose, not as the `task_complete` JSON the parser built.
+- **Masks match.** On all 9 segment conversations, the template's generation mask agreed with the independent prefix cross-check, and every assistant body was found in order in the render.
+- **Summarization** subagent files and the context-management marker step are not exported. A genuine continuation (0758-d `cont-1`) is its own conversation, starting from the rewound chat the continuing model saw.
+
+Fixed in `sft_terminus` after the audit:
+1. **Graded timeouts were dropped.** The export excluded any trial with an exception, so it produced 0 conversations from HAR-90, 0036-e's pass included. It now follows the [scored-outcome rule](#pre-registered-scored-outcomes): a trial with a reward is selected whatever ended its agent phase, and the manifest records the exception type. On HAR-90 the default export now yields 0036-e: 83 assistant turns.
+2. **Harbor's stand-in reply was trained.** When a model call fails, Harbor records "Technical difficulties. Please continue with the task." as an agent step. The export made it an assistant target 31 times (0758-c `cont-31` steps 184–213, 0758-b step 761). A segment now ends before its first stand-in, and the manifest counts the dropped agent steps.
+3. **One segment was exported twice.** 0036-f's `trajectory.cont-1.json` holds the same 173 steps as its `trajectory.json`. Harbor counts a proactive summarization before it can fail, and swallows the failure, so the final dump takes a `cont-N` name without a split. A continuation whose steps equal an exported segment's is now skipped and recorded.
+
+Open, for Research-Harbor before any training:
+- **Truncation at 32K.** 8 of 9 conversations exceed `sft.py`'s default `max_length` of 32,768 tokens and keep only their start. 0036-e's pass renders 52,303 tokens and trains on 13,201 of them.
+- **Repetition.** The raw history includes loops: 0036-e repeats one 1,991-character summary 15 times, and 0036-f one "done" turn 51 times. SFT would weight them accordingly.
+- **Reasoning is sparse and joined by the export.** 32 of the turns carry `reasoning_content`, about 1.5%. SGLang returns reasoning and content separately, so the `</think>` separator is reconstructed, and the distill's template renders it with 4 fewer whitespace characters.
+- **Native calls with extra parameters don't normalize.** The normalizer maps a call only if its arguments are `command`/`keystrokes` plus an optional `duration`. All 177 native turns in 0758-d `cont-1` add a `description` parameter, so none executed; 6 turns in 0036-f carry `content` and `file_path`. Accepting extra parameters would change the normalizer digest, and so the [treatment key](#treatment-key); that is HAR-90's call.
+- **Repeated prefixes.** 0758-c's `cont-31` repeats main's 4 agent turns at its start, an older continuation shape without `is_copied_context`. They train twice.
+- 0758-b has no `trajectory.json` on disk (only `cont-11`), so it is excluded as `no_trajectory`.
 
 ## $0 controls (local Docker, Harbor 0.21.0)
 

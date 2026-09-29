@@ -21,17 +21,27 @@ What the model saw (Harbor 0.21.0 ``Terminus2``):
   ``trajectory.cont-N.json`` holding the rewound chat the continuing model
   saw (``is_copied_context`` steps) plus fresh steps. Each continuation
   segment becomes its own conversation, flagged with its continuation
-  index. Summarization *subagent* files
-  (``trajectory.summarization-*``) are teacher-internal context
-  management, never exported, only counted.
+  index. A continuation whose steps equal an already exported segment's
+  (a summarization that failed without splitting the chat) is skipped and
+  counted, so the same turns are not trained twice. Summarization
+  *subagent* files (``trajectory.summarization-*``) are teacher-internal
+  context management, never exported, only counted.
+* Harbor's stand-in reply when its model call fails ("Technical
+  difficulties. Please continue with the task.") is recorded as an agent
+  step but is not model output. Every assistant turn is a training target,
+  so a segment ends before its first stand-in; the dropped agent steps are
+  counted per conversation.
 * Trajectories recorded with parsed ``tool_calls`` (raw-content mode off)
   have lost the model's raw emission; such trials are excluded, not
   reconstructed — reconstruction would fabricate training targets.
 
 Selection: agent is Terminus-2, a verifier reward is present and at or
 above the threshold (default 1.0), and the trial's task id is a ``train``
-task of the sealed split. Exceptions and infra failures are excluded and
-counted by reason. Any trial whose task id is in the split's held-out set
+task of the sealed split. A graded trial counts whatever ended its agent
+phase (an agent timeout or a ceiling stop included; HAR-81's scored-outcome
+rule), and its exception type is recorded. Trials without a reward are
+excluded and counted by reason. Any trial whose task id is in the split's
+held-out set
 REFUSES the whole export: held-out contamination is a protocol violation,
 not a filterable row. Teacher ``reasoning_content`` is dropped by default
 (``--keep-reasoning`` keeps it as a ``<think>`` prefix). Reward/verifier
@@ -55,6 +65,7 @@ from typing import Any, Literal
 
 from evallab.evidence_store import evidence_tree_digest
 from evallab.interpretation.trajectory_hydration import _DEFAULT_SECRET_PATTERNS
+from evallab.mimo_tool_calls import HARBOR_FALLBACK_RESPONSE
 from evallab.sft_glm import REWARD_METADATA_KEYS
 from evallab.sft_records import (
     SourceRoot,
@@ -112,6 +123,8 @@ class SegmentConversion:
     system_marker_steps: int
     reasoning_messages: int
     ignored_step_sources: list[str]
+    #: Agent steps dropped from the segment's first Harbor stand-in reply on.
+    fallback_truncated_agent_steps: int = 0
 
     @property
     def agent_messages(self) -> int:
@@ -164,6 +177,7 @@ class SegmentConversation:
             "message_count": len(self.messages),
             "character_count": self.character_count,
             "copied_context_messages": self.conversion.copied_context_messages,
+            "fallback_truncated_agent_steps": self.conversion.fallback_truncated_agent_steps,
         }
 
 
@@ -181,6 +195,12 @@ class TrialDisposition:
     duplicate_of: str | None = None
     #: The sealed task version the trial was matched to (None until matched).
     task_version_digest: str | None = None
+    #: What ended the agent phase of a graded trial (None: the agent finished).
+    exception_type: str | None = None
+    #: Segments not exported, by file name: ``duplicate_of:<segment>`` when the
+    #: steps repeat an exported segment's, ``harbor_fallback_only`` when the
+    #: segment's first agent step is Harbor's stand-in reply.
+    skipped_segments: dict[str, str] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -198,6 +218,10 @@ class TrialDisposition:
             out["duplicate_of"] = self.duplicate_of
         if self.task_version_digest is not None:
             out["task_version_digest"] = self.task_version_digest
+        if self.exception_type is not None:
+            out["exception_type"] = self.exception_type
+        if self.skipped_segments:
+            out["skipped_segments"] = dict(sorted(self.skipped_segments.items()))
         return out
 
 
@@ -290,7 +314,8 @@ def convert_segment(
     system_markers = 0
     reasoning_messages = 0
     ignored: list[str] = []
-    for step in steps:
+    fallback_truncated = 0
+    for position, step in enumerate(steps):
         if not isinstance(step, dict):
             ignored.append("malformed_step")
             continue
@@ -314,6 +339,14 @@ def convert_segment(
             text, mm = _text_of(step.get("message"))
             if mm:
                 multimodal = True
+            if (text or "").strip() == HARBOR_FALLBACK_RESPONSE:
+                # Harbor's stand-in for a failed model call, not model output.
+                fallback_truncated = sum(
+                    1
+                    for later in steps[position:]
+                    if isinstance(later, dict) and later.get("source") == "agent"
+                )
+                break
             content = text or ""
             reasoning = step.get("reasoning_content")
             if keep_reasoning and isinstance(reasoning, str) and reasoning:
@@ -358,7 +391,8 @@ def convert_segment(
         copied_context_messages=copied,
         system_marker_steps=system_markers,
         reasoning_messages=reasoning_messages,
-        ignored_step_sources=sorted(set(ignored)),
+        ignored_step_sources=ignored,
+        fallback_truncated_agent_steps=fallback_truncated,
     )
 
 
@@ -600,12 +634,15 @@ def export_conversations(
         if not _is_terminus(*agent_names):
             _exclude(disposition, "not_terminus_2")
             continue
-        if outcome.exception_type:
-            _exclude(disposition, f"exception:{outcome.exception_type}")
-            continue
         if outcome.reward is None:
-            _exclude(disposition, "verifier_incomplete")
+            reason = (
+                f"exception:{outcome.exception_type}"
+                if outcome.exception_type
+                else "verifier_incomplete"
+            )
+            _exclude(disposition, reason)
             continue
+        disposition.exception_type = outcome.exception_type
         if outcome.reward < reward_threshold:
             _exclude(disposition, "reward_below_threshold")
             continue
@@ -644,6 +681,7 @@ def export_conversations(
 
         trial_conversations: list[SegmentConversation] = []
         trial_reasons: list[str] = []
+        exported_steps: dict[str, str] = {}
         for segment in segments:
             payload = _read_json(segment.path)
             if not isinstance(payload, dict):
@@ -653,12 +691,25 @@ def export_conversations(
             if not isinstance(steps, list):
                 trial_reasons.append("unparseable_trajectory_segment")
                 continue
+            fingerprint = hashlib.sha256(json.dumps(steps, sort_keys=True).encode()).hexdigest()
+            if fingerprint in exported_steps:
+                # Terminus2._summarize counts a summarization before it can fail,
+                # and a failed proactive one is swallowed: the chat is not split,
+                # yet the final dump takes the next cont-N name. Same turns, twice.
+                disposition.skipped_segments[segment.name] = (
+                    f"duplicate_of:{exported_steps[fingerprint]}"
+                )
+                continue
+            exported_steps[fingerprint] = segment.name
             conversion = convert_segment(steps, keep_reasoning=keep_reasoning)
             if conversion.parsed_tool_calls:
                 trial_reasons.append("parsed_steps_not_raw_content")
                 continue
             if conversion.multimodal:
                 trial_reasons.append("unsupported_multimodal_content")
+                continue
+            if conversion.agent_messages == 0 and conversion.fallback_truncated_agent_steps:
+                disposition.skipped_segments[segment.name] = "harbor_fallback_only"
                 continue
             if conversion.agent_messages == 0:
                 trial_reasons.append("no_agent_steps")

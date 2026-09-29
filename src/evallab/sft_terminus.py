@@ -68,7 +68,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from evallab.evidence_store import evidence_tree_digest
-from evallab.interpretation.trajectory_hydration import _DEFAULT_SECRET_PATTERNS
+from evallab.interpretation.trajectory_hydration import secret_pattern_hits
 from evallab.mimo_tool_calls import HARBOR_FALLBACK_RESPONSE
 from evallab.sft_glm import REWARD_METADATA_KEYS
 from evallab.sft_records import (
@@ -453,10 +453,8 @@ def _scan_student_text(messages: Iterable[dict[str, Any]]) -> list[str]:
         text = message["content"]
         if text and REDACTION_MARKER_RE.search(text):
             findings.append("redacted_model_visible_context")
-        for pattern in _DEFAULT_SECRET_PATTERNS:
-            if text and pattern.search(text):
-                findings.append("secret_pattern_in_context")
-                break
+        if text and secret_pattern_hits(text):
+            findings.append("secret_pattern_in_context")
     return findings
 
 

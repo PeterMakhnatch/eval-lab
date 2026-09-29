@@ -80,6 +80,7 @@ from evallab.execution_contracts import (
 from evallab.harbor_common import sanitize_native_trajectory
 from evallab.mimo_tool_calls import MimoToolCallParser
 from evallab.step_layers import (
+    STEP_LAYERS_KEY,
     attach_layers,
     build_recorded_layers,
     copied_layers,
@@ -647,35 +648,57 @@ class SecretSafeTerminus2(Terminus2):
 
         In ``raw_content`` mode the step message is the raw model text, so a
         record is consumed only when its message matches the step's: a turn
-        lost between parse and step append drops its record instead of
+        lost between parse and step append drops its orphan record instead of
         misattaching it to the next turn. On other parsers steps are paired
         by order. Steps left without records stay layer-free here; consumers
         reconstruct them offline and label the provenance.
 
-        Progress is a prefix count over the step list object: upstream only
-        appends, and a summarization split swaps in a fresh list, which
-        restarts progress and drops orphan records belonging to the sealed
-        head. Object ids are never used (a freed step's address can be
-        reused by a later step).
+        Progress is a prefix count over the step list object: upstream appends
+        in place, and a summarization split swaps in a fresh list, which
+        restarts the scan. The queue is never cleared on a swap: a record
+        queued at the split's own dump belongs to a step that lands in the
+        new list, and already-layered steps carry their layers with them, so
+        they are recognized and never consume a second record. A non-matching
+        step (sanitized/redacted message, Harbor fallback) likewise leaves
+        later records intact unless a later step provably matches them.
+        Step object ids are never used for progress (a freed step's address
+        can be reused by a later step); only the step list identity restarts
+        the scan, and the layers themselves mark finished steps.
         """
-        steps = getattr(self, "_trajectory_steps", None) or []
-        if id(steps) != self._layer_steps_id:
-            self._layer_steps_id = id(steps)
+        step_list = getattr(self, "_trajectory_steps", None)
+        steps = step_list if step_list else []
+        if step_list is not None and id(step_list) != self._layer_steps_id:
+            self._layer_steps_id = id(step_list)
             self._layer_annotated = 0
-            self._layer_queue = []
         raw_content = bool(getattr(self, "_save_raw_content_in_trajectory", False))
         for step in steps[self._layer_annotated :]:
             if getattr(step, "source", None) != "agent":
+                self._layer_annotated += 1
+                continue
+            if STEP_LAYERS_KEY in (getattr(step, "extra", None) or {}):
+                # Annotated before a list swap; never consume a second record.
                 self._layer_annotated += 1
                 continue
             if getattr(step, "is_copied_context", False):
                 step.extra = attach_layers(getattr(step, "extra", None), copied_layers())
                 self._layer_annotated += 1
                 continue
-            while self._layer_queue and raw_content and self._layer_queue[0].get(
-                "message"
-            ) != getattr(step, "message", None):
-                self._layer_queue.pop(0)
+            if raw_content:
+                step_message = getattr(step, "message", None)
+                match_index: int | None = None
+                for index, record in enumerate(self._layer_queue):
+                    if record.get("message") == step_message:
+                        match_index = index
+                        break
+                if match_index is None:
+                    # Sanitized/redacted/fallback step: no record is provably
+                    # this turn's, so leave the queue intact for later steps
+                    # and leave this step layer-free for offline rebuild.
+                    self._layer_annotated += 1
+                    continue
+                # Records before the match belong to turns lost between parse
+                # and step append; only those provably stale orphans drop.
+                del self._layer_queue[:match_index]
             if self._layer_queue:
                 record = self._layer_queue.pop(0)
                 exec_info = record.get("exec") or {}

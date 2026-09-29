@@ -673,3 +673,95 @@ def test_terminus_staging_preserves_declared_network(tmp_path: Path) -> None:
     assert manifest["agent_allowed_hosts"] == []
     assert "network_adaptation" not in manifest
     assert "allowlist" not in (staged / "task.toml").read_text()
+
+
+# ---------------------------------------------------------------------------
+# 4. Step-layer annotation (HAR-92 first-step + sanitized-message fixes)
+# ---------------------------------------------------------------------------
+
+
+def _layer_record(message: str, keystrokes: str | None = None) -> dict[str, Any]:
+    sent = keystrokes if keystrokes is not None else message
+    return {
+        "message": message,
+        "reasoning": None,
+        "prose_mapped": False,
+        "commands": [(sent, 0.1)],
+        "task_complete": False,
+        "parse_error": None,
+        "exec": {
+            "keystrokes_sent": [sent],
+            "durations_sec": [0.1],
+            "sent_at": "2026-09-29T00:00:00+00:00",
+            "timeout": False,
+            "output": "ok\n",
+        },
+    }
+
+
+def _agent_step(message: str) -> SimpleNamespace:
+    return SimpleNamespace(source="agent", message=message, is_copied_context=False, extra=None)
+
+
+def test_first_agent_step_gets_recorded_layers(trial_transport: Any, tmp_path: Path) -> None:
+    """The first annotation must not treat its own list as a split (HAR-92)."""
+    agent = trial_transport.SecretSafeTerminus2(logs_dir=tmp_path, model_name="zai/glm-5.3-flash")
+    step = _agent_step("echo hi")
+    agent._trajectory_steps = [step]
+    agent._layer_queue = [_layer_record("echo hi")]
+    agent._save_raw_content_in_trajectory = True
+    assert agent._layer_steps_id is None
+    agent._annotate_step_layers()
+    layers = (step.extra or {}).get("step_layers")
+    assert layers is not None, "first agent step lost its episode record"
+    assert layers["provenance"] == "recorded"
+    assert layers["executed"]["keystrokes_sent"] == ["echo hi"]
+
+
+def test_non_matching_step_preserves_later_records(trial_transport: Any, tmp_path: Path) -> None:
+    """A sanitized/redacted step leaves later episode records intact (HAR-92)."""
+    agent = trial_transport.SecretSafeTerminus2(logs_dir=tmp_path, model_name="zai/glm-5.3-flash")
+    redacted = _agent_step("REDACTED")
+    agent._trajectory_steps = [redacted]
+    agent._layer_queue = [_layer_record("echo later", keystrokes="echo later")]
+    agent._save_raw_content_in_trajectory = True
+    agent._annotate_step_layers()
+    assert (redacted.extra or {}).get("step_layers") is None
+    assert len(agent._layer_queue) == 1, "non-matching step dropped later records"
+    later = _agent_step("echo later")
+    agent._trajectory_steps.append(later)
+    agent._annotate_step_layers()
+    layers = (later.extra or {}).get("step_layers")
+    assert layers is not None, "later step lost its record to the redacted step"
+    assert layers["provenance"] == "recorded"
+    assert layers["executed"]["keystrokes_sent"] == ["echo later"]
+
+
+def test_list_swap_keeps_bridge_record_without_double_counting(
+    trial_transport: Any, tmp_path: Path
+) -> None:
+    """A summarization-style list swap must not drop the bridging record (HAR-92)."""
+    agent = trial_transport.SecretSafeTerminus2(logs_dir=tmp_path, model_name="zai/glm-5.3-flash")
+    agent._save_raw_content_in_trajectory = True
+    first = _agent_step("first turn")
+    agent._trajectory_steps = [first]
+    agent._layer_queue = [_layer_record("first turn")]
+    agent._annotate_step_layers()
+    assert (first.extra or {}).get("step_layers", {}).get("provenance") == "recorded"
+    # Upstream seals the head and installs a fresh list: the converted copy
+    # plus a step whose record was queued at the split's own dump. The
+    # already-layered step object itself survives here to prove it never
+    # consumes a second record.
+    bridged = _agent_step("bridging turn")
+    agent._trajectory_steps = [first, bridged]
+    agent._layer_queue = [_layer_record("bridging turn")]
+    agent._annotate_step_layers()
+    first_layers = (first.extra or {}).get("step_layers")
+    assert first_layers is not None
+    assert first_layers["provenance"] == "recorded"
+    assert first_layers["executed"]["keystrokes_sent"] == ["first turn"]
+    layers = (bridged.extra or {}).get("step_layers")
+    assert layers is not None, "list swap dropped the bridging record"
+    assert layers["provenance"] == "recorded"
+    assert layers["executed"]["keystrokes_sent"] == ["bridging turn"]
+    assert agent._layer_queue == []

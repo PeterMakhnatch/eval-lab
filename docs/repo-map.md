@@ -61,7 +61,7 @@ inputs:
   - path: src/evallab/curve.py
     digest: sha256:b9b2712aa1dfb58d7f95f7dc5eb9e2291cc8e9f7cc6d30a6d95120ad82f806cf
   - path: src/evallab/database.py
-    digest: sha256:f24fcc91f9eddb83b21732ea401c068f7791a656a871186f34301b0670db4718
+    digest: sha256:3cd9fdafc7742b70ce4fabccc7909814dc1ac664bc062353533613e4fd5be56b
   - path: src/evallab/deepplanning.py
     digest: sha256:82d416cc459c600c447339aa1c088e9e2216f068bfc58eb17c00bd198d8560bf
   - path: src/evallab/devloop.py

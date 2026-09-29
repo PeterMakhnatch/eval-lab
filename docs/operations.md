@@ -861,9 +861,10 @@ survive executor restarts; the successful attempt is settled by catalog cost.
 A later retry or spec is refused if catalog spend plus unsettled reservations
 would cross the standing ceiling. Transient provider capacity
 is shown separately in digests and skipped, rather than counted or treated as a
-success, by the quiet-failure circuit breaker. An `AgentTimeoutError` trial
-that the verifier scored ran end to end, so the breaker treats it as a clean
-trial; a timeout without a verifier result still counts as a failure.
+success, by the quiet-failure circuit breaker. An `AgentTimeoutError` or
+`TrialBudgetExhaustedError` trial that the verifier scored ran end to end, so
+the breaker treats it as a clean trial; without a verifier result either one
+still counts as a failure.
 
 Harbor subprocesses receive a non-secret environment allowlist. Model API-key
 variables are neither accessed nor forwarded; supported model access remains

@@ -77,6 +77,21 @@ def _modes(trial: Path) -> list[str]:
 
 
 def test_infra_failed_trials_carry_no_modes(tmp_path: Path) -> None:
+    # HAR-92: a verifier score decides the outcome even when the harness also
+    # recorded an exception; infra_failed is for unscored exceptions only.
+    trial = _write_trial(
+        tmp_path / "trial",
+        [_agent_step("working", command="pytest -q", output="boom", returncode=1)],
+        reward=None,
+        exception="HarborTimeout",
+    )
+    diagnosis = diagnose_trial(trial)
+    assert diagnosis.outcome == "infra_failed"
+    assert diagnosis.exception_class == "HarborTimeout"
+    assert diagnosis.modes == ()
+
+
+def test_scored_exception_trial_stays_scored(tmp_path: Path) -> None:
     trial = _write_trial(
         tmp_path / "trial",
         [_agent_step("working", command="pytest -q", output="boom", returncode=1)],
@@ -84,9 +99,8 @@ def test_infra_failed_trials_carry_no_modes(tmp_path: Path) -> None:
         exception="HarborTimeout",
     )
     diagnosis = diagnose_trial(trial)
-    assert diagnosis.outcome == "infra_failed"
+    assert diagnosis.outcome == "scored"
     assert diagnosis.exception_class == "HarborTimeout"
-    assert diagnosis.modes == ()
 
 
 def test_unscored_trials_carry_no_modes(tmp_path: Path) -> None:
@@ -762,9 +776,17 @@ def test_diagnose_atif_outcome_branches() -> None:
     assert (
         diagnose_atif(trajectory, trial_id="t", trial_name="t").outcome == "unscored"
     )
+    # HAR-92: a scored trial with an exception is scored, not infra_failed.
     assert (
         diagnose_atif(
             trajectory, trial_id="t", trial_name="t", reward=0.0,
+            exception_class="Boom",
+        ).outcome
+        == "scored"
+    )
+    assert (
+        diagnose_atif(
+            trajectory, trial_id="t", trial_name="t", reward=None,
             exception_class="Boom",
         ).outcome
         == "infra_failed"

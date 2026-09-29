@@ -296,6 +296,11 @@ class MimoToolCallParser:
         self._inner = inner
         self._finish_reason = finish_reason
         self.last_prose_completion = False
+        #: Recording-only HAR-92 state: the normalized text the latest parse
+        #: acted on (``None`` when the raw response reached the inner parser
+        #: untouched), plus that parse's error. Parser decisions are unchanged.
+        self.last_normalized: str | None = None
+        self.last_error: str | None = None
 
     def parse_response(self, response: str) -> Any:
         normalized = normalize_mimo_tool_calls(response)
@@ -309,7 +314,9 @@ class MimoToolCallParser:
             normalized = json.dumps(
                 {"analysis": answer, "plan": "", "commands": [], "task_complete": True}
             )
+        self.last_normalized = normalized
         result: _ParseResult = self._inner.parse_response(normalized or response)
         for command in result.commands:
             command.keystrokes = executed_keystrokes(command.keystrokes)
+        self.last_error = getattr(result, "error", None)
         return result

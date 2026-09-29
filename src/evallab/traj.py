@@ -28,6 +28,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from evallab.results import sha256_file
+from evallab.step_layers import StitchStats, stitch_steps
 from evallab.storage.paths import (
     derived_root_from_environment,
     resolve_runs_roots,
@@ -69,6 +70,8 @@ EDIT_COMMAND_PATTERNS = re.compile(
 _REDACTION_PATTERN = re.compile(
     r"<<evallab-redacted: (?P<bytes>\d+) bytes, (?P<digest>sha256:[0-9a-f]{64})>>"
 )
+#: Continuation segments (``trajectory.cont-N.json``) beside the head.
+_CONTINUATION_RE = re.compile(r"^trajectory\.cont-(\d+)\.json$")
 
 
 class TrajectoryError(Exception):
@@ -551,6 +554,37 @@ def _resolve_chain_segments(
         segments.append((resolved, loaded, sha256_file(resolved)))
         current_path = resolved
         current_data = loaded
+    # HAR-92: older trials carry continuations no reference points at (no
+    # ``continued_trajectory_ref``, or a head that was never re-dumped). Union
+    # in every sibling ``trajectory.cont-N.json`` by index so consumers read
+    # all parts; dedupe happens in ``stitched_chain_action_steps``.
+    discovered: list[tuple[int, Path]] = []
+    try:
+        siblings = sorted(current_path.parent.iterdir(), key=lambda entry: entry.name)
+    except OSError:
+        siblings = []
+    for sibling in siblings:
+        match = _CONTINUATION_RE.match(sibling.name)
+        if match is None or not sibling.is_file():
+            continue
+        try:
+            resolved_sibling = sibling.resolve()
+        except Exception:
+            continue
+        if resolved_sibling != trial_root and trial_root not in resolved_sibling.parents:
+            continue
+        if resolved_sibling in seen:
+            continue
+        discovered.append((int(match.group(1)), resolved_sibling))
+    for _, cont_path in sorted(discovered):
+        try:
+            loaded_cont = json.loads(cont_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(loaded_cont, dict):
+            continue
+        seen.add(cont_path)
+        segments.append((cont_path, loaded_cont, sha256_file(cont_path)))
     return ChainResolution(
         segments=tuple(segments),
         complete=stopped_ref is None,
@@ -580,6 +614,58 @@ def _chain_action_steps(segments: Sequence[ChainSegment]) -> list[tuple[int, Any
                 continue
             stitched.append((position, raw_step))
     return stitched
+
+
+def stitched_chain_action_steps(
+    segments: Sequence[ChainSegment],
+) -> tuple[list[tuple[int, Any]], StitchStats]:
+    """Unique non-copied raw steps across continuation parts, canonical order.
+
+    Same ``(segment_position, raw_step)`` shape as :func:`_chain_action_steps`,
+    plus dedupe across parts: a sealed head re-dumped as a continuation, or a
+    head prefix restated by a cumulative continuation, is counted once (later
+    parts supersede). Kept steps retain their original segment position for
+    citations. See :func:`evallab.step_layers.stitch_steps`.
+    """
+    position_by_id: dict[int, int] = {}
+    docs: list[Any] = []
+    for position, (_, data, _) in enumerate(segments):
+        docs.append(data)
+        raw_steps = data.get("steps") if isinstance(data, dict) else None
+        if isinstance(raw_steps, list):
+            for raw_step in raw_steps:
+                position_by_id.setdefault(id(raw_step), position)
+    unique, stats = stitch_steps(docs)
+    return [(position_by_id.get(id(step), 0), step) for step in unique], stats
+
+
+def trial_trajectory_path(trial_dir: Path) -> Path | None:
+    """Head ``trajectory.json`` under ``agent/`` (else the trial root).
+
+    HAR-92: when the head was never retained (only continuations survive),
+    fall back to the lowest-index ``trajectory.cont-N.json`` so the evidence
+    is reported with a coverage gap instead of reading as absent.
+    """
+    for base in (trial_dir / "agent", trial_dir):
+        head = base / "trajectory.json"
+        if head.is_file():
+            return head
+    best: tuple[int, Path] | None = None
+    for base in (trial_dir / "agent", trial_dir):
+        try:
+            entries = sorted(base.iterdir(), key=lambda entry: entry.name)
+        except OSError:
+            continue
+        for entry in entries:
+            if not entry.is_file():
+                continue
+            match = _CONTINUATION_RE.match(entry.name)
+            if match is None:
+                continue
+            candidate = (int(match.group(1)), entry)
+            if best is None or candidate[0] < best[0]:
+                best = candidate
+    return best[1] if best is not None else None
 
 
 def _parse_iso_seconds(t1_str: str | None, t2_str: str | None) -> float | None:
@@ -1192,26 +1278,22 @@ def resolve_trial_target(
                 return trial_dir, resolved, res_path if res_path.is_file() else None
             if resolved.name == "result.json":
                 trial_dir = resolved.parent
-                traj_cand = trial_dir / "agent" / "trajectory.json"
-                if not traj_cand.is_file():
-                    traj_cand = trial_dir / "trajectory.json"
-                return trial_dir, traj_cand if traj_cand.is_file() else None, resolved
+                traj_cand = trial_trajectory_path(trial_dir)
+                return trial_dir, traj_cand, resolved
             trial_dir = resolved.parent
-            traj_cand = trial_dir / "agent" / "trajectory.json"
+            traj_cand = trial_trajectory_path(trial_dir)
             res_cand = trial_dir / "result.json"
             return (
                 trial_dir,
-                traj_cand if traj_cand.is_file() else None,
+                traj_cand,
                 res_cand if res_cand.is_file() else None,
             )
         elif resolved.is_dir():
-            traj_cand = resolved / "agent" / "trajectory.json"
-            if not traj_cand.is_file():
-                traj_cand = resolved / "trajectory.json"
+            traj_cand = trial_trajectory_path(resolved)
             res_cand = resolved / "result.json"
             return (
                 resolved,
-                traj_cand if traj_cand.is_file() else None,
+                traj_cand,
                 res_cand if res_cand.is_file() else None,
             )
         raise TrajectoryNotFoundError(f"Path target {target!r} ({resolved}) does not exist")
@@ -1223,13 +1305,11 @@ def resolve_trial_target(
         cand_dir = c_root / target_str
         if cand_dir.is_dir():
             _check_path_jail(cand_dir, [root, *candidate_roots])
-            traj_cand = cand_dir / "agent" / "trajectory.json"
-            if not traj_cand.is_file():
-                traj_cand = cand_dir / "trajectory.json"
+            traj_cand = trial_trajectory_path(cand_dir)
             res_cand = cand_dir / "result.json"
             return (
                 cand_dir,
-                traj_cand if traj_cand.is_file() else None,
+                traj_cand,
                 res_cand if res_cand.is_file() else None,
             )
         for job_dir in c_root.iterdir():
@@ -1255,13 +1335,11 @@ def resolve_trial_target(
                             pass
                 if matched:
                     _check_path_jail(cand_trial, [root, *candidate_roots])
-                    traj_cand = cand_trial / "agent" / "trajectory.json"
-                    if not traj_cand.is_file():
-                        traj_cand = cand_trial / "trajectory.json"
+                    traj_cand = trial_trajectory_path(cand_trial)
                     res_cand = cand_trial / "result.json"
                     return (
                         cand_trial,
-                        traj_cand if traj_cand.is_file() else None,
+                        traj_cand,
                         res_cand if res_cand.is_file() else None,
                     )
 
@@ -1570,7 +1648,7 @@ def outline_trajectory(
                 exception_class=exception_class,
                 citations=citations,
             )
-    positioned_steps = _chain_action_steps(chain_segments)
+    positioned_steps, _stitch_stats = stitched_chain_action_steps(chain_segments)
     raw_steps = [raw_step for _, raw_step in positioned_steps]
     if any(not isinstance(step, dict) for step in raw_steps):
         return _unavailable_outline(

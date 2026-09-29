@@ -89,6 +89,17 @@ class _FakeTerminus2:
     def populate_context_post_run(self, context: Any) -> None:
         del context
 
+    def _dump_trajectory_with_continuation_index(self, continuation_index: int) -> None:
+        del continuation_index
+
+    def _dump_trajectory(self) -> None:
+        # Mirrors Harbor 0.21.0: the plain dump delegates to the indexed dump.
+        self._dump_trajectory_with_continuation_index(0)
+
+    async def _execute_commands(self, commands: Any, session: Any) -> Any:
+        del session
+        return False, "stub terminal output\n"
+
 
 def _module(name: str, **attributes: Any) -> ModuleType:
     module = ModuleType(name)
@@ -673,3 +684,160 @@ def test_terminus_staging_preserves_declared_network(tmp_path: Path) -> None:
     assert manifest["agent_allowed_hosts"] == []
     assert "network_adaptation" not in manifest
     assert "allowlist" not in (staged / "task.toml").read_text()
+
+
+# ---------------------------------------------------------------------------
+# 4. Step-layer annotation (HAR-92 first-step + sanitized-message fixes)
+# ---------------------------------------------------------------------------
+
+
+def _layer_record(message: str, keystrokes: str | None = None) -> dict[str, Any]:
+    sent = keystrokes if keystrokes is not None else message
+    return {
+        "message": message,
+        "reasoning": None,
+        "prose_mapped": False,
+        "commands": [(sent, 0.1)],
+        "task_complete": False,
+        "parse_error": None,
+        "exec": {
+            "keystrokes_sent": [sent],
+            "durations_sec": [0.1],
+            "sent_at": "2026-09-29T00:00:00+00:00",
+            "timeout": False,
+            "output": "ok\n",
+        },
+    }
+
+
+def _agent_step(message: str) -> SimpleNamespace:
+    return SimpleNamespace(source="agent", message=message, is_copied_context=False, extra=None)
+
+
+def test_first_agent_step_gets_recorded_layers(trial_transport: Any, tmp_path: Path) -> None:
+    """The first annotation must not treat its own list as a split (HAR-92)."""
+    agent = trial_transport.SecretSafeTerminus2(logs_dir=tmp_path, model_name="zai/glm-5.3-flash")
+    step = _agent_step("echo hi")
+    agent._trajectory_steps = [step]
+    agent._layer_queue = [_layer_record("echo hi")]
+    agent._save_raw_content_in_trajectory = True
+    assert agent._layer_steps_id is None
+    agent._annotate_step_layers()
+    layers = (step.extra or {}).get("step_layers")
+    assert layers is not None, "first agent step lost its episode record"
+    assert layers["provenance"] == "recorded"
+    assert layers["executed"]["keystrokes_sent"] == ["echo hi"]
+
+
+def test_non_matching_step_preserves_later_records(trial_transport: Any, tmp_path: Path) -> None:
+    """A sanitized/redacted step leaves later episode records intact (HAR-92)."""
+    agent = trial_transport.SecretSafeTerminus2(logs_dir=tmp_path, model_name="zai/glm-5.3-flash")
+    redacted = _agent_step("REDACTED")
+    agent._trajectory_steps = [redacted]
+    agent._layer_queue = [_layer_record("echo later", keystrokes="echo later")]
+    agent._save_raw_content_in_trajectory = True
+    agent._annotate_step_layers()
+    assert (redacted.extra or {}).get("step_layers") is None
+    assert len(agent._layer_queue) == 1, "non-matching step dropped later records"
+    later = _agent_step("echo later")
+    agent._trajectory_steps.append(later)
+    agent._annotate_step_layers()
+    layers = (later.extra or {}).get("step_layers")
+    assert layers is not None, "later step lost its record to the redacted step"
+    assert layers["provenance"] == "recorded"
+    assert layers["executed"]["keystrokes_sent"] == ["echo later"]
+
+
+def test_list_swap_keeps_bridge_record_without_double_counting(
+    trial_transport: Any, tmp_path: Path
+) -> None:
+    """A summarization-style list swap must not drop the bridging record (HAR-92)."""
+    agent = trial_transport.SecretSafeTerminus2(logs_dir=tmp_path, model_name="zai/glm-5.3-flash")
+    agent._save_raw_content_in_trajectory = True
+    first = _agent_step("first turn")
+    agent._trajectory_steps = [first]
+    agent._layer_queue = [_layer_record("first turn")]
+    agent._annotate_step_layers()
+    assert (first.extra or {}).get("step_layers", {}).get("provenance") == "recorded"
+    # Upstream seals the head and installs a fresh list: the converted copy
+    # plus a step whose record was queued at the split's own dump. The
+    # already-layered step object itself survives here to prove it never
+    # consumes a second record.
+    bridged = _agent_step("bridging turn")
+    agent._trajectory_steps = [first, bridged]
+    agent._layer_queue = [_layer_record("bridging turn")]
+    agent._annotate_step_layers()
+    first_layers = (first.extra or {}).get("step_layers")
+    assert first_layers is not None
+    assert first_layers["provenance"] == "recorded"
+    assert first_layers["executed"]["keystrokes_sent"] == ["first turn"]
+    layers = (bridged.extra or {}).get("step_layers")
+    assert layers is not None, "list swap dropped the bridging record"
+    assert layers["provenance"] == "recorded"
+    assert layers["executed"]["keystrokes_sent"] == ["bridging turn"]
+    assert agent._layer_queue == []
+
+
+def _parsed_pending(message: str, keystrokes: str, *, parse_error: str | None = None) -> dict[str, Any]:
+    """A ``_pending_layer`` as ``_handle_llm_interaction`` builds it after a parse."""
+    return {
+        "message": message,
+        "reasoning": None,
+        "prose_mapped": False,
+        "commands": [(keystrokes, 0.5)],
+        "task_complete": False,
+        "parse_error": parse_error,
+        "exec": None,
+    }
+
+
+def test_split_between_parse_and_execute_keeps_executed_layer(
+    trial_transport: Any, tmp_path: Path
+) -> None:
+    """A split dump must not abandon the live turn (HAR-92 follow-up).
+
+    Drives Harbor 0.21.0's real call order in ``linear_history`` mode: parse
+    (``_handle_llm_interaction``) leaves ``_pending_layer`` set, the pending
+    handoff splits (``_run_agent_loop``:1322 dumps via
+    ``_dump_trajectory_with_continuation_index`` *before* ``_execute_commands``
+    at :1399), then the turn executes, its step is appended (:1503), and the
+    episode dump (:1529) annotates.
+    """
+    agent = trial_transport.SecretSafeTerminus2(logs_dir=tmp_path, model_name="zai/glm-5.3-flash")
+    agent._save_raw_content_in_trajectory = True
+    agent._trajectory_steps = []
+    agent._pending_layer = _parsed_pending("run the migration", "run-migration\n")
+    agent._dump_trajectory_with_continuation_index(0)
+    assert agent._pending_layer is not None, "split dump abandoned a live turn"
+    command = SimpleNamespace(keystrokes="run-migration\n", duration_sec=0.5)
+    asyncio.run(agent._execute_commands([command], object()))
+    agent._trajectory_steps.append(_agent_step("run the migration"))
+    agent._dump_trajectory()
+    layers = (agent._trajectory_steps[0].extra or {}).get("step_layers")
+    assert layers is not None, "executed turn lost its episode record at the split"
+    assert layers["provenance"] == "recorded"
+    assert layers["accepted"]["kind"] == "calls"
+    assert layers["executed"]["keystrokes_sent"] == ["run-migration\n"]
+    assert layers["executed"]["reason"] is None
+    assert layers["observed"]["output"] == "stub terminal output\n"
+
+
+def test_cancelled_turn_before_execute_keeps_not_executed_reason(
+    trial_transport: Any, tmp_path: Path
+) -> None:
+    """A turn parsed but cancelled before execute still records a reason (HAR-92)."""
+    agent = trial_transport.SecretSafeTerminus2(logs_dir=tmp_path, model_name="zai/glm-5.3-flash")
+    agent._save_raw_content_in_trajectory = True
+    agent._trajectory_steps = []
+    agent._pending_layer = _parsed_pending("run the migration", "run-migration\n")
+    # Cancel/timeout: run()'s finally reaches _dump_trajectory (terminus_2.py:1643).
+    agent._dump_trajectory()
+    assert agent._pending_layer is None
+    agent._trajectory_steps.append(_agent_step("run the migration"))
+    agent._dump_trajectory()
+    layers = (agent._trajectory_steps[0].extra or {}).get("step_layers")
+    assert layers is not None, "cancelled turn lost its proposed/accepted layers"
+    assert layers["provenance"] == "recorded"
+    assert layers["executed"]["keystrokes_sent"] is None
+    assert layers["executed"]["reason"] == "episode interrupted before execution"
+    assert layers["observed"]["output"] is None

@@ -33,7 +33,7 @@ import json
 import math
 import re
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -56,15 +56,27 @@ from evallab.interpretation.run_report_scale import (
     step_windows,
     time_windows,
 )
+from evallab.step_layers import (
+    STEP_LAYERS_KEY,
+    StitchStats,
+    classify_stop_reason,
+    coverage_record,
+    discover_trajectory_parts,
+    execution_problems,
+    reconstruct_layers,
+    summarize_layers,
+    synthesize_atif_calls,
+    verifier_outcome,
+)
 from evallab.traj import (
     CONTROL_AGENTS,
     LoopStep,
     TrajectoryError,
     _analyze_loop_suspicion,
-    _chain_action_steps,
     _resolve_chain_segments,
     extract_loop_step,
     resolve_trial_target,
+    stitched_chain_action_steps,
 )
 from evallab.trajectory_error_taxonomy import classify_step_error, split_envelope
 from evallab.trajectory_ir import _extract_reasoning_tokens
@@ -605,11 +617,94 @@ def _observation_results(raw_step: dict[str, Any]) -> list[dict[str, Any]]:
     return results
 
 
+def _replay_parser() -> Any:
+    """Stock Terminus parser for offline layer reconstruction, or None.
+
+    Harbor-free environments (and unit tests) get ``None``: steps then keep
+    their recorded layers only, and anything else reads as missing instead
+    of being guessed.
+    """
+    try:
+        from evallab.harbor_terminus import mimo_replay_parser
+    except ImportError:
+        return None
+    try:
+        return mimo_replay_parser()
+    except Exception:
+        return None
+
+
+def _positioned_layers(
+    positioned: Sequence[tuple[int, Any]], parse: Any
+) -> list[dict[str, Any] | None]:
+    """Step layers aligned with ``positioned`` raws (recorded or reconstructed)."""
+    layers: list[dict[str, Any] | None] = []
+    for _, raw in positioned:
+        if not isinstance(raw, dict):
+            layers.append(None)
+            continue
+        if parse is None:
+            extra = raw.get("extra")
+            stored = extra.get(STEP_LAYERS_KEY) if isinstance(extra, dict) else None
+            layers.append(stored if isinstance(stored, dict) else None)
+            continue
+        try:
+            layers.append(reconstruct_layers(raw, parse=parse))
+        except Exception:
+            layers.append(None)
+    return layers
+
+
+def _lab_metadata(trial: Path) -> dict[str, Any]:
+    """Run-level metadata (provider usage) beside the trial directory."""
+    for candidate in (trial.parent / "lab-metadata.json", trial / "lab-metadata.json"):
+        try:
+            data = json.loads(candidate.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(data, dict):
+            return data
+    return {}
+
+
+def _final_turn_flags(
+    positioned: Sequence[tuple[int, Any]],
+    layers: Sequence[dict[str, Any] | None],
+) -> tuple[bool | None, bool | None]:
+    """Last agent turn's accepted ``(task_complete, prose_completion)`` flags."""
+    padded = list(layers) + [None] * max(0, len(positioned) - len(layers))
+    for (_, raw), layer in reversed(list(zip(positioned, padded, strict=False))):
+        if (
+            not isinstance(raw, dict)
+            or raw.get("source") != "agent"
+            or raw.get("is_copied_context")
+        ):
+            continue
+        accepted = layer.get("accepted") if isinstance(layer, Mapping) else None
+        if not isinstance(accepted, Mapping):
+            return None, None
+        return (
+            accepted.get("task_complete") if accepted.get("kind") != "parse_error" else False,
+            accepted.get("kind") == "prose_completion" or None,
+        )
+    return None, None
+
 def _step_actions(
-    raw_step: dict[str, Any], step: int, timestamp: datetime | None, start_index: int
+    raw_step: dict[str, Any],
+    step: int,
+    timestamp: datetime | None,
+    start_index: int,
+    layer: dict[str, Any] | None = None,
 ) -> tuple[list[_Action], list[str]]:
-    """Pair a step's tool calls with its results; return (actions, unpaired harness notices)."""
+    """Pair a step's tool calls with its results; return (actions, unpaired harness notices).
+
+    ``raw_content`` Terminus steps carry no native ``tool_calls``; the calls
+    the harness accepted (and executed) are synthesized from the step layers
+    instead, so executed work counts instead of reading as zero.
+    """
     raw_calls = [c for c in raw_step.get("tool_calls") or [] if isinstance(c, dict)]
+    if not raw_calls and layer is not None:
+        raw_calls = synthesize_atif_calls(raw_step, layer)
     if not raw_calls:
         return [], []
     calls = [_call_from_raw(c) for c in raw_calls]
@@ -668,18 +763,24 @@ def _cache_write(metrics: dict[str, Any]) -> int | None:
 
 def _build_steps(
     positioned: Sequence[tuple[int, Any]],
+    layers: Sequence[dict[str, Any] | None] = (),
 ) -> tuple[list[_Step], list[LoopStep]]:
     steps: list[_Step] = []
     loop_steps: list[LoopStep] = []
     action_index = 0
     # Number only well-formed steps so ordinals stay contiguous.
-    well_formed = [(segment, raw) for segment, raw in positioned if isinstance(raw, dict)]
-    for ordinal, (segment, raw) in enumerate(well_formed, start=1):
+    padded = list(layers) + [None] * max(0, len(positioned) - len(layers))
+    well_formed = [
+        (segment, raw, layer)
+        for (segment, raw), layer in zip(positioned, padded, strict=False)
+        if isinstance(raw, dict)
+    ]
+    for ordinal, (segment, raw, layer) in enumerate(well_formed, start=1):
         loop_steps.append(extract_loop_step(raw)[0])
         timestamp = _parse_ts(raw.get("timestamp"))
         metrics = _dict(raw.get("metrics"))
         extra = _dict(raw.get("extra"))
-        actions, notices = _step_actions(raw, ordinal, timestamp, action_index)
+        actions, notices = _step_actions(raw, ordinal, timestamp, action_index, layer)
         action_index += len(actions)
         refs: list[dict[str, Any]] = []
         for result in _observation_results(raw):
@@ -1569,7 +1670,15 @@ def _errors(
     }
 
 
-def _outcome(result: dict[str, Any], steps: Sequence[_Step], trial_dir: Path) -> dict[str, Any]:
+def _outcome(
+    result: dict[str, Any],
+    steps: Sequence[_Step],
+    trial_dir: Path,
+    *,
+    layer_summary: Mapping[str, Any] | None = None,
+    stop: tuple[str | None, str] | None = None,
+    problems: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     verifier = _dict(result.get("verifier_result"))
     rewards = {
         str(k): float(v) for k, v in _dict(verifier.get("rewards")).items() if _float(v) is not None
@@ -1593,10 +1702,18 @@ def _outcome(result: dict[str, Any], steps: Sequence[_Step], trial_dir: Path) ->
         (s.message for s in reversed(steps) if s.source == "agent" and s.message.strip()), None
     )
     verifier_dir = trial_dir / "verifier"
+    stop_reason, stop_detail = stop if stop is not None else (None, "unknown: no stop evidence")
     return {
         "verdict": verdict,
         "reward": reward,
         "rewards": rewards,
+        # HAR-92: verifier outcome, stop reason, and execution problems are
+        # three separate facts. A scored timeout still passes or fails on its
+        # reward; the stop reason says why the agent phase ended.
+        "verifier_outcome": verifier_outcome(rewards),
+        "stop_reason": stop_reason,
+        "stop_detail": stop_detail,
+        "execution_problems": dict(problems) if problems is not None else {},
         "final_agent_message": _clip(final_message, 600) if final_message else None,
         "verifier_files": sorted(
             str(p.relative_to(trial_dir)) for p in verifier_dir.rglob("*") if p.is_file()
@@ -1841,10 +1958,52 @@ def build_run_report(
     if availability["trajectory"] != "present":
         quality.append(f"trajectory {availability['trajectory']}: {availability['reason']}")
 
-    positioned = _chain_action_steps(segments) if segments else []
-    steps, loop_steps = _build_steps(positioned)
+    if segments:
+        positioned, stitch_stats = stitched_chain_action_steps(segments)
+    else:
+        positioned, stitch_stats = [], StitchStats()
+    parse = _replay_parser()
+    layers = _positioned_layers(positioned, parse)
+    steps, loop_steps = _build_steps(positioned, layers)
     if len(steps) < len(positioned):
         quality.append(f"{len(positioned) - len(steps)} malformed (non-object) steps skipped")
+    if parse is None and not any(
+        isinstance(layer, Mapping) for layer in layers
+    ):
+        quality.append(
+            "step layers unavailable: no recorded layers and no parser to reconstruct them"
+        )
+    if stitch_stats.duplicated_steps:
+        quality.append(
+            f"{stitch_stats.duplicated_steps} steps shared across continuation parts counted once"
+        )
+    agent_dir = segments[0][0].parent if segments else trial / "agent"
+    agent_metadata = _dict(_dict(result.get("agent_result")).get("metadata"))
+    summarization_count = agent_metadata.get("summarization_count")
+    coverage = coverage_record(
+        discover_trajectory_parts(agent_dir),
+        stitch_stats,
+        summarization_count=summarization_count
+        if isinstance(summarization_count, int)
+        else None,
+        step_lists={path.name: doc.get("steps") for path, doc, _ in segments}
+        if segments
+        else None,
+    )
+    for gap in coverage["gaps"]:
+        quality.append(f"trajectory coverage gap: {gap}")
+    layer_summary = summarize_layers(
+        [raw for _, raw in positioned], dict(enumerate(layers))
+    )
+    lab_metadata = _lab_metadata(trial)
+    last_task_complete, last_prose_completion = _final_turn_flags(positioned, layers)
+    stop_reason, stop_detail = classify_stop_reason(
+        agent_metadata=agent_metadata,
+        exception_info=_dict(result.get("exception_info")),
+        last_task_complete=last_task_complete,
+        last_prose_completion=last_prose_completion,
+    )
+    problems = execution_problems(layer_summary=layer_summary, lab_metadata=lab_metadata)
     actions = [a for s in steps for a in s.actions]
     root_doc = segments[0][1] if segments else {}
     terminal_doc = segments[-1][1] if segments else {}
@@ -1882,7 +2041,14 @@ def build_run_report(
         "schema": RUN_REPORT_SCHEMA,
         "identity": _identity(result, trial, root_doc),
         "availability": availability,
-        "outcome": _outcome(result, steps, trial),
+        "outcome": _outcome(
+            result,
+            steps,
+            trial,
+            layer_summary=layer_summary,
+            stop=(stop_reason, stop_detail),
+            problems=problems,
+        ),
         "timing": timing,
         "tokens": tokens,
         "cost": cost,
@@ -1901,6 +2067,10 @@ def build_run_report(
         # Independent capture is additive and optional: None means no linked
         # capture exists, never a lookup failure worth failing the report over.
         "capture": _linked_capture(trial),
+        # HAR-92: per-step model/harness/execution/observation layers,
+        # continuation coverage, and the outcome/execution split.
+        "step_layers": layer_summary,
+        "trajectory_coverage": coverage,
     }
     report["summary"] = _summary_line(report)
     return report
@@ -2111,6 +2281,30 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
     if errors["exception"]:
         exc = errors["exception"]
         lines.append(f"- Exception: `{exc['type']}` — {exc['message'] or ''}".rstrip(" —"))
+    lines.append(
+        f"- Verifier: {outcome.get('verifier_outcome', 'unknown')}"
+        f"; stop reason: {outcome.get('stop_reason') or 'unknown'}"
+        + (f" ({outcome['stop_detail']})" if outcome.get("stop_detail") else "")
+    )
+    problems = outcome.get("execution_problems") or {}
+    problem_bits = [
+        f"{problems[key]} {label}"
+        for key, label in (
+            ("parse_errors", "parse errors"),
+            ("prose_completions", "prose completions"),
+            ("http_400_no_usage", "HTTP 400s without usage"),
+            ("proxy_unresolved_requests", "unresolved proxy requests"),
+        )
+        if isinstance(problems.get(key), int)
+    ]
+    if problems.get("proxy_usage_unreconciled") is True:
+        problem_bits.append("proxy usage failed reconciliation")
+    lines.append(
+        "- Execution problems: "
+        + (", ".join(problem_bits) if problem_bits else "none recorded")
+        + (f" ({problems['coverage']})" if problems.get("coverage") != "complete" else "")
+        + "."
+    )
     if outcome["final_agent_message"]:
         lines.append(f"- Final agent message: {outcome['final_agent_message']}")
     lines += ["", "## Time"]
@@ -2229,6 +2423,57 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
             ]
     else:
         lines.append("No tool calls recorded.")
+    step_layers = report.get("step_layers") or {}
+    provenance_bits = [
+        f"{step_layers[key]} {label}"
+        for key, label in (
+            ("recorded", "recorded"),
+            ("reconstructed", "reconstructed"),
+            ("copied", "copied context"),
+            ("missing", "missing"),
+        )
+        if isinstance(step_layers.get(key), int) and step_layers[key]
+    ]
+    if provenance_bits and (tools["total_calls"] or step_layers.get("agent_steps")):
+        lines.append(
+            "Call provenance: "
+            + ", ".join(provenance_bits)
+            + ". Missing coverage reads as unknown, never zero."
+        )
+    coverage = report.get("trajectory_coverage") or {}
+    lines += ["", "## Capture (what was recorded?)"]
+    lines.append(
+        f"Head: {'present' if coverage.get('trajectory_head') else 'absent'}; "
+        f"continuations: {coverage.get('continuation_indices', 'unknown')}"
+        + (
+            f" (missing: {coverage['continuations_missing']})"
+            if coverage.get("continuations_missing")
+            else ""
+        )
+        + "."
+    )
+    part_bits = "; ".join(
+        f"{part['path']}: "
+        f"{part['steps'] if part['readable'] else 'unreadable'} steps"
+        + (f" ({part['copied_steps']} copied)" if part.get("copied_steps") else "")
+        for part in coverage.get("parts", [])
+    )
+    lines.append(
+        f"Trajectory parts: {part_bits or 'none'}. "
+        f"Unique non-copied steps: {coverage.get('unique_steps', 'unknown')}"
+        + (
+            f" ({coverage['duplicated_steps']} shared across parts counted once)"
+            if coverage.get("duplicated_steps")
+            else ""
+        )
+        + "."
+    )
+    for name, target in sorted((coverage.get("duplicate_segments") or {}).items()):
+        lines.append(f"- {name} repeats an earlier segment ({target})")
+    if coverage.get("gaps"):
+        lines += [f"- coverage gap: {gap}" for gap in coverage["gaps"]]
+    if coverage.get("notes"):
+        lines += [f"- {note}" for note in coverage["notes"]]
     lines += ["", "## Revisits (did it circle back?)"]
     if revisits["actions_considered"]:
         lines += _table(

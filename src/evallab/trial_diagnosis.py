@@ -15,12 +15,15 @@ itself is out of scope here.
 
 Outcome semantics (never conflated):
 
-* ``infra_failed`` -- the trial raised (``exception_info`` present). No modes.
+* ``infra_failed`` -- the trial raised before scoring (``exception_info``
+  present, no numeric reward). No modes.
 * ``unscored`` -- no exception but no numeric reward. No modes.
-* ``scored`` -- numeric reward present. Modes attach only to scored failures
-  (reward < 1.0) with a featured trajectory; scored passes, controls without
-  an agent trajectory, and unscored/infra trials carry zero modes, so an
-  unscored or infra-failed trial is never labeled as a task failure.
+* ``scored`` -- numeric reward present, whatever ended the agent phase: a
+  verifier-scored ``AgentTimeoutError`` passes or fails on its reward (HAR-92)
+  and keeps its exception class as evidence. Modes attach only to scored
+  failures (reward < 1.0) with a featured trajectory; scored passes, controls
+  without an agent trajectory, and unscored/infra trials carry zero modes, so
+  an unscored or infra-failed trial is never labeled as a task failure.
 
 Failure-mode taxonomy (``trial_diagnosis/failure_mode/v1``) reuses
 ``trajectory_behavior/v1`` concepts where they exist and extends only where a
@@ -83,12 +86,13 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
 from evallab.labels import propose_heuristic_label
+from evallab.step_layers import STEP_LAYERS_KEY, classify_stop_reason, executed_output, stitch_steps
 from evallab.tracing import TraceError, is_job_dir, is_trial_dir
 from evallab.traj import (
     EDIT_COMMAND_PATTERNS,
@@ -447,24 +451,52 @@ def _output_text(content: Any) -> str:
     return text
 
 
-def _raw_steps(trial_dir: Path) -> list[dict[str, Any]]:
+def _raw_steps(trial_dir: Path) -> tuple[list[dict[str, Any]], tuple[str, ...]]:
+    """Unique non-copied steps across the head and continuations, plus notices.
+
+    Reads every readable ``trajectory.json`` / ``trajectory.cont-N.json`` part
+    beside the resolved trajectory and dedupes steps shared across parts (a
+    re-dumped head, a cumulative continuation restating history) by step
+    identity, so detectors never count the same turn twice. Whole-duplicate
+    parts use the SFT exporter's ``duplicate_of:`` vocabulary
+    (see :mod:`evallab.step_layers`).
+    """
     try:
         _, traj_path, _ = resolve_trial_target(trial_dir, explicit_runs_root=trial_dir)
     except (TrajectoryError, ValueError, OSError):
-        return []
+        return [], ()
     if traj_path is None or not traj_path.is_file():
-        return []
-    try:
-        data = json.loads(traj_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, ValueError):
-        return []
-    if not isinstance(data, dict):
-        return []
-    steps = data.get("steps")
-    if not isinstance(steps, list):
-        return []
-    return [step for step in steps if isinstance(step, dict)]
-
+        return [], ()
+    names: list[str] = []
+    docs: list[dict[str, Any]] = []
+    seen: set[Path] = set()
+    for path in [traj_path, *sorted(traj_path.parent.glob("trajectory.cont-*.json"))]:
+        if not path.is_file():
+            continue
+        try:
+            resolved = path.resolve()
+        except OSError:
+            continue
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, ValueError):
+            continue
+        if isinstance(data, dict):
+            names.append(path.name)
+            docs.append(data)
+    if not docs:
+        return [], ()
+    unique, stats = stitch_steps(docs)
+    notices: list[str] = []
+    if len(docs) > 1:
+        notices.append(
+            f"read {len(docs)} trajectory parts ({', '.join(names)}); "
+            f"{stats.duplicated_steps} shared steps counted once"
+        )
+    return [step for step in unique if isinstance(step, dict)], tuple(notices)
 
 def _envelope_returncode(content: Any) -> int | None:
     """Return the mini-swe-agent JSON envelope returncode, if present."""
@@ -510,6 +542,16 @@ def _step_views(raw_steps: list[dict[str, Any]]) -> list[_StepView]:
                 all_commands.append(text)
                 if command is None:
                     command = text
+        # Raw-content Terminus steps carry no native tool calls; an executed
+        # observation still proves the turn ran something. Count it once
+        # without naming a tool (counts feed no_tool_use only; loop/argument
+        # detectors still need named calls).
+        if (
+            call_count == 0
+            and str(raw.get("source") or "").lower() in _AGENT_SOURCES
+            and executed_output(raw) is not None
+        ):
+            call_count = 1
         outputs: list[str] = []
         observation = raw.get("observation")
         results: list[Any] = []
@@ -967,6 +1009,47 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
     return modes
 
 
+def _final_recorded_accepted(steps: Sequence[dict[str, Any]]) -> dict[str, Any] | None:
+    """Last agent turn's recorded accepted layer, if the trial recorded one.
+
+    Offline-only: recorded layers, never a parser replay (this module stays
+    Harbor-free). Older trials predate recording and yield ``None``.
+    """
+    for raw in reversed(steps):
+        if raw.get("source") != "agent" or raw.get("is_copied_context"):
+            continue
+        extra = raw.get("extra")
+        layers = extra.get(STEP_LAYERS_KEY) if isinstance(extra, dict) else None
+        accepted = layers.get("accepted") if isinstance(layers, dict) else None
+        return accepted if isinstance(accepted, dict) else None
+    return None
+
+
+def _stop_note(trial_dir: Path, steps: Sequence[dict[str, Any]]) -> str | None:
+    """One-line stop reason from result.json plus the last recorded turn."""
+    try:
+        result = json.loads((trial_dir / "result.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(result, dict):
+        return None
+    agent_result = result.get("agent_result")
+    metadata = agent_result.get("metadata") if isinstance(agent_result, dict) else None
+    exception = result.get("exception_info")
+    accepted = _final_recorded_accepted(steps)
+    reason, detail = classify_stop_reason(
+        agent_metadata=metadata if isinstance(metadata, dict) else {},
+        exception_info=exception if isinstance(exception, dict) else {},
+        last_task_complete=accepted.get("task_complete")
+        if accepted is not None
+        else None,
+        last_prose_completion=accepted.get("kind") == "prose_completion"
+        if accepted is not None
+        else None,
+    )
+    return f"stop reason: {reason} ({detail})" if reason else None
+
+
 def diagnose_trial(
     trial_dir: str | Path,
     *,
@@ -998,7 +1081,10 @@ def diagnose_trial(
             notices=("trial target did not resolve to a readable trial directory",),
         )
 
-    if outline.exception_class is not None:
+    # HAR-92: a verifier-scored trial counts as scored whatever ended the
+    # agent phase (an AgentTimeoutError with rewards still passes or fails on
+    # its reward). Only an unscored raise is an infra failure.
+    if outline.exception_class is not None and outline.primary_reward is None:
         return TrialDiagnosis(
             trial_id=outline.trial_id,
             trial_name=outline.trial_name,
@@ -1006,10 +1092,10 @@ def diagnose_trial(
             agent_name=outline.agent_name,
             model_name=outline.model_name,
             outcome="infra_failed",
-            reward=outline.primary_reward,
+            reward=None,
             exception_class=str(outline.exception_class),
             heuristic_label=None,
-            notices=("trial raised; never labeled as a task failure",),
+            notices=("trial raised before scoring; never labeled as a task failure",),
         )
     if outline.primary_reward is None:
         return TrialDiagnosis(
@@ -1028,6 +1114,11 @@ def diagnose_trial(
     notices: list[str] = []
     heuristic_label: str | None = None
     modes: tuple[FailureMode, ...] = ()
+    raw_steps, step_notices = _raw_steps(resolved)
+    notices.extend(step_notices)
+    stop_note = _stop_note(resolved, raw_steps)
+    if stop_note is not None:
+        notices.append(stop_note)
     if outline.status != "featured":
         notices.append(f"no agent trajectory ({outline.unavailable_reason}); no modes proposed")
     elif outline.primary_reward >= PASS_THRESHOLD:
@@ -1035,7 +1126,7 @@ def diagnose_trial(
         notices.append("scored pass; no failure modes proposed")
     else:
         heuristic_label = propose_heuristic_label(outline).label
-        views = _step_views(_raw_steps(resolved))
+        views = _step_views(raw_steps)
         if not views:
             notices.append("trajectory steps unreadable; no modes proposed")
         else:
@@ -1055,7 +1146,9 @@ def diagnose_trial(
         model_name=outline.model_name,
         outcome="scored",
         reward=outline.primary_reward,
-        exception_class=None,
+        exception_class=str(outline.exception_class)
+        if outline.exception_class is not None
+        else None,
         heuristic_label=heuristic_label,
         modes=modes,
         notices=tuple(notices),
@@ -1103,15 +1196,17 @@ def diagnose_atif(
         "agent_name": agent_name,
         "model_name": model_name,
     }
-    if exception_class is not None:
+    # HAR-92: scored trials stay scored whatever ended the agent phase; only
+    # an unscored raise is an infra failure.
+    if exception_class is not None and reward is None:
         return TrialDiagnosis(
             **identity,
             outcome="infra_failed",
-            reward=reward,
+            reward=None,
             exception_class=str(exception_class),
             heuristic_label=None,
             modes=(),
-            notices=("trial raised; never labeled as a task failure",),
+            notices=("trial raised before scoring; never labeled as a task failure",),
         )
     if reward is None:
         return TrialDiagnosis(
@@ -1146,7 +1241,7 @@ def diagnose_atif(
         **identity,
         outcome="scored",
         reward=reward,
-        exception_class=None,
+        exception_class=str(exception_class) if exception_class is not None else None,
         heuristic_label=None,
         modes=modes,
         notices=tuple(notices),

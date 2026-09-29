@@ -120,6 +120,8 @@ inputs:
     digest: sha256:87fa6aa8b5781e0ce661129149c9fbbbcee01013e8613436731af04ba5b2b51f
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
+  - path: docs/trial-treatment.md
+    digest: sha256:4d97d5789ab6261111f98ba2e1f88b165fe28526657231be93c62026d0c6a768
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md
@@ -230,6 +232,7 @@ an operator can see what is archived.
 | `docs/task-quality.md` | Judging whether a task is good | `living` | `analyst, operator` |
 | `docs/task-stability.md` | Verifier stability (HAR-83 §4.2.1) | `living` | `builder, analyst, operator` |
 | `docs/task-variants.md` | Task variants: versioning modified tasks without touching the original | `living` | `builder, analyst, operator` |
+| `docs/trial-treatment.md` | Trial treatment keys and capture records | `living` | `analyst, runner` |
 | `docs/verdicts.md` | Human Verdict Decision Record (§2.1, §2.2, §6) | `living` | `operator, analyst` |
 | `docs/verifier-calibration.md` | Verifier Calibration and Selection Lift | `living` | `builder, analyst` |
 
@@ -272,6 +275,7 @@ an operator can see what is archived.
 | `docs/research/antigravity-lane.md` | Antigravity (AGY) Agent Lane Research & Architecture | `living` | `builder, runner` |
 | `docs/scaling.md` | Scaling gates | `living` | `runner, operator` |
 | `docs/storm-alarms.md` | Storm Alarms & STATUS.md Generator | `living` | `operator, runner` |
+| `docs/trial-treatment.md` | Trial treatment keys and capture records | `living` | `analyst, runner` |
 
 ### historical
 

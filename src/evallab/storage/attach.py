@@ -411,8 +411,8 @@ def _attach_z4(conn: duckdb.DuckDBPyConnection, root: Path) -> ZoneStatus:
     except Exception as exc:
         return ZoneStatus("z4", False, reason=f"{type(exc).__name__}: {exc}", detail=str(docs_dir))
 
-def _catalog_optional_tables() -> tuple[str, str, str]:
-    """Stability/exploit/qualification view names from writer modules, not literals."""
+def _catalog_optional_tables() -> tuple[str, ...]:
+    """Optional catalog view names from writer modules, not literals."""
     from evallab.task_catalog import (
         EXPLOITS_TABLE,
         EXPLOITS_TABLE_FILENAME,
@@ -421,11 +421,19 @@ def _catalog_optional_tables() -> tuple[str, str, str]:
     )
     from evallab.task_qualification import TABLE as QUALIFICATION_TABLE
     from evallab.task_qualification import TABLE_FILENAME as QUALIFICATION_TABLE_FILENAME
+    from evallab.trial_treatment import (
+        CAPTURE_TABLE,
+        CAPTURE_TABLE_FILENAME,
+        TREATMENT_TABLE,
+        TREATMENT_TABLE_FILENAME,
+    )
 
     assert Path(STABILITY_TABLE_FILENAME).stem == STABILITY_TABLE
     assert Path(EXPLOITS_TABLE_FILENAME).stem == EXPLOITS_TABLE
     assert Path(QUALIFICATION_TABLE_FILENAME).stem == QUALIFICATION_TABLE
-    return (STABILITY_TABLE, EXPLOITS_TABLE, QUALIFICATION_TABLE)
+    assert Path(TREATMENT_TABLE_FILENAME).stem == TREATMENT_TABLE
+    assert Path(CAPTURE_TABLE_FILENAME).stem == CAPTURE_TABLE
+    return (STABILITY_TABLE, EXPLOITS_TABLE, QUALIFICATION_TABLE, TREATMENT_TABLE, CAPTURE_TABLE)
 
 CATALOG_TABLES = (
     "task_sources",

@@ -38,7 +38,7 @@ done
 # Resolve the worktree root that owns this script (not $PWD).
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-SPLIT="$REPO/research/experiments/har85-mimo-gepa/split.provisional.json"
+SPLIT="$REPO/research/experiments/har81-mimo-sft/split.json"
 DSPY_DIR="$SCRIPT_DIR"
 
 [ "$PHASE_NAME" = "gepa" ] || [ "$PHASE_NAME" = "heldout" ] || { echo "refusing: --phase must be gepa|heldout" >&2; exit 2; }
@@ -103,7 +103,7 @@ env PYTHONPATH="$REPO/src" "${GEPA_PY[@]}" \
   --approval-file "$APPROVAL_FILE" --cap-usd "$CAP_USD" --out "$REPO/runs/har85-gepa-mimo/phase2" \
   || { echo "refusing: phase-2 approval verification failed" >&2; exit 2; }
 echo "phase2: approval verified; staging held-out trials" >&2
-HELDOUT_IDS="$("$VENV/bin/python" -c "import json;print(' '.join(json.load(open('$SPLIT'))['heldout_task_ids']))")"
+HELDOUT_IDS="$("$VENV/bin/python" -c "import sys; sys.path.insert(0, '$REPO/research/experiments/har85-mimo-gepa'); import sealed_split; print(' '.join(sealed_split.heldout_ids()[1]))")"
 OUT2="$REPO/runs/har85-gepa-mimo/phase2"
 mkdir -p "$OUT2"
 # Credential the student route actually uses: the Z.ai coding-plan key from
@@ -141,4 +141,4 @@ for id in $HELDOUT_IDS; do
       --jobs-dir "$OUT2/jobs" --n-attempts "$ATTEMPTS" --n-concurrent 1 -y
   done
 done
-echo "phase2: done under $OUT2/jobs (16 tasks x 2 arms x $ATTEMPTS attempts)" >&2
+echo "phase2: done under $OUT2/jobs (13 tasks x 2 arms x $ATTEMPTS attempts)" >&2

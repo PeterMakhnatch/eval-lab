@@ -277,9 +277,10 @@ def test_export_matches_model_visible_conversation(tmp_path: Path) -> None:
     assert manifest["summarization_subagent_files"] == 1
     assert manifest["teacher_model"] == "zai/glm-5.3"
     assert manifest["reasoning_policy"] == "dropped"
-    assert manifest["split_manifest"]["manifest_digest"] == json.loads(
-        split.read_text()
-    )["manifest_digest"]
+    assert (
+        manifest["split_manifest"]["manifest_digest"]
+        == json.loads(split.read_text())["manifest_digest"]
+    )
     # Rewards and provenance live only in the manifest, never in the data.
     assert all(set(row) == {"messages"} for row in rows)
     assert all(set(message) == {"role", "content"} for row in rows for message in row["messages"])
@@ -327,7 +328,14 @@ def test_reward_and_exception_filtering_counts_by_reason(tmp_path: Path) -> None
     )
     _write_trial(root, "trial-unverified", task_name="mimo-v2.6-rl/task-c", reward=None)
     _write_trial(root, "trial-pass", task_name="mimo-v2.6-rl/task-d")
-    split = _freeze_split(tmp_path, ["task-a", "task-b", "task-c", "task-d"], heldout=[])
+    # Graded after the agent timed out: scored, so a pass is exported.
+    _write_trial(
+        root,
+        "trial-timeout-pass",
+        task_name="mimo-v2.6-rl/task-e",
+        exception={"exception_type": "AgentTimeoutError"},
+    )
+    split = _freeze_split(tmp_path, ["task-a", "task-b", "task-c", "task-d", "task-e"], heldout=[])
     manifest, out = _export(tmp_path, root, split)
 
     assert manifest["exclusion_counts"] == {
@@ -335,10 +343,66 @@ def test_reward_and_exception_filtering_counts_by_reason(tmp_path: Path) -> None
         "exception:EnvironmentStartupError": 1,
         "verifier_incomplete": 1,
     }
-    assert manifest["counts"]["trials_selected"] == 1
+    assert manifest["counts"]["trials_selected"] == 2
+    rows = _rows(out)
+    assert len(rows) == 2
+    assert [c["task_id"] for c in manifest["conversations"]] == ["task-d", "task-e"]
+    timed_out = next(t for t in manifest["trials"] if t["task_id"] == "task-e")
+    assert timed_out["exception_type"] == "AgentTimeoutError"
+
+
+def _fallback_step(step_id: int) -> dict[str, Any]:
+    return {
+        "step_id": step_id,
+        "source": "agent",
+        "message": "Technical difficulties. Please continue with the task.",
+        "observation": {"results": [{"content": "Previous response had parsing errors"}]},
+    }
+
+
+def test_harbor_fallback_reply_ends_the_segment(tmp_path: Path) -> None:
+    root = tmp_path / "runs"
+    root.mkdir()
+    steps = _terminus_steps(reasoning=False)[:2] + [
+        _fallback_step(3),
+        {
+            "step_id": 4,
+            "source": "agent",
+            "message": '{"analysis":"retry", "commands":[{"keystrokes":"pwd"}]}',
+            "observation": {"results": [{"content": "/app"}]},
+        },
+        _fallback_step(5),
+    ]
+    fallback_only = [
+        {"step_id": 1, "source": "user", "message": "You are picking up work..."},
+        _fallback_step(2),
+    ]
+    _write_trial(root, "trial-fallback", steps=steps, continuations=[fallback_only])
+    split = _freeze_split(tmp_path, ["task-a"], heldout=[])
+    manifest, out = _export(tmp_path, root, split)
+
     rows = _rows(out)
     assert len(rows) == 1
-    assert manifest["conversations"][0]["task_id"] == "task-d"
+    main = rows[0]["messages"]
+    assert [m["role"] for m in main] == ["user", "assistant"]
+    assert all("Technical difficulties" not in m["content"] for m in main)
+    assert manifest["conversations"][0]["fallback_truncated_agent_steps"] == 3
+    (trial,) = manifest["trials"]
+    assert trial["disposition"] == "selected"
+    assert trial["skipped_segments"] == {"trajectory.cont-1.json": "harbor_fallback_only"}
+
+
+def test_continuation_repeating_an_exported_segment_is_skipped(tmp_path: Path) -> None:
+    root = tmp_path / "runs"
+    root.mkdir()
+    _write_trial(root, "trial-dup", continuations=[_terminus_steps()])
+    split = _freeze_split(tmp_path, ["task-a"], heldout=[])
+    manifest, out = _export(tmp_path, root, split)
+
+    assert len(_rows(out)) == 1
+    assert manifest["conversations"][0]["segment"] == "main"
+    (trial,) = manifest["trials"]
+    assert trial["skipped_segments"] == {"trajectory.cont-1.json": "duplicate_of:trajectory.json"}
 
 
 def test_task_outside_sealed_split_is_excluded(tmp_path: Path) -> None:
@@ -458,10 +522,7 @@ def _snapshot_task_dir(
     from evallab.task_catalog import snapshot_dir_name
 
     org, _, repo_name = repo.partition("/")
-    task_dir = (
-        store / "hf" / snapshot_dir_name(org, repo_name, revision)
-        / "tasks" / task_id
-    )
+    task_dir = store / "hf" / snapshot_dir_name(org, repo_name, revision) / "tasks" / task_id
     task_dir.mkdir(parents=True)
     (task_dir / "task.toml").write_text(f"[task]\nname = '{task_id}'\n")
     return task_dir

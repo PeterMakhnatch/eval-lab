@@ -68,25 +68,46 @@ made from this directory; no model weights downloaded.
    `agent_import` unset outside `--dry-run`, and raw route selectors passed
    as API model ids.
 
-## Student route verdict (code-derived, 2026-09-28)
+## Student route verdict (sealed rebind, 2026-09-29): self-hosted BLOCKED
 
-The RLM lane can only use the **Z.ai coding-plan route**
-(`zai-coding-plan/glm-5.3-flash`): `LabRlmAgent.run` calls
-`build_lms(policy, model_id=zai_model_id(...), api_key=key)` with no
-`api_base`, so it always dials `ZAI_CODING_API_BASE`
-(`src/evallab/rlm/harness.py:79,105,128`); the credential is the coding-plan
-key materialized from the owner's OpenCode auth store
-(`materialize_zai_secret_file`, `src/evallab/execution_contracts.py:550`);
-lane validation pins rlm to `ZAI_OPENCODE_MODEL_SELECTORS`
-(`execution_contracts.py:159-161,966-972`). Spend type is SUBSCRIPTION
-window quota. The metered OpenAPI route (`zai/glm-5.3-flash`,
-`api.z.ai/api/paas/v4` via the metered secret-proxy sidecar) needs a lane
-change the agent never passes (`api_base` exists as a parameter but the
-agent never sets it; no OpenAPI key transport exists for rlm) — out of
-scope, and it would mix subscription student spend with metered accounting.
-The staged path keeps the coding-plan student route. "Coding Plan
-credentials are not admitted" (`execution_contracts.py:960`) constrains the
-Terminus-2 lane only.
+The experiment student is now the self-hosted distill route
+(`selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B`, Terminus-2, Daytona,
+HAR-81 `harness/` tree). The RLM lane **cannot use it without new transport
+code**, so the pilot keeps its current coding-plan student, noted as blocked
+from the experiment student (cross-arm comparability waits on a lane change
+that is out of scope here; paid runs wait for HAR-81's baseline and Peter's
+approval regardless):
+
+- `src/evallab/harbor_rlm.py:160-163`: `LabRlmAgent.run` builds its LMs with
+  `build_lms(policy, model_id=zai_model_id(...), api_key=key)` and never
+  passes `api_base`, so it always dials `ZAI_CODING_API_BASE`
+  (`src/evallab/rlm/harness.py:128` default). The self-hosted route needs a
+  different base URL (Modal upstream) and a different credential
+  (`MIMO_SELFHOSTED_API_KEY` + `EVALLAB_MIMO_SELFHOSTED_UPSTREAM`), neither of
+  which the agent reads or forwards.
+- `src/evallab/rlm/harness.py:94-98`: `zai_model_id` strips any selector to
+  its last path component, so the distill selector would be dialled as
+  `openai/MiMo-V2.6-Distill-Qwen-9B` against the Z.ai coding endpoint with the
+  coding-plan key -- a silent misroute, not a refusal.
+- `src/evallab/execution_contracts.py:1311-1317,1612-1616`: the queue lane
+  pins rlm to `ZAI_OPENCODE_MODEL_SELECTORS`; a self-hosted spec is refused
+  at `validate_request`/`build_command`. (This arm runs outside the queue, so
+  the refusal would not even fire -- the agent would misroute first.)
+- `src/evallab/harbor_rlm.py:73-80`: the only key transport is
+  `EVALLAB_ZAI_SECRET_FILE` (coding-plan). No self-hosted key transport
+  exists for rlm.
+- `src/evallab/rlm/harness.py:159-163` (`LmUsage.cost_usd` at $1.40/$4.40 per
+  M): the in-harness ceiling accounts Z.ai list prices. On the $0-token
+  distill route a normal trial (2.4M+ input tokens) would compute $3+ of
+  phantom spend and trip `cost_limit_usd` mid-trial.
+- `dspy/gepa_mimo.py:paid_lms` builds the reflection and trace-seed LMs with
+  `zai_model_id` + `build_lm` for the coding endpoint; the reflection model
+  stays on the coding plan by design.
+
+Prior verdict (2026-09-28, unchanged for the staged path): the RLM lane uses
+the Z.ai coding-plan route (`zai-coding-plan/glm-5.3-flash`, subscription
+window quota); the metered OpenAPI route needs a lane change the agent never
+passes. The pilot tasks are re-bound to sealed-split train tasks (APPROVAL.md).
 
 ## Files
 
@@ -100,9 +121,10 @@ Terminus-2 lane only.
 | `APPROVAL.md` | Exact approval commands + gate design + no-bypass statement. |
 | `BUDGET.md` | Budget formula with measured inputs: model API-equivalent (subscription quota) and metered Daytona sandbox time, reported separately. |
 
-The split manifest lives at `../split.provisional.json` (owned by Har85Gepa;
-PROVISIONAL until HAR-81 seals its split). This arm reads it at runtime and
-re-checks the manifest digest.
+The split manifest is HAR-81's sealed split
+(`../har81-mimo-sft/split.json`, manifest_digest `sha256:c3df70a5…`), read
+through `../sealed_split.py` (terminal rows only) and re-checked on every
+load. The provisional manifest is deleted.
 
 ## Map: DSPy RLM Harbor agent + launch path
 
@@ -135,10 +157,11 @@ re-checks the manifest digest.
 
 ## Model routing (single swappable parameter)
 
-- Student route: `--student-route` trial `--model`. PROVISIONAL default
-  `zai-coding-plan/glm-5.3-flash` (existing qualified Terminus-2 route
-  family); HAR-81's Qwen-on-Tinker route later by changing one flag.
-- Reflection model: `--reflection-model` (GEPA `reflection_lm`).
+- Student route: `--student-route` trial `--model`, default
+  `zai-coding-plan/glm-5.3-flash` (the only route this lane can dial; the
+  self-hosted distill route is BLOCKED here -- see the verdict above, not
+  staged, no transport built).
+- Reflection model: `--reflection-model` (GEPA `reflection_lm`, coding plan).
 - This arm's dspy.GEPA runs OUTSIDE the Lab queue (direct `harbor run` per
   metric call). The spend gate is `run-after-approval.sh` + per-trial
   `cost_limit_usd`, not `evallab approve` (no queue spec exists to approve).

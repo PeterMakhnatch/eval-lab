@@ -1,34 +1,40 @@
 #!/usr/bin/env python3
-"""Generate the 32 paired seed-vs-GEPA model specs for the HAR-85 final held-out eval.
+"""Generate the 26 paired seed-vs-GEPA model specs for the HAR-85 final held-out eval.
 
-16 held-out tasks x 2 arms (seed addendum vs best-GEPA addendum), 1 attempt
+13 held-out tasks x 2 arms (seed addendum vs best-GEPA addendum), 1 attempt
 each (Terminus-2 binds exactly one trial). The student route, execution
-environment and per-trial limits are read from the SAME retained base spec the
-train search replays (--base-spec, default base-specs/student-terminus2-
-provisional.json), so swapping the route there swaps it here; arms differ ONLY
-in extra_instruction_path. Decided under selection-rule.json.
+environment, harness tree and per-trial limits are read from the SAME retained
+base spec the train search replays (--base-spec, default
+base-specs/student-terminus2-selfhosted.json), so swapping the route there
+swaps it here; arms differ ONLY in extra_instruction_path. Decided under
+selection-rule.json.
 
-Package digests are asserted against split.provisional.json at generation time;
-the script refuses on drift or on a missing worktree-local held-out
-materialization (see README recipe -- held-out bytes are NEVER committed and
-NEVER enter the train search). Output specs go to paired-specs/ (committed
-sources); submission via `evallab submit` parks them in queue/waiting/
-(runtime state, never approved here). After submit, record the 32 queue IDs
-in paired-specs/ids.txt for run-after-approval.sh. paired-specs/cohort.json
-lists the 16 held-out packages for the selection rule's exploit screen
-(`evallab tasks exploit-collect --cohort`, criterion 4).
+Package digests are asserted against HAR-81's sealed split at generation time
+(read through ``sealed_split.py`` -- never copied); the script refuses on
+drift or on a missing worktree-local held-out materialization (see README
+recipe -- held-out bytes are NEVER committed and NEVER enter the train
+search). Output specs go to paired-specs/ (committed sources); submission via
+`evallab submit` parks them in queue/waiting/ (runtime state, never approved
+here). After submit, record the 26 queue IDs in paired-specs/ids.txt for
+run-after-approval.sh. paired-specs/cohort.json lists the 13 held-out packages
+for the selection rule's exploit screen (`evallab tasks exploit-collect
+--cohort`, criterion 4).
+
 
 Usage:
   uv run python research/experiments/har85-mimo-gepa/make_paired_specs.py \
     --winner runs/<search>/lab/candidates/<sha>.txt --winner-sha256 sha256:<64hex>
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import sealed_split
 
 from evallab.registry import compute_task_digests, harbor_task_digest, task_directory_digest
 
@@ -36,12 +42,9 @@ REPO = Path(__file__).resolve().parents[3]
 EXP = REPO / "research/experiments/har85-mimo-gepa"
 TASKS = EXP / "tasks"
 SEED = EXP / "candidates/seed-addendum-v1.txt"
-SPLIT = EXP / "split.provisional.json"
-BASE_SPEC = EXP / "base-specs/student-terminus2-provisional.json"
+BASE_SPEC = EXP / "base-specs/student-terminus2-selfhosted.json"
 
-PINNED_MANIFEST_DIGEST = (
-    "sha256:fb645fed8acf01a1df3eddcf3d235c0d72b8afba353993170923e43560052dab"
-)
+PINNED_MANIFEST_DIGEST = sealed_split.SEALED_MANIFEST_DIGEST
 
 # Fields copied verbatim from the retained base spec: the student route, where
 # it runs, and every per-trial limit. Nothing here is a second source of truth.
@@ -49,6 +52,8 @@ ROUTE_FIELDS = (
     "agent",
     "model",
     "environment",
+    "harness_tree_path",
+    "harness_tree_sha256",
     "timeout_seconds",
     "est_cost_usd",
     "max_requests",
@@ -75,7 +80,7 @@ def _spec(
         "schema_version": 1,
         "name": name,
         "hypothesis": (
-            f"HAR-85 paired held-out trial, task={task_id}, arm={arm}: provisional "
+            f"HAR-85 paired held-out trial, task={task_id}, arm={arm}: sealed-split "
             f"{route['agent']} student + {route['model']} on {route['environment']} with "
             f"{'best-GEPA addendum' if arm == 'gepa' else 'seed addendum'}; "
             "arms differ only in extra_instruction_path; decided under selection-rule.json"
@@ -112,16 +117,15 @@ def main() -> int:
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", args.winner_sha256):
         raise SystemExit("refusing: --winner-sha256 must be sha256:<64hex>")
 
-    manifest = json.loads(SPLIT.read_text())
-    if manifest.get("manifest_digest") != PINNED_MANIFEST_DIGEST:
+    split, heldout = sealed_split.heldout_ids()
+    if split["manifest_digest"] != PINNED_MANIFEST_DIGEST:
         raise SystemExit(
-            f"refusing: split manifest digest {manifest.get('manifest_digest')} "
+            f"refusing: split manifest digest {split['manifest_digest']} "
             f"!= pinned {PINNED_MANIFEST_DIGEST} (HAR-81 may have sealed a new split)"
         )
-    by_id = {row["task_id"]: row for row in manifest["tasks"]}
-    heldout = manifest["heldout_task_ids"]
-    if len(heldout) != 16:
-        raise SystemExit(f"refusing: expected 16 held-out ids, got {len(heldout)}")
+    by_id = {row["task_id"]: row for row in split["tasks"]}
+    if len(heldout) != 13:
+        raise SystemExit(f"refusing: expected 13 held-out ids, got {len(heldout)}")
     winner_abs = (Path.cwd() / args.winner).resolve()
     winner_rel = winner_abs.relative_to(REPO).as_posix()
     winner_bytes = (REPO / winner_rel).read_bytes()

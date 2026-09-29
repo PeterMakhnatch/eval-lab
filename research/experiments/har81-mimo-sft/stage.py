@@ -3,23 +3,30 @@
     uv run python research/experiments/har81-mimo-sft/stage.py cohort            # ($0) cohort.json
     uv run python research/experiments/har81-mimo-sft/stage.py costs             # ($0) cost table
     uv run python research/experiments/har81-mimo-sft/stage.py prepare pair      # ($0) 40 specs, both arms
+    uv run python research/experiments/har81-mimo-sft/stage.py prepare learn     # ($0) wave B, 24 specs
     uv run python research/experiments/har81-mimo-sft/stage.py prepare heldout   # ($0) distill-only specs
-    uv run python research/experiments/har81-mimo-sft/stage.py submit pair       # queue the distill's 20; each waits for approval
+    uv run python research/experiments/har81-mimo-sft/stage.py key               # ($0) pin the treatment key
+    uv run python research/experiments/har81-mimo-sft/stage.py submit pair       # queue wave A; each spec waits for approval
+    uv run python research/experiments/har81-mimo-sft/stage.py receipt pair      # ($0) per-trial receipt
 
 Batches:
-    pair     the train check: the distill on 20 train tasks. Its base, Qwen3.5-9B on Tinker,
-             is parked (Peter, 2026-09-29): its specs stay prepared, and only
+    pair     wave A, the train check: the distill on 20 train tasks. Its base, Qwen3.5-9B on
+             Tinker, is parked (Peter, 2026-09-29): its specs stay prepared, and only
              `submit pair --with-base` queues them. Both arms share the harness tree and ceilings.
+    learn    wave B, learnability: the first 8 pair tasks, 3 more distill attempts each.
     heldout  the distill alone on every held-out terminal, cyber and code task.
 
 Tasks come from the sealed split minus `tasks catalog export-broken --backend daytona`.
 Re-run `cohort` whenever that export changes. Run from the checkout that will dispatch:
-prepared specs point at repo-relative snapshots under runs/.prepared-tasks.
+prepared specs point at repo-relative snapshots under runs/.prepared-tasks, and `submit`
+refuses to queue unless that checkout still computes the pinned treatment key.
 """
 
 from __future__ import annotations
 
 import argparse
+import ast
+import contextlib
 import hashlib
 import json
 import math
@@ -33,15 +40,30 @@ sys.path.insert(0, str(ROOT / "src"))
 from evallab.execution_contracts import (  # noqa: E402
     MIMO_SELFHOSTED_MODEL_SELECTOR,
     MIMO_SELFHOSTED_SERVER_USD_PER_HOUR,
+    MIMO_SELFHOSTED_TEMPERATURE,
+    MIMO_SELFHOSTED_TOP_K,
+    MIMO_SELFHOSTED_TOP_P,
     TINKER_MODEL_PRICES_MICROS,
     mimo_selfhosted_trial_cost_usd,
 )
+from evallab.runner import git_state, tool_version  # noqa: E402
 from evallab.task_catalog import task_store_root  # noqa: E402
-from evallab.task_qualification import estimate_cost_usd  # noqa: E402
+from evallab.task_qualification import (  # noqa: E402
+    collect_trial,
+    detect_grader_collection_failure,
+    estimate_cost_usd,
+    grader_stdout_texts,
+    read_task_instruction,
+)
+from evallab.terminus_harness import load_harness_tree  # noqa: E402
 
 EXP = ROOT / "research/experiments/har81-mimo-sft"
 HARNESS = EXP / "harness"
 IDS_DIR = ROOT / "derived/har81"
+KEY_PATH = IDS_DIR / "treatment-key.json"
+NORMALIZER = ROOT / "src/evallab/mimo_tool_calls.py"
+SERVE = ROOT / "tools/modal-mimo-serve/serve.py"
+QUALIFICATION = ROOT / "research/experiments/mimo-daytona-nop/results/qualification.json"
 COHORT_SALT = "har81-distill"
 PAIR_COUNTS = {"terminal": 7, "cyber": 7, "code": 6}
 HELDOUT_DOMAINS = ("terminal", "cyber", "code")
@@ -49,11 +71,20 @@ HELDOUT_DOMAINS = ("terminal", "cyber", "code")
 CONCURRENCY = 16
 #: Tasks in the pair's first approval wave: one per domain (cohort lists alternate).
 WAVE1_TASKS = 3
+#: Wave B (pre-registered): the first LEARN_TASKS pair tasks in cohort order, each run
+#: again by the distill as attempts 2-4 under the same treatment key.
+LEARN_TASKS = 8
+LEARN_ATTEMPTS = (2, 3, 4)
 #: Distill trials sharing the single Modal container, which sets each trial's share of
 #: the server bill (HAR-90's formula divides by it). Wave 1 runs 3 distill trials at
-#: once; the rest of the pair dispatches 8 distill trials at a time (16 specs when the
-#: parked base arm is interleaved); the held-out batch is distill only.
-DISTILL_CONCURRENCY = {"wave1": WAVE1_TASKS, "pair": CONCURRENCY // 2, "heldout": CONCURRENCY}
+#: once; the rest of the pair and wave B dispatch 8 at a time (the pair's 16 specs when
+#: the parked base arm is interleaved); the held-out batch is distill only.
+DISTILL_CONCURRENCY = {
+    "wave1": WAVE1_TASKS,
+    "pair": CONCURRENCY // 2,
+    "learn": CONCURRENCY // 2,
+    "heldout": CONCURRENCY,
+}
 #: Identical ceilings for both arms. HAR-90's distill trials reached 200 requests or
 #: about 2.4M input tokens in 7-10 minutes, so these ceilings, not the task's agent
 #: timeout, usually end a looping trial.
@@ -77,7 +108,7 @@ ARMS = {
     "d": MIMO_SELFHOSTED_MODEL_SELECTOR,
     "q": f"tinker/{TINKER_BASE}",
 }
-BATCH_ARMS = {"pair": ("d", "q"), "heldout": ("d",)}
+BATCH_ARMS = {"pair": ("d", "q"), "learn": ("d",), "heldout": ("d",)}
 #: Arms staged but not submitted unless asked for (`submit --with-base`).
 PARKED_ARMS = frozenset({"q"})
 
@@ -245,8 +276,29 @@ def round_robin(per_domain: dict[str, list[dict]]) -> list[dict]:
     return [rows[i] for i in range(longest) for rows in per_domain.values() if i < len(rows)]
 
 
-def spec_name(batch: str, arm: str, task_id: str) -> str:
-    return f"har81-{batch[0]}-{arm}-{task_id.replace('_', '-')}".lower()[:80]
+def spec_name(batch: str, arm: str, task_id: str, attempt: int | None = None) -> str:
+    tag = f"{arm}-a{attempt}" if attempt else arm
+    return f"har81-{batch[0]}-{tag}-{task_id.replace('_', '-')}".lower()[:80]
+
+
+def batch_runs(batch: str, cohort: dict, arms: tuple[str, ...]) -> list[tuple[dict, str, str, int]]:
+    """(task, arm, spec name, position in the batch's task list), in submission order.
+
+    The pair interleaves arms per task so a task's two trials share a dispatch window.
+    Wave B runs attempt 2 of its 8 tasks, then attempt 3, then attempt 4.
+    """
+    if batch == "learn":
+        tasks = cohort["pair"][:LEARN_TASKS]
+        return [
+            (task, "d", spec_name(batch, "d", task["task_id"], attempt), index)
+            for attempt in LEARN_ATTEMPTS
+            for index, task in enumerate(tasks)
+        ]
+    return [
+        (task, arm, spec_name(batch, arm, task["task_id"]), index)
+        for index, task in enumerate(cohort[batch])
+        for arm in arms
+    ]
 
 
 def cmd_prepare(args: argparse.Namespace) -> None:
@@ -254,94 +306,199 @@ def cmd_prepare(args: argparse.Namespace) -> None:
     cohort = load_cohort(split)
     out_dir = ROOT / "derived/prepared"
     written = 0
-    for index, task in enumerate(cohort[args.batch]):
+    for task, arm, name, index in batch_runs(args.batch, cohort, BATCH_ARMS[args.batch]):
         snapshot = snapshot_dir(split, task)
         profile = task_profile(snapshot)
-        for arm in BATCH_ARMS[args.batch]:
-            name = spec_name(args.batch, arm, task["task_id"])
-            out = out_dir / f"{name}.json"
-            if out.exists():
-                # `tasks prepare` refuses to overwrite a spec that differs from its request.
-                # The storage override is the one field this script adds, so drop it before
-                # the comparison; any other drift still fails the run.
-                existing = json.loads(out.read_text())
-                if existing.pop("override_storage_mb", None) is not None:
-                    out.write_text(json.dumps(existing, indent=2) + "\n")
-            result = subprocess.run(
-                [
-                    "uv",
-                    "run",
-                    "--no-sync",
-                    "evallab",
-                    "tasks",
-                    "prepare",
-                    str(snapshot),
-                    "--name",
-                    name,
-                    "--agent",
-                    "terminus-2",
-                    "--model",
-                    ARMS[arm],
-                    "--environment",
-                    "daytona",
-                    "--harness-tree",
-                    str(HARNESS),
-                    "--max-requests",
-                    str(MAX_REQUESTS),
-                    "--max-input-tokens",
-                    str(MAX_INPUT_TOKENS),
-                    "--max-output-tokens",
-                    str(MAX_OUTPUT_TOKENS),
-                    "--cost-limit-usd",
-                    f"{cost_limit_usd(arm):.2f}",
-                    "--estimated-cost-usd",
-                    f"{worst_usd(arm, profile, spec_concurrency(args.batch, index)):.2f}",
-                    "--output",
-                    str(out.relative_to(ROOT)),
-                    "--json",
-                ],
-                cwd=ROOT,
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode:
-                raise SystemExit(f"prepare {name} failed:\n{result.stderr.strip()}")
-            if profile["override_storage_mb"]:
-                spec = json.loads(out.read_text())
-                spec["override_storage_mb"] = profile["override_storage_mb"]
-                out.write_text(json.dumps(spec, indent=2) + "\n")
-            written += 1
+        out = out_dir / f"{name}.json"
+        if out.exists():
+            # `tasks prepare` refuses to overwrite a spec that differs from its request.
+            # The storage override is the one field this script adds, so drop it before
+            # the comparison; any other drift still fails the run.
+            existing = json.loads(out.read_text())
+            if existing.pop("override_storage_mb", None) is not None:
+                out.write_text(json.dumps(existing, indent=2) + "\n")
+        result = subprocess.run(
+            [
+                "uv",
+                "run",
+                "--no-sync",
+                "evallab",
+                "tasks",
+                "prepare",
+                str(snapshot),
+                "--name",
+                name,
+                "--agent",
+                "terminus-2",
+                "--model",
+                ARMS[arm],
+                "--environment",
+                "daytona",
+                "--harness-tree",
+                str(HARNESS),
+                "--max-requests",
+                str(MAX_REQUESTS),
+                "--max-input-tokens",
+                str(MAX_INPUT_TOKENS),
+                "--max-output-tokens",
+                str(MAX_OUTPUT_TOKENS),
+                "--cost-limit-usd",
+                f"{cost_limit_usd(arm):.2f}",
+                "--estimated-cost-usd",
+                f"{worst_usd(arm, profile, spec_concurrency(args.batch, index)):.2f}",
+                "--output",
+                str(out.relative_to(ROOT)),
+                "--json",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode:
+            raise SystemExit(f"prepare {name} failed:\n{result.stderr.strip()}")
+        if profile["override_storage_mb"]:
+            spec = json.loads(out.read_text())
+            spec["override_storage_mb"] = profile["override_storage_mb"]
+            out.write_text(json.dumps(spec, indent=2) + "\n")
+        written += 1
     print(f"{args.batch}: {written} specs in derived/prepared/har81-{args.batch[0]}-*.json")
+
+
+def _sha256_file(path: Path) -> str:
+    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _serve_pins() -> dict:
+    """Literal module constants of the Modal server script (it imports modal, so parse it)."""
+    pins = {}
+    for node in ast.parse(SERVE.read_text()).body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target = node.targets[0]
+            if isinstance(target, ast.Name):
+                with contextlib.suppress(ValueError):
+                    pins[target.id] = ast.literal_eval(node.value)
+    return pins
+
+
+def treatment_key(cohort: dict, split: dict) -> dict:
+    """The distill's treatment key, computed from this checkout.
+
+    `key` is sha256 over the compact, key-sorted JSON of `fields`, so anyone holding the
+    fields can recompute it. Every overnight trial must record this commit, clean, in its
+    lab-metadata.json; a changed field is a new key.
+    """
+    state = git_state(ROOT)
+    if not state["commit"] or state["dirty"] is not False:
+        raise SystemExit("the treatment key needs a clean checkout; commit or stash first")
+    config = json.loads((HARNESS / "terminus" / "config.json").read_text())
+    llm = config["llm_call_kwargs"]
+    forced = (MIMO_SELFHOSTED_TEMPERATURE, MIMO_SELFHOSTED_TOP_P)
+    if (config["temperature"], llm["top_p"]) != forced:
+        raise SystemExit(f"harness sampling differs from what the proxy forces {forced}")
+    pins = _serve_pins()
+    timeouts: dict[str, set[float]] = {}
+    for task in cohort["pair"]:
+        profile = task_profile(snapshot_dir(split, task))
+        timeouts.setdefault(task["domain"], set()).add(profile["agent_timeout_s"])
+    fields = {
+        "schema": "har81.treatment_key/v1",
+        "eval_lab_commit": state["commit"],
+        "normalizer_sha256": _sha256_file(NORMALIZER),
+        "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
+        "hf_revision": pins["MODEL_REVISION"],
+        "server_image": pins["SGLANG_IMAGE"],
+        "context_tokens": pins["CONTEXT_LENGTH"],
+        "sampling": {
+            "temperature": MIMO_SELFHOSTED_TEMPERATURE,
+            "top_p": MIMO_SELFHOSTED_TOP_P,
+            "top_k": MIMO_SELFHOSTED_TOP_K,
+            "max_tokens": llm["max_tokens"],
+            "enable_thinking": True,
+        },
+        "harness_tree_sha256": load_harness_tree(HARNESS, repo_root=ROOT).sha256,
+        "harness": {
+            "agent": "terminus-2",
+            "harbor": tool_version("harbor"),
+            "proactive_summarization_threshold": config["proactive_summarization_threshold"],
+            "trajectory_config": config["trajectory_config"],
+        },
+        "limits": {
+            "max_requests": MAX_REQUESTS,
+            "max_input_tokens": MAX_INPUT_TOKENS,
+            "max_output_tokens": MAX_OUTPUT_TOKENS,
+            "agent_timeout_s": {d: sorted(int(s) for s in v) for d, v in sorted(timeouts.items())},
+        },
+        "backend": "daytona",
+    }
+    canonical = json.dumps(fields, sort_keys=True, separators=(",", ":"))
+    return {"key": "sha256:" + hashlib.sha256(canonical.encode()).hexdigest(), "fields": fields}
+
+
+def spec_key_mismatches(spec: dict, fields: dict) -> list[str]:
+    """Prepared-spec fields that disagree with the treatment key."""
+    expected = {
+        "model": fields["model"],
+        "environment": fields["backend"],
+        "harness_tree_sha256": fields["harness_tree_sha256"],
+        "max_requests": fields["limits"]["max_requests"],
+        "max_input_tokens": fields["limits"]["max_input_tokens"],
+        "max_output_tokens": fields["limits"]["max_output_tokens"],
+    }
+    return [f"{k}={spec.get(k)!r} (key {v!r})" for k, v in expected.items() if spec.get(k) != v]
+
+
+def cmd_key(_args: argparse.Namespace) -> None:
+    split = load_split()
+    key = treatment_key(load_cohort(split), split)
+    IDS_DIR.mkdir(parents=True, exist_ok=True)
+    KEY_PATH.write_text(json.dumps(key, indent=2) + "\n")
+    print(json.dumps(key, indent=2))
+    print(f"pinned -> {KEY_PATH.relative_to(ROOT)}")
 
 
 def cmd_submit(args: argparse.Namespace) -> None:
     split = load_split()
     cohort = load_cohort(split)
-    arms = [arm for arm in BATCH_ARMS[args.batch] if args.with_base or arm not in PARKED_ARMS]
+    arms = tuple(arm for arm in BATCH_ARMS[args.batch] if args.with_base or arm not in PARKED_ARMS)
+    if not KEY_PATH.exists():
+        raise SystemExit("no pinned treatment key; run `stage.py key` first")
+    pinned = json.loads(KEY_PATH.read_text())
+    current = treatment_key(cohort, split)
+    if current["key"] != pinned["key"]:
+        raise SystemExit(
+            f"this checkout computes {current['key']}, not the pinned {pinned['key']}. "
+            "Never mix keys: stop, and pin a new key deliberately."
+        )
+    runs = batch_runs(args.batch, cohort, arms)
+    specs = [ROOT / "derived/prepared" / f"{name}.json" for _, _, name, _ in runs]
+    for (_, arm, name, _), spec in zip(runs, specs, strict=True):
+        if arm == "d" and (
+            bad := spec_key_mismatches(json.loads(spec.read_text()), current["fields"])
+        ):
+            raise SystemExit(f"{name} does not match the treatment key: {', '.join(bad)}")
     ids_path = IDS_DIR / f"{args.batch}.ids"
-    IDS_DIR.mkdir(parents=True, exist_ok=True)
     ids = []
-    # Interleave arms per task so a pair's two trials share a dispatch window.
-    for task in cohort[args.batch]:
-        for arm in arms:
-            spec = ROOT / "derived/prepared" / f"{spec_name(args.batch, arm, task['task_id'])}.json"
-            out = subprocess.run(
-                ["uv", "run", "--no-sync", "evallab", "submit", str(spec.relative_to(ROOT))],
-                cwd=ROOT,
-                check=True,
-                capture_output=True,
-                text=True,
-            ).stdout
-            ids += [
-                line.removeprefix("spec_id: ")
-                for line in out.splitlines()
-                if line.startswith("spec_id: ")
-            ]
+    for spec in specs:
+        out = subprocess.run(
+            ["uv", "run", "--no-sync", "evallab", "submit", str(spec.relative_to(ROOT))],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        ids += [
+            line.removeprefix("spec_id: ")
+            for line in out.splitlines()
+            if line.startswith("spec_id: ")
+        ]
     ids_path.write_text("\n".join(ids) + "\n")
     rel = ids_path.relative_to(ROOT)
     # Dispatch width keeps the distill's server share at the `costs` table's concurrency.
     parallel = DISTILL_CONCURRENCY[args.batch] * len(arms)
-    print(f"{len(ids)} specs ({', '.join(ARMS[arm] for arm in arms)}) waiting for approval -> {rel}")
+    print(
+        f"{len(ids)} specs ({', '.join(ARMS[arm] for arm in arms)}) waiting for approval -> {rel}"
+    )
+    print(f"  treatment key {current['key']}")
     if args.batch == "pair":
         wave = WAVE1_TASKS * len(arms)
         print(f"  wave 1, one task per domain ({wave} specs):")
@@ -353,13 +510,25 @@ def cmd_submit(args: argparse.Namespace) -> None:
         print(
             f'    for id in $(tail -n +{wave + 1} {rel}); do uv run evallab approve "$id" --actor peter; done'
         )
+        print(f"    uv run evallab tick --parallel {parallel}")
+    elif args.batch == "learn":
+        # One round per attempt, so spend is checked against the cap between rounds.
+        for round_index, attempt in enumerate(LEARN_ATTEMPTS):
+            first = round_index * LEARN_TASKS + 1
+            last = first + LEARN_TASKS - 1
+            print(f"  round {round_index + 1}, attempt {attempt} ({LEARN_TASKS} specs):")
+            print(
+                f"    for id in $(sed -n '{first},{last}p' {rel}); do "
+                'uv run evallab approve "$id" --actor peter; done'
+            )
+            print(f"    uv run evallab tick --parallel {parallel}")
     else:
         print(f'    for id in $(cat {rel}); do uv run evallab approve "$id" --actor peter; done')
-    print(f"    uv run evallab tick --parallel {parallel}")
+        print(f"    uv run evallab tick --parallel {parallel}")
 
 
 def spec_concurrency(batch: str, index: int) -> int:
-    """Distill trials sharing the server while the cohort's `index`-th task runs."""
+    """Distill trials sharing the server while the batch's `index`-th task runs."""
     if batch == "pair" and index < WAVE1_TASKS:
         return DISTILL_CONCURRENCY["wave1"]
     return DISTILL_CONCURRENCY[batch]
@@ -382,9 +551,11 @@ def cmd_costs(_args: argparse.Namespace) -> None:
         f"+${WARM_PERIOD_USD:.2f} per warm period. Expected trial "
         f"{EXPECTED_TRIAL_HOURS * 3600:.0f} s (HAR-90 mean) + {EXPECTED_SETUP_HOURS * 60:.0f} min setup"
     )
+    pair = cohort["pair"]
     segments = (
-        ("pair wave 1", "pair", cohort["pair"][:WAVE1_TASKS], 0),
-        ("pair rest", "pair", cohort["pair"][WAVE1_TASKS:], WAVE1_TASKS),
+        ("A first 3", "pair", pair[:WAVE1_TASKS], 0),
+        ("A other 17", "pair", pair[WAVE1_TASKS:], WAVE1_TASKS),
+        ("B", "learn", pair[:LEARN_TASKS] * len(LEARN_ATTEMPTS), 0),
         ("heldout", "heldout", cohort["heldout"], 0),
     )
     for label, batch, tasks, offset in segments:
@@ -408,6 +579,133 @@ def cmd_costs(_args: argparse.Namespace) -> None:
                 print(f"{head}  expected {cases}  spec-estimate sum ${worst:.2f}")
 
 
+#: Terminus-2's observations after a parse failure and after a reply cut at max_tokens.
+PARSE_ERROR_MARK = "Previous response had parsing errors"
+CUT_REPLY_MARK = "ERROR!! NONE of the actions you just requested were performed"
+STOP_REASONS = {
+    None: "finished",
+    "AgentTimeoutError": "agent timeout",
+    "TrialBudgetExhaustedError": "ceiling",
+}
+
+
+def _agent_steps(trial: Path) -> list[dict]:
+    """Agent steps of the main trajectory and its continuations, in order."""
+    agent_dir = trial / "agent"
+    files = sorted(
+        agent_dir.glob("trajectory.cont-*.json"), key=lambda p: int(p.stem.rsplit("-", 1)[1])
+    )
+    if (agent_dir / "trajectory.json").is_file():
+        files.insert(0, agent_dir / "trajectory.json")
+    steps: list[dict] = []
+    for path in files:
+        doc = json.loads(path.read_text())
+        steps += [s for s in doc.get("steps", []) if s.get("source") == "agent"]
+    return steps
+
+
+def _key_mismatches(job: Path, fields: dict) -> list[str]:
+    """What the job's own lab-metadata.json records against the treatment key."""
+    meta_path = job / "lab-metadata.json"
+    if not meta_path.is_file():
+        return ["no lab-metadata.json"]
+    meta = json.loads(meta_path.read_text())
+    repo, tools = meta.get("repository") or {}, meta.get("tools") or {}
+    bad = []
+    if repo.get("commit") != fields["eval_lab_commit"] or repo.get("dirty") is not False:
+        bad.append(f"commit {repo.get('commit')} dirty={repo.get('dirty')}")
+    if tools.get("harbor") != fields["harness"]["harbor"]:
+        bad.append(f"harbor {tools.get('harbor')}")
+    spec_path = job / ((meta.get("experiment_spec") or {}).get("path") or "experiment-spec.json")
+    if spec_path.is_file():
+        bad += spec_key_mismatches(json.loads(spec_path.read_text()), fields)
+    else:
+        bad.append("no experiment spec")
+    return bad
+
+
+def cmd_receipt(args: argparse.Namespace) -> None:
+    """Per-trial receipt for a wave: reward, stop reason, suspects, key and spend."""
+    split = load_split()
+    cohort = load_cohort(split)
+    fields = json.loads(KEY_PATH.read_text())["fields"] if KEY_PATH.exists() else None
+    qualified = {
+        t["task_version_digest"]
+        for t in json.loads(QUALIFICATION.read_text())["trials"]
+        if t["status"] == "ok"
+    }
+    runs = batch_runs(args.batch, cohort, ("d",))
+    if args.first:
+        runs = runs[: args.first]
+    print(
+        "| spec | domain | reward | stop | verifier result | unscored cause | suspect signal "
+        "| agent steps | parse errors | cut replies | trial s | key |"
+    )
+    print("|---|---|---|---|---|---|---|---|---|---|---|---|")
+    scored, unscored, missing, sandbox_usd_sum, server_usd_sum = [], 0, 0, 0.0, 0.0
+    for task, _, name, index in runs:
+        job = ROOT / "runs" / name
+        trials = sorted(p.parent for p in job.glob("*/result.json")) if job.is_dir() else []
+        if not trials:
+            missing += 1
+            print(f"| {name} | {task['domain']} | – | not run | – | – | – | – | – | – | – | – |")
+            continue
+        key_note = (
+            "no key pinned" if fields is None else "; ".join(_key_mismatches(job, fields)) or "ok"
+        )
+        for trial in trials:
+            row = collect_trial(job, trial)
+            steps = _agent_steps(trial)
+            stop = STOP_REASONS.get(row["infra_error_class"], row["infra_error_class"])
+            if (
+                row["infra_error_class"] is None
+                and steps
+                and (steps[-1].get("extra") or {}).get("prose_completion")
+            ):
+                stop = "prose completion"
+            signal = []
+            if detect_grader_collection_failure(
+                grader_stdout_texts(trial), instruction_text=read_task_instruction(trial)
+            ):
+                signal.append("(a) collection")
+            if "verifier_error" in row["reasons"]:
+                signal.append("(b) verifier_error")
+            if signal and task["task_version_digest"] in qualified:
+                signal.append("qualified task: not suspect")
+            observations = [json.dumps(s.get("observation")) for s in steps]
+            reward = row["reward"]
+            if reward is None:
+                unscored += 1
+            else:
+                scored.append(reward)
+            hours = (row["trial_seconds"] or 0) / 3600
+            sandbox_usd_sum += row["est_cost_usd"] or 0.0
+            concurrency = spec_concurrency(args.batch, index)
+            server_usd_sum += mimo_selfhosted_trial_cost_usd(hours, concurrency, 0.0)
+            print(
+                f"| {name} | {task['domain']} | {'–' if reward is None else reward} | {stop} "
+                f"| {'yes' if reward is not None else 'no'} "
+                f"| {', '.join(row['reasons']) if reward is None else ''} | {', '.join(signal)} "
+                f"| {len(steps)} | {sum(PARSE_ERROR_MARK in o for o in observations)} "
+                f"| {sum(CUT_REPLY_MARK in o for o in observations)} "
+                f"| {row['trial_seconds'] or 0:.0f} | {key_note} |"
+            )
+    total = len(scored) + unscored
+    passed = sum(r >= 1.0 for r in scored)
+    print()
+    print(
+        f"trials {total} (+{missing} not run): scored {len(scored)}, passed {passed}, unscored {unscored}"
+    )
+    if total:
+        share = unscored / total
+        print(f"unscored share {share:.0%}{'  STOP: above 25%' if share > 0.25 else ''}")
+    print(
+        f"estimated spend: sandbox ${sandbox_usd_sum:.2f} (Daytona rate card) + server "
+        f"${server_usd_sum:.2f} (HAR-90 formula at each spec's concurrency) + ${WARM_PERIOD_USD:.2f} per "
+        "warm period; settle the server with `modal billing report`"
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -415,7 +713,8 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("cohort").set_defaults(func=cmd_cohort)
     sub.add_parser("costs").set_defaults(func=cmd_costs)
-    for name, func in (("prepare", cmd_prepare), ("submit", cmd_submit)):
+    sub.add_parser("key").set_defaults(func=cmd_key)
+    for name, func in (("prepare", cmd_prepare), ("submit", cmd_submit), ("receipt", cmd_receipt)):
         p = sub.add_parser(name)
         p.add_argument("batch", choices=sorted(BATCH_ARMS))
         if name == "submit":
@@ -423,6 +722,10 @@ def main() -> None:
                 "--with-base",
                 action="store_true",
                 help="also queue the parked Qwen3.5-9B arm (Peter revives it)",
+            )
+        if name == "receipt":
+            p.add_argument(
+                "--first", type=int, help="only the batch's first N runs (a wave's prefix)"
             )
         p.set_defaults(func=func)
     args = parser.parse_args()

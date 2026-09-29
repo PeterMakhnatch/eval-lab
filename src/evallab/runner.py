@@ -59,6 +59,15 @@ from evallab.execution_contracts import (
     MIMO_SELFHOSTED_SECRET_FILE_ENV,
     MIMO_SELFHOSTED_SECRET_PATH_ENV,
     MIMO_SELFHOSTED_UPSTREAM_ENV,
+    OPENROUTER_CAPABILITY_EXPIRES_AT_ENV,
+    OPENROUTER_MODEL_PRICES_MICROS,
+    OPENROUTER_PROXY_ATTEMPT_ID_ENV,
+    OPENROUTER_PROXY_CAPABILITY_ENV,
+    OPENROUTER_PROXY_PROVIDER,
+    OPENROUTER_PROXY_USAGE_FILE_ENV,
+    OPENROUTER_SECRET_FILE_ENV,
+    OPENROUTER_SECRET_PATH_ENV,
+    OPENROUTER_UPSTREAM_ENV,
     REDACTED_SECRET_VALUE,
     RLM_AGENT,
     SUPPORT_COMMAND_TIMEOUT_SECONDS,
@@ -120,13 +129,16 @@ from evallab.execution_contracts import (
     collected_secret_values,
     is_lease_generation,
     is_mimo_selfhosted_model,
+    is_openrouter_model,
     is_tinker_terminus_model,
     materialize_deepseek_secret_file,
     materialize_mimo_selfhosted_secret_file,
+    materialize_openrouter_secret_file,
     materialize_tinker_secret_file,
     materialize_zai_openapi_secret_file,
     materialize_zai_secret_file,
     parse_mimo_selfhosted_model,
+    parse_openrouter_model,
     parse_tinker_model,
     persist_private_bytes,
     proxy_runtime_identity,
@@ -831,6 +843,23 @@ def _terminus_proxy_env(
             time.time() + float(timeout_seconds) + 60.0
         )
         return env
+    if provider == OPENROUTER_PROXY_PROVIDER:
+        env[OPENROUTER_SECRET_PATH_ENV] = str(secret_path)
+        upstream = os.environ.get(OPENROUTER_UPSTREAM_ENV)
+        if upstream:
+            env[OPENROUTER_UPSTREAM_ENV] = upstream
+        env[OPENROUTER_PROXY_CAPABILITY_ENV] = capability
+        env[OPENROUTER_PROXY_ATTEMPT_ID_ENV] = attempt_id
+        env[OPENROUTER_PROXY_USAGE_FILE_ENV] = str(usage_path)
+        env["EVALLAB_OPENROUTER_MAX_REQUESTS"] = str(limits.max_requests)
+        env["EVALLAB_OPENROUTER_MAX_INPUT_TOKENS"] = str(limits.max_input_tokens)
+        env["EVALLAB_OPENROUTER_MAX_OUTPUT_TOKENS"] = str(limits.max_output_tokens)
+        env["EVALLAB_OPENROUTER_MAX_TOTAL_TOKENS"] = str(limits.max_total_tokens)
+        env["EVALLAB_OPENROUTER_MAX_COST_MICROS"] = str(limits.max_cost_micros)
+        env[OPENROUTER_CAPABILITY_EXPIRES_AT_ENV] = str(
+            time.time() + float(timeout_seconds) + 60.0
+        )
+        return env
     env[ZAI_OPENAPI_SECRET_PATH_ENV] = str(secret_path)
     upstream = os.environ.get(ZAI_OPENAPI_UPSTREAM_ENV)
     if upstream:
@@ -1302,13 +1331,17 @@ def run_harbor_process(
                 raise ValueError("Terminus execution requires a bound trial capability")
             # The command's --model value selects the provider profile: a
             # ``selfhosted/`` selector routes to the self-hosted MiMo profile,
-            # a ``tinker/`` selector to the Tinker profile, every other
-            # metered Terminus model to Z.ai OpenAPI.
+            # a ``tinker/`` selector to the Tinker profile, an
+            # ``openrouter-metered/`` selector to the OpenRouter profile,
+            # every other metered Terminus model to Z.ai OpenAPI.
             mimo_client = any(
                 isinstance(arg, str) and arg.startswith("selfhosted/") for arg in command
             )
             tinker_client = any(
                 isinstance(arg, str) and arg.startswith("tinker/") for arg in command
+            )
+            openrouter_client = any(
+                isinstance(arg, str) and arg.startswith("openrouter-metered/") for arg in command
             )
             model_args = [
                 command[index + 1]
@@ -1318,10 +1351,17 @@ def run_harbor_process(
             model_value = model_args[-1] if model_args else None
             mimo_native = parse_mimo_selfhosted_model(model_value) if mimo_client else None
             tinker_spec = parse_tinker_model(model_value) if tinker_client else None
+            openrouter_native = (
+                parse_openrouter_model(model_value) if openrouter_client else None
+            )
             provider = (
                 MIMO_SELFHOSTED_PROXY_PROVIDER
                 if mimo_client
-                else ("tinker" if tinker_client else "zai_openapi")
+                else (
+                    OPENROUTER_PROXY_PROVIDER
+                    if openrouter_client
+                    else ("tinker" if tinker_client else "zai_openapi")
+                )
             )
             capability = secrets.token_urlsafe(32)
             capability_id = "sha256:" + hashlib.sha256(capability.encode()).hexdigest()
@@ -1346,6 +1386,14 @@ def run_harbor_process(
                     "input_cost_micros_per_million": tinker_spec.input_cost_micros_per_million,
                     "output_cost_micros_per_million": tinker_spec.output_cost_micros_per_million,
                 }
+            elif openrouter_native is not None:
+                # The pinned OpenRouter list price is exact for the pinned
+                # endpoint (supports_implicit_caching=false).
+                input_rate, output_rate = OPENROUTER_MODEL_PRICES_MICROS[openrouter_native]
+                proxy_pricing = {
+                    "input_cost_micros_per_million": input_rate,
+                    "output_cost_micros_per_million": output_rate,
+                }
             else:
                 input_rate, output_rate = zai_openapi_price_for(
                     str(model_value or ZAI_OPENAPI_MODEL_SELECTOR)
@@ -1367,7 +1415,15 @@ def run_harbor_process(
             secret_file_env = (
                 MIMO_SELFHOSTED_SECRET_FILE_ENV
                 if mimo_client
-                else (TINKER_SECRET_FILE_ENV if tinker_client else ZAI_OPENAPI_SECRET_FILE_ENV)
+                else (
+                    OPENROUTER_SECRET_FILE_ENV
+                    if openrouter_client
+                    else (
+                        TINKER_SECRET_FILE_ENV
+                        if tinker_client
+                        else ZAI_OPENAPI_SECRET_FILE_ENV
+                    )
+                )
             )
             existing_secret = runtime_environment.get(secret_file_env) or os.environ.get(
                 secret_file_env
@@ -1397,6 +1453,8 @@ def run_harbor_process(
                 owned_secret_path = owned_secret_dir / "key"
                 if mimo_client:
                     materialize_mimo_selfhosted_secret_file(owned_secret_path)
+                elif openrouter_client:
+                    materialize_openrouter_secret_file(owned_secret_path)
                 elif tinker_client:
                     materialize_tinker_secret_file(owned_secret_path)
                 else:
@@ -1420,6 +1478,12 @@ def run_harbor_process(
             )
             if mimo_client:
                 runtime_environment[MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV] = capability
+                # litellm's openai-compatible lookup reads this in the
+                # controller process; the adapter overwrites it with the
+                # capability before any call. Never a task-container value.
+                runtime_environment["OPENAI_API_KEY"] = capability
+            elif openrouter_client:
+                runtime_environment[OPENROUTER_PROXY_CAPABILITY_ENV] = capability
                 # litellm's openai-compatible lookup reads this in the
                 # controller process; the adapter overwrites it with the
                 # capability before any call. Never a task-container value.
@@ -1751,6 +1815,14 @@ def _accepted_returned_models(model: str) -> frozenset[str]:
     if is_mimo_selfhosted_model(model):
         # SGLang echoes its --served-model-name: the selector minus ``selfhosted/``.
         accepted.add(parse_mimo_selfhosted_model(model))
+    if is_openrouter_model(model):
+        # OpenRouter echoes the canonical slug of the endpoint that served
+        # the call. The proxy pins provider xiaomi (endpoint tag fp8, no
+        # fallbacks), so the slug and its :fp8 endpoint variant are both
+        # legitimate echoes of this selector.
+        native = parse_openrouter_model(model)
+        accepted.add(native)
+        accepted.add(f"{native}:fp8")
     return frozenset(accepted)
 
 

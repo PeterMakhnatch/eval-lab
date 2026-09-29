@@ -47,6 +47,7 @@ from evallab.execution_contracts import (
     ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS,
     DispatchCapacity,
     is_mimo_selfhosted_model,
+    is_openrouter_model,
     is_tinker_terminus_model,
 )
 from evallab.queue import (
@@ -400,6 +401,7 @@ class CampaignDefinitionAttempt(_FrozenContract):
                     and (
                         is_tinker_terminus_model(self.spec.model)
                         or is_mimo_selfhosted_model(self.spec.model)
+                        or is_openrouter_model(self.spec.model)
                     )
                 )
             )
@@ -407,7 +409,8 @@ class CampaignDefinitionAttempt(_FrozenContract):
                 raise ValueError(
                     "billable campaign model must be pinned to one of "
                     f"{sorted(allowed_models)}, a tinker/<base>[@checkpoint] "
-                    "selector, or the self-hosted MiMo selector for terminus-2"
+                    "selector, the self-hosted MiMo selector, or the "
+                    "OpenRouter selector for terminus-2"
                 )
             if self.spec.est_cost_usd <= 0:
                 raise ValueError("billable campaign specs require a positive cost estimate")

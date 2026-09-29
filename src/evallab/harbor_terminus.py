@@ -62,6 +62,14 @@ from evallab.execution_contracts import (
     MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV,
     MIMO_SELFHOSTED_PROXY_TOKEN,
     MIMO_SELFHOSTED_TEMPERATURE,
+    OPENROUTER_CONTEXT_INPUT_TOKENS,
+    OPENROUTER_INPUT_COST_MICROS_PER_MILLION,
+    OPENROUTER_MAX_COMPLETION_TOKENS,
+    OPENROUTER_MIMO_FLASH_MODEL_SELECTOR,
+    OPENROUTER_MODEL_PREFIX,
+    OPENROUTER_OUTPUT_COST_MICROS_PER_MILLION,
+    OPENROUTER_PROXY_CAPABILITY_ENV,
+    OPENROUTER_PROXY_TOKEN,
     TERMINUS_LOCAL_MODEL_SELECTOR,
     TERMINUS_PROXY_URL_ENV,
     TINKER_CONTEXT_TOKENS,
@@ -74,7 +82,9 @@ from evallab.execution_contracts import (
     ZAI_OPENAPI_PROXY_TOKEN,
     TinkerModelSpec,
     collected_secret_values,
+    is_openrouter_model,
     parse_mimo_selfhosted_model,
+    parse_openrouter_model,
     parse_tinker_model,
 )
 from evallab.harbor_common import sanitize_native_trajectory
@@ -258,7 +268,12 @@ async def apply_mimo_blocklist(environment: Any) -> str:
 
 #: litellm resolves each provider's key from this process-environment name.
 #: The capability token (never the provider key) is what lands here.
-_PROVIDER_KEY_ENVS = {"zai": "ZAI_API_KEY", "tinker": "OPENAI_API_KEY", "mimo_selfhosted": "OPENAI_API_KEY"}
+_PROVIDER_KEY_ENVS = {
+    "zai": "ZAI_API_KEY",
+    "tinker": "OPENAI_API_KEY",
+    "mimo_selfhosted": "OPENAI_API_KEY",
+    "openrouter": "OPENAI_API_KEY",
+}
 
 #: The loopback interface the runner binds the trial proxy to. Hostnames that
 #: merely resolve to loopback (``localhost``) are rejected: the binding must be
@@ -293,6 +308,7 @@ _FORBIDDEN_EXTRA_ENV_PREFIXES = (
     "evallab_zai_openapi",
     "evallab_tinker",
     "evallab_mimo_selfhosted",
+    "evallab_openrouter",
     "evallab_terminus",
     "evallab_zai_",
 )
@@ -305,8 +321,14 @@ def _resolve_metered_model(model_name: str | None) -> tuple[str, TinkerModelSpec
     are parsed strictly (fail-closed on unknown bases and malformed
     checkpoints) so the selector string fully identifies the sampled weights.
     The self-hosted MiMo route admits exactly one selector; anything else
-    under ``selfhosted/`` fails closed.
+    under ``selfhosted/`` fails closed. The OpenRouter route likewise admits
+    exactly one selector and keeps the STOCK Terminus JSON parser (no
+    MimoToolCallParser wrapper): HAR-104 decides from the proof run's raw
+    outputs whether a normalizer is needed.
     """
+    if isinstance(model_name, str) and model_name.startswith(OPENROUTER_MODEL_PREFIX):
+        parse_openrouter_model(model_name)
+        return model_name, None, False
     if isinstance(model_name, str) and model_name.startswith(MIMO_SELFHOSTED_MODEL_PREFIX):
         parse_mimo_selfhosted_model(model_name)
         return model_name, None, True
@@ -319,7 +341,8 @@ def _resolve_metered_model(model_name: str | None) -> tuple[str, TinkerModelSpec
         "SecretSafeTerminus2 requires an exact metered model: one of "
         f"{sorted(ZAI_OPENAPI_ALLOWED_MODELS)}, a Tinker route "
         "'tinker/<base>[@tinker://<run>:train:<i>/sampler_weights/<step>]', "
-        f"or the self-hosted route {MIMO_SELFHOSTED_MODEL_SELECTOR!r}; "
+        f"the self-hosted route {MIMO_SELFHOSTED_MODEL_SELECTOR!r}, "
+        f"or the OpenRouter route {OPENROUTER_MIMO_FLASH_MODEL_SELECTOR!r}; "
         f"got {model_name!r}. Coding Plan credentials are not admitted."
     )
 
@@ -504,6 +527,26 @@ class SecretSafeTerminus2(Terminus2):
                     MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV, MIMO_SELFHOSTED_PROXY_TOKEN
                 )
                 provider = "mimo_selfhosted"
+            elif is_openrouter_model(model):
+                # Context/pricing of the pinned OpenRouter endpoint is
+                # runtime-bound: the 1M input window with 131072-token
+                # completions and the pinned list prices ($0.14/$0.28 per 1M
+                # tokens). A caller-supplied model_info can never override it.
+                if kwargs.get("model_info") is not None:
+                    raise ValueError(
+                        "OpenRouter model context/pricing is runtime-bound, not a harness override"
+                    )
+                kwargs["model_info"] = {
+                    "max_input_tokens": OPENROUTER_CONTEXT_INPUT_TOKENS,
+                    "max_output_tokens": OPENROUTER_MAX_COMPLETION_TOKENS,
+                    "input_cost_per_token": OPENROUTER_INPUT_COST_MICROS_PER_MILLION / 1e6,
+                    "output_cost_per_token": OPENROUTER_OUTPUT_COST_MICROS_PER_MILLION / 1e6,
+                    "litellm_provider": "openai",
+                }
+                capability = _require_capability(
+                    OPENROUTER_PROXY_CAPABILITY_ENV, OPENROUTER_PROXY_TOKEN
+                )
+                provider = "openrouter"
             elif self._tinker_spec is not None:
                 # Context/pricing of the pinned Tinker base is runtime-bound:
                 # the 64K window drives native context summarization before

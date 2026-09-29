@@ -56,6 +56,7 @@ ZAI_OPENAPI_CREDENTIAL_NAMES = frozenset({"ZAI_OPENAPI_API_KEY"})
 GLM_SELFHOSTED_CREDENTIAL_NAMES = GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
 TINKER_CREDENTIAL_NAMES = frozenset({"TINKER_API_KEY"})
 MIMO_SELFHOSTED_CREDENTIAL_NAMES = frozenset({"MIMO_SELFHOSTED_API_KEY"})
+OPENROUTER_CREDENTIAL_NAMES = frozenset({"OPENROUTER_API_KEY"})
 ADMITTED_ENV_SECRET_SETS: frozenset[frozenset[str]] = frozenset(
     {
         DEEPSEEK_CREDENTIAL_NAMES,
@@ -63,6 +64,7 @@ ADMITTED_ENV_SECRET_SETS: frozenset[frozenset[str]] = frozenset(
         GLM_SELFHOSTED_CREDENTIAL_NAMES,
         TINKER_CREDENTIAL_NAMES,
         MIMO_SELFHOSTED_CREDENTIAL_NAMES,
+        OPENROUTER_CREDENTIAL_NAMES,
     }
 )
 
@@ -848,6 +850,30 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                     max_timeout_seconds=28_800,
                     max_attempts=1,
                     max_concurrency=1,
+                ),
+            ),
+            AgentProfile(
+                profile_id="terminus-2-openrouter-mimo-v2-6-flash",
+                adapter=TERMINUS_AGENT,
+                model="openrouter-metered/xiaomi/mimo-v2.6-flash",
+                auth_mode="api-key-environment",
+                secret_source="env:OPENROUTER_API_KEY",
+                capabilities=(
+                    "credential-transport:host-loopback-proxy",
+                    "structured-trajectory:atif",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=28_800,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-09-29: OpenRouter xiaomi/mimo-v2.6-flash list price "
+                    "$0.14 in / $0.28 out per 1M tokens (cache read $0.0028); "
+                    "pinned endpoint tag xiaomi/fp8 with "
+                    "supports_implicit_caching=false and reasoning enabled; "
+                    "1,048,576-token input context, 131,072-token max "
+                    "completion",
                 ),
             ),
             AgentProfile(

@@ -505,6 +505,107 @@ def mimo_selfhosted_trial_cost_usd(
             raise ValueError(f"{label} must be a finite non-negative number, got {value!r}")
     return MIMO_SELFHOSTED_SERVER_USD_PER_HOUR * trial_hours / concurrency + sandbox_usd
 
+#: OpenRouter metered route for Terminus-2 (HAR-104): MiMo-V2.6-Flash behind
+#: OpenRouter's OpenAI-compatible chat-completions endpoint. The selector
+#: carries an ``openrouter-metered/`` prefix — NOT ``openrouter/`` — because
+#: litellm.get_llm_provider would route that prefix to its own OpenRouter
+#: provider and bypass the openai-compatible path; with the metered prefix and
+#: litellm_provider "openai" the selector resolves to provider "openai"
+#: (verified 2026-09-29). Exactly one selector is admitted and anything else
+#: under the prefix fails closed in :func:`parse_openrouter_model`.
+OPENROUTER_MODEL_PREFIX = "openrouter-metered/"
+OPENROUTER_NATIVE_MODEL = "xiaomi/mimo-v2.6-flash"
+OPENROUTER_MIMO_FLASH_MODEL_SELECTOR = f"{OPENROUTER_MODEL_PREFIX}{OPENROUTER_NATIVE_MODEL}"
+OPENROUTER_UPSTREAM_HOST = "openrouter.ai"
+OPENROUTER_UPSTREAM_PATH = "/api/v1/chat/completions"
+OPENROUTER_UPSTREAM_DEFAULT = f"https://{OPENROUTER_UPSTREAM_HOST}"
+#: The upstream serving/provider pin OpenRouter enforces on every call
+#: (endpoint tag ``xiaomi/fp8``: pins upstream serving and price, refuses the
+#: fallback pool) plus the reasoning pin (MiMo thinking on, matching the
+#: self-hosted MiMo treatment). Mirrored in
+#: ``containers/zai_openapi_secret_proxy.py``, which cannot import this
+#: module (standalone container script).
+OPENROUTER_PROVIDER_PIN: Mapping[str, Any] = MappingProxyType(
+    {"order": ("xiaomi",), "allow_fallbacks": False}
+)
+OPENROUTER_ENDPOINT_PIN = "xiaomi/fp8"
+OPENROUTER_REASONING_PIN: Mapping[str, bool] = MappingProxyType({"enabled": True})
+#: Context window of the pinned endpoint: 1,048,576 input tokens, at most
+#: 131,072 completion tokens.
+OPENROUTER_CONTEXT_INPUT_TOKENS = 1_048_576
+OPENROUTER_MAX_COMPLETION_TOKENS = 131_072
+#: OpenRouter list price for ``xiaomi/mimo-v2.6-flash`` (USD per 1M tokens,
+#: micros; verified 2026-09-29): $0.14 in / $0.28 out, cache read $0.0028.
+#: The pinned endpoint reports supports_implicit_caching=false, so uncached
+#: input pricing is exact; cached-prefill discounts are never credited.
+OPENROUTER_INPUT_COST_MICROS_PER_MILLION = 140_000
+OPENROUTER_OUTPUT_COST_MICROS_PER_MILLION = 280_000
+OPENROUTER_MODEL_PRICES_MICROS: Mapping[str, tuple[int, int]] = MappingProxyType(
+    {
+        OPENROUTER_NATIVE_MODEL: (
+            OPENROUTER_INPUT_COST_MICROS_PER_MILLION,
+            OPENROUTER_OUTPUT_COST_MICROS_PER_MILLION,
+        )
+    }
+)
+OPENROUTER_CREDENTIAL_ENVIRONMENT_KEYS: frozenset[str] = frozenset({"OPENROUTER_API_KEY"})
+OPENROUTER_PROXY_TOKEN = "evallab-proxy-placeholder"
+OPENROUTER_SECRET_FILE_ENV = "EVALLAB_OPENROUTER_SECRET_FILE"
+OPENROUTER_SECRET_PATH_ENV = "EVALLAB_OPENROUTER_SECRET_PATH"
+OPENROUTER_PROXY_CAPABILITY_ENV = "EVALLAB_OPENROUTER_PROXY_CAPABILITY"
+OPENROUTER_CAPABILITY_EXPIRES_AT_ENV = "EVALLAB_OPENROUTER_CAPABILITY_EXPIRES_AT"
+OPENROUTER_UPSTREAM_ENV = "EVALLAB_OPENROUTER_UPSTREAM"
+OPENROUTER_PROXY_ATTEMPT_ID_ENV = "EVALLAB_OPENROUTER_ATTEMPT_ID"
+OPENROUTER_PROXY_USAGE_FILE_ENV = "EVALLAB_OPENROUTER_USAGE_FILE"
+OPENROUTER_PROXY_PROVIDER_ENV = "EVALLAB_PROXY_PROVIDER"
+OPENROUTER_PROXY_PROVIDER = "openrouter"
+
+
+def parse_openrouter_model(model: str | None) -> str:
+    """Strictly parse the OpenRouter Terminus selector, returning the native id.
+
+    Exactly ``openrouter-metered/xiaomi/mimo-v2.6-flash`` is admitted; any
+    other string under the prefix — other models, suffixes, other providers'
+    prefixes, or transport kwargs smuggled in the string — fails closed here
+    before any execution or spec freeze.
+    """
+    if model != OPENROUTER_MIMO_FLASH_MODEL_SELECTOR:
+        raise ValueError(
+            "OpenRouter Terminus model must be exactly "
+            f"{OPENROUTER_MIMO_FLASH_MODEL_SELECTOR!r}, got {model!r}"
+        )
+    return OPENROUTER_NATIVE_MODEL
+
+
+def is_openrouter_model(model: str | None) -> bool:
+    return isinstance(model, str) and model.startswith(OPENROUTER_MODEL_PREFIX)
+
+
+def materialize_openrouter_secret_file(
+    destination: Path,
+    environment: Mapping[str, str] | None = None,
+) -> Path:
+    """Write the OpenRouter API key to a 0400 file for the host loopback proxy."""
+    source = os.environ if environment is None else environment
+    value = source.get("OPENROUTER_API_KEY")
+    if value == OPENROUTER_PROXY_TOKEN:
+        value = None
+    if not value:
+        existing = source.get(OPENROUTER_SECRET_FILE_ENV)
+        if existing:
+            path = Path(existing)
+            try:
+                read_owner_secret_file(path)
+            except OSError as exc:
+                raise RuntimeError("OpenRouter provider credential is missing") from exc
+            return path
+        raise RuntimeError(
+            "OpenRouter provider credential is missing: set OPENROUTER_API_KEY "
+            "(or EVALLAB_OPENROUTER_SECRET_FILE) before launching Harbor"
+        )
+    persist_private_bytes(destination, f"{value}\n".encode(), secrets=(), mode=0o400)
+    return destination
+
 
 GLM_SELFHOSTED_BASE_MODEL_SELECTOR = "glm-selfhosted/glm-5.3-flash"
 GLM_SELFHOSTED_FT_MODEL_SELECTOR = "glm-ft/glm-5.3-flash-ft"
@@ -924,6 +1025,7 @@ def collected_secret_values(
         *((key, ZAI_OPENAPI_PROXY_TOKEN) for key in ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, TINKER_PROXY_TOKEN) for key in TINKER_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, MIMO_SELFHOSTED_PROXY_TOKEN) for key in MIMO_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS),
+        *((key, OPENROUTER_PROXY_TOKEN) for key in OPENROUTER_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, GLM_SELFHOSTED_PROXY_TOKEN) for key in GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS),
     ):
         value = source.get(key)
@@ -935,6 +1037,7 @@ def collected_secret_values(
         (ZAI_OPENAPI_SECRET_FILE_ENV, ZAI_OPENAPI_PROXY_TOKEN),
         (TINKER_SECRET_FILE_ENV, TINKER_PROXY_TOKEN),
         (MIMO_SELFHOSTED_SECRET_FILE_ENV, MIMO_SELFHOSTED_PROXY_TOKEN),
+        (OPENROUTER_SECRET_FILE_ENV, OPENROUTER_PROXY_TOKEN),
     ):
         secret_file = source.get(secret_file_env)
         if secret_file:
@@ -950,6 +1053,7 @@ def collected_secret_values(
         (ZAI_OPENAPI_PROXY_CAPABILITY_ENV, ZAI_OPENAPI_PROXY_TOKEN),
         (TINKER_PROXY_CAPABILITY_ENV, TINKER_PROXY_TOKEN),
         (MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV, MIMO_SELFHOSTED_PROXY_TOKEN),
+        (OPENROUTER_PROXY_CAPABILITY_ENV, OPENROUTER_PROXY_TOKEN),
     ):
         capability = source.get(capability_env)
         if capability and capability != placeholder:

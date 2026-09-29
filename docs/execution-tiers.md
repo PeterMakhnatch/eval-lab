@@ -195,6 +195,32 @@ implementations. Metered routes, all host-side through the same loopback proxy:
   proxy's cost ceiling cannot trip; its request and token ceilings still
   bound the run.
 
+- `openrouter-metered/xiaomi/mimo-v2.6-flash` (HAR-104) — MiMo-V2.6-Flash via
+  OpenRouter's OpenAI-compatible endpoint, pinned to
+  `https://openrouter.ai:443/api/v1/chat/completions` (`EVALLAB_OPENROUTER_UPSTREAM`,
+  default `https://openrouter.ai`; loopback http only for tests). The
+  provider key comes from `OPENROUTER_API_KEY` and travels upstream only as
+  `Authorization: Bearer`. The prefix is `openrouter-metered/` — not
+  `openrouter/` — so litellm's provider lookup stays on the openai-compatible
+  path (with `litellm_provider openai` the selector resolves to provider
+  `openai`; verified 2026-09-29). The proxy forces
+  `provider {"order": ["xiaomi"], "allow_fallbacks": false}` (endpoint tag
+  `xiaomi/fp8`; pins upstream serving and price, refuses the fallback pool)
+  and `reasoning {"enabled": true}` (MiMo thinking on, matching the
+  self-hosted treatment), stripping any caller-supplied
+  `provider`/`reasoning`/`reasoning_effort`; ledger calls carry
+  `shaping_applied`. Prices: $0.14 per 1M input, $0.28 per 1M output
+  (OpenRouter list price verified 2026-09-29; cache read $0.0028/M is never
+  credited — the pinned endpoint reports `supports_implicit_caching=false`,
+  so uncached input pricing is exact). Context is runtime-bound at 1 048 576
+  input tokens with at most 131 072 completion tokens. OpenRouter's usage
+  (`prompt_tokens`/`completion_tokens`; completion includes reasoning tokens)
+  reconciles through the standard ledger, and its keep-alive padding (leading
+  whitespace before the non-stream JSON body) is accepted. The parser is the
+  stock Terminus-2 JSON parser — no `MimoToolCallParser` wrapper on this
+  route; HAR-104 decides from the proof run's raw outputs whether a
+  normalizer is needed.
+
 The MiMo server lives in `tools/modal-mimo-serve/` (see its README for the
 deploy, smoke and stop commands). Daytona Tier 1/2 sandboxes cannot reach
 Modal endpoints, so the model is reachable only from this controller-side

@@ -1,0 +1,29 @@
+{
+  "schema": "evallab.task_finding/v1",
+  "task_version_digest": "sha256:06205dfca4a41a4b134da31e72efc29197522e0d4a1981cff7b9d7addb9675f8",
+  "task_id": "candidate-2376-security-cryptography",
+  "domain": "terminal",
+  "rule": "grader-broken",
+  "severity": "error",
+  "message": "The grader's pytest collection fails with ModuleNotFoundError: No module named 'cryptography' (not installed in the image, not named in the instruction), so every run scores 0 whatever the agent does. Seen on all 3 RepeatVerifier grades of the HAR-88 Daytona nop run.",
+  "evidence": [
+    {
+      "path": "runs/mimo-qual-t-candidate-2376-security-cryptography/mimo-qual-t-candidate-2376-secur__DWGSbF9/verifier/test-stdout.txt",
+      "sha256": "sha256:d59208258c608ad081bc501ebe0d2c71a2aecf66cacecde28a38b5e9f26cc721"
+    },
+    {
+      "path": "runs/mimo-qual-t-candidate-2376-security-cryptography/mimo-qual-t-candidate-2376-secur__DWGSbF9/verifier/repeat/0/test-stdout.txt",
+      "sha256": "sha256:d59208258c608ad081bc501ebe0d2c71a2aecf66cacecde28a38b5e9f26cc721"
+    },
+    {
+      "path": "runs/mimo-qual-t-candidate-2376-security-cryptography/mimo-qual-t-candidate-2376-secur__DWGSbF9/verifier/repeat/1/test-stdout.txt",
+      "sha256": "sha256:f80b272f888a36e4ea2ddaf28fd80a7bb514d990f5121d04502957b3f35e832f"
+    },
+    {
+      "path": "runs/mimo-qual-t-candidate-2376-security-cryptography/mimo-qual-t-candidate-2376-secur__DWGSbF9/verifier/repeat/2/test-stdout.txt",
+      "sha256": "sha256:f80b272f888a36e4ea2ddaf28fd80a7bb514d990f5121d04502957b3f35e832f"
+    }
+  ],
+  "recorded_at": "2026-09-29T02:10:00Z",
+  "recorded_by": "har88-qualification"
+}

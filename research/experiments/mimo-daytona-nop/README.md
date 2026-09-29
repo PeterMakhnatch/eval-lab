@@ -38,13 +38,15 @@ Whatever the org tier, Daytona caps each sandbox at **4 vCPU / 8 GiB RAM / 10 Gi
 
 Unpacked image sizes were measured for every code and cyber image in the cohort. Method: the gzip ISIZE trailer of each layer, fetched with an HTTP Range request, cross-checked against `du -sxm /` on three locally pulled images.
 - **3 GiB default:** only 12 of the 32 code images fit.
-- **10 GiB maximum:** 26 code images fit with ≥ 1 GiB headroom; 5 are marginal (8.6–9.5 GiB, or above 10 GiB if the 4 GiB ISIZE wrap resolves upward); the largest (`format-code-task-000647`, ≥ 26 GiB) cannot fit on Daytona at all.
-- **Cyber:** 15 of 16 fit; the largest (`arvo_32142`, ≥ 29 GiB) cannot fit.
+- **10 GiB maximum:** 26 code images fit with ≥ 1 GiB headroom; 5 are marginal (8.6–9.5 GiB, or above 10 GiB if the 4 GiB ISIZE wrap resolves upward); the largest (`format-code-task-000647`, ≥ 26 GiB) exceeds it.
+- **Cyber:** 15 of 16 fit; the largest (`arvo_32142`, ≥ 29 GiB) exceeds it.
 - **Whole pools** (compressed size × ~2.7): about 2,095 of 2,636 sized code tasks fit 10 GiB, 257 are marginal and 284 exceed it; 997 of 1,000 cyber tasks fit.
 
 So every spec whose task leaves `storage_mb` unset carries `override_storage_mb: 10240` (Harbor `--override-storage-mb`).
 
-A setup failure on disk capacity is recorded as `inconclusive (backend_quota)`, not broken: the task may run on a larger backend.
+**Measured on the run (2026-09-29): the image does not count against the sandbox disk.** `format-code-task-000647` (≥ 26 GiB unpacked) and `arvo_32142` (≥ 29 GiB) both started and graded normally on 10 GiB sandboxes, as did all 5 marginal code images (see Results for `001190`). The 10 GiB cap therefore limits what a task writes at run time, not which images can run; the "exceeds" counts above do **not** mean those tasks cannot run on Daytona. Whether the 3 GiB default would also have worked was not tested.
+
+A setup failure on disk capacity is still recorded as `inconclusive (backend_quota)`, not broken.
 
 ## Cost
 
@@ -64,7 +66,7 @@ Every sandbox bills 10 GiB of disk: terminal tasks declare it, and the other dom
 
 **Expected** ≈ $2.5, assuming terminal 6 min, code 12 min, cyber 8 min and music 5 min per trial. No model tokens are used.
 
-The measured figure replaces both numbers: sandbox-seconds × rate, per trial, from `evallab tasks qualify-collect`.
+Measured: **$0.42** for the 113 trials, plus about $0.12 for one operator-stopped attempt (see Results), about **$0.54** in total. See Results for the per-domain breakdown.
 
 ## Run (Peter; needs approval, since Daytona is a non-Docker environment)
 
@@ -73,9 +75,9 @@ From a clean origin/main checkout such as `~/Developer/eval-lab/.worktrees/mimo-
 ```
 research/experiments/mimo-daytona-nop/stage.sh all        # pull 113 pinned tasks, submit both batches (nothing approved)
 for id in $(cat derived/har88/staged-a.ids); do uv run evallab approve "$id" --actor peter; done
-uv run evallab tick --parallel 3                          # batch a
+uv run evallab tick --parallel 12 $(sed 's/^/--spec-id /' derived/har88/staged-a.ids)   # batch a (Tier 2)
 for id in $(cat derived/har88/staged-b.ids); do uv run evallab approve "$id" --actor peter; done
-uv run evallab tick --parallel 1                          # batch b
+uv run evallab tick --parallel 8 $(sed 's/^/--spec-id /' derived/har88/staged-b.ids)    # batch b (Tier 2)
 ```
 
 `tick` only dispatches approved specs; unapproved specs stay waiting.
@@ -84,6 +86,34 @@ uv run evallab tick --parallel 1                          # batch b
 
 ```
 uv run evallab ingest runs/mimo-qual-*
-uv run evallab tasks qualify-collect runs/mimo-qual-*
-uv run evallab tasks catalog export-broken --backend daytona --out derived/curated/mimo-v2.6/broken-on-daytona.json
+uv run evallab tasks qualify-collect runs/mimo-qual-* --backend-rate-card daytona
+uv run evallab tasks catalog export-broken --backend daytona --out research/experiments/mimo-daytona-nop/results/broken-on-daytona.json
 ```
+
+## Results (run 2026-09-29, org on Tier 2; Peter approved)
+
+`results/qualification.json` holds one row per trial (status, reasons, timings, resources, cost) plus a per-domain summary; `results/broken-on-daytona.json` is the published list.
+
+| domain | tasks | ok | broken | inconclusive | wall median / p90 / max (s) | setup median (s) | cost |
+|---|---|---|---|---|---|---|---|
+| terminal | 64 | 61 | 3 | 0 | 30 / 52 / 69 | 16 | $0.049 |
+| code | 32 | 32 | 0 | 0 | 98 / 168 / 1,816 | 66 | $0.32 |
+| cyber | 16 | 16 | 0 | 0 | 42 / 74 / 164 | 33 | $0.051 |
+| music | 1 | 1 | 0 | 0 | 34 | 17 | $0.001 |
+| **total** | 113 | 110 | 3 | 0 | | | **$0.42** |
+
+Wall-clock (queue events): batch a (65 trials, `--parallel 12`) took 3.7 min; batch b (48, `--parallel 8`) finished 47 trials in 10.7 min. `format-code-task-001190` alone took 30 min, because its verifier (timeout 2,100 s) is slow.
+
+**Broken on Daytona** (`results/broken-on-daytona.json`, `sha256:35f66da133e78e44b070c09843a7b021404b8acb4a6a40c10f96050f3441df57`): three terminal tasks whose grader cannot be collected because the image lacks a third-party module the test imports. All three also carry a curated `grader-broken` error finding (`library/task-findings/terminal/`), so they are train-ineligible on every backend:
+
+| task | missing module |
+|---|---|
+| candidate-0260-security-appsec | `stevedore` |
+| candidate-0674-ml-evaluation | `torch` |
+| candidate-2376-security-cryptography | `cryptography` |
+
+Notes:
+- `candidate-1634-software-databases` also failed collection, but the `ImportError` is raised in vendored peewee under `/app` that the task asks the agent to repair, so it is not a grader defect (#508 added that guard).
+- `music-gk-0000`, which failed locally (rc=127), passes on Daytona.
+- The first attempt of `format-code-task-001190` was stopped by hand after 30 min, mistaken for a hang; the re-run graded normally. The stopped attempt (`runs/mimo-qual-c-format-code-task-001190-hung-01`) is excluded from the table.
+- Two terminal trials hit a transient catalog-ingest failure in the queue (`post_run_refused: catalog_ingest_failed`) after grading; both were re-ingested by hand and their results are unaffected.

@@ -1,0 +1,56 @@
+{
+  "backend": "daytona",
+  "items": [
+    {
+      "domain": "terminal",
+      "harbor_digest": "sha256:07da36dc679997fdb07e3b2bff1afc5da1e90982498d7f2677a7ce2c9986bee3",
+      "reasons": [
+        "finding:grader-broken",
+        "grader_broken"
+      ],
+      "source": "finding",
+      "task_id": "candidate-2376-security-cryptography",
+      "task_version_digest": "sha256:06205dfca4a41a4b134da31e72efc29197522e0d4a1981cff7b9d7addb9675f8",
+      "trials": [
+        "mimo-qual-t-candidate-2376-security-cryptography/mimo-qual-t-candidate-2376-secur__DWGSbF9"
+      ]
+    },
+    {
+      "domain": "terminal",
+      "harbor_digest": "sha256:021d6ebd62669b8285a21170a9567e5f307c0b68585765a0d7bdbaede185984f",
+      "reasons": [
+        "finding:grader-broken",
+        "grader_broken"
+      ],
+      "source": "finding",
+      "task_id": "candidate-0674-ml-evaluation",
+      "task_version_digest": "sha256:90be868f403beffbd2da6923cfcec8cd7df50995e98a3265b4421b3072eec1f7",
+      "trials": [
+        "mimo-qual-t-candidate-0674-ml-evaluation/mimo-qual-t-candidate-0674-ml-ev__S9ThpK7"
+      ]
+    },
+    {
+      "domain": "terminal",
+      "harbor_digest": "sha256:e59cb5245893b42ab65e80060a647007a375f381ccd11a135a8eb7edbf8aaaff",
+      "reasons": [
+        "finding:grader-broken",
+        "grader_broken"
+      ],
+      "source": "finding",
+      "task_id": "candidate-0260-security-appsec",
+      "task_version_digest": "sha256:95d2df6678d8c999a4ded14f161eb65fadabd9bc15978471868b05908fbcf1c7",
+      "trials": [
+        "mimo-qual-t-candidate-0260-security-appsec/mimo-qual-t-candidate-0260-secur__tLkykVb"
+      ]
+    }
+  ],
+  "meta": {
+    "created_at": "2026-09-29T02:50:27.245289+00:00",
+    "n_broken": 3,
+    "n_considered": 113,
+    "table": "task_qualification.parquet",
+    "table_digest": "sha256:b71cf006112f20de6610910cb50cc45b8f0d6502d92cd66681342fedbcfd9b26"
+  },
+  "schema": "evallab.task_broken/v1",
+  "sha256": "sha256:35f66da133e78e44b070c09843a7b021404b8acb4a6a40c10f96050f3441df57"
+}

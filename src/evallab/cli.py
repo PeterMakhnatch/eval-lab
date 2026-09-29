@@ -2927,6 +2927,68 @@ def _tasks_qualify_collect_command(
     return 0
 
 
+def _tasks_treatment_collect_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.storage.paths import derived_root_from_environment
+    from evallab.trial_treatment import collect_jobs, upsert_tables
+
+    jobs = [_resolve(root, job) for job in args.jobs]
+    missing = [str(job) for job in jobs if not job.is_dir()]
+    if missing:
+        raise ValueError(f"job directories are missing: {', '.join(missing)}")
+    treatments, captures = collect_jobs(jobs, repo_root=root)
+    catalog = (
+        _resolve(root, args.catalog_dir)
+        if args.catalog_dir is not None
+        else derived_root_from_environment(root) / "external/task_catalog"
+    )
+    treatment_path, capture_path, n_treatment, n_capture = upsert_tables(
+        treatments, captures, catalog
+    )
+    incomplete = [row for row in treatments if not row["complete"]]
+    print(
+        f"collected {len(treatments)} trials; {treatment_path} now {n_treatment} rows, "
+        f"{capture_path} now {n_capture} rows"
+    )
+    print(
+        f"setup keys: {len({row['setup_key'] for row in treatments})}; "
+        f"trials with unknown fields: {len(incomplete)}"
+    )
+    return 0
+
+
+def _tasks_pool_check_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.storage.paths import derived_root_from_environment
+    from evallab.trial_treatment import pool_check, read_treatments
+
+    catalog = (
+        _resolve(root, args.catalog_dir)
+        if args.catalog_dir is not None
+        else derived_root_from_environment(root) / "external/task_catalog"
+    )
+    names = {Path(job).name for job in args.jobs}
+    rows = [row for row in read_treatments(catalog) if row["job_name"] in names]
+    absent = sorted(names - {row["job_name"] for row in rows})
+    if absent:
+        print(
+            f"no treatment rows for: {', '.join(absent)} (run tasks treatment-collect first)",
+            file=sys.stderr,
+        )
+        return 2
+    check = pool_check(rows, same_task=args.same_task, accept_unknown=args.accept_unknown)
+    if args.json:
+        print(json.dumps(asdict(check), indent=2))
+    else:
+        print(check.render())
+    return 0 if check.ok else 1
+
+
+
 def _tasks_catalog_export_broken_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -5011,6 +5073,35 @@ def parser() -> argparse.ArgumentParser:
     tasks_qualify_collect.add_argument("--output", type=Path, help="Parquet output path")
     tasks_qualify_collect.add_argument("--json", action="store_true")
     tasks_qualify_collect.set_defaults(func=_tasks_qualify_collect_command)
+
+    tasks_treatment_collect = tasks_commands.add_parser(
+        "treatment-collect",
+        help="Record per-trial treatment keys and capture records (trial_treatment/trial_capture.parquet)",
+    )
+    tasks_treatment_collect.add_argument("jobs", nargs="+", type=Path, help="Harbor job directories")
+    tasks_treatment_collect.add_argument(
+        "--catalog-dir", type=Path, help="Table directory (default: the task-catalog directory)"
+    )
+    tasks_treatment_collect.set_defaults(func=_tasks_treatment_collect_command)
+
+    tasks_pool_check = tasks_commands.add_parser(
+        "pool-check",
+        help="Refuse to pool trials run under different setups; list the differing fields",
+    )
+    tasks_pool_check.add_argument("jobs", nargs="+", help="Job names or directories to pool")
+    tasks_pool_check.add_argument(
+        "--same-task", action="store_true", help="Also require one task version"
+    )
+    tasks_pool_check.add_argument(
+        "--accept-unknown",
+        action="store_true",
+        help="Treat unknown values as equal to each other (still reported)",
+    )
+    tasks_pool_check.add_argument(
+        "--catalog-dir", type=Path, help="Table directory (default: the task-catalog directory)"
+    )
+    tasks_pool_check.add_argument("--json", action="store_true")
+    tasks_pool_check.set_defaults(func=_tasks_pool_check_command)
 
     ladder = commands.add_parser(
         "ladder", help="Expand Cartesian evaluation grids into ExperimentSpecs"

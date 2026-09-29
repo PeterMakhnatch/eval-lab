@@ -57,6 +57,17 @@ NATIVE_BASH_NO_DURATION = (
     "<tool_call><function=bash><parameter=command>"
     "cat /app/vendor/onnx/onnx/reference/ops/op_tensor_scatter.py</parameter></function></tool_call>"
 )
+# Trial 0758-d after its summarization: Claude Code-style bash calls that
+# carry a description, with text before them (verbatim, cont-1 step 5).
+NATIVE_BASH_DESCRIBED = (
+    "I'll verify the current state of both files and re-run the workflow to confirm everything "
+    "is correct.<tool_call><function=bash><parameter=command>cd /app && sed -n '1,120p' "
+    "vendor/onnx/onnx/reference/ops/op_tensor_scatter.py</parameter><parameter=description>Show "
+    "the Python reference op source</parameter></function></tool_call><tool_call><function=bash>"
+    '<parameter=command>cd /app && grep -n -A 30 "def _run" vendor/onnx/onnx/defs/tensor/defs.cc'
+    " | head -60</parameter><parameter=description>Show the C++ pseudocode section</parameter>"
+    "</function></tool_call>"
+)
 # Trial 2's one turn that stays unparseable: a dangling fragment of a commands list.
 DANGLING_FRAGMENT = (
     '<tool_call><function=exec_command>{"keystrokes": "ls -la /app", "duration": 0.1},\n'
@@ -149,6 +160,7 @@ def test_native_command_calls_become_commands_in_order() -> None:
     multi = json.loads(normalize_mimo_tool_calls(NATIVE_MULTI) or "")
     bash = json.loads(normalize_mimo_tool_calls(NATIVE_BASH_MULTI) or "")
     bare = json.loads(normalize_mimo_tool_calls(NATIVE_BASH_NO_DURATION) or "")
+    described = json.loads(normalize_mimo_tool_calls(NATIVE_BASH_DESCRIBED) or "")
 
     assert single == {
         "analysis": "",
@@ -167,6 +179,21 @@ def test_native_command_calls_become_commands_in_order() -> None:
     assert bare["commands"] == [
         {"keystrokes": "cat /app/vendor/onnx/onnx/reference/ops/op_tensor_scatter.py"}
     ]
+    # A description only labels its call: the commands run, the labels go.
+    assert described == {
+        "analysis": (
+            "I'll verify the current state of both files and re-run the workflow to confirm "
+            "everything is correct."
+        ),
+        "plan": "",
+        "commands": [
+            {"keystrokes": "cd /app && sed -n '1,120p' vendor/onnx/onnx/reference/ops/op_tensor_scatter.py"},
+            {
+                "keystrokes": 'cd /app && grep -n -A 30 "def _run" vendor/onnx/onnx/defs/tensor/defs.cc'
+                " | head -60"
+            },
+        ],
+    }
 
 
 def test_xml_values_drop_only_the_markup_newlines() -> None:

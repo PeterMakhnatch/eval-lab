@@ -193,3 +193,46 @@ The 32 turns that still fail are 31 Harbor fallback texts and the dangling fragm
   - The runner's `_read_proxy_usage` accepted the ledger, and the episode finished through the prose rule.
 
 In every scenario, neither the provider key nor the capability appeared in any JSON evidence file.
+
+## Confirmation pair on merged main (2026-09-29)
+
+0036-f and 0758-d ran on a6a78026 (#515) in parallel, on Daytona with the HAR-81 harness tree. Ceilings were 2,000 requests, 64M input and 1M output, with a 900 s timeout. The server took 203 s to warm and the `/v1/models` auth check returned 200. The app stopped at 04:30:33Z.
+
+| | 0036-f | 0758-d |
+|---|---|---|
+| Reward | 0.0 (4/5 tests) | 0.0 (4/5 tests) |
+| Verifier ran | yes | yes |
+| Stop | `AgentTimeoutError` at 900 s | `AgentTimeoutError` at 900 s |
+| Agent turns | 172 | 233 (56 + 177 after one summarization) |
+| Parsed or mapped, live | 164/172 (95.3%) | 56/233 (24.0%) |
+| Prose completions flagged | 2 (steps 45 and 173) | 0 |
+| Ledger | 173 requests; 172 reconciled, 1 reserved | 237 requests, all reconciled |
+| Lab outcome | failed: `proxy_usage_unreconciled` | done |
+
+The acceptance bar was not met, and each failure has a cause the replays had not covered:
+
+- **0758-d's parse rate.** After its summarization, every one of 0758-d's 177 turns used Claude Code's Bash-tool shape: `<function=bash>` with `command` and `description` parameters, two calls per turn, 354 calls in all. The normalizer rejected the unknown `description` parameter, so each of those turns was a parse error. The model repeated the same shape until the timeout.
+- **0036-f's unreconciled call.** The agent timed out while call 173 was in flight. The runner stops the proxy after Harbor exits. Stopping killed that call's handler before the upstream reply arrived, so the call stayed `reserved` and the trial failed although the verifier had scored it.
+- **0036-f's 8 parse errors.** These are 6 `write(file_path, content)` calls and 2 calls to a function named `keystrokes`. Both shapes are still left to Terminus's parse-error feedback: translating a file write into keystrokes is a semantic choice that nobody has made.
+- **The confirmation loop.** The prose rule worked, but it didn't end 0036-f. At step 45, 6 minutes in, the model's prose summary was mapped and Terminus asked "are you sure". The model answered with a command. It then ran `echo done` 118 times over the last 9 minutes, and its second mapped prose turn came 6 s before the timeout. Research-Harbor kept Terminus's double confirmation; this trial is evidence on that choice.
+- **A duplicated trajectory.** 0036-f's `trajectory.cont-1.json` repeats `trajectory.json` step for step, with the same session. Consumers must count each step once; HAR-92 covers this.
+
+### Confirmation pair spend
+
+- **Modal:** $0.9046, the whole 04:00 UTC bucket of the billing report: one warm period and both trials.
+- **Daytona, by the formula:** about $0.043, from 1,873 s of sandbox time.
+- **HAR-90 total:** about $4.51 of $5 (Modal $4.3562, Daytona about $0.15). The remaining ~$0.49 does not cover another pair.
+
+## Follow-up 3: in-flight calls at the timeout and described bash calls (2026-09-29)
+
+- **Drained proxy stop.** On SIGTERM the proxy stops accepting and lets in-flight calls run on for up to 120 s (`SHUTDOWN_DRAIN_SECONDS`). Each handler reconciles its call before replying, so a call whose client has gone still records its real usage. A call still in flight after the deadline is marked unresolved with `reason: in_flight_at_shutdown` and fails the trial's accounting, as before. The runner now waits 130 s for the proxy to stop.
+- **`description` parameter.** It only labels a call, so the normalizer drops it and runs the command. Any other unknown parameter still rejects the turn.
+
+### $0 checks
+
+- **Replay** through Harbor 0.21.0, all eight trajectories, counting each step once:
+  - 0758-d goes from 56/233 to 233/233, with 414 commands (354 described calls plus 60 with `duration`).
+  - 0036-f stays at 164/172.
+  - Overall, 2,093/2,310 becomes 2,270/2,310 (98.3%). The same 52 turns are mapped to `task_complete`: 50 in 0036-e and 2 in 0036-f.
+- **Real proxy subprocess, drained.** The upstream took 1 s and the client gave up after 0.2 s, leaving the call `reserved`. After the runner's `_stop_terminus_proxy`, the call was reconciled with its real usage and `_read_proxy_usage` accepted a ledger with 0 unresolved. The same test fails on the previous proxy with 1 unresolved.
+- **Real proxy subprocess, deadline.** With the drain shortened to 1 s and an 8 s upstream, the stop took 1.4 s. The ledger stayed valid, with 1 unresolved call carrying `reason: in_flight_at_shutdown`.

@@ -216,7 +216,9 @@ characters allowed and does four things:
   stock parser.
 - It turns a turn made only of `exec`/`exec_command`/`bash` command calls
   (`keystrokes` or `command`, plus an optional `duration`) into Terminus
-  commands, in order.
+  commands, in order. A `description` parameter, as in Claude Code's Bash
+  tool, only labels its call and is dropped; any other parameter leaves the
+  turn to the stock parser.
 - It strips the native closing markup (`</parameter>…</tool_call>`) from a
   bare Terminus object that ends with it.
 - It appends Enter to every executed command, except empty waits and lone
@@ -284,7 +286,10 @@ generated nothing, so the proxy settles it as a zero-token call with
 usage-less errors stay unresolved and fail the trial's accounting. The
 default per-response output limit is 8,192 tokens, separate from the cumulative
 output allowance. The proxy binds an ephemeral loopback port and stops before
-final accounting is collected.
+final accounting is collected. Stopping drains it: a call still in flight, such
+as one the agent abandoned at its timeout, runs on for up to 120 s and settles
+with its real usage. A call still in flight after that is marked unresolved
+(`in_flight_at_shutdown`) and fails the trial's accounting.
 For Daytona, the reused lifecycle wrapper sets a provider TTL of execution
 timeout plus ten minutes, five-minute inactivity stop, and deletion on stop.
 Remote credentials, capacity, and explicit spending approval remain prerequisites.

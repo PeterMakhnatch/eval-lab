@@ -31,6 +31,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -232,6 +233,8 @@ class _MimoUpstream(BaseHTTPRequestHandler):
     seen: list[dict[str, Any]] = []
     #: Scripted (status, JSON body) replies served before any success.
     errors: list[tuple[int, dict[str, Any]]] = []
+    #: Seconds each reply takes, standing in for generation time.
+    delay = 0.0
 
     def do_POST(self) -> None:  # noqa: N802
         if self.path != "/v1/chat/completions":
@@ -243,6 +246,7 @@ class _MimoUpstream(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(length))
         type(self).seen.append(body)
+        time.sleep(type(self).delay)
         if type(self).errors:
             status, error = type(self).errors.pop(0)
             self._reply(status, json.dumps(error).encode(), content_type="application/json")
@@ -276,6 +280,7 @@ class _MimoUpstream(BaseHTTPRequestHandler):
 def mimo_upstream() -> Any:
     _MimoUpstream.seen = []
     _MimoUpstream.errors = []
+    _MimoUpstream.delay = 0.0
     server = ThreadingHTTPServer(("127.0.0.1", 0), _MimoUpstream)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -539,6 +544,54 @@ def test_runner_accepts_a_ledger_whose_only_failure_was_a_usage_less_400(
     )
     assert usage["unresolved_requests"] == 0
     assert usage["totals"]["requests"] == 2
+    assert usage["totals"]["input_tokens"] == UPSTREAM_USAGE["prompt_tokens"]
+    assert usage["totals"]["output_tokens"] == UPSTREAM_USAGE["completion_tokens"]
+
+
+def test_a_call_its_client_abandoned_settles_before_the_proxy_exits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mimo_upstream: Any
+) -> None:
+    # HAR-90 0036-f: Harbor cancelled the agent at its 900 s timeout with a
+    # call in flight. Stopping the proxy killed that call's handler, so the
+    # call stayed reserved and the runner failed a trial the verifier scored.
+    _MimoUpstream.delay = 1.0
+    process, url, usage_path = _launch_mimo_proxy(
+        tmp_path, monkeypatch, mimo_upstream, CAPABILITY_SENTINEL, _proxy_limits()
+    )
+    request = urllib.request.Request(
+        f"{url}/v1/chat/completions",
+        data=json.dumps(
+            {
+                "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
+                "messages": [{"role": "user", "content": "hi"}],
+                "max_tokens": 100,
+            }
+        ).encode(),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {CAPABILITY_SENTINEL}",
+        },
+    )
+    try:
+        with pytest.raises(OSError):
+            urllib.request.urlopen(request, timeout=0.2)
+        assert json.loads(usage_path.read_text())["calls"][0]["state"] == "reserved"
+    finally:
+        runner_module._stop_terminus_proxy(process)
+
+    usage = runner_module._read_proxy_usage(
+        usage_path,
+        capability_id="sha256:" + hashlib.sha256(CAPABILITY_SENTINEL.encode()).hexdigest(),
+        attempt_id="mimo-test-attempt",
+        limits=_proxy_limits(),
+        provider_label="MiMo self-hosted",
+        expected_pricing={
+            "input_cost_micros_per_million": 0,
+            "output_cost_micros_per_million": 0,
+        },
+    )
+    assert usage["unresolved_requests"] == 0
+    assert usage["calls"][0]["state"] == "reconciled"
     assert usage["totals"]["input_tokens"] == UPSTREAM_USAGE["prompt_tokens"]
     assert usage["totals"]["output_tokens"] == UPSTREAM_USAGE["completion_tokens"]
 

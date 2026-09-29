@@ -2,7 +2,8 @@
 
 Under Terminus-2, MiMo-V2.6-Distill-Qwen-9B keeps the tool-call wrapper of its
 training harnesses: ``<tool_call><function=NAME>…</function></tool_call>``.
-HAR-90's Daytona trials recorded six shapes (2,718 turns in all):
+HAR-90's Daytona trials recorded six shapes (2,718 turns in all), and the
+HAR-81 pilot a seventh:
 
 - ``<function=exec>{"analysis": …, "plan": …, "commands": […]}``: a whole
   Terminus object behind the wrapper, with no closing tags (trial 1);
@@ -20,7 +21,11 @@ HAR-90's Daytona trials recorded six shapes (2,718 turns in all):
 - ``<function=task_complete><parameter=task_complete>true</parameter>``, the
   model's own completion call, alone or after a one-line summary: 0036-g
   solved its task, and after Terminus's "are you sure" sent this call 307
-  times until the timeout.
+  times until the timeout;
+- ``<function=command>ls -la /app</function>``: a call whose body is the
+  command text itself, with no parameters, one or more per turn (HAR-81's
+  candidate-2684: its first 6 turns, all parse errors, before it wrapped a
+  Terminus object in the same call).
 
 The keystrokes almost never end in a newline. In the model's own harnesses a
 call executes its command. Terminus sends keystrokes verbatim, so HAR-90's
@@ -46,6 +51,11 @@ Terminus JSON parser:
      or no arguments, becomes ``task_complete: true`` with no commands. Text
      before the call becomes the analysis. Any other argument, or a
      completion call beside other calls, rejects the turn.
+   - A ``command`` call whose body is plain text becomes one command with
+     that text; one newline on each side belongs to the markup, as for XML
+     values. Such calls mix with the command calls above, in order. A
+     ``command`` call with a JSON body is left alone: the stock parser
+     already finds the Terminus object inside it.
    - Anything else returns ``None``: valid Terminus JSON, prose, and unknown
      shapes reach the stock parser untouched and get its usual feedback.
 2. :func:`executed_keystrokes` appends the Enter that the model's harnesses
@@ -84,6 +94,7 @@ __all__ = [
     "HARBOR_FALLBACK_RESPONSE",
     "MIMO_COMPLETE_FUNCTION",
     "MIMO_EXEC_FUNCTIONS",
+    "MIMO_RAW_COMMAND_FUNCTION",
     "MimoToolCallParser",
     "executed_keystrokes",
     "normalize_mimo_tool_calls",
@@ -94,11 +105,19 @@ __all__ = [
 MIMO_EXEC_FUNCTIONS = frozenset({"exec", "exec_command", "bash"})
 #: The native function name of MiMo's end-of-episode call.
 MIMO_COMPLETE_FUNCTION = "task_complete"
+#: The native function name whose call body is the command text itself.
+MIMO_RAW_COMMAND_FUNCTION = "command"
 
 _CALL_OPENER = re.compile(r"(?:<tool_call>\s*)?<function=([^>\s]+)>")
 _CALL_CLOSER = re.compile(r"\s*(?:</function>\s*)?(?:</tool_call>\s*)?")
 #: A call with no arguments must at least close its function tag.
 _EMPTY_CALL_BODY = re.compile(r"\s*</function>\s*(?:</tool_call>\s*)?")
+#: A raw ``command`` call body: text up to its one closing tag, holding no
+#: other markup.
+_RAW_CALL_BODY = re.compile(
+    r"((?:(?!</function>|</tool_call>|<parameter=).)+)</function>\s*(?:</tool_call>\s*)?",
+    re.DOTALL,
+)
 #: The native markup after a bare Terminus object: the rest of an XML call
 #: whose ``command`` parameter the object filled, without its opener.
 _WRAPPER_TAIL = re.compile(
@@ -206,6 +225,17 @@ def _terminus_command(arguments: dict[str, Any]) -> dict[str, Any] | None:
     return command
 
 
+def _raw_command(body: str) -> dict[str, Any] | None:
+    """Map a ``command`` call whose body is the command text itself."""
+    if body.lstrip().startswith("{"):
+        return None
+    match = _RAW_CALL_BODY.fullmatch(body)
+    if match is None:
+        return None
+    keystrokes = match.group(1).removeprefix("\n").removesuffix("\n")
+    return {"keystrokes": keystrokes} if keystrokes.strip() else None
+
+
 def _completion_call(body: str) -> bool:
     """Whether one call body completes the task: ``true`` or no arguments."""
     parsed = _call_arguments(body)
@@ -240,10 +270,16 @@ def normalize_mimo_tool_calls(response: str) -> str | None:
     commands: list[dict[str, Any]] = []
     passthrough: dict[str, Any] | None = None
     for index, opener in enumerate(openers):
-        if opener.group(1) not in MIMO_EXEC_FUNCTIONS:
-            return None
         end = openers[index + 1].start() if index + 1 < len(openers) else len(response)
         body = response[opener.end() : end]
+        if opener.group(1) == MIMO_RAW_COMMAND_FUNCTION:
+            raw_command = _raw_command(body)
+            if raw_command is None:
+                return None
+            commands.append(raw_command)
+            continue
+        if opener.group(1) not in MIMO_EXEC_FUNCTIONS:
+            return None
         parsed = _call_arguments(body)
         if parsed is None or _CALL_CLOSER.fullmatch(body, parsed[2]) is None:
             return None

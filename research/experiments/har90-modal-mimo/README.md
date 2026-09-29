@@ -310,3 +310,36 @@ The pair met the acceptance bar: at least 95% of live turns parsed or mapped, bo
 - **Modal:** $0.8999 for this pair's app in the 07:00 UTC bucket: one warm period and both trials. That bucket also holds $0.2676 for an HAR-81 deploy of the same app name from its own worktree, 07:54 to 08:02Z; that cost belongs to HAR-81, not HAR-90.
 - **Daytona, by the formula:** about $0.043, for two sandboxes of about 15.6 minutes each.
 - **HAR-90 total:** about $6.40 of $7.00 (Modal $6.1608, Daytona about $0.23).
+
+## Follow-up 5: route residuals on the HAR-81 pilot (HAR-100, 2026-09-29)
+
+This replay cost $0 and used no new trials.
+
+**Coverage.**
+- All 44 HAR-81 pilot trials: 3,513 turns.
+- The 11 HAR-90 trials that reached an agent turn: 2,305 turns. 0036-c and 0758-a failed authentication before their first turn, and 0758-b left no trajectory.
+
+**Method.** Each turn is counted once across its trajectory parts. It is replayed through main's normalizer and Harbor 0.21.0's stock Terminus parser. The recorded `prose_completion` flag stands in for `finish_reason`.
+
+**Check.** The pilot ran the same normalizer as main, and its replay matches the live parse decision on all 3,513 turns. Older HAR-90 trials ran earlier normalizers, so their rows below show what main would still reject.
+
+| Shape | Pilot turns | HAR-90 turns | Prompt tokens | Where (trial: steps) |
+|---|---|---|---|---|
+| Unescaped `"` inside a string of a bare Terminus object | 69 | 0 | 2.17M | a2-arvo-42496599: head 11, 19, 27-91; a2-arvo-42485576: head 23, 32 |
+| Unescaped `"` inside a Terminus object wrapped in a `command` call | 37 | 0 | 1.65M | candidate-2684: head 21, 24, 26, 35, 37-69 |
+| `<function=command>` whose body is the raw command | 6 | 0 | 0.01M | candidate-2684: head 2-7 |
+| Calls to non-shell tools (`read`, `write`, a `keystrokes` function) | 15 | 8 | 0.26M | a3/a4-arvo-18737, p-arvo-42528228, p-arvo-42496599, a3-candidate-1271; 0036-f |
+| Prose summary quoting a JSON object | 1 | 5 | 0.09M | a2-arvo-42485576 head 34; 0758-f cont-1 10-16 |
+| Rejected shell or completion call | 3 | 1 | 0.06M | p-arvo-18737 head 16-17 (`task_complete` call with `true</parameter>` and no opener); candidate-1048 head 39 (duration `0._host_only_networks\|0.1`); 0036-b head 6 |
+| Terminus JSON missing fields | 3 | 1 | 0.06M | candidate-1559, a2/a3-candidate-1271, 0036-h |
+| Invalid JSON, other | 1 | 0 | <0.01M | a2-arvo-42485576 head 2 |
+| Prose reply, before the prose rule existed | 0 | 50 | 1.87M | 0036-e head 35-84 |
+| Harbor's fallback reply, not model output | 0 | 30 | 0 | 0758-c cont-31 184-213 |
+
+- **Raw newlines inside JSON strings.** The normalizer has decoded raw control characters since #512, and the replay finds no turn still rejected for that reason alone. 186 turns carry such characters: 185 are accepted today (7 of them in the pilot), and the remaining one is also broken by an unescaped quote. So no code change was needed. The 67 turns in a2-arvo-42496599 are unescaped quotes: 65 of them repeat one message byte for byte, which contains `echo 'no git'"; git log …`.
+- **Raw `command` calls.** These are now mapped. A `command` call whose body is plain text runs that text as one command. A `command` call with a JSON body is left to the stock parser, which already accepts the 25 valid ones in candidate-2684. The replay before and after the change:
+  - the 6 turns in candidate-2684 now parse;
+  - no other decision changes across all 5,818 turns;
+  - the pilot goes from 3,378/3,513 (96.16%) to 3,384/3,513 (96.33%).
+- **Pins.** The change alters `parser_digest` and HAR-81's `normalizer_sha256`, so the next pilot key must be re-pinned. Completed pilot data is unaffected, because reconstruction reads each turn's recorded verdict.
+- **Not changed.** The confirmation loop and the unescaped-quote shape are costed as proposals on HAR-100 and HAR-96. Both need a decision from Peter and Research-Harbor.

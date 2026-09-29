@@ -889,7 +889,30 @@ def test_quiet_failure_count_excludes_transient_provider_capacity() -> None:
     assert normalized == "transient_harness"
     assert (
         count_consecutive_harness_failures(
-            ["AgentRunError", "transient_harness", "VerifierError", None, "OldError"]
+            [
+                ("AgentRunError", None),
+                ("transient_harness", None),
+                ("VerifierError", None),
+                (None, 1.0),
+                ("OldError", None),
+            ]
+        )
+        == 2
+    )
+
+
+def test_quiet_failure_count_ends_at_a_verifier_scored_agent_timeout() -> None:
+    # A timed-out agent whose final state the verifier scored ran end to end.
+    assert (
+        count_consecutive_harness_failures(
+            [("VerifierError", None), ("AgentTimeoutError", 0.0), ("AgentRunError", None)]
+        )
+        == 1
+    )
+    # Without a verifier result the timeout is still a harness failure.
+    assert (
+        count_consecutive_harness_failures(
+            [("AgentTimeoutError", None), ("AgentTimeoutError", None), (None, 0.0)]
         )
         == 2
     )

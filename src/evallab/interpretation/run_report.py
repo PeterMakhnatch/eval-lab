@@ -647,8 +647,8 @@ def _positioned_layers(
             continue
         if parse is None:
             if raw.get("is_copied_context"):
-                # Copied context is replay, not a live turn: its evidence is in
-                # the head segment, so it is never "missing", parser or not.
+                # Copied context is replay, not a live turn: it never ran in
+                # this segment, so it is never "missing", parser or not.
                 layers.append(copied_layers())
                 continue
             extra = raw.get("extra")

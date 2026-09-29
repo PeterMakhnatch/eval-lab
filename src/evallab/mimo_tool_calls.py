@@ -30,7 +30,9 @@ HAR-81 pilot a seventh:
 The keystrokes almost never end in a newline. In the model's own harnesses a
 call executes its command. Terminus sends keystrokes verbatim, so HAR-90's
 commands were typed but never run. MiMo also writes raw newlines inside JSON
-strings, as it would inside an XML parameter; strict JSON rejects them.
+strings, as it would inside an XML parameter; strict JSON rejects them. It
+leaves quotes inside JSON strings unescaped too: 105 HAR-81 pilot turns were
+rejected for that, 97 of them sending one of two messages over and over.
 
 This module changes only what Terminus executes. The raw model text stays in
 the chat history, the ATIF trajectory and the rollout details, because SFT and
@@ -56,6 +58,16 @@ Terminus JSON parser:
      values. Such calls mix with the command calls above, in order. A
      ``command`` call with a JSON body is left alone: the stock parser
      already finds the Terminus object inside it.
+   - A Terminus object, bare or as the body of one of those calls, that does
+     not decode because a string holds unescaped ``"`` is read every way its
+     quotes allow: each may end the string or be text. Only readings with
+     exactly Terminus's keys and field types count, since MiMo never writes
+     others. The one that reads the fewest quotes as text is re-serialized;
+     more would swallow real structure, such as the next command. A tie, no
+     such reading, or a search past its budget rejects the turn. Text after
+     the object, such as closing markup, is dropped, as the stock parser
+     drops it. The keystrokes are the model's own, so a command whose stray
+     quote leaves the shell's quoting unbalanced runs as written.
    - Anything else returns ``None``: valid Terminus JSON, prose, and unknown
      shapes reach the stock parser untouched and get its usual feedback.
 2. :func:`executed_keystrokes` appends the Enter that the model's harnesses
@@ -87,7 +99,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any, Protocol
 
 __all__ = [
@@ -132,6 +144,23 @@ _LABEL_KEYS = frozenset({"description"})
 #: MiMo writes raw newlines inside JSON strings, as it would inside an XML
 #: parameter; strict JSON rejects them as control characters.
 _LENIENT_JSON = json.JSONDecoder(strict=False)
+#: Calls whose JSON body may hold a whole Terminus object.
+_OBJECT_FUNCTIONS = MIMO_EXEC_FUNCTIONS | {MIMO_RAW_COMMAND_FUNCTION}
+#: Pieces of JSON for the inner-quote search: keys are read strictly, so only
+#: string values have more than one reading.
+_JSON_KEY = re.compile(r'"([^"\\\x00-\x1f]*)"')
+_JSON_SCALAR = re.compile(r"true|false|null|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?")
+#: An escape (skipped whole) or an unescaped quote inside a JSON string.
+_STRING_STOP = re.compile(r'\\.|"', re.DOTALL)
+#: Terminus's object keys, and the ones the stock parser requires.
+_OBJECT_KEYS = frozenset({"analysis", "plan", "commands", "task_complete"})
+_REQUIRED_KEYS = frozenset({"analysis", "plan", "commands"})
+_COMMAND_FIELDS = frozenset({"keystrokes", "duration"})
+#: Quotes the inner-quote search may try as string ends before giving up.
+_REPAIR_BUDGET = 4096
+#: A decoded JSON value, the offset after it, and how many quotes it reads
+#: as string characters.
+type _Readings = Iterator[tuple[Any, int, int]]
 #: Harbor's stand-in reply when even its summarization fallback call fails
 #: (``Terminus2._query_llm``). It is not model output, so it never ends an
 #: episode.
@@ -250,6 +279,178 @@ def _completion_call(body: str) -> bool:
     return set(arguments) == {MIMO_COMPLETE_FUNCTION} and (value is True or value == "true")
 
 
+class _RepairBudgetExceeded(Exception):
+    """The inner-quote search tried more string ends than it may."""
+
+
+def _skip_ws(text: str, pos: int) -> int:
+    while pos < len(text) and text[pos] in " \t\n\r":
+        pos += 1
+    return pos
+
+
+def _string_readings(text: str, pos: int, budget: list[int]) -> _Readings:
+    """Every reading of the string opening at ``pos``, shortest first.
+
+    Any unescaped ``"`` may end the string or be one of its characters. Each
+    reading yields the decoded value, the offset after the closing quote,
+    and how many quotes it reads as characters.
+    """
+    decoded = ""
+    chunk = pos + 1
+    quotes = 0
+    for stop in _STRING_STOP.finditer(text, chunk):
+        if stop.group() != '"':
+            continue
+        budget[0] -= 1
+        if budget[0] < 0:
+            raise _RepairBudgetExceeded
+        # Escapes never span an unescaped quote, so each piece decodes alone.
+        try:
+            piece = _LENIENT_JSON.decode('"' + text[chunk : stop.start()] + '"')
+        except json.JSONDecodeError:
+            return  # an invalid escape stays in every longer reading
+        yield decoded + piece, stop.end(), quotes
+        decoded += piece + '"'
+        chunk = stop.end()
+        quotes += 1
+
+
+def _value_readings(text: str, pos: int, budget: list[int]) -> _Readings:
+    if text.startswith('"', pos):
+        yield from _string_readings(text, pos, budget)
+    elif text.startswith("{", pos):
+        yield from _member_readings(text, _skip_ws(text, pos + 1), {}, 0, budget, first=True)
+    elif text.startswith("[", pos):
+        yield from _element_readings(text, _skip_ws(text, pos + 1), [], 0, budget, first=True)
+    elif (match := _JSON_SCALAR.match(text, pos)) is not None:
+        yield json.loads(match.group()), match.end(), 0
+
+
+def _member_readings(
+    text: str,
+    pos: int,
+    members: dict[str, Any],
+    quotes: int,
+    budget: list[int],
+    *,
+    first: bool = False,
+) -> _Readings:
+    if first and text.startswith("}", pos):
+        yield members, pos + 1, quotes
+        return
+    key = _JSON_KEY.match(text, pos)
+    if key is None or key.group(1) in members:
+        return
+    colon = _skip_ws(text, key.end())
+    if not text.startswith(":", colon):
+        return
+    for value, end, inner in _value_readings(text, _skip_ws(text, colon + 1), budget):
+        after = _skip_ws(text, end)
+        grown = {**members, key.group(1): value}
+        if text.startswith(",", after):
+            yield from _member_readings(
+                text, _skip_ws(text, after + 1), grown, quotes + inner, budget
+            )
+        elif text.startswith("}", after):
+            yield grown, after + 1, quotes + inner
+
+
+def _element_readings(
+    text: str,
+    pos: int,
+    elements: list[Any],
+    quotes: int,
+    budget: list[int],
+    *,
+    first: bool = False,
+) -> _Readings:
+    if first and text.startswith("]", pos):
+        yield elements, pos + 1, quotes
+        return
+    for value, end, inner in _value_readings(text, pos, budget):
+        after = _skip_ws(text, end)
+        grown = [*elements, value]
+        if text.startswith(",", after):
+            yield from _element_readings(
+                text, _skip_ws(text, after + 1), grown, quotes + inner, budget
+            )
+        elif text.startswith("]", after):
+            yield grown, after + 1, quotes + inner
+
+
+def _terminus_shaped(value: Any) -> bool:
+    """Whether a decoded object has exactly Terminus's shape.
+
+    The stock parser also accepts other keys, with a warning; MiMo's objects
+    never carry any, so a reading that needs one is not what the model wrote.
+    """
+    if not isinstance(value, dict) or not _REQUIRED_KEYS <= value.keys() <= _OBJECT_KEYS:
+        return False
+    if not isinstance(value["analysis"], str) or not isinstance(value["plan"], str):
+        return False
+    if not isinstance(value.get("task_complete", False), (bool, str)):
+        return False
+    commands = value["commands"]
+    return isinstance(commands, list) and all(
+        isinstance(command, dict)
+        and "keystrokes" in command
+        and command.keys() <= _COMMAND_FIELDS
+        and isinstance(command["keystrokes"], str)
+        and type(command.get("duration", 0.0)) in (int, float)
+        for command in commands
+    )
+
+
+def _terminus_object_start(response: str) -> int | None:
+    """Where the Terminus object of a bare or call-wrapped response opens."""
+    start = _skip_ws(response, 0)
+    if response.startswith("{", start):
+        return start
+    opener = _CALL_OPENER.search(response)
+    if opener is None or opener.group(1) not in _OBJECT_FUNCTIONS:
+        return None
+    start = _skip_ws(response, opener.end())
+    return start if response.startswith("{", start) else None
+
+
+def _repair_inner_quotes(response: str) -> str | None:
+    """Read a Terminus object that does not decode because of inner quotes.
+
+    Applies to the object opening a bare response or the first
+    ``exec``/``exec_command``/``bash``/``command`` call, and only when it
+    does not decode as written. Every way of reading its unescaped quotes as
+    string characters is tried. Among the readings with Terminus's shape,
+    the one that reads the fewest quotes as characters wins and is
+    re-serialized. Readings with more swallow real structure, e.g. one
+    command's keystrokes running on through the next command. No such
+    reading, a tie for the fewest, or a search over budget returns ``None``.
+    """
+    start = _terminus_object_start(response)
+    if start is None:
+        return None
+    try:
+        _LENIENT_JSON.raw_decode(response, start)
+    except json.JSONDecodeError:
+        pass
+    else:
+        return None
+    best: list[Any] = []
+    fewest = -1
+    budget = [_REPAIR_BUDGET]
+    try:
+        for value, _, quotes in _value_readings(response, start, budget):
+            if not _terminus_shaped(value) or 0 <= fewest < quotes:
+                continue
+            if quotes != fewest:
+                best.clear()
+                fewest = quotes
+            best.append(value)
+    except _RepairBudgetExceeded:
+        return None
+    return json.dumps(best[0]) if len(best) == 1 else None
+
+
 def normalize_mimo_tool_calls(response: str) -> str | None:
     """Return one Terminus JSON object for a native MiMo response.
 
@@ -257,6 +458,11 @@ def normalize_mimo_tool_calls(response: str) -> str | None:
     The caller then parses the raw text unchanged, so Terminus's own error
     feedback applies.
     """
+    return _rewrite_native_calls(response) or _repair_inner_quotes(response)
+
+
+def _rewrite_native_calls(response: str) -> str | None:
+    """Rewrite native tool calls into one Terminus JSON object, or ``None``."""
     openers = list(_CALL_OPENER.finditer(response))
     if not openers:
         return _bare_terminus_object(response)

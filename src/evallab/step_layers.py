@@ -28,9 +28,9 @@ module owns the recording):
 
   ``provenance`` is per step-layers object: ``recorded`` (written at runtime by
   :class:`evallab.harbor_terminus.SecretSafeTerminus2`), ``reconstructed``
-  or ``copied`` (an ``is_copied_context`` step whose evidence lives in the
-  head segment). Anything not derivable is null with a ``reason``; missing
-  coverage never reads as 0.
+  or ``copied`` (an ``is_copied_context`` step: context replayed into a
+  continuation, never a turn taken there). Anything not derivable is null
+  with a ``reason``; missing coverage never reads as 0.
 
 - Trial level (computed by consumers, never stored on the trial):
 
@@ -431,8 +431,20 @@ def executed_output(step: Mapping[str, Any]) -> str | None:
 
 
 def copied_layers() -> dict[str, Any]:
-    """Null layers for an ``is_copied_context`` step; evidence is in the head."""
-    reason = "is_copied_context: evidence lives in the head segment"
+    """Null layers for an ``is_copied_context`` step, which never ran here.
+
+    Harbor's summarization split copies ``[system, question prompt, questions
+    reply, handoff]`` into the continuation, so its one copied agent message
+    is the questions subagent's reply. That reply is only ever text for the
+    answers subagent: never parsed or executed, even when it holds commands.
+    Its own step, with timestamp and usage, is in
+    ``trajectory.summarization-N-questions.json``, not the head.
+    """
+    reason = (
+        "is_copied_context: replayed context, never parsed or executed in this "
+        "segment; the step it copies is in the part it came from (after a "
+        "summarization split, trajectory.summarization-N-questions.json)"
+    )
     return wrap_layers(
         "copied",
         proposed_layer(None, None, reason=reason),
@@ -447,7 +459,7 @@ def reconstruct_layers(step: Mapping[str, Any], *, parse: ParserFn) -> dict[str,
 
     Returns ``None`` for non-agent steps (layers are per agent turn). Steps
     that already carry recorded layers are returned as-is; copied-context
-    steps yield null layers (evidence is in the head segment).
+    steps yield null layers (see :func:`copied_layers`).
     """
     if step.get("source") != "agent":
         return None

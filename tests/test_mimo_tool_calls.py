@@ -33,6 +33,15 @@ WRAPPED_TERMINUS_CLOSED = (
     'project structure.",\n  "commands": [\n    {\n      "keystrokes": "ls -la /app",\n'
     '      "duration": 0.1\n    }\n  ]\n}\n</function></tool_call>'
 )
+# 0036-g: the completion call, bare and after a one-line summary (307 turns).
+NATIVE_COMPLETE = (
+    "<tool_call><function=task_complete><parameter=task_complete>true</parameter>"
+    "</function></tool_call>"
+)
+NATIVE_COMPLETE_SUMMARY = (
+    "The repair is complete and verified. The probe passes and `/app/output.json` is written."
+    + NATIVE_COMPLETE
+)
 # Trial 2: native exec_command calls, one pretty-printed and three in a row.
 NATIVE_SINGLE = (
     '<tool_call><function=exec_command>{\n  "keystrokes": "pwd",\n  "duration": 0.1\n}\n'
@@ -237,6 +246,15 @@ def test_text_before_native_calls_becomes_the_analysis() -> None:
             NATIVE_SINGLE.replace('"duration"', '"command": "ls", "duration"'),
             id="keystrokes-and-command",
         ),
+        pytest.param(NATIVE_COMPLETE.replace(">true<", ">false<"), id="completion-false"),
+        pytest.param(
+            NATIVE_COMPLETE.replace("</parameter>", "</parameter><parameter=summary>x</parameter>"),
+            id="completion-extra-argument",
+        ),
+        pytest.param(NATIVE_COMPLETE + NATIVE_BASH_NO_DURATION, id="completion-then-command"),
+        pytest.param(NATIVE_BASH_NO_DURATION + NATIVE_COMPLETE, id="command-then-completion"),
+        pytest.param("<tool_call><function=task_complete>", id="completion-cut-off"),
+        pytest.param(NATIVE_COMPLETE + "\nDone.", id="completion-trailing-prose"),
     ],
 )
 def test_other_shapes_are_left_to_terminus(raw: str) -> None:
@@ -351,6 +369,34 @@ def test_prose_ends_the_episode_only_when_the_completion_stopped(
     result = parser.parse_response(PROSE_FINAL)
 
     assert result.error and not result.is_task_complete
+    assert not parser.last_prose_completion
+
+
+
+@pytest.mark.parametrize(
+    ("raw", "analysis"),
+    [
+        pytest.param(NATIVE_COMPLETE, "", id="bare"),
+        pytest.param(
+            NATIVE_COMPLETE_SUMMARY,
+            "The repair is complete and verified. The probe passes and `/app/output.json` is written.",
+            id="after-summary",
+        ),
+        pytest.param(
+            '<tool_call><function=task_complete>{"task_complete": true}</function></tool_call>',
+            "",
+            id="json-argument",
+        ),
+        pytest.param("<tool_call><function=task_complete></function></tool_call>", "", id="no-arguments"),
+    ],
+)
+def test_native_completion_call_completes_the_task(raw: str, analysis: str) -> None:
+    parser = _parser("length")
+    result = parser.parse_response(raw)
+
+    assert result.error == ""
+    assert result.is_task_complete and result.commands == []
+    assert result.analysis == analysis
     assert not parser.last_prose_completion
 
 

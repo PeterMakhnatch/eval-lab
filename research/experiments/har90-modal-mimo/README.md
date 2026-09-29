@@ -236,3 +236,48 @@ The acceptance bar was not met, and each failure has a cause the replays had not
   - Overall, 2,093/2,310 becomes 2,270/2,310 (98.3%). The same 52 turns are mapped to `task_complete`: 50 in 0036-e and 2 in 0036-f.
 - **Real proxy subprocess, drained.** The upstream took 1 s and the client gave up after 0.2 s, leaving the call `reserved`. After the runner's `_stop_terminus_proxy`, the call was reconciled with its real usage and `_read_proxy_usage` accepted a ledger with 0 unresolved. The same test fails on the previous proxy with 1 unresolved.
 - **Real proxy subprocess, deadline.** With the drain shortened to 1 s and an 8 s upstream, the stop took 1.4 s. The ledger stayed valid, with 1 unresolved call carrying `reason: in_flight_at_shutdown`.
+
+## Second confirmation pair on merged main (2026-09-29)
+
+Research-Harbor chose to run one more pair and raised the cap to $6.00. 0036-g and 0758-e ran on e404cb87 (#521) with the same tasks, harness tree, ceilings and 900 s timeout as the first pair. The server took 216 s to warm and the `/v1/models` auth check returned 200. The app stopped at 06:20:20Z.
+
+| | 0036-g | 0758-e |
+|---|---|---|
+| Reward | 1.0 (5/5 tests) | 0.0 (4/5 tests) |
+| Verifier ran | yes | yes |
+| Stop | `AgentTimeoutError` at 900 s | `AgentTimeoutError` at 900 s |
+| Agent turns | 325 | 83 (37 + 46 after one summarization) |
+| Parsed or mapped, live | 18/325 (5.5%) | 83/83 (100%) |
+| Prose completions flagged | 1 (step 17) | 0 |
+| Ledger | 326 requests, all reconciled | 86 requests, all reconciled |
+| Lab outcome | done | done |
+| Summarization attempts / splits | 0 / 0 | 1 / 1 |
+
+Neither `trial.log` contains "Context length exceeded" or "Even fallback chat failed". 0758-e's one split wrote a real continuation with a new session. It repeats no turns; its one copied handoff turn is marked `is_copied_context`. 0758-e failed `test_edge_cpp_contract_and_python_build`.
+
+The drain and `description` fixes held: no call was left unreconciled, and 0758-e parsed every turn. The pair still missed the 95% bar, for a reason no earlier trial showed:
+
+- **A `task_complete` tool call.** 0036-g had solved the task by step 17. Its prose summary was mapped, and Terminus asked "are you sure". The model confirmed with `<tool_call><function=task_complete><parameter=task_complete>true</parameter></function></tool_call>`. The normalizer maps no function named `task_complete`, so the turn was a parse error. The model sent that call 307 times until the timeout: twice bare, 304 times after a one-line prose summary, and all 307 of its parse errors were this shape. If that call were mapped to `task_complete`, every turn would parse, and the trial would likely have ended at the second confirmation, about 10 minutes before the timeout. No normalizer change was made; it would re-key HAR-81's pilot again.
+- **Parameter names.** In both trials, `bash` calls used only `command` and `duration`. The model used no `timeout`, `run_in_background`, `description` or `write`. Across all ten trials, the only other native calls are `bash` with `description` (354, all in 0758-d), `write(file_path, content)` (6) and `keystrokes` (2), both in 0036-f, and this pair's `task_complete` (307).
+- **Replay.** On e404cb87, counting each step once, the replay matches the live counts: 18/325 for 0036-g and 83/83 for 0758-e.
+
+### Second pair spend
+
+- **Modal:** $0.9047, the whole 06:00 UTC bucket of the billing report: one warm period and both trials.
+- **Daytona, by the formula:** about $0.043, for two sandboxes of about 15.5 minutes each.
+- **HAR-90 total:** about $5.45 of $6.00 (Modal $5.2609, Daytona about $0.19).
+
+## Follow-up 4: the native completion call (2026-09-29)
+
+Research-Harbor authorised this one-shape fix and a third and final pair, and raised the cap to $7.00.
+
+- **`task_complete` call.** A turn whose only call is `task_complete`, with the argument `true` or no arguments, now maps to `task_complete: true` with no commands. Text before the call becomes the analysis. Terminus's double confirmation still applies. The turn is still rejected if the argument is `false`, there is any other argument, the completion call sits beside command calls, the call is cut off, or text follows it.
+- **Re-key.** The fix changes the normalizer digest, so HAR-81's pilot has to re-key.
+
+### $0 checks
+
+- **Replay** through Harbor 0.21.0, all ten trajectories, counting each step once:
+  - 0036-g goes from 18/325 to 325/325.
+  - The other nine trials are unchanged.
+  - Overall, 2,371/2,718 becomes 2,678/2,718 (98.5%).
+  - 360 turns are mapped to `task_complete`: the earlier 52 prose turns, plus 0036-g's 1 prose turn and 307 calls.

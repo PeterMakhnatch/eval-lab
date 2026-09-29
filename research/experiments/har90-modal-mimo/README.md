@@ -281,3 +281,32 @@ Research-Harbor authorised this one-shape fix and a third and final pair, and ra
   - The other nine trials are unchanged.
   - Overall, 2,371/2,718 becomes 2,678/2,718 (98.5%).
   - 360 turns are mapped to `task_complete`: the earlier 52 prose turns, plus 0036-g's 1 prose turn and 307 calls.
+
+## Third confirmation pair on merged main (2026-09-29)
+
+0036-h and 0758-f ran on 6d9da960 (#526). The tasks, harness tree, ceilings and 900 s timeout were the same as in the earlier pairs. Main also carried HAR-92's recording (#524, #525), so these are the first trials with step layers recorded live. The server took 211 s to warm and the `/v1/models` auth check returned 200. The app stopped at 07:37:11Z.
+
+| | 0036-h | 0758-f |
+|---|---|---|
+| Reward | 1.0 (5/5 tests) | 0.0 (4/5 tests) |
+| Verifier ran | yes | yes |
+| Stop | `AgentTimeoutError` at 900 s | `AgentTimeoutError` at 900 s |
+| Agent turns | 191 | 157 (145 + 12 after one summarization) |
+| Parsed or mapped, live | 190/191 (99.5%) | 152/157 (96.8%) |
+| Prose completions flagged | 1 (step 46) | 1 (step 16) |
+| Ledger | 192 requests, all reconciled | 161 requests, all reconciled |
+| Lab outcome | done | done |
+| Summarization attempts / splits | 0 / 0 | 1 / 1 |
+| Step layers recorded live | 191/191 | 157/157 |
+
+The pair met the acceptance bar: at least 95% of live turns parsed or mapped, both verifiers ran, and no call was left unreconciled. The replay through Harbor 0.21.0 matches the live counts exactly. Neither `trial.log` contains "Context length exceeded" or "Even fallback chat failed". 0758-f failed the same test as 0758-e, `test_edge_cpp_contract_and_python_build`.
+
+- **Parse errors.** 0036-h's one parse error is a Terminus object without `commands` in its first turn. 0758-f's five are final prose summaries that quote the task's output inside a fenced `json` block. The prose rule rejects any reply containing a JSON object, so these reach Terminus's feedback as intended.
+- **Parameter names.** Every `bash` call in this pair (195 and 155) carried `command` and `description`. That is the shape #521 made executable; without it, both trials would have parsed almost nothing. No `duration`, `timeout`, `run_in_background` or `write` appeared. No native `task_complete` call appeared either, so #526 is proven by replay alone.
+- **The confirmation loop.** Both trials finished early and then ran into the timeout. 0036-h's prose summary was mapped 4.3 minutes in, and Terminus asked "are you sure". The model answered with `echo "Task complete"` on 144 of its remaining 146 turns and never repeated the completion. 0758-f did the same 1.8 minutes in, with 129 of its 142 later turns. 0036-f showed the pattern first. The verifier scores the final state, so rewards are unaffected, but each solved trial holds the GPU about 10 minutes longer and puts loop turns into any SFT export. Whether to end at the first mapped completion is Research-Harbor's decision, not made here.
+
+### Third pair spend
+
+- **Modal:** $0.8999 for this pair's app in the 07:00 UTC bucket: one warm period and both trials. That bucket also holds $0.2676 for an HAR-81 deploy of the same app name from its own worktree, 07:54 to 08:02Z; that cost belongs to HAR-81, not HAR-90.
+- **Daytona, by the formula:** about $0.043, for two sandboxes of about 15.6 minutes each.
+- **HAR-90 total:** about $6.40 of $7.00 (Modal $6.1608, Daytona about $0.23).

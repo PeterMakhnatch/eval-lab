@@ -44,6 +44,17 @@ NATIVE_MULTI = (
     "<tool_call><function=exec_command>{\"keystrokes\": \"find /app -maxdepth 3 -name '*.py' | "
     'head -50\\n", "duration": 0.1}</function></tool_call>'
 )
+# Trials 3 and 4: Qwen3-Coder XML arguments to a bash tool, with and without duration.
+NATIVE_BASH_MULTI = (
+    "<tool_call><function=bash><parameter=command>ls -la /app && ls -la /app/vendor/snakemake"
+    "</parameter><parameter=duration>0.1</parameter></function></tool_call>"
+    "<tool_call><function=bash><parameter=command>cat /app/workflow_probe.py 2>/dev/null | head -100"
+    "</parameter><parameter=duration>0.1</parameter></function></tool_call>"
+)
+NATIVE_BASH_NO_DURATION = (
+    "<tool_call><function=bash><parameter=command>"
+    "cat /app/vendor/onnx/onnx/reference/ops/op_tensor_scatter.py</parameter></function></tool_call>"
+)
 # Trial 2's one turn that stays unparseable: a dangling fragment of a commands list.
 DANGLING_FRAGMENT = (
     '<tool_call><function=exec_command>{"keystrokes": "ls -la /app", "duration": 0.1},\n'
@@ -62,9 +73,11 @@ def test_wrapped_terminus_object_passes_through_verbatim(raw: str) -> None:
     assert set(json.loads(normalized)) == {"analysis", "plan", "commands"}
 
 
-def test_native_exec_calls_become_commands_in_order() -> None:
+def test_native_command_calls_become_commands_in_order() -> None:
     single = json.loads(normalize_mimo_tool_calls(NATIVE_SINGLE) or "")
     multi = json.loads(normalize_mimo_tool_calls(NATIVE_MULTI) or "")
+    bash = json.loads(normalize_mimo_tool_calls(NATIVE_BASH_MULTI) or "")
+    bare = json.loads(normalize_mimo_tool_calls(NATIVE_BASH_NO_DURATION) or "")
 
     assert single == {
         "analysis": "",
@@ -75,6 +88,21 @@ def test_native_exec_calls_become_commands_in_order() -> None:
         "ls -la /app\n",
         "ls -la /app/vendor/snakemake\n",
         "find /app -maxdepth 3 -name '*.py' | head -50\n",
+    ]
+    assert bash["commands"] == [
+        {"keystrokes": "ls -la /app && ls -la /app/vendor/snakemake", "duration": 0.1},
+        {"keystrokes": "cat /app/workflow_probe.py 2>/dev/null | head -100", "duration": 0.1},
+    ]
+    assert bare["commands"] == [
+        {"keystrokes": "cat /app/vendor/onnx/onnx/reference/ops/op_tensor_scatter.py"}
+    ]
+
+
+def test_xml_values_drop_only_the_markup_newlines() -> None:
+    raw = "<tool_call><function=bash><parameter=command>\nprintf 'a\\n\\n'\n\n</parameter></function></tool_call>"
+
+    assert json.loads(normalize_mimo_tool_calls(raw) or "")["commands"] == [
+        {"keystrokes": "printf 'a\\n\\n'\n"}
     ]
 
 
@@ -95,6 +123,21 @@ def test_text_before_native_calls_becomes_the_analysis() -> None:
         pytest.param(WRAPPED_TERMINUS_CLOSED + NATIVE_SINGLE, id="object-plus-call"),
         pytest.param(
             NATIVE_SINGLE.replace('"pwd"', '["pwd"]'), id="non-string-keystrokes"
+        ),
+        pytest.param(
+            NATIVE_BASH_NO_DURATION.replace("</parameter>", "</parameter><parameter=cwd>/app</parameter>"),
+            id="unknown-xml-parameter",
+        ),
+        pytest.param(NATIVE_BASH_MULTI.replace(">0.1<", ">fast<", 1), id="non-numeric-duration"),
+        pytest.param(
+            NATIVE_BASH_NO_DURATION.replace(
+                "</parameter>", "</parameter><parameter=command>ls</parameter>"
+            ),
+            id="repeated-xml-parameter",
+        ),
+        pytest.param(
+            NATIVE_SINGLE.replace('"duration"', '"command": "ls", "duration"'),
+            id="keystrokes-and-command",
         ),
     ],
 )
@@ -153,6 +196,13 @@ class _JsonCommandsParser:
     [
         (NATIVE_SINGLE, ["pwd\n"]),
         (WRAPPED_TERMINUS_CLOSED, ["ls -la /app\n"]),
+        (
+            NATIVE_BASH_MULTI,
+            [
+                "ls -la /app && ls -la /app/vendor/snakemake\n",
+                "cat /app/workflow_probe.py 2>/dev/null | head -100\n",
+            ],
+        ),
         ('{"analysis": "", "plan": "", "commands": [{"keystrokes": "make"}]}', ["make\n"]),
     ],
 )

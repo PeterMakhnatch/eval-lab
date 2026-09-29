@@ -60,13 +60,21 @@ def _exception_type(result: dict[str, Any]) -> str | None:
     return str(value) if value else None
 
 
-def count_consecutive_harness_failures(exception_types: Iterable[str | None]) -> int:
-    """Count recent failures while treating provider capacity as neutral noise."""
+def count_consecutive_harness_failures(
+    trials: Iterable[tuple[str | None, float | None]],
+) -> int:
+    """Count the latest uninterrupted run of harness failures, newest first.
+
+    Each trial is ``(exception_type, primary_reward)``. Provider capacity
+    (``transient_harness``) is neutral noise. A trial the verifier scored after
+    the agent ran out of time ran end to end: the timeout is the agent's
+    outcome, not a broken harness, so it ends the run like a clean trial.
+    """
     count = 0
-    for exception_type in exception_types:
+    for exception_type, reward in trials:
         if exception_type == "transient_harness":
             continue
-        if exception_type is None:
+        if exception_type is None or (exception_type == "AgentTimeoutError" and reward is not None):
             break
         count += 1
     return count
@@ -350,13 +358,15 @@ def consecutive_harness_failures(database_url: str) -> int:
     with psycopg.connect(database_url, connect_timeout=2) as connection:
         rows = connection.execute(
             """
-            SELECT exception_type
+            SELECT exception_type, primary_reward
             FROM trials
             ORDER BY finished_at DESC NULLS LAST, id DESC
             LIMIT 100
             """
         ).fetchall()
-    return count_consecutive_harness_failures(exception_type for (exception_type,) in rows)
+    return count_consecutive_harness_failures(
+        (exception_type, reward) for (exception_type, reward) in rows
+    )
 
 
 def digest_trials(database_url: str, day: date) -> list[tuple[Any, ...]]:

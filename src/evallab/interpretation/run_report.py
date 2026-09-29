@@ -1978,7 +1978,18 @@ def build_run_report(
             f"{stitch_stats.duplicated_steps} steps shared across continuation parts counted once"
         )
     agent_dir = segments[0][0].parent if segments else trial / "agent"
-    coverage = coverage_record(discover_trajectory_parts(agent_dir), stitch_stats)
+    agent_metadata = _dict(_dict(result.get("agent_result")).get("metadata"))
+    summarization_count = agent_metadata.get("summarization_count")
+    coverage = coverage_record(
+        discover_trajectory_parts(agent_dir),
+        stitch_stats,
+        summarization_count=summarization_count
+        if isinstance(summarization_count, int)
+        else None,
+        step_lists={path.name: doc.get("steps") for path, doc, _ in segments}
+        if segments
+        else None,
+    )
     for gap in coverage["gaps"]:
         quality.append(f"trajectory coverage gap: {gap}")
     layer_summary = summarize_layers(
@@ -1986,7 +1997,6 @@ def build_run_report(
     )
     lab_metadata = _lab_metadata(trial)
     last_task_complete, last_prose_completion = _final_turn_flags(positioned, layers)
-    agent_metadata = _dict(_dict(result.get("agent_result")).get("metadata"))
     stop_reason, stop_detail = classify_stop_reason(
         agent_metadata=agent_metadata,
         exception_info=_dict(result.get("exception_info")),
@@ -2415,16 +2425,16 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
         lines.append("No tool calls recorded.")
     step_layers = report.get("step_layers") or {}
     provenance_bits = [
-        f"{step_layers[key]} {label} ({key})"
+        f"{step_layers[key]} {label}"
         for key, label in (
-            ("recorded_steps", "recorded"),
-            ("reconstructed_steps", "reconstructed"),
-            ("copied_context_steps", "copied context"),
-            ("missing_steps", "missing"),
+            ("recorded", "recorded"),
+            ("reconstructed", "reconstructed"),
+            ("copied", "copied context"),
+            ("missing", "missing"),
         )
         if isinstance(step_layers.get(key), int) and step_layers[key]
     ]
-    if provenance_bits and tools["total_calls"]:
+    if provenance_bits and (tools["total_calls"] or step_layers.get("agent_steps")):
         lines.append(
             "Call provenance: "
             + ", ".join(provenance_bits)
@@ -2432,8 +2442,18 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
         )
     coverage = report.get("trajectory_coverage") or {}
     lines += ["", "## Capture (what was recorded?)"]
+    lines.append(
+        f"Head: {'present' if coverage.get('trajectory_head') else 'absent'}; "
+        f"continuations: {coverage.get('continuation_indices', 'unknown')}"
+        + (
+            f" (missing: {coverage['continuations_missing']})"
+            if coverage.get("continuations_missing")
+            else ""
+        )
+        + "."
+    )
     part_bits = "; ".join(
-        f"{part['path'].split('/')[-1]}: "
+        f"{part['path']}: "
         f"{part['steps'] if part['readable'] else 'unreadable'} steps"
         + (f" ({part['copied_steps']} copied)" if part.get("copied_steps") else "")
         for part in coverage.get("parts", [])
@@ -2448,6 +2468,8 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
         )
         + "."
     )
+    for name, target in sorted((coverage.get("duplicate_segments") or {}).items()):
+        lines.append(f"- {name} repeats an earlier segment ({target})")
     if coverage.get("gaps"):
         lines += [f"- coverage gap: {gap}" for gap in coverage["gaps"]]
     if coverage.get("notes"):

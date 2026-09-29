@@ -595,7 +595,7 @@ class SecretSafeTerminus2(Terminus2):
             )
         if isinstance(parser, MimoToolCallParser):
             prose_mapped = parser.last_prose_completion
-            parse_error = parser.last_error
+            parse_error = parser.last_error or None
         else:
             prose_mapped = False
             parse_error = (

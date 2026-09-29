@@ -43,9 +43,12 @@ module owns the recording):
   - ``execution_problems``: counts of parse errors, prose completions,
     provider 400s without usage, unreconciled proxy requests, and whether
     proxy usage failed reconciliation.
-  - ``trajectory_coverage``: which parts exist (``trajectory.json`` head plus
-    ``trajectory.cont-N.json`` continuations), steps per part, unique steps
-    after dedupe, duplicated steps, copied-context steps, and gaps.
+  - ``trajectory_coverage``: ``trajectory_head``,
+    ``continuation_indices`` / ``continuation_count`` /
+    ``continuations_missing`` (same names and meanings as the HAR-93 capture
+    record), per-part steps, ``duplicate_segments`` (whole-duplicate parts in
+    the SFT exporter's ``duplicate_of:`` vocabulary), unique steps after
+    dedupe, duplicated/copied/malformed counts, gaps, and notes.
 
 Recording is additive: the raw ATIF message, observation, and rollout
 details are untouched, so SFT/RL training fidelity cannot change. The MiMo
@@ -57,6 +60,7 @@ Harbor-free and tests can inject a fake parser.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
@@ -66,6 +70,7 @@ from pathlib import Path
 from typing import Any, Literal, Protocol
 
 from evallab.mimo_tool_calls import (
+    HARBOR_FALLBACK_RESPONSE,
     executed_keystrokes,
     normalize_mimo_tool_calls,
     prose_completion,
@@ -86,16 +91,21 @@ __all__ = [
     "build_recorded_layers",
     "classify_stop_reason",
     "copied_layers",
+    "coverage_record",
     "discover_trajectory_parts",
+    "duplicate_segments",
     "executed_layer",
+    "executed_output",
     "execution_problems",
+    "feedback_error_text",
     "observed_layer",
     "parse_observed_output",
     "proposed_layer",
     "reconstruct_layers",
+    "segment_fingerprint",
     "stitch_steps",
-    "synthesize_atif_calls",
     "summarize_layers",
+    "synthesize_atif_calls",
     "verifier_outcome",
     "wrap_layers",
 ]
@@ -325,12 +335,12 @@ def build_recorded_layers(
             task_complete=True,
             prose_shaped=True,
         )
-    elif parse_error is not None:
+    elif parse_error:
         accepted = accepted_layer(
             "parse_error",
             calls=calls or None,
             task_complete=task_complete or None,
-            parse_error=parse_error,
+            parse_error=parse_error or None,
             prose_shaped=False,
         )
     else:
@@ -381,6 +391,42 @@ def _observation_text(step: Mapping[str, Any]) -> str | None:
     return "\n".join(texts)
 
 
+_FEEDBACK_PREFIX = "Previous response had parsing errors:"
+
+
+def feedback_error_text(observation_text: Any) -> str | None:
+    """The harness's parse-error verdict recorded in an observation, if any.
+
+    A turn whose observation is the parse-error feedback prompt was rejected
+    under the parser treatment that ran: nothing executed. Returns the
+    feedback message, else ``None``.
+    """
+    if not isinstance(observation_text, str):
+        return None
+    text = observation_text.strip()
+    if not text.startswith(_FEEDBACK_PREFIX):
+        return None
+    return text[len(_FEEDBACK_PREFIX) :].strip() or _FEEDBACK_PREFIX
+
+
+def executed_output(step: Mapping[str, Any]) -> str | None:
+    """Terminal output of a turn that executed, or ``None``.
+
+    Harbor-free observation verdict for consumers without a parser: a turn
+    whose observation is parse-error feedback, Harbor's stand-in reply, or
+    nothing at all did not execute. Anything else is the terminal output the
+    harness read back after executing. Never guesses commands or counts.
+    """
+    text = _observation_text(step)
+    if not isinstance(text, str) or not text.strip():
+        return None
+    if feedback_error_text(text) is not None:
+        return None
+    if HARBOR_FALLBACK_RESPONSE in text:
+        return None
+    return text
+
+
 def copied_layers() -> dict[str, Any]:
     """Null layers for an ``is_copied_context`` step; evidence is in the head."""
     reason = "is_copied_context: evidence lives in the head segment"
@@ -398,10 +444,8 @@ def reconstruct_layers(step: Mapping[str, Any], *, parse: ParserFn) -> dict[str,
 
     Returns ``None`` for non-agent steps (layers are per agent turn). Steps
     that already carry recorded layers are returned as-is; copied-context
-    steps get ``copied`` stubs pointing at the head segment.
+    steps yield null layers (evidence is in the head segment).
     """
-    if not isinstance(step, Mapping) or step.get("source") != "agent":
-        return None
     extra = step.get("extra")
     extra = extra if isinstance(extra, Mapping) else {}
     stored = extra.get(STEP_LAYERS_KEY)
@@ -428,9 +472,23 @@ def reconstruct_layers(step: Mapping[str, Any], *, parse: ParserFn) -> dict[str,
         )
         calls: list[dict[str, Any]] | None = []
     else:
+        feedback = feedback_error_text(_observation_text(step))
         normalized = normalize_mimo_tool_calls(text)
         replayed = parse(normalized if normalized is not None else text)
-        if replayed.error is None:
+        if feedback is not None:
+            # The harness rejected this turn under the parser treatment that
+            # ran (its verdict is recorded in the observation), so nothing
+            # executed — whatever today's parser says about the shape. This
+            # is treatment drift, not a replay disagreement: 0758-c's tail
+            # shape predates the normalizer rule that now accepts it.
+            calls = None
+            accepted = accepted_layer(
+                "parse_error",
+                parse_error=feedback,
+                prose_shaped=False,
+                reason="observation carries the harness's parse-error feedback",
+            )
+        elif not replayed.error:
             calls = [
                 {"keystrokes": cmd.keystrokes, "duration_sec": cmd.duration_sec}
                 for cmd in replayed.commands
@@ -448,7 +506,7 @@ def reconstruct_layers(step: Mapping[str, Any], *, parse: ParserFn) -> dict[str,
             shaped = prose_completion(text) is not None
             accepted = accepted_layer(
                 "parse_error",
-                parse_error=replayed.error,
+                parse_error=replayed.error or None,
                 prose_shaped=shaped,
                 reason=(
                     "finish_reason was not recorded pre-HAR-92: a prose-shaped "
@@ -458,15 +516,29 @@ def reconstruct_layers(step: Mapping[str, Any], *, parse: ParserFn) -> dict[str,
                     else None
                 ),
             )
-    command_calls = [call for call in (calls or []) if "keystrokes" in call]
+    command_calls = [
+        call for call in (calls or [])
+        if isinstance(call.get("keystrokes"), str)
+    ]
     if calls is None:
         executed = executed_layer(
             None, None, reason="parse_error: nothing executed"
         )
     else:
+        sent: list[str] = []
+        durations: list[float | None] = []
+        for call in command_calls:
+            text = call.get("keystrokes")
+            if not isinstance(text, str):
+                continue
+            sent.append(executed_keystrokes(text))
+            duration = call.get("duration_sec")
+            durations.append(
+                duration if isinstance(duration, (int, float)) else None
+            )
         executed = executed_layer(
-            [executed_keystrokes(call["keystrokes"]) for call in command_calls],
-            [call.get("duration_sec") for call in command_calls],
+            sent,
+            durations,
             reason="pre-HAR-92: batch timestamp and timeout flag not recorded"
             if command_calls
             else "task_complete turn sent no keystrokes",
@@ -647,7 +719,16 @@ def discover_trajectory_parts(agent_dir: Path) -> list[TrajectoryPart]:
     return parts
 
 
-def _step_key(step: Mapping[str, Any]) -> str:
+def _step_key(step: Mapping[str, Any]) -> str | None:
+    """Identity for cross-part dedupe, or ``None`` when unmergeable.
+
+    Steps without a timestamp cannot be told apart from a re-emitted turn:
+    merging them would collapse genuine repeats (a loop of identical calls)
+    into one. Only timestamped steps merge across parts; the rest are always
+    kept. Every shared step observed so far carries a timestamp.
+    """
+    if step.get("timestamp") is None:
+        return None
     return _freeze(
         (
             step.get("timestamp"),
@@ -692,10 +773,11 @@ def stitch_steps(
                 stats.copied_context_steps += 1
                 continue
             key = _step_key(raw_step)
-            if key in seen:
+            if key is not None and key in seen:
                 stats.duplicated_steps += 1
                 continue
-            seen.add(key)
+            if key is not None:
+                seen.add(key)
             unique.append(raw_step)
         stats.per_part_steps.append(part_steps)
         stats.per_part_copied.append(part_copied)
@@ -703,49 +785,125 @@ def stitch_steps(
     return unique, stats
 
 
+def segment_fingerprint(steps: Any) -> str | None:
+    """Whole-segment identity, shared with the SFT exporter.
+
+    Same algorithm as ``sft_terminus.py`` (sha256 over the steps array dumped
+    with sorted keys): a continuation whose steps equal an exported segment's
+    — a summarization that failed without splitting the chat — is the same
+    segment twice. Non-list steps never match. Step-level prefix overlap (a
+    cumulative continuation restating the head) does NOT match here; that is
+    counted once by :func:`stitch_steps` for reporting, while the SFT
+    exporter keeps both segments as separate conversations.
+    """
+    if not isinstance(steps, list):
+        return None
+    return hashlib.sha256(
+        json.dumps(steps, sort_keys=True, ensure_ascii=False).encode()
+    ).hexdigest()
+
+
+def duplicate_segments(
+    named_step_lists: Sequence[tuple[str, Any]],
+) -> dict[str, str]:
+    """Name later whole-duplicate segments ``duplicate_of:<earlier name>``.
+
+    Mirrors the SFT exporter's per-trial loop: segments iterate main-first,
+    the first fingerprint wins, and later matches are skipped and recorded
+    under the same ``duplicate_of:`` vocabulary. Input order must be
+    main-first (see :func:`discover_trajectory_parts`).
+    """
+    seen: dict[str, str] = {}
+    duplicates: dict[str, str] = {}
+    for name, steps in named_step_lists:
+        digest = segment_fingerprint(steps)
+        if digest is None:
+            continue
+        if digest in seen:
+            duplicates[name] = f"duplicate_of:{seen[digest]}"
+        else:
+            seen[digest] = name
+    return duplicates
+
+
 def coverage_record(
-    parts: Sequence[TrajectoryPart], stats: StitchStats
+    parts: Sequence[TrajectoryPart],
+    stats: StitchStats,
+    *,
+    summarization_count: int | None = None,
+    step_lists: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """The capture-coverage record: which parts exist and what they hold."""
+    """The capture-coverage record: which parts exist and what they hold.
+
+    Continuation names align with the HAR-93 capture record
+    (``trial_treatment.collect_capture``): ``trajectory_head``,
+    ``continuation_indices``, ``summarization_count``, and
+    ``continuations_missing`` (expected ``1..summarization_count`` minus
+    present, ``None`` when the count is unknown) mean the same in both.
+    Beyond the capture record this adds per-part steps, whole-duplicate
+    segments in the SFT exporter's ``duplicate_of:`` vocabulary, and the
+    unique/step-overlap counts from :func:`stitch_steps`.
+    """
     head = next((part for part in parts if part.kind == "head"), None)
     continuations = [part for part in parts if part.kind == "continuation"]
+    present = sorted(part.index for part in continuations if part.readable)
+    missing = (
+        sorted(set(range(1, summarization_count + 1)) - set(present))
+        if isinstance(summarization_count, int) and summarization_count >= 0
+        else None
+    )
+    duplicates = (
+        duplicate_segments([(name, step_lists[name]) for name in step_lists])
+        if step_lists is not None
+        else {}
+    )
     gaps: list[str] = []
+    notes: list[str] = []
     if head is None and continuations:
         gaps.append("head trajectory.json absent: history starts at first continuation")
     if head is not None and not head.readable:
         gaps.append(f"head {head.name} unreadable: {head.reason}")
-    indices = sorted(part.index for part in continuations if part.readable)
-    if indices and indices != list(range(indices[0], indices[0] + len(indices))):
-        gaps.append(f"continuation indices not contiguous: {indices}")
+    if present and present != list(range(present[0], present[0] + len(present))):
+        notes.append(f"continuation indices not contiguous: {present}")
     for part in continuations:
         if not part.readable:
             gaps.append(f"{part.name} unreadable: {part.reason}")
+    if missing:
+        notes.append(
+            f"{len(missing)} summarization attempt(s) left no continuation file: {missing}"
+        )
+    for name, target in sorted(duplicates.items()):
+        notes.append(f"{name} repeats an earlier segment ({target})")
     if stats.duplicated_steps:
-        gaps.append(
+        notes.append(
             f"{stats.duplicated_steps} step(s) shared across parts counted once"
         )
     return {
-        "head": {
-            "present": head is not None and head.readable,
-            "path": head.name if head is not None else None,
-            "steps": head.steps if head is not None else None,
-        },
-        "continuations": [
+        "trajectory_head": head is not None and head.readable,
+        "continuation_indices": present,
+        "continuation_count": len(present),
+        "summarization_count": summarization_count,
+        "continuations_missing": missing,
+        "parts": [
             {
                 "path": part.name,
+                "kind": part.kind,
                 "index": part.index,
+                "readable": part.readable,
                 "steps": part.steps,
                 "copied_steps": part.copied_steps,
                 "session_id": part.session_id,
             }
-            for part in continuations
+            for part in parts
         ],
+        "duplicate_segments": duplicates,
         "unique_steps": stats.unique_steps,
         "duplicated_steps": stats.duplicated_steps,
         "copied_context_steps": stats.copied_context_steps,
         "malformed_steps": stats.malformed_steps,
-        "complete": not gaps or all("counted once" in gap for gap in gaps),
+        "complete": not gaps,
         "gaps": gaps,
+        "notes": notes,
     }
 
 
@@ -764,6 +922,8 @@ def verifier_outcome(rewards: Mapping[str, Any]) -> VerifierOutcome:
         and math.isfinite(value)
     ]
     judged = values[0] if len(values) == 1 else None
+    if not values:
+        return "none"
     if judged is None:
         # Several metrics without a primary: all at 1 pass, all at 0 fail,
         # anything else is a non-pass with a real score.
@@ -786,7 +946,7 @@ def classify_stop_reason(
     exception_info: Mapping[str, Any] | None,
     last_task_complete: bool | None = None,
     last_prose_completion: bool | None = None,
-) -> tuple[StopReason, str | None]:
+) -> tuple[StopReason, str]:
     """Return (stop_reason, detail). Unknown stays unknown, never a default.
 
     ``last_task_complete`` / ``last_prose_completion`` describe the final

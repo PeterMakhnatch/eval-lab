@@ -343,3 +343,35 @@ This replay cost $0 and used no new trials.
   - the pilot goes from 3,378/3,513 (96.16%) to 3,384/3,513 (96.33%).
 - **Pins.** The change alters `parser_digest` and HAR-81's `normalizer_sha256`, so the next pilot key must be re-pinned. Completed pilot data is unaffected, because reconstruction reads each turn's recorded verdict.
 - **Not changed.** The confirmation loop and the unescaped-quote shape are costed as proposals on HAR-100 and HAR-96. Both need a decision from Peter and Research-Harbor.
+
+## Follow-up 6: unescaped inner quotes and copied continuation steps (HAR-100, 2026-09-29)
+
+**Inner quotes are now read.** A Terminus object that fails to decode because a string holds unescaped `"` is read every way its quotes allow. The object may be bare or the JSON body of an `exec`/`exec_command`/`bash`/`command` call. Each unescaped quote may end its string or be part of it.
+- Only readings with exactly Terminus's keys and field types count, because MiMo never writes other keys.
+- The reading that treats the fewest quotes as text wins. Readings with more swallow real structure: in a2-arvo-42496599 head 27 the choice is 1 quote or 7, and with 7 the first command's keystrokes run on through the second command.
+- The turn stays rejected if two readings tie, if no reading fits, or if the search passes its budget of 4,096 quotes. The largest search in this data used 345.
+- The winning reading is re-serialized, so raw newlines and text after the object drop out, as they do for the other shapes.
+
+**Replay before and after.** The method is Follow-up 5's: 5,818 turns, main (`13ceb070`) against this branch. These are counterfactual decisions, not reruns.
+- 105 decisions change. Every one goes from parse error to commands, and every one is in the HAR-81 pilot:
+  - a2-arvo-42496599: head 11, 19 and 27-91 (67 turns);
+  - candidate-2684: head 21, 24, 26, 35 and 37-69 (37 turns);
+  - a2-arvo-42485576: head 32 (1 turn).
+- Turns now accepted in the pilot go from 3,384/3,513 (96.33%) to 3,489/3,513 (99.32%). HAR-90 stays at 2,210/2,305 (95.88%).
+- No other decision changes, and no turn the stock parser already accepted changes its commands.
+- The 105 turns carried 3.78M prompt tokens. They are 10 distinct messages: one was sent 65 times in a row and another 32 times.
+- Still rejected:
+  - a2-arvo-42485576 head 23: `</` follows the analysis and there is no `plan`.
+  - a2-arvo-42485576 head 2: a stray `""]` leaves no reading.
+- candidate-2684 head 35 was the one turn that also had raw newlines. It is now read, so raw newlines (b) remain a no-op.
+
+**The keystrokes are the model's own.** The 65 repeats in a2-arvo-42496599 send `… || echo 'no git'"; git log --all …`, and its stray `"` leaves bash waiting at a continuation prompt. The live run returned a parse error 65 times instead. What the model would have done next is not recoverable from a replay. The other 40 recovered turns have balanced quoting (checked with `shlex`, not bash).
+
+**Copied continuation steps never executed.** candidate-2684's `trajectory.cont-1.json` step 3 (message sha256 `33407024f282…`) is flagged `is_copied_context`, and its message is absent from the head. It is not a live turn: it is byte-identical to step 2 of `trajectory.summarization-1-questions.json`, the questions subagent's reply. Harbor puts that reply into the continuation's chat as text for the answers subagent and never parses or executes it.
+- Its commands read `vendor/bandit/core/tester.py`. The keys `job.log` sends after the handoff (lines 248-249) are step 5's corrected `vendor/bandit/bandit/core/…` paths.
+- The survey covered all 13 continuations with copied agent steps (10 pilot, 3 HAR-90). Each has exactly one such step, step 3; each is that trial's questions reply, and none is in its head.
+- Four keystrokes from those steps appear verbatim in `job.log`, in arvo-41330, a2-candidate-1271 and a4-arvo-42485576. Each send is already counted in a live step's recorded `keystrokes_sent`.
+- The `copied` label is therefore right, and the report already excludes these steps.
+- What was wrong was the reason text, which said the evidence lives in the head segment. It now names the questions file instead. Layers stored in completed trials keep the old text.
+
+**Pins.** `parser_digest` and HAR-81's `normalizer_sha256` change again, so the next pilot key must be re-pinned. Completed pilot data is unaffected.

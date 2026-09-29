@@ -98,6 +98,63 @@ COMMAND_WRAPPED_TERMINUS = (
     '"find /app -maxdepth 4 -type f 2>/dev/null | head -100","duration": 0.1}]}]</function>'
     "</tool_call>"
 )
+# HAR-81 pilot: Terminus objects whose strings hold unescaped quotes, each
+# with one reading. a2-arvo-42496599 head step 27, sent byte for byte 65
+# times: the stray quote sits in the second command's keystrokes.
+UNESCAPED_KEYSTROKES = (
+    '{\n  "analysis": "Let me try a different approach. Let me look at the zstd '
+    'source code to understand the bug and craft a PoC directly. Let me also try to '
+    'understand the MEM_read32 crash location better by looking at what functions '
+    'call it.",\n  "plan": "Look at the zstd source code for the bug and try to craft '
+    'a PoC.",\n  "commands": [\n'
+    '    {"keystrokes": "cd /home/agent/src/zstd && grep -rn \'MEM_read32\' lib/ '
+    '--include=\'*.c\' | head -30", "duration": 0.1},\n'
+    '    {"keystrokes": "cd /home/agent/src/zstd && git log --oneline -10 '
+    '2>/dev/null || echo \'no git\'"; git log --all --oneline -5 2>/dev/null || echo '
+    '\'no git all\'", "duration": 0.1}\n  ]\n}'
+)
+# candidate-2684 head step 38 (32 such turns in a row): inner quotes in the
+# analysis of an object inside a command call.
+COMMAND_INNER_QUOTES = (
+    '<tool_call><function=command>{"analysis":"The bug is in tester.py run_tests: '
+    '`result.linerange = temp_context["linerange"]` unconditionally overwrites the '
+    "result's linerange with the File-check placeholder [0, 1]. For B613, the plugin "
+    'sets lineno but not linerange, so the linerange becomes [0,1] instead of [7]. '
+    "The fix: when the result doesn't have its own linerange and the context's "
+    "linerange is the placeholder [0,1], derive the linerange from the result's "
+    'lineno.","plan":"Edit tester.py to preserve the computed range for file-level '
+    "checks. The fix: only use the context's linerange when it's a real range; if "
+    "the result has a lineno but the context's linerange is the placeholder [0,1], "
+    'derive [lineno].","commands": [{"keystrokes": "sed -n \'48,72p\' '
+    '/app/vendor/bandit/bandit/core/tester.py","duration": '
+    '0.1}]}]</function></tool_call>'
+)
+# a2-arvo-42485576 head step 32: after leaked reasoning the model restarts
+# the object, so the restart's own quotes sit inside the first analysis.
+RESTARTED_OBJECT = (
+    '{\n  "analysis": "The crash is confirmed! The ASAN output shows:\n\n```\n'
+    'READ of size 65536 at 0x611000000626\n'
+    '#1 0x557674 in av_packet_ref /src/ffmpeg/libavcodec/avpacket.c:630:13\n'
+    '#2 0x559a3f in avcodec_send_packet /src/ffmpeg/libavcodec/decode.c:602:15\n'
+    '#3 0x5a9e4f in dng_decode_jpeg /src/ffmpeg/libavcodec/tiff.c:891:11\n'
+    '#4 0x5a4355 in dng_decode_tiles /src/ffmpeg/libavcodec/tiff.c:996:15\n```\n\n'
+    'This is exactly the vulnerability described: a heap-buffer-overflow in '
+    '`av_packet_ref` in `avpacket.c`. The crash is triggered by a DNG file with an '
+    'oversized tile_byte_count value.\n\n'
+    'Now let me submit the PoC to the verification server.</think>{\n'
+    '  "analysis": "The crash is confirmed! The ASAN output shows:\n\n```\n'
+    'READ of size 65536 at 0x611000000626\n'
+    '#1 0x557674 in av_packet_ref /src/ffmpeg/libavcodec/avpacket.c:630:13\n'
+    '#2 0x559a3f in avcodec_send_packet /src/ffmpeg/libavcodec/decode.c:602:15\n'
+    '#3 0x5a9e4f in dng_decode_jpeg /src/ffmpeg/libavcodec/tiff.c:891:11\n'
+    '#4 0x5a4355 in dng_decode_tiles /src/ffmpeg/libavcodec/tiff.c:996:15\n```\n\n'
+    'This is exactly the described vulnerability: heap-buffer-overflow in '
+    '`av_packet_ref` in `avpacket.c`. Let me submit the PoC to the verification '
+    'server.",\n  "plan": "Submit the PoC to the verification server.",\n'
+    '  "commands": [\n    {\n'
+    '      "keystrokes": "bash /home/agent/submit.sh /home/agent/poc.dng", '
+    '"duration": 10.0}\n  ]\n}'
+)
 # Trial 2's one turn that stays unparseable: a dangling fragment of a commands list.
 DANGLING_FRAGMENT = (
     '<tool_call><function=exec_command>{"keystrokes": "ls -la /app", "duration": 0.1},\n'
@@ -270,6 +327,61 @@ def test_raw_command_calls_become_commands_in_order() -> None:
     assert json.loads(framed or "")["commands"] == [{"keystrokes": "make -j4\n"}]
 
 
+@pytest.mark.parametrize(
+    ("raw", "keystrokes"),
+    [
+        pytest.param(
+            UNESCAPED_KEYSTROKES,
+            [
+                "cd /home/agent/src/zstd && grep -rn 'MEM_read32' lib/ --include='*.c' | head -30",
+                "cd /home/agent/src/zstd && git log --oneline -10 2>/dev/null || echo 'no git'\"; "
+                "git log --all --oneline -5 2>/dev/null || echo 'no git all'",
+            ],
+            id="quote-in-keystrokes",
+        ),
+        pytest.param(
+            COMMAND_INNER_QUOTES,
+            ["sed -n '48,72p' /app/vendor/bandit/bandit/core/tester.py"],
+            id="quotes-in-wrapped-analysis",
+        ),
+        pytest.param(
+            RESTARTED_OBJECT,
+            ["bash /home/agent/submit.sh /home/agent/poc.dng"],
+            id="restarted-object",
+        ),
+    ],
+)
+def test_unescaped_inner_quotes_read_as_text_when_one_reading_fits(
+    raw: str, keystrokes: list[str]
+) -> None:
+    normalized = json.loads(normalize_mimo_tool_calls(raw) or "")
+
+    assert [command["keystrokes"] for command in normalized["commands"]] == keystrokes
+
+
+def test_inner_quote_readings_keep_the_text_around_them() -> None:
+    wrapped = json.loads(normalize_mimo_tool_calls(COMMAND_INNER_QUOTES) or "")
+    restarted = json.loads(normalize_mimo_tool_calls(RESTARTED_OBJECT) or "")
+    # A reading with a key Terminus lacks ("id") reads fewer quotes as text,
+    # but MiMo never writes such keys, so the analysis keeps the whole string.
+    extra_key = json.loads(
+        normalize_mimo_tool_calls(
+            '{"analysis": "the "file", "id": "B6", "plan": "p", "commands": []}'
+        )
+        or ""
+    )
+
+    assert 'temp_context["linerange"]` unconditionally' in wrapped["analysis"]
+    assert wrapped["plan"].endswith("derive [lineno].")
+    assert restarted["analysis"].endswith("Let me submit the PoC to the verification server.")
+    assert "</think>{\n" in restarted["analysis"]
+    assert restarted["plan"] == "Submit the PoC to the verification server."
+    assert extra_key == {
+        "analysis": 'the "file", "id": "B6',
+        "plan": "p",
+        "commands": [],
+    }
+
 
 @pytest.mark.parametrize(
     "raw",
@@ -318,10 +430,34 @@ def test_raw_command_calls_become_commands_in_order() -> None:
             id="command-call-with-parameters",
         ),
         pytest.param(RAW_COMMAND_PAIR + COMMAND_WRAPPED_TERMINUS, id="raw-command-plus-object"),
+        pytest.param(
+            '{"analysis": "A", "plan": ", "plan": "B", "commands": []}',
+            id="inner-quotes-with-two-readings",
+        ),
+        pytest.param(
+            '{"analysis": "a", "plan": "p", "commands": [{"keystrokes": "ls", '
+            '"duration": 0.1}""]}',
+            id="inner-quotes-with-no-reading",
+        ),
+        pytest.param(
+            '{"analysis": "a "b" c", "plan": "p"}', id="inner-quotes-without-commands"
+        ),
+        pytest.param(
+            '<tool_call><function=submit>{"analysis": "a "b" c", "plan": "p", '
+            '"commands": []}</function></tool_call>',
+            id="inner-quotes-in-unknown-function",
+        ),
     ],
 )
 def test_other_shapes_are_left_to_terminus(raw: str) -> None:
     assert normalize_mimo_tool_calls(raw) is None
+
+
+@pytest.mark.parametrize(("quotes", "read"), [(100, True), (5000, False)])
+def test_inner_quote_search_gives_up_past_its_budget(quotes: int, read: bool) -> None:
+    raw = '{"analysis": "' + 'x"' * quotes + '", "plan": "p", "commands": []}'
+
+    assert (normalize_mimo_tool_calls(raw) is not None) is read
 
 
 @pytest.mark.parametrize(
@@ -403,6 +539,15 @@ def _parser(finish_reason: str | None = "stop") -> MimoToolCallParser:
                 "cat /app/workflow_probe.py 2>/dev/null | head -100\n",
             ],
         ),
+        (
+            UNESCAPED_KEYSTROKES,
+            [
+                "cd /home/agent/src/zstd && grep -rn 'MEM_read32' lib/ --include='*.c' | head -30\n",
+                "cd /home/agent/src/zstd && git log --oneline -10 2>/dev/null || echo 'no git'\"; "
+                "git log --all --oneline -5 2>/dev/null || echo 'no git all'\n",
+            ],
+        ),
+        (COMMAND_INNER_QUOTES, ["sed -n '48,72p' /app/vendor/bandit/bandit/core/tester.py\n"]),
         ('{"analysis": "", "plan": "", "commands": [{"keystrokes": "make"}]}', ["make\n"]),
     ],
 )

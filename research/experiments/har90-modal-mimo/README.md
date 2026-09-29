@@ -148,3 +148,48 @@ Tokens cost $0 here and time is billed, so the 900 s agent timeout already bound
 - **Modal:** $1.9752, the whole 02:00 UTC bucket of the billing report, covering three warm periods and pairs A–C.
 - **Daytona, by the formula:** about $0.087 (3,702 s of sandbox time over four full trials plus about 50 s for pair A).
 - **HAR-90 total so far:** about $3.56 of $5 (Modal $3.4516, Daytona about $0.11).
+
+## Follow-up 2: prose completions, ceiling trips and usage-less 400s (2026-09-29)
+
+Research-Harbor chose option A with two guards (only `finish_reason: stop`, and a per-step mapping flag). It also asked for two fixes before HAR-81's first wave: a ceiling trip must still run the verifier, and a 400 without usage must not fail a trial that was scored. A third fix, making the normalizer a harness setting on both arms, is deferred while the Qwen arm is parked.
+
+### Changes
+
+- **Prose completion** (`evallab.mimo_tool_calls.prose_completion`). On the MiMo route, a turn counts as `task_complete: true` with no commands when all of these hold:
+  - the completion finished with `stop`;
+  - the text after any `<think>` block is not blank;
+  - it has no tool-call markup and no JSON object;
+  - it is not Harbor's "Technical difficulties" fallback.
+
+  Terminus's confirmation turn still applies. `SecretSafeTerminus2` records `finish_reason`, which upstream's `LLMResponse` drops. Each mapped step gets `extra.prose_completion: true`, and each trajectory file's `final_metrics.extra.prose_completions` and the agent metadata's `prose_completions` hold the count.
+- **Ceiling trips.** The proxy's 429 "trial budget exhausted" now ends the agent phase with `TrialBudgetExhaustedError`, a subclass of Harbor's `NonZeroAgentExitCodeError`. Harbor's single-step trial records that class and still runs the verifier. The metadata records `stop_reason: trial_budget_exhausted`, and cohort comparisons count it as budget exhaustion.
+- **Usage-less 400.** The proxy settles it as a reconciled zero-token call with `error: provider_http_400_no_usage`. Other usage-less errors stay unresolved.
+
+### $0 checks
+
+**Replay through Harbor 0.21.0** (`TerminusJSONPlainParser` behind the new parser, all six trajectories):
+
+| Parser | Parsed or mapped | Turns mapped to `task_complete` |
+|---|---|---|
+| Stock | 143/1,909 (7.5%) | 0 |
+| Normalizer, turns not stopped | 1,827/1,909 (95.7%) | 0 |
+| Normalizer, turns stopped | 1,877/1,909 (98.3%) | 50, all of them 0036-e's prose final answer |
+
+The 32 turns that still fail are 31 Harbor fallback texts and the dangling fragment from 0036-b. No other turn across the 1,909 was mapped. Live, 0036-e would have ended at its second prose turn instead of 49 turns later.
+
+**Real Harbor smoke.** A throwaway script drove the real `Terminus2` loop, the real `SecretSafeTerminus2` and the real proxy subprocess. It used a scripted loopback upstream and a fake tmux session:
+
+- **Prose.** Turns: native call, then prose ending in `length`, then native call, then prose `stop`, then prose `stop`.
+  - The truncated prose went through Terminus's max-tokens path and ended nothing.
+  - The first stopped prose got the confirmation prompt, and the second ended the episode.
+  - Steps 4 and 5 carry the flag, `final_metrics.extra.prose_completions` is 2, and the metadata's `prose_completions` is 2.
+  - The raw prose stays in each step's `message`.
+- **Ceiling.** With a request ceiling of 2, the third call got the 429.
+  - The agent raised `TrialBudgetExhaustedError`, which is an instance of `NonZeroAgentExitCodeError`.
+  - The metadata records `stop_reason: trial_budget_exhausted`.
+  - The ledger has 2 reconciled calls and 0 unresolved.
+- **Context overflow.** SGLang's 400 body came first, with summarization on.
+  - The ledger has the 400 as reconciled with 0 tokens, followed by 2 successful calls: 0 unresolved.
+  - The runner's `_read_proxy_usage` accepted the ledger, and the episode finished through the prose rule.
+
+In every scenario, neither the provider key nor the capability appeared in any JSON evidence file.

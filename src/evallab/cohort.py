@@ -70,8 +70,10 @@ COST_BASIS_RECORDED_NATIVE = (
 
 BOOTSTRAP_RESAMPLES = 4_000
 NOT_COMPARABLE = "not distinguishable / not comparable"
+#: Trials cut off by a time or trial-budget limit (a proxy ceiling trip is
+#: ``TrialBudgetExhaustedError``, see ``evallab.harbor_terminus``).
 TIMEOUT_BUDGET_EXCEPTION_CLASSES = frozenset(
-    {"AgentTimeoutError", "TimeoutError", "TrialTimeoutFailure"}
+    {"AgentTimeoutError", "TimeoutError", "TrialTimeoutFailure", "TrialBudgetExhaustedError"}
 )
 
 

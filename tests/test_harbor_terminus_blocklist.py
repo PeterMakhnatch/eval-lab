@@ -81,8 +81,25 @@ def _package(name: str) -> ModuleType:
 
 @pytest.fixture
 def terminus_module(monkeypatch: pytest.MonkeyPatch) -> Any:
-    for name in ("harbor", "harbor.agents", "harbor.agents.terminus_2"):
+    for name in (
+        "harbor",
+        "harbor.agents",
+        "harbor.agents.installed",
+        "harbor.agents.terminus_2",
+        "harbor.llms",
+    ):
         monkeypatch.setitem(sys.modules, name, _package(name))
+    monkeypatch.setitem(
+        sys.modules,
+        "harbor.agents.installed.base",
+        _module(
+            "harbor.agents.installed.base",
+            NonZeroAgentExitCodeError=type("NonZeroAgentExitCodeError", (RuntimeError,), {}),
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules, "harbor.llms.lite_llm", _module("harbor.llms.lite_llm", LiteLLM=type("LiteLLM", (), {}))
+    )
     monkeypatch.setitem(
         sys.modules,
         "harbor.agents.terminus_2.terminus_2",

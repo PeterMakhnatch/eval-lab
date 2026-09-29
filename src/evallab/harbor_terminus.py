@@ -20,16 +20,32 @@ Credential posture:
   capability; construction fails closed when it does.
 - The local route requires an already installed, digest-identified GGUF model.
   It never pulls weights and records zero provider API charge, not imputed usage.
+
+Episode endings:
+
+- A trial ceiling trip (the proxy's 429 "trial budget exhausted") ends the
+  agent phase as :class:`TrialBudgetExhaustedError`. Harbor records it like an
+  agent timeout and still runs the verifier; the agent metadata records
+  ``stop_reason: trial_budget_exhausted``.
+- On the self-hosted MiMo route, a prose-only turn that finished with
+  ``finish_reason: stop`` counts as ``task_complete`` (see
+  :mod:`evallab.mimo_tool_calls`). Each mapped agent step carries
+  ``extra.prose_completion: true``; each trajectory file's
+  ``final_metrics.extra.prose_completions`` and the agent metadata's
+  ``prose_completions`` count them.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import urllib.parse
 from pathlib import Path
 from typing import Any
 
+from harbor.agents.installed.base import NonZeroAgentExitCodeError  # ty: ignore[unresolved-import]
 from harbor.agents.terminus_2.terminus_2 import Terminus2  # ty: ignore[unresolved-import]
+from harbor.llms.lite_llm import LiteLLM  # ty: ignore[unresolved-import]
 
 from evallab.execution_contracts import (
     MIMO_SELFHOSTED_CONTEXT_TOKENS,
@@ -57,7 +73,92 @@ from evallab.harbor_common import sanitize_native_trajectory
 from evallab.mimo_tool_calls import MimoToolCallParser
 from evallab.terminus_local import OllamaBinding, resolve_ollama_binding
 
-__all__ = ["SecretSafeTerminus2", "apply_mimo_blocklist"]
+__all__ = ["SecretSafeTerminus2", "TrialBudgetExhaustedError", "apply_mimo_blocklist"]
+
+#: The metered proxy's 429 body when a trial ceiling (requests, tokens or
+#: cost) is spent (``containers/zai_openapi_secret_proxy.py``).
+TRIAL_BUDGET_EXHAUSTED_MESSAGE = "trial budget exhausted"
+#: The agent-metadata stop reason recorded for a ceiling trip.
+TRIAL_BUDGET_EXHAUSTED_STOP_REASON = "trial_budget_exhausted"
+#: The ``Step.extra`` flag marking a prose-only turn mapped to task_complete.
+PROSE_COMPLETION_STEP_FLAG = "prose_completion"
+
+
+class TrialBudgetExhaustedError(NonZeroAgentExitCodeError):
+    """The trial proxy refused a model call because a ceiling is spent.
+
+    Harbor's single-step trial records only an agent timeout or an agent exit
+    error and then runs the verifier; any other agent exception skips it and
+    loses the reward. Subclassing the exit error routes a ceiling trip there,
+    and the distinct class name keeps it apart in ``exception_info``.
+    """
+
+
+def _is_trial_budget_exhausted(exc: BaseException) -> bool:
+    """Whether ``exc`` or an exception it wraps is the proxy's ceiling 429."""
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        if TRIAL_BUDGET_EXHAUSTED_MESSAGE in str(current):
+            return True
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    return False
+
+
+class _FinishReasonLiteLLM(LiteLLM):
+    """LiteLLM that remembers the finish reason of its latest completion.
+
+    Upstream's ``LLMResponse`` drops ``finish_reason``; the MiMo prose rule
+    needs it. Upstream reads usage before it raises on ``length``, so every
+    completion that returned a body sets the value, and a call that failed
+    before any body leaves ``None``.
+    """
+
+    last_finish_reason: str | None = None
+
+    async def call(self, *args: Any, **kwargs: Any) -> Any:
+        self.last_finish_reason = None
+        return await super().call(*args, **kwargs)
+
+    def _extract_usage_info(self, response: Any) -> Any:
+        try:
+            reason = response["choices"][0].get("finish_reason")
+        except (AttributeError, IndexError, KeyError, TypeError):
+            reason = None
+        self.last_finish_reason = reason if isinstance(reason, str) else None
+        return super()._extract_usage_info(response)
+
+
+def _record_prose_completions(path: Path) -> None:
+    """Write the file's count of flagged steps into its final metrics."""
+    if not path.is_file():
+        return
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return
+    steps = payload.get("steps") if isinstance(payload, dict) else None
+    if not isinstance(steps, list):
+        return
+    count = sum(
+        1
+        for step in steps
+        if isinstance(step, dict)
+        and not step.get("is_copied_context")
+        and isinstance(step.get("extra"), dict)
+        and step["extra"].get(PROSE_COMPLETION_STEP_FLAG) is True
+    )
+    metrics = payload.get("final_metrics")
+    metrics = dict(metrics) if isinstance(metrics, dict) else {}
+    extra = metrics.get("extra")
+    metrics["extra"] = {**(extra if isinstance(extra, dict) else {}), "prose_completions": count}
+    payload["final_metrics"] = metrics
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+#: Marks "no prose completion awaiting its trajectory step".
+_NO_PENDING_PROSE_STEP = object()
 
 #: Where MiMo task setup stages FineEnvs' answer-leak blocklist. Task setup
 #: leaves the list here; the agent appends it to /etc/hosts right after it
@@ -268,6 +369,8 @@ class SecretSafeTerminus2(Terminus2):
         self._local_binding: OllamaBinding | None = None
         self._tinker_spec: TinkerModelSpec | None = None
         self._mimo_selfhosted = False
+        self._prose_completions = 0
+        self._pending_prose_step: Any = _NO_PENDING_PROSE_STEP
         if model_name == TERMINUS_LOCAL_MODEL_SELECTOR:
             self._local_binding = resolve_ollama_binding(model_name)
             model = model_name
@@ -376,15 +479,62 @@ class SecretSafeTerminus2(Terminus2):
         if capability is not None and provider is not None:
             os.environ[_PROVIDER_KEY_ENVS[provider]] = capability
 
+    def _init_llm(self, *args: Any, **kwargs: Any) -> Any:
+        llm = super()._init_llm(*args, **kwargs)
+        if self._mimo_selfhosted:
+            if type(llm) is not LiteLLM:
+                raise ValueError(
+                    "the MiMo prose rule needs upstream's LiteLLM client, got "
+                    + type(llm).__name__
+                )
+            # The subclass only adds last_finish_reason. Re-classing the
+            # client upstream built keeps its constructor semantics exactly.
+            llm.__class__ = _FinishReasonLiteLLM
+        return llm
+
     def _get_parser(self) -> Any:
-        # MiMo's native exec_command calls become Terminus commands (HAR-90).
-        # The parser sees normalized text; the chat, trajectory and rollout
-        # details keep the raw model output.
+        # MiMo's native exec_command calls become Terminus commands, and a
+        # prose-only turn that stopped naturally counts as task_complete
+        # (HAR-90). The parser sees normalized text; the chat, trajectory and
+        # rollout details keep the raw model output.
         parser = super()._get_parser()
         if self._mimo_selfhosted and self._parser_name == "json":
-            return MimoToolCallParser(parser)
+            return MimoToolCallParser(parser, finish_reason=lambda: self._llm.last_finish_reason)
         return parser
 
+    def _reset_per_run_state(self) -> None:
+        super()._reset_per_run_state()
+        self._prose_completions = 0
+        self._pending_prose_step = _NO_PENDING_PROSE_STEP
+
+    async def _handle_llm_interaction(self, *args: Any, **kwargs: Any) -> Any:
+        outcome = await super()._handle_llm_interaction(*args, **kwargs)
+        parser = self._parser
+        if isinstance(parser, MimoToolCallParser) and parser.last_prose_completion:
+            # Upstream appends this turn's agent step later in the episode.
+            # Remembering the current last step lets the flag land only on a
+            # step appended after this parse.
+            self._pending_prose_step = (
+                self._trajectory_steps[-1] if self._trajectory_steps else None
+            )
+        return outcome
+
+    def _dump_trajectory(self) -> None:
+        self._flag_prose_completion_step()
+        super()._dump_trajectory()
+
+    def _flag_prose_completion_step(self) -> None:
+        anchor = self._pending_prose_step
+        if anchor is _NO_PENDING_PROSE_STEP or not self._trajectory_steps:
+            return
+        step = self._trajectory_steps[-1]
+        # An error between the parse and the step append leaves the anchor
+        # (or a system/user step) last; that turn has no step to flag.
+        if step is anchor or step.source != "agent" or step.is_copied_context:
+            return
+        step.extra = {**(step.extra or {}), PROSE_COMPLETION_STEP_FLAG: True}
+        self._prose_completions += 1
+        self._pending_prose_step = _NO_PENDING_PROSE_STEP
 
     async def setup(self, environment: Any) -> None:
         await super().setup(environment)
@@ -395,25 +545,40 @@ class SecretSafeTerminus2(Terminus2):
         self.logger.info("answer-leak blocklist: " + await apply_mimo_blocklist(environment))
 
     async def run(self, instruction: str, environment: Any, context: Any) -> None:
+        stop_reason: str | None = None
         try:
             await super().run(instruction, environment, context)
+        except Exception as exc:
+            if not _is_trial_budget_exhausted(exc):
+                raise
+            stop_reason = TRIAL_BUDGET_EXHAUSTED_STOP_REASON
+            raise TrialBudgetExhaustedError(
+                "the trial proxy refused a model call: " + TRIAL_BUDGET_EXHAUSTED_MESSAGE
+            ) from exc
         finally:
+            metadata: dict[str, Any] = {}
+            if stop_reason is not None:
+                metadata["stop_reason"] = stop_reason
+            if self._mimo_selfhosted:
+                metadata["prose_completions"] = self._prose_completions
             if self._local_binding is not None:
                 # Installed local inference has no provider API charge. This is
                 # a billing fact, not invented missing token or call telemetry.
                 context.cost_usd = 0.0
-                context.metadata = {
-                    **(context.metadata or {}),
-                    "local_ollama": self._local_binding.to_dict(),
-                }
+                metadata["local_ollama"] = self._local_binding.to_dict()
+            if metadata:
+                context.metadata = {**(context.metadata or {}), **metadata}
+
+    def _trajectory_files(self) -> list[Path]:
+        logs = Path(self.logs_dir)
+        return [logs / "trajectory.json", *sorted(logs.glob("trajectory.cont-*.json"))]
 
     def populate_context_post_run(self, context: Any) -> None:
         secrets = collected_secret_values()
-        logs = Path(self.logs_dir)
-        sanitize_native_trajectory(logs / "trajectory.json", secrets)
-        for continuation in sorted(logs.glob("trajectory.cont-*.json")):
-            sanitize_native_trajectory(continuation, secrets)
+        for path in self._trajectory_files():
+            sanitize_native_trajectory(path, secrets)
         super().populate_context_post_run(context)
-        sanitize_native_trajectory(logs / "trajectory.json", secrets)
-        for continuation in sorted(logs.glob("trajectory.cont-*.json")):
-            sanitize_native_trajectory(continuation, secrets)
+        for path in self._trajectory_files():
+            if self._mimo_selfhosted:
+                _record_prose_completions(path)
+            sanitize_native_trajectory(path, secrets)

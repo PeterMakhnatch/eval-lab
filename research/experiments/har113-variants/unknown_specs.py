@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 
 import pyarrow.parquet as pq
 from common import CENSUS, HERE
@@ -26,21 +27,30 @@ from nopspec import nop_spec  # noqa: E402
 SPECS = HERE / "specs/unknown"
 
 
-def main() -> None:
+def write_specs(card: str = "har113", specs: Path = SPECS) -> list[Path]:
+    """One ``<card>-nop-<id>`` spec per ``unknown`` census row, lightest first."""
     pool = {e["task_id"]: e for e in json.loads((CENSUS / "pool.json").read_text())["pool"]}
     rows = pq.read_table(CENSUS / "task_health.parquet").to_pylist()
     unknown = sorted(
         (r for r in rows if r["label"] == "unknown"),
         key=lambda r: (r["image_mib"] or 10**9, r["task_id"]),
     )
-    SPECS.mkdir(parents=True, exist_ok=True)
+    specs.mkdir(parents=True, exist_ok=True)
+    label = card.upper().replace("HAR", "HAR-")
+    paths = []
     for row in unknown:
         task_id = row["task_id"]
-        name = f"har113-nop-{task_id.removeprefix('format-code-task-')}"
-        spec = nop_spec(pool[task_id]["task"], name, f"HAR-113 census nop of {task_id}")
-        spec["submitted_by"] = "har113-variants"
-        path = SPECS / f"{name}.json"
+        name = f"{card}-nop-{task_id.removeprefix('format-code-task-')}"
+        spec = nop_spec(pool[task_id]["task"], name, f"{label} census nop of {task_id}")
+        spec["submitted_by"] = f"{card}-variants"
+        path = specs / f"{name}.json"
         path.write_text(json.dumps(spec, indent=1) + "\n")
+        paths.append(path)
+    return paths
+
+
+def main() -> None:
+    for path in write_specs():
         print(path)
 
 

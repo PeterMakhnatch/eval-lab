@@ -155,8 +155,27 @@ done
 """
 
 
-def login_path_pyenv(setup: str, _arg: str | None) -> str:
-    return before_blocklist(setup, LOGIN_PATH_PYENV_BLOCK)
+def login_path_pyenv(setup: str, tools: str | None) -> str:
+    """``tools`` names extra executables to wrap (e.g. ``py.test``)."""
+    listed = " ".join((*TOOLS, *(tools or "").split()))
+    return before_blocklist(setup, LOGIN_PATH_PYENV_BLOCK.replace(" ".join(TOOLS), listed, 1))
+
+
+LOGIN_PYTHONPATH_BLOCK = """
+# HAR-115 env-login-pythonpath@1: the login shell exports PYTHONPATH (the image's
+# .bashrc), the grader's non-login shell does not; a .pth file puts the same
+# entries on the non-login python's path.
+PP=$(timeout 30 bash -lc 'printf %s "$PYTHONPATH"' 2>/dev/null | tail -n 1)
+SITE=$(python -c 'import site; print(site.getsitepackages()[0])' 2>/dev/null)
+if [ -z "$PP" ] || [ -z "$SITE" ]; then fail "HAR-115 login PYTHONPATH: nothing to carry"; fi
+echo "$PP" | tr ':' '\\n' | grep -v '^$' > "$SITE/har115-login-pythonpath.pth"
+echo "login PYTHONPATH: $PP -> $SITE/har115-login-pythonpath.pth"
+"""
+
+
+def login_pythonpath(setup: str, _arg: str | None) -> str:
+    return before_blocklist(setup, LOGIN_PYTHONPATH_BLOCK)
+
 
 
 def pin(setup: str, command: str | None) -> str:
@@ -222,7 +241,16 @@ KINDS = {
         "python3, pytest, pip and pip3 where the login shell resolves them outside the "
         "default PATH, resolving pyenv shims with the login shell's pyenv which, and "
         f"environment/setup is re-embedded in the healthcheck payload. {UNCHANGED}",
-        lambda _arg: {"tools": list(TOOLS)},
+        lambda arg: {"tools": [*TOOLS, *(arg or "").split()]},
+    ),
+    "login-pythonpath": Kind(
+        "env-login-pythonpath@1",
+        login_pythonpath,
+        "the grader's non-login shell misses the PYTHONPATH the image exports in the "
+        "login shell ({cause}); setup writes the login shell's PYTHONPATH entries to a "
+        ".pth file in the non-login python's site-packages, and environment/setup is "
+        f"re-embedded in the healthcheck payload. {UNCHANGED}",
+        lambda _arg: {"pth": "har115-login-pythonpath.pth"},
     ),
     "pin": Kind(
         "env-pin-dependency@1",
@@ -359,11 +387,18 @@ def short(task_id: str) -> str:
     return task_id.removeprefix("format-code-task-")
 
 
-def main() -> None:
+def build(
+    repairs: dict[str, tuple[Step, ...]], *, card: str = "har113", specs: Path = SPECS
+) -> dict[str, dict]:
+    """Derive each task's repair chain and write its nop spec.
+
+    ``card`` names the records' ``created_by`` (``<card>-repair``) and the nop
+    jobs (``<card>-rnop-<id>-<digest12>``). Returns the per-task summary.
+    """
     leaks = records_by(LEAK_TRANSFORM)
-    SPECS.mkdir(parents=True, exist_ok=True)
+    specs.mkdir(parents=True, exist_ok=True)
     out: dict[str, dict] = {}
-    for n, steps in sorted(REPAIRS.items()):
+    for n, steps in sorted(repairs.items()):
         task_id = f"format-code-task-{n}"
         leak = leaks.get(task_id)
         parent: Path = package_dir(leak) if leak else original(task_id)
@@ -380,17 +415,18 @@ def main() -> None:
                     {SETUP_SH: kind.rewrite(setup, arg).encode()},
                     transform=kind.transform,
                     rationale=kind.rationale.format(cause=cause, arg=arg),
-                    created_by=CREATED_BY,
+                    created_by=f"{card}-repair",
                     inputs=inputs,
                     parent_source=source,
                 )
             chain.append({"repair": kind_name, "cause": cause, "record": record_path(done)})
             parent, source = package_dir(done), {"kind": "variant", "record": record_path(done)}
-        name = f"har113-rnop-{n}-{done.variant_digest[7:19]}"
+        name = f"{card}-rnop-{n}-{done.variant_digest[7:19]}"
         what = " + ".join(step["repair"] for step in chain)
-        spec = nop_spec(package_rel(done), name, f"HAR-113 {what} repair of {task_id}")
-        spec["submitted_by"] = "har113-variants"
-        (SPECS / f"{name}.json").write_text(json.dumps(spec, indent=1) + "\n")
+        label = card.upper().replace("HAR", "HAR-")
+        spec = nop_spec(package_rel(done), name, f"{label} {what} repair of {task_id}")
+        spec["submitted_by"] = f"{card}-variants"
+        (specs / f"{name}.json").write_text(json.dumps(spec, indent=1) + "\n")
         out[task_id] = {
             "repair": what,
             "cause": "; ".join(step["cause"] for step in chain),
@@ -401,6 +437,11 @@ def main() -> None:
             "package": package_rel(done),
             "nop_job": name,
         }
+    return out
+
+
+def main() -> None:
+    out = build(REPAIRS)
     (HERE / "repair_variants.json").write_text(json.dumps({"tasks": out}, indent=1) + "\n")
     print(f"{len(out)} repaired tasks; nop specs in {SPECS.name}/")
 

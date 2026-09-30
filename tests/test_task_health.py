@@ -13,6 +13,7 @@ from evallab.task_health import (
     label_task,
     leak_assessment,
     nop_evidence,
+    patch_added_text,
     project_key_for,
     read_task_health_parquet,
     static_checks,
@@ -266,6 +267,121 @@ def _one_file_patch(
         "new file mode 100755\n--- /dev/null\n+++ b/mimo_test_command.sh\n"
         f"@@ -0,0 +1,{command.count(chr(10)) + 1} @@\n{command_added}"
     )
+
+
+def test_missing_file_the_instruction_names_is_sound(tmp_path: Path) -> None:
+    """000211: the tests load the module the agent must create by path, so the
+    nop dies in the loader with a FileNotFoundError and no test results."""
+    instruction = (
+        "Add a new module posthog/temporal/data_imports/pipelines/source/config.py "
+        "that exposes a config decorator.\n"
+    )
+    stdout = (
+        "FileNotFoundError: [Errno 2] No such file or directory: "
+        "'/testbed/posthog/temporal/data_imports/pipelines/source/config.py'\n"
+    )
+    task = _task(tmp_path, instruction=instruction)
+    label, reasons, evidence = label_task(
+        static_checks(task), nop_evidence(_trial(tmp_path, stdout), instruction)
+    )
+    assert (label, reasons) == ("sound", [])
+    assert "excused" in evidence
+
+    unnamed = nop_evidence(_trial(tmp_path / "other", stdout), "Add a config decorator.\n")
+    assert unnamed["setup_error"] is None
+    assert not unnamed["setup_error_excused"]
+
+
+def test_unquoted_cannot_import_name_is_sound(tmp_path: Path) -> None:
+    """001981: pytest prints ``cannot import name STAGE_JOBS`` with no quotes."""
+    instruction = "Point crontabber.jobs at socorro.cron.crontabber_app.STAGE_JOBS.\n"
+    stdout = (
+        "ERROR collecting socorro/unittest/cron/test_jobs.py\n"
+        "E   ImportError: cannot import name STAGE_JOBS\n"
+    )
+    task = _task(tmp_path, instruction=instruction)
+    label, _reasons, evidence = label_task(
+        static_checks(task), nop_evidence(_trial(tmp_path, stdout), instruction)
+    )
+    assert label == "sound"
+    assert "excused" in evidence
+
+
+def test_halted_stdlib_import_the_tests_plant_is_sound(tmp_path: Path) -> None:
+    """002207: the hidden tests set ``sys.modules['lzma'] = None``, so a missing
+    optional stdlib module fails on purpose."""
+    instruction = (
+        "If the standard-library lzma module is unavailable, importing pandas still succeeds.\n"
+    )
+    stdout = "ModuleNotFoundError: import of lzma halted; None in sys.modules\n5 failed, 1 passed\n"
+    task = _task(tmp_path, instruction=instruction)
+    label, _reasons, evidence = label_task(
+        static_checks(task),
+        nop_evidence(_trial(tmp_path, stdout), instruction, project_modules(task)),
+    )
+    assert label == "sound"
+    assert "excused" in evidence
+
+    private = "ModuleNotFoundError: import of _lzma halted; None in sys.modules\n"
+    assert not nop_evidence(
+        _trial(tmp_path / "priv", private), "The _lzma extension is missing.\n"
+    )["setup_error_excused"]
+
+
+def test_name_the_patch_defines_is_sound(tmp_path: Path) -> None:
+    """002307: the attribute is missing from the task's own module. The
+    instruction names the file, not the attribute; the hidden patch shows the
+    task defines it. The same name missing from an installed package does not."""
+    instruction = (
+        "Read the container id from pre_commit/languages/docker.py, not the hostname.\n"
+    )
+    patch = _one_file_patch("def test_id():\n    assert docker._get_container_id() == 'abc'\n")
+    stdout = (
+        "E   AttributeError: <module 'pre_commit.languages.docker' from "
+        "'/testbed/pre_commit/languages/docker.py'> does not have the attribute "
+        "'_get_container_id'\n"
+        "E   AttributeError: module 'pre_commit.languages.docker' has no attribute "
+        "'_get_container_id'\n"
+        "______ ERROR at setup of test_get_docker_path ______\n"
+    )
+    task = _task(tmp_path, patch=patch, instruction=instruction)
+    added = patch_added_text(task)
+    label, _reasons, evidence = label_task(
+        static_checks(task),
+        nop_evidence(_trial(tmp_path, stdout), instruction, project_modules(task), added),
+    )
+    assert label == "sound"
+    assert "excused" in evidence
+
+    installed = (
+        "E   AttributeError: <module 'pre_commit.languages.docker' from "
+        "'/usr/lib/python3/dist-packages/pre_commit/languages/docker.py'> does not have "
+        "the attribute '_get_container_id'\n"
+        "______ ERROR at setup of test_get_docker_path ______\n"
+    )
+    assert not nop_evidence(
+        _trial(tmp_path / "inst", installed), instruction, project_modules(task), added
+    )["setup_error_excused"]
+
+
+def test_real_environment_breakage_stays_broken(tmp_path: Path) -> None:
+    """A missing compiled extension, version file, third-party package or the
+    test runner is the environment, however plainly the log names it."""
+    instruction = "Add a Widget with a value attribute.\n"
+    cases = [
+        "E   ModuleNotFoundError: No module named 'pandas._libs.tslib'\n",
+        "E   ModuleNotFoundError: No module named 'statsmodels._version'\n",
+        "E   PackageNotFoundError: No package metadata was found for webargs\n",
+        "E   ModuleNotFoundError: No module named 'django'\n",
+        "/usr/bin/python: No module named pytest\n",
+    ]
+    for index, stdout in enumerate(cases):
+        root = tmp_path / str(index)
+        label, reasons, _evidence = label_task(
+            static_checks(_task(root, instruction=instruction)),
+            nop_evidence(_trial(root, stdout), instruction),
+        )
+        assert (label, reasons) == ("broken_environment", ["setup_error"]), stdout
 
 
 def test_literal_source_assert_is_only_the_project_source_shape(tmp_path: Path) -> None:

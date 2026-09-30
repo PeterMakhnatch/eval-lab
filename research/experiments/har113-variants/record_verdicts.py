@@ -36,12 +36,12 @@ def trial(graded: dict) -> str:
     return f"runs/{graded['job']}/{graded['trial']}"
 
 
-def verdict(path: str, status: str, evidence: str) -> str:
+def verdict(path: str, status: str, evidence: str, by: str = BY) -> str:
     """Append ``evidence`` unless the record is final or already has it."""
     current = resolve_record(ROOT / path, repo_root=ROOT)
     if current.status != "candidate" or any(e.evidence == evidence for e in current.evidence):
         return current.status
-    append_status_evidence(path, status, evidence=evidence, by=BY, repo_root=ROOT)
+    append_status_evidence(path, status, evidence=evidence, by=by, repo_root=ROOT)
     return status
 
 

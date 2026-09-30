@@ -323,19 +323,34 @@ nop guard uses: `detect_grader_collection_failure` returns nothing, and every
 root cause read from a raised-error line (a warning that mentions a missing
 optional module names no cause) passes. A `No module named` module passes
 `missing_module_is_task_work` (named by the instruction, or a submodule of a
-project package, and never a build artifact). A `cannot import name` symbol,
-`module has no attribute` name or a test helper's `KeyError` lookup (ivy's
-`_import_fn`, 001601) passes `missing_name_is_task_work`: the instruction
-names it as a word, or it is missing from a project module whose file is not
-installed under site-/dist-packages (000700's `delta_E_HyAB` from
-`/testbed/colour/difference`). Project packages
+project package, and never a build artifact). A `cannot import name` symbol
+(quotes optional: 001981 prints `cannot import name STAGE_JOBS`), a
+`module has no attribute` name, a `mock.patch` failure (`<module '…' from
+'…'> does not have the attribute '…'`, 002307) or a test helper's `KeyError`
+lookup (ivy's `_import_fn`, 001601) passes `missing_name_is_task_work`: the
+instruction names it as a word, or it is missing from a project module whose
+file is not installed under site-/dist-packages (000700's `delta_E_HyAB` from
+`/testbed/colour/difference`). A name the instruction never states still
+passes when the hidden patch's added lines reference it and the instruction
+names that module or its file (001860's `RoomGuestAccessEvent` from
+`nio.events`; 002307's `_get_container_id`), provided the file is in the task
+workspace rather than an installed package. Project packages
 (`hidden_patch.project_modules`) are the non-stdlib modules the hidden test
 files' added lines import, plus the package directory the patched test files
 live in (`colour/difference/tests/…` names `colour`, `src/<pkg>/…` names
 `<pkg>`), which covers a name added inside an existing parenthesised import.
-An environment defect the instruction happens to mention (`CuPy is
-not correctly installed`, pandas `build_ext`) names no missing symbol, so it
-is never excused.
+Two further shapes are the agent's own missing work: a `FileNotFoundError`
+for a `.py` file whose path the instruction names (000211's tests load the
+module they ask for by path, so the loader dies before reporting a module),
+and `import of <mod> halted; None in sys.modules`, where the tests planted
+`None` so a stdlib module the instruction names fails on purpose (002207's
+`lzma`) — never a private module such as `_lzma`. An environment defect the
+instruction happens to mention (`CuPy is not correctly installed`, pandas
+`build_ext`) names no missing symbol, so it is never excused, and neither is
+a missing compiled extension (`pandas._libs.tslib`), version file
+(`statsmodels._version`), third-party package (`No module named 'django'`
+where the task is not about adding it) or test runner (`pytest: command not
+found`).
 
 ### Leak and environment variants (HAR-113)
 
@@ -359,6 +374,10 @@ per-task table and nop evidence.
   but many images put the project interpreter (a `.venv`, pyenv, an
   `/opt/*-venv`) only on the login shell's PATH; setup writes
   `/usr/local/bin` exec wrappers for what the login shell resolves.
+- `env-login-pythonpath@1` (HAR-115): the image's `.bashrc` exports a
+  `PYTHONPATH` (`/testbed`) the non-login grader never sees; setup writes the
+  login shell's entries to a `.pth` file in the non-login python's
+  site-packages.
 - `env-keep-files@1`, `env-pin-dependency@1`: one-task keeps and pins
   (sourmash's generated modules; webargs, setuptools, Cython, twisted).
 

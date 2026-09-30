@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Submit, approve and dispatch HAR-113 Daytona specs under one spend cap.
 
-Every HAR-113 job is named ``har113-*`` and lands in this checkout's ``runs/``.
-Spend is measured, not estimated: ``qualify-collect`` over every ``har113-*``
+Every job is named ``<prefix>*`` (``har113-`` by default; ``--prefix har115-``
+for HAR-115) and lands in this checkout's ``runs/``. Spend is measured, not
+estimated: ``qualify-collect`` over every ``<prefix>*``
 job into a scratch table, summing ``est_cost_usd`` (the Daytona rate card).
 A batch is dispatched only while the measured spend plus the batch's
 upper-tail cost stays under the cap.
 
-    runner.py SPEC.json [SPEC.json ...] [--cap USD] [--parallel N]
+    runner.py SPEC.json [SPEC.json ...] [--cap USD] [--parallel N] [--prefix P]
 """
 
 from __future__ import annotations
@@ -40,7 +41,7 @@ def log(message: str) -> None:
 
 
 def spend() -> tuple[float, int]:
-    """Measured Daytona spend and trial count over every ``har113-*`` job."""
+    """Measured Daytona spend and trial count over every ``PREFIX*`` job."""
     jobs = sorted(str(p) for p in RUNS.glob(f"{PREFIX}*") if p.is_dir())
     if not jobs:
         return 0.0, 0
@@ -88,7 +89,7 @@ def resolve_orphans() -> None:
         failed = queue.transition(
             path,
             "failed",
-            actor="har113-runner",
+            actor=f"{PREFIX}runner",
             event="running_reconcile_failed",
             reason_code="executor_killed_operator_resolved",
             policy_rule=spec.policy_rule,
@@ -124,7 +125,7 @@ def submit(spec: Path) -> bool:
 
 
 def settle(parallel: int) -> None:
-    """Dispatch approved har113 specs and wait until none is running."""
+    """Dispatch approved ``PREFIX*`` specs and wait until none is running."""
     while True:
         while running():
             resolve_orphans()
@@ -158,12 +159,16 @@ def run(specs: list[Path], *, cap: float = CAP_USD, parallel: int = 8, wave: int
 
 
 def main() -> None:
+    global PREFIX, SCRATCH
     parser = argparse.ArgumentParser()
     parser.add_argument("specs", nargs="+", type=Path)
     parser.add_argument("--cap", type=float, default=CAP_USD)
     parser.add_argument("--parallel", type=int, default=8)
     parser.add_argument("--wave", type=int, default=40)
+    parser.add_argument("--prefix", default=PREFIX, help="job-name prefix spend is summed over")
     args = parser.parse_args()
+    PREFIX = args.prefix
+    SCRATCH = Path(f"/private/tmp/{PREFIX.rstrip('-')}/spend.parquet")
     run(args.specs, cap=args.cap, parallel=args.parallel, wave=args.wave)
 
 

@@ -28,7 +28,7 @@ from common import HERE, ROOT, census, original, record_path
 from repair_variants import CREATED_BY
 
 from evallab.hidden_patch import project_modules
-from evallab.task_health import label_task, nop_evidence, static_checks
+from evallab.task_health import label_task, nop_evidence, patch_added_text, static_checks
 from evallab.task_variants import load_records
 
 RUNS = ROOT / "runs"
@@ -55,7 +55,7 @@ def graded(job: str, package: Path | None = None) -> dict | None:
         return None
     package = package or package_of(job)
     instruction = (package / "instruction.md").read_text(errors="replace")
-    nop = nop_evidence(trial, instruction, project_modules(package))
+    nop = nop_evidence(trial, instruction, project_modules(package), patch_added_text(package))
     label, reasons, evidence = label_task(static_checks(package), nop)
     return {
         "job": job,

@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+from pathlib import Path
 
 from common import HERE, ROOT, census, original, package_dir, records_by
 from repair_variants import KINDS
@@ -116,8 +117,13 @@ SPECS = HERE / "specs/diag"
 MARGIN_S = 600
 
 
-def write_probe(short: str, source, name: str, module: str, extra: str) -> str:
-    rel = f"derived/har113-probes/{short}-{name.split('-')[1]}"
+def write_probe(short: str, source, name: str, module: str, extra: str, specs: Path = SPECS) -> str:
+    """Probe copy ``derived/<card>-probes/<id>-<round>`` and its oracle spec.
+
+    ``name`` is ``<card>-<round>-<id>``; the card also labels the spec.
+    """
+    card, round_name = name.split("-")[:2]
+    rel = f"derived/{card}-probes/{short}-{round_name}"
     target = ROOT / rel
     if not target.exists():
         shutil.copytree(source, target)
@@ -128,11 +134,13 @@ def write_probe(short: str, source, name: str, module: str, extra: str) -> str:
         (target / "solution/solve.sh").write_text(solve.replace("__EXTRA__", extra))
         (target / "solution/solve.sh").chmod(0o755)
     task_id = f"format-code-task-{short}"
-    spec = nop_spec(rel, name, f"HAR-113 environment diagnosis of {task_id}")
+    label = card.upper().replace("HAR", "HAR-")
+    spec = nop_spec(rel, name, f"{label} environment diagnosis of {task_id}")
     spec["agent"] = "oracle"
     spec["timeout_seconds"] += MARGIN_S
-    spec["submitted_by"] = "har113-variants"
-    (SPECS / f"{name}.json").write_text(json.dumps(spec, indent=1) + "\n")
+    spec["submitted_by"] = f"{card}-variants"
+    specs.mkdir(parents=True, exist_ok=True)
+    (specs / f"{name}.json").write_text(json.dumps(spec, indent=1) + "\n")
     return name
 
 

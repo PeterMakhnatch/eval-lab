@@ -319,11 +319,17 @@ ceiling is spent, the proxy answers 429 "trial budget exhausted" and the
 adapter ends the agent phase with `TrialBudgetExhaustedError`. Harbor records
 it like an agent timeout and still runs the verifier; the agent metadata
 records `stop_reason: trial_budget_exhausted`, and cohort comparisons treat it
-as budget exhaustion. A provider 400 without usage (SGLang's context overflow)
-generated nothing, so the proxy settles it as a zero-token call with
-`error: provider_http_400_no_usage` instead of leaving it unresolved; other
-usage-less errors stay unresolved and fail the trial's accounting. The
-default per-response output limit is 8,192 tokens, separate from the cumulative
+as budget exhaustion. An upstream error status proves no model output was
+produced, so the proxy settles it as a zero-token call instead of leaving it
+unresolved: a JSON usage-less 400 (SGLang's context overflow) keeps
+`error: provider_http_400_no_usage` with the provider's message; any other
+usage-less error records `error: upstream_error_<status>` and the caller sees
+the upstream status with the provider's redacted JSON error when it parses,
+otherwise a fixed JSON body (upstream error pages are never forwarded). A 2xx
+with an unparseable body may still have been billed, so it stays unresolved
+and fails the trial's accounting, as does an error response whose body cannot
+be read. The default per-response output limit is 8,192 tokens, separate from the
+cumulative
 output allowance. The proxy binds an ephemeral loopback port and stops before
 final accounting is collected. Stopping drains it: a call still in flight, such
 as one the agent abandoned at its timeout, runs on for up to 120 s and settles

@@ -126,6 +126,33 @@ def test_derive_writes_record_and_package_with_pinned_digests(tmp_path: Path) ->
     assert verify(record, repo_root=repo, variants_root=variants) == []
 
 
+def test_derive_from_a_read_only_parent_store(tmp_path: Path) -> None:
+    """Pinned snapshots are read-only; deriving and rebuilding still work."""
+    repo, _records, variants = _scratch(tmp_path)
+    parent = _mini_task(tmp_path / "sources")
+    for path in (*parent.rglob("*"), parent):
+        path.chmod(0o555 if path.is_dir() else 0o444)
+    try:
+        record = _derive(
+            parent,
+            changes={
+                "tests/test.sh": b"#!/bin/bash\nexit 1\n",
+                "environment/setup/setup.sh": b"#!/bin/bash\n",
+            },
+            repo=repo,
+            variants=variants,
+        )
+        package_dir = variants / record.task_slug / record.digest12
+        assert (package_dir / "tests" / "test.sh").read_bytes() == b"#!/bin/bash\nexit 1\n"
+        assert (parent / "tests" / "test.sh").read_bytes() == b"#!/bin/bash\nexit 0\n"
+        shutil.rmtree(package_dir)
+        assert materialize(record, parent, repo_root=repo, variants_root=variants) == package_dir
+        assert verify(record, repo_root=repo, variants_root=variants, parent_dir=parent) == []
+    finally:
+        for path in (parent, *parent.rglob("*")):
+            path.chmod(0o755 if path.is_dir() else 0o644)
+
+
 def test_derive_is_location_independent_and_refuses_overwrite(tmp_path: Path) -> None:
     repo, _records, variants = _scratch(tmp_path)
     parent = _mini_task(tmp_path / "sources")

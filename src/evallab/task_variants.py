@@ -34,6 +34,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import tempfile
 import tomllib
 from collections.abc import Mapping, Sequence
@@ -357,6 +358,10 @@ def _apply_changes(
         raise VariantExistsError(f"destination already exists: {destination}")
     destination.mkdir(parents=True)
     shutil.copytree(parent_dir, destination, dirs_exist_ok=True, symlinks=False)
+    # Pinned parent stores (``derived/task-store/hf``) are read-only and
+    # copytree keeps their modes; the copy is the variant's to change.
+    for path in (destination, *destination.rglob("*")):
+        path.chmod(path.stat().st_mode | stat.S_IWUSR)
     rows: list[TaskVariantFileChange] = []
     for key in sorted(changes):
         payload = changes[key]

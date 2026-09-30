@@ -1,0 +1,183 @@
+{
+  "task_id": "format-code-task-002848",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "ModuleType",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 21,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "head",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 22,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "setitem",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 23,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "modules",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 23,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "QtCore",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 28,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "gettempdir",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 33,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "QTcustom",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 41,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "kwargs",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 52,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "pop",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 58,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "constants",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 58,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Util",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 59,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "DownloadModels",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 60,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "import_module",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 61,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "downloadLocation",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 68,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_dir",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 83,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "readouterr",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 184,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "splitlines",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 184,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ").read_text(encoding=",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 274,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "Module-level `networkCheck` function used to gate download on network availability (tests monkeypatch `download_module.networkCheck`)",
+      "test_ref": "usercase-test-coderl/test_download_model.py:80",
+      "quote": "monkeypatch.setattr(download_module, \"networkCheck\", lambda: True)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Module-level `extractTarGZ` function called with the archive path when `tar.gz` is in the asset name (tests monkeypatch it)",
+      "test_ref": "usercase-test-coderl/test_download_model.py:161",
+      "quote": "monkeypatch.setattr(download_module, \"extractTarGZ\", lambda path: extract_calls.append(path))",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Progress popup must be invoked with keyword args `link`, `downloadLocation`, `title` (instruction only mentions title)",
+      "test_ref": "usercase-test-coderl/test_download_model.py:68",
+      "quote": "def assert_progress_dialog_call(call, *, link, title, download_location):",
+      "severity": "guessable"
+    },
+    {
+      "what": "Implementation must live at `src.DownloadModels` importing `MODELS_PATH`, `networkCheck`, `extractTarGZ` from `src.constants`/`src.Util` (module path and import layout unstated)",
+      "test_ref": "usercase-test-coderl/test_download_model.py:61",
+      "quote": "module = importlib.import_module(\"src.DownloadModels\")",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "DownloadModel(modelFile, downloadModelFile, modelPath=MODELS_PATH) constructor storing targets and creating directory",
+    "downloadModel() returns True for existing model file or directory without network",
+    "returns False when network unavailable",
+    "download from given URL with popup title 'Downloading: <downloadModelFile>' and location modelPath/downloadModelFile",
+    "print Done and return True; tar.gz extraction branch"
+  ],
+  "reason": "The behavior is fully described, but tests require specific module-level helper names (networkCheck, extractTarGZ) and a particular import/module layout (src.DownloadModels) plus keyword names for the popup call that the instruction never states.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 619,
+    "completion_tokens_details": {
+      "reasoning_tokens": 149
+    },
+    "prompt_tokens": 3794,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 4413
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

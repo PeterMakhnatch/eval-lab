@@ -1,0 +1,142 @@
+{
+  "task_id": "format-code-task-001771",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "StringTextWrapper",
+      "file": "leo/unittests/test_gui.py",
+      "line": 12,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "leoFrame",
+      "file": "leo/unittests/test_gui.py",
+      "line": 12,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "LeoQtFrame",
+      "file": "leo/unittests/test_gui.py",
+      "line": 13,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "qt_frame",
+      "file": "leo/unittests/test_gui.py",
+      "line": 13,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "QHeadlineWrapper",
+      "file": "leo/unittests/test_gui.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "qt_text",
+      "file": "leo/unittests/test_gui.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "QtStatusLineClass",
+      "file": "leo/unittests/test_gui.py",
+      "line": 139,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "textWidget1",
+      "file": "leo/unittests/test_gui.py",
+      "line": 140,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "getAllText",
+      "file": "leo/unittests/test_gui.py",
+      "line": 154,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "setFocus",
+      "file": "leo/unittests/test_gui.py",
+      "line": 166,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "isEnabled",
+      "file": "leo/unittests/test_gui.py",
+      "line": 172,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "getXScrollPosition",
+      "file": "leo/unittests/test_gui.py",
+      "line": 180,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "getYScrollPosition",
+      "file": "leo/unittests/test_gui.py",
+      "line": 181,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "setYScrollPosition",
+      "file": "leo/unittests/test_gui.py",
+      "line": 187,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Status line must implement isEnabled() returning a bool",
+      "test_ref": "leo/unittests/test_gui.py::test_qt_status_line_is_enabled_returns_stable_boolean",
+      "quote": "self.assertIsInstance(status_line.isEnabled(), bool)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Status line must implement setFocus() as a safe callable",
+      "test_ref": "leo/unittests/test_gui.py::test_qt_status_line_enable_disable_focus_are_safe_noops",
+      "quote": "status_line.setFocus()",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "StringTextWrapper.enable/disable no-ops",
+    "QtStatusLineClass.enable/disable with optional args",
+    "QHeadlineWrapper getX/setX/YScrollPosition no-ops returning ints",
+    "QHeadlineWrapper.flashCharacter with flexible signature"
+  ],
+  "reason": "The instruction asks for a shared no-op compatibility API on body/status-line/headline wrappers, covering enable/disable, scroll position methods, and flashCharacter; only the specific query names isEnabled and setFocus on the status line are not literally stated, though they follow existing Leo wrapper conventions.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 349,
+    "completion_tokens_details": {
+      "reasoning_tokens": 112
+    },
+    "prompt_tokens": 1988,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2337
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

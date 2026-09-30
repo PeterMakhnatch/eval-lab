@@ -1,0 +1,20 @@
+{
+  "task_id": "format-code-task-000923",
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "The test pins the exact identifiers: a method named sweep_iterator on the parsed override, a keyword parameter named transformer, and a Transformer helper exposing encode, importable from the same module as Sweep, RangeSweep and QuotedString. The instruction only offers these names as an example and explicitly says the exact naming is up to the implementer, so a correct implementation that chooses different names fails the import and the call.",
+      "test_ref": "tests/test_overrides_parser.py:test_sweep_iterators",
+      "quote": "actual_sweep_encoded_list = [x for x in ret.sweep_iterator(transformer=Transformer.encode)]",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "enumerating CHOICE_SWEEP, SIMPLE_CHOICE_SWEEP, GLOB_CHOICE_SWEEP and RANGE_SWEEP elements as native parsed values instead of pre-stringified strings",
+    "the caller controls presentation: raw native values, the current string form, and a hybrid that keeps primitives as-is but flattens lists, dicts and quoted strings to a string",
+    "the existing sweep_string_iterator string behavior must keep working",
+    "a suggested shape of sweep_iterator taking a transformer, a Transformer helper, and an encode-style hybrid policy, offered as an example rather than mandated"
+  ],
+  "notes": "The compact no-space string form for lists and dicts such as [1,2,3] is not spelled out, but the test asserts sweep_string_iterator already returns exactly that form and the instruction says to preserve it, so reusing the existing stringifier for complex values is visible in the repo and is not counted. The primitive-versus-complex behavior of the hybrid policy is stated; only the disclaimed exact names are unstated, and they are the names the instruction itself suggests, so a careful engineer might still choose others.",
+  "read_minutes": 14
+}

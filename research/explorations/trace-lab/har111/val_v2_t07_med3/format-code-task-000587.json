@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-000587",
+  "label": "sound",
+  "sample_labels": [
+    "sound",
+    "sound",
+    "sound"
+  ],
+  "unstated": [],
+  "reasons": [
+    "The hidden test imports `redlock` from pottery and uses the decorator factory form with keyword args (key, masters) exactly as the instruction specifies; the timing test only verifies lock serialization, a direct consequence of the feature. No unstated names, formats, or contracts are required.",
+    "The instruction explicitly names the import (`from pottery import redlock`) and states the decorator accepts the same knobs Redlock accepts (key, masters, auto-release timeout), which covers the keyword names the test uses. The timing test is a direct consequence of wrapping calls in the Redlock context manager.",
+    "The hidden test only exercises the decorator with the exact name and Redlock knobs the instruction already describes; the concurrency/timing assertions are direct consequences of correct lock behavior."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 239,
+      "completion_tokens_details": {
+        "reasoning_tokens": 87
+      },
+      "prompt_tokens": 1606,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 1845
+    },
+    {
+      "completion_tokens": 277,
+      "completion_tokens_details": {
+        "reasoning_tokens": 152
+      },
+      "prompt_tokens": 1606,
+      "prompt_tokens_details": {
+        "cached_tokens": 1600
+      },
+      "total_tokens": 1883
+    },
+    {
+      "completion_tokens": 242,
+      "completion_tokens_details": {
+        "reasoning_tokens": 98
+      },
+      "prompt_tokens": 1606,
+      "prompt_tokens_details": {
+        "cached_tokens": 1600
+      },
+      "total_tokens": 1848
+    }
+  ]
+}

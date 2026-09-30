@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-001832",
+  "label": "sound",
+  "sample_labels": [
+    "sound",
+    "sound",
+    "sound"
+  ],
+  "unstated": [],
+  "reasons": [
+    "All hidden-test specifics (labels, group key updates, error types, purity) are stated in the instruction; remaining test code uses pre-existing library internals (LazyTbl.last_select, grouper.groupings) and standard test scaffolding.",
+    "Every tested behavior (column order, error types, group key updates, SQL AS labeling, purity) is explicitly stated in the instruction; test helpers like LazyTbl, last_select, and grouper are pre-existing siuba/scaffolding APIs.",
+    "Every hidden-test requirement (exports, behaviors, exception types, SQL labeling, group key updates, purity) is stated in the instruction; remaining test lines use pre-existing siuba/pandas attributes (last_select, grouper, inner_columns) or standard test scaffolding."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 274,
+      "completion_tokens_details": {
+        "reasoning_tokens": 153
+      },
+      "prompt_tokens": 3679,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3953
+    },
+    {
+      "completion_tokens": 205,
+      "completion_tokens_details": {
+        "reasoning_tokens": 69
+      },
+      "prompt_tokens": 3679,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3884
+    },
+    {
+      "completion_tokens": 276,
+      "completion_tokens_details": {
+        "reasoning_tokens": 118
+      },
+      "prompt_tokens": 3679,
+      "prompt_tokens_details": {
+        "cached_tokens": 3648
+      },
+      "total_tokens": 3955
+    }
+  ]
+}

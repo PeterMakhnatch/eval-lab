@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-001896",
+  "label": "sound",
+  "sample_labels": [
+    "sound",
+    "sound",
+    "sound"
+  ],
+  "unstated": [],
+  "reasons": [
+    "The instruction enumerates every behaviour the hidden tests assert, including exact values, formats, precedence rules, and the to_dict keys; no additional names, strings, or contracts are required by the tests that the instruction does not state.",
+    "Every hidden-test expectation, including the nested image after h1 ('nested-hero.jpg'), the \u00d7-separated sizes format, and exact resolved absolute URLs, is stated or directly implied by the instruction's wording.",
+    "Every hidden test assertion corresponds to behavior explicitly described in the instruction, including the nested-image-after-h1 case ('following sibling or later <img>'), the sizes parsing formats, and the to_dict keys."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 347,
+      "completion_tokens_details": {
+        "reasoning_tokens": 119
+      },
+      "prompt_tokens": 3873,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 4220
+    },
+    {
+      "completion_tokens": 301,
+      "completion_tokens_details": {
+        "reasoning_tokens": 129
+      },
+      "prompt_tokens": 3873,
+      "prompt_tokens_details": {
+        "cached_tokens": 3840
+      },
+      "total_tokens": 4174
+    },
+    {
+      "completion_tokens": 297,
+      "completion_tokens_details": {
+        "reasoning_tokens": 103
+      },
+      "prompt_tokens": 3873,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 4170
+    }
+  ]
+}

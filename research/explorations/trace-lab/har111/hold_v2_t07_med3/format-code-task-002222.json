@@ -1,0 +1,93 @@
+{
+  "task_id": "format-code-task-002222",
+  "label": "suspect",
+  "sample_labels": [
+    "broken",
+    "suspect",
+    "suspect"
+  ],
+  "unstated": [
+    {
+      "what": "dtype keyword support in np.positive(df, dtype=np.float32) \u2014 instruction never mentions the dtype kwarg; result must be a DataFrame with all columns cast to float32",
+      "test_ref": "pandas/tests/frame/test_ufunc.py:303 test_np_unary_ufunc_dataframe_dtype_kwarg",
+      "quote": "result = np.positive(df, dtype=np.float32)\n    assert all(d == np.float32 for d in result.dtypes)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Support for the dtype kwarg in ufunc dispatch (np.positive(df, dtype=np.float32)) returning a DataFrame with matching float32 dtypes \u2014 not mentioned in the instruction",
+      "test_ref": "pandas/tests/frame/test_ufunc.py:303",
+      "quote": "result = np.positive(df, dtype=np.float32)\n    assert all(d == np.float32 for d in result.dtypes)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Support for dtype kwarg on unary ufuncs: result DataFrame columns must be np.float32 when np.positive(df, dtype=np.float32) is called; instruction only mentions 'out'",
+      "test_ref": "pandas/tests/frame/test_ufunc.py:303-304 (test_np_unary_ufunc_dataframe_dtype_kwarg)",
+      "quote": "result = np.positive(df, dtype=np.float32)\n    assert all(d == np.float32 for d in result.dtypes)",
+      "severity": "guessable"
+    },
+    {
+      "what": "np.negative (unary ufunc) with out must be supported, not just np.add",
+      "test_ref": "pandas/tests/frame/test_ufunc.py:295-299 (test_np_negative_dataframe_with_out)",
+      "quote": "np.negative(df, out=bar)\n    expected = np.array([[-1, -2], [-3, -4]], dtype=np.int64)",
+      "severity": "guessable"
+    },
+    {
+      "what": "np.positive (unary ufunc) must be supported",
+      "test_ref": "pandas/tests/frame/test_ufunc.py:303 (test_np_unary_ufunc_dataframe_dtype_kwarg)",
+      "quote": "result = np.positive(df, dtype=np.float32)",
+      "severity": "guessable"
+    },
+    {
+      "what": "np.exp (unary ufunc) with out must be supported",
+      "test_ref": "pandas/tests/frame/test_ufunc.py:287-291 (test_np_unary_ufunc_dataframe_with_out)",
+      "quote": "np.exp(df, out=bar)\n    expected = np.exp(np.array([[1.0, 2.0], [3.0, 4.0]]))",
+      "severity": "guessable"
+    },
+    {
+      "what": "int64 dtype of out array for negative/negative results must be respected exactly",
+      "test_ref": "pandas/tests/frame/test_ufunc.py:276 (test_np_add_two_dataframes_with_out)",
+      "quote": "bar = np.zeros((2, 2), dtype=np.int64)",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "The tests for out= behavior match the reported bug, but test_np_unary_ufunc_dataframe_dtype_kwarg additionally requires passing a dtype kwarg through a ufunc and getting back a DataFrame with cast dtypes, which the instruction never mentions.",
+    "The instruction only describes fixing the out-parameter regression for np.add on DataFrames; all out-related tests follow directly. The dtype kwarg test covers a different feature of the ufunc protocol not requested, though a careful implementer fixing __array_ufunc__ dispatch would plausibly pass dtype through; the exact float32-dtypes result is a sibling case not stated.",
+    "The instruction only asks to fix np.add with 'out' on DataFrames; tests additionally require general unary ufuncs (np.exp, np.negative, np.positive), a dtype kwarg producing float32 column dtypes, and exact int64 dtype handling, which are sibling cases a careful engineer might partially cover but the dtype kwarg behavior is not stated."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 232,
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "prompt_tokens": 2795,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 3027
+    },
+    {
+      "completion_tokens": 337,
+      "completion_tokens_details": {
+        "reasoning_tokens": 91
+      },
+      "prompt_tokens": 2795,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3132
+    },
+    {
+      "completion_tokens": 790,
+      "completion_tokens_details": {
+        "reasoning_tokens": 139
+      },
+      "prompt_tokens": 2795,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3585
+    }
+  ]
+}

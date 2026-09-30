@@ -1,0 +1,113 @@
+{
+  "task_id": "format-code-task-001973",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "is_tensor",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 18,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "nelement",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 19,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "item",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 20,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "tolist",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 21,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "count",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 111,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "examples/train",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 128,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ", [1.0, 2.0, 3.0], 4,",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 254,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "catch_warnings",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 265,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "simplefilter",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 266,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "category",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 271,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "ReporterList constructor with reporters list",
+    "set_batch_size",
+    "add_value/add alias/callable alias with is_averaged, reduction, no_sync",
+    "weighted average by batch size",
+    "sum and callable reductions",
+    "dict values as grouped scalars",
+    "tensor single-element scalar vs multi-element grouped scalars",
+    "ValueError for invalid reduction strings",
+    "report(step, mode) key naming '<key>/<mode>' vs '<key>'",
+    "add_scalar/add_scalars/flush dispatch to backends",
+    "second report() no-op",
+    "history item and call access",
+    "exit() clears history",
+    "add_text/add_figure/add_histogram/add_image forwarding with normalize min-max",
+    "warning when no backend supports an artifact method",
+    "per-instance pending state and full history clearing (leak test)"
+  ],
+  "reason": "Every hidden-test behavior \u2014 method names, signatures, reduction semantics, key naming, history access patterns, warn-on-unsupported, and exit() clearing \u2014 is explicitly stated in the instruction or is a direct consequence of it (e.g., dict(reporter.history)/len() follow from history being a mapping keyed by reported keys).",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 561,
+    "completion_tokens_details": {
+      "reasoning_tokens": 314
+    },
+    "prompt_tokens": 4569,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 5130
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

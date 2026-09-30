@@ -1,0 +1,204 @@
+{
+  "task_id": "format-code-task-001868",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "models",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 4,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "AutoField",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 4,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "backends",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 10,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "sqlite3",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 10,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "machinery",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "DictReader",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "model",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 30,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "environ",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 129,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dirname",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 146,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "makedirs",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 148,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dump",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 150,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "pop",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 162,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ModuleType",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 178,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ModuleSpec",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 181,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "modules",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 182,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "get_version",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 8,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "run_load_default_names",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 17,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "existing-full",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 67,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "Updated English",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 75,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "Keep English",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 80,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ") in (None,",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 89,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "When a CSV file cannot be opened, the command's stderr must contain the literal relative file path (e.g. 'styles/fixtures/default_names.csv' or 'styles/locale/cs/names.csv'); instruction only says the command must fail",
+      "test_ref": "usecase.sh F2/F3 grep checks",
+      "quote": "grep -q \"styles/fixtures/default_names.csv\" err || fail \"F2 stderr: $(cat err)\" / grep -q \"styles/locale/cs/names.csv\" err",
+      "severity": "guessable"
+    },
+    {
+      "what": "When a required CSV column is missing, the command's stderr must contain the literal missing column name ('slug' for default_names.csv, 'name_cs' for names.csv); instruction never mentions error message content",
+      "test_ref": "usecase.sh F4/F5 grep checks",
+      "quote": "grep -q \"slug\" err || fail \"F4 stderr: $(cat err)\" / grep -q \"name_cs\" err || fail \"F5 stderr: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "The unknown-slug warning written to stderr must include the offending slug value ('unknown-slug'); instruction only says 'logged as a warning'",
+      "test_ref": "usecase.sh F1",
+      "quote": "grep -q 'unknown-slug' err || fail \"F1 missing unknown-slug warning: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Paths are resolved relative to the current working directory (case dirs contain styles/..., not the repo), i.e. 'styles/fixtures/default_names.csv' and 'styles/locale/<lang>/names.csv' must be opened from cwd, not from a package/app directory",
+      "test_ref": "usecase.sh run_load_default_names / case dirs",
+      "quote": "case1=\"$TMP/case1\"; mkdir -p \"$case1/styles/fixtures\" ... cd \"$case1\"; run_load_default_names",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "management command name load_default_names with no required flags",
+    "default_names.csv columns slug,group,order,name_en and update/create semantics with blank-field skipping",
+    "per-language locale names.csv update flow, skipping LANGUAGE_CODE, blank translations ignored",
+    "unknown slug in translation CSV must not create a row",
+    "exit code 0 on success; non-zero exit when a CSV is missing, unopenable, or lacks a required column"
+  ],
+  "reason": "The functional behavior (exit codes, DB results, no row for unknown slug) is covered by the instruction, but the tests additionally grep stderr for exact diagnostics: file paths and missing column names on failures, and the offending slug in the unknown-slug warning, none of which the instruction specifies. Path resolution relative to cwd is also assumed but is the natural reading of the stated paths.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 920,
+    "completion_tokens_details": {
+      "reasoning_tokens": 318
+    },
+    "prompt_tokens": 4591,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 5511
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

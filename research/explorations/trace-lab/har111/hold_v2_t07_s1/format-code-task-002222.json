@@ -1,0 +1,73 @@
+{
+  "task_id": "format-code-task-002222",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "int64",
+      "file": "pandas/tests/frame/test_ufunc.py",
+      "line": 276,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "negative",
+      "file": "pandas/tests/frame/test_ufunc.py",
+      "line": 295,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "positive",
+      "file": "pandas/tests/frame/test_ufunc.py",
+      "line": 303,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "float32",
+      "file": "pandas/tests/frame/test_ufunc.py",
+      "line": 303,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dtypes",
+      "file": "pandas/tests/frame/test_ufunc.py",
+      "line": 304,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "dtype keyword support in np.positive(df, dtype=np.float32) \u2014 instruction never mentions the dtype kwarg; result must be a DataFrame with all columns cast to float32",
+      "test_ref": "pandas/tests/frame/test_ufunc.py:303 test_np_unary_ufunc_dataframe_dtype_kwarg",
+      "quote": "result = np.positive(df, dtype=np.float32)\n    assert all(d == np.float32 for d in result.dtypes)",
+      "severity": "not_inferable"
+    }
+  ],
+  "instruction_covers": [
+    "np.add with out on DataFrame writes to the out array (scalar and two-DataFrame inputs)",
+    "unary ufuncs (np.exp, np.negative) with out",
+    "Series out behavior preserved",
+    "no-kwargs np.add returning DataFrame preserved"
+  ],
+  "reason": "The tests for out= behavior match the reported bug, but test_np_unary_ufunc_dataframe_dtype_kwarg additionally requires passing a dtype kwarg through a ufunc and getting back a DataFrame with cast dtypes, which the instruction never mentions.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 232,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 2795,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 3027
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

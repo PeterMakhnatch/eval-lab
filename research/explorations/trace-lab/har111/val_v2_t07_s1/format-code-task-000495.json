@@ -1,0 +1,27 @@
+{
+  "task_id": "format-code-task-000495",
+  "rule_label": "sound",
+  "rule_unstated": [],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Resolving intrinsic functions (e.g. Fn::Join) in DefinitionString/Definition of AWS::StepFunctions::StateMachine before validating the state machine definition, so E1022/E3601 are not raised for function-based definitions"
+  ],
+  "reason": "The hidden test only adds a case where a definition built via Fn::Join yields no errors, which is exactly what the bug report requests. The parameter key \"Definition\" already appears in the unchanged context of the parametrized tests, so nothing new or unstated is required.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 199,
+    "completion_tokens_details": {
+      "reasoning_tokens": 79
+    },
+    "prompt_tokens": 1494,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 1693
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

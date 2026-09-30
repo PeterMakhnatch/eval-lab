@@ -1,0 +1,103 @@
+{
+  "task_id": "format-code-task-002377",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "ConfigDict",
+      "file": "tests/test_settings.py",
+      "line": 1526,
+      "stated": false
+    },
+    {
+      "kind": "exception",
+      "value": "ValidationError",
+      "file": "tests/test_settings.py",
+      "line": 1528,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "value",
+      "file": "tests/test_settings.py",
+      "line": 1531,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "extra_forbidden",
+      "file": "tests/test_settings.py",
+      "line": 1534,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "model_dump",
+      "file": "tests/test_settings.py",
+      "line": 1568,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ") or getattr(s,",
+      "file": "tests/test_settings.py",
+      "line": 1586,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "name",
+      "file": "tests/test_settings.py",
+      "line": 1603,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "top",
+      "file": "tests/test_settings.py",
+      "line": 1623,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "apple",
+      "file": "tests/test_settings.py",
+      "line": 1623,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "banana",
+      "file": "tests/test_settings.py",
+      "line": 1624,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Explicit extra='forbid' raises ValidationError with loc 'other' and type 'extra_forbidden' when extra fields come from env_file",
+    "Default BaseSettings extra behavior still applies with env_file",
+    "extra='allow' exposes env_file extras on the instance and in model_dump()",
+    "extra='ignore' silently drops env_file extras",
+    "env_file values for declared fields still populate the model under extra='forbid'",
+    "env_nested_delimiter splits env_file keys so nested models populate without triggering extra errors"
+  ],
+  "reason": "All hidden-test expectations are direct consequences of correctly applying Config.extra to values sourced from env files; no new names, formats, or contracts are required beyond the reported bug.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 322,
+    "completion_tokens_details": {
+      "reasoning_tokens": 163
+    },
+    "prompt_tokens": 2849,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3171
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

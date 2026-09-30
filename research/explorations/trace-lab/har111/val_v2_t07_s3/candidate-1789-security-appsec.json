@@ -1,0 +1,172 @@
+{
+  "task_id": "candidate-1789-security-appsec",
+  "rule_label": "broken",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "insert",
+      "file": "tests/test_outputs.py",
+      "line": 22,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Metrics",
+      "file": "tests/test_outputs.py",
+      "line": 24,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "checks",
+      "file": "tests/test_outputs.py",
+      "line": 25,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "begin",
+      "file": "tests/test_outputs.py",
+      "line": 42,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "read_bytes",
+      "file": "tests/test_outputs.py",
+      "line": 47,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "splitlines",
+      "file": "tests/test_outputs.py",
+      "line": 47,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_file",
+      "file": "tests/test_outputs.py",
+      "line": 59,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "cfg",
+      "file": "tests/test_outputs.py",
+      "line": 61,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "tests/functional/test_functional.py",
+      "file": "tests/test_outputs.py",
+      "line": 62,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "sha256",
+      "file": "tests/test_outputs.py",
+      "line": 64,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "hexdigest",
+      "file": "tests/test_outputs.py",
+      "line": 64,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "expected_line",
+      "file": "tests/test_outputs.py",
+      "line": 85,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "expected_column",
+      "file": "tests/test_outputs.py",
+      "line": 86,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "col_offset",
+      "file": "tests/test_outputs.py",
+      "line": 86,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "expected_character",
+      "file": "tests/test_outputs.py",
+      "line": 88,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "context_line",
+      "file": "tests/test_outputs.py",
+      "line": 116,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "context_range",
+      "file": "tests/test_outputs.py",
+      "line": 117,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "latin1_clean",
+      "file": "tests/test_outputs.py",
+      "line": 164,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "generic_fallback",
+      "file": "tests/test_outputs.py",
+      "line": 164,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "finding_count",
+      "file": "tests/test_outputs.py",
+      "line": 166,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "linerange authoritative in tester.run_tests",
+    "generic context fallback for empty linerange",
+    "B613 high/MEDIUM, line 4 col 25 range [4]",
+    "Latin-1 decodable, no B613",
+    "repair_report. schema tbench.bandit_location_report.v1"
+  ],
+  "reason": "All test expectations map to the instruction's four required behaviors or to pre-existing code/test scaffolding (metrics, decorators, fixtures, report runner).",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 267,
+    "completion_tokens_details": {
+      "reasoning_tokens": 159
+    },
+    "prompt_tokens": 2838,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3105
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

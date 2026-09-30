@@ -1,0 +1,16 @@
+{
+  "task_id": "format-code-task-000541",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "four handlers on_gain_focus, on_lose_focus, on_show, on_hide, each a constructor keyword and a read/write property mirroring the existing on_close handler",
+    "an unset handler still reads back as a callable no-op, matching the unset on_close convention including its wrapped handler",
+    "a firing handler is invoked with the window instance it belongs to",
+    "on_show fires on a not-visible to visible transition and on_hide on the reverse, whether changed through show()/hide() or the visible property, and a no-op request fires neither",
+    "minimizing a visible window fires on_hide and restoring it to a visible state fires on_show; other state changes and a state set that changes nothing fire nothing",
+    "a change of the application's current window fires on_lose_focus on the old window and on_gain_focus on the new one; setting the window that is already current fires neither",
+    "existing on_close behavior is left unchanged"
+  ],
+  "notes": "The test reads the wrapped handler's _raw attribute and drives focus through app.current_window and app.main_window and state through the WindowState enum. Both are the existing on_close mechanism and the public App/Window API that the instruction says to mirror, so they are visible in the repo rather than new contracts. The runner also executes the pre-existing tests/window and tests/app/test_app.py suites as a regression guard.",
+  "read_minutes": 12
+}

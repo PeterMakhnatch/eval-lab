@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-000495",
+  "label": "sound",
+  "sample_labels": [
+    "sound",
+    "sound",
+    "sound"
+  ],
+  "unstated": [],
+  "reasons": [
+    "The hidden test only adds a case where a definition built via Fn::Join yields no errors, which is exactly what the bug report requests. The parameter key \"Definition\" already appears in the unchanged context of the parametrized tests, so nothing new or unstated is required.",
+    "The hidden test only adds a case where the definition is an intrinsic function (Fn::Join) and expects no errors, which is exactly the bug described in the instruction. No new names, formats, or contracts beyond the reported issue are required.",
+    "The hidden test only adds a parametrized case where Definition is built with Fn::Join and expects no errors, which is exactly the behavior the issue asks for (function-based DefinitionString should pass). The 'Definition' key and test harness are pre-existing scaffolding in the unchanged test file."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 199,
+      "completion_tokens_details": {
+        "reasoning_tokens": 79
+      },
+      "prompt_tokens": 1494,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 1693
+    },
+    {
+      "completion_tokens": 147,
+      "completion_tokens_details": {
+        "reasoning_tokens": 39
+      },
+      "prompt_tokens": 1494,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 1641
+    },
+    {
+      "completion_tokens": 300,
+      "completion_tokens_details": {
+        "reasoning_tokens": 170
+      },
+      "prompt_tokens": 1494,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 1794
+    }
+  ]
+}

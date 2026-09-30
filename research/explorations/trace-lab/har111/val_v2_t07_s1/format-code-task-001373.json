@@ -1,0 +1,51 @@
+{
+  "task_id": "format-code-task-001373",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "RequestFactory",
+      "file": "tests/unit/handlers/test__helpers.py",
+      "line": 207,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "process_request",
+      "file": "tests/unit/handlers/test__helpers.py",
+      "line": 212,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "put",
+      "file": "tests/unit/handlers/test__helpers.py",
+      "line": 224,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "not accessing request.body multiple times",
+    "capturing request size safely (e.g. via CONTENT_LENGTH)",
+    "RequestMiddleware stashing the request"
+  ],
+  "reason": "The hidden tests exercise the fix's direct consequence (requestSize derived without reading body, e.g. via META CONTENT_LENGTH), and all names they use (requestSize key, RequestMiddleware, request module) already exist in the code or are test scaffolding like RequestFactory.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 235,
+    "completion_tokens_details": {
+      "reasoning_tokens": 133
+    },
+    "prompt_tokens": 2173,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2408
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

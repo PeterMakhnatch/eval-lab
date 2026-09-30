@@ -1,0 +1,38 @@
+{
+  "task_id": "format-code-task-003042",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "asdict",
+      "file": "tests/test_basics.py",
+      "line": 263,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "default_factory honored when key missing (dict formats)",
+    "non-primitive defaults (Decimal, Path, nested dataclass) honored",
+    "from_tuple shorter input falling back to defaults",
+    "optional fields with default_factory deserializing to [] and {} instead of None"
+  ],
+  "reason": "Every hidden-test assertion maps directly to the reported issue: default_factory, non-primitive defaults, and tuple deserialization. The `asdict` usage is stdlib test scaffolding, and the changed Optional assertions are direct consequences of honoring defaults in from_tuple.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 375,
+    "completion_tokens_details": {
+      "reasoning_tokens": 252
+    },
+    "prompt_tokens": 3044,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3419
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

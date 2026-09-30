@@ -1,0 +1,61 @@
+{
+  "task_id": "format-code-task-001896",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "literal",
+      "value": "nested-hero.jpg",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 137,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "png",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 188,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "State paragraph",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 304,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ", ((32, 32),),",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 306,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "site_name from hostname stripping credentials/port",
+    "title from <title> tag then first <h1>",
+    "description from meta tag, paragraph after <h1>, then first paragraph",
+    "image from img after <h1> (sibling or later, including nested) then first img with src",
+    "None fallbacks for empty/malformed HTML",
+    "favicon tuple (href, sizes, rel) with exact rel values, sizes None for absent/'any', (width, height) pairs for '32x32 16x16' and '64\u00d764' formats",
+    "absolute_favicon resolving relative hrefs",
+    "to_dict() including favicon and absolute_favicon keys"
+  ],
+  "reason": "Every hidden-test requirement, including the 'later/nested image after h1' case, the exact sizes parsing formats, duplicate preservation, order, and to_dict keys, is explicitly described in the instruction.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 308,
+    "completion_tokens_details": {
+      "reasoning_tokens": 110
+    },
+    "prompt_tokens": 3873,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 4181
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

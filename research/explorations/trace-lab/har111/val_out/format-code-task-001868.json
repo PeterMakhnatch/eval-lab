@@ -1,0 +1,201 @@
+{
+  "task_id": "format-code-task-001868",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "models",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 4,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "AutoField",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 4,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "backends",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 10,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "sqlite3",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 10,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "machinery",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "DictReader",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "model",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 30,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "environ",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 129,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dirname",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 146,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "makedirs",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 148,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dump",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 150,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "pop",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 162,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ModuleType",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 178,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ModuleSpec",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 181,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "modules",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 182,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "get_version",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 8,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "run_load_default_names",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 17,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "existing-full",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 67,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "Updated English",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 75,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "Keep English",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 80,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ") in (None,",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 89,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "The unknown-slug warning must be emitted to stderr (grep on err) even though the instruction only says 'logged as a warning' without specifying the stream/logger; also success must still exit 0 despite the warning",
+      "test_ref": "usercase-test-coderl/usecase.sh: F1 check",
+      "quote": "grep -q 'unknown-slug' err || fail \"F1 missing unknown-slug warning: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Error diagnostic for a missing/unopenable CSV must contain the exact relative path string 'styles/fixtures/default_names.csv' (and 'styles/locale/cs/names.csv') on stderr, not just any failure message",
+      "test_ref": "usercase-test-coderl/usecase.sh: F2/F3 checks",
+      "quote": "grep -q \"styles/fixtures/default_names.csv\" err || fail \"F2 stderr: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Missing-required-column diagnostics must mention the specific column name ('slug' for default CSV, 'name_cs' for translation CSV) on stderr",
+      "test_ref": "usercase-test-coderl/usecase.sh: F4/F5 checks",
+      "quote": "grep -q \"name_cs\" err || fail \"F5 stderr: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "CSV files must be resolved relative to the current working directory, since the test runs manage.py from a temp case directory while manage.py lives elsewhere in the repo",
+      "test_ref": "usercase-test-coderl/usecase.sh: run_load_default_names / case1",
+      "quote": "cd \"$case1\"; run_load_default_names; ec=$?; [ \"$ec\" -eq 0 ] || fail \"F1 exit $ec; want 0\"",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Exit code 0 on success, non-zero on missing/unopenable CSV or missing required column",
+    "Update-only-non-empty semantics for existing rows and creation from non-empty values for new slugs",
+    "Unknown translation slugs warned about and not created as rows",
+    "Blank translations ignored; skipping LANGUAGE_CODE in the language walk"
+  ],
+  "reason": "The functional data-flow behaviour is well specified by the instruction, but the tests additionally require stderr diagnostics mentioning exact relative paths and column names, and that paths resolve relative to cwd rather than the repository root \u2014 all plausible but not stated, so a careful engineer might miss one.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 1269,
+    "completion_tokens_details": {
+      "reasoning_tokens": 766
+    },
+    "prompt_tokens": 4575,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 5844
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

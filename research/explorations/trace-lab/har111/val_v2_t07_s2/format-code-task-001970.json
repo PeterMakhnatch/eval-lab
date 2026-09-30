@@ -1,0 +1,41 @@
+{
+  "task_id": "format-code-task-001970",
+  "rule_label": "sound",
+  "rule_unstated": [],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Directory loading must only pick up files ending in .conf (a file2.conf.disabled is ignored)",
+      "test_ref": "test_load_directory_only_conf_files",
+      "quote": "def test_load_directory_only_conf_files(self):\n        directory = path_to_data_dir('conf2.d')\n        expected = {'foo': {'bar': 'baz'}}",
+      "severity": "guessable"
+    },
+    {
+      "what": "Files within a directory are loaded in sorted filename order so later files override earlier ones deterministically",
+      "test_ref": "test_load_directory",
+      "quote": "directory = path_to_data_dir('conf1.d')\n        expected = {'foo': {'bar': 'baz'}, 'foo2': {'bar': 'baz'}}",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "passing a directory via --config expands to config files inside it",
+    "later-overrides-earlier precedence across mixed dirs and files"
+  ],
+  "reason": "The instruction asks for directory support generally, but the tests additionally require filtering to .conf files only and deterministic sorted ordering, which are conventional but not stated choices.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 356,
+    "completion_tokens_details": {
+      "reasoning_tokens": 112
+    },
+    "prompt_tokens": 1964,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2320
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

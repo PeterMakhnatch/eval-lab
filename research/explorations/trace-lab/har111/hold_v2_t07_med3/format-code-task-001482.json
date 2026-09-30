@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-001482",
+  "label": "sound",
+  "sample_labels": [
+    "sound",
+    "sound",
+    "sound"
+  ],
+  "unstated": [],
+  "reasons": [
+    "The hidden test change (second: None retained) is a direct consequence of the requested fix: keeping the filename key for empty files. No new names, strings, or extra contracts appear in the tests.",
+    "The hidden test change ({\"second\": None} for an empty file) is a direct, expected consequence of the reported bug and requested fix; no new names, formats, or extra contracts are required.",
+    "The hidden test only checks that an empty file's key is retained with an empty (None) value, which the instruction explicitly requests ('placeholder being effectively empty'). No new names, messages, or formats are required."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 122,
+      "completion_tokens_details": {
+        "reasoning_tokens": 22
+      },
+      "prompt_tokens": 1151,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 1273
+    },
+    {
+      "completion_tokens": 131,
+      "completion_tokens_details": {
+        "reasoning_tokens": 37
+      },
+      "prompt_tokens": 1151,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 1282
+    },
+    {
+      "completion_tokens": 143,
+      "completion_tokens_details": {
+        "reasoning_tokens": 35
+      },
+      "prompt_tokens": 1151,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 1294
+    }
+  ]
+}

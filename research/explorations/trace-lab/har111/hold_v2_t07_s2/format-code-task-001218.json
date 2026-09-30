@@ -1,0 +1,53 @@
+{
+  "task_id": "format-code-task-001218",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "clear",
+      "file": "fsspec/implementations/tests/test_memory.py",
+      "line": 89,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "store",
+      "file": "fsspec/implementations/tests/test_memory.py",
+      "line": 89,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "pseudo_dirs",
+      "file": "fsspec/implementations/tests/test_memory.py",
+      "line": 90,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "mkdir-then-touch duplication fix",
+    "ls output with trailing slash for directories (existing convention)",
+    "detail=True dict format (existing)",
+    "leading-slash paths (same code path)",
+    "root listing"
+  ],
+  "reason": "The hidden tests exercise only the reported duplication bug via existing ls/mkdir/touch APIs and pre-existing output formats; the leading-slash and detail variants are direct consequences of the same fix.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 161,
+    "completion_tokens_details": {
+      "reasoning_tokens": 64
+    },
+    "prompt_tokens": 1642,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 1803
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

@@ -1,0 +1,52 @@
+{
+  "task_id": "format-code-task-002256",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "TemporaryDirectory",
+      "file": "persistqueue/tests/test_async_queue.py",
+      "line": 201,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "AsyncQueue",
+      "file": "persistqueue/tests/test_async_queue.py",
+      "line": 203,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "task_done",
+      "file": "persistqueue/tests/test_async_queue.py",
+      "line": 229,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "full() returns False for unbounded (maxsize=0) queues in all states",
+    "full() lifecycle for bounded queues",
+    "explicit maxsize=0 behaves like default",
+    "synchronous Queue and AsyncQueue behavior"
+  ],
+  "reason": "All hidden tests exercise full()/empty()/qsize() behavior on existing Queue and AsyncQueue classes; the flagged items (TemporaryDirectory, AsyncQueue, task_done) are pre-existing code or test scaffolding, and the maxsize=0 case is stated explicitly in the instruction.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 211,
+    "completion_tokens_details": {
+      "reasoning_tokens": 92
+    },
+    "prompt_tokens": 2589,
+    "prompt_tokens_details": {
+      "cached_tokens": 2560
+    },
+    "total_tokens": 2800
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

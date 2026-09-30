@@ -1,0 +1,49 @@
+{
+  "task_id": "format-code-task-001833",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "articles",
+      "file": "safedelete/tests/test_soft_delete_cascade.py",
+      "line": 100,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "article_set",
+      "file": "safedelete/tests/test_soft_delete_cascade.py",
+      "line": 101,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "call_count",
+      "file": "safedelete/tests/test_soft_delete_cascade.py",
+      "line": 107,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Skipping already soft-deleted related objects during SOFT_DELETE_CASCADE (call_count==1 checks only the live article's delete is invoked)",
+    "Preserving original deleted timestamps of already-deleted children",
+    "Not re-firing soft-delete signals for already-deleted children"
+  ],
+  "reason": "The hidden test verifies exactly the reported bug: after soft-deleting one article, cascading the author must invoke Article.delete only once (for the live article). The mock-based call count is a direct mechanism to check the stated requirement that already-deleted children are skipped.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 244,
+    "completion_tokens_details": {
+      "reasoning_tokens": 112
+    },
+    "prompt_tokens": 1573,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 1817
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

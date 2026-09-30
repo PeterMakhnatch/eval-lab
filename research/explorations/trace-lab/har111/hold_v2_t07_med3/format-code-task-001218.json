@@ -1,0 +1,63 @@
+{
+  "task_id": "format-code-task-001218",
+  "label": "sound",
+  "sample_labels": [
+    "sound",
+    "sound",
+    "suspect"
+  ],
+  "unstated": [
+    {
+      "what": "Behavior must also hold for paths with a leading slash (mkdir('/a/b'), touch('/a/b/c.d'), ls('/a')), which the instruction example never shows",
+      "test_ref": "test_ls_no_duplicate_with_leading_slash",
+      "quote": "m.mkdir(\"/a/b\")\n    m.touch(\"/a/b/c.d\")\n    listed = m.ls(\"/a\")\n    assert listed == [\"/a/b/\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "detail=True entries must include type == 'directory' for the pseudo-directory",
+      "test_ref": "test_ls_detail_no_duplicate_after_mkdir_then_touch",
+      "quote": "assert detail[0][\"type\"] == \"directory\"",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "All hidden tests exercise the exact reported bug (duplicate directory listing after mkdir+touch) using the existing MemoryFileSystem API (store, pseudo_dirs, ls, mkdir, touch), whose output formats ('a/b/' strings and detail dicts) already exist in the code. Nothing extra is requested.",
+    "The hidden tests exercise only the reported duplication bug via existing ls/mkdir/touch APIs and pre-existing output formats; the leading-slash and detail variants are direct consequences of the same fix.",
+    "The core duplicate-listing bug, its output format, and the detail-mode name with trailing slash are all shown in the instruction. Only the leading-slash variant and the detail 'type' field are extra, and both are conventional/derivable consequences of normalizing paths in ls/mkdir/touch."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 180,
+      "completion_tokens_details": {
+        "reasoning_tokens": 59
+      },
+      "prompt_tokens": 1642,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 1822
+    },
+    {
+      "completion_tokens": 161,
+      "completion_tokens_details": {
+        "reasoning_tokens": 64
+      },
+      "prompt_tokens": 1642,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 1803
+    },
+    {
+      "completion_tokens": 475,
+      "completion_tokens_details": {
+        "reasoning_tokens": 176
+      },
+      "prompt_tokens": 1642,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 2117
+    }
+  ]
+}

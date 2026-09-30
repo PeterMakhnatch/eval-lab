@@ -1,0 +1,62 @@
+{
+  "task_id": "format-code-task-001373",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "RequestFactory",
+      "file": "tests/unit/handlers/test__helpers.py",
+      "line": 207,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "process_request",
+      "file": "tests/unit/handlers/test__helpers.py",
+      "line": 212,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "put",
+      "file": "tests/unit/handlers/test__helpers.py",
+      "line": 224,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [
+    {
+      "what": "requestSize must be computed without accessing request.body (e.g. from CONTENT_LENGTH), since the test reads the stream before middleware runs and still expects len('hello world')",
+      "test_ref": "tests/unit/handlers/test__helpers.py::test_does_not_read_request_body",
+      "quote": "django_request.read() ... self.assertEqual(http_request[\"requestSize\"], len(\"hello world\"))",
+      "severity": "guessable"
+    },
+    {
+      "what": "When no content length is present, requestSize may be None or 0 (either accepted)",
+      "test_ref": "tests/unit/handlers/test__helpers.py::test_request_size_none_when_no_content_length",
+      "quote": "self.assertIn(http_request[\"requestSize\"], (None, 0))",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Avoid raising RawPostDataException by accessing request.body after the stream was read",
+    "Not re-reading the body across multiple logging calls in the same request",
+    "The requestSize field of the inferred http_request dict"
+  ],
+  "reason": "The issue text explicitly explains that body access after reading the stream raises RawPostDataException, which clearly implies the fix should derive requestSize without touching request.body (e.g. via CONTENT_LENGTH); the tests' expectations follow from that and the exception type is quoted in the issue.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 608,
+    "completion_tokens_details": {
+      "reasoning_tokens": 315
+    },
+    "prompt_tokens": 2157,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2765
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

@@ -1,0 +1,37 @@
+{
+  "task_id": "format-code-task-000927",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "through",
+      "file": "tests/test_api.py",
+      "line": 840,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "The public callable `sv.escape` (instruction: \"Add escape function\"; the `sv` alias is pre-existing in tests/test_api.py's unchanged import context)",
+    "Exact escaping output formats like `'\\\\1 '`, `'\\\\31 abc'`, `'\\\\-'`, `'a\\\\.b'` (all direct consequences of the quoted CSSOM spec rules, including 'escaped as code point' and 'escaped character' conventions)",
+    "Edge cases like empty string, digits not first, `--abc`, `-_abc` (all directly determined by the spec's first/second character rules)"
+  ],
+  "reason": "The instruction quotes the full spec, and every test expectation follows deterministically from it; the only unstated detail is the module alias `sv`, which already exists in the test file's unchanged import lines.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 333,
+    "completion_tokens_details": {
+      "reasoning_tokens": 150
+    },
+    "prompt_tokens": 2088,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2421
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

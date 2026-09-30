@@ -1,0 +1,117 @@
+{
+  "task_id": "format-code-task-002848",
+  "label": "broken",
+  "sample_labels": [
+    "broken",
+    "suspect",
+    "broken"
+  ],
+  "unstated": [
+    {
+      "what": "Module-level `networkCheck` function used to gate download on network availability (tests monkeypatch `download_module.networkCheck`)",
+      "test_ref": "usercase-test-coderl/test_download_model.py:80",
+      "quote": "monkeypatch.setattr(download_module, \"networkCheck\", lambda: True)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Module-level `extractTarGZ` function called with the archive path when `tar.gz` is in the asset name (tests monkeypatch it)",
+      "test_ref": "usercase-test-coderl/test_download_model.py:161",
+      "quote": "monkeypatch.setattr(download_module, \"extractTarGZ\", lambda path: extract_calls.append(path))",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Progress popup must be invoked with keyword args `link`, `downloadLocation`, `title` (instruction only mentions title)",
+      "test_ref": "usercase-test-coderl/test_download_model.py:68",
+      "quote": "def assert_progress_dialog_call(call, *, link, title, download_location):",
+      "severity": "guessable"
+    },
+    {
+      "what": "Implementation must live at `src.DownloadModels` importing `MODELS_PATH`, `networkCheck`, `extractTarGZ` from `src.constants`/`src.Util` (module path and import layout unstated)",
+      "test_ref": "usercase-test-coderl/test_download_model.py:61",
+      "quote": "module = importlib.import_module(\"src.DownloadModels\")",
+      "severity": "guessable"
+    },
+    {
+      "what": "Module-level names `networkCheck` and `extractTarGZ` must exist in src.DownloadModels (importable/monkeypatchable), which the instruction never mentions; tests patch them on the module",
+      "test_ref": "test_download_model.py: test_missing_tar_model_downloads_with_progress_then_extracts",
+      "quote": "monkeypatch.setattr(download_module, \"networkCheck\", lambda: True)\nmonkeypatch.setattr(download_module, \"extractTarGZ\", lambda path: extract_calls.append(path))",
+      "severity": "guessable"
+    },
+    {
+      "what": "DownloadProgressPopup must be invoked with the exact argument names link, downloadLocation, title (as args or kwargs); the instruction only describes the dialog's title text",
+      "test_ref": "test_download_model.py: assert_progress_dialog_call",
+      "quote": "assert call[\"link\"] == link\n    assert call[\"title\"] == title\n    assert call[\"downloadLocation\"] == download_location",
+      "severity": "guessable"
+    },
+    {
+      "what": "Class must live in module src/DownloadModels.py (tests import src.DownloadModels and reset src.constants/src.Util); instruction never names the file",
+      "test_ref": "test_download_model.py fixture",
+      "quote": "sys.modules.pop(\"src.DownloadModels\", None)\nmodule = importlib.import_module(\"src.DownloadModels\")",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Network availability is checked via a module-level function named networkCheck in DownloadModels that the tests monkeypatch",
+      "test_ref": "test_missing_model_without_network_returns_false_and_does_not_download",
+      "quote": "monkeypatch.setattr(download_module, \"networkCheck\", lambda: False)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Tar extraction is done via a module-level function named extractTarGZ(path) in DownloadModels that the tests monkeypatch",
+      "test_ref": "test_missing_tar_model_downloads_with_progress_then_extracts",
+      "quote": "monkeypatch.setattr(download_module, \"extractTarGZ\", lambda path: extract_calls.append(path))",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Progress dialog is src.ui.QTcustom.DownloadProgressPopup invoked with link, downloadLocation, title (positional or keyword), passing the full destination file path",
+      "test_ref": "assert_progress_dialog_call",
+      "quote": "assert call[\"link\"] == link\n    assert call[\"title\"] == title\n    assert call[\"downloadLocation\"] == download_location",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Module imports (psutil, cpuinfo, distro, PySide6.QtCore, src.constants with MODELS_PATH, src.Util) must be importable in the expected arrangement; test stubs them, implying the real module's import graph",
+      "test_ref": "download_module fixture",
+      "quote": "sys.modules.pop(\"src.constants\", None)\n    sys.modules.pop(\"src.Util\", None)",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "The behavior is fully described, but tests require specific module-level helper names (networkCheck, extractTarGZ) and a particular import/module layout (src.DownloadModels) plus keyword names for the popup call that the instruction never states.",
+    "The behavior is fully described, but the tests depend on two implementation details not in the instruction: the module-level helpers networkCheck/extractTarGZ being patchable attributes of src.DownloadModels, and the exact DownloadProgressPopup call signature (link/downloadLocation/title). Both are plausibly pre-existing repo conventions, hence guessable rather than not_inferable.",
+    "The instruction describes behaviour but not the module path, the names of the module-level helpers networkCheck and extractTarGZ, nor the DownloadProgressPopup call signature/keyword names \u2014 all of which the tests directly monkeypatch and assert on."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 619,
+      "completion_tokens_details": {
+        "reasoning_tokens": 149
+      },
+      "prompt_tokens": 3794,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 4413
+    },
+    {
+      "completion_tokens": 725,
+      "completion_tokens_details": {
+        "reasoning_tokens": 338
+      },
+      "prompt_tokens": 3794,
+      "prompt_tokens_details": {
+        "cached_tokens": 3776
+      },
+      "total_tokens": 4519
+    },
+    {
+      "completion_tokens": 684,
+      "completion_tokens_details": {
+        "reasoning_tokens": 100
+      },
+      "prompt_tokens": 3794,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 4478
+    }
+  ]
+}

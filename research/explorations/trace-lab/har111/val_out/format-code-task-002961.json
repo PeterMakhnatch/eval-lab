@@ -1,0 +1,68 @@
+{
+  "task_id": "format-code-task-002961",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "add_sample",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 950,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "png",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 950,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "get_view",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 952,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "name",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 952,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "The server view endpoint must expose parameters named exactly `sort_by` and `desc` (and accept `desc=True` for descending order).",
+      "test_ref": "tests/unittests/server_view_tests.py: test_sort_by",
+      "quote": "view = fosv.get_view(dataset.name, sort_by=\"value\", desc=True)",
+      "severity": "guessable"
+    },
+    {
+      "what": "The sort stage must serialize with a `create_index` kwarg set to False, in the exact kwarg list order field_or_expr/reverse/create_index.",
+      "test_ref": "tests/unittests/server_view_tests.py: test_sort_by",
+      "quote": "[\"create_index\", False],",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Sorting must apply on an unfiltered view (get_view with only sort_by reorders samples).",
+    "Sorting must not create persistent indexes on the dataset (create_index disabled)."
+  ],
+  "reason": "The issue clearly implies both behaviours, but the exact API parameter names (`sort_by`, `desc`) and the `create_index` serialization kwarg that hidden tests assert are conventions the instruction never states; a careful engineer could guess them but might miss the precise kwarg form.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 459,
+    "completion_tokens_details": {
+      "reasoning_tokens": 192
+    },
+    "prompt_tokens": 1418,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 1877
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

@@ -1,0 +1,135 @@
+{
+  "task_id": "format-code-task-002262",
+  "label": "suspect",
+  "sample_labels": [
+    "suspect",
+    "suspect",
+    "broken"
+  ],
+  "unstated": [
+    {
+      "what": "Instance exposes `path` attribute equal to the resolved absolute path",
+      "test_ref": "test_constructor_create_and_discover_contract",
+      "quote": "assert s.path == str(existing)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Missing file raises exceptions.CollectionNotFound (instruction only says 'require the target path already points to a regular file')",
+      "test_ref": "test_constructor_create_and_discover_contract",
+      "quote": "with pytest.raises(exceptions.CollectionNotFound):\n        SingleFileStorage(str(tmp_path / \"missing.ics\"))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Directory target raises OSError specifically (not a storage exception)",
+      "test_ref": "test_constructor_create_and_discover_contract",
+      "quote": "directory.mkdir()\n    with pytest.raises(OSError):\n        SingleFileStorage(str(directory))",
+      "severity": "guessable"
+    },
+    {
+      "what": "instance_name composes with collection as \"local/work\" (instruction only says instance_name passes through base API)",
+      "test_ref": "test_constructor_create_and_discover_contract",
+      "quote": "assert s.instance_name == \"local/work\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "AlreadyExistingError carries existing_href set to the duplicate href",
+      "test_ref": "test_item_session_crud_errors_and_case_sensitive_hrefs",
+      "quote": "assert duplicate.value.existing_href == \"alice\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "create_collection/discover return/accept extra kwargs (instance_name, read_only, no_delete) echoed back",
+      "test_ref": "test_constructor_create_and_discover_contract",
+      "quote": "assert created[\"instance_name\"] == \"main\"\n    assert created[\"read_only\"] is False\n    assert created[\"no_delete\"] is False",
+      "severity": "guessable"
+    },
+    {
+      "what": "Constructor on a missing path must raise CollectionNotFound (instruction only says 'require the target path already points to a regular file' without naming the exception)",
+      "test_ref": "test_constructor_create_and_discover_contract",
+      "quote": "with pytest.raises(exceptions.CollectionNotFound):\n        SingleFileStorage(str(tmp_path / \"missing.ics\"))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Constructor on a directory must raise OSError",
+      "test_ref": "test_constructor_create_and_discover_contract",
+      "quote": "with pytest.raises(OSError):\n        SingleFileStorage(str(directory))",
+      "severity": "guessable"
+    },
+    {
+      "what": "instance_name must be composed as 'instance_name/collection' (e.g. 'local/work') \u2014 the exact composition rule is not in the instruction",
+      "test_ref": "test_constructor_create_and_discover_contract",
+      "quote": "assert s.instance_name == \"local/work\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Missing/nonexistent path must raise exceptions.CollectionNotFound (specific exception type unstated)",
+      "test_ref": "test_singlefile_storage_acceptance.py:120",
+      "quote": "with pytest.raises(exceptions.CollectionNotFound): SingleFileStorage(str(tmp_path / \"missing.ics\"))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Passing a directory must raise OSError (natural stat/open outcome, but the exact type is unstated)",
+      "test_ref": "test_singlefile_storage_acceptance.py:124",
+      "quote": "with pytest.raises(OSError): SingleFileStorage(str(directory))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Storage must expose the resolved absolute path as attribute `s.path`",
+      "test_ref": "test_singlefile_storage_acceptance.py:106",
+      "quote": "assert s.path == str(existing)",
+      "severity": "guessable"
+    },
+    {
+      "what": "AlreadyExistingError must carry `existing_href` set to the duplicate href",
+      "test_ref": "test_singlefile_storage_acceptance.py:199",
+      "quote": "assert duplicate.value.existing_href == \"alice\"",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "instance_name attribute must combine instance_name and collection as \"local/work\"",
+      "test_ref": "test_singlefile_storage_acceptance.py:109",
+      "quote": "assert s.instance_name == \"local/work\"",
+      "severity": "not_inferable"
+    }
+  ],
+  "reasons": [
+    "The instruction covers nearly all behavior; the unstated items are mostly conventional exception/attribute choices (path attribute, CollectionNotFound/OSError specifics, instance_name composition, existing_href) that a careful engineer could infer from vdirsyncer conventions but which the instruction never states.",
+    "The instruction covers nearly all behavior; only the specific exception types for constructor failures and the instance_name/collection composition are unstated, and each has a conventional choice in the vdirsyncer codebase. AlreadyExistingError.existing_href is pre-existing exception behavior, not new.",
+    "Most behavior is explicitly specified in the instruction. The remaining gaps are the specific exception type for a missing file, an exposed `path` attribute, the `existing_href` field on AlreadyExistingError, and the exact instance_name string format, none of which the instruction states."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 742,
+      "completion_tokens_details": {
+        "reasoning_tokens": 198
+      },
+      "prompt_tokens": 5153,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 5895
+    },
+    {
+      "completion_tokens": 827,
+      "completion_tokens_details": {
+        "reasoning_tokens": 435
+      },
+      "prompt_tokens": 5153,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 5980
+    },
+    {
+      "completion_tokens": 610,
+      "completion_tokens_details": {
+        "reasoning_tokens": 152
+      },
+      "prompt_tokens": 5153,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 5763
+    }
+  ]
+}

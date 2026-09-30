@@ -1,0 +1,258 @@
+{
+  "task_id": "format-code-task-002628",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "annotations",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 9,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "contextmanager",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "BaseHTTPRequestHandler",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 15,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "HTTPServer",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 15,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ranking_models",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 21,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "base_reranker",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 21,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "infinity_rerank",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 22,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "jina_reranker",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 23,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "float32",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "testing",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 42,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "rfile",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 63,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "headers",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 63,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "send_response",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 78,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "send_header",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 79,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "end_headers",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 81,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "wfile",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 82,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Thread",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 88,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "serve_forever",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 88,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "start",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 89,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "server_port",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 91,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "shutdown",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 93,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "server_close",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 94,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "catch_warnings",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 216,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "simplefilter",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 217,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "setenv",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 277,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "delenv",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 315,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "chdir",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 316,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "exceptions",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 384,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "Module/file paths for the new classes: tests import opendeepsearch.ranking_models.base_reranker, infinity_rerank, jina_reranker; the instruction never gives package/file names",
+      "test_ref": "test_embedding_rerankers.py:21-23",
+      "quote": "from opendeepsearch.ranking_models.base_reranker import BaseSemanticSearcher\nfrom opendeepsearch.ranking_models.infinity_rerank import InfinitySemanticSearcher\nfrom opendeepsearch.ranking_models.jina_reranker import JinaReranker",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "The embedding-provider hook method name `_get_embeddings(texts) -> torch.Tensor` that subclasses must implement; tests subclass BaseSemanticSearcher overriding exactly this name",
+      "test_ref": "test_embedding_rerankers.py:32-38 (DeterministicSemanticSearcher)",
+      "quote": "def _get_embeddings(self, texts: list[str]) -> torch.Tensor:\n    return torch.tensor([self.embeddings[text] for text in texts], dtype=torch.float32)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Payload key for the text list must be exactly \"input\" in both Infinity and Jina POST bodies",
+      "test_ref": "test_embedding_rerankers.py: test_infinity_posts_configured_payload_and_parses_embeddings",
+      "quote": "observed_inputs = [text for call in calls for text in call[\"input\"]]",
+      "severity": "guessable"
+    },
+    {
+      "what": "HTTP layer must go through requests.post(url, headers=..., =...) so tests can monkeypatch requests.post",
+      "test_ref": "test_embedding_rerankers.py: test_jina_posts_required_payload_and_returns_similarity_scores",
+      "quote": "monkeypatch.setattr(requests, \"post\", fake_post)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Truncation shape: scores tensor must be (num_queries, 2048) after truncating documents to 2048; instruction says warn+truncate but not that calculate_scores must operate on the truncated doc set",
+      "test_ref": "test_embedding_rerankers.py: test_infinity_warns_and_truncates_embedding_batches_above_2048",
+      "quote": "assert tuple(scores.shape) == (1, 2048)",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Public API signatures and return shapes (list of dicts with 'document'/'score', stripped top passage)",
+    "Normalization modes 'softmax'/'scale'/'none' and ValueError on unknown value",
+    "Infinity endpoint, model, instruction_prefix, data[*].embedding parsing, 2048 warning/truncation",
+    "Jina api_key/.env/JINA_API_KEY handling, ValueError without key, URL, bearer auth, task/late_chunking/dimensions/embedding_type payload fields, RuntimeError on request failure"
+  ],
+  "reason": "The instruction specifies the API behavior well, but never names the package/module file layout nor the `_get_embeddings` override hook that tests rely on; payload key 'input' and the requests.post indirection are conventional but required for the mocks to work.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 814,
+    "completion_tokens_details": {
+      "reasoning_tokens": 148
+    },
+    "prompt_tokens": 5658,
+    "prompt_tokens_details": {
+      "cached_tokens": 5632
+    },
+    "total_tokens": 6472
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

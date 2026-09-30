@@ -1,0 +1,61 @@
+{
+  "task_id": "format-code-task-001181",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "Tuple",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Console",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "StringIO",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 20,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_task",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 25,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Positive deltas from advance and update(completed=...) feed one rate estimate over the sampling window",
+    "Zero/negative deltas update completed but add no rate evidence",
+    "Task.speed = completed steps / elapsed time between retained samples",
+    "time_remaining uses rate and ceils remaining work, None when no estimate",
+    "Reaching finite total via update sets finished, finished_time, finished_speed, frozen afterward",
+    "reset clears rate evidence, keeps total, allows fresh estimate",
+    "Changing total invalidates rate evidence",
+    "Backward compatibility of fields, rendering, indeterminate tasks"
+  ],
+  "reason": "Every hidden test behaviour (exact speed formulas, freezing on finish, reset/total-change invalidation, ceil'd ETA) is explicitly stated in the instruction; test specifics like approx or helper classes are library calls, not fix requirements.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 567,
+    "completion_tokens_details": {
+      "reasoning_tokens": 373
+    },
+    "prompt_tokens": 2129,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2696
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

@@ -1,0 +1,174 @@
+{
+  "task_id": "format-code-task-000383",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "xml",
+      "file": "usercase-test-coderl/fixtures/quickfix_two_sessions.cfg",
+      "line": 12,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "annotations",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 10,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "filterwarnings",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 17,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "SubscriptionRequestType_SNAPSHOT_PLUS_UPDATES",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 29,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "SubscriptionRequestType_DISABLE_PREVIOUS_SNAPSHOT_PLUS_UPDATE_REQUEST",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 33,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "DataStream",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "FixDecoder",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "OrderStore",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Tier1FXAuto",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "SessionSettings",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 41,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "cfg",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 42,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "getSessions",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 48,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "onCreate",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 49,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "MonkeyPatch",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 54,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "toString",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 70,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "getHeader",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 74,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "getField",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 74,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "getGroup",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 81,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "].strip() !=",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 113,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Generated MDReqID (262) values must be unique across calls and across separate client instances, not just non-empty per message",
+      "test_ref": "test_same_client_advances_generated_market_data_request_ids / test_two_configured_clients_emit_generated_market_data_request_ids",
+      "quote": "assert len(set(generated_ids)) == len(generated_ids)",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "message type 35=V and all field values 262/263/264/265/267/269 groups/146/55",
+    "default symbol EUR/USD when 55 omitted",
+    "264/267/265 override reflection",
+    "ValueError on non-integer 264/267 with no send",
+    "sending to the quote session (instruction says 'through the quote session'; tests accept target 56=QUOTE if session id absent)",
+    "method names subscribe_to_data/unsubscribe_to_data on configured client",
+    "exactly one message sent per call"
+  ],
+  "reason": "The instruction fully specifies the message contents, defaults, overrides, error behavior, and quote-session routing. Only unstated requirement is that generated MDReqIDs be globally unique across calls and client instances, which a UUID-based generator would naturally satisfy.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 452,
+    "completion_tokens_details": {
+      "reasoning_tokens": 178
+    },
+    "prompt_tokens": 4225,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 4677
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

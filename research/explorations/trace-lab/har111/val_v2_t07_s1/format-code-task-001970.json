@@ -1,0 +1,43 @@
+{
+  "task_id": "format-code-task-001970",
+  "rule_label": "sound",
+  "rule_unstated": [],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Only files ending in .conf are picked up from a directory (file2.conf.disabled is ignored)",
+      "test_ref": "tests/config/test_config.py::test_load_directory_only_conf_files",
+      "quote": "directory = path_to_data_dir('conf2.d')\nexpected = {'foo': {'bar': 'baz'}}\nresult = config._load([directory], [], [])",
+      "severity": "guessable"
+    },
+    {
+      "what": "Files within a directory are loaded in a deterministic (alphabetical) order so later-override precedence applies among snippets",
+      "test_ref": "tests/config/test_config.py::test_load_directory",
+      "quote": "directory = path_to_data_dir('conf1.d')\nexpected = {'foo': {'bar': 'baz'}, 'foo2': {'bar': 'baz'}}\nresult = config._load([directory], [], [])",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "--config accepting a directory path",
+    "colon-separated list mixing directories and files",
+    "later-override-earlier precedence",
+    "expanding directories into the files they contain"
+  ],
+  "reason": "The instruction covers directory expansion and precedence, but never states that only *.conf files are loaded (the .conf.disabled exclusion) nor the ordering of files within a directory; both are natural but unstated choices the hidden tests rely on.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 423,
+    "completion_tokens_details": {
+      "reasoning_tokens": 133
+    },
+    "prompt_tokens": 1964,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2387
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

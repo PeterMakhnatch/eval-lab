@@ -1,0 +1,57 @@
+{
+  "task_id": "format-code-task-001140",
+  "label": "sound",
+  "sample_labels": [
+    "suspect",
+    "sound",
+    "sound"
+  ],
+  "unstated": [
+    {
+      "what": "AJAXMiddleware.process_response must accept a raw exception instance (Http404) as the 'response' argument and convert it to an envelope, not only handle exceptions via process_exception",
+      "test_ref": "tests/test_ajax_contract.py:95-99 (test_middleware_converts_ajax_http404_but_leaves_browser_response)",
+      "quote": "ajax_payload = self.decode(\n            middleware.process_response(\n                self.ajax_request, Http404('missing through middleware')))",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "Nearly everything in the tests is stated in the instruction. The only unstated nuance is that process_response itself must convert an exception instance passed in as the response, which is a plausible but not explicitly required reading of 'exception results'.",
+    "Every hidden-test requirement (envelope shape, safe error content, middleware hooks, encoder options) is directly stated or a direct consequence of the instruction; process_response/process_exception are standard pre-existing Django middleware hooks in django_ajax, and JSONResponse is test scaffolding.",
+    "All hidden test behaviors are explicitly stated: envelope keys (status/statusText/content) are the package's existing format, the safe 500 message is only checked negatively, and middleware process_exception semantics follow from 'exception results using the same envelope rules, leave non-AJAX exception handling untouched'."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 586,
+      "completion_tokens_details": {
+        "reasoning_tokens": 303
+      },
+      "prompt_tokens": 2368,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 2954
+    },
+    {
+      "completion_tokens": 238,
+      "completion_tokens_details": {
+        "reasoning_tokens": 97
+      },
+      "prompt_tokens": 2368,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 2606
+    },
+    {
+      "completion_tokens": 313,
+      "completion_tokens_details": {
+        "reasoning_tokens": 153
+      },
+      "prompt_tokens": 2368,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 2681
+    }
+  ]
+}

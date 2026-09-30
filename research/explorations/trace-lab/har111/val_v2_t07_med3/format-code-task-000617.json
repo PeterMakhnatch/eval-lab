@@ -1,0 +1,75 @@
+{
+  "task_id": "format-code-task-000617",
+  "label": "suspect",
+  "sample_labels": [
+    "broken",
+    "suspect",
+    "suspect"
+  ],
+  "unstated": [
+    {
+      "what": "Exact error message text surfaced on failure: 'can not parse package.yaml: missing required fields' \u2014 the instruction says to surface the underlying tool's message but never states this string; the fix must route the exact snappy error text to stderr.",
+      "test_ref": "snapcraft/tests/test_cmds.py:111",
+      "quote": "self.assertTrue('can not parse package.yaml: missing required fields' in output_stderr)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "On the success path, stderr must be completely empty ('There should be no stderr'), implying error output goes to stderr specifically and success writes nothing there.",
+      "test_ref": "snapcraft/tests/test_cmds.py:81",
+      "quote": "self.assertEqual(output_stderr, '', 'There should be no stderr')",
+      "severity": "guessable"
+    },
+    {
+      "what": "Successful assemble must print nothing to stderr (a new stderr contract asserted in the passing test, not mentioned in the instruction)",
+      "test_ref": "snapcraft/tests/test_cmds.py:81",
+      "quote": "self.assertEqual(output_stderr, '', 'There should be no stderr')",
+      "severity": "guessable"
+    },
+    {
+      "what": "Failure info must be printed to stderr (stdout should only carry the progress output); the instruction says only that error info must be shown, not which stream",
+      "test_ref": "snapcraft/tests/test_cmds.py:108-111",
+      "quote": "output_stderr = mock_stderr.getvalue()\n...\nself.assertTrue('can not parse package.yaml: missing required fields'\n                in output_stderr)",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "The instruction only requires surfacing the underlying error generally; the hidden test pins the exact stderr message text, which is not stated or inferable, and also requires stderr to be empty on success.",
+    "The instruction's requested fix (surfacing the underlying build error) covers the failure-case test including the specific message, since that text comes from the underlying tool. The only extra requirement is the implicit assertion that the success path writes nothing to stderr, a natural but unstated contract.",
+    "The instruction asks to surface the underlying build tool's error, which covers the message content; the only unstated choice is that it goes to stderr rather than stdout, a conventional guess a careful engineer would usually make."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 359,
+      "completion_tokens_details": {
+        "reasoning_tokens": 94
+      },
+      "prompt_tokens": 1503,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 1862
+    },
+    {
+      "completion_tokens": 286,
+      "completion_tokens_details": {
+        "reasoning_tokens": 107
+      },
+      "prompt_tokens": 1503,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 1789
+    },
+    {
+      "completion_tokens": 389,
+      "completion_tokens_details": {
+        "reasoning_tokens": 178
+      },
+      "prompt_tokens": 1503,
+      "prompt_tokens_details": {
+        "cached_tokens": 1472
+      },
+      "total_tokens": 1892
+    }
+  ]
+}

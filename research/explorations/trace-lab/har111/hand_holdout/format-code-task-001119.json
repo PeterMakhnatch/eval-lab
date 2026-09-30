@@ -1,0 +1,15 @@
+{
+  "task_id": "format-code-task-001119",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "VersionSpecifier.compare orders numeric major, minor, patch first, then a release above a prerelease, numeric prerelease identifiers numerically, non-numeric lexically, numeric before non-numeric, and a shorter otherwise-equal identifier list first, with build metadata never affecting precedence",
+    "the asserted chain 1.0.0-alpha < alpha.1 < alpha.beta < beta < beta.2 < beta.11 < rc.1 < 1.0.0 is exactly those stated rules",
+    "versions_compatible rejects an exact prerelease against its stable release, excludes candidates on the wrong side of a prerelease bound, and treats differing build metadata as compatible",
+    "find_possible_versions discards candidates outside the range and returns the remaining original version strings in descending precedence",
+    "resolve_to_specific_version returns the highest compatible candidate's original spelling, including build metadata",
+    "reduce_versions and the compare return convention are existing public functions whose signatures the instruction says must stay intact"
+  ],
+  "notes": "Every asserted case is a direct instance of the Semantic Versioning 2.0.0 precedence rules the instruction enumerates. The runner also reruns the pre-existing test/unit/test_semver.py, which guards the ordinary stable, unbounded-end behavior the instruction says to preserve.",
+  "read_minutes": 10
+}

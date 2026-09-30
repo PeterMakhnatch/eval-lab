@@ -1,0 +1,75 @@
+{
+  "task_id": "candidate-1634-software-databases",
+  "label": "broken",
+  "sample_labels": [
+    "sound",
+    "broken",
+    "broken"
+  ],
+  "unstated": [
+    {
+      "what": "peewee.py must contain the exact signature `def atomic(self, transaction_type=None, **kwargs):` (preserving positional `transaction_type` and `**kwargs` kwarg pass-through), a precise source string the instruction never specifies.",
+      "test_ref": "tests/test_outputs.py:90",
+      "quote": "assert \"def atomic(self, transaction_type=None, **kwargs):\" in peewee_source",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "peewee.py must contain the exact method signature `def atomic(self, transaction_type=None, **kwargs):` \u2014 positional param named `transaction_type` with lock_type passed via kwargs; not stated in instruction.",
+      "test_ref": "tests/test_outputs.py:90",
+      "quote": "assert \"def atomic(self, transaction_type=None, **kwargs):\" in peewee_source",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "apsw_ext.py's adapter must define a `transaction` method with a `lock_type` argument that internally calls `transaction(...)` \u2014 specific AST-checkable shape not stated.",
+      "test_ref": "tests/test_outputs.py:92-95",
+      "quote": "any(arg.arg == \"lock_type\" for arg in method.args.args) and any(isinstance(node, ast.Call) and getattr(node.func, \"id\", \"\") == \"transaction\"",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact check key names in output.: atomic_immediate, transaction_deferred, nested_savepoint, contention, all.",
+      "test_ref": "tests/test_outputs.py:21-25",
+      "quote": "assert set(data[\"checks\"]) == {\n        \"atomic_immediate\", \"transaction_deferred\", \"nested_savepoint\", \"contention\", \"all\"\n    }",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "Every hidden-test expectation is either the requested fix itself, pre-existing API (atomic's transaction_type signature, apsw transaction method), or derivable by running the supplied integration checker, whose JSON keys and values the instruction directs the agent to capture verbatim.",
+    "The instruction describes the behavior but never states the exact peewee.py atomic signature that an AST/string test greps for; the apsw lock_type param and forwarding are reasonably covered by requirement 3.",
+    "The instruction describes behavior but not the exact required source signature in peewee.py, the AST-checkable apsw_ext transaction/lock_type forwarding shape, or the specific check key names, all of which only the hidden tests reveal."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 348,
+      "completion_tokens_details": {
+        "reasoning_tokens": 229
+      },
+      "prompt_tokens": 1918,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 2266
+    },
+    {
+      "completion_tokens": 317,
+      "completion_tokens_details": {
+        "reasoning_tokens": 101
+      },
+      "prompt_tokens": 1918,
+      "prompt_tokens_details": {
+        "cached_tokens": 1856
+      },
+      "total_tokens": 2235
+    },
+    {
+      "completion_tokens": 591,
+      "completion_tokens_details": {
+        "reasoning_tokens": 178
+      },
+      "prompt_tokens": 1918,
+      "prompt_tokens_details": {
+        "cached_tokens": 1856
+      },
+      "total_tokens": 2509
+    }
+  ]
+}

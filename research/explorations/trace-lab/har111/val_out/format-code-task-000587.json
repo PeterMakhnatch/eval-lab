@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-000587",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "ThreadPoolExecutor",
+      "file": "tests/test_redlock.py",
+      "line": 197,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "submit",
+      "file": "tests/test_redlock.py",
+      "line": 198,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "result",
+      "file": "tests/test_redlock.py",
+      "line": 199,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "decorator importable from pottery as `redlock`",
+    "accepts key, masters, auto-release timeout knobs",
+    "acquires lock before call and releases after",
+    "serializes concurrent calls (the point of the lock)"
+  ],
+  "reason": "The hidden test only checks that `redlock(key=..., masters={...})(fn)` exists and serializes concurrent executions \u2014 all stated or clearly implied by the feature request, including the exact import name.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 166,
+    "completion_tokens_details": {
+      "reasoning_tokens": 50
+    },
+    "prompt_tokens": 1590,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 1756
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

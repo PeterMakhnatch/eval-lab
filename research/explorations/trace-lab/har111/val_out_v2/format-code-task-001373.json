@@ -1,0 +1,60 @@
+{
+  "task_id": "format-code-task-001373",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "RequestFactory",
+      "file": "tests/unit/handlers/test__helpers.py",
+      "line": 207,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "process_request",
+      "file": "tests/unit/handlers/test__helpers.py",
+      "line": 212,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "put",
+      "file": "tests/unit/handlers/test__helpers.py",
+      "line": 224,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "Tests import a `request` submodule inside the middleware package (`google.cloud.logging_v2.handlers.middleware.request`) and use `request.RequestMiddleware`; the instruction never mentions creating/moving the middleware into such a module.",
+      "test_ref": "tests/unit/handlers/test__helpers.py:207",
+      "quote": "from google.cloud.logging_v2.handlers.middleware import request ... middleware = request.RequestMiddleware(None)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "requestSize must be derived from the Content-Length header (None/0 when absent, correct length even after the stream has been fully consumed), rather than `len(request.body)`; the exact fallback semantics `(None, 0)` are not stated.",
+      "test_ref": "tests/unit/handlers/test__helpers.py::test_request_size_none_when_no_content_length",
+      "quote": "self.assertIn(http_request[\"requestSize\"], (None, 0))",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "not reading/evaluating request.body more than once so RawPostDataException is avoided across multiple logging calls within one request"
+  ],
+  "reason": "The instruction only requires avoiding re-reading request.body; the tests additionally require a `middleware.request` module layout and Content-Length-based requestSize semantics (with a None/0 fallback) that are never stated.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 819,
+    "completion_tokens_details": {
+      "reasoning_tokens": 534
+    },
+    "prompt_tokens": 2173,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2992
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

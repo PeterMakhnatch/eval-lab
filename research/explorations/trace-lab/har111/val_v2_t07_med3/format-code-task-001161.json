@@ -1,0 +1,57 @@
+{
+  "task_id": "format-code-task-001161",
+  "label": "sound",
+  "sample_labels": [
+    "sound",
+    "broken",
+    "sound"
+  ],
+  "unstated": [
+    {
+      "what": "A `--config <path>` command-line option that loads a pyproject.toml-style config file; the instruction only says the setting must be read from `[tool.docformatter]` configuration, but the tests invoke the formatter with `--config` explicitly.",
+      "test_ref": "tests/test_structured_wrapping_codespec.py:23 and :196",
+      "quote": "command.extend([\"--config\", str(config)]) / \"--config\",\\n                    str(config),",
+      "severity": "not_inferable"
+    }
+  ],
+  "reasons": [
+    "Every requirement exercised by the hidden tests\u2014option name, config key, preservation semantics, default behavior, and stability\u2014is explicitly stated in the instruction; remaining specifics (existing --wrap-descriptions, --config, summary period, exit code 3, exact wrap points at the given width) are pre-existing formatter behavior or scaffolding.",
+    "The tests drive the formatter via a `--config` CLI flag pointing at a pyproject.toml, which the instruction never mentions and which docformatter does not currently expose; every other tested behavior (option name, config key, default fallback, region preservation, stability) is directly requested.",
+    "Every requirement exercised by the hidden tests (option name, config key, preserved-region semantics, resume behavior, idempotency, default compatibility) is explicitly stated in the instruction; exact expected outputs are deterministic consequences of the configured wrap width and stated preservation rules."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 581,
+      "completion_tokens_details": {
+        "reasoning_tokens": 391
+      },
+      "prompt_tokens": 3119,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 3700
+    },
+    {
+      "completion_tokens": 527,
+      "completion_tokens_details": {
+        "reasoning_tokens": 245
+      },
+      "prompt_tokens": 3119,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3646
+    },
+    {
+      "completion_tokens": 461,
+      "completion_tokens_details": {
+        "reasoning_tokens": 306
+      },
+      "prompt_tokens": 3119,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3580
+    }
+  ]
+}

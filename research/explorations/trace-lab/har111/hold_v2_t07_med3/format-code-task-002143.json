@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-002143",
+  "label": "sound",
+  "sample_labels": [
+    "sound",
+    "sound",
+    "sound"
+  ],
+  "unstated": [],
+  "reasons": [
+    "Every concrete requirement in the hidden tests \u2014 setting name, context keys, key renamings, ordering, empty-list behavior, JSON-encoding of profile URLs, and preservation of existing values \u2014 is explicitly stated in the instruction; remaining test text is scaffolding or library calls.",
+    "Every test assertion maps directly to the instruction: the context variable names, JSON structure, key names, {base_url} substitution, and empty-list behavior are all explicitly specified; remaining identifiers (PageFactory, CMSTestCase, override_settings, LMS_BACKENDS) are pre-existing code or test scaffolding.",
+    "All tested behaviors (setting keys, context keys 'authentication'/'lms_backends', empty-list case, JSON-encoded PROFILE_URLS with 'action') are explicitly described in the instruction. The 'FRONTEND_CONTEXT' and 'AUTHENTICATION' context variable names either already exist in the code or are given by the instruction."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 354,
+      "completion_tokens_details": {
+        "reasoning_tokens": 167
+      },
+      "prompt_tokens": 3055,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3409
+    },
+    {
+      "completion_tokens": 295,
+      "completion_tokens_details": {
+        "reasoning_tokens": 140
+      },
+      "prompt_tokens": 3055,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3350
+    },
+    {
+      "completion_tokens": 236,
+      "completion_tokens_details": {
+        "reasoning_tokens": 89
+      },
+      "prompt_tokens": 3055,
+      "prompt_tokens_details": {
+        "cached_tokens": 3008
+      },
+      "total_tokens": 3291
+    }
+  ]
+}

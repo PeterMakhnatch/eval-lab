@@ -1,0 +1,134 @@
+{
+  "task_id": "format-code-task-000513",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "deepcopy",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "model",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 11,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "testing",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 32,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "isfinite",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 95,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "allclose",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 100,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "tolist",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 223,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "insert",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 227,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 240,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "chdir",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 260,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "listdir",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 261,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Equivalent numeric strings with trailing zeros (e.g. \"0.90\") must normalize to the stored key \"0.9\"; instruction only demonstrates \"0.1\".",
+      "test_ref": "test_equivalent_numeric_string_for_stored_right_decile_returns_array",
+      "quote": "actual = base_forecast().quantile(\"0.90\")\n    assert_array_equal_with_nan(actual, np.array([100.0, 200.0]))",
+      "severity": "guessable"
+    },
+    {
+      "what": "A \"mean\" key must be excluded from the stored quantile levels when interpolating (only mean-only case is described).",
+      "test_ref": "test_mean_key_is_ignored_when_interpolating_quantiles",
+      "quote": "forecast_keys=[\"mean\", \"0.25\", \"0.75\"] ... assert_array_equal_with_nan(actual, np.array([5.5, 11.0, 16.5]))",
+      "severity": "guessable"
+    },
+    {
+      "what": "The \"p\"-prefixed string form must also work for non-median levels like \"p90\", not just the \"p50\" example given.",
+      "test_ref": "test_single_stored_quantile_missing_request_returns_nan_per_step",
+      "quote": "actual = forecast.quantile(\"p90\")",
+      "severity": "guessable"
+    },
+    {
+      "what": "Tail extrapolation must be finite, monotone beyond the stored tails, and differ from linear extrapolation \u2014 the exact exponential formula is never specified.",
+      "test_ref": "test_missing_quantile_in_effective_left_tail_extrapolates",
+      "quote": "assert np.all(np.isfinite(actual))\n    assert np.all(actual < np.array([1.0, 2.0]))\n    ... assert not np.allclose(actual, linear_tail, ...)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Results must be bit-identical across fresh processes (subprocess comparison); instruction only says calls are repeatable and side-effect free.",
+      "test_ref": "test_quantile_result_matches_fresh_process_result",
+      "quote": "np.testing.assert_allclose(\n        np.array(in_process),\n        np.array(.loads(completed.stdout)),\n        rtol=1e-12,\n        atol=1e-12,\n    )",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "float/str quantile lookup returning np.ndarray aligned to horizon",
+    "stored-level exact returns for 0.5, \"p50\", \"0.1\"",
+    "linear interpolation for 0.75",
+    "exponential tail extrapolation instead of NaN",
+    "NaN array per step for <2 stored quantiles or mean-only",
+    "referential transparency / no mutation / no IO"
+  ],
+  "reason": "This is largely a repair of the existing GluonTS QuantileForecast.quantile, so most behavior pre-exists; the remaining hidden-test demands (string normalization variants, mean-key exclusion, exact tail formula differing from linear, cross-process determinism) are natural engineering choices a careful implementer would likely make, though the instruction never states them.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 992,
+    "completion_tokens_details": {
+      "reasoning_tokens": 332
+    },
+    "prompt_tokens": 3465,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 4457
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

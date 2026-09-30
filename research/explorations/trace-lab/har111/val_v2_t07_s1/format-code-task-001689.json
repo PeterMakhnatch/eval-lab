@@ -1,0 +1,59 @@
+{
+  "task_id": "format-code-task-001689",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "is_meta",
+      "file": "keras/src/ops/core_test.py",
+      "line": 739,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_tensor",
+      "file": "keras/src/ops/core_test.py",
+      "line": 742,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "float64",
+      "file": "keras/src/ops/core_test.py",
+      "line": 770,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "convert_to_numpy",
+      "file": "keras/src/ops/core_test.py",
+      "line": 783,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "convert_to_tensor must succeed on torch meta-device tensors instead of raising NotImplementedError",
+    "result must be a non-meta tensor on a real device (direct consequence of 'supporting' meta tensors)",
+    "shape and dtype (including dtype= argument) must be preserved (existing convert_to_tensor contract)",
+    "regular torch tensors remain unchanged"
+  ],
+  "reason": "All hidden test assertions follow directly from 'make convert_to_tensor support torch meta tensors': no new API names, no exact output strings, and the only value checks apply to a regular tensor. The dtype='float64' case exercises the existing dtype parameter.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 276,
+    "completion_tokens_details": {
+      "reasoning_tokens": 142
+    },
+    "prompt_tokens": 1660,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 1936
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

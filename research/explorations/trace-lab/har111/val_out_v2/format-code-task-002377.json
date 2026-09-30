@@ -1,0 +1,99 @@
+{
+  "task_id": "format-code-task-002377",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "ConfigDict",
+      "file": "tests/test_settings.py",
+      "line": 1526,
+      "stated": false
+    },
+    {
+      "kind": "exception",
+      "value": "ValidationError",
+      "file": "tests/test_settings.py",
+      "line": 1528,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "value",
+      "file": "tests/test_settings.py",
+      "line": 1531,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "extra_forbidden",
+      "file": "tests/test_settings.py",
+      "line": 1534,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "model_dump",
+      "file": "tests/test_settings.py",
+      "line": 1568,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ") or getattr(s,",
+      "file": "tests/test_settings.py",
+      "line": 1586,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "name",
+      "file": "tests/test_settings.py",
+      "line": 1603,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "top",
+      "file": "tests/test_settings.py",
+      "line": 1623,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "apple",
+      "file": "tests/test_settings.py",
+      "line": 1623,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "banana",
+      "file": "tests/test_settings.py",
+      "line": 1624,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Extra.forbid applied when env_file is defined (explicit 'forbid')",
+    "default extra behavior with env_file",
+    "extra='allow'/'ignore' behavior with env_file",
+    "nested env delimiter not treated as extra"
+  ],
+  "reason": "All test requirements follow directly from the issue: applying the model's extra config to env-file-sourced fields. The 'extra_forbidden' error type, ConfigDict/model_config API, and BaseSettings' default extra='forbid' are standard existing behavior of the codebase, so nothing is unstated.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 221,
+    "completion_tokens_details": {
+      "reasoning_tokens": 95
+    },
+    "prompt_tokens": 2849,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3070
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

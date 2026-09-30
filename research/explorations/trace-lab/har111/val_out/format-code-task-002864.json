@@ -1,0 +1,47 @@
+{
+  "task_id": "format-code-task-002864",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "dialects",
+      "file": "test_commands.json",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "TestTrino",
+      "file": "test_commands.json",
+      "line": 2,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Identity round-trip for bare `WITH WRAPPER` / `WITHOUT WRAPPER` (no ARRAY/CONDITIONAL keyword), and `WITH UNCONDITIONAL ARRAY WRAPPER` / `WITHOUT CONDITIONAL WRAPPER` \u2014 none of these forms appear in the issue example, only the documented Trino syntax implies them",
+      "test_ref": "tests/dialects/test_trino.py: test__query_with_wrapper, test__query_preserves_existing_options",
+      "quote": "\"JSON_QUERY(description, 'strict $.comment' WITH WRAPPER)\" / \"JSON_QUERY(content, 'strict $.HY.*' WITHOUT CONDITIONAL WRAPPER)\"",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Parsing `WITH ARRAY WRAPPER` and `WITHOUT ARRAY WRAPPER` after JSON_QUERY (exact reported bug), and the full statement round-trip test mirroring the issue snippet"
+  ],
+  "reason": "The issue's example only shows WITH/WITHOUT ARRAY WRAPPER, while tests also demand the bare WITH/WITHOUT WRAPPER and UNCONDITIONAL/CONDITIONAL ARRAY WRAPPER variants; these are guessable from the linked Trino docs page but not stated, making the task suspect.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 419,
+    "completion_tokens_details": {
+      "reasoning_tokens": 158
+    },
+    "prompt_tokens": 1649,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2068
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

@@ -1,0 +1,133 @@
+{
+  "task_id": "format-code-task-001161",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "Path",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 4,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "resolve",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 7,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "parents",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 7,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "TemporaryDirectory",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 11,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "toml",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 16,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "returncode",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 25,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stderr",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 25,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "call_with_a_very_long_argument",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 39,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "very_long_function_name",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 83,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "--wrap-descriptions",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 107,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "NamedTemporaryFile",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 187,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "name",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 189,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "unlink",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 218,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "--wrap-structured CLI option and wrap-structured pyproject setting with CLI precedence",
+    "prose reflow on both sides of directives, literal blocks, doctests, lists, Sphinx fields",
+    "preservation of directive option/body indentation, literal blocks, doctest output, list indentation/spacing",
+    "structured regions in original order separated as valid reST",
+    "field-list wrapping rules still applied adjacent to regions",
+    "default cautious behavior preserved",
+    "summary normalization and wrap widths",
+    "idempotency on re-run"
+  ],
+  "reason": "Every requirement exercised by the hidden tests\u2014option name, config key, preservation semantics, default behavior, and stability\u2014is explicitly stated in the instruction; remaining specifics (existing --wrap-descriptions, --config, summary period, exit code 3, exact wrap points at the given width) are pre-existing formatter behavior or scaffolding.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 581,
+    "completion_tokens_details": {
+      "reasoning_tokens": 391
+    },
+    "prompt_tokens": 3119,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 3700
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

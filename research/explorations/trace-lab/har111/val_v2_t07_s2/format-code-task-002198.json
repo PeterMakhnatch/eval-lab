@@ -1,0 +1,84 @@
+{
+  "task_id": "format-code-task-002198",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "to_offset",
+      "file": "pandas/tests/tseries/test_frequencies.py",
+      "line": 862,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "YearEnd",
+      "file": "pandas/tests/tseries/test_frequencies.py",
+      "line": 865,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "YearBegin",
+      "file": "pandas/tests/tseries/test_frequencies.py",
+      "line": 872,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "BYearEnd",
+      "file": "pandas/tests/tseries/test_frequencies.py",
+      "line": 879,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "BYearBegin",
+      "file": "pandas/tests/tseries/test_frequencies.py",
+      "line": 886,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Aliases beyond 'Y' are required: 'YS', 'BY', 'BYS' must map to YearBegin/BYearEnd/BYearBegin",
+      "test_ref": "test_to_offset_YS_alias / test_to_offset_BY_alias / test_to_offset_BYS_alias",
+      "quote": "result = frequencies.to_offset('YS')\nexpected = frequencies.to_offset('AS')\nassert result == expected\nassert isinstance(result, offsets.YearBegin)",
+      "severity": "guessable"
+    },
+    {
+      "what": "date_range must also accept freq='YS', 'BY', 'BYS' equivalents, not just 'Y'",
+      "test_ref": "test_date_range_freq_YS",
+      "quote": "result = date_range('2017-01-01', periods=3, freq='YS')\nexpected = date_range('2017-01-01', periods=3, freq='AS')\ntm.assert_index_equal(result, expected)",
+      "severity": "guessable"
+    },
+    {
+      "what": "The private helper _period_str_to_code must accept 'Y' and anchored forms like 'Y-DEC', 'Y-JAN'",
+      "test_ref": "test_period_str_to_code_Y",
+      "quote": "assert frequencies._period_str_to_code('Y') == 1000\nassert (frequencies._period_str_to_code('Y') ==\n        frequencies._period_str_to_code('A'))",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "to_offset('Y') equals to_offset('A') and returns YearEnd",
+    "date_range freq='Y' behaves like freq='A'",
+    "existing 'A' aliases keep working (direct consequence of accepting 'Y' as well)"
+  ],
+  "reason": "The instruction only names 'Y', but tests also require the sibling variants 'YS', 'BY', 'BYS' and support in the private _period_str_to_code helper \u2014 natural siblings a careful engineer following pandas conventions would likely implement, though not explicitly requested.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 587,
+    "completion_tokens_details": {
+      "reasoning_tokens": 167
+    },
+    "prompt_tokens": 1794,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2381
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

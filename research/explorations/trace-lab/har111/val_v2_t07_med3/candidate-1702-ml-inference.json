@@ -1,0 +1,99 @@
+{
+  "task_id": "candidate-1702-ml-inference",
+  "label": "broken",
+  "sample_labels": [
+    "sound",
+    "broken",
+    "broken"
+  ],
+  "unstated": [
+    {
+      "what": "Exact helper name and signature `resolve_max_length(config, tokenizer, default=...)` in lm_eval.models.utils that tests import directly",
+      "test_ref": "tests/test_outputs.py:82",
+      "quote": "from lm_eval.models.utils import resolve_max_length",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Per-result output field `via_property` in output., distinct from `resolved`, used for property-vs-automatic comparison",
+      "test_ref": "tests/test_outputs.py:133",
+      "quote": "item['resolved'] == item['via_property'] ... by_id['text_n_ctx']['via_property'] == 1536",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Per-result output field name `resolved`",
+      "test_ref": "tests/test_outputs.py:125",
+      "quote": "assert result['resolved'] == expected(case)",
+      "severity": "guessable"
+    },
+    {
+      "what": "For the explicit_override case, output. must contain via_property=1234 (the explicit HFLM.max_length) while resolved=8192 (automatic resolution), i.e. the fixture separates the two rather than reporting the override as resolved",
+      "test_ref": "tests/test_outputs.py:165",
+      "quote": "assert by_id['explicit_override']['via_property'] == 1234\n    assert by_id['explicit_override']['resolved'] == 8192",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "HFLM.max_length must consult an instance attribute `_max_length` (set directly by tests via object.__new__) as the explicit override",
+      "test_ref": "tests/test_outputs.py:153",
+      "quote": "model._max_length = case.get('explicit_max_length')",
+      "severity": "guessable"
+    },
+    {
+      "what": "Shared helper must be named `resolve_max_length` in lm_eval.models.utils with signature (config, tokenizer, default=...)",
+      "test_ref": "tests/test_outputs.py:82",
+      "quote": "from lm_eval.models.utils import resolve_max_length",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Each result must include a `via_property` field computed via HFLM.max_length property, distinct from `resolved`",
+      "test_ref": "tests/test_outputs.py:133",
+      "quote": "item['resolved'] == item['via_property']",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Output must use key `schema_version` for the schema string",
+      "test_ref": "tests/test_outputs.py:111",
+      "quote": "assert data['schema_version'] == 'lm-eval-context-repair.v1'",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "The instruction and existing repository (provided fixture runner, existing modules being repaired) cover all tested behaviors; result fields like 'resolved'/'via_property' and case ids come from the pre-existing tools/run_fixture.py and fixtures, and the shared helper name is named by the instruction itself.",
+    "The behavioral requirements are stated, but the tests additionally demand a specific exported helper name (`resolve_max_length`) and undocumented output. fields (`resolved`, `via_property`) including the non-obvious split where the explicit_override case reports via_property=1234 but resolved=8192; none of these names are derivable from the instruction.",
+    "The instruction describes the behavior but not the exported helper's name/signature (`resolve_max_length(config, tokenizer, default=2048)`) that hidden tests import, nor the per-result `via_property` output field; `schema_version` is only a mild naming guess."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 424,
+      "completion_tokens_details": {
+        "reasoning_tokens": 267
+      },
+      "prompt_tokens": 3004,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 3428
+    },
+    {
+      "completion_tokens": 767,
+      "completion_tokens_details": {
+        "reasoning_tokens": 236
+      },
+      "prompt_tokens": 3004,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3771
+    },
+    {
+      "completion_tokens": 404,
+      "completion_tokens_details": {
+        "reasoning_tokens": 95
+      },
+      "prompt_tokens": 3004,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "total_tokens": 3408
+    }
+  ]
+}

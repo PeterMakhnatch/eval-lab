@@ -1,0 +1,36 @@
+{
+  "task_id": "format-code-task-002539",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "save",
+      "file": "tests/test_job.py",
+      "line": 492,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "job.delete(delete_dependents=True) deletes dependents from Redis",
+    "default behavior unchanged (dependents kept)",
+    "dependents not saved remain absent (NoSuchJobError tolerated)",
+    "parent job and dependents key removed, parent removed from queue"
+  ],
+  "reason": "All hidden test assertions map directly to the stated API and default-behavior requirements, including handling of unsaved dependents and queue membership.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 148,
+    "completion_tokens_details": {
+      "reasoning_tokens": 47
+    },
+    "prompt_tokens": 1855,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2003
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

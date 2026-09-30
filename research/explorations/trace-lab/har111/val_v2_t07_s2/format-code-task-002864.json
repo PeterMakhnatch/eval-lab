@@ -1,0 +1,61 @@
+{
+  "task_id": "format-code-task-002864",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "dialects",
+      "file": "test_commands.json",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "TestTrino",
+      "file": "test_commands.json",
+      "line": 2,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Bare wrapper forms 'WITH WRAPPER' / 'WITHOUT WRAPPER' (without the ARRAY keyword) must round-trip via validate_identity; the issue example only shows 'WITH/WITHOUT ARRAY WRAPPER'.",
+      "test_ref": "tests/dialects/test_trino.py:test__query_with_wrapper / test__query_without_wrapper",
+      "quote": "\"JSON_QUERY(description, 'strict $.comment' WITH WRAPPER)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "'WITHOUT CONDITIONAL WRAPPER' variant must be preserved; the issue only shows unconditional and array wrappers.",
+      "test_ref": "tests/dialects/test_trino.py:test__query_preserves_existing_options",
+      "quote": "\"JSON_QUERY(content, 'strict $.HY.*' WITHOUT CONDITIONAL WRAPPER)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact output strings 'WITH ARRAY WRAPPER' and 'WITHOUT ARRAY WRAPPER' must appear in round-tripped SQL, pinning the tokenized arg rendering order/casing.",
+      "test_ref": "tests/dialects/test_trino.py:test__query_issue_full_statement",
+      "quote": "self.assertIn(\"WITH ARRAY WRAPPER\", out)",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Parsing JSON_QUERY with 'WITH/WITHOUT ARRAY WRAPPER' in Trino, as shown in the issue snippet"
+  ],
+  "reason": "The issue example only exercises the WITH/WITHOUT ARRAY WRAPPER forms, while the tests additionally require the bare wrapper forms and the WITHOUT CONDITIONAL WRAPPER variant; these are natural siblings from the referenced Trino docs/issue #4623, hence guessable rather than not_inferable.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 420,
+    "completion_tokens_details": {
+      "reasoning_tokens": 69
+    },
+    "prompt_tokens": 1665,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2085
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

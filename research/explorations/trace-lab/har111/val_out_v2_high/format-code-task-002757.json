@@ -1,0 +1,106 @@
+{
+  "task_id": "format-code-task-002757",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "org",
+      "file": "tests/resources/dash/test_segment_list_p1.mpd",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "iso",
+      "file": "tests/resources/dash/test_segment_list_p1.mpd",
+      "line": 5,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "xsd",
+      "file": "tests/resources/dash/test_segment_list_p1.mpd",
+      "line": 5,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "periods",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 506,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "adaptationSets",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 506,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "representations",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 506,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "uri",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 508,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "content",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 508,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "base_url",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 533,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "timelines",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 533,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "m4s",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 569,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Filtering of already-downloaded SegmentList segments after a dynamic manifest reload (the core fix for issue #5478)",
+    "Preserving existing static-manifest SegmentList behavior",
+    "Using the existing MPD.timelines state (passed back into MPD(...) on reload) to track the last yielded segment number per representation"
+  ],
+  "reason": "Every API surface the hidden tests exercise already exists in streamlink 6.2.1's src/streamlink/stream/dash/manifest.py: MPD.__init__ accepts the timelines kwarg, Representation.segments already has the init keyword (used for SegmentTemplate/SegmentBase), and Segment exposes uri/num/init/content. The fix is the internal filtering/number-tracking behavior, which is exactly the requested bug fix; no new names, formats, or test resources need to be invented (the .mpd fixtures are provided in the test diff).",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 2227,
+    "completion_tokens_details": {
+      "reasoning_tokens": 2034
+    },
+    "prompt_tokens": 10799,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 13026
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

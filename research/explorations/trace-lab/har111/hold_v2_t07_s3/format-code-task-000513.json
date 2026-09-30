@@ -1,0 +1,124 @@
+{
+  "task_id": "format-code-task-000513",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "deepcopy",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "model",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 11,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "testing",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 32,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "isfinite",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 95,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "allclose",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 100,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "tolist",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 223,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "insert",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 227,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 240,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "chdir",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 260,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "listdir",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 261,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Numeric string \"0.90\" must normalize to match stored key \"0.9\" (string-to-level parsing must tolerate trailing-zero formatting and p-style prefixes)",
+      "test_ref": "test_equivalent_numeric_string_for_stored_right_decile_returns_array",
+      "quote": "actual = base_forecast().quantile(\"0.90\")\n...\nassert_array_equal_with_nan(actual, np.array([100.0, 200.0]))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exponential tail extrapolation must not coincide with linear extrapolation of the two nearest stored quantiles (rules out a trivially linear tail implementation); only monotonicity/finiteness beyond the extreme stored quantile is otherwise checked",
+      "test_ref": "test_missing_quantile_in_effective_left_tail_extrapolates",
+      "quote": "assert not np.allclose(actual, linear_tail, rtol=1e-12, atol=1e-12)",
+      "severity": "guessable"
+    },
+    {
+      "what": "A stored quantile key like \"0.90\" (as a variant of \"0.9\") is not itself in the fixture, so matching \"0.90\" to \"0.9\" requires the same normalization as \"p50\" \u2014 same item as above, listed once",
+      "test_ref": "test_equivalent_numeric_string_for_stored_right_decile_returns_array",
+      "quote": "forecast.quantile(\"0.90\")",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Float and \"p50\"-style string queries returning stored arrays",
+    "Stored-decile string query \"0.1\"",
+    "Linear interpolation for 0.75",
+    "Tail extrapolation instead of NaN (exponential tail)",
+    "Fewer than two stored quantiles / mean-only -> all-NaN per step",
+    "Referential transparency (repeated calls equal)",
+    "No mutation of forecast arrays",
+    "No filesystem/network/global writes"
+  ],
+  "reason": "Nearly all test behaviors are stated in the instruction. The only unstated specifics are formatting tolerance when normalizing quantile strings (e.g. \"0.90\" vs \"0.9\") \u2014 a conventional, guessable parsing choice \u2014 and that the exponential tail must differ from linear extrapolation, which the instruction already implies by naming an exponential tail approximation.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 664,
+    "completion_tokens_details": {
+      "reasoning_tokens": 174
+    },
+    "prompt_tokens": 3465,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 4129
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

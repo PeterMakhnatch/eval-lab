@@ -1,0 +1,28 @@
+{
+  "task_id": "format-code-task-001482",
+  "rule_label": "sound",
+  "rule_unstated": [],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Empty YAML files included via `!include_dir_named` retain their filename-derived key with an empty (None) value instead of being dropped",
+    "Behavior applies to files containing only comments or no YAML content"
+  ],
+  "reason": "The hidden test change (second: None retained) is a direct consequence of the requested fix: keeping the filename key for empty files. No new names, strings, or extra contracts appear in the tests.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 122,
+    "completion_tokens_details": {
+      "reasoning_tokens": 22
+    },
+    "prompt_tokens": 1151,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 1273
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

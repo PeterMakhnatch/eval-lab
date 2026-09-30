@@ -1,0 +1,51 @@
+{
+  "task_id": "format-code-task-000587",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "ThreadPoolExecutor",
+      "file": "tests/test_redlock.py",
+      "line": 197,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "submit",
+      "file": "tests/test_redlock.py",
+      "line": 198,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "result",
+      "file": "tests/test_redlock.py",
+      "line": 199,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Importable name `redlock` from `pottery` (stated: \"importable from `pottery` as something like `redlock`\")",
+    "Keyword parameters key, masters, auto-release timeout (stated as \"same knobs `Redlock` already accepts\", and `masters` is an existing Redlock parameter)",
+    "Serialized execution semantics verified via ThreadPoolExecutor timing deltas \u2014 direct consequence of the decorator acquiring/releasing the Redlock per call"
+  ],
+  "reason": "The hidden test only exercises the decorator with the exact name and Redlock knobs the instruction already describes; the concurrency/timing assertions are direct consequences of correct lock behavior.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 242,
+    "completion_tokens_details": {
+      "reasoning_tokens": 98
+    },
+    "prompt_tokens": 1606,
+    "prompt_tokens_details": {
+      "cached_tokens": 1600
+    },
+    "total_tokens": 1848
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

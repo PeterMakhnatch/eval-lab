@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-003042",
+  "label": "sound",
+  "sample_labels": [
+    "sound",
+    "sound",
+    "sound"
+  ],
+  "unstated": [],
+  "reasons": [
+    "Every hidden-test assertion maps directly to the reported issue: default_factory, non-primitive defaults, and tuple deserialization. The `asdict` usage is stdlib test scaffolding, and the changed Optional assertions are direct consequences of honoring defaults in from_tuple.",
+    "The hidden tests only exercise behaviors the issue explicitly requests: default= and default_factory= honored for both from_dict and from_tuple across all field types. Remaining test details (asdict, dataclasses.fields) are library/test scaffolding or pre-existing code, so nothing qualifies as unstated.",
+    "Every hidden test assertion maps to a behavior the instruction explicitly requests: default_factory, non-primitive defaults (Decimal, Path), from_dict and from_tuple, and all formats. The asdict call is test scaffolding."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 375,
+      "completion_tokens_details": {
+        "reasoning_tokens": 252
+      },
+      "prompt_tokens": 3044,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3419
+    },
+    {
+      "completion_tokens": 303,
+      "completion_tokens_details": {
+        "reasoning_tokens": 155
+      },
+      "prompt_tokens": 3044,
+      "prompt_tokens_details": {
+        "cached_tokens": 3008
+      },
+      "total_tokens": 3347
+    },
+    {
+      "completion_tokens": 261,
+      "completion_tokens_details": {
+        "reasoning_tokens": 133
+      },
+      "prompt_tokens": 3044,
+      "prompt_tokens_details": {
+        "cached_tokens": 3008
+      },
+      "total_tokens": 3305
+    }
+  ]
+}

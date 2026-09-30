@@ -1,0 +1,166 @@
+{
+  "task_id": "format-code-task-001140",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "unicode_literals",
+      "file": "tests/test_ajax_contract.py",
+      "line": 1,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "RequestFactory",
+      "file": "tests/test_ajax_contract.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "SimpleTestCase",
+      "file": "tests/test_ajax_contract.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "override_settings",
+      "file": "tests/test_ajax_contract.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "test",
+      "file": "tests/test_ajax_contract.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "decorators",
+      "file": "tests/test_ajax_contract.py",
+      "line": 8,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "JSONResponse",
+      "file": "tests/test_ajax_contract.py",
+      "line": 10,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "shortcuts",
+      "file": "tests/test_ajax_contract.py",
+      "line": 11,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "JSONEncoder",
+      "file": "tests/test_ajax_contract.py",
+      "line": 18,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "factory",
+      "file": "tests/test_ajax_contract.py",
+      "line": 27,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "browser_request",
+      "file": "tests/test_ajax_contract.py",
+      "line": 30,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "record missing",
+      "file": "tests/test_ajax_contract.py",
+      "line": 42,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ", missing_payload[",
+      "file": "tests/test_ajax_contract.py",
+      "line": 58,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "secret failure",
+      "file": "tests/test_ajax_contract.py",
+      "line": 60,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ", broken_payload[",
+      "file": "tests/test_ajax_contract.py",
+      "line": 61,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "process_response",
+      "file": "tests/test_ajax_contract.py",
+      "line": 78,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "process_exception",
+      "file": "tests/test_ajax_contract.py",
+      "line": 106,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "private details",
+      "file": "tests/test_ajax_contract.py",
+      "line": 111,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "marker-value",
+      "file": "tests/test_ajax_contract.py",
+      "line": 132,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "render_to_ Http404 envelope with request context not passed to encoder",
+    "@ajax exception handling (404/500, DEBUG-safe message)",
+    "@ajax HttpResponse envelope and mandatory guard / mandatory=False passthrough",
+    "middleware process_response conversion, no double-wrapping of JSON, non-AJAX untouched",
+    "middleware process_exception AJAX-only 500 handling",
+    "caller-provided encoder and .dumps kwargs preserved"
+  ],
+  "reason": "All hidden test behaviors are explicitly stated: envelope keys (status/statusText/content) are the package's existing format, the safe 500 message is only checked negatively, and middleware process_exception semantics follow from 'exception results using the same envelope rules, leave non-AJAX exception handling untouched'.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 313,
+    "completion_tokens_details": {
+      "reasoning_tokens": 153
+    },
+    "prompt_tokens": 2368,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2681
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

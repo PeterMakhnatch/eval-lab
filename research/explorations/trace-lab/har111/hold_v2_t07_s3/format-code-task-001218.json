@@ -1,0 +1,65 @@
+{
+  "task_id": "format-code-task-001218",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "clear",
+      "file": "fsspec/implementations/tests/test_memory.py",
+      "line": 89,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "store",
+      "file": "fsspec/implementations/tests/test_memory.py",
+      "line": 89,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "pseudo_dirs",
+      "file": "fsspec/implementations/tests/test_memory.py",
+      "line": 90,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Behavior must also hold for paths with a leading slash (mkdir('/a/b'), touch('/a/b/c.d'), ls('/a')), which the instruction example never shows",
+      "test_ref": "test_ls_no_duplicate_with_leading_slash",
+      "quote": "m.mkdir(\"/a/b\")\n    m.touch(\"/a/b/c.d\")\n    listed = m.ls(\"/a\")\n    assert listed == [\"/a/b/\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "detail=True entries must include type == 'directory' for the pseudo-directory",
+      "test_ref": "test_ls_detail_no_duplicate_after_mkdir_then_touch",
+      "quote": "assert detail[0][\"type\"] == \"directory\"",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Trailing-slash listing format ['a/b/'] (shown in the instruction example output)",
+    "No duplicates after mkdir then touch",
+    "Pseudo-directory remains listed after mkdir alone",
+    "Multiple files in a mkdir'd directory do not create duplicates"
+  ],
+  "reason": "The core duplicate-listing bug, its output format, and the detail-mode name with trailing slash are all shown in the instruction. Only the leading-slash variant and the detail 'type' field are extra, and both are conventional/derivable consequences of normalizing paths in ls/mkdir/touch.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 475,
+    "completion_tokens_details": {
+      "reasoning_tokens": 176
+    },
+    "prompt_tokens": 1642,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2117
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

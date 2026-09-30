@@ -1,0 +1,125 @@
+{
+  "task_id": "format-code-task-002757",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "org",
+      "file": "tests/resources/dash/test_segment_list_p1.mpd",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "iso",
+      "file": "tests/resources/dash/test_segment_list_p1.mpd",
+      "line": 5,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "xsd",
+      "file": "tests/resources/dash/test_segment_list_p1.mpd",
+      "line": 5,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "periods",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 506,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "adaptationSets",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 506,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "representations",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 506,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "uri",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 508,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "content",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 508,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "base_url",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 533,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "timelines",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 533,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "m4s",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 569,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "MPD constructor must accept a timelines argument (or expose timelines) to carry segment-number state across manifest reloads",
+      "test_ref": "tests/stream/dash/test_manifest.py:533 (test_segment_list_dynamic_reload_yields_only_new_segments)",
+      "quote": "MPD(mpd_xml_p2, base_url=mpd_p1.base_url, url=mpd_p1.url, timelines=mpd_p1.timelines)",
+      "severity": "guessable"
+    },
+    {
+      "what": "segments() must support an init=False keyword to skip re-yielding the initialization segment on reload",
+      "test_ref": "tests/stream/dash/test_manifest.py:534 (test_segment_list_dynamic_reload_yields_only_new_segments)",
+      "quote": "iter_p2 = rep_p2.segments(init=False)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Segment attributes: init/content booleans with exact semantics (init segment has init=True, content=True only for media segments) and num starting from startNumber=2",
+      "test_ref": "tests/stream/dash/test_manifest.py:508",
+      "quote": "(\"http://test/init-video-p1.mp4\", -1, True, False),",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Filtering of already-downloaded segments in dynamic SegmentList manifests after reload (the reported bug)",
+    "Support for SegmentList in dynamic DASH manifests"
+  ],
+  "reason": "The tests require a timelines-passing mechanism on MPD construction, an init=False parameter on segments(), and specific Segment attribute semantics (init/content flags, numbering) \u2014 none of which are stated in the issue, though each is a fairly natural design choice for implementing the fix; the times attribute is not asserted so SegmentTimeline handling is not required.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 372,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 10799,
+    "prompt_tokens_details": {
+      "cached_tokens": 10752
+    },
+    "total_tokens": 11171
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

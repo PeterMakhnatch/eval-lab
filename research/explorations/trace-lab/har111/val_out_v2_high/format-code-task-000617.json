@@ -1,0 +1,64 @@
+{
+  "task_id": "format-code-task-000617",
+  "rule_label": "broken",
+  "rule_unstated": [
+    {
+      "kind": "literal",
+      "value": "There should be no stderr",
+      "file": "snapcraft/tests/test_cmds.py",
+      "line": 81,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "test-package_1_all.snap",
+      "file": "snapcraft/tests/test_cmds.py",
+      "line": 83,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "can not parse package.yaml: missing required fields",
+      "file": "snapcraft/tests/test_cmds.py",
+      "line": 111,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "The surfaced error message must go to stderr specifically, while 'Snapping' progress stays on stdout (the instruction says 'surface' the message but never names the stream).",
+      "test_ref": "snapcraft/tests/test_cmds.py:109-112 (failing assemble test)",
+      "quote": "output_stderr = mock_stderr.getvalue()\nself.assertTrue('can not parse package.yaml: missing required fields'\n                in output_stderr)\nself.assertTrue('Snapping' in output_stdout)",
+      "severity": "guessable"
+    },
+    {
+      "what": "The success case must additionally write nothing at all to stderr (instruction only describes the failure case; the success path's stderr contract is extra).",
+      "test_ref": "snapcraft/tests/test_cmds.py:81 (successful assemble test)",
+      "quote": "self.assertEqual(output_stderr, '', 'There should be no stderr')",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "exit code 1 on failure and 0 on success",
+    "'Snapping' progress line appears in stdout",
+    "failure case must not print 'test-package_1_all.snap' in stdout",
+    "the error text itself ('can not parse package.yaml: missing required fields') is the underlying tool's message the instruction says to surface, so the exact string is a direct consequence of surfacing the build tool's output"
+  ],
+  "reason": "The instruction asks to surface the underlying build tool's error message but never specifies the stream, while the hidden tests require the message on stderr (with stdout limited to the 'Snapping' progress) and require a clean stderr on success; the error string itself is covered because the instruction explicitly says to reproduce whatever the tool said.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 1653,
+    "completion_tokens_details": {
+      "reasoning_tokens": 1301
+    },
+    "prompt_tokens": 1503,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 3156
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

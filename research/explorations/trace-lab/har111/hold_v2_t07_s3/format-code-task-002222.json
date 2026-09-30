@@ -1,0 +1,98 @@
+{
+  "task_id": "format-code-task-002222",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "int64",
+      "file": "pandas/tests/frame/test_ufunc.py",
+      "line": 276,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "negative",
+      "file": "pandas/tests/frame/test_ufunc.py",
+      "line": 295,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "positive",
+      "file": "pandas/tests/frame/test_ufunc.py",
+      "line": 303,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "float32",
+      "file": "pandas/tests/frame/test_ufunc.py",
+      "line": 303,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dtypes",
+      "file": "pandas/tests/frame/test_ufunc.py",
+      "line": 304,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Support for dtype kwarg on unary ufuncs: result DataFrame columns must be np.float32 when np.positive(df, dtype=np.float32) is called; instruction only mentions 'out'",
+      "test_ref": "pandas/tests/frame/test_ufunc.py:303-304 (test_np_unary_ufunc_dataframe_dtype_kwarg)",
+      "quote": "result = np.positive(df, dtype=np.float32)\n    assert all(d == np.float32 for d in result.dtypes)",
+      "severity": "guessable"
+    },
+    {
+      "what": "np.negative (unary ufunc) with out must be supported, not just np.add",
+      "test_ref": "pandas/tests/frame/test_ufunc.py:295-299 (test_np_negative_dataframe_with_out)",
+      "quote": "np.negative(df, out=bar)\n    expected = np.array([[-1, -2], [-3, -4]], dtype=np.int64)",
+      "severity": "guessable"
+    },
+    {
+      "what": "np.positive (unary ufunc) must be supported",
+      "test_ref": "pandas/tests/frame/test_ufunc.py:303 (test_np_unary_ufunc_dataframe_dtype_kwarg)",
+      "quote": "result = np.positive(df, dtype=np.float32)",
+      "severity": "guessable"
+    },
+    {
+      "what": "np.exp (unary ufunc) with out must be supported",
+      "test_ref": "pandas/tests/frame/test_ufunc.py:287-291 (test_np_unary_ufunc_dataframe_with_out)",
+      "quote": "np.exp(df, out=bar)\n    expected = np.exp(np.array([[1.0, 2.0], [3.0, 4.0]]))",
+      "severity": "guessable"
+    },
+    {
+      "what": "int64 dtype of out array for negative/negative results must be respected exactly",
+      "test_ref": "pandas/tests/frame/test_ufunc.py:276 (test_np_add_two_dataframes_with_out)",
+      "quote": "bar = np.zeros((2, 2), dtype=np.int64)",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "np.add(df, 1, out=bar) writing result into out array (test_np_add_dataframe_scalar_with_out)",
+    "np.add(df1, df2, out=bar) two-DataFrame case (test_np_add_two_dataframes_with_out)",
+    "preservation of existing no-kwargs np.add behavior (test_np_add_dataframe_no_kwargs_preservation)",
+    "preservation of Series out behavior (test_np_add_series_with_out_preservation)",
+    "preservation of .values workaround (test_np_add_dataframe_values_workaround_preservation)"
+  ],
+  "reason": "The instruction only asks to fix np.add with 'out' on DataFrames; tests additionally require general unary ufuncs (np.exp, np.negative, np.positive), a dtype kwarg producing float32 column dtypes, and exact int64 dtype handling, which are sibling cases a careful engineer might partially cover but the dtype kwarg behavior is not stated.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 790,
+    "completion_tokens_details": {
+      "reasoning_tokens": 139
+    },
+    "prompt_tokens": 2795,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3585
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

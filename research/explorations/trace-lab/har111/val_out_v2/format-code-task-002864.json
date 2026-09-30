@@ -1,0 +1,49 @@
+{
+  "task_id": "format-code-task-002864",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "dialects",
+      "file": "test_commands.json",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "TestTrino",
+      "file": "test_commands.json",
+      "line": 2,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Bare wrapper forms 'WITH WRAPPER' / 'WITHOUT WRAPPER' (no ARRAY or CONDITIONAL/UNCONDITIONAL keyword) must parse and round-trip",
+      "test_ref": "tests/dialects/test_trino.py:test__query_with_wrapper",
+      "quote": "\"JSON_QUERY(description, 'strict $.comment' WITH WRAPPER)\"",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "WITH ARRAY WRAPPER and WITHOUT ARRAY WRAPPER parsing in Trino JSON_QUERY (shown in the issue's SQL and traceback)",
+    "full SELECT statement parsing without ParseError",
+    "existing forms like WITH UNCONDITIONAL WRAPPER KEEP QUOTES (already in the repo's tests)"
+  ],
+  "reason": "The instruction's example only shows WITH/WITHOUT ARRAY WRAPPER; the tests additionally require the bare 'WITH WRAPPER'/'WITHOUT WRAPPER' forms, a natural sibling case. The unconditional/conditional variants and full-statement parse are already covered by existing code/tests or are direct consequences of the fix.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 388,
+    "completion_tokens_details": {
+      "reasoning_tokens": 170
+    },
+    "prompt_tokens": 1665,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2053
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

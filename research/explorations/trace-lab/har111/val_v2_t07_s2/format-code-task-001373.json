@@ -1,0 +1,57 @@
+{
+  "task_id": "format-code-task-001373",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "RequestFactory",
+      "file": "tests/unit/handlers/test__helpers.py",
+      "line": 207,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "process_request",
+      "file": "tests/unit/handlers/test__helpers.py",
+      "line": 212,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "put",
+      "file": "tests/unit/handlers/test__helpers.py",
+      "line": 224,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Fix must use the CONTENT_LENGTH header (instead of touching request.body) to compute requestSize, including when no content length exists (None or 0 accepted)",
+      "test_ref": "tests/unit/handlers/test__helpers.py::Test_get_request_data_from_django::test_request_size_none_when_no_content_length",
+      "quote": "self.assertIn(http_request[\"requestSize\"], (None, 0))",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "requestSize must remain correct even after the request body stream has been read (no RawPostDataException)",
+    "multiple logging calls within one request must each get a consistent requestSize"
+  ],
+  "reason": "The instruction only describes avoiding re-reading request.body; the hidden tests additionally require that requestSize be derived from CONTENT_LENGTH, returning None/0 when absent, which is a design choice not spelled out but a natural fix a careful engineer would likely pick.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 376,
+    "completion_tokens_details": {
+      "reasoning_tokens": 171
+    },
+    "prompt_tokens": 2173,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2549
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

@@ -1,0 +1,62 @@
+{
+  "task_id": "format-code-task-000617",
+  "rule_label": "broken",
+  "rule_unstated": [
+    {
+      "kind": "literal",
+      "value": "There should be no stderr",
+      "file": "snapcraft/tests/test_cmds.py",
+      "line": 81,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "test-package_1_all.snap",
+      "file": "snapcraft/tests/test_cmds.py",
+      "line": 83,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "can not parse package.yaml: missing required fields",
+      "file": "snapcraft/tests/test_cmds.py",
+      "line": 111,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Failure output must go to stderr (not stdout) when assemble fails",
+      "test_ref": "snapcraft/tests/test_cmds.py:test_snappy_build_fail",
+      "quote": "output_stderr = mock_stderr.getvalue()\n        self.assertTrue('can not parse package.yaml: missing required fields' in output_stderr)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Success case must print nothing to stderr",
+      "test_ref": "snapcraft/tests/test_cmds.py:test_snappy_build_success",
+      "quote": "self.assertEqual(output_stderr, '', 'There should be no stderr')",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "surfacing the underlying build tool's error message on failure ('can not parse package.yaml: missing required fields' is produced by snappy build itself and propagated)",
+    "exit code 1 on failure",
+    "'Snapping' still printed to stdout"
+  ],
+  "reason": "The instruction says to surface the underlying tool's error, which covers the message content itself, but it does not specify which stream the error goes to (stderr) nor that the success path must keep stderr empty \u2014 both are natural but not stated.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 364,
+    "completion_tokens_details": {
+      "reasoning_tokens": 122
+    },
+    "prompt_tokens": 1503,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 1867
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

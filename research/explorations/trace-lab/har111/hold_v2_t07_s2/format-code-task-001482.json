@@ -1,0 +1,27 @@
+{
+  "task_id": "format-code-task-001482",
+  "rule_label": "sound",
+  "rule_unstated": [],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "empty YAML files (including None-producing ones like files containing only a comment) keep their filename-derived key with an empty/None value in `!include_dir_named` mappings"
+  ],
+  "reason": "The hidden test change ({\"second\": None} for an empty file) is a direct, expected consequence of the reported bug and requested fix; no new names, formats, or extra contracts are required.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 131,
+    "completion_tokens_details": {
+      "reasoning_tokens": 37
+    },
+    "prompt_tokens": 1151,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 1282
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

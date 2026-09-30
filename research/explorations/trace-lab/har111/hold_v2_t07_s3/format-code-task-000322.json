@@ -1,0 +1,61 @@
+{
+  "task_id": "format-code-task-000322",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "st_size",
+      "file": "tests/test_web_sendfile_functional.py",
+      "line": 357,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "unknown_mime_type",
+      "file": "tests/test_web_sendfile_functional.py",
+      "line": 530,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "Content-Length",
+      "file": "tests/test_web_sendfile_functional.py",
+      "line": 568,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Invalid/unparsable dates in If-Unmodified-Since and If-Range must be ignored (fall through to a normal 200), rather than raising or returning 412/200-conditional behavior",
+      "test_ref": "test_static_file_if_unmodified_since_invalid_date / test_static_file_if_range_invalid_date",
+      "quote": "resp = await client.get('/', headers={'If-Unmodified-Since': lastmod})\n    assert 200 == resp.status",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Content-Range header on 206 responses (exact 'bytes start-end/size' format shown in test and stated in issue)",
+    "Accept-Ranges advertisement",
+    "416 for unsatisfiable start range",
+    "clamping out-of-range tail range to whole file",
+    "If-Unmodified-Since and If-Range conditional handling (412 when past, honor range when future)",
+    "Content-Length values are direct consequences of the status/body"
+  ],
+  "reason": "The instruction covers the header, 416, tail clamping, and the two conditional headers. The only unstated requirement is how to handle invalid HTTP-dates in the new conditional headers, where the tests require ignoring them and returning 200 \u2014 RFC-conventional, so guessable.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 386,
+    "completion_tokens_details": {
+      "reasoning_tokens": 115
+    },
+    "prompt_tokens": 4014,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 4400
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

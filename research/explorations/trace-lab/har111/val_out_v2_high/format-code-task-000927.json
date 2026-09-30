@@ -1,0 +1,59 @@
+{
+  "task_id": "format-code-task-000927",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "through",
+      "file": "tests/test_api.py",
+      "line": 840,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Exact serialization of 'escaped as code point': lowercase hex digits, no zero-padding, followed by a trailing space (e.g. '\\x01' -> '\\\\1 ', '\\x1f' -> '\\\\1f ', '\\x7f' -> '\\\\7f ', '1abc' -> '\\\\31 abc')",
+      "test_ref": "tests/test_api.py::TestEscape::test_escape_control_low",
+      "quote": "self.assertEqual(sv.escape('\\x01'), '\\\\1 ')",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact serialization of 'the escaped character': a backslash immediately followed by the character with no trailing space (e.g. '.' -> '\\\\.', ' ' -> '\\\\ ', '-' -> '\\\\-')",
+      "test_ref": "tests/test_api.py::TestEscape::test_escape_special_char_dot",
+      "quote": "self.assertEqual(sv.escape('a.b'), 'a\\\\.b')",
+      "severity": "guessable"
+    },
+    {
+      "what": "The function must be exposed as a public callable attribute of the top-level package module (``sv.escape``); the instruction says 'add escape function' but does not name the module or public API path",
+      "test_ref": "tests/test_api.py::TestEscape::test_escape_api_exists",
+      "quote": "self.assertTrue(hasattr(sv, 'escape'))",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "NULL (U+0000) replaced by U+FFFD (test_escape_null_char_becomes_replacement, test_escape_null_in_middle)",
+    "control chars U+0001-U+001F and U+007F escaped as code point (test_escape_control_low, test_escape_control_high, test_escape_del_char)",
+    "leading digit escaped as code point (test_escape_first_digit) and non-leading digits passed through (test_escape_non_first_digit)",
+    "dash followed by digit: digit escaped as code point (test_escape_dash_then_digit)",
+    "single '-' escaped, '--abc' and '-a' and '-_abc' passed through (test_escape_single_dash, test_escape_double_dash_no_escape, test_escape_dash_then_alpha, test_escape_dash_underscore_first)",
+    "identifier-safe chars (A-Z, a-z, 0-9, '-', '_', >= U+0080) pass through (test_escape_underscore, test_escape_internal_dash, test_escape_high_unicode, test_escape_high_unicode_bmp, test_escape_uppercase_passthrough)",
+    "empty string returns empty (test_escape_empty_string), which follows trivially from the rules"
+  ],
+  "reason": "The instruction quotes the full CSS escaping spec, so all behavioral rules are covered. The only unstated details are the concrete output serialization (lowercase minimal hex + space for code points, backslash+char for escaped characters) and the public module path ``sv.escape``, both of which are conventional/derivable choices a careful implementer would make.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 1205,
+    "completion_tokens_details": {
+      "reasoning_tokens": 597
+    },
+    "prompt_tokens": 2088,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 3293
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

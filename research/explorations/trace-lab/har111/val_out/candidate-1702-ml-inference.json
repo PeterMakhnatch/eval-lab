@@ -1,0 +1,308 @@
+{
+  "task_id": "candidate-1702-ml-inference",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "Path",
+      "file": "tests/test_outputs.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ModuleType",
+      "file": "tests/test_outputs.py",
+      "line": 19,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Tensor",
+      "file": "tests/test_outputs.py",
+      "line": 20,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "functional",
+      "file": "tests/test_outputs.py",
+      "line": 23,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Accelerator",
+      "file": "tests/test_outputs.py",
+      "line": 32,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "InitProcessGroupKwargs",
+      "file": "tests/test_outputs.py",
+      "line": 33,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "find_executable_batch_size",
+      "file": "tests/test_outputs.py",
+      "line": 34,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "get_max_memory",
+      "file": "tests/test_outputs.py",
+      "line": 36,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "HfApi",
+      "file": "tests/test_outputs.py",
+      "line": 44,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "version",
+      "file": "tests/test_outputs.py",
+      "line": 51,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "parse",
+      "file": "tests/test_outputs.py",
+      "line": 52,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "StoppingCriteria",
+      "file": "tests/test_outputs.py",
+      "line": 61,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "StoppingCriteriaList",
+      "file": "tests/test_outputs.py",
+      "line": 62,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "PreTrainedModel",
+      "file": "tests/test_outputs.py",
+      "line": 63,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "PreTrainedTokenizer",
+      "file": "tests/test_outputs.py",
+      "line": 64,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "PreTrainedTokenizerFast",
+      "file": "tests/test_outputs.py",
+      "line": 65,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "modeling_auto",
+      "file": "tests/test_outputs.py",
+      "line": 68,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "insert",
+      "file": "tests/test_outputs.py",
+      "line": 80,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "huggingface",
+      "file": "tests/test_outputs.py",
+      "line": 81,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "resolve_max_length",
+      "file": "tests/test_outputs.py",
+      "line": 82,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "tests/test_outputs.py",
+      "line": 97,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "schema_version",
+      "file": "tests/test_outputs.py",
+      "line": 111,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_file",
+      "file": "tests/test_outputs.py",
+      "line": 112,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_symlink",
+      "file": "tests/test_outputs.py",
+      "line": 116,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "sha256",
+      "file": "tests/test_outputs.py",
+      "line": 117,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "read_bytes",
+      "file": "tests/test_outputs.py",
+      "line": 117,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "hexdigest",
+      "file": "tests/test_outputs.py",
+      "line": 117,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stat",
+      "file": "tests/test_outputs.py",
+      "line": 121,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "st_size",
+      "file": "tests/test_outputs.py",
+      "line": 121,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "] for x in data[",
+      "file": "tests/test_outputs.py",
+      "line": 125,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "via_property",
+      "file": "tests/test_outputs.py",
+      "line": 133,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "composite_nested",
+      "file": "tests/test_outputs.py",
+      "line": 137,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "text_n_positions",
+      "file": "tests/test_outputs.py",
+      "line": 138,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "text_max_position",
+      "file": "tests/test_outputs.py",
+      "line": 139,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "SimpleNamespace",
+      "file": "tests/test_outputs.py",
+      "line": 154,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "infinite_tokenizer",
+      "file": "tests/test_outputs.py",
+      "line": 164,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "explicit_override",
+      "file": "tests/test_outputs.py",
+      "line": 165,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "Each result object must include a 'via_property' field that equals the value HFLM.max_length returns for that case (distinct from 'resolved'), e.g. explicit_override case has via_property=1234 while resolved=8192.",
+      "test_ref": "tests/test_outputs.py:132-136",
+      "quote": "item['resolved'] == item['via_property'] ... by_id['explicit_override']['via_property'] == 1234",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "The shared resolution function must be named resolve_max_length in lm_eval.models.utils (the instruction says only to 'keep resolution logic shared').",
+      "test_ref": "tests/test_outputs.py:82",
+      "quote": "from lm_eval.models.utils import resolve_max_length",
+      "severity": "guessable"
+    },
+    {
+      "what": "HFLM.max_length must read _max_length/_tokenizer/_model.config/_DEFAULT_MAX_LENGTH internal attributes and prefer explicit_max_length via 'or' semantics (explicit_max_length or expected).",
+      "test_ref": "tests/test_outputs.py:150-157",
+      "quote": "model._max_length = case.get('explicit_max_length') ... assert model.max_length == (case.get('explicit_max_length') or expected(case))",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Nested text_config precedence (n_positions, max_position_embeddings, n_ctx)",
+    "Tokenizer finite model_max_length fallback and infinity sentinel -> default 2048",
+    "Explicit max_length override in HFLM",
+    "Resolution logic located in lm_eval.models.utils",
+    "output. schema string lm-eval-context-repair.v1, one result per case in input order"
+  ],
+  "reason": "The instruction never mentions the per-result 'via_property' field, which tests require to differ from 'resolved' for the explicit-override case; a correct fix to the stated problem could not infer that output field. The other requirements (function name, internal attribute usage) are plausible extensions of 'keep resolution shared' and are guessable.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 619,
+    "completion_tokens_details": {
+      "reasoning_tokens": 170
+    },
+    "prompt_tokens": 2988,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 3607
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

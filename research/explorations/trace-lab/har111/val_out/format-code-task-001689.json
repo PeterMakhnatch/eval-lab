@@ -1,0 +1,57 @@
+{
+  "task_id": "format-code-task-001689",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "is_meta",
+      "file": "keras/src/ops/core_test.py",
+      "line": 739,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_tensor",
+      "file": "keras/src/ops/core_test.py",
+      "line": 742,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "float64",
+      "file": "keras/src/ops/core_test.py",
+      "line": 770,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "convert_to_numpy",
+      "file": "keras/src/ops/core_test.py",
+      "line": 783,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "convert_to_tensor on torch meta-device tensors no longer raises NotImplementedError",
+    "result is a torch tensor not on meta device",
+    "shape and dtype (including requested dtype) are preserved",
+    "regular torch tensors pass through unchanged"
+  ],
+  "reason": "All hidden checks (non-meta result, preserved shape/dtype, unchanged behavior for normal tensors) directly exercise the reported bug and its natural fix; no exact device, message, or extra API is asserted beyond what the issue implies.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 239,
+    "completion_tokens_details": {
+      "reasoning_tokens": 125
+    },
+    "prompt_tokens": 1644,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 1883
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

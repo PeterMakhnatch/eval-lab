@@ -1,0 +1,185 @@
+{
+  "task_id": "format-code-task-001832",
+  "rule_label": "broken",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "create_engine",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 18,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "LazyTbl",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 21,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "to_dict",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 29,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "grouper",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 33,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "groupings",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 33,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "last_select",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 41,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "inner_columns",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 43,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "escape",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 51,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "\\bdf\\.{re.escape(source)}\\s+AS\\s+{label_pattern}\\b",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 52,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "search",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 52,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "obj",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 114,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "in literal[",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 132,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "testing",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 199,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dedent",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 208,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "insert",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 212,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stdout",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 218,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 226,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "chdir",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 240,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Path",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 244,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "relative_to",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 263,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "as_posix",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 263,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "rglob",
+      "file": "usercase-test-coderl/test_rename_acceptance.py",
+      "line": 263,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "rename verb exported from siuba accepting **kwargs with string or column expression targets",
+    "pandas, grouped pandas, SQL lazy, and grouped SQL lazy behavior",
+    "no mutation, no side effects, deterministic output",
+    "ValueError for non-simple pandas targets, KeyError for SQL"
+  ],
+  "reason": "All hidden-test specifics (labels, group key updates, error types, purity) are stated in the instruction; remaining test code uses pre-existing library internals (LazyTbl.last_select, grouper.groupings) and standard test scaffolding.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 274,
+    "completion_tokens_details": {
+      "reasoning_tokens": 153
+    },
+    "prompt_tokens": 3679,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3953
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

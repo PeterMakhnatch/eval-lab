@@ -1,0 +1,135 @@
+{
+  "task_id": "format-code-task-002992",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "joinpath",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 33,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "rglob",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 44,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "relative_to",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 45,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "as_posix",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 45,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_file",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 46,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "read_bytes",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 47,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_dir",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 48,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "txt",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 163,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "deepcopy",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 309,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "insert",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 337,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stdout",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 343,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 346,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "chdir",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 374,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "The caller's category_mapping dict must not be mutated by the function (the instruction only says no global state / file writes, not non-mutation of the mapping argument)",
+      "test_ref": "test_does_not_mutate_caller_mapping",
+      "quote": "voc_to_coco(xml_dir, category_mapping=mapping)\n\n    assert mapping == before",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "import location weedcoco.importers.voc and function signature",
+    "glob pattern [a-zA-Z0-9_]*.xml with sorted order (covers '-skip.xml' exclusion and 'sample.voc.xml' inclusion)",
+    "inclusive bbox conversion to [x, y, w, h]",
+    "sequential image/annotation IDs and first-seen category IDs",
+    "category_mapping suppresses categories list and uses given IDs",
+    "missing <bndbox> omits bbox but keeps id/image_id/category_id",
+    "AssertionError on non-<annotation> root",
+    "info: {} key",
+    "referential transparency / no side effects",
+    "image_dir accepted without changing result"
+  ],
+  "reason": "The instruction is unusually complete: it specifies the module path, signature, glob pattern, ID ordering, bbox inclusivity, mapping behaviour, missing-bbox handling, root assertion, purity, and image_dir. The only extra hidden-test requirement is that the passed-in category_mapping dict itself must not be mutated, which is a natural purity-adjacent choice a careful engineer would likely get right.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 471,
+    "completion_tokens_details": {
+      "reasoning_tokens": 155
+    },
+    "prompt_tokens": 4803,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 5274
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

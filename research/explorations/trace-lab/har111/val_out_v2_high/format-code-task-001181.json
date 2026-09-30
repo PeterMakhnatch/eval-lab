@@ -1,0 +1,61 @@
+{
+  "task_id": "format-code-task-001181",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "Tuple",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Console",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "StringIO",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 20,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_task",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 25,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "positive deltas from both advance and update(completed=...) feed one rate estimate over the sampling window (tests at lines 32, 45, 60)",
+    "zero/negative deltas update completed but add no rate evidence (test_non_positive_advance_does_not_create_progress)",
+    "Task.speed = completed steps / elapsed time between retained samples (test_speed_includes_every_positive_increment, test_absolute_completed_updates_feed_the_same_rate_estimator)",
+    "Task.time_remaining uses the rate and ceils remaining work (test_time_remaining_uses_the_observed_speed)",
+    "update reaching finite total sets finished, captures speed; finished_time/finished_speed frozen afterwards (test_completion_via_update_records_and_freezes_finished_speed)",
+    "reset clears rate evidence (speed/finished_speed become None) and retains total (test_reset_clears_old_speed_samples, test_new_samples_after_reset_are_used_for_speed)",
+    "changing total invalidates old rate evidence (test_changing_total_invalidates_old_speed_samples)"
+  ],
+  "reason": "Every assertion in the hidden test file maps directly to a requirement stated in the instruction, including the named attributes speed, time_remaining, finished, finished_time, finished_speed, and the reset/total-change semantics. Test scaffolding (Clock, Console, add_task) and existing Progress APIs are not actionable items.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 1582,
+    "completion_tokens_details": {
+      "reasoning_tokens": 1309
+    },
+    "prompt_tokens": 2145,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3727
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

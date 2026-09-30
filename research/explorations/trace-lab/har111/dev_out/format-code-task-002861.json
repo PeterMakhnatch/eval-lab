@@ -1,0 +1,53 @@
+{
+  "task_id": "format-code-task-002861",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "TestTranspile",
+      "file": "test_commands.json",
+      "line": 2,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "Exact expected output string for pad=4, indent=4, leading_comma=True (first column indented 6 spaces, not the consistent 4 implied by the issue)",
+      "test_ref": "tests/test_transpile.py:test_leading_comma_pad_indent_consistency_pad4_indent4",
+      "quote": "\"SELECT\\n      a\\n    , b\\n    , c\\nFROM my_table\"",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact expected output for pad=2, indent=4, leading_comma=True",
+      "test_ref": "tests/test_transpile.py:test_leading_comma_pad_indent_consistency_pad2_indent4",
+      "quote": "\"SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table\"",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact default (pad=2) leading_comma output",
+      "test_ref": "tests/test_transpile.py:test_leading_comma_default_pad_indent",
+      "quote": "\"SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table\"",
+      "severity": "not_inferable"
+    }
+  ],
+  "instruction_covers": [
+    "leading_comma=True produces inconsistent indentation vs leading_comma=False (the reported bug)",
+    "non-leading-comma output with pad=4/indent=4 stays as 4-space indented lines with trailing commas"
+  ],
+  "reason": "The issue text implies a consistent 4-space indent for all columns, but the hidden tests expect a specific alternative layout (first column indented pad+2, e.g. 6 spaces with pad=4) whose exact spacing cannot be inferred from the instruction; any fix matching the issue's described expectation would still fail.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 491,
+    "completion_tokens_details": {
+      "reasoning_tokens": 113
+    },
+    "prompt_tokens": 1667,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2158
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

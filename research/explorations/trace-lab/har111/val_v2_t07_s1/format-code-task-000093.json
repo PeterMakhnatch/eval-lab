@@ -1,0 +1,71 @@
+{
+  "task_id": "format-code-task-000093",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "StringIO",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 98,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "search",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 103,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "group",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 105,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "index",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 126,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "New private function _get_gdal_version in pygmt._show_versions that the tests import directly",
+      "test_ref": "pygmt/tests/test_show_versions.py: test_get_gdal_version_returns_clean_version_string",
+      "quote": "from pygmt._show_versions import _get_gdal_version",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "The version string must be clean (e.g. '3.10.3'), not the verbose 'GDAL 3.10.3, released ...' that `gdalinfo --version` prints",
+      "test_ref": "pygmt/tests/test_show_versions.py: test_get_gdal_version_returns_clean_version_string",
+      "quote": "assert re.match(r\"^\\d+\\.\\d+\", gdal_version)",
+      "severity": "not_inferable"
+    }
+  ],
+  "instruction_covers": [
+    "Detect GDAL version without Python bindings (subprocess/ctypes options given)",
+    "Report 'gdal: None' without raising when GDAL is unavailable",
+    "gdal line stays in Dependency information section"
+  ],
+  "reason": "The instruction lists solution options but never names the function _get_gdal_version the hidden tests import, nor requires a clean version string without the 'GDAL ... released ...' prefix that `gdalinfo --version` returns.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 280,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 2185,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2465
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

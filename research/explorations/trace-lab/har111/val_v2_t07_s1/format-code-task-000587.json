@@ -1,0 +1,52 @@
+{
+  "task_id": "format-code-task-000587",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "ThreadPoolExecutor",
+      "file": "tests/test_redlock.py",
+      "line": 197,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "submit",
+      "file": "tests/test_redlock.py",
+      "line": 198,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "result",
+      "file": "tests/test_redlock.py",
+      "line": 199,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Importable name `redlock` from `pottery`",
+    "Decorator accepts key, masters, and auto-release timeout knobs",
+    "Decorator as factory form `redlock(key=...)(func)` shown via `@some_decorator(key='refresh-cache')`",
+    "Acquire lock before call, release after \u2014 verified by the serialized-execution timing assertions in RedlockDecoratorTests"
+  ],
+  "reason": "The hidden test imports `redlock` from pottery and uses the decorator factory form with keyword args (key, masters) exactly as the instruction specifies; the timing test only verifies lock serialization, a direct consequence of the feature. No unstated names, formats, or contracts are required.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 239,
+    "completion_tokens_details": {
+      "reasoning_tokens": 87
+    },
+    "prompt_tokens": 1606,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 1845
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

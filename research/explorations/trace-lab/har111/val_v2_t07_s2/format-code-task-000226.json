@@ -1,0 +1,100 @@
+{
+  "task_id": "format-code-task-000226",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "tests",
+      "file": "test_commands.json",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Test_split_uri",
+      "file": "test_commands.json",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "proxy_scheme",
+      "file": "waitress/tests/test_parser.py",
+      "line": 267,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "proxy_netloc",
+      "file": "waitress/tests/test_parser.py",
+      "line": 268,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "HTTPRequestParser",
+      "file": "waitress/tests/test_parser.py",
+      "line": 311,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Adjustments",
+      "file": "waitress/tests/test_parser.py",
+      "line": 312,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "adjustments",
+      "file": "waitress/tests/test_parser.py",
+      "line": 312,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "parse_header",
+      "file": "waitress/tests/test_parser.py",
+      "line": 314,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "command",
+      "file": "waitress/tests/test_parser.py",
+      "line": 318,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "version",
+      "file": "waitress/tests/test_parser.py",
+      "line": 319,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "path preserved as '//testing/whatever' instead of dropping netloc",
+    "query/fragment split still works",
+    "proxy_scheme/proxy_netloc remain empty for double-slash paths"
+  ],
+  "reason": "All names the tests use (proxy_scheme, proxy_netloc, path, query, fragment, HTTPRequestParser, parse_header) already exist in the parser, and the expected behavior is a direct consequence of the described fix: stop using urlsplit on the request path.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 142,
+    "completion_tokens_details": {
+      "reasoning_tokens": 33
+    },
+    "prompt_tokens": 1667,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 1809
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

@@ -1,0 +1,14 @@
+{
+  "task_id": "format-code-task-000322",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "206 responses carry Content-Range: bytes start-end/<size> (format given explicitly)",
+    "an unsatisfiable start range (bytes=99999- on a 200-byte file) returns 416 Range Not Satisfiable",
+    "a suffix range larger than the file (bytes=-99999) clamps to the whole file instead of erroring",
+    "FileResponse honors If-Unmodified-Since: date in the past yields 412, a future date still serves the range, an invalid HTTP-date is ignored",
+    "FileResponse honors If-Range for conditional ranged GETs: a non-matching validator sends the full 200, a matching one applies the range as 206"
+  ],
+  "notes": "The hidden patch only adds assertions to the existing tests/test_web_sendfile_functional.py plus new conditional-request cases; it does not test Accept-Ranges even though the instruction asks for it, so that is extra instruction, not a hidden requirement. The If-Unmodified-Since and If-Range status codes and the invalid-date-ignored rule are the published semantics of the two headers the instruction names and asks to honor, in a task that explicitly requests RFC 7233 compliance (If-Unmodified-Since itself is RFC 7232). The byte counts in the assertions (61108, 13) come from fixture files already in the repo, not from magic constants the engineer must know.",
+  "read_minutes": 20
+}

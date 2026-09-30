@@ -1,0 +1,26 @@
+{
+  "task_id": "format-code-task-002567",
+  "rule_label": "sound",
+  "rule_unstated": [],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "test=True with a missing config file must preview the change instead of the 'failed to check' warning",
+    "the preview message must match the existing 'would be changed to' wording used when the file exists but lacks the key"
+  ],
+  "reason": "The hidden test only checks that an empty sysctl.show result yields the existing 'would be changed to' comment and that a None result keeps the prior (pre-existing) behavior \u2014 both are either already existing behavior or explicitly implied by the issue's 'same way it would if the file existed but didn't yet contain that key' wording.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 933,
+    "completion_tokens_details": {
+      "reasoning_tokens": 795
+    },
+    "prompt_tokens": 1635,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2568
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

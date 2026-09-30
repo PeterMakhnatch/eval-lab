@@ -1634,3 +1634,77 @@ def test_non_json_upstream_error_settles_with_fixed_body(
     finally:
         proxy.shutdown()
         upstream.shutdown()
+
+
+# ---------------------------------------------------------------------------
+# Input-token reservation (HAR-114 follow-up)
+# ---------------------------------------------------------------------------
+#
+# The three container proxies share the calibrated estimator
+# (research/experiments/har114-tokenflow/reservation-calibration.json).
+# Fixture pair (34903, 13351) is the tightest observed reserved/actual
+# ratio (2.614).
+
+
+def _payload_with_billed_bytes(n: int) -> dict[str, Any]:
+    """Build a request whose billed JSON is exactly ``n`` bytes."""
+    probe: dict[str, Any] = {
+        "messages": [{"role": "user", "content": ""}],
+        "tools": None,
+        "tool_choice": None,
+    }
+    overhead = len(json.dumps(probe, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+    assert n > overhead
+    return {
+        "model": "zai-coding-plan/glm-5.3-flash",
+        "messages": [{"role": "user", "content": "x" * (n - overhead)}],
+        "tools": None,
+        "tool_choice": None,
+        "max_tokens": 8,
+    }
+
+
+def _billed_bytes(payload: dict[str, Any]) -> int:
+    billed = {
+        "messages": payload.get("messages"),
+        "tools": payload.get("tools"),
+        "tool_choice": payload.get("tool_choice"),
+    }
+    return len(json.dumps(billed, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+
+
+def _load_container_proxy(name: str) -> ModuleType:
+    path = Path(__file__).resolve().parents[1] / "containers" / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_estimate_tokens_covers_tightest_observed_call() -> None:
+    module = _load_proxy_module()
+    payload = _payload_with_billed_bytes(34903)
+    assert _billed_bytes(payload) == 34903
+    estimate = module._estimate_tokens(payload)
+    assert estimate >= 13351
+    assert estimate < 34903
+
+
+def test_all_proxy_estimators_agree() -> None:
+    modules = [
+        _load_container_proxy(name)
+        for name in (
+            "zai_secret_proxy",
+            "zai_openapi_secret_proxy",
+            "deepseek_secret_proxy",
+        )
+    ]
+    payloads = [
+        {"messages": [{"role": "user", "content": "Fix the parser."}]},
+        _payload_with_billed_bytes(34903),
+        {},
+    ]
+    for payload in payloads:
+        estimates = {module._estimate_tokens(payload) for module in modules}
+        assert len(estimates) == 1

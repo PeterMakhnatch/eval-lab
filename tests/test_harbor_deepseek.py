@@ -688,11 +688,13 @@ def test_proxy_rejects_attacks_without_upstream_spend(
         assert post("/v1/models", b"{}") == 404
         assert post("/chat/completions", b'{"model":"deepseek-flash"}') == 404
         assert post("/v1/chat/completions", b'{"model":"deepseek-chat","max_tokens":1}') == 403
+        # Oversized attack: ceil(billed bytes / 2) must still exceed the
+        # 256-token ceiling (HAR-114 follow-up halved the reservation).
         assert (
             post(
                 "/v1/chat/completions",
                 b'{"model":"deepseek-flash","max_tokens":1,"messages":[{"role":"user","content":"'
-                + (b"x" * 200)
+                + (b"x" * 500)
                 + b'"}]}',
             )
             == 429
@@ -1118,7 +1120,10 @@ def test_proxy_forwards_clamped_max_tokens_not_original_body(
         upstream.shutdown()
 
 
-def test_estimate_tokens_is_conservative_byte_upper_bound() -> None:
+def test_estimate_tokens_is_calibrated_half_byte_upper_bound() -> None:
+    # HAR-114 follow-up: the reservation is ceil(billed bytes / 2),
+    # calibrated on 6,871 settled calls (reserved/actual >= 2.61) — still
+    # far above characters/4 at half the old byte bound.
     proxy_module = _load_proxy_module()
     payload = {"messages": [{"role": "user", "content": "你好" * 20}]}
     encoded = json.dumps(
@@ -1127,7 +1132,7 @@ def test_estimate_tokens_is_conservative_byte_upper_bound() -> None:
         separators=(",", ":"),
     ).encode("utf-8")
     reserved = proxy_module._estimate_tokens(payload)
-    assert reserved >= len(encoded)
+    assert reserved == -(-len(encoded) // 2)
     assert reserved > (len("你好" * 20) + 3) // 4
 
 

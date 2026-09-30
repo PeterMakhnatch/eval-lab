@@ -1,0 +1,142 @@
+{
+  "method": "reserved_input_tokens vs input_tokens per settled call from job-level lab-metadata.json provider_usage.calls across the 82 runs in runs.jsonl; stop replay uses last settled call as the next-call proxy",
+  "model": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B (all calls)",
+  "ratio_reserved_over_actual": {
+    "n_calls": 6871,
+    "n_unresolved": 28,
+    "n_zero_usage": 0,
+    "min": 2.614261104037151,
+    "p01": 2.802467358897913,
+    "p05": 3.0221307582713313,
+    "median": 3.5601524834622715,
+    "mean": 3.5797926478575217,
+    "max": 4.795698595772019
+  },
+  "worst_calls": [
+    {
+      "job": "har81-p-d-arvo-42514310",
+      "call_id": 22,
+      "reserved": 34903,
+      "actual": 13351,
+      "ratio": 2.614261104037151
+    },
+    {
+      "job": "har81-p-d-arvo-42514310",
+      "call_id": 21,
+      "reserved": 34207,
+      "actual": 13077,
+      "ratio": 2.6158140246233845
+    },
+    {
+      "job": "har81-p-d-arvo-42514310",
+      "call_id": 23,
+      "reserved": 36587,
+      "actual": 13896,
+      "ratio": 2.632915947035118
+    },
+    {
+      "job": "har81-p-d-arvo-42514310",
+      "call_id": 20,
+      "reserved": 33076,
+      "actual": 12454,
+      "ratio": 2.6558535410309942
+    },
+    {
+      "job": "har81-p-d-arvo-42514310",
+      "call_id": 24,
+      "reserved": 38422,
+      "actual": 14420,
+      "ratio": 2.664493758668516
+    },
+    {
+      "job": "har81-p-d-arvo-42514310",
+      "call_id": 39,
+      "reserved": 76793,
+      "actual": 28689,
+      "ratio": 2.6767402140193104
+    },
+    {
+      "job": "har81-p-d-arvo-42514310",
+      "call_id": 40,
+      "reserved": 79443,
+      "actual": 29678,
+      "ratio": 2.6768313228654224
+    },
+    {
+      "job": "har81-p-d-arvo-42514310",
+      "call_id": 19,
+      "reserved": 31207,
+      "actual": 11581,
+      "ratio": 2.6946723080908384
+    },
+    {
+      "job": "har81-p-d-arvo-42514310",
+      "call_id": 41,
+      "reserved": 81544,
+      "actual": 30217,
+      "ratio": 2.698613363338518
+    },
+    {
+      "job": "har81-p-d-arvo-42514310",
+      "call_id": 42,
+      "reserved": 85229,
+      "actual": 31389,
+      "ratio": 2.715250565484724
+    }
+  ],
+  "divisors": {
+    "2": {
+      "under_reserved_calls": 0,
+      "worst_margin": 1.3071305520185754,
+      "examples": []
+    },
+    "3": {
+      "under_reserved_calls": 299,
+      "worst_margin": 0.8714203680123837,
+      "examples": [
+        {
+          "job": "gepa-terminus-2-format-code-task-002-2700aa59352626e20aff4ed8",
+          "call_id": 43,
+          "reserved": 25679,
+          "actual": 8577,
+          "ratio": 2.993937274105165
+        },
+        {
+          "job": "gepa-terminus-2-format-code-task-002-2700aa59352626e20aff4ed8",
+          "call_id": 44,
+          "reserved": 26009,
+          "actual": 8709,
+          "ratio": 2.9864507980250314
+        },
+        {
+          "job": "gepa-terminus-2-format-code-task-002-2700aa59352626e20aff4ed8",
+          "call_id": 45,
+          "reserved": 26348,
+          "actual": 8844,
+          "ratio": 2.979194934418815
+        },
+        {
+          "job": "gepa-terminus-2-format-code-task-002-2700aa59352626e20aff4ed8",
+          "call_id": 46,
+          "reserved": 26684,
+          "actual": 8979,
+          "ratio": 2.971823142888963
+        },
+        {
+          "job": "gepa-terminus-2-format-code-task-002-2700aa59352626e20aff4ed8",
+          "call_id": 47,
+          "reserved": 27017,
+          "actual": 9114,
+          "ratio": 2.964340574939653
+        }
+      ]
+    }
+  },
+  "chosen_divisor": 2,
+  "stop_replay": {
+    "input_exhausted_runs": 59,
+    "old_gate_explained_by_last_call_proxy": 56,
+    "median_settled_input_at_old_stop": 2389635,
+    "runs_continuing_past_observed_stop_under_new": 59
+  }
+}

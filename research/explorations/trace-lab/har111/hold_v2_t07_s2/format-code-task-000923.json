@@ -1,0 +1,57 @@
+{
+  "task_id": "format-code-task-000923",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "parse_override",
+      "file": "tests/test_overrides_parser.py",
+      "line": 1935,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Exact keyword name `transformer=` on the new sweep_iterator API",
+      "test_ref": "tests/test_overrides_parser.py:test_sweep_iterators",
+      "quote": "ret.sweep_iterator(transformer=Transformer.encode)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Transformer.encode must return list/dict/quoted-string elements flattened to the exact existing string form (e.g. \"[1,1.1,'2','a']\", \"'a','b'\") while returning primitives natively",
+      "test_ref": "tests/test_overrides_parser.py:test_sweep_iterators",
+      "quote": "\"x=choice([1, 1.1, '2', 'a'], [True, False])\", [\"[1,1.1,'2','a']\", \"[True,False]\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "Choice sweep string form renders bare booleans as 'True'/'False' and floats as '1.1'/'2.0' \u2014 exact string output format",
+      "test_ref": "tests/test_overrides_parser.py:test_sweep_iterators",
+      "quote": "\"True\", \"True\", \"False\", \"False\", \"a\", \"1\", \"1.1\", \"2.0\", \"3\"",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "New sweep_iterator entry point on Override",
+    "Transformer helper with three policies including an encode-style one",
+    "Native (non-string) values for primitives in CHOICE/SIMPLE_CHOICE/GLOB_CHOICE/RANGE sweeps",
+    "Backward-compatible sweep_string_iterator behavior"
+  ],
+  "reason": "The instruction proposes the names (sweep_iterator, Transformer, encode) but explicitly says naming is up to the implementer, so the exact identifier and keyword, plus the precise string flattening formats for lists/quoted strings, are only inferable from the hidden tests; they are conventional enough to grade as guessable.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 623,
+    "completion_tokens_details": {
+      "reasoning_tokens": 211
+    },
+    "prompt_tokens": 2249,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2872
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

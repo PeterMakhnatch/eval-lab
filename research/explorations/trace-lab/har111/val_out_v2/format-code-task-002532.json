@@ -1,0 +1,81 @@
+{
+  "task_id": "format-code-task-002532",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "annotations",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 3,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "\u0627\u06cc\u0646_\u062a\u0648\u06a9\u0646_\u0633\u0627\u062e\u062a\u06af\u06cc_\u0646\u06cc\u0633\u062a",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 53,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "deepcopy",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 199,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "insert",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 211,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stdout",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 214,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 218,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Constructor must raise an error when the words file is missing",
+      "test_ref": "test_lemmatizer_acceptance.py::test_constructor_raises_specific_error_for_missing_words_file",
+      "quote": "with pytest.raises(Exception): Lemmatizer(words_file=FIXTURES / \"missing_words.dat\", ...)",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Lemmatizer signature with words_file, verbs_file, joined_verb_parts",
+    "lemmatize(word, pos='') API and return forms including past_root#present_root",
+    "default_words/default_verbs (pre-existing hazm exports)",
+    "POS hint behavior for known words, pronouns, adjectives, and verb lookup",
+    "lookup built at init; joined multi-part verb forms when joined_verb_parts=True",
+    "custom file paths",
+    "deterministic, non-mutating lemmatize"
+  ],
+  "reason": "The instruction describes the API and all tested behaviors; the only unstated point is that a missing words file should raise an error, but the test accepts any Exception, so a natural file-reading failure satisfies it.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 570,
+    "completion_tokens_details": {
+      "reasoning_tokens": 332
+    },
+    "prompt_tokens": 3573,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 4143
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

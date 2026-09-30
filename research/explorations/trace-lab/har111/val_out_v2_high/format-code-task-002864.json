@@ -1,0 +1,62 @@
+{
+  "task_id": "format-code-task-002864",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "dialects",
+      "file": "test_commands.json",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "TestTrino",
+      "file": "test_commands.json",
+      "line": 2,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Support for 'WITH WRAPPER' / 'WITHOUT WRAPPER' (no ARRAY keyword) variants, which the issue report never mentions \u2014 its examples only use WITH/WITHOUT ARRAY WRAPPER",
+      "test_ref": "tests/dialects/test_trino.py:test__query_with_wrapper",
+      "quote": "\"JSON_QUERY(description, 'strict $.comment' WITH WRAPPER)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Support for 'WITHOUT CONDITIONAL WRAPPER', a sibling combination of conditional keyword with WITHOUT not shown in the issue's error example",
+      "test_ref": "tests/dialects/test_trino.py:test__query_preserves_existing_options",
+      "quote": "\"JSON_QUERY(content, 'strict $.HY.*' WITHOUT CONDITIONAL WRAPPER)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Support for 'WITH UNCONDITIONAL ARRAY WRAPPER' (conditional keyword combined with ARRAY), again a sibling variant beyond the two forms in the issue",
+      "test_ref": "tests/dialects/test_trino.py:test__query_preserves_existing_options",
+      "quote": "\"JSON_QUERY(content, 'strict $.HY.*' WITH UNCONDITIONAL ARRAY WRAPPER)\"",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Parsing of 'WITH ARRAY WRAPPER' and 'WITHOUT ARRAY WRAPPER' in Trino JSON_QUERY",
+    "Round-trip generation of the original SQL containing 'WITH ARRAY WRAPPER' / 'WITHOUT ARRAY WRAPPER' (direct consequence of a correct parse fix; validate_identity also does this)",
+    "'WITH UNCONDITIONAL WRAPPER' behaviour already exists in the unchanged test context"
+  ],
+  "reason": "The instruction only demonstrates the WITH/WITHOUT ARRAY WRAPPER forms, but the hidden tests also exercise the bare WITH/WITHOUT WRAPPER and CONDITIONAL/UNCONDITIONAL \u00b1 ARRAY combinations; these are natural sibling cases of the same Trino wrapper grammar and a careful engineer consulting the linked Trino docs would likely cover them, so they are guessable rather than not_inferable.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 949,
+    "completion_tokens_details": {
+      "reasoning_tokens": 526
+    },
+    "prompt_tokens": 1665,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2614
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

@@ -1,0 +1,99 @@
+{
+  "task_id": "format-code-task-000226",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "tests",
+      "file": "test_commands.json",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Test_split_uri",
+      "file": "test_commands.json",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "proxy_scheme",
+      "file": "waitress/tests/test_parser.py",
+      "line": 267,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "proxy_netloc",
+      "file": "waitress/tests/test_parser.py",
+      "line": 268,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "HTTPRequestParser",
+      "file": "waitress/tests/test_parser.py",
+      "line": 311,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Adjustments",
+      "file": "waitress/tests/test_parser.py",
+      "line": 312,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "adjustments",
+      "file": "waitress/tests/test_parser.py",
+      "line": 312,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "parse_header",
+      "file": "waitress/tests/test_parser.py",
+      "line": 314,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "command",
+      "file": "waitress/tests/test_parser.py",
+      "line": 318,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "version",
+      "file": "waitress/tests/test_parser.py",
+      "line": 319,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Fix urlsplit misuse in split_uri so request paths starting with '//' keep the full path",
+    "Existing attributes (path, query, fragment, proxy_scheme, proxy_netloc) and parse_header behavior already exist in the code under test"
+  ],
+  "reason": "All names the hidden tests use (split_uri, proxy_scheme, proxy_netloc, path, query, fragment, parse_header, command, version, HTTPRequestParser, Adjustments) are pre-existing in waitress/parser.py and its tests; the tests only assert the fix requested by the issue.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 162,
+    "completion_tokens_details": {
+      "reasoning_tokens": 37
+    },
+    "prompt_tokens": 1667,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 1829
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

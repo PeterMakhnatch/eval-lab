@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-000818",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "cpu",
+      "file": "tests/model_zoo/test_model_zoo.py",
+      "line": 710,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "initialize",
+      "file": "tests/model_zoo/test_model_zoo.py",
+      "line": 712,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "zeros",
+      "file": "tests/model_zoo/test_model_zoo.py",
+      "line": 714,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "get_model('googlenet', pretrained=False) returns GoogLeNet instance",
+    "googlenet() constructible with defaults and forward works producing (N,1000) output",
+    "googlenet(classes=17) supported via existing public API ('classes' is an existing GluonCV classification model parameter)",
+    "GoogLeNet and googlenet entry points remain importable/usable"
+  ],
+  "reason": "All tested behaviors are stated or clearly implied by the instruction; classes=17 and the (N,1000) output shape follow from the standard GluonCV classification API and ImageNet conventions already used by sibling models.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 239,
+    "completion_tokens_details": {
+      "reasoning_tokens": 88
+    },
+    "prompt_tokens": 1663,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 1902
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

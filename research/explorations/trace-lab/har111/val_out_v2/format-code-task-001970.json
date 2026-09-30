@@ -1,0 +1,34 @@
+{
+  "task_id": "format-code-task-001970",
+  "rule_label": "sound",
+  "rule_unstated": [],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Only files ending in .conf inside the directory are loaded; other files (e.g. file2.conf.disabled) are ignored",
+      "test_ref": "tests/config/test_config.py::test_load_directory_only_conf_files",
+      "quote": "def test_load_directory_only_conf_files(self):\n        directory = path_to_data_dir('conf2.d')\n        expected = {'foo': {'bar': 'baz'}}",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "passing a directory to --config / config._load",
+    "loading all config snippets in the directory",
+    "later-overrides-earlier precedence when mixing dirs and files"
+  ],
+  "reason": "The instruction asks for directory support generally; the only non-obvious detail is filtering to *.conf files (a common conf.d convention, hence guessable) plus presumably sorted load order, which the tests do not actually distinguish since no keys conflict.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 335,
+    "completion_tokens_details": {
+      "reasoning_tokens": 137
+    },
+    "prompt_tokens": 1964,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2299
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

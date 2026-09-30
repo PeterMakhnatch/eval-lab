@@ -1,0 +1,115 @@
+{
+  "task_id": "format-code-task-002757",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "org",
+      "file": "tests/resources/dash/test_segment_list_p1.mpd",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "iso",
+      "file": "tests/resources/dash/test_segment_list_p1.mpd",
+      "line": 5,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "xsd",
+      "file": "tests/resources/dash/test_segment_list_p1.mpd",
+      "line": 5,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "periods",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 506,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "adaptationSets",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 506,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "representations",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 506,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "uri",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 508,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "content",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 508,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "base_url",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 533,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "timelines",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 533,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "m4s",
+      "file": "tests/stream/dash/test_manifest.py",
+      "line": 569,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "A new `init` keyword parameter on Representation.segments() so callers can request only content segments on reload; the instruction never mentions changing the segments() API or adding a parameter.",
+      "test_ref": "tests/stream/dash/test_manifest.py:test_segment_list_dynamic_reload_yields_only_new_segments",
+      "quote": "iter_p2 = rep_p2.segments(init=False)",
+      "severity": "not_inferable"
+    }
+  ],
+  "instruction_covers": [
+    "Filtering already-downloaded SegmentURL entries after a dynamic-manifest reload so only new segments are yielded (the reported bug)",
+    "Numbering of yielded segments via the SegmentList startNumber attribute (existing seg.num behaviour)",
+    "Preserving static SegmentList behaviour (unchanged default path)",
+    "Using the pre-existing MPD `timelines` state to track the last segment number across reloads"
+  ],
+  "reason": "The instruction only asks that reloaded dynamic SegmentList manifests not re-yield already-downloaded segments, which the tests' filtering behaviour and use of pre-existing MPD timelines cover. The only unstated requirement is the new `init=False` keyword on segments(), which no engineer could infer from the issue text alone.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 515,
+    "completion_tokens_details": {
+      "reasoning_tokens": 265
+    },
+    "prompt_tokens": 10799,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 11314
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

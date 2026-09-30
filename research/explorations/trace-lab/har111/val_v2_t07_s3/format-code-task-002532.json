@@ -1,0 +1,94 @@
+{
+  "task_id": "format-code-task-002532",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "annotations",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 3,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "\u0627\u06cc\u0646_\u062a\u0648\u06a9\u0646_\u0633\u0627\u062e\u062a\u06af\u06cc_\u0646\u06cc\u0633\u062a",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 53,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "deepcopy",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 199,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "insert",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 211,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stdout",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 214,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 218,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Constructor must raise an error when the words file does not exist",
+      "test_ref": "test_lemmatizer_acceptance.py::test_constructor_raises_specific_error_for_missing_words_file",
+      "quote": "with pytest.raises(Exception): Lemmatizer(words_file=FIXTURES / \"missing_words.dat\", ...)",
+      "severity": "guessable"
+    },
+    {
+      "what": "words_file/verbs_file must accept pathlib.Path objects, not just str",
+      "test_ref": "test_lemmatizer_acceptance.py::test_custom_files_provide_custom_words_and_verbs",
+      "quote": "words_file=FIXTURES / \"custom_words.dat\", verbs_file=FIXTURES / \"custom_verbs.dat\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Future-particle joined form '\u062e\u0648\u0627\u0647\u062f_\u062f\u0648\u062e\u062a' must resolve via verb lookup (prefix '\u062e\u0648\u0627\u0647\u062f_' handling beyond joined passive/negative examples given)",
+      "test_ref": "test_lemmatizer_acceptance.py::test_custom_joined_verb_parts_are_in_lookup_when_enabled",
+      "quote": "assert lemmatizer.lemmatize(\"\u062e\u0648\u0627\u0647\u062f_\u062f\u0648\u062e\u062a\") == \"\u062f\u0648\u062e\u062a#\u062f\u0648\u0632\"",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Lemmatizer class importable from hazm with words_file/verbs_file/joined_verb_parts params",
+    "lemmatize(word, pos='') API and return formats past_root#present_root",
+    "default_words/default_verbs module-level names (already exist in hazm)",
+    "unknown tokens returned unchanged, POS-hint behaviors",
+    "determinism / no input mutation",
+    "lookup built at init; joined verb parts included when enabled"
+  ],
+  "reason": "The instruction covers the API, data formats, and core behaviors; the unstated items are conventional choices (any exception on missing file, Path-typed args) plus the future-particle joined form, which is arguably implied by 'recognize conjugated Persian verbs'.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 751,
+    "completion_tokens_details": {
+      "reasoning_tokens": 331
+    },
+    "prompt_tokens": 3573,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 4324
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

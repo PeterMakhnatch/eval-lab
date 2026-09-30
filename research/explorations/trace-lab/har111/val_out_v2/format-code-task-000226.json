@@ -1,0 +1,96 @@
+{
+  "task_id": "format-code-task-000226",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "tests",
+      "file": "test_commands.json",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Test_split_uri",
+      "file": "test_commands.json",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "proxy_scheme",
+      "file": "waitress/tests/test_parser.py",
+      "line": 267,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "proxy_netloc",
+      "file": "waitress/tests/test_parser.py",
+      "line": 268,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "HTTPRequestParser",
+      "file": "waitress/tests/test_parser.py",
+      "line": 311,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Adjustments",
+      "file": "waitress/tests/test_parser.py",
+      "line": 312,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "adjustments",
+      "file": "waitress/tests/test_parser.py",
+      "line": 312,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "parse_header",
+      "file": "waitress/tests/test_parser.py",
+      "line": 314,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "command",
+      "file": "waitress/tests/test_parser.py",
+      "line": 318,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "version",
+      "file": "waitress/tests/test_parser.py",
+      "line": 319,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Fixing split_uri so request-target paths starting with '//' are not treated as netloc by urlsplit"
+  ],
+  "reason": "The hidden tests only exercise existing API (Test_split_uri._callFUT, path/query/fragment/proxy_scheme/proxy_netloc attributes, HTTPRequestParser.parse_header), all pre-existing in the code; the fix is the direct consequence of the reported bug.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 122,
+    "completion_tokens_details": {
+      "reasoning_tokens": 29
+    },
+    "prompt_tokens": 1667,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 1789
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

@@ -1,0 +1,53 @@
+{
+  "task_id": "format-code-task-002256",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "TemporaryDirectory",
+      "file": "persistqueue/tests/test_async_queue.py",
+      "line": 201,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "AsyncQueue",
+      "file": "persistqueue/tests/test_async_queue.py",
+      "line": 203,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "task_done",
+      "file": "persistqueue/tests/test_async_queue.py",
+      "line": 229,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "full() returning False when maxsize is 0 (default or explicit) regardless of item count",
+    "full() returning True when bounded queue reaches maxsize",
+    "bounded queue full() returning False after get",
+    "qsize/empty/full lifecycle with puts and gets",
+    "same behavior for async queue (inherits/delegates the same fix)"
+  ],
+  "reason": "The hidden tests exercise exactly the behaviors shown in the issue transcript: full() correctness for maxsize=0 (default and explicit) and for bounded queues across the put/get lifecycle. AsyncQueue, task_done, and tempfile usage are pre-existing test scaffolding/library calls.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 220,
+    "completion_tokens_details": {
+      "reasoning_tokens": 79
+    },
+    "prompt_tokens": 2589,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2809
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

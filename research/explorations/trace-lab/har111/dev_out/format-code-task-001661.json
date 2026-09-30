@@ -1,0 +1,227 @@
+{
+  "task_id": "format-code-task-001661",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "settings",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 17,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "conf",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 17,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "configured",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 20,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "configure",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 21,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "contrib",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 24,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "auth",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 24,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "contenttypes",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 25,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "sites",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 26,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "backends",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 29,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "sqlite3",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 29,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "models",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 31,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "AutoField",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 31,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "test",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 34,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "setup",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 40,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "apps",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 42,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "connection",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 44,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "QuerySet",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 45,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "query",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 45,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "FriendshipInvitationHistory",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 47,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "select_related",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 50,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "pop",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 54,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "get_models",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 62,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "create_model",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 63,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "delete",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 68,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "create",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 80,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "username",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 87,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "count",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 136,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "refresh_from_db",
+      "file": "usercase-test-coderl/test_bidirectional_friendship.py",
+      "line": 160,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "friends_for_user returning dicts with friend/friendship keys from both storage directions",
+    "are_friends bidirectional and False for absent pairs",
+    "remove(user1, user2) working either direction and no-op when no row",
+    "friend_set_for returning a set of Users",
+    "delete() cleanup setting FriendshipInvitation status to '8' only for same from_user/to_user rows",
+    "friend_set_for importable from friends.models (models module is the only natural home and instruction says provide it)"
+  ],
+  "reason": "All tested behaviours \u2014 bidirectional friends_for_user, are_friends, remove either order, friend_set_for, and the status='8' same-direction invitation cleanup on both remove() and .delete() \u2014 are explicitly stated in the instruction, including exact values and dict keys.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 315,
+    "completion_tokens_details": {
+      "reasoning_tokens": 136
+    },
+    "prompt_tokens": 3819,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 4134
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

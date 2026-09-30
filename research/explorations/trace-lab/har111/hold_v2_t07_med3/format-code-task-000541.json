@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-000541",
+  "label": "sound",
+  "sample_labels": [
+    "sound",
+    "sound",
+    "sound"
+  ],
+  "unstated": [],
+  "reasons": [
+    "All test expectations (constructor kwargs, properties, _raw attribute mirroring on_close, visibility/state/focus transition semantics, handler invocation with the window) are explicitly described in the instruction; _raw is pre-existing machinery of toga's on_close handler which the instruction says to mirror.",
+    "Everything the hidden tests check is either explicitly stated in the instruction or a direct consequence of mirroring the existing on_close handler machinery (including the _raw attribute, which already exists in toga's handler wrapper).",
+    "Every test-specific detail (kwarg/property names, handler._raw, invocation with window, transition semantics) is explicitly stated in the instruction or follows the existing on_close pattern; Mock, WindowState, fixtures and reset_mock are test scaffolding/library calls."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 271,
+      "completion_tokens_details": {
+        "reasoning_tokens": 73
+      },
+      "prompt_tokens": 2786,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 3057
+    },
+    {
+      "completion_tokens": 256,
+      "completion_tokens_details": {
+        "reasoning_tokens": 89
+      },
+      "prompt_tokens": 2786,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3042
+    },
+    {
+      "completion_tokens": 270,
+      "completion_tokens_details": {
+        "reasoning_tokens": 96
+      },
+      "prompt_tokens": 2786,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3056
+    }
+  ]
+}

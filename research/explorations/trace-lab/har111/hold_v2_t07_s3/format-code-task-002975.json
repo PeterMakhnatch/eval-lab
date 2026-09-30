@@ -1,0 +1,100 @@
+{
+  "task_id": "format-code-task-002975",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "compiler",
+      "file": "tests/functional/syntax/test_default_function.py",
+      "line": 1,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "compile_code",
+      "file": "tests/functional/syntax/test_default_function.py",
+      "line": 15,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Path",
+      "file": "tests/functional/syntax/test_interfaces.py",
+      "line": 680,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "TemporaryDirectory",
+      "file": "tests/functional/syntax/test_interfaces.py",
+      "line": 681,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "FilesystemInputBundle",
+      "file": "tests/functional/syntax/test_interfaces.py",
+      "line": 683,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "pop",
+      "file": "tests/functional/syntax/test_interfaces.py",
+      "line": 686,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "environ",
+      "file": "tests/functional/syntax/test_interfaces.py",
+      "line": 686,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dedent",
+      "file": "tests/functional/syntax/test_interfaces.py",
+      "line": 687,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "tests/functional/syntax/test_interfaces.py",
+      "line": 711,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "returncode",
+      "file": "tests/functional/syntax/test_interfaces.py",
+      "line": 712,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "direct calls to __default__ must fail compilation with CallViolation mentioning raw_call",
+    "definition of __default__ without a call must still compile (test_default_function_definition_alone_compiles)",
+    "error applies to module/interface attribute calls (lib1.__at__(self).__default__()) as well as self.__default__()"
+  ],
+  "reason": "Every requirement in the hidden tests\u2014CallViolation on any direct __default__ call, allowing plain definitions, and the message hinting raw_call\u2014is stated or a direct consequence of the instruction. Remaining flagged names (compiler, compile_code, Path, environ, etc.) are stdlib/test scaffolding and are excluded by rule.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 364,
+    "completion_tokens_details": {
+      "reasoning_tokens": 212
+    },
+    "prompt_tokens": 2237,
+    "prompt_tokens_details": {
+      "cached_tokens": 2176
+    },
+    "total_tokens": 2601
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

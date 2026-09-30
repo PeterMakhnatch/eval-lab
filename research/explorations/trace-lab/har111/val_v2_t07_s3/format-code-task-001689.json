@@ -1,0 +1,59 @@
+{
+  "task_id": "format-code-task-001689",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "is_meta",
+      "file": "keras/src/ops/core_test.py",
+      "line": 739,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_tensor",
+      "file": "keras/src/ops/core_test.py",
+      "line": 742,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "float64",
+      "file": "keras/src/ops/core_test.py",
+      "line": 770,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "convert_to_numpy",
+      "file": "keras/src/ops/core_test.py",
+      "line": 783,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "convert_to_tensor must accept torch meta-device tensors without raising",
+    "result must not be a meta tensor (direct consequence of fixing)",
+    "dtype argument continues to work on meta tensors",
+    "regular torch tensors remain unchanged"
+  ],
+  "reason": "All hidden test assertions follow directly from fixing the reported bug: convert_to_tensor on a meta tensor must return a usable, non-meta tensor (necessarily on a real device like cpu) while preserving shape and honoring the existing dtype argument. No new names, messages, or behaviors beyond the fix are required.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 256,
+    "completion_tokens_details": {
+      "reasoning_tokens": 134
+    },
+    "prompt_tokens": 1660,
+    "prompt_tokens_details": {
+      "cached_tokens": 1600
+    },
+    "total_tokens": 1916
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

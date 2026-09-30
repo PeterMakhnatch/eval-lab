@@ -1,0 +1,75 @@
+{
+  "task_id": "format-code-task-001373",
+  "label": "suspect",
+  "sample_labels": [
+    "sound",
+    "suspect",
+    "broken"
+  ],
+  "unstated": [
+    {
+      "what": "Fix must use the CONTENT_LENGTH header (instead of touching request.body) to compute requestSize, including when no content length exists (None or 0 accepted)",
+      "test_ref": "tests/unit/handlers/test__helpers.py::Test_get_request_data_from_django::test_request_size_none_when_no_content_length",
+      "quote": "self.assertIn(http_request[\"requestSize\"], (None, 0))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Tests import the middleware as a submodule path `google.cloud.logging_v2.handlers.middleware.request`, implying the existing `middleware.py` must be restructured into a `middleware/` package containing a `request.py` module \u2014 a file path never mentioned in the instruction.",
+      "test_ref": "tests/unit/handlers/test__helpers.py:207",
+      "quote": "from google.cloud.logging_v2.handlers.middleware import request",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "requestSize must be computed from the request's metadata (e.g. CONTENT_LENGTH header) rather than `len(request.body)`, so it returns the correct size even after the body stream has already been consumed \u2014 the exact sizing mechanism is not stated.",
+      "test_ref": "tests/unit/handlers/test__helpers.py:234",
+      "quote": "self.assertEqual(http_request[\"requestSize\"], len(\"hello world\"))",
+      "severity": "guessable"
+    },
+    {
+      "what": "When the request has no content length, `requestSize` must be `None` or `0` \u2014 the acceptable fallback values are not specified in the instruction.",
+      "test_ref": "tests/unit/handlers/test__helpers.py:214",
+      "quote": "self.assertIn(http_request[\"requestSize\"], (None, 0))",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "The hidden tests exercise the fix's direct consequence (requestSize derived without reading body, e.g. via META CONTENT_LENGTH), and all names they use (requestSize key, RequestMiddleware, request module) already exist in the code or are test scaffolding like RequestFactory.",
+    "The instruction only describes avoiding re-reading request.body; the hidden tests additionally require that requestSize be derived from CONTENT_LENGTH, returning None/0 when absent, which is a design choice not spelled out but a natural fix a careful engineer would likely pick.",
+    "The instruction covers the core fix of not reading the body multiple times, but the tests additionally require a specific package/module restructuring (`middleware.request`) and an exact fallback behavior for missing content length that are not stated or directly derivable."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 235,
+      "completion_tokens_details": {
+        "reasoning_tokens": 133
+      },
+      "prompt_tokens": 2173,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 2408
+    },
+    {
+      "completion_tokens": 376,
+      "completion_tokens_details": {
+        "reasoning_tokens": 171
+      },
+      "prompt_tokens": 2173,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 2549
+    },
+    {
+      "completion_tokens": 859,
+      "completion_tokens_details": {
+        "reasoning_tokens": 470
+      },
+      "prompt_tokens": 2173,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3032
+    }
+  ]
+}

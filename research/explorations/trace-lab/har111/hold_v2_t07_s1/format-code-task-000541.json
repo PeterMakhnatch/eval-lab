@@ -1,0 +1,63 @@
+{
+  "task_id": "format-code-task-000541",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "Mock",
+      "file": "core/tests/window/test_window_lifecycle.py",
+      "line": 1,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "WindowState",
+      "file": "core/tests/window/test_window_lifecycle.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "constants",
+      "file": "core/tests/window/test_window_lifecycle.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "reset_mock",
+      "file": "core/tests/window/test_window_lifecycle.py",
+      "line": 67,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Constructor kwargs and properties for the four handlers",
+    "Default no-op handler return value (callable)",
+    "Handler invoked with the window instance",
+    "Visibility transitions via show()/hide()/visible property firing on_show/on_hide, no-ops excluded",
+    "Minimize/restore firing on_hide/on_show, other state changes not firing",
+    "Focus change firing on_lose_focus/on_gain_focus, no-op excluded",
+    "on_close behavior preserved",
+    "handler._raw attribute covered by 'in exactly the same way the existing on_close handler works' since it is pre-existing in toga's handler machinery"
+  ],
+  "reason": "All test expectations (constructor kwargs, properties, _raw attribute mirroring on_close, visibility/state/focus transition semantics, handler invocation with the window) are explicitly described in the instruction; _raw is pre-existing machinery of toga's on_close handler which the instruction says to mirror.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 271,
+    "completion_tokens_details": {
+      "reasoning_tokens": 73
+    },
+    "prompt_tokens": 2786,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 3057
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

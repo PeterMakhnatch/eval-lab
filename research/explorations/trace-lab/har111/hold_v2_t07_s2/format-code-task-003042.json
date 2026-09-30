@@ -1,0 +1,38 @@
+{
+  "task_id": "format-code-task-003042",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "asdict",
+      "file": "tests/test_basics.py",
+      "line": 263,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "default_factory respected when key missing (from_dict)",
+    "non-primitive defaults like Decimal('10.0') and Path('/etc') (covered by 'regardless of the field's type')",
+    "from_tuple with missing trailing fields falling back to defaults",
+    "existing PriDefault partial-dict cases and factory-based comments/attrs now returning []/{}"
+  ],
+  "reason": "The hidden tests only exercise behaviors the issue explicitly requests: default= and default_factory= honored for both from_dict and from_tuple across all field types. Remaining test details (asdict, dataclasses.fields) are library/test scaffolding or pre-existing code, so nothing qualifies as unstated.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 303,
+    "completion_tokens_details": {
+      "reasoning_tokens": 155
+    },
+    "prompt_tokens": 3044,
+    "prompt_tokens_details": {
+      "cached_tokens": 3008
+    },
+    "total_tokens": 3347
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

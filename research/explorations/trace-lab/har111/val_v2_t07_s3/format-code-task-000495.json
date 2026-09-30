@@ -1,0 +1,28 @@
+{
+  "task_id": "format-code-task-000495",
+  "rule_label": "sound",
+  "rule_unstated": [],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Intrinsic-function-constructed DefinitionString (Fn::Join) must not fail E1022/E3601 validation",
+    "Test case 'Using a function' with {'Fn::Join': ['\\n', []]} expecting no errors follows directly from the reported bug"
+  ],
+  "reason": "The hidden test only adds a parametrized case where Definition is built with Fn::Join and expects no errors, which is exactly the behavior the issue asks for (function-based DefinitionString should pass). The 'Definition' key and test harness are pre-existing scaffolding in the unchanged test file.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 300,
+    "completion_tokens_details": {
+      "reasoning_tokens": 170
+    },
+    "prompt_tokens": 1494,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 1794
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

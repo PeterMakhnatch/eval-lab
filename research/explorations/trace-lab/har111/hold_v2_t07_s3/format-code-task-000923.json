@@ -1,0 +1,56 @@
+{
+  "task_id": "format-code-task-000923",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "parse_override",
+      "file": "tests/test_overrides_parser.py",
+      "line": 1935,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "New public name `Transformer` importable from hydra.core.override_parser.overrides_parser (or wherever Sweep types live), and its `encode` policy must map: bare values keep native type; quoted strings stay str; lists/dicts/complex values stringify via Hydra's element-to-string form",
+      "test_ref": "tests/test_overrides_parser.py: test_sweep_iterators (import of Transformer; expected_sweep_encoded_list)",
+      "quote": "Transformer,\n...\nret.sweep_iterator(transformer=Transformer.encode)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact encoded expectations for edge cases the instruction never specifies, e.g. `x=choice('1','2','3')` encodes to strings (quoted strings stay str), `1.1` stays float, `2.0` stays float, `'1.5'`/`'4'` stay strings, and lists of mixed values reproduce Hydra's compact string form like \"[1,1.1,'2','a']\"",
+      "test_ref": "tests/test_overrides_parser.py: test_sweep_iterators parametrizations",
+      "quote": "[True, \"True\", False, \"False\", \"a\", 1, 1.1, 2.0, 3, \"1.5\", \"4\"]",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "The new method must be named `sweep_iterator` on `Override` and accept a keyword parameter `transformer=`; the instruction only suggests it as an example with naming 'up to you'",
+      "test_ref": "tests/test_overrides_parser.py: test_sweep_iterators",
+      "quote": "ret.sweep_iterator(transformer=Transformer.encode)",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Adding an iterator over sweep elements returning native parsed values for CHOICE_SWEEP, SIMPLE_CHOICE_SWEEP, GLOB_CHOICE_SWEEP, RANGE_SWEEP",
+    "Caller-controllable per-element transformation policy (raw / string / hybrid encode)",
+    "Preserving existing sweep_string_iterator() behavior"
+  ],
+  "reason": "The instruction intentionally leaves naming open, but the hidden tests pin the exact names `sweep_iterator(transformer=Transformer.encode)` and, more critically, exact per-value encode semantics (quoted strings stay str, lists stringify in Hydra's compact form, mixed bool/int/float passthrough) that are not derivable from the issue text.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 513,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 2249,
+    "prompt_tokens_details": {
+      "cached_tokens": 2240
+    },
+    "total_tokens": 2762
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

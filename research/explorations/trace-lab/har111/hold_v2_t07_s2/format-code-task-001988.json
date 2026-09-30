@@ -1,0 +1,56 @@
+{
+  "task_id": "format-code-task-001988",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "factory",
+      "file": "tests/test_middleware.py",
+      "line": 237,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "user",
+      "file": "tests/test_middleware.py",
+      "line": 238,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_refreshable_url",
+      "file": "tests/test_middleware.py",
+      "line": 241,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "override_settings",
+      "file": "tests/test_middleware.py",
+      "line": 243,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "regex entries in OIDC_EXEMPT_URLS are matched against request.path in SessionRefresh (tests/test_middleware.py:261-266)"
+  ],
+  "reason": "The hidden tests only exercise the requested feature: mixed regex/paths/view-names exempt entries, checked via the pre-existing is_refreshable_url method. Everything tested is stated or pre-existing in the code.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 192,
+    "completion_tokens_details": {
+      "reasoning_tokens": 102
+    },
+    "prompt_tokens": 1706,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 1898
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

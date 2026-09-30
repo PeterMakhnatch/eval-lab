@@ -1,0 +1,119 @@
+{
+  "task_id": "format-code-task-002377",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "ConfigDict",
+      "file": "tests/test_settings.py",
+      "line": 1526,
+      "stated": false
+    },
+    {
+      "kind": "exception",
+      "value": "ValidationError",
+      "file": "tests/test_settings.py",
+      "line": 1528,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "value",
+      "file": "tests/test_settings.py",
+      "line": 1531,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "extra_forbidden",
+      "file": "tests/test_settings.py",
+      "line": 1534,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "model_dump",
+      "file": "tests/test_settings.py",
+      "line": 1568,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ") or getattr(s,",
+      "file": "tests/test_settings.py",
+      "line": 1586,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "name",
+      "file": "tests/test_settings.py",
+      "line": 1603,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "top",
+      "file": "tests/test_settings.py",
+      "line": 1623,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "apple",
+      "file": "tests/test_settings.py",
+      "line": 1623,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "banana",
+      "file": "tests/test_settings.py",
+      "line": 1624,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "BaseSettings' default extra='forbid' must also trigger errors when env_file is used (issue only shows explicit Extra.forbid)",
+      "test_ref": "tests/test_settings.py::test_env_file_with_default_extra_forbid",
+      "quote": "class Plop(BaseSettings):\n        title: str\n\n        model_config = ConfigDict(env_file=p)\n\n    with pytest.raises(ValidationError)",
+      "severity": "guessable"
+    },
+    {
+      "what": "With extra='allow', extras from the env file must be stored on the instance and appear in model_dump() output",
+      "test_ref": "tests/test_settings.py::test_env_file_with_extra_allow_exposes_extra_fields",
+      "quote": "assert s.model_dump() == {'title': 'cool', 'other': 'hello'}",
+      "severity": "guessable"
+    },
+    {
+      "what": "With extra='ignore', extras from the env file must be silently dropped without error",
+      "test_ref": "tests/test_settings.py::test_env_file_with_extra_ignore_drops_extras",
+      "quote": "s = Plop()\n    assert s.title == 'cool'\n    assert s.model_dump() == {'title': 'cool'}",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Explicit extra='forbid' raising ValidationError with 'other' in error locs when env_file is defined",
+    "Standard 'extra_forbidden' error type for forbid (direct consequence)",
+    "Nested env keys with env_nested_delimiter not being treated as extras (direct consequence of correct fix)"
+  ],
+  "reason": "The core repro is stated in the issue; the tests additionally exercise the sibling 'allow'/'ignore' cases and the default forbid behaviour of BaseSettings, which the issue's wording ('Extra is ignored with env_file') arguably covers, making them guessable rather than not_inferable.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 681,
+    "completion_tokens_details": {
+      "reasoning_tokens": 292
+    },
+    "prompt_tokens": 2849,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3530
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

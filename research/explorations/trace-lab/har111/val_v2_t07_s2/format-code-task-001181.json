@@ -1,0 +1,62 @@
+{
+  "task_id": "format-code-task-001181",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "Tuple",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Console",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "StringIO",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 20,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_task",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 25,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "speed from all positive deltas (advance and update) over sampling window",
+    "non-positive deltas update completed without rate evidence",
+    "time_remaining uses speed and ceil",
+    "finished_time/finished_speed frozen on completion via update",
+    "reset clears rate evidence, keeps total, allows fresh estimate",
+    "changing total invalidates rate evidence",
+    "existing fields/rendering/indeterminate behavior unchanged"
+  ],
+  "reason": "Every hidden test scenario corresponds to an explicitly described behavior in the instruction; exact numeric expectations (e.g. speed==2.0, time_remaining==6) are directly computable from the stated rules, and fields like finished_speed, Task.speed, and Progress.reset pre-exist in rich.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 238,
+    "completion_tokens_details": {
+      "reasoning_tokens": 85
+    },
+    "prompt_tokens": 2145,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2383
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

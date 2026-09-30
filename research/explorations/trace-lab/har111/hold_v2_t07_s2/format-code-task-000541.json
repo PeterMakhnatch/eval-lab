@@ -1,0 +1,62 @@
+{
+  "task_id": "format-code-task-000541",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "Mock",
+      "file": "core/tests/window/test_window_lifecycle.py",
+      "line": 1,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "WindowState",
+      "file": "core/tests/window/test_window_lifecycle.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "constants",
+      "file": "core/tests/window/test_window_lifecycle.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "reset_mock",
+      "file": "core/tests/window/test_window_lifecycle.py",
+      "line": 67,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "on_gain_focus/on_lose_focus/on_show/on_hide as constructor kwargs and properties",
+    "default no-op handler with _raw is None (consistent with existing on_close handler wrapper)",
+    "show/hide and visible property transitions firing handlers, no-op transitions silent",
+    "minimize fires on_hide, restore fires on_show, other state changes silent",
+    "app.current_window change firing lose/gain focus, no-op silent",
+    "handlers called with the window instance",
+    "on_close behavior preserved"
+  ],
+  "reason": "Everything the hidden tests check is either explicitly stated in the instruction or a direct consequence of mirroring the existing on_close handler machinery (including the _raw attribute, which already exists in toga's handler wrapper).",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 256,
+    "completion_tokens_details": {
+      "reasoning_tokens": 89
+    },
+    "prompt_tokens": 2786,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3042
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

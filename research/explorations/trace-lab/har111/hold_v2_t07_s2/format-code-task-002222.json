@@ -1,0 +1,74 @@
+{
+  "task_id": "format-code-task-002222",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "int64",
+      "file": "pandas/tests/frame/test_ufunc.py",
+      "line": 276,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "negative",
+      "file": "pandas/tests/frame/test_ufunc.py",
+      "line": 295,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "positive",
+      "file": "pandas/tests/frame/test_ufunc.py",
+      "line": 303,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "float32",
+      "file": "pandas/tests/frame/test_ufunc.py",
+      "line": 303,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dtypes",
+      "file": "pandas/tests/frame/test_ufunc.py",
+      "line": 304,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Support for the dtype kwarg in ufunc dispatch (np.positive(df, dtype=np.float32)) returning a DataFrame with matching float32 dtypes \u2014 not mentioned in the instruction",
+      "test_ref": "pandas/tests/frame/test_ufunc.py:303",
+      "quote": "result = np.positive(df, dtype=np.float32)\n    assert all(d == np.float32 for d in result.dtypes)",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "np.add with out on DataFrame writing into the out array (scalar and two-DataFrame cases)",
+    "unary ufuncs np.exp / np.negative with out",
+    "Series with out behavior preservation",
+    "no-kwargs np.add returning a DataFrame",
+    "df.values workaround path"
+  ],
+  "reason": "The instruction only describes fixing the out-parameter regression for np.add on DataFrames; all out-related tests follow directly. The dtype kwarg test covers a different feature of the ufunc protocol not requested, though a careful implementer fixing __array_ufunc__ dispatch would plausibly pass dtype through; the exact float32-dtypes result is a sibling case not stated.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 337,
+    "completion_tokens_details": {
+      "reasoning_tokens": 91
+    },
+    "prompt_tokens": 2795,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3132
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

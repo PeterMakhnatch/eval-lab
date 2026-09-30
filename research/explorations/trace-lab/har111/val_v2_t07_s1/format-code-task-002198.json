@@ -1,0 +1,82 @@
+{
+  "task_id": "format-code-task-002198",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "to_offset",
+      "file": "pandas/tests/tseries/test_frequencies.py",
+      "line": 862,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "YearEnd",
+      "file": "pandas/tests/tseries/test_frequencies.py",
+      "line": 865,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "YearBegin",
+      "file": "pandas/tests/tseries/test_frequencies.py",
+      "line": 872,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "BYearEnd",
+      "file": "pandas/tests/tseries/test_frequencies.py",
+      "line": 879,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "BYearBegin",
+      "file": "pandas/tests/tseries/test_frequencies.py",
+      "line": 886,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "Aliases YS, BY, BYS must also be accepted, not just Y",
+      "test_ref": "test_to_offset_YS_alias",
+      "quote": "result = frequencies.to_offset('YS')",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Y-DEC / Y-JAN / Y-MONTH anchored forms must map like A-MONTH via _period_str_to_code",
+      "test_ref": "test_period_str_to_code_Y_month",
+      "quote": "frequencies._period_str_to_code('Y-DEC') == frequencies._period_str_to_code('A-DEC')",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Existing 'A' aliases must keep working unchanged (backwards compat contract)",
+      "test_ref": "test_A_alias_still_works",
+      "quote": "assert frequencies.to_offset('A') == offsets.YearEnd()",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "freq='Y' behaves like 'A' in date_range/to_offset (test_date_range_freq_Y, test_to_offset_Y_alias)"
+  ],
+  "reason": "The instruction only asks that 'Y' be accepted; the hidden tests additionally require the sibling variants YS/BY/BYS and month-anchored 'Y-MON' forms, which the instruction never mentions.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 282,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1794,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2076
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

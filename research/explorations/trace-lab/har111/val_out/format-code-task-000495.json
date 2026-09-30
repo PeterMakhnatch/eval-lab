@@ -1,0 +1,27 @@
+{
+  "task_id": "format-code-task-000495",
+  "rule_label": "sound",
+  "rule_unstated": [],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Resolving intrinsic functions (e.g. Fn::Join) in DefinitionString before validating the state machine definition",
+    "Suppressing E1022/E3601 for definition strings built via intrinsic functions that resolve to valid JSON",
+    "The specific sample template passing lint"
+  ],
+  "reason": "The hidden test exercises exactly the reported bug: a Definition built via Fn::Join should produce no errors. The instruction's expected behavior ('cfn-lint passes') covers resolving intrinsic functions in DefinitionString, and the test case (empty Fn::Join) is a natural sub-case of that fix.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 249,
+    "completion_tokens_details": {
+      "reasoning_tokens": 113
+    },
+    "prompt_tokens": 1478,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 1727
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

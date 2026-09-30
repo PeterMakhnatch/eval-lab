@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-000226",
+  "label": "sound",
+  "sample_labels": [
+    "sound",
+    "sound",
+    "sound"
+  ],
+  "unstated": [],
+  "reasons": [
+    "All names the hidden tests use (split_uri, proxy_scheme, proxy_netloc, path, query, fragment, parse_header, command, version, HTTPRequestParser, Adjustments) are pre-existing in waitress/parser.py and its tests; the tests only assert the fix requested by the issue.",
+    "All names the tests use (proxy_scheme, proxy_netloc, path, query, fragment, HTTPRequestParser, parse_header) already exist in the parser, and the expected behavior is a direct consequence of the described fix: stop using urlsplit on the request path.",
+    "All tested names (proxy_scheme, proxy_netloc, path, query, fragment, command, version, parse_header, HTTPRequestParser, Adjustments) already exist in waitress's parser and its existing test suite, and the expected behavior (preserving the double-slash path while still splitting query/fragment) follows directly from the requested fix."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 162,
+      "completion_tokens_details": {
+        "reasoning_tokens": 37
+      },
+      "prompt_tokens": 1667,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 1829
+    },
+    {
+      "completion_tokens": 142,
+      "completion_tokens_details": {
+        "reasoning_tokens": 33
+      },
+      "prompt_tokens": 1667,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 1809
+    },
+    {
+      "completion_tokens": 182,
+      "completion_tokens_details": {
+        "reasoning_tokens": 54
+      },
+      "prompt_tokens": 1667,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 1849
+    }
+  ]
+}

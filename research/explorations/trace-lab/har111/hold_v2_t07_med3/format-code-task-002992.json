@@ -1,0 +1,63 @@
+{
+  "task_id": "format-code-task-002992",
+  "label": "suspect",
+  "sample_labels": [
+    "suspect",
+    "sound",
+    "suspect"
+  ],
+  "unstated": [
+    {
+      "what": "The caller's category_mapping dict must not be mutated by the function (the instruction only says no global state / file writes, not non-mutation of the mapping argument)",
+      "test_ref": "test_does_not_mutate_caller_mapping",
+      "quote": "voc_to_coco(xml_dir, category_mapping=mapping)\n\n    assert mapping == before",
+      "severity": "guessable"
+    },
+    {
+      "what": "Dotted XML filenames like 'sample.voc.xml' must be included by the glob even though the stated pattern '[a-zA-Z0-9_]*.xml' strictly excludes interior dots (stem 'sample.voc' contains '.'); a literal implementation of the pattern would drop it, but the test expects it processed.",
+      "test_ref": "test_glob_pattern_filters_and_orders_matching_xml_paths",
+      "quote": "_write_annotation(\n        xml_dir,\n        \"sample.voc.xml\",\n        \"dotted.jpg\",",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "The instruction is unusually complete: it specifies the module path, signature, glob pattern, ID ordering, bbox inclusivity, mapping behaviour, missing-bbox handling, root assertion, purity, and image_dir. The only extra hidden-test requirement is that the passed-in category_mapping dict itself must not be mutated, which is a natural purity-adjacent choice a careful engineer would likely get right.",
+    "Every hidden-test behavior (glob filtering incl. dotted names like sample.voc.xml, exclusion of -skip.xml, inclusive bbox math, sorted ordering, category ID synthesis, mapping usage, purity constraints, AssertionError) is explicitly stated or a direct consequence of the instruction's wording; the incidental method names in the test rules are test scaffolding.",
+    "The instruction details essentially everything the tests check; the only edge is that the stated filename pattern, read literally, would exclude 'sample.voc.xml' which the test includes, so an engineer must implement the glob loosely (e.g. endswith('.xml') with a permissive prefix check)."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 471,
+      "completion_tokens_details": {
+        "reasoning_tokens": 155
+      },
+      "prompt_tokens": 4803,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 5274
+    },
+    {
+      "completion_tokens": 326,
+      "completion_tokens_details": {
+        "reasoning_tokens": 134
+      },
+      "prompt_tokens": 4803,
+      "prompt_tokens_details": {
+        "cached_tokens": 4800
+      },
+      "total_tokens": 5129
+    },
+    {
+      "completion_tokens": 598,
+      "completion_tokens_details": {
+        "reasoning_tokens": 358
+      },
+      "prompt_tokens": 4803,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 5401
+    }
+  ]
+}

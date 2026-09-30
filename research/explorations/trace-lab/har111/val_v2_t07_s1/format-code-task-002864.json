@@ -1,0 +1,56 @@
+{
+  "task_id": "format-code-task-002864",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "dialects",
+      "file": "test_commands.json",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "TestTrino",
+      "file": "test_commands.json",
+      "line": 2,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Support for bare 'WITH WRAPPER' / 'WITHOUT WRAPPER' (no ARRAY keyword), a syntax variant not mentioned in the instruction",
+      "test_ref": "tests/dialects/test_trino.py:test__query_with_wrapper / test__query_without_wrapper",
+      "quote": "\"JSON_QUERY(description, 'strict $.comment' WITH WRAPPER)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Support for 'WITH UNCONDITIONAL ARRAY WRAPPER' combining UNCONDITIONAL with ARRAY, an extra variant beyond the instruction's examples",
+      "test_ref": "tests/dialects/test_trino.py:test__query_preserves_existing_options",
+      "quote": "\"JSON_QUERY(content, 'strict $.HY.*' WITH UNCONDITIONAL ARRAY WRAPPER)\"",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Parsing and round-tripping 'WITH ARRAY WRAPPER' and 'WITHOUT ARRAY WRAPPER' in Trino JSON_QUERY",
+    "Existing UNCONDITIONAL/CONDITIONAL wrapper and KEEP QUOTES handling already exercised by prior tests"
+  ],
+  "reason": "The instruction only shows WITH/WITHOUT ARRAY WRAPPER, but hidden tests also demand bare WITH/WITHOUT WRAPPER and UNCONDITIONAL ARRAY WRAPPER variants; these are natural siblings of the reported syntax but still choices the instruction never states.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 389,
+    "completion_tokens_details": {
+      "reasoning_tokens": 114
+    },
+    "prompt_tokens": 1665,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2054
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

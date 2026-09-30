@@ -1,0 +1,126 @@
+{
+  "task_id": "format-code-task-002992",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "joinpath",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 33,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "rglob",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 44,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "relative_to",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 45,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "as_posix",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 45,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_file",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 46,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "read_bytes",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 47,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_dir",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 48,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "txt",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 163,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "deepcopy",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 309,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "insert",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 337,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stdout",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 343,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 346,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "chdir",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 374,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Dotted XML filenames like 'sample.voc.xml' must be included by the glob even though the stated pattern '[a-zA-Z0-9_]*.xml' strictly excludes interior dots (stem 'sample.voc' contains '.'); a literal implementation of the pattern would drop it, but the test expects it processed.",
+      "test_ref": "test_glob_pattern_filters_and_orders_matching_xml_paths",
+      "quote": "_write_annotation(\n        xml_dir,\n        \"sample.voc.xml\",\n        \"dotted.jpg\",",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "inclusive bbox conversion, sequential IDs, first-seen category IDs, category_mapping semantics, omitted categories list, missing bndbox handling, AssertionError on wrong root, purity/no file writes, sorted order, image_dir accepted"
+  ],
+  "reason": "The instruction details essentially everything the tests check; the only edge is that the stated filename pattern, read literally, would exclude 'sample.voc.xml' which the test includes, so an engineer must implement the glob loosely (e.g. endswith('.xml') with a permissive prefix check).",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 598,
+    "completion_tokens_details": {
+      "reasoning_tokens": 358
+    },
+    "prompt_tokens": 4803,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 5401
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

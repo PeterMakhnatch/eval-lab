@@ -1,0 +1,155 @@
+{
+  "task_id": "format-code-task-001019",
+  "rule_label": "broken",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "cli",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 8,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "exceptions",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 9,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dedent",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "get_config",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 63,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "middle_marker",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 72,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "precedence_app",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 81,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "] == os.path.join(str(leaf.parent),",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 89,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "] == os.path.join(str(middle.parent),",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 90,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "] == os.path.join(str(base.parent),",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 91,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "leaf_default",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 99,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "leaf-default",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 99,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "middle_default",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 100,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "base_default",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 103,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "base-default",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 103,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "precedence_default",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 116,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Errors must be raised at CKANConfigLoader construction time, not when get_config() is called \u2014 tests instantiate the loader inside pytest.raises without calling get_config",
+      "test_ref": "test_codespec_missing_nested_parent_reports_both_paths",
+      "quote": "with pytest.raises(CkanConfigurationException) as error:\n        CKANConfigLoader(str(leaf))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Reported file paths must be os.path.normpath-resolved (leaf.resolve()), i.e. normalized absolute paths rather than as-written",
+      "test_ref": "test_codespec_root_and_terminal_metadata",
+      "quote": "assert global_conf[\"__file__\"] == str(leaf.resolve())",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "transitive config: chain following",
+    "relative resolution against declaring file at each level",
+    "child-wins app option precedence",
+    "per-file %(here)s interpolation for app and DEFAULT options",
+    "DEFAULT accumulation into top-level and global_conf, farthest ancestor wins",
+    "__file__ = initial file, global_conf['here'] = terminal ancestor directory",
+    "missing file message with 'not found' + both resolved paths",
+    "empty config: message with 'config'/'empty' + initial path",
+    "direct and indirect cycle messages with 'circular' + all resolved paths in cycle",
+    "CkanConfigurationException type"
+  ],
+  "reason": "The instruction covers nearly all behaviors including error messages, but does not state that validation happens in the constructor (tests rely on that) and only loosely implies path normalization.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 422,
+    "completion_tokens_details": {
+      "reasoning_tokens": 93
+    },
+    "prompt_tokens": 3353,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3775
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

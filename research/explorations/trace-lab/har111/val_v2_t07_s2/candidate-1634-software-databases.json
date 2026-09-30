@@ -1,0 +1,206 @@
+{
+  "task_id": "candidate-1634-software-databases",
+  "rule_label": "broken",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "insert",
+      "file": "tests/test_outputs.py",
+      "line": 9,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "tests/test_outputs.py",
+      "line": 15,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "returncode",
+      "file": "tests/test_outputs.py",
+      "line": 17,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stderr",
+      "file": "tests/test_outputs.py",
+      "line": 17,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stdout",
+      "file": "tests/test_outputs.py",
+      "line": 18,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "load",
+      "file": "tests/test_outputs.py",
+      "line": 20,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "mkstemp",
+      "file": "tests/test_outputs.py",
+      "line": 30,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "close",
+      "file": "tests/test_outputs.py",
+      "line": 31,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "connect",
+      "file": "tests/test_outputs.py",
+      "line": 33,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "execute_sql",
+      "file": "tests/test_outputs.py",
+      "line": 34,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "records",
+      "file": "tests/test_outputs.py",
+      "line": 34,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "select value from records",
+      "file": "tests/test_outputs.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "fetchone",
+      "file": "tests/test_outputs.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "unlink",
+      "file": "tests/test_outputs.py",
+      "line": 41,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "OperationalError",
+      "file": "tests/test_outputs.py",
+      "line": 59,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "select count(*) from records",
+      "file": "tests/test_outputs.py",
+      "line": 77,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "count",
+      "file": "tests/test_outputs.py",
+      "line": 77,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "parse",
+      "file": "tests/test_outputs.py",
+      "line": 89,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "def atomic(self, transaction_type=None, **kwargs):",
+      "file": "tests/test_outputs.py",
+      "line": 90,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "walk",
+      "file": "tests/test_outputs.py",
+      "line": 91,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "FunctionDef",
+      "file": "tests/test_outputs.py",
+      "line": 92,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "name",
+      "file": "tests/test_outputs.py",
+      "line": 92,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "args",
+      "file": "tests/test_outputs.py",
+      "line": 93,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "func",
+      "file": "tests/test_outputs.py",
+      "line": 94,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "peewee.py must contain the exact signature `def atomic(self, transaction_type=None, **kwargs):` (preserving positional `transaction_type` and `**kwargs` kwarg pass-through), a precise source string the instruction never specifies.",
+      "test_ref": "tests/test_outputs.py:90",
+      "quote": "assert \"def atomic(self, transaction_type=None, **kwargs):\" in peewee_source",
+      "severity": "not_inferable"
+    }
+  ],
+  "instruction_covers": [
+    "lock_type keyword on atomic/transaction with DEFERRED/IMMEDIATE/EXCLUSIVE reaching BEGIN",
+    "nested atomic uses savepoints, no second BEGIN",
+    "apsw_ext lock-mode forwarding",
+    "output. schema_version tbench.peewee-lock.v1 with checks including all=true"
+  ],
+  "reason": "The instruction describes the behavior but never states the exact peewee.py atomic signature that an AST/string test greps for; the apsw lock_type param and forwarding are reasonably covered by requirement 3.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 317,
+    "completion_tokens_details": {
+      "reasoning_tokens": 101
+    },
+    "prompt_tokens": 1918,
+    "prompt_tokens_details": {
+      "cached_tokens": 1856
+    },
+    "total_tokens": 2235
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

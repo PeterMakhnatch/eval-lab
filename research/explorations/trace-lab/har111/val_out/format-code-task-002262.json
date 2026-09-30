@@ -1,0 +1,153 @@
+{
+  "task_id": "format-code-task-002262",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "annotations",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 1,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "exceptions",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 10,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "vobject",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 12,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "SUMMARY:{summary}",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 88,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "asyncio",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 91,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "setenv",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 98,
+      "stated": false
+    },
+    {
+      "kind": "exception",
+      "value": "CollectionNotFound",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 120,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "CollectionNotFound",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 120,
+      "stated": false
+    },
+    {
+      "kind": "exception",
+      "value": "OSError",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 124,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "Alpha batch update",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 308,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "start",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 395,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "get_traced_memory",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 411,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stop",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 412,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Missing file must raise exceptions.CollectionNotFound (specific type for non-existent path)",
+      "test_ref": "test_singlefile_storage_acceptance.py:120",
+      "quote": "with pytest.raises(exceptions.CollectionNotFound):\n        SingleFileStorage(str(tmp_path / \"missing.ics\"))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Directory path must raise OSError (distinct from CollectionNotFound)",
+      "test_ref": "test_singlefile_storage_acceptance.py:123",
+      "quote": "with pytest.raises(OSError):\n        SingleFileStorage(str(directory))",
+      "severity": "guessable"
+    },
+    {
+      "what": "AlreadyExistingError must expose .existing_href attribute set to the duplicate href",
+      "test_ref": "test_singlefile_storage_acceptance.py:204",
+      "quote": "assert duplicate.value.existing_href == \"alice\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "instance_name passed as \"local\" must be combined with collection to yield s.instance_name == \"local/work\"",
+      "test_ref": "test_singlefile_storage_acceptance.py:109",
+      "quote": "assert s.instance_name == \"local/work\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "discover must also include files whose collection was created with collection=None (e.g. \"exact\") in the scan results",
+      "test_ref": "test_singlefile_storage_acceptance.py:159",
+      "quote": "(\"exact\", str(tmp_path / \"exact.ics\")),",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "storage_name, constructor kwargs, path expansion/absolutization, encoding",
+    "create_collection/discover contracts incl. %s rules and ValueError/TypeError/NotImplementedError",
+    "CRUD async method signatures and return values",
+    "case-sensitive hrefs, get_multi dedup in order",
+    "AlreadyExistingError/NotFoundError/WrongEtagError on duplicates/missing/stale etag",
+    "at_once buffering and PreconditionFailed on external change"
+  ],
+  "reason": "Core behaviour is well stated, but the tests additionally pin specific exception types (CollectionNotFound for missing file, OSError for directories), the existing_href attribute on AlreadyExistingError, and instance_name/collection composition ('local/work') \u2014 none are stated, though all are plausibly inferable from vdirsyncer conventions.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 698,
+    "completion_tokens_details": {
+      "reasoning_tokens": 204
+    },
+    "prompt_tokens": 5137,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 5835
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

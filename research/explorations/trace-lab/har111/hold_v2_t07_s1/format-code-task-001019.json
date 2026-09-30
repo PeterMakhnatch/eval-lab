@@ -1,0 +1,148 @@
+{
+  "task_id": "format-code-task-001019",
+  "rule_label": "broken",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "cli",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 8,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "exceptions",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 9,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dedent",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "get_config",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 63,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "middle_marker",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 72,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "precedence_app",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 81,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "] == os.path.join(str(leaf.parent),",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 89,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "] == os.path.join(str(middle.parent),",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 90,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "] == os.path.join(str(base.parent),",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 91,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "leaf_default",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 99,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "leaf-default",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 99,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "middle_default",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 100,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "base_default",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 103,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "base-default",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 103,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "precedence_default",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 116,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "`__file__` values must be the resolved/normalized absolute path of the initial file (str(leaf.resolve())), not just the path as passed in",
+      "test_ref": "test_codespec_root_and_terminal_metadata",
+      "quote": "assert global_conf[\"__file__\"] == str(leaf.resolve())",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "transitive config: inheritance with relative resolution per declaring file",
+    "child-wins app option precedence and ancestor-only options retained",
+    "per-file %(here)s interpolation for app and DEFAULT options",
+    "DEFAULT accumulation and farthest-ancestor conflict winner in config and global_conf",
+    "global_conf['here'] = terminal ancestor dir; __file__ = initial file",
+    "missing file error with 'not found' plus both resolved paths",
+    "empty config: error with 'config', 'empty', initial file path",
+    "direct and indirect cycle errors with 'circular' and all resolved cycle paths",
+    "CkanConfigurationException for all invalid inheritance"
+  ],
+  "reason": "The instruction specifies nearly all testable behavior including exact error-message keywords and metadata semantics; the only unstated detail is that __file__ must be the fully resolved absolute path of the initial file, which is a conventional choice an implementer would likely make.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 379,
+    "completion_tokens_details": {
+      "reasoning_tokens": 107
+    },
+    "prompt_tokens": 3353,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 3732
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

@@ -1,0 +1,16 @@
+{
+  "task_id": "format-code-task-001140",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "rendering an Http404 directly, from a decorated view, or via middleware yields the normal JSON envelope: status 404, NOT FOUND status text, exception message as content",
+    "other exceptions on an AJAX request yield a 500 envelope; with DEBUG false the content is a generic safe message that discloses neither the exception text nor the traceback",
+    "a request passed for logging is accepted but never forwarded as an option to the JSON encoder",
+    "the decorator envelopes an ordinary HttpResponse using its status code, reason phrase and body",
+    "the existing mandatory non-AJAX guard is preserved, and mandatory=False passes a non-AJAX request through unchanged",
+    "middleware converts AJAX responses and exception results with the same rules, leaves non-AJAX responses and exception handling untouched, and does not nest an already-JSON response",
+    "a caller-supplied JSON encoder and standard json.dumps options keep working"
+  ],
+  "notes": "The exact envelope keys (status, statusText, content), the reason phrases (NOT FOUND, CREATED, ACCEPTED) and the mandatory guard returning HTTP 400 are pre-existing django-ajax conventions, present since the 2014 package rename and documented in the decorator's own docstring and the REASON_PHRASES table. The instruction points at them by name ('the normal JSON envelope', 'status text', 'reason phrase', 'existing mandatory non-AJAX guard'), so a careful engineer reads them off the repo rather than guessing. The tests never pin the wording of the generic safe message, only that the exception text and traceback are absent.",
+  "read_minutes": 18
+}

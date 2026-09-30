@@ -1,0 +1,103 @@
+{
+  "task_id": "format-code-task-000328",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "SyncMode",
+      "file": "airbyte-integrations/connectors/source-zenefits/unit_tests/test_zenefits.py",
+      "line": 7,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "models",
+      "file": "airbyte-integrations/connectors/source-zenefits/unit_tests/test_zenefits.py",
+      "line": 7,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "url_base",
+      "file": "airbyte-integrations/connectors/source-zenefits/unit_tests/test_zenefits.py",
+      "line": 47,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Mocker",
+      "file": "airbyte-integrations/connectors/source-zenefits/unit_tests/test_zenefits.py",
+      "line": 53,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "read_records",
+      "file": "airbyte-integrations/connectors/source-zenefits/unit_tests/test_zenefits.py",
+      "line": 55,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "full_refresh",
+      "file": "airbyte-integrations/connectors/source-zenefits/unit_tests/test_zenefits.py",
+      "line": 55,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "call_count",
+      "file": "airbyte-integrations/connectors/source-zenefits/unit_tests/test_zenefits.py",
+      "line": 65,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "Bearer TESTTOKEN",
+      "file": "airbyte-integrations/connectors/source-zenefits/unit_tests/test_zenefits.py",
+      "line": 66,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "request_history",
+      "file": "airbyte-integrations/connectors/source-zenefits/unit_tests/test_zenefits.py",
+      "line": 66,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "headers",
+      "file": "airbyte-integrations/connectors/source-zenefits/unit_tests/test_zenefits.py",
+      "line": 66,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Importable package `source_zenefits` with `source_zenefits.source.SourceZenefits`",
+    "11 streams with exact names and paths",
+    "Base URL https://api.zenefits.com/ (tested via stream.url_base)",
+    "Bearer token Authorization header",
+    "Envelope parsing data.data and next_url pagination",
+    "check_connection (True, None) / (False, error) contract without raising"
+  ],
+  "reason": "Every hidden-test requirement is either explicitly stated in the instruction or is a direct consequence of following the Airbyte CDK conventions the instruction mandates (RestStream with url_base/path, read_records, check_connection tuple). No new names, exact strings, or extra contracts are demanded beyond the spec.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 287,
+    "completion_tokens_details": {
+      "reasoning_tokens": 122
+    },
+    "prompt_tokens": 2911,
+    "prompt_tokens_details": {
+      "cached_tokens": 2880
+    },
+    "total_tokens": 3198
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

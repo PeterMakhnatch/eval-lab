@@ -1,0 +1,147 @@
+{
+  "task_id": "format-code-task-002262",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "annotations",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 1,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "exceptions",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 10,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "vobject",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 12,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "SUMMARY:{summary}",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 88,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "asyncio",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 91,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "setenv",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 98,
+      "stated": false
+    },
+    {
+      "kind": "exception",
+      "value": "CollectionNotFound",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 120,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "CollectionNotFound",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 120,
+      "stated": false
+    },
+    {
+      "kind": "exception",
+      "value": "OSError",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 124,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "Alpha batch update",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 308,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "start",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 395,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "get_traced_memory",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 411,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stop",
+      "file": "usercase-test-coderl/test_singlefile_storage_acceptance.py",
+      "line": 412,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Missing target file raises exceptions.CollectionNotFound (instruction only says 'require the path already points to a regular file', no exception type given)",
+      "test_ref": "test_singlefile_storage_acceptance.py:120",
+      "quote": "with pytest.raises(exceptions.CollectionNotFound):\n        SingleFileStorage(str(tmp_path / \"missing.ics\"))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Pointing constructor at a directory raises OSError",
+      "test_ref": "test_singlefile_storage_acceptance.py:124",
+      "quote": "with pytest.raises(OSError):\n        SingleFileStorage(str(directory))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Constructor must expose attributes s.path (resolved absolute path), s.encoding, s.collection, s.instance_name, s.read_only, s.no_delete; only 'remember the encoding' is stated",
+      "test_ref": "test_singlefile_storage_acceptance.py:110-117",
+      "quote": "assert s.path == str(existing)\n    assert s.encoding == \"utf-8\"\n    assert s.collection == \"work\"\n    assert s.instance_name == \"local/work\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "instance_name is composed as '{instance_name}/{collection}' (\"local/work\")",
+      "test_ref": "test_singlefile_storage_acceptance.py:114",
+      "quote": "assert s.instance_name == \"local/work\"",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "storage_name == 'singlefile'; constructor signature with encoding and storage kwargs",
+    "create_collection contract: file creation, resolved path + collection in kwargs, ValueError on bad %s pattern, None collection exact path",
+    "discover contract: scan %s placeholder, yield path/collection kwargs, TypeError on collection arg, NotImplementedError on bad pattern",
+    "CRUD methods list/get/get_multi/upload/update/delete/at_once, href=UID, item.hash etags, dedup in get_multi, case-sensitive hrefs",
+    "AlreadyExistingError/NotFoundError/WrongEtagError/PreconditionFailed behavior",
+    "at_once buffering, single write-back on exit, conflict detection on external modification"
+  ],
+  "reason": "Most behavior is spelled out in the instruction; the unstated bits are the exception type for a missing file, the OSError-on-directory case, and the exact exposed attribute names including the 'instance/collection' composition of instance_name, all natural conventions a careful implementer would likely pick.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 928,
+    "completion_tokens_details": {
+      "reasoning_tokens": 410
+    },
+    "prompt_tokens": 5153,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 6081
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

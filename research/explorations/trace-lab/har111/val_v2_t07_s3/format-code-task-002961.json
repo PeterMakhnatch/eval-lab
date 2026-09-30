@@ -1,0 +1,56 @@
+{
+  "task_id": "format-code-task-002961",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "add_sample",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 950,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "png",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 950,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "get_view",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 952,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "name",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 952,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "get_view must accept sort_by (and desc) and serialize a sort stage with create_index=False so App sorting reorders unfiltered views and does not create indexes"
+  ],
+  "reason": "The test only verifies the existing sort stage kwargs (field_or_expr/reverse/create_index) already used by the codebase; the instruction's requirements (sort applies without filters, no indexes created) directly imply create_index=False. Nothing new or unverifiable is required.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 206,
+    "completion_tokens_details": {
+      "reasoning_tokens": 102
+    },
+    "prompt_tokens": 1434,
+    "prompt_tokens_details": {
+      "cached_tokens": 1408
+    },
+    "total_tokens": 1640
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

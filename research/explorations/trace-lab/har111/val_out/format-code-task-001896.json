@@ -1,0 +1,62 @@
+{
+  "task_id": "format-code-task-001896",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "literal",
+      "value": "nested-hero.jpg",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 137,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "png",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 188,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "State paragraph",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 304,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ", ((32, 32),),",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 306,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "site_name from hostname without credentials/port",
+    "title fallback to title tag then h1",
+    "description from meta description, paragraph after h1, or first paragraph",
+    "image from h1 sibling/later img or first document img, ignoring missing src",
+    "empty/malformed HTML leaving fields None",
+    "favicon tuples (href, sizes, rel) with sizes parsing and None for absent/'any'",
+    "absolute_favicon URL resolution",
+    "to_dict including favicon keys",
+    "duplicates and document order preserved"
+  ],
+  "reason": "Every hidden test assertion, including the nested 'later image' case, is stated or clearly implied by the instruction; the favicon tuple format, sizes parsing rules, and to_dict keys are all explicitly described.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 328,
+    "completion_tokens_details": {
+      "reasoning_tokens": 160
+    },
+    "prompt_tokens": 3857,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 4185
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

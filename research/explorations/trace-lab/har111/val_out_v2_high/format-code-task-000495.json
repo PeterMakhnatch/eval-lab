@@ -1,0 +1,33 @@
+{
+  "task_id": "format-code-task-000495",
+  "rule_label": "sound",
+  "rule_unstated": [],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "An empty resolved definition (Fn::Join with an empty parts list yielding an empty string) must produce no errors at all, rather than 'StartAt'/'States' required-property errors from parsing an empty string",
+      "test_ref": "test/unit/rules/resources/stepfunctions/test_state_machine_definition.py: added case 'Using a function'",
+      "quote": "(\"Using a function\", {\"Definition\": {\"Fn::Join\": [\"\\n\", []]}}, [],)",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Resolving intrinsic functions (Fn::Join, etc.) in AWS::StepFunctions::StateMachine DefinitionString before schema validation so E1022/E3601 are not raised for  templates constructing the definition with intrinsic functions"
+  ],
+  "reason": "The instruction's sample template only requires non-empty Fn::Join strings to resolve correctly; the hidden test additionally requires that an Fn::Join resolving to an empty string yields zero errors, which is a behavior choice (skip validation on empty definition) not stated but a natural one an engineer would likely make.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 723,
+    "completion_tokens_details": {
+      "reasoning_tokens": 490
+    },
+    "prompt_tokens": 1494,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2217
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

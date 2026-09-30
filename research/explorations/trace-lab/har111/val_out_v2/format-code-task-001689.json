@@ -1,0 +1,56 @@
+{
+  "task_id": "format-code-task-001689",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "is_meta",
+      "file": "keras/src/ops/core_test.py",
+      "line": 739,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_tensor",
+      "file": "keras/src/ops/core_test.py",
+      "line": 742,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "float64",
+      "file": "keras/src/ops/core_test.py",
+      "line": 770,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "convert_to_numpy",
+      "file": "keras/src/ops/core_test.py",
+      "line": 783,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "convert_to_tensor on meta-device torch tensors returns a non-meta tensor",
+    "preserving shape and supporting the dtype argument are existing API behavior",
+    "regular torch tensors remain unchanged (regression guard, direct consequence of fix)"
+  ],
+  "reason": "All test assertions (non-meta result, correct shape/dtype, existing dtype keyword, unchanged behavior for regular tensors) follow directly from fixing convert_to_tensor for meta tensors; no new names, messages, or outputs are required by the hidden tests.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 201,
+    "completion_tokens_details": {
+      "reasoning_tokens": 89
+    },
+    "prompt_tokens": 1660,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 1861
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

@@ -1,0 +1,118 @@
+{
+  "task_id": "format-code-task-002377",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "ConfigDict",
+      "file": "tests/test_settings.py",
+      "line": 1526,
+      "stated": false
+    },
+    {
+      "kind": "exception",
+      "value": "ValidationError",
+      "file": "tests/test_settings.py",
+      "line": 1528,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "value",
+      "file": "tests/test_settings.py",
+      "line": 1531,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "extra_forbidden",
+      "file": "tests/test_settings.py",
+      "line": 1534,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "model_dump",
+      "file": "tests/test_settings.py",
+      "line": 1568,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ") or getattr(s,",
+      "file": "tests/test_settings.py",
+      "line": 1586,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "name",
+      "file": "tests/test_settings.py",
+      "line": 1603,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "top",
+      "file": "tests/test_settings.py",
+      "line": 1623,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "apple",
+      "file": "tests/test_settings.py",
+      "line": 1623,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "banana",
+      "file": "tests/test_settings.py",
+      "line": 1624,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Exact error type string 'extra_forbidden' for the extra field when extra='forbid' is applied via env_file",
+      "test_ref": "tests/test_settings.py:1534 (test_env_file_with_extra_forbid_issue_repro)",
+      "quote": "assert all(err['type'] == 'extra_forbidden' for err in errors if err['loc'][0] == 'other')",
+      "severity": "guessable"
+    },
+    {
+      "what": "With extra='allow' and env_file, extra dotenv fields must be set as instance attributes AND appear in model_dump() output (not just be accepted)",
+      "test_ref": "tests/test_settings.py:1568 (test_env_file_with_extra_allow_exposes_extra_fields)",
+      "quote": "assert s.model_dump() == {'title': 'cool', 'other': 'hello'}\n    assert getattr(s, 'other', None) == 'hello'",
+      "severity": "guessable"
+    },
+    {
+      "what": "Fix must not flag nested-delimiter dotenv keys (e.g. 'top__apple') as extras \u2014 they must still populate the nested model even though the top-level key doesn't match a field name exactly",
+      "test_ref": "tests/test_settings.py:1611-1625 (test_env_file_nested_delimiter_no_extra_error)",
+      "quote": "p.write_text('top__apple=red\\ntop__banana=yellow\\n') ... s = Settings()\n    assert s.top.apple == 'red'",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Extra.forbid is enforced for fields sourced from env_file (explicit config and BaseSettings' default forbid)",
+    "extra='ignore' silently drops dotenv extras without error",
+    "env_file with only declared fields still validates successfully under extra='forbid'"
+  ],
+  "reason": "The instruction only asks that Config.extra be honored when env_file is used; the tests additionally pin the v2 error type string 'extra_forbidden', that extra='allow' exposes dotenv extras via attribute access and model_dump(), and that env_nested_delimiter keys from dotenv files are exempted from the extra check \u2014 none of which are stated, though each follows a conventional pydantic v2 behavior a careful implementer would likely match. API names like model_config/ConfigDict/model_dump are pre-existing in the repo's test suite and thus skipped.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 1401,
+    "completion_tokens_details": {
+      "reasoning_tokens": 909
+    },
+    "prompt_tokens": 2849,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 4250
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

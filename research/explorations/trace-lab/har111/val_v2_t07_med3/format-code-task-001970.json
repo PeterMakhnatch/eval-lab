@@ -1,0 +1,81 @@
+{
+  "task_id": "format-code-task-001970",
+  "label": "suspect",
+  "sample_labels": [
+    "suspect",
+    "suspect",
+    "suspect"
+  ],
+  "unstated": [
+    {
+      "what": "Only files ending in .conf are picked up from a directory (file2.conf.disabled is ignored)",
+      "test_ref": "tests/config/test_config.py::test_load_directory_only_conf_files",
+      "quote": "directory = path_to_data_dir('conf2.d')\nexpected = {'foo': {'bar': 'baz'}}\nresult = config._load([directory], [], [])",
+      "severity": "guessable"
+    },
+    {
+      "what": "Files within a directory are loaded in a deterministic (alphabetical) order so later-override precedence applies among snippets",
+      "test_ref": "tests/config/test_config.py::test_load_directory",
+      "quote": "directory = path_to_data_dir('conf1.d')\nexpected = {'foo': {'bar': 'baz'}, 'foo2': {'bar': 'baz'}}\nresult = config._load([directory], [], [])",
+      "severity": "guessable"
+    },
+    {
+      "what": "Directory loading must only pick up files ending in .conf (a file2.conf.disabled is ignored)",
+      "test_ref": "test_load_directory_only_conf_files",
+      "quote": "def test_load_directory_only_conf_files(self):\n        directory = path_to_data_dir('conf2.d')\n        expected = {'foo': {'bar': 'baz'}}",
+      "severity": "guessable"
+    },
+    {
+      "what": "Files within a directory are loaded in sorted filename order so later files override earlier ones deterministically",
+      "test_ref": "test_load_directory",
+      "quote": "directory = path_to_data_dir('conf1.d')\n        expected = {'foo': {'bar': 'baz'}, 'foo2': {'bar': 'baz'}}",
+      "severity": "guessable"
+    },
+    {
+      "what": "Only files ending in `.conf` are loaded from a directory (non-.conf files like `file2.conf.disabled` are ignored)",
+      "test_ref": "tests/config/test_config.py::test_load_directory_only_conf_files",
+      "quote": "def test_load_directory_only_conf_files(self):\n        directory = path_to_data_dir('conf2.d')\n        expected = {'foo': {'bar': 'baz'}}",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "The instruction covers directory expansion and precedence, but never states that only *.conf files are loaded (the .conf.disabled exclusion) nor the ordering of files within a directory; both are natural but unstated choices the hidden tests rely on.",
+    "The instruction asks for directory support generally, but the tests additionally require filtering to .conf files only and deterministic sorted ordering, which are conventional but not stated choices.",
+    "The instruction asks for directory support with normal precedence, which covers the main test_load_directory case. The only unstated requirement is filtering to `*.conf` files, which is a conventional drop-in-directory behavior a careful engineer would likely guess, but it is never specified in the instruction."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 423,
+      "completion_tokens_details": {
+        "reasoning_tokens": 133
+      },
+      "prompt_tokens": 1964,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 2387
+    },
+    {
+      "completion_tokens": 356,
+      "completion_tokens_details": {
+        "reasoning_tokens": 112
+      },
+      "prompt_tokens": 1964,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 2320
+    },
+    {
+      "completion_tokens": 332,
+      "completion_tokens_details": {
+        "reasoning_tokens": 122
+      },
+      "prompt_tokens": 1964,
+      "prompt_tokens_details": {
+        "cached_tokens": 1920
+      },
+      "total_tokens": 2296
+    }
+  ]
+}

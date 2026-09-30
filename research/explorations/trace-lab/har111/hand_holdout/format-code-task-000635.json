@@ -1,0 +1,14 @@
+{
+  "task_id": "format-code-task-000635",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "chunks(task, it, n, **options) and Task.chunks(it, n) build a signature whose group() is two starmap-style signatures split at the chunk size",
+    "calling the signature applies the generated group immediately and returns its result; apply_async publishes that group with the supplied options and routes it by the underlying task name",
+    "chunks.from_dict round-trips the stored task, iterable, chunk size and options",
+    "a built-in celery.chunks task accepts (task, it, n), builds the same signature in the current app, executes it and returns the result",
+    "from celery import chunks and the celery shell locals expose chunks alongside group, chain, xmap and xstarmap"
+  ],
+  "notes": "The base image's celery has no chunks class and does not export it (celery/__init__.py and celery/bin/shell.py list only chain, chord, group, xmap, xstarmap), so the engineer must add it. The structure the tests probe is the existing sibling convention: xstarmap is a celery.starmap signature whose kwargs are task and it, and _basemap.apply_async forwards route_name=task_name_from(self.kwargs.get('task')). The instruction explicitly says 'starmap-style' and 'route it using the underlying task name' and names xmap and xstarmap as the siblings to mirror, so the route_name kwarg and the celery.starmap kwargs are read off the repo, not invented. The idempotency, independence and repeated-construct tests assert ordinary per-instance behaviour that any correct implementation passes.",
+  "read_minutes": 22
+}

@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-001181",
+  "label": "sound",
+  "sample_labels": [
+    "sound",
+    "sound",
+    "sound"
+  ],
+  "unstated": [],
+  "reasons": [
+    "Every hidden-test assertion corresponds directly to behavior the instruction states; no new names, formats, or extra contracts appear in the tests beyond the described fix.",
+    "Every hidden test scenario corresponds to an explicitly described behavior in the instruction; exact numeric expectations (e.g. speed==2.0, time_remaining==6) are directly computable from the stated rules, and fields like finished_speed, Task.speed, and Progress.reset pre-exist in rich.",
+    "All tested behaviors (speed from deltas, non-positive deltas ignored, ceil'd time_remaining, frozen finished_time/finished_speed, reset and total-change invalidation) are explicitly described in the instruction; names like speed, time_remaining, finished_speed and the reset/update signatures are pre-existing public API of rich's Task/Progress, so nothing unstated remains."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 272,
+      "completion_tokens_details": {
+        "reasoning_tokens": 146
+      },
+      "prompt_tokens": 2145,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 2417
+    },
+    {
+      "completion_tokens": 238,
+      "completion_tokens_details": {
+        "reasoning_tokens": 85
+      },
+      "prompt_tokens": 2145,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 2383
+    },
+    {
+      "completion_tokens": 326,
+      "completion_tokens_details": {
+        "reasoning_tokens": 117
+      },
+      "prompt_tokens": 2145,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 2471
+    }
+  ]
+}

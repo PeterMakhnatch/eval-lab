@@ -1,0 +1,101 @@
+{
+  "task_id": "format-code-task-002975",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "compiler",
+      "file": "tests/functional/syntax/test_default_function.py",
+      "line": 1,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "compile_code",
+      "file": "tests/functional/syntax/test_default_function.py",
+      "line": 15,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Path",
+      "file": "tests/functional/syntax/test_interfaces.py",
+      "line": 680,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "TemporaryDirectory",
+      "file": "tests/functional/syntax/test_interfaces.py",
+      "line": 681,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "FilesystemInputBundle",
+      "file": "tests/functional/syntax/test_interfaces.py",
+      "line": 683,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "pop",
+      "file": "tests/functional/syntax/test_interfaces.py",
+      "line": 686,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "environ",
+      "file": "tests/functional/syntax/test_interfaces.py",
+      "line": 686,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dedent",
+      "file": "tests/functional/syntax/test_interfaces.py",
+      "line": 687,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "tests/functional/syntax/test_interfaces.py",
+      "line": 711,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "returncode",
+      "file": "tests/functional/syntax/test_interfaces.py",
+      "line": 712,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "public exception type `CallViolation` (instruction explicitly names it; test asserts `pytest.raises(CallViolation)`)",
+    "error message telling user to use `raw_call` (instruction requires this hint)",
+    "covering all direct call forms including `self.__default__()` and interface-style `__at__(self).__default__()` with extcall/staticcall (instruction says 'any direct call of `__default__`'",
+    "defining `__default__` alone still compiles (implied: only calls are rejected)"
+  ],
+  "reason": "Everything the hidden tests check \u2014 raising the public `CallViolation` on any direct `__default__` call with a message suggesting `raw_call` \u2014 is stated in the instruction. The subprocess test popping `PYTEST_CURRENT_TEST` is anti-cheat/environment scaffolding, not a required behavior.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 334,
+    "completion_tokens_details": {
+      "reasoning_tokens": 151
+    },
+    "prompt_tokens": 2237,
+    "prompt_tokens_details": {
+      "cached_tokens": 2176
+    },
+    "total_tokens": 2571
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

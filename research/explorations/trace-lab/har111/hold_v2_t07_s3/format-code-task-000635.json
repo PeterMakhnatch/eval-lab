@@ -1,0 +1,138 @@
+{
+  "task_id": "format-code-task-000635",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "Path",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 13,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Mock",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "conf",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 21,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "task_always_eager",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 21,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "kwargs",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 36,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "call_args",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 120,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "fixture_execute.add",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 121,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "reset_mock",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 124,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "results",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 143,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "TemporaryDirectory",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 164,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dedent",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 166,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "environ",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 177,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "pathsep",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 180,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "The generated group's starmap signatures store the inner task as a Signature object under kwargs key \"task\" and the items under kwargs key \"it\", so str(kwargs[\"task\"]) renders as \"<taskname>()\" (e.g. \"fixture_canvas_chunks.add()\")",
+      "test_ref": "test_task_chunks_builds_stateful_group_parts",
+      "quote": "\"inner_task\": str(task.kwargs[\"task\"]),",
+      "severity": "guessable"
+    },
+    {
+      "what": "The top-level chunks() factory must accept and consume an app= keyword among **options rather than forwarding it to the generated signatures",
+      "test_ref": "test_top_level_chunks_preserves_options_and_round_trips_from_dict",
+      "quote": "chunks(\n        add.s(),\n        zip(range(3), range(3)),\n        2,\n        app=app,",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "chunks(task, it, n, **options) signature and Task.chunks(it, n) convenience method",
+    "sig.task == 'celery.chunks' name",
+    "group of two starmap signatures with given chunk contents",
+    "executable call and apply_async(countdown=10) delegating to group with route_name from task name",
+    "chunks.from_dict round-trip preserving task, iterable, n, and options",
+    "built-in celery.chunks worker task returning the group result",
+    "top-level `from celery import chunks` export and celery shell locals"
+  ],
+  "reason": "The instruction covers nearly all behavior; the only unstated details are the kwargs key layout ('task'/'it') of the generated starmap signatures and the app= option being consumed by the factory \u2014 both are natural consequences of mirroring Celery's existing starmap/chunks implementation, so a careful engineer would likely get them right.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 837,
+    "completion_tokens_details": {
+      "reasoning_tokens": 444
+    },
+    "prompt_tokens": 3592,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 4429
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

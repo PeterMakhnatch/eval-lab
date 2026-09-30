@@ -1,0 +1,260 @@
+{
+  "task_id": "format-code-task-002259",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "entries",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 19,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "calls",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 20,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stop_calls",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 21,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ModuleType",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 36,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dictator",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 36,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_int",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 37,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_bool",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_double",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 39,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_size_t",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 40,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_optional_size_t",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 41,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_vector_int",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 44,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_vector_string",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 47,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_string",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 50,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_array_as_vector",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 51,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "addInitFunction1D",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 54,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "addInitFunction2D",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 55,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "addInitFunction3D",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 56,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "modules",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 83,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "global_vars",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 94,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "clearDict",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 97,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ndim",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 178,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "cpp",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 209,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "validate",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 209,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "MaxwellianFluidModel",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 282,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ElectronModel",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 299,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "simulation/models",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 303,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "vector_string",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 303,
+      "stated": false
+    },
+    {
+      "kind": "exception",
+      "value": "RuntimeError",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 333,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "New Simulation constructor keyword `max_mhd_level` (and its storage as sim.max_mhd_level, populated to 'simulation/AMR/max_mhd_level') \u2014 instruction never mentions it",
+      "test_ref": "test_mhd_population.py:146 & REQUIRED_MHD_ENTRIES_2D",
+      "quote": "\"max_mhd_level\": 1, ... \"simulation/AMR/max_mhd_level\": (\"int\", 1),",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact dictionary path strings for MHD entries ('simulation/algo/fv_method/resistivity', 'simulation/algo/constrained_transport/...', 'simulation/mhd_state/to_conservative_init/heat_capacity_ratio', 'simulation/mhd_state/velocity/initializer/x_component', etc.) are not given in the instruction",
+      "test_ref": "REQUIRED_MHD_ENTRIES_2D",
+      "quote": "\"simulation/algo/fv_method/resistivity\": (\"double\", 0.1), \"simulation/mhd_state/to_conservative_init/heat_capacity_ratio\": (\"double\", 2.0),",
+      "severity": "guessable"
+    },
+    {
+      "what": "Mapping of simulation fields to dict values: eta\u2192resistivity, nu\u2192hyper_resistivity (fv_method and constrained_transport), and heat_capacity_ratio repeated in to_primitive/to_conservative/to_conservative_init",
+      "test_ref": "REQUIRED_MHD_ENTRIES_2D",
+      "quote": "\"simulation/algo/fv_method/resistivity\": (\"double\", 0.1), \"simulation/algo/fv_method/hyper_resistivity\": (\"double\", 0.01),",
+      "severity": "guessable"
+    },
+    {
+      "what": "MHDModel registration error contract: calling MHDModel before a Simulation, or registering a second model, must raise RuntimeError (instruction mentions no validation errors)",
+      "test_ref": "test_mhd_model_before_simulation_raises_specific_runtime_error / test_second_model_registration_raises_specific_runtime_error",
+      "quote": "with pytest.raises(RuntimeError) as excinfo:\n    ph.MHDModel(density=lambda x, y: 1.0)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Initializer callables must be wrapped in an object exposing a `.fn` attribute so the dictator addInitFunctionN wrappers can unwrap them",
+      "test_ref": "DictatorSpy._add_init_function",
+      "quote": "raw_fn = getattr(fn, \"fn\", None)\nif ndim == 1:\n    sample = raw_fn(2.0)",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "MHD dict population triggered by model_options containing 'MHDModel' via populateDict and Simulator.setup",
+    "Values eta=0.1, nu=0.01, gamma=2.0, hyper_mode='constant' appearing in fv_method/to_primitive/to_conservative/constrained_transport entries",
+    "mhd_state name 'mhd_state' with to_conservative_init heat_capacity_ratio",
+    "Registration of density, vx/vy/vz, bx/by/bz, p initializers as dimension-appropriate init functions",
+    "Tagging refinement \u2192 mhd_method 'default'",
+    "Not interfering with existing Hybrid population path"
+  ],
+  "reason": "The instruction describes the feature's behavior and values but omits the exact dictionary key paths, the new `max_mhd_level` Simulation option, the eta/nu-to-field mapping, and the MHDModel registration error contract; most are guessable by mirroring the existing Hybrid population code, but `max_mhd_level` is a new constructor keyword never hinted at.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 1317,
+    "completion_tokens_details": {
+      "reasoning_tokens": 544
+    },
+    "prompt_tokens": 5862,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 7179
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

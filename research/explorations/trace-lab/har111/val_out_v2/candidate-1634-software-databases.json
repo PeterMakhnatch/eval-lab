@@ -1,0 +1,229 @@
+{
+  "task_id": "candidate-1634-software-databases",
+  "rule_label": "broken",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "insert",
+      "file": "tests/test_outputs.py",
+      "line": 9,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "tests/test_outputs.py",
+      "line": 15,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "returncode",
+      "file": "tests/test_outputs.py",
+      "line": 17,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stderr",
+      "file": "tests/test_outputs.py",
+      "line": 17,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stdout",
+      "file": "tests/test_outputs.py",
+      "line": 18,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "load",
+      "file": "tests/test_outputs.py",
+      "line": 20,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "mkstemp",
+      "file": "tests/test_outputs.py",
+      "line": 30,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "close",
+      "file": "tests/test_outputs.py",
+      "line": 31,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "connect",
+      "file": "tests/test_outputs.py",
+      "line": 33,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "execute_sql",
+      "file": "tests/test_outputs.py",
+      "line": 34,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "records",
+      "file": "tests/test_outputs.py",
+      "line": 34,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "select value from records",
+      "file": "tests/test_outputs.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "fetchone",
+      "file": "tests/test_outputs.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "unlink",
+      "file": "tests/test_outputs.py",
+      "line": 41,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "OperationalError",
+      "file": "tests/test_outputs.py",
+      "line": 59,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "select count(*) from records",
+      "file": "tests/test_outputs.py",
+      "line": 77,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "count",
+      "file": "tests/test_outputs.py",
+      "line": 77,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "parse",
+      "file": "tests/test_outputs.py",
+      "line": 89,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "def atomic(self, transaction_type=None, **kwargs):",
+      "file": "tests/test_outputs.py",
+      "line": 90,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "walk",
+      "file": "tests/test_outputs.py",
+      "line": 91,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "FunctionDef",
+      "file": "tests/test_outputs.py",
+      "line": 92,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "name",
+      "file": "tests/test_outputs.py",
+      "line": 92,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "args",
+      "file": "tests/test_outputs.py",
+      "line": 93,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "func",
+      "file": "tests/test_outputs.py",
+      "line": 94,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "Exact JSON keys of the checks object: atomic_immediate, transaction_deferred, nested_savepoint, contention, all",
+      "test_ref": "tests/test_outputs.py:23",
+      "quote": "assert set(data[\"checks\"]) == {\"atomic_immediate\", \"transaction_deferred\", \"nested_savepoint\", \"contention\", \"all\"}",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "output. checks must exactly equal the integration checker's own stdout (not just all-true)",
+      "test_ref": "tests/test_outputs.py:26",
+      "quote": "assert data[\"checks\"] == expected",
+      "severity": "guessable"
+    },
+    {
+      "what": "peewee.py must contain the exact signature string 'def atomic(self, transaction_type=None, **kwargs):' \u2014 the parameter name transaction_type is not stated in the instruction (which only mentions lock_type)",
+      "test_ref": "tests/test_outputs.py:90",
+      "quote": "assert \"def atomic(self, transaction_type=None, **kwargs):\" in peewee_source",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "apsw_ext.py's transaction method must accept a lock_type argument and internally call transaction(...) (a call to a function named 'transaction') within that method",
+      "test_ref": "tests/test_outputs.py:93",
+      "quote": "any(arg.arg == \"lock_type\" for arg in method.args.args) and any(isinstance(node, ast.Call) and getattr(node.func, \"id\", \"\") == \"transaction\"",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Peewee's transaction()/atomic() must accept lock_type as a positional argument too (test calls database.transaction(\"DEFERRED\")), though requirement text implies both names; positional-lock_type passing is a naming/alias choice",
+      "test_ref": "tests/test_outputs.py:73",
+      "quote": "with database.transaction(\"DEFERRED\"):",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "lock_type support for DEFERRED/IMMEDIATE/EXCLUSIVE reaching BEGIN",
+    "nested atomic uses savepoints, no second BEGIN",
+    "apsw_ext lock-mode forwarding retained",
+    "output. at /app/output. with schema_version tbench.peewee-lock.v1 and all checks true",
+    "OperationalError on contention (existing SQLite behavior)"
+  ],
+  "reason": "The instruction describes the behavioral fix but omits exact artifact key names, the required exact source signature string in peewee.py, and AST-level requirements on the apsw transaction method that only the hidden tests specify.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 659,
+    "completion_tokens_details": {
+      "reasoning_tokens": 111
+    },
+    "prompt_tokens": 1918,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2577
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

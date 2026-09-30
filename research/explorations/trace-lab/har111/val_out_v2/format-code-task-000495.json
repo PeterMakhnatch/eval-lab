@@ -1,0 +1,25 @@
+{
+  "task_id": "format-code-task-000495",
+  "rule_label": "sound",
+  "rule_unstated": [],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "DefinitionString built with intrinsic functions (e.g. Fn::Join) must not be validated as a plain object, so E1022/E3601 errors are suppressed for function-based definitions"
+  ],
+  "reason": "The hidden test exercises exactly the reported bug: a DefinitionString using Fn::Join should yield no rule errors, which is a direct consequence of the fix requested.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 107,
+    "completion_tokens_details": {
+      "reasoning_tokens": 19
+    },
+    "prompt_tokens": 1494,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 1601
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

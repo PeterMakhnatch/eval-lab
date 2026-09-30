@@ -1,0 +1,65 @@
+{
+  "task_id": "format-code-task-001896",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "literal",
+      "value": "nested-hero.jpg",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 137,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "png",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 188,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "State paragraph",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 304,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ", ((32, 32),),",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 306,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "site_name derived from URL hostname stripping credentials and port (examples \"root:passwd@example.com:8080\" and \"http://example.com/dir/page.html\" both map to \"example.com\")",
+    "title preferring <title> then first <h1>",
+    "description preferring meta description, then paragraph after first h1, then first paragraph",
+    "image preferring image after first h1 (sibling or later, including nested like nested-hero.jpg, hero before later.jpg), then first document img with src, ignoring src-less imgs",
+    "empty/malformed HTML leaving title/description/image None",
+    "favicon tuple (href, sizes, rel) for shortcut icon/icon/apple-touch-icon/apple-touch-icon-precomposed with non-empty href, preserving duplicates and order",
+    "sizes None when absent or \"any\", else tuple of (width, height) pairs parsing \"32x32 16x16\" and \"64\u00d764\"",
+    "absolute_favicon resolving relative hrefs against the page URL (e.g. icon-32.png \u2192 http://example.com/dir/icon-32.png)",
+    "invalid/empty rel and empty/missing href yielding no tuple (empty result is ())",
+    "to_dict() including favicon and absolute_favicon keys with the same tuple values",
+    "content= supplied means no network fetch and URL-derived site_name"
+  ],
+  "reason": "Every assertion in the hidden tests corresponds to behaviour explicitly requested in the instruction, including exact tuple shapes, sizes parsing formats, URL resolution, ordering, and the to_dict keys. The purity-style tests (referential transparency, no mutation, no global state) only assert values already specified and are satisfied by any straightforward implementation, so nothing is unstated or not inferable.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 1310,
+    "completion_tokens_details": {
+      "reasoning_tokens": 950
+    },
+    "prompt_tokens": 3873,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 5183
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

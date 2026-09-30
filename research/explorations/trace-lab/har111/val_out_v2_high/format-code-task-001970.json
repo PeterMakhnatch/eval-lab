@@ -1,0 +1,35 @@
+{
+  "task_id": "format-code-task-001970",
+  "rule_label": "sound",
+  "rule_unstated": [],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Directories passed to config loading must only have files ending in '.conf' picked up; other files (e.g. 'file2.conf.disabled') must be ignored",
+      "test_ref": "tests/config/test_config.py::test_load_directory_only_conf_files",
+      "quote": "def test_load_directory_only_conf_files(self):\n    directory = path_to_data_dir('conf2.d')\n    expected = {'foo': {'bar': 'baz'}}",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "--config (and colon-separated lists) accepting a directory path and loading config files from it",
+    "'later overrides earlier' precedence preserved when mixing directories and files",
+    "loading via the existing config._load() code path, which the tests exercise directly"
+  ],
+  "reason": "The instruction only says the directory should 'pick up the config snippets inside it' with all examples using .conf files; the hidden tests additionally require that non-.conf files (like *.conf.disabled) are filtered out, which is the conventional conf.d behavior but never stated.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 637,
+    "completion_tokens_details": {
+      "reasoning_tokens": 411
+    },
+    "prompt_tokens": 1964,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2601
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

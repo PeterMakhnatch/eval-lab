@@ -1,0 +1,83 @@
+{
+  "task_id": "format-code-task-001119",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "import",
+      "file": "test/unit/test_semver_precedence_contract.py",
+      "line": 1,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "beta",
+      "file": "test/unit/test_semver_precedence_contract.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "from_version_string",
+      "file": "test/unit/test_semver_precedence_contract.py",
+      "line": 23,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "<=1.0.0-alpha",
+      "file": "test/unit/test_semver_precedence_contract.py",
+      "line": 43,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "1.0.0-alpha.1",
+      "file": "test/unit/test_semver_precedence_contract.py",
+      "line": 43,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ">1.0.0-alpha",
+      "file": "test/unit/test_semver_precedence_contract.py",
+      "line": 44,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "reduce_versions",
+      "file": "test/unit/test_semver_precedence_contract.py",
+      "line": 55,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "prerelease precedence chain and compare semantics",
+    "exact prerelease vs stable incompatibility",
+    "bound exclusion across prerelease boundaries",
+    "build metadata ignored for precedence but compatible",
+    "find_possible_versions filtering and descending order returning original strings",
+    "resolve_to_specific_version choosing highest precedence with original spelling",
+    "existing APIs and matcher syntax preserved"
+  ],
+  "reason": "Every test assertion corresponds directly to behavior explicitly described in the instruction (precedence rules, bound handling, build metadata, sorting order, and original string spelling); the helpers used (from_version_string, reduce_versions, etc.) are pre-existing public APIs named in the instruction.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 200,
+    "completion_tokens_details": {
+      "reasoning_tokens": 60
+    },
+    "prompt_tokens": 1982,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2182
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

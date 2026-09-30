@@ -1,0 +1,141 @@
+{
+  "task_id": "format-code-task-002259",
+  "label": "broken",
+  "sample_labels": [
+    "broken",
+    "suspect",
+    "broken"
+  ],
+  "unstated": [
+    {
+      "what": "New Simulation constructor keyword `max_mhd_level` (and its storage as sim.max_mhd_level, populated to 'simulation/AMR/max_mhd_level') \u2014 instruction never mentions it",
+      "test_ref": "test_mhd_population.py:146 & REQUIRED_MHD_ENTRIES_2D",
+      "quote": "\"max_mhd_level\": 1, ... \"simulation/AMR/max_mhd_level\": (\"int\", 1),",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact dictionary path strings for MHD entries ('simulation/algo/fv_method/resistivity', 'simulation/algo/constrained_transport/...', 'simulation/mhd_state/to_conservative_init/heat_capacity_ratio', 'simulation/mhd_state/velocity/initializer/x_component', etc.) are not given in the instruction",
+      "test_ref": "REQUIRED_MHD_ENTRIES_2D",
+      "quote": "\"simulation/algo/fv_method/resistivity\": (\"double\", 0.1), \"simulation/mhd_state/to_conservative_init/heat_capacity_ratio\": (\"double\", 2.0),",
+      "severity": "guessable"
+    },
+    {
+      "what": "Mapping of simulation fields to dict values: eta\u2192resistivity, nu\u2192hyper_resistivity (fv_method and constrained_transport), and heat_capacity_ratio repeated in to_primitive/to_conservative/to_conservative_init",
+      "test_ref": "REQUIRED_MHD_ENTRIES_2D",
+      "quote": "\"simulation/algo/fv_method/resistivity\": (\"double\", 0.1), \"simulation/algo/fv_method/hyper_resistivity\": (\"double\", 0.01),",
+      "severity": "guessable"
+    },
+    {
+      "what": "MHDModel registration error contract: calling MHDModel before a Simulation, or registering a second model, must raise RuntimeError (instruction mentions no validation errors)",
+      "test_ref": "test_mhd_model_before_simulation_raises_specific_runtime_error / test_second_model_registration_raises_specific_runtime_error",
+      "quote": "with pytest.raises(RuntimeError) as excinfo:\n    ph.MHDModel(density=lambda x, y: 1.0)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Initializer callables must be wrapped in an object exposing a `.fn` attribute so the dictator addInitFunctionN wrappers can unwrap them",
+      "test_ref": "DictatorSpy._add_init_function",
+      "quote": "raw_fn = getattr(fn, \"fn\", None)\nif ndim == 1:\n    sample = raw_fn(2.0)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact C++ dictionary paths for MHD algorithm entries (fv_method, to_primitive, to_conservative, constrained_transport, mhd_state), not given in the instruction (paths are siblings of the existing hybrid 'ohm' path so largely inferable)",
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:REQUIRED_MHD_ENTRIES_2D",
+      "quote": "\"simulation/algo/fv_method/resistivity\": (\"double\", 0.1),",
+      "severity": "guessable"
+    },
+    {
+      "what": "MHD tagging entry path 'simulation/AMR/refinement/tagging/mhd_method' with value 'default' (instruction says method set to 'default' but not the path)",
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:REQUIRED_MHD_ENTRIES_2D",
+      "quote": "\"simulation/AMR/refinement/tagging/mhd_method\": (\"string\", \"default\"),",
+      "severity": "guessable"
+    },
+    {
+      "what": "MHDModel keyword argument names vx, vy, vz, bx, by, bz, p (instruction describes velocity x/y/z, magnetic x/y/z, pressure but not the exact kwarg names)",
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:register_mhd_model",
+      "quote": "vx=lambda x, y: 20.0 + x,",
+      "severity": "guessable"
+    },
+    {
+      "what": "Simulation kwarg 'max_mhd_level' must exist and be populated to 'simulation/AMR/max_mhd_level' (not mentioned in instruction; sibling of existing max_nbr_levels field)",
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:make_mhd_simulation",
+      "quote": "\"max_mhd_level\": 1,",
+      "severity": "guessable"
+    },
+    {
+      "what": "Registering MHDModel before a Simulation raises RuntimeError, and a second model registration also raises RuntimeError (no error contract mentioned in instruction, though likely mirroring existing HybridModel validation)",
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:test_mhd_model_before_simulation_raises_specific_runtime_error",
+      "quote": "with pytest.raises(RuntimeError) as excinfo:\n        ph.MHDModel(density=lambda x, y: 1.0)",
+      "severity": "guessable"
+    },
+    {
+      "what": "'simulation/models' must be populated as vector_string with the model_options names \u2014 not mentioned in instruction, but pre-existing for the hybrid path so likely shared code",
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:REQUIRED_MHD_ENTRIES_2D",
+      "quote": "\"simulation/models\": (\"vector_string\", [\"MHDModel\"]),",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact dictionary key paths for MHD entries (e.g. 'simulation/algo/fv_method/resistivity', 'simulation/mhd_state/velocity/initializer/x_component', 'simulation/AMR/refinement/tagging/mhd_method', 'simulation/AMR/max_mhd_level')",
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:121-146 (REQUIRED_MHD_ENTRIES_2D)",
+      "quote": "\"simulation/algo/fv_method/resistivity\": (\"double\", 0.1), ... \"simulation/mhd_state/velocity/initializer/x_component\": (\"init2D\", 22.0)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Mapping of simulation fields to entry values: eta -> resistivity, nu -> hyper_resistivity (instruction names eta/nu/hyper_mode/gamma but not which dict key each feeds)",
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:126-127",
+      "quote": "\"simulation/algo/fv_method/resistivity\": (\"double\", 0.1),\n    \"simulation/algo/fv_method/hyper_resistivity\": (\"double\", 0.01),",
+      "severity": "guessable"
+    },
+    {
+      "what": "model_options is expressed as a list (e.g. ['MHDModel']) and 'simulation/models' is registered via add_vector_string",
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:161,303",
+      "quote": "\"model_options\": [\"MHDModel\"], ... \"simulation/models\": (\"vector_string\", [\"MHDModel\"]),",
+      "severity": "guessable"
+    },
+    {
+      "what": "MHD initializer callables are stored with an attribute named 'fn' accessible via getattr(fn, 'fn') \u2014 the wrapped init-function object exposes the raw callable as .fn",
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:61",
+      "quote": "raw_fn = getattr(fn, \"fn\", None)",
+      "severity": "not_inferable"
+    }
+  ],
+  "reasons": [
+    "The instruction describes the feature's behavior and values but omits the exact dictionary key paths, the new `max_mhd_level` Simulation option, the eta/nu-to-field mapping, and the MHDModel registration error contract; most are guessable by mirroring the existing Hybrid population code, but `max_mhd_level` is a new constructor keyword never hinted at.",
+    "The instruction covers the core feature, but the tests additionally depend on exact dictionary paths, MHDModel kwarg names, a max_mhd_level simulation field, RuntimeError contracts, and clearDict session cleanup \u2014 most are siblings of existing hybrid-path code so a careful engineer could infer them, but none are stated verbatim in the instruction.",
+    "The instruction describes the feature and the state name, but the hidden tests pin exact dictionary key paths, the eta/nu-to-resistivity/hyper_resistivity mapping, the list form of model_options, and an internal '.fn' attribute on wrapped initializer callables that the instruction never states. Most key choices mirror the existing Hybrid population path and so are guessable; the '.fn' wrapper attribute is not inferable from the instruction."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 1317,
+      "completion_tokens_details": {
+        "reasoning_tokens": 544
+      },
+      "prompt_tokens": 5862,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 7179
+    },
+    {
+      "completion_tokens": 1245,
+      "completion_tokens_details": {
+        "reasoning_tokens": 473
+      },
+      "prompt_tokens": 5862,
+      "prompt_tokens_details": {
+        "cached_tokens": 5824
+      },
+      "total_tokens": 7107
+    },
+    {
+      "completion_tokens": 1093,
+      "completion_tokens_details": {
+        "reasoning_tokens": 464
+      },
+      "prompt_tokens": 5862,
+      "prompt_tokens_details": {
+        "cached_tokens": 5824
+      },
+      "total_tokens": 6955
+    }
+  ]
+}

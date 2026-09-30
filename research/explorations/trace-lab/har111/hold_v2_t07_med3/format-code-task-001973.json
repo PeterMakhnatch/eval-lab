@@ -1,0 +1,69 @@
+{
+  "task_id": "format-code-task-001973",
+  "label": "sound",
+  "sample_labels": [
+    "broken",
+    "sound",
+    "sound"
+  ],
+  "unstated": [
+    {
+      "what": "Persistent history must be global/class-level so a brand-new ReporterList's exit() clears history recorded by other instances (the autouse fixture relies on this).",
+      "test_ref": "test_reporter_list_state.py:83-87 (fixture clear_reporter_history)",
+      "quote": "ReporterList([]).exit()\n    yield\n    ReporterList([]).exit()",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "history values must be stored as lists per key (history[\"loss\"][-1], history[\"examples/train\"] == [10]).",
+      "test_ref": "test_reporter_list_state.py:128",
+      "quote": "assert reporter.history[\"examples/train\"] == [10]",
+      "severity": "guessable"
+    },
+    {
+      "what": "history must support iteration/dict() conversion (__iter__/keys), not just __getitem__ and __call__.",
+      "test_ref": "test_reporter_list_state.py:322",
+      "quote": "assert dict(reporter.history) == {}",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "Almost all behavior is stated in the instruction; the main unstated requirement is that persistent history is shared globally so a fresh instance's exit() clears it, plus minor shape choices (per-key lists, iterable history).",
+    "Every tested behavior (weighted averaging, sum/callable reductions, ValueError on bad reduction string, '<key>/<mode>' history keys, add_scalar/add_scalars/flush dispatch, no-op second report, dual indexing of history, artifact forwarding with normalization, warning on unsupported backends, idempotent exit) is stated in the instruction or follows directly from it; the remaining test details are helper/scaffolding calls.",
+    "Every hidden-test behavior \u2014 method names, signatures, reduction semantics, key naming, history access patterns, warn-on-unsupported, and exit() clearing \u2014 is explicitly stated in the instruction or is a direct consequence of it (e.g., dict(reporter.history)/len() follow from history being a mapping keyed by reported keys)."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 856,
+      "completion_tokens_details": {
+        "reasoning_tokens": 430
+      },
+      "prompt_tokens": 4569,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 5425
+    },
+    {
+      "completion_tokens": 445,
+      "completion_tokens_details": {
+        "reasoning_tokens": 306
+      },
+      "prompt_tokens": 4569,
+      "prompt_tokens_details": {
+        "cached_tokens": 4544
+      },
+      "total_tokens": 5014
+    },
+    {
+      "completion_tokens": 561,
+      "completion_tokens_details": {
+        "reasoning_tokens": 314
+      },
+      "prompt_tokens": 4569,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 5130
+    }
+  ]
+}

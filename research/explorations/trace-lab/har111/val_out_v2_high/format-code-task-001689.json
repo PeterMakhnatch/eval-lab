@@ -1,0 +1,58 @@
+{
+  "task_id": "format-code-task-001689",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "is_meta",
+      "file": "keras/src/ops/core_test.py",
+      "line": 739,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_tensor",
+      "file": "keras/src/ops/core_test.py",
+      "line": 742,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "float64",
+      "file": "keras/src/ops/core_test.py",
+      "line": 770,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "convert_to_numpy",
+      "file": "keras/src/ops/core_test.py",
+      "line": 783,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "convert_to_tensor must accept torch tensors on the meta device and return a usable tensor (implicitly materialized off the meta device, since meta tensors have no data)",
+    "shape preservation for meta tensors (inherent to converting a tensor)",
+    "honoring the existing dtype parameter of convert_to_tensor (pre-existing API signature)",
+    "regular (non-meta) torch tensors continue to convert unchanged (no regression)"
+  ],
+  "reason": "The hidden tests only check that convert_to_tensor works for meta-device tensors (returning a non-meta tensor with the same shape, honoring its existing dtype argument) and that regular tensors are unaffected \u2014 all direct consequences of fixing the reported bug using the pre-existing convert_to_tensor API. Flags like is_meta, is_tensor, and convert_to_numpy are test-helper/library calls, not requirements on the fix.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 387,
+    "completion_tokens_details": {
+      "reasoning_tokens": 205
+    },
+    "prompt_tokens": 1660,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2047
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

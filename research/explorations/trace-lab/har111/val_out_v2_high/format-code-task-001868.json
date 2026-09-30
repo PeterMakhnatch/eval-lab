@@ -1,0 +1,172 @@
+{
+  "task_id": "format-code-task-001868",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "models",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 4,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "AutoField",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 4,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "backends",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 10,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "sqlite3",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 10,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "machinery",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "DictReader",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "model",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 30,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "environ",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 129,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dirname",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 146,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "makedirs",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 148,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dump",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 150,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "pop",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 162,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ModuleType",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 178,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ModuleSpec",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 181,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "modules",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 182,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "get_version",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 8,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "run_load_default_names",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 17,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "existing-full",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 67,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "Updated English",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 75,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "Keep English",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 80,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ") in (None,",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 89,
+      "stated": false
+    }
+  ],
+  "label": null,
+  "unstated": [],
+  "instruction_covers": [],
+  "reason": null,
+  "parse_error": "{\"unstated\": [{\"what\": \"On failure to open the default CSV, stderr must contain the literal path string 'styles/fixtures/default_names.csv' (not just a non-zero exit).\", \"test_ref\": \"usercase-test-coderl/usecase.sh:119 (case F2)\", \"quote\":",
+  "usage": {
+    "completion_tokens": 4000,
+    "completion_tokens_details": {
+      "reasoning_tokens": 3936
+    },
+    "prompt_tokens": 4591,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 8591
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

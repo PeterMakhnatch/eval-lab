@@ -1,0 +1,204 @@
+{
+  "task_id": "format-code-task-001868",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "models",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 4,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "AutoField",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 4,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "backends",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 10,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "sqlite3",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 10,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "machinery",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "DictReader",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "model",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 30,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "environ",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 129,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dirname",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 146,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "makedirs",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 148,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dump",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 150,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "pop",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 162,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ModuleType",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 178,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ModuleSpec",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 181,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "modules",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 182,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "get_version",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 8,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "run_load_default_names",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 17,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "existing-full",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 67,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "Updated English",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 75,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "Keep English",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 80,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ") in (None,",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 89,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "CSV files must be resolved relative to the process working directory (the tests cd into a temp dir and run the repo's manage.py there), not relative to the app/package directory",
+      "test_ref": "usercase-test-coderl/usecase.sh (case1 setup)",
+      "quote": "case1=\"$TMP/case1\"; mkdir -p \"$case1/styles/fixtures\" ... cd \"$case1\"\nrun_load_default_names; ec=$?",
+      "severity": "guessable"
+    },
+    {
+      "what": "On failure the command must print a diagnostic to stderr that contains the CSV file path (e.g. 'styles/fixtures/default_names.csv' and 'styles/locale/cs/names.csv'), not just exit non-zero",
+      "test_ref": "usercase-test-coderl/usecase.sh case2/case3",
+      "quote": "grep -q \"styles/fixtures/default_names.csv\" err || fail \"F2 stderr: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "When a required CSV column is missing, the stderr diagnostic must include the missing column name (e.g. 'slug', 'name_cs')",
+      "test_ref": "usercase-test-coderl/usecase.sh case4/case5",
+      "quote": "grep -q \"slug\" err || fail \"F4 stderr: $(cat err)\" ... grep -q \"name_cs\" err || fail \"F5 stderr: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "The unknown-slug warning must be written to stderr (not stdout) and include the offending slug text",
+      "test_ref": "usercase-test-coderl/usecase.sh case1",
+      "quote": "grep -q 'unknown-slug' err || fail \"F1 missing unknown-slug warning: $(cat err)\"",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "command name load_default_names with no required flags and exit 0 on success",
+    "reading styles/fixtures/default_names.csv with slug/group/order/name_en columns and update-vs-create semantics for non-empty changed fields",
+    "iterating settings.LANGUAGES, skipping LANGUAGE_CODE, reading styles/locale/<lang>/names.csv with slug/name_en/name_<lang>",
+    "ignoring blank translations, warning on unknown slug without creating rows",
+    "failing (non-zero exit) when a CSV cannot be opened or lacks a required column"
+  ],
+  "reason": "The instruction specifies the command's behaviour well; the remaining test-specific demands are diagnostic details (stderr content mentioning paths, column names, and the slug) and that CSV paths resolve relative to the CWD, which a careful implementer would likely infer but are not stated.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 1238,
+    "completion_tokens_details": {
+      "reasoning_tokens": 677
+    },
+    "prompt_tokens": 4591,
+    "prompt_tokens_details": {
+      "cached_tokens": 4544
+    },
+    "total_tokens": 5829
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

@@ -1,0 +1,28 @@
+{
+  "task_id": "format-code-task-000495",
+  "rule_label": "sound",
+  "rule_unstated": [],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "skipping definition validation when DefinitionString/Definition is built with intrinsic functions like Fn::Join",
+    "the existing 'Definition' dict key and test parametrization structure are pre-existing in the test file"
+  ],
+  "reason": "The hidden test only adds a case where the definition is an intrinsic function (Fn::Join) and expects no errors, which is exactly the bug described in the instruction. No new names, formats, or contracts beyond the reported issue are required.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 147,
+    "completion_tokens_details": {
+      "reasoning_tokens": 39
+    },
+    "prompt_tokens": 1494,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 1641
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

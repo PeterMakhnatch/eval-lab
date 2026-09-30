@@ -1,0 +1,63 @@
+{
+  "task_id": "format-code-task-001896",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "literal",
+      "value": "nested-hero.jpg",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 137,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "png",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 188,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "State paragraph",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 304,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ", ((32, 32),),",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 306,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "site_name hostname stripping credentials/port",
+    "title tag then h1 fallback",
+    "description meta, paragraph after h1, first paragraph fallback",
+    "image after h1 (sibling or later, including nested), first document image, ignoring img without src",
+    "empty/malformed HTML leaving fields None",
+    "favicon tuples with sizes parsing (space- and \u00d7-separated, 'any' \u2192 None), duplicate and order preservation, invalid/empty rel/href ignored",
+    "absolute_favicon URL resolution",
+    "to_dict including favicon and absolute_favicon"
+  ],
+  "reason": "Every hidden-test expectation, including the nested image after h1 ('nested-hero.jpg'), the \u00d7-separated sizes format, and exact resolved absolute URLs, is stated or directly implied by the instruction's wording.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 301,
+    "completion_tokens_details": {
+      "reasoning_tokens": 129
+    },
+    "prompt_tokens": 3873,
+    "prompt_tokens_details": {
+      "cached_tokens": 3840
+    },
+    "total_tokens": 4174
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

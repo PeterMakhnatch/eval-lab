@@ -1,0 +1,63 @@
+{
+  "task_id": "format-code-task-002961",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "add_sample",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 950,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "png",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 950,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "get_view",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 952,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "name",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 952,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "get_view must serialize the sort stage with exact kwargs [field_or_expr, reverse, create_index] including create_index=False pass-through",
+      "test_ref": "tests/unittests/server_view_tests.py:test_sort_by",
+      "quote": "[\"field_or_expr\", \"value\"],\n[\"reverse\", False],\n[\"create_index\", False],",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "sort applies without prior filters",
+    "sort_by/desc parameters to get_view (pre-existing API)",
+    "no persistent index created when sorting"
+  ],
+  "reason": "The sort_by/desc parameters and the sort stage already exist (the bug is only that it's not applied unfiltered and index creation is on), so the fix just threads create_index=False through; the exact serialized kwarg tuple ordering is conventional.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 335,
+    "completion_tokens_details": {
+      "reasoning_tokens": 153
+    },
+    "prompt_tokens": 1434,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 1769
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

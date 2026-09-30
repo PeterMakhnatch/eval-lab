@@ -1,0 +1,42 @@
+{
+  "task_id": "format-code-task-000116",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "just",
+      "file": "hypothesis-python/tests/cover/test_lookup_py39.py",
+      "line": 157,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "example",
+      "file": "hypothesis-python/tests/cover/test_lookup_py39.py",
+      "line": 158,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "registering a strategy for bare `tuple` must be used by `st.from_type(tuple[int])` and other parameterized tuples",
+    "temporary registration via context managers applies to parameterized tuple types",
+    "after deregistration the default tuple resolution resumes"
+  ],
+  "reason": "The hidden test checks exactly the behaviour the issue describes: a strategy registered for bare `tuple` should be used for `tuple[int]`, which the instruction clearly implies.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 138,
+    "completion_tokens_details": {
+      "reasoning_tokens": 30
+    },
+    "prompt_tokens": 1281,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 1419
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

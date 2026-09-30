@@ -1,0 +1,75 @@
+{
+  "task_id": "format-code-task-000322",
+  "label": "suspect",
+  "sample_labels": [
+    "suspect",
+    "suspect",
+    "suspect"
+  ],
+  "unstated": [
+    {
+      "what": "Invalid/unparseable HTTP-dates in If-Unmodified-Since and If-Range headers must be ignored (return 200 full response) rather than erroring or comparing",
+      "test_ref": "tests/test_web_sendfile_functional.py: test_static_file_if_unmodified_since_invalid_date, test_static_file_if_range_invalid_date",
+      "quote": "lastmod = 'not a valid HTTP-date'\n\n    resp = await client.get('/', headers={'If-Unmodified-Since': lastmod})\n    assert 200 == resp.status",
+      "severity": "guessable"
+    },
+    {
+      "what": "Malformed/invalid HTTP-date in If-Unmodified-Since or If-Range must be ignored (response 200) rather than raising or returning 412",
+      "test_ref": "tests/test_web_sendfile_functional.py::test_static_file_if_unmodified_since_invalid_date and ::test_static_file_if_range_invalid_date",
+      "quote": "lastmod = 'not a valid HTTP-date' ... assert 200 == resp.status",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact conditional response bodies/headers: 412 with no body, 206 with Content-Range/Content-Length, and full 200 file (Content-Length 13) when If-Range date is stale",
+      "test_ref": "tests/test_web_sendfile_functional.py:568 etc.",
+      "quote": "assert 412 == resp.status ... assert resp.headers['Content-Range'] == 'bytes 2-12/13' ... assert resp.headers['Content-Length'] == '11'",
+      "severity": "guessable"
+    },
+    {
+      "what": "Invalid/unparsable dates in If-Unmodified-Since and If-Range must be ignored (fall through to a normal 200), rather than raising or returning 412/200-conditional behavior",
+      "test_ref": "test_static_file_if_unmodified_since_invalid_date / test_static_file_if_range_invalid_date",
+      "quote": "resp = await client.get('/', headers={'If-Unmodified-Since': lastmod})\n    assert 200 == resp.status",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "The tests only add exact-format Content-Range checks, 416/clamp behavior, and If-Unmodified-Since/If-Range handling, all of which the instruction requests (the Content-Range format and conditional header semantics are stated or directly implied by RFC 7233/7232). The only unstated detail is that malformed HTTP-dates in the conditional headers must be silently ignored, a conventional RFC 7232 rule a careful implementer would usually apply.",
+    "Content-Range format, 416 behavior, and tail clamping are all stated in the issue. The only unstated requirements are the invalid-date fallback (treat unparseable dates as absent) and exact response sizes/headers, both standard RFC 7233/7232 behavior a careful implementer would produce.",
+    "The instruction covers the header, 416, tail clamping, and the two conditional headers. The only unstated requirement is how to handle invalid HTTP-dates in the new conditional headers, where the tests require ignoring them and returning 200 \u2014 RFC-conventional, so guessable."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 622,
+      "completion_tokens_details": {
+        "reasoning_tokens": 256
+      },
+      "prompt_tokens": 4014,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 4636
+    },
+    {
+      "completion_tokens": 546,
+      "completion_tokens_details": {
+        "reasoning_tokens": 143
+      },
+      "prompt_tokens": 4014,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 4560
+    },
+    {
+      "completion_tokens": 386,
+      "completion_tokens_details": {
+        "reasoning_tokens": 115
+      },
+      "prompt_tokens": 4014,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 4400
+    }
+  ]
+}

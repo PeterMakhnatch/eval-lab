@@ -1,0 +1,58 @@
+{
+  "task_id": "format-code-task-000617",
+  "rule_label": "broken",
+  "rule_unstated": [
+    {
+      "kind": "literal",
+      "value": "There should be no stderr",
+      "file": "snapcraft/tests/test_cmds.py",
+      "line": 81,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "test-package_1_all.snap",
+      "file": "snapcraft/tests/test_cmds.py",
+      "line": 83,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "can not parse package.yaml: missing required fields",
+      "file": "snapcraft/tests/test_cmds.py",
+      "line": 111,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Successful assemble must print nothing to stderr (a new stderr contract asserted in the passing test, not mentioned in the instruction)",
+      "test_ref": "snapcraft/tests/test_cmds.py:81",
+      "quote": "self.assertEqual(output_stderr, '', 'There should be no stderr')",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "error output from a failed assemble must be surfaced (to stderr with exit code 1)",
+    "'Snapping' progress line stays on stdout",
+    "snap filename appears on stdout only on success"
+  ],
+  "reason": "The instruction's requested fix (surfacing the underlying build error) covers the failure-case test including the specific message, since that text comes from the underlying tool. The only extra requirement is the implicit assertion that the success path writes nothing to stderr, a natural but unstated contract.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 286,
+    "completion_tokens_details": {
+      "reasoning_tokens": 107
+    },
+    "prompt_tokens": 1503,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 1789
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

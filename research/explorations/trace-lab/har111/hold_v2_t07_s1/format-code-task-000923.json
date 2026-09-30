@@ -1,0 +1,51 @@
+{
+  "task_id": "format-code-task-000923",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "parse_override",
+      "file": "tests/test_overrides_parser.py",
+      "line": 1935,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Import location of the new Transformer class must be the same module as the other override parser types (so `from ...overrides_parser.types import Transformer` resolves); the instruction leaves naming/placement \"up to you\".",
+      "test_ref": "tests/test_overrides_parser.py:25-28 (import block)",
+      "quote": "    Transformer,\n    ValueType,\n)",
+      "severity": "guessable"
+    },
+    {
+      "what": "`sweep_iterator` must accept the element as keyword argument named `transformer`.",
+      "test_ref": "tests/test_overrides_parser.py:test_sweep_iterators",
+      "quote": "ret.sweep_iterator(transformer=Transformer.encode)",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "sweep_iterator entry point on Override",
+    "Transformer helper with three policies including encode",
+    "exact encoded values for choice/range/list sweeps",
+    "preserving sweep_string_iterator behavior"
+  ],
+  "reason": "The instruction already proposes sweep_iterator with a caller-provided transformer and an encode-style Transformer, so the API shape and encoded outputs are covered. Only the import path/module of Transformer and the keyword name `transformer` are unstated, but both are natural choices an implementer would almost certainly land on.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 420,
+    "completion_tokens_details": {
+      "reasoning_tokens": 160
+    },
+    "prompt_tokens": 2249,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2669
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

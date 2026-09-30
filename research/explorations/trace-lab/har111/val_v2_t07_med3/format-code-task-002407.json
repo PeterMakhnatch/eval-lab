@@ -1,0 +1,147 @@
+{
+  "task_id": "format-code-task-002407",
+  "label": "suspect",
+  "sample_labels": [
+    "suspect",
+    "suspect",
+    "broken"
+  ],
+  "unstated": [
+    {
+      "what": "step_response must propagate input/output/state labels from the system to the TimeResponseData",
+      "test_ref": "timeresp_test.py::test_step_response_labels_preserved",
+      "quote": "assert list(res.output_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "step_response with input= selection must subset input_labels accordingly",
+      "test_ref": "timeresp_test.py::test_step_response_input_selection_labels",
+      "quote": "assert list(res.input_labels) == [\"Va\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "step_response with input= and output= selection must subset both input_labels and output_labels",
+      "test_ref": "timeresp_test.py::test_step_response_output_selection_labels",
+      "quote": "assert list(res.output_labels) == [\"Wm\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "impulse_response must propagate labels, including subsetting for input=/output= selections",
+      "test_ref": "timeresp_test.py::test_impulse_response_labels_preserved",
+      "quote": "assert list(res.input_labels) == [\"Tl\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "initial_response must propagate labels, including state_labels and output= subsetting",
+      "test_ref": "timeresp_test.py::test_initial_response_labels_preserved",
+      "quote": "assert len(res.state_labels) == 2",
+      "severity": "guessable"
+    },
+    {
+      "what": "input_output_response must propagate labels (not just forced_response)",
+      "test_ref": "timeresp_test.py::test_input_output_response_labels_preserved",
+      "quote": "res = ct.input_output_response(sys, T, U=[Va, Tl], X0=[0, 0])",
+      "severity": "guessable"
+    },
+    {
+      "what": "step_response must propagate input/output/state labels",
+      "test_ref": "timeresp_test.py::test_step_response_labels_preserved",
+      "quote": "assert list(res.output_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "step_response with input/output selection must subset labels",
+      "test_ref": "timeresp_test.py::test_step_response_input_selection_labels",
+      "quote": "assert list(res.input_labels) == [\"Va\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "impulse_response must propagate labels",
+      "test_ref": "timeresp_test.py::test_impulse_response_labels_preserved",
+      "quote": "assert list(res.input_labels) == [\"Tl\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "initial_response must propagate labels and subset on output selection",
+      "test_ref": "timeresp_test.py::test_initial_response_labels_preserved",
+      "quote": "assert list(res.output_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "input_output_response must propagate labels",
+      "test_ref": "timeresp_test.py::test_input_output_response_labels_preserved",
+      "quote": "assert list(res.state_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "Label propagation must also work in input_output_response, not just forced_response",
+      "test_ref": "test_input_output_response_labels_preserved",
+      "quote": "res = ct.input_output_response(sys, T, U=[Va, Tl], X0=[0, 0])",
+      "severity": "guessable"
+    },
+    {
+      "what": "step_response must preserve input/output labels and provide non-None state labels",
+      "test_ref": "test_step_response_labels_preserved",
+      "quote": "res = ct.step_response(sys)\n    assert list(res.output_labels) == [\"Ia\", \"Wm\"]\n    assert res.state_labels is not None",
+      "severity": "guessable"
+    },
+    {
+      "what": "impulse_response must preserve labels including state labels",
+      "test_ref": "test_impulse_response_labels_preserved",
+      "quote": "res = ct.impulse_response(sys)\n    assert list(res.output_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "initial_response must preserve labels including non-None state labels",
+      "test_ref": "test_initial_response_labels_preserved",
+      "quote": "res = ct.initial_response(sys, X0=[1, 0])\n    assert list(res.output_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "input/output selection arguments must subset the labels accordingly (e.g. input=0, output=1 yields [\"Va\"]/['Wm'])",
+      "test_ref": "test_step_response_output_selection_labels",
+      "quote": "res = ct.step_response(sys, input=0, output=1)\n    assert list(res.input_labels) == [\"Va\"]\n    assert list(res.output_labels) == [\"Wm\"]",
+      "severity": "not_inferable"
+    }
+  ],
+  "reasons": [
+    "The instruction only reports labels missing from forced_response; the hidden tests additionally require label propagation (and subsetting on input=/output= selections) for step_response, impulse_response, initial_response, and input_output_response. These are natural sibling cases a careful engineer following the same internal fix would likely cover, so they are graded guessable rather than not_inferable.",
+    "The issue only mentions forced_response, but hidden tests require label propagation (and subsetting with input/output kwargs) across step, impulse, initial, and input_output_response. These are natural extensions of the same label-passing fix, so guessable rather than not_inferable.",
+    "The instruction only reports forced_response losing labels, but hidden tests also require label propagation through input_output_response, step_response, impulse_response and initial_response, and require that input/output selection subsetting carries the corresponding subset of labels \u2014 none of which is stated."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 584,
+      "completion_tokens_details": {
+        "reasoning_tokens": 89
+      },
+      "prompt_tokens": 2475,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3059
+    },
+    {
+      "completion_tokens": 449,
+      "completion_tokens_details": {
+        "reasoning_tokens": 75
+      },
+      "prompt_tokens": 2475,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 2924
+    },
+    {
+      "completion_tokens": 645,
+      "completion_tokens_details": {
+        "reasoning_tokens": 155
+      },
+      "prompt_tokens": 2475,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3120
+    }
+  ]
+}

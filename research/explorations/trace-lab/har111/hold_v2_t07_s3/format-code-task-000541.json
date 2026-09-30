@@ -1,0 +1,62 @@
+{
+  "task_id": "format-code-task-000541",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "Mock",
+      "file": "core/tests/window/test_window_lifecycle.py",
+      "line": 1,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "WindowState",
+      "file": "core/tests/window/test_window_lifecycle.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "constants",
+      "file": "core/tests/window/test_window_lifecycle.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "reset_mock",
+      "file": "core/tests/window/test_window_lifecycle.py",
+      "line": 67,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Constructor kwargs and properties for on_gain_focus/on_lose_focus/on_show/on_hide",
+    "No-op callable default when unset (handler._raw is None)",
+    "Handlers invoked with the window instance",
+    "show/hide/visible transitions fire on_show/on_hide only on actual change",
+    "Minimize fires on_hide, restore fires on_show; other state changes and no-op state changes fire nothing",
+    "current_window change fires lose on old / gain on new; no-op set fires nothing",
+    "on_close behavior preserved"
+  ],
+  "reason": "Every test-specific detail (kwarg/property names, handler._raw, invocation with window, transition semantics) is explicitly stated in the instruction or follows the existing on_close pattern; Mock, WindowState, fixtures and reset_mock are test scaffolding/library calls.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 270,
+    "completion_tokens_details": {
+      "reasoning_tokens": 96
+    },
+    "prompt_tokens": 2786,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3056
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

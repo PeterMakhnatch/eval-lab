@@ -1,0 +1,171 @@
+{
+  "task_id": "format-code-task-001140",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "unicode_literals",
+      "file": "tests/test_ajax_contract.py",
+      "line": 1,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "RequestFactory",
+      "file": "tests/test_ajax_contract.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "SimpleTestCase",
+      "file": "tests/test_ajax_contract.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "override_settings",
+      "file": "tests/test_ajax_contract.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "test",
+      "file": "tests/test_ajax_contract.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "decorators",
+      "file": "tests/test_ajax_contract.py",
+      "line": 8,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "JSONResponse",
+      "file": "tests/test_ajax_contract.py",
+      "line": 10,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "shortcuts",
+      "file": "tests/test_ajax_contract.py",
+      "line": 11,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "JSONEncoder",
+      "file": "tests/test_ajax_contract.py",
+      "line": 18,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "factory",
+      "file": "tests/test_ajax_contract.py",
+      "line": 27,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "browser_request",
+      "file": "tests/test_ajax_contract.py",
+      "line": 30,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "record missing",
+      "file": "tests/test_ajax_contract.py",
+      "line": 42,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ", missing_payload[",
+      "file": "tests/test_ajax_contract.py",
+      "line": 58,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "secret failure",
+      "file": "tests/test_ajax_contract.py",
+      "line": 60,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ", broken_payload[",
+      "file": "tests/test_ajax_contract.py",
+      "line": 61,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "process_response",
+      "file": "tests/test_ajax_contract.py",
+      "line": 78,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "process_exception",
+      "file": "tests/test_ajax_contract.py",
+      "line": 106,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "private details",
+      "file": "tests/test_ajax_contract.py",
+      "line": 111,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "marker-value",
+      "file": "tests/test_ajax_contract.py",
+      "line": 132,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "AJAXMiddleware.process_response must accept a raw exception instance (Http404) as the 'response' argument and convert it to an envelope, not only handle exceptions via process_exception",
+      "test_ref": "tests/test_ajax_contract.py:95-99 (test_middleware_converts_ajax_http404_but_leaves_browser_response)",
+      "quote": "ajax_payload = self.decode(\n            middleware.process_response(\n                self.ajax_request, Http404('missing through middleware')))",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "render_to_ Http404 envelope with 404/NOT FOUND/message, optional request context accepted but not passed to encoder",
+    "decorator: 500 safe envelope for non-404 when DEBUG false, 404 envelope for Http404, response status/reason/body enveloping, mandatory guard, mandatory=False passthrough",
+    "middleware: process_exception safe 500 for AJAX, None for browser, leaves non-AJAX responses untouched, no double-wrap of JSON responses",
+    "encoder options cls/sort_keys still work"
+  ],
+  "reason": "Nearly everything in the tests is stated in the instruction. The only unstated nuance is that process_response itself must convert an exception instance passed in as the response, which is a plausible but not explicitly required reading of 'exception results'.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 586,
+    "completion_tokens_details": {
+      "reasoning_tokens": 303
+    },
+    "prompt_tokens": 2368,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2954
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

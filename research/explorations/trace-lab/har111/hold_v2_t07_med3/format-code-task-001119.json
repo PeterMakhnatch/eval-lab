@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-001119",
+  "label": "sound",
+  "sample_labels": [
+    "sound",
+    "sound",
+    "sound"
+  ],
+  "unstated": [],
+  "reasons": [
+    "Every test assertion corresponds directly to behavior explicitly described in the instruction (precedence rules, bound handling, build metadata, sorting order, and original string spelling); the helpers used (from_version_string, reduce_versions, etc.) are pre-existing public APIs named in the instruction.",
+    "Every hidden-test assertion maps directly to explicit requirements in the instruction, including exact output orders, build-metadata behavior, and original spelling preservation; nothing unstated remains.",
+    "Every hidden-test expectation corresponds directly to a requirement stated in the instruction; details like compare returning -1/0/1 and the helper names are pre-existing in dbt.semver's public API."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 200,
+      "completion_tokens_details": {
+        "reasoning_tokens": 60
+      },
+      "prompt_tokens": 1982,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 2182
+    },
+    {
+      "completion_tokens": 213,
+      "completion_tokens_details": {
+        "reasoning_tokens": 90
+      },
+      "prompt_tokens": 1982,
+      "prompt_tokens_details": {
+        "cached_tokens": 1920
+      },
+      "total_tokens": 2195
+    },
+    {
+      "completion_tokens": 337,
+      "completion_tokens_details": {
+        "reasoning_tokens": 175
+      },
+      "prompt_tokens": 1982,
+      "prompt_tokens_details": {
+        "cached_tokens": 1920
+      },
+      "total_tokens": 2319
+    }
+  ]
+}

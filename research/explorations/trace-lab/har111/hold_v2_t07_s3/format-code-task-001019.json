@@ -1,0 +1,149 @@
+{
+  "task_id": "format-code-task-001019",
+  "rule_label": "broken",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "cli",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 8,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "exceptions",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 9,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dedent",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "get_config",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 63,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "middle_marker",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 72,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "precedence_app",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 81,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "] == os.path.join(str(leaf.parent),",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 89,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "] == os.path.join(str(middle.parent),",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 90,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "] == os.path.join(str(base.parent),",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 91,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "leaf_default",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 99,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "leaf-default",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 99,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "middle_default",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 100,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "base_default",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 103,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "base-default",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 103,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "precedence_default",
+      "file": "ckan/tests/cli/test_recursive_config_loader_codespec.py",
+      "line": 116,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Invalid inheritance must raise at constructor time (CKANConfigLoader(...)), not only at get_config()",
+      "test_ref": "test_codespec_missing_nested_parent_reports_both_paths",
+      "quote": "with pytest.raises(CkanConfigurationException) as error:\n        CKANConfigLoader(str(leaf))",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "transitive config: chain following",
+    "relative resolution per declaring file",
+    "child-wins app option precedence",
+    "per-file %(here)s interpolation including DEFAULT options",
+    "defaults in top-level and global_conf, farthest ancestor wins",
+    "__file__ = initial file, global_conf['here'] = terminal ancestor",
+    "missing file error with 'not found' + both resolved paths",
+    "empty config: error with 'config', 'empty', initial path",
+    "direct and indirect cycles with 'circular' + all resolved paths",
+    "existing one/two-file behavior unchanged"
+  ],
+  "reason": "The instruction is unusually detailed and covers nearly everything the hidden tests assert, including exact messages, metadata locations, and precedence rules. The only gap is that tests expect the error to be raised during CKANConfigLoader construction rather than get_config(), a natural but unstated lifecycle choice.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 374,
+    "completion_tokens_details": {
+      "reasoning_tokens": 113
+    },
+    "prompt_tokens": 3353,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3727
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

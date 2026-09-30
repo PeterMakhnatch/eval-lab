@@ -1,0 +1,71 @@
+{
+  "task_id": "format-code-task-000093",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "StringIO",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 98,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "search",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 103,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "group",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 105,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "index",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 126,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "A new private function named exactly `_get_gdal_version` must exist in module `pygmt._show_versions` (tests import it by name and patch it at that path).",
+      "test_ref": "test_show_versions.py: test_get_gdal_version_returns_clean_version_string / test_show_versions_gdal_none_when_unavailable",
+      "quote": "from pygmt._show_versions import _get_gdal_version ... patch(\"pygmt._show_versions._get_gdal_version\", return_value=None)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "The returned version must be a clean string like '3.10.3' matching r'^\\d+\\.\\d+', not the verbose 'GDAL 3.10.3, released ...' output that `gdalinfo --version` prints.",
+      "test_ref": "test_show_versions.py: test_get_gdal_version_returns_clean_version_string",
+      "quote": "assert re.match(r\"^\\d+\\.\\d+\", gdal_version), (f\"_get_gdal_version() returned non-version-like string: {gdal_version!r}\")",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Detecting GDAL version without Python bindings (gdal: None bug)",
+    "show_versions output containing a gdal line in the Dependency section",
+    "Graceful None when GDAL is unavailable"
+  ],
+  "reason": "The instruction asks only for fixing the gdal: None reporting and suggests three approaches, but the tests require a specific private helper `_get_gdal_version` in `pygmt._show_versions` returning a clean version string \u2014 neither the name nor the exact format is stated.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 488,
+    "completion_tokens_details": {
+      "reasoning_tokens": 132
+    },
+    "prompt_tokens": 2185,
+    "prompt_tokens_details": {
+      "cached_tokens": 2176
+    },
+    "total_tokens": 2673
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

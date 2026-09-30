@@ -1,0 +1,107 @@
+{
+  "task_id": "format-code-task-002532",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "annotations",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 3,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "\u0627\u06cc\u0646_\u062a\u0648\u06a9\u0646_\u0633\u0627\u062e\u062a\u06af\u06cc_\u0646\u06cc\u0633\u062a",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 53,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "deepcopy",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 199,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "insert",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 211,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stdout",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 214,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 218,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "The hazm package must export module-level names `default_words` and `default_verbs` that the tests import; the instruction only uses the variable names in the constructor call without stating they are importable from `hazm`.",
+      "test_ref": "usercase-test-coderl/test_lemmatizer_acceptance.py:13-15",
+      "quote": "from hazm import Lemmatizer\nfrom hazm import default_verbs\nfrom hazm import default_words",
+      "severity": "guessable"
+    },
+    {
+      "what": "The constructor must accept `pathlib.Path` objects (not just str) for words_file/verbs_file and open files with UTF-8 encoding; tests pass `Path` objects and tmp_path files.",
+      "test_ref": "test_custom_files_provide_custom_words_and_verbs; test_lookup_is_built_at_initialization_time",
+      "quote": "Lemmatizer(words_file=FIXTURES / \"custom_words.dat\", verbs_file=FIXTURES / \"custom_verbs.dat\", ...)",
+      "severity": "guessable"
+    },
+    {
+      "what": "The constructor must raise an exception when the words file does not exist (fail-fast on missing file) rather than silently tolerating it.",
+      "test_ref": "test_constructor_raises_specific_error_for_missing_words_file",
+      "quote": "with pytest.raises(Exception): Lemmatizer(words_file=FIXTURES / \"missing_words.dat\", ...)",
+      "severity": "guessable"
+    },
+    {
+      "what": "POS hint matching must work for the uppercase tags \"NOUN\", \"ADJ\", \"PRON\" (the instruction describes the behaviors but never names these tag strings).",
+      "test_ref": "test_known_word_with_pos_hint_remains_unchanged; test_adjective_pos_hint_preserves_y_ending_word",
+      "quote": "default_lemmatizer.lemmatize(\"\u0645\u0631\u062f\u0645\", pos=\"NOUN\") ... lemmatize(\"\u0627\u062c\u062a\u0645\u0627\u0639\u06cc\", pos=\"ADJ\")",
+      "severity": "guessable"
+    },
+    {
+      "what": "The joined-verb lookup must also handle future forms like \"\u062e\u0648\u0627\u0647\u062f_\u062f\u0648\u062e\u062a\" (auxiliary-prefixed joined parts) returning the dictionary form, beyond the passive/negative perfect examples given.",
+      "test_ref": "test_custom_joined_verb_parts_are_in_lookup_when_enabled",
+      "quote": "assert lemmatizer.lemmatize(\"\u062e\u0648\u0627\u0647\u062f_\u062f\u0648\u062e\u062a\") == \"\u062f\u0648\u062e\u062a#\u062f\u0648\u0632\"",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Lemmatizer constructor signature and joined_verb_parts flag",
+    "lemmatize(word, pos='') API and return format 'past#present'",
+    "given examples: \u06a9\u062a\u0627\u0628\u200c\u0647\u0627, \u0622\u062a\u0634\u0641\u0634\u0627\u0646, \u0645\u06cc\u200c\u0631\u0648\u0645, \u06af\u0641\u062a\u0647_\u0634\u062f\u0647_\u0627\u0633\u062a, \u0646\u0686\u0634\u06cc\u062f\u0647_\u0627\u0633\u062a",
+    "unknown tokens returned unchanged",
+    "POS-hint behaviors (known words, pronouns, adjective \u06cc-ending, verb lookup when hint empty or VERB)",
+    "lookup built at initialization",
+    "referential transparency / no input mutation"
+  ],
+  "reason": "The instruction covers the core API and all example outputs; the remaining gaps are conventional engineering choices (Path/UTF-8 file handling, fail-fast on missing file, standard UPOS tag strings, future-form joined verbs) that a careful implementer would likely satisfy, with only the importability of default_words/default_verbs being a mild assumption already implied by the instruction's own usage.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 875,
+    "completion_tokens_details": {
+      "reasoning_tokens": 153
+    },
+    "prompt_tokens": 3573,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 4448
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

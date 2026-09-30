@@ -34,18 +34,25 @@ Episode endings:
   ``final_metrics.extra.prose_completions`` and the agent metadata's
   ``prose_completions`` count them, including on the agent-timeout path.
 
-Step layers (HAR-92, recording only):
-
-- Every agent step records ``extra.step_layers`` with what the model
-  proposed, what the parser accepted, what executed, and what came back
-  (see :mod:`evallab.step_layers`). Raw messages, observations, and rollout
-  details are untouched; parser decisions are identical.
+- On the self-hosted MiMo route, a prose-only turn that finished with
+  ``finish_reason: stop`` counts as ``task_complete`` (see
+  :mod:`evallab.mimo_tool_calls`). Each mapped agent step carries
+  ``extra.prose_completion: true``; each trajectory file's
+  ``final_metrics.extra.prose_completions`` and the agent metadata's
+  ``prose_completions`` count them, including on the agent-timeout path.
+- The HAR-116 loop fix (off unless the harness tree asks for it): a loop
+  gets one nudge and, if it is still going five calls later, the agent
+  phase ends so the verifier runs; terminal output fed back is capped,
+  with the full output written to a file in the sandbox. See
+  :mod:`evallab.loopfix`.
 """
 
 from __future__ import annotations
 
+import base64
 import json
 import os
+import shlex
 import urllib.parse
 from datetime import UTC, datetime
 from pathlib import Path
@@ -84,6 +91,16 @@ from evallab.execution_contracts import (
     parse_tinker_model,
 )
 from evallab.harbor_common import sanitize_native_trajectory
+from evallab.loopfix import (
+    LOOP_BREAK_KEY,
+    LOOP_NUDGE_MESSAGE,
+    LOOP_STOP_REASON,
+    OUTPUT_SPILL_PATH,
+    cap_output,
+    live_loop_action,
+    loop_break_record,
+    loop_decision,
+)
 from evallab.mimo_tool_calls import MimoToolCallParser
 from evallab.step_layers import (
     STEP_LAYERS_KEY,
@@ -94,6 +111,7 @@ from evallab.step_layers import (
 from evallab.terminus_local import OllamaBinding, resolve_ollama_binding
 
 __all__ = [
+    "LoopBreakStop",
     "SecretSafeTerminus2",
     "TrialBudgetExhaustedError",
     "apply_mimo_blocklist",
@@ -108,6 +126,11 @@ TRIAL_BUDGET_EXHAUSTED_STOP_REASON = "trial_budget_exhausted"
 #: The ``Step.extra`` flag marking a prose-only turn mapped to task_complete.
 PROSE_COMPLETION_STEP_FLAG = "prose_completion"
 
+#: Bytes written per sandbox exec when spilling a step's full terminal
+#: output. ``exec`` does not pass through tmux, so the bound is the shell's
+#: argument limit; stay far below it.
+_SPILL_CHUNK_BYTES = 48 * 1024
+
 
 class TrialBudgetExhaustedError(NonZeroAgentExitCodeError):
     """The trial proxy refused a model call because a ceiling is spent.
@@ -116,6 +139,16 @@ class TrialBudgetExhaustedError(NonZeroAgentExitCodeError):
     error and then runs the verifier; any other agent exception skips it and
     loses the reward. Subclassing the exit error routes a ceiling trip there,
     and the distinct class name keeps it apart in ``exception_info``.
+    """
+
+
+class LoopBreakStop(NonZeroAgentExitCodeError):
+    """The HAR-116 loop break ended the agent phase so the verifier can run.
+
+    A nudge was sent when the loop was detected; the repetition was still
+    going five calls later. Subclassing the agent exit error makes Harbor
+    record the stop and run the verifier, exactly as it does for an agent
+    timeout, instead of dropping the reward.
     """
 
 
@@ -178,6 +211,24 @@ def _record_prose_completions(path: Path) -> None:
     metrics = dict(metrics) if isinstance(metrics, dict) else {}
     extra = metrics.get("extra")
     metrics["extra"] = {**(extra if isinstance(extra, dict) else {}), "prose_completions": count}
+    payload["final_metrics"] = metrics
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def _record_loop_break(path: Path, record: dict[str, Any]) -> None:
+    """Write the loop-break record into a trajectory's final metrics."""
+    if not path.is_file():
+        return
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return
+    if not isinstance(payload, dict):
+        return
+    metrics = payload.get("final_metrics")
+    metrics = dict(metrics) if isinstance(metrics, dict) else {}
+    extra = metrics.get("extra")
+    metrics["extra"] = {**(extra if isinstance(extra, dict) else {}), LOOP_BREAK_KEY: record}
     payload["final_metrics"] = metrics
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
@@ -262,6 +313,7 @@ async def apply_mimo_blocklist(environment: Any) -> str:
     out = (res.stdout or "").strip()
     return "none for this task" if out == "none" else f"{out} hosts blocked in /etc/hosts"
 
+
 #: litellm resolves each provider's key from this process-environment name.
 #: The capability token (never the provider key) is what lands here.
 _PROVIDER_KEY_ENVS = {
@@ -294,10 +346,7 @@ _FORBIDDEN_EXTRA_ENV_KEYS = frozenset(
         "openai_api_base",
         "anthropic_api_key",
         "anthropic_base_url",
-        *(
-            str(key).casefold()
-            for key in ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS
-        ),
+        *(str(key).casefold() for key in ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS),
     }
 )
 _FORBIDDEN_EXTRA_ENV_PREFIXES = (
@@ -350,9 +399,7 @@ def _require_loopback_proxy_url() -> str:
         parsed = urllib.parse.urlsplit(raw)
         port = parsed.port
     except ValueError as exc:
-        raise ValueError(
-            f"{TERMINUS_PROXY_URL_ENV} is not a valid proxy endpoint"
-        ) from exc
+        raise ValueError(f"{TERMINUS_PROXY_URL_ENV} is not a valid proxy endpoint") from exc
     if (
         parsed.scheme != "http"
         or parsed.hostname != _LOOPBACK_HOST
@@ -375,16 +422,11 @@ def _require_capability(env_name: str, placeholder: str) -> str:
     """Return the trial capability, failing closed on absence or placeholder."""
     capability = os.environ.get(env_name, "")
     if not capability or capability == placeholder:
-        raise ValueError(
-            "SecretSafeTerminus2 requires a bound trial capability in "
-            f"{env_name}"
-        )
+        raise ValueError(f"SecretSafeTerminus2 requires a bound trial capability in {env_name}")
     return capability
 
 
-def _reject_kwarg_overrides(
-    values: dict[str, Any] | None, *, source: str
-) -> dict[str, Any]:
+def _reject_kwarg_overrides(values: dict[str, Any] | None, *, source: str) -> dict[str, Any]:
     """Reject transport/credential overrides inside one caller-supplied mapping."""
     items = dict(values or {})
     for key in items:
@@ -397,7 +439,9 @@ def _reject_kwarg_overrides(
     return items
 
 
-def _scrubbed_extra_env(extra_env: dict[str, str] | None, *, capability: str | None) -> dict[str, str]:
+def _scrubbed_extra_env(
+    extra_env: dict[str, str] | None, *, capability: str | None
+) -> dict[str, str]:
     """Reject secret-bearing task-container environment; pass through the rest."""
     env = dict(extra_env or {})
     secrets = collected_secret_values()
@@ -405,9 +449,7 @@ def _scrubbed_extra_env(extra_env: dict[str, str] | None, *, capability: str | N
         secrets = secrets | {capability}
     for key, value in env.items():
         folded = str(key).casefold()
-        if folded in _FORBIDDEN_EXTRA_ENV_KEYS or folded.startswith(
-            _FORBIDDEN_EXTRA_ENV_PREFIXES
-        ):
+        if folded in _FORBIDDEN_EXTRA_ENV_KEYS or folded.startswith(_FORBIDDEN_EXTRA_ENV_PREFIXES):
             raise ValueError(
                 f"SecretSafeTerminus2 rejects task-container env override {key!r}: "
                 "provider credentials cannot enter the task environment"
@@ -440,6 +482,8 @@ class SecretSafeTerminus2(Terminus2):
         llm_kwargs: dict[str, Any] | None = None,
         llm_call_kwargs: dict[str, Any] | None = None,
         extra_env: dict[str, str] | None = None,
+        loop_break: bool = False,
+        output_cap_chars: int | None = None,
         **kwargs: Any,
     ) -> None:
         if len(args) > 1:
@@ -447,6 +491,22 @@ class SecretSafeTerminus2(Terminus2):
                 "SecretSafeTerminus2 accepts at most logs_dir positionally; "
                 "pass model_name as a keyword argument"
             )
+        if not isinstance(loop_break, bool):
+            raise ValueError("loop_break must be a boolean")
+        if output_cap_chars is not None and (
+            isinstance(output_cap_chars, bool)
+            or not isinstance(output_cap_chars, int)
+            or output_cap_chars < 2
+        ):
+            raise ValueError("output_cap_chars must be an integer of at least 2, or null")
+        self._loop_break_enabled = loop_break
+        self._output_cap_chars = output_cap_chars
+        self._loop_nudged_call: int | None = None
+        self._loop_detector: str | None = None
+        self._loop_stop_call: int | None = None
+        self._loop_model_next: str | None = None
+        self._loop_stop_pending = False
+        self._pending_composed_message = ""
         self._local_binding: OllamaBinding | None = None
         self._tinker_spec: TinkerModelSpec | None = None
         self._mimo_selfhosted = False
@@ -470,9 +530,7 @@ class SecretSafeTerminus2(Terminus2):
             )
         backend = kwargs.get("llm_backend")
         if backend is not None and getattr(backend, "value", backend) != "litellm":
-            raise ValueError(
-                f"SecretSafeTerminus2 requires the litellm backend, got {backend!r}"
-            )
+            raise ValueError(f"SecretSafeTerminus2 requires the litellm backend, got {backend!r}")
         for key in kwargs:
             folded = str(key).casefold()
             if any(fragment in folded for fragment in _FORBIDDEN_KWARG_SUBSTRINGS):
@@ -481,12 +539,12 @@ class SecretSafeTerminus2(Terminus2):
                     "model transport is bound by the trial proxy"
                 )
         clean_llm_kwargs = _reject_kwarg_overrides(llm_kwargs, source="llm_kwargs")
-        clean_llm_call_kwargs = _reject_kwarg_overrides(
-            llm_call_kwargs, source="llm_call_kwargs"
-        )
+        clean_llm_call_kwargs = _reject_kwarg_overrides(llm_call_kwargs, source="llm_call_kwargs")
         if self._local_binding is not None:
             if kwargs.get("model_info") is not None:
-                raise ValueError("local model context/pricing is runtime-bound, not a harness override")
+                raise ValueError(
+                    "local model context/pricing is runtime-bound, not a harness override"
+                )
             proxy_url = self._local_binding.endpoint
             capability = None
             provider = None
@@ -561,9 +619,7 @@ class SecretSafeTerminus2(Terminus2):
                     "output_cost_per_token": spec.output_cost_micros_per_million / 1e12,
                     "litellm_provider": "openai",
                 }
-                capability = _require_capability(
-                    TINKER_PROXY_CAPABILITY_ENV, TINKER_PROXY_TOKEN
-                )
+                capability = _require_capability(TINKER_PROXY_CAPABILITY_ENV, TINKER_PROXY_TOKEN)
                 provider = "tinker"
             else:
                 capability = _require_capability(
@@ -592,8 +648,7 @@ class SecretSafeTerminus2(Terminus2):
         if self._mimo_selfhosted:
             if type(llm) is not LiteLLM:
                 raise ValueError(
-                    "the MiMo prose rule needs upstream's LiteLLM client, got "
-                    + type(llm).__name__
+                    "the MiMo prose rule needs upstream's LiteLLM client, got " + type(llm).__name__
                 )
             # The subclass only adds last_finish_reason. Re-classing the
             # client upstream built keeps its constructor semantics exactly.
@@ -618,6 +673,12 @@ class SecretSafeTerminus2(Terminus2):
         self._layer_queue = []
         self._layer_steps_id = None
         self._layer_annotated = 0
+        self._loop_nudged_call = None
+        self._loop_detector = None
+        self._loop_stop_call = None
+        self._loop_model_next = None
+        self._loop_stop_pending = False
+        self._pending_composed_message = ""
 
     async def _handle_llm_interaction(self, *args: Any, **kwargs: Any) -> Any:
         # A previous turn that never executed (a parse error appends its step
@@ -625,7 +686,8 @@ class SecretSafeTerminus2(Terminus2):
         # as not-executed so episode records stay aligned with appended steps.
         self._flush_pending_layer("parse_error: nothing executed")
         outcome = await super()._handle_llm_interaction(*args, **kwargs)
-        commands, is_task_complete, feedback, _analysis, _plan, llm_response = outcome
+        commands, is_task_complete, feedback, analysis, plan, llm_response = outcome
+        self._pending_composed_message = self._composed_message(analysis, plan, llm_response)
         parser = self._parser
         if isinstance(parser, MimoToolCallParser) and parser.last_prose_completion:
             # Upstream appends this turn's agent step later in the episode.
@@ -649,9 +711,7 @@ class SecretSafeTerminus2(Terminus2):
             "message": content,
             "reasoning": getattr(llm_response, "reasoning_content", None),
             "prose_mapped": prose_mapped,
-            "commands": [
-                (command.keystrokes, command.duration_sec) for command in commands
-            ],
+            "commands": [(command.keystrokes, command.duration_sec) for command in commands],
             "task_complete": bool(is_task_complete),
             "parse_error": parse_error,
             "exec": None,
@@ -659,7 +719,7 @@ class SecretSafeTerminus2(Terminus2):
         return outcome
 
     async def _execute_commands(self, commands: Any, session: Any) -> Any:
-        timeout, output = await super()._execute_commands(commands, session)
+        timeout, output = await self._execute_with_full_output(commands, session)
         pending = self._pending_layer
         if pending is not None:
             pending["exec"] = {
@@ -671,7 +731,166 @@ class SecretSafeTerminus2(Terminus2):
             }
             self._layer_queue.append(pending)
             self._pending_layer = None
+        output = await self._apply_loop_fix(output, commands, session)
         return timeout, output
+
+    async def _execute_with_full_output(self, commands: Any, session: Any) -> Any:
+        """Run the commands, keeping the uncut terminal output when capping.
+
+        Upstream truncates what it returns to 10,000 bytes, which is already
+        less than the whole output. The cap's file must hold the whole
+        output, so the raw read is captured here and upstream's own
+        truncation, timeout template and command loop stay untouched.
+        """
+        if self._output_cap_chars is None or not hasattr(session, "get_incremental_output"):
+            return await super()._execute_commands(commands, session)
+        captured: dict[str, str] = {}
+        original = session.get_incremental_output
+
+        async def _capturing() -> str:
+            raw = await original()
+            captured["raw"] = raw
+            return raw
+
+        session.get_incremental_output = _capturing
+        try:
+            timeout, output = await super()._execute_commands(commands, session)
+        finally:
+            session.get_incremental_output = original
+        if "raw" in captured:
+            self._pending_full_output = captured["raw"]
+        return timeout, output
+
+    def _composed_message(self, analysis: Any, plan: Any, llm_response: Any) -> str:
+        """The message the trajectory step will carry, so live and replay agree."""
+        if getattr(self, "_save_raw_content_in_trajectory", False):
+            content = getattr(llm_response, "content", None)
+            return content if isinstance(content, str) else ""
+        parts = []
+        if isinstance(analysis, str) and analysis:
+            parts.append(f"Analysis: {analysis}")
+        if isinstance(plan, str) and plan:
+            parts.append(f"Plan: {plan}")
+        return "\n".join(parts)
+
+    def _current_step(self, commands: Any) -> dict[str, Any]:
+        """This call as the detector sees it, before its step is appended."""
+        return {
+            "source": "agent",
+            "message": self._pending_composed_message,
+            "tool_calls": [
+                {
+                    "function_name": "bash_command",
+                    "arguments": {"keystrokes": getattr(command, "keystrokes", "")},
+                }
+                for command in commands
+            ],
+        }
+
+    def _taken_steps(self) -> list[dict[str, Any]]:
+        """Agent steps already in the trajectory, as plain dicts."""
+        taken = []
+        for step in getattr(self, "_trajectory_steps", []) or []:
+            if getattr(step, "source", None) != "agent" or getattr(
+                step, "is_copied_context", False
+            ):
+                continue
+            calls = []
+            for call in getattr(step, "tool_calls", None) or []:
+                arguments = getattr(call, "arguments", None)
+                calls.append(
+                    {
+                        "function_name": getattr(call, "function_name", None),
+                        "arguments": arguments if isinstance(arguments, dict) else {},
+                    }
+                )
+            taken.append(
+                {
+                    "source": "agent",
+                    "message": getattr(step, "message", "") or "",
+                    "tool_calls": calls,
+                }
+            )
+        return taken
+
+    async def _apply_loop_fix(self, output: str, commands: Any, session: Any) -> str:
+        """Cap the fed-back output and nudge or stop a detected loop."""
+        if self._output_cap_chars is not None:
+            output = await self._cap_feedback(output, session)
+        if not self._loop_break_enabled or self._loop_stop_call is not None:
+            return output
+        steps = [*self._taken_steps(), self._current_step(commands)]
+        action = live_loop_action(steps)
+        if self._loop_nudged_call is not None and self._loop_model_next is None:
+            self._loop_model_next = self._describe_next(commands)
+        if action == "nudge":
+            self._loop_nudged_call = len(steps)
+            self._loop_detector = loop_decision(steps)["detector"]
+            return output + "\n\n" + LOOP_NUDGE_MESSAGE
+        if action == "stop" and not self._finishing():
+            self._loop_stop_call = len(steps)
+            self._loop_stop_pending = True
+        return output
+
+    def _finishing(self) -> bool:
+        """Whether this call confirms completion, so the loop ends on its own."""
+        pending = self._pending_layer or {}
+        return bool(pending.get("task_complete")) and bool(
+            getattr(self, "_pending_completion", False)
+        )
+
+    @staticmethod
+    def _describe_next(commands: Any) -> str:
+        """What the model did on the call after the nudge."""
+        texts = [
+            getattr(command, "keystrokes", "")
+            for command in commands
+            if getattr(command, "keystrokes", "").strip()
+        ]
+        if not texts:
+            return "no command"
+        return " | ".join(text.strip() for text in texts)[:200]
+
+    async def _cap_feedback(self, output: str, session: Any) -> str:
+        """Feed back the head and tail; write the whole output to the sandbox."""
+        full = getattr(self, "_pending_full_output", None)
+        self._pending_full_output = None
+        text = full if isinstance(full, str) else output
+        episode = getattr(self, "_n_episodes", 0) or 0
+        spill = OUTPUT_SPILL_PATH.format(episode=episode)
+        problem = await self._spill_output(session, spill, text)
+        capped = cap_output(text, spill, limit=self._output_cap_chars or 0)
+        if problem is not None:
+            capped += f"\n[full output was not saved: {problem}]"
+        return capped
+
+    async def _spill_output(self, session: Any, path: str, content: str) -> str | None:
+        """Write ``content`` to ``path`` as the session user. None on success."""
+        environment = getattr(session, "environment", None)
+        if environment is None or not hasattr(environment, "exec"):
+            return "the session has no executable environment"
+        user = getattr(session, "_user", None)
+        directory, _, _ = path.rpartition("/")
+        made = await environment.exec(f"mkdir -p {shlex.quote(directory)}", user=user)
+        if getattr(made, "return_code", 1) != 0:
+            return "could not create the output directory"
+        payload = base64.b64encode(content.encode("utf-8", errors="replace")).decode("ascii")
+        if not payload:
+            written = await environment.exec(f": > {shlex.quote(path)}", user=user)
+            if getattr(written, "return_code", 1) != 0:
+                return "could not write the output file"
+            return None
+        for offset in range(0, len(payload), _SPILL_CHUNK_BYTES):
+            chunk = payload[offset : offset + _SPILL_CHUNK_BYTES]
+            redirect = ">" if offset == 0 else ">>"
+            written = await environment.exec(
+                f"printf %s {chunk} | base64 -d {redirect} {shlex.quote(path)}",
+                user=user,
+            )
+            if getattr(written, "return_code", 1) != 0:
+                return "could not write the output file"
+        await environment.exec(f"chmod a+r {shlex.quote(path)}", user=user)
+        return None
 
     def _flush_pending_layer(self, reason: str) -> None:
         """Queue a turn that never reached execution (parse error, interrupt)."""
@@ -801,6 +1020,17 @@ class SecretSafeTerminus2(Terminus2):
                 else "episode interrupted before execution"
             )
         super()._dump_trajectory()
+        # The per-episode dump runs after the looping call's step is
+        # recorded, which is the last moment the agent can be ended with
+        # that call kept. Raising here reaches Harbor as an agent exit, so
+        # the verifier still runs.
+        if self._loop_stop_pending:
+            self._loop_stop_pending = False
+            raise LoopBreakStop(
+                "loop break: the repetition was still going "
+                f"{self._loop_stop_call} calls in, five after the nudge at "
+                f"call {self._loop_nudged_call}"
+            )
 
     def _flag_prose_completion_step(self) -> None:
         anchor = self._pending_prose_step
@@ -847,6 +1077,22 @@ class SecretSafeTerminus2(Terminus2):
                 for path in self._trajectory_files():
                     try:
                         _record_prose_completions(path)
+                    except Exception:
+                        continue
+            if self._loop_break_enabled:
+                record = loop_break_record(
+                    fired=self._loop_nudged_call is not None,
+                    nudge_call=self._loop_nudged_call,
+                    detector=self._loop_detector,
+                    stop_call=self._loop_stop_call,
+                    model_next=self._loop_model_next,
+                )
+                metadata[LOOP_BREAK_KEY] = record
+                if self._loop_stop_call is not None:
+                    metadata["stop_reason"] = LOOP_STOP_REASON
+                for path in self._trajectory_files():
+                    try:
+                        _record_loop_break(path, record)
                     except Exception:
                         continue
             if self._local_binding is not None:

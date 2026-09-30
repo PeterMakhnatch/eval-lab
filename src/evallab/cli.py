@@ -3025,6 +3025,53 @@ def _tasks_qualify_collect_command(
     return 0
 
 
+def _tasks_health_collect_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.storage.paths import derived_root_from_environment, shared_checkout_root
+    from evallab.task_health import (
+        TABLE_FILENAME,
+        build_health_rows,
+        catalog_qualification_rows,
+        load_pool,
+        summarize_health,
+        write_task_health_parquet,
+    )
+
+    pool_path = _resolve(root, args.pool)
+    if not pool_path.is_file():
+        raise ValueError(f"pool file is missing: {pool_path}")
+    job_roots = [_resolve(root, jobs_root) for jobs_root in args.jobs_root]
+    missing = [str(jobs_root) for jobs_root in job_roots if not jobs_root.is_dir()]
+    if missing:
+        raise ValueError(f"job roots are missing: {', '.join(missing)}")
+    rows = build_health_rows(
+        load_pool(pool_path),
+        catalog_qualification_rows(root),
+        job_roots,
+        shared_checkout_root(root),
+    )
+    output = (
+        _resolve(root, args.output)
+        if args.output is not None
+        else derived_root_from_environment(root) / "external/task_catalog" / TABLE_FILENAME
+    )
+    write_task_health_parquet(rows, output)
+    summary = summarize_health(rows, table_path=output)
+    if args.summary is not None:
+        summary_path = _resolve(root, args.summary)
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(summary)
+    try:
+        relative = output.relative_to(root.resolve())
+    except ValueError:
+        relative = output
+    print(f"wrote {len(rows)} rows to {relative}")
+    print(summary, end="")
+    return 0
+
+
 def _tasks_treatment_collect_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -5224,6 +5271,23 @@ def parser() -> argparse.ArgumentParser:
     tasks_qualify_collect.add_argument("--output", type=Path, help="Parquet output path")
     tasks_qualify_collect.add_argument("--json", action="store_true")
     tasks_qualify_collect.set_defaults(func=_tasks_qualify_collect_command)
+
+    tasks_health_collect = tasks_commands.add_parser(
+        "health-collect",
+        help="Census a task pool into task_health.parquet (HAR-108)",
+    )
+    tasks_health_collect.add_argument("--pool", type=Path, required=True, help="pool.json")
+    tasks_health_collect.add_argument(
+        "--jobs-root",
+        type=Path,
+        action="append",
+        required=True,
+        dest="jobs_root",
+        help="Directory of Harbor job directories (repeatable)",
+    )
+    tasks_health_collect.add_argument("--output", type=Path, help="Parquet output path")
+    tasks_health_collect.add_argument("--summary", type=Path, help="Markdown summary path")
+    tasks_health_collect.set_defaults(func=_tasks_health_collect_command)
 
     tasks_treatment_collect = tasks_commands.add_parser(
         "treatment-collect",

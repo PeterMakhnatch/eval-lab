@@ -50,6 +50,8 @@ uv run evallab tasks exploit-collect --cohort research/experiments/mimo-hack-pro
 # After any nop/control run: per-trial backend health -> task_qualification.parquet
 uv run evallab tasks qualify-collect runs/<job>... [--backend-rate-card daytona]
 uv run evallab tasks catalog export-broken --backend daytona --out broken-daytona.json
+# Census a pool: one health label per task -> task_health.parquet
+uv run evallab tasks health-collect --pool research/experiments/har108-python-census/pool.json --jobs-root runs/
 ```
 
 `pull-hf` verifies every task directory against the adapter's
@@ -94,6 +96,8 @@ findings, not crashes.
 - `task_qualification`: one row per Harbor trial with backend health
   (see "Backend qualification" below). Written by `qualify-collect`,
   never by `catalog build`.
+- `task_health`: one row per pool task with a health label (see "Task health
+  census" below). Written by `health-collect`, never by `catalog build`.
 
 `grader_kind`/`grader_cost` are derived from task files, never the domain
 name: a `*JUDGE*` verifier env or judge-graded `tests/grade.py` means a
@@ -227,6 +231,61 @@ live in `task_qualification.DAYTONA_RATE_CARD`). Cost is computed only for
 the rate-card backend (`--backend-rate-card`, default `daytona`); other
 backends get null. When `storage_mb` is unset no disk size is invented: it
 counts as 0 billable GiB (likewise missing cpus/memory count as 0).
+
+
+## Task health census
+
+`evallab tasks health-collect --pool <pool.json> --jobs-root <dir>` (repeatable)
+writes one `task_health.parquet` row per pool task, next to
+`task_qualification.parquet`. It reads the catalog's qualification rows for the
+latest nop per `task_version_digest` and that trial's verifier log under the
+given job roots; it runs nothing. `--output` and `--summary` override the
+default catalog path and print a markdown summary.
+
+Columns: `task_id`, `task_version_digest`, `split`, `split_group`, `category`,
+`image_mib` (from the pool entry), `project_key`, `project_key_source`
+(`split_group` when `split_group` minus `code:` names a repo rather than a
+`format-code-task-` singleton; else `test_import`, the most common top-level
+module the hidden tests import, excluding the stdlib and pytest/mock/hypothesis/
+numpy/pandas/requests/yaml/six/attr/attrs/pydantic/sqlalchemy/django/flask/
+typing_extensions/tests/test/conftest; else `test_path`, the first directory of
+the first patched `.py` file; else `task_id`), `label`, `reasons`, `evidence`
+(the log line or `file:line` justifying the label), `patch_files`,
+`patch_well_formed` (false only when a diff section fails to parse; an empty
+new file, a binary file, a mode-only change and a content-free rename parse),
+`test_runner` (`pytest`/`unittest`/`bundled`/`django`/`other`/`none`;
+`bundled` unpacks `mimo_build_env.tar.gz.b64` and runs
+`.build_env/test_command.sh`, `django` is `manage.py test`),
+`test_targets_in_patch`, `literal_source_asserts` (a hidden test obtains
+project source with `inspect.getsource` or `open`/`Path.read_text` of a literal
+`.py` path it does not itself write (a path join such as `Path(tmp) / 'out.py'`
+is generated output, not project source), then asserts a substring of that text — not a
+`def`/`class` literal in generated output), `undisclosed_names`,
+`instruction_chars`, `nop_job_name`, `nop_trial_name`, `nop_reward`,
+`nop_finished_at`, `nop_cost_usd`, `nop_tests_applied`, `nop_tests_ran`,
+`nop_setup_error`, `nop_setup_error_excused`, `nop_exception_type` (null when
+there is no nop trial), `produced_at`.
+
+The markdown summary names the table path and row count. Every count in it is
+a group-by of the table: labels, split × label, the top 25 `project_key`s by
+task count plus the number of singleton projects, projects with 2 or more
+`broken_environment` tasks, exploded reasons, and the sum of `nop_cost_usd`.
+
+Labels, first match wins:
+
+| Label | When |
+|---|---|
+| `unknown` | no nop trial for the task version, or its trial directory is absent from every job root |
+| `broken_environment` | the trial exception is an environment-setup failure, the hidden tests were not applied, no reward exists, or the verifier log matches `SETUP_ERROR` (`ModuleNotFoundError`, `PackageNotFoundError`, `ERROR collecting`, `ERROR at setup`, `command not found`, `ImportError while loading conftest`, `is not correctly installed`, `build_ext`) and the match is not excused. Evidence is always a log excerpt |
+| `grader_suspect` | the nop scores 1 (hidden tests pass with no change), the tests never ran and no setup error explains it, or `literal_source_asserts` is non-empty |
+| `sound` | everything else: the nop graded and the environment held |
+
+A `SETUP_ERROR` match is excused only when it names the agent's missing work:
+`detect_grader_collection_failure` returns nothing, and every name the error
+says is missing (a `cannot import name` symbol, or the leaf of a
+`No module named` module) appears as a whole word in `instruction.md`. An
+environment defect the instruction happens to mention (`CuPy is not correctly
+installed`, pandas `build_ext`) names no missing symbol, so it is never excused.
 
 ## Current numbers
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import shutil
 import sys
 import tomllib
@@ -13,6 +12,17 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from evallab.registry import compute_task_digests  # noqa: E402
 from evallab.storage.paths import shared_checkout_root  # noqa: E402
+#: A nop whose verifier output matches this broke before grading: a raised
+#: missing module or package, a pytest collection or fixture-setup error, a
+#: conftest that cannot import, a package whose C extensions were never built
+#: (pandas, CuPy in part 3), or a missing command. Two near misses are
+#: deliberately not matched: "cannot import name X" from the task's own code
+#: is often the function the agent must write (1702), and a logged "No module
+#: named" (stevedore skipping Bandit's optional sarif formatter in 1789) is not
+#: a raised error. A pytest collection error can also be the missing feature
+#: itself; ``select_python.SETUP_ERROR_OK`` records those checked by hand.
+#: The rule lives in ``evallab.task_health``; this re-exports it.
+from evallab.task_health import SETUP_ERROR  # noqa: E402
 
 OUT = Path(__file__).resolve().parent
 PRIMARY = shared_checkout_root(ROOT)
@@ -27,20 +37,6 @@ NOP_ROOTS = tuple(
         "har105-taskfix-20260929",
         "har105-python-20260930",
     )
-)
-#: A nop whose verifier output matches this broke before grading: a raised
-#: missing module or package, a pytest collection or fixture-setup error, a
-#: conftest that cannot import, a package whose C extensions were never built
-#: (pandas, CuPy in part 3), or a missing command. Two near misses are
-#: deliberately not matched: "cannot import name X" from the task's own code
-#: is often the function the agent must write (1702), and a logged "No module
-#: named" (stevedore skipping Bandit's optional sarif formatter in 1789) is not
-#: a raised error. A pytest collection error can also be the missing feature
-#: itself; ``select_python.SETUP_ERROR_OK`` records those checked by hand.
-SETUP_ERROR = re.compile(
-    r"ModuleNotFoundError|PackageNotFoundError"
-    r"|ERROR collecting|ERROR at setup|command not found"
-    r"|ImportError while loading conftest|is not correctly installed|build_ext"
 )
 SNAPSHOTS = {
     "code": "FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6",

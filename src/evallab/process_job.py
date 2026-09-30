@@ -1,0 +1,885 @@
+"""Automatic processing for every landed Harbor job (HAR-107 slice A).
+
+One command -- ``evallab process-job <job_dir>`` -- runs the full
+post-finalize pipeline over a landed job directory and writes one run
+report per trial plus one job report into ``<job>/processed/`` (JSON plus
+a short markdown each)::
+
+    <job>/processed/trial-<trial_name>.json
+    <job>/processed/trial-<trial_name>.md
+    <job>/processed/job.json
+    <job>/processed/job.md
+
+The pipeline reuses existing code; this module adds no new detectors
+beyond wiring:
+
+* catalog ingest with cost from the proxy ledger: :func:`evallab.ledger.
+  build_cost_block` (source ``proxy_ledger_x_pinned_price``) for the job
+  block, split evenly across trials exactly like
+  :func:`evallab.database.trial_cost_columns`. The self-hosted route is
+  zero-priced per token, so ``cost_usd`` stays ``None`` with the ledger's
+  reason and a time-based estimate from
+  :func:`evallab.execution_contracts.mimo_selfhosted_trial_cost_usd`
+  (trial wall time x server rate / concurrency, sandbox excluded) rides
+  along as ``cost_estimate_usd``. Missing data is ``None`` with a reason,
+  never 0.
+* stitching: :mod:`evallab.step_layers` is the one shared stitching
+  library (``discover_trajectory_parts`` + ``stitch_steps`` +
+  ``coverage_record``). Token sums and step counts here come from its
+  stitched unique steps.
+* detectors: :func:`evallab.trial_diagnosis.diagnose_trial` (failure-mode
+  taxonomy), :func:`evallab.traj.outline_trajectory` (loop suspicion,
+  error counts), and :mod:`evallab.probe03` (Traces probe-03 first-failure
+  and attribution tags, identical-command loops, completion handshake and
+  confirmation loops, wedged terminal, token-ceiling naming,
+  submit-contract and suspect-grader evidence).
+* taint candidates: a process-job flag (not a probe-03 rule) combining
+  the verifier's ``anti_hack_guard: REJECT`` line (pattern reused from
+  probe-03) with forbidden network-install commands (``pip install`` via
+  probe-03's ``ENV_WRESTLE_RE`` plus ``curl|wget ... | sh``,
+  ``npm install`` and ``apt-get install`` shapes) in executed model
+  commands.
+
+The runner calls :func:`process_job` automatically when a job finalizes
+(see ``run_experiment``); the call is best-effort and never fails the run.
+"""
+import datetime as _datetime
+import json
+import re
+from pathlib import Path
+from typing import Any
+
+PROCESS_JOB_SCHEMA = "process_job/v1"
+
+#: Network-install shapes that make a trial a taint candidate when they
+#: appear in executed model commands (the task images are offline; a trial
+#: that fetches code or packages from the network may have graded
+#: something other than the agent's own work). ``pip install`` itself is
+#: matched by probe-03's ENV_WRESTLE_RE; the rest are fallback patterns
+#: until evallab.upstream_fetch lands (HAR-110 owns them there).
+NET_INSTALL_RES = (
+    "curl_piped_to_shell",
+    "wget_piped_to_shell",
+    "curl_fetch",
+    "wget_fetch",
+    "npm_install",
+    "apt_get_install",
+    "pip_install",
+    "pip_download",
+)
+
+_CURL_PIPE_RE = re.compile(r"curl\b[^\n|]*\|\s*(?:sudo\s+)?(?:ba)?sh\b", re.IGNORECASE)
+_WGET_PIPE_RE = re.compile(r"wget\b[^\n|]*\|\s*(?:sudo\s+)?(?:ba)?sh\b", re.IGNORECASE)
+_NPM_INSTALL_RE = re.compile(r"\bnpm\s+(?:i\b|install\b)", re.IGNORECASE)
+_APT_INSTALL_RE = re.compile(r"\bapt(?:-get)?\s+install\b", re.IGNORECASE)
+# Fallback-only: the HAR-104 answer leak was `pip download <pkg>==<ver>
+# --no-deps -d /tmp/...` plus a bare `curl -sL https://...` fetch.
+_PIP_DOWNLOAD_RE = re.compile(r"\bpip3?\s+download\b", re.IGNORECASE)
+_CURL_FETCH_RE = re.compile(r"\bcurl\b[^\n]*https?://", re.IGNORECASE)
+_WGET_FETCH_RE = re.compile(r"\bwget\b[^\n]*https?://", re.IGNORECASE)
+
+
+def _read_json(path: Path) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _iter_trial_dirs(job_dir: Path) -> list[Path]:
+    """Trial directories directly under a Harbor job directory, by name."""
+    from evallab.model_capture import iter_trial_dirs
+
+    return iter_trial_dirs(job_dir)
+
+
+def _trial_wall_hours(result: dict[str, Any]) -> tuple[float | None, str | None]:
+    """Trial wall time in hours from result.json, or (None, reason)."""
+    started, finished = result.get("started_at"), result.get("finished_at")
+    if not isinstance(started, str) or not isinstance(finished, str):
+        return None, "result.json carries no started_at/finished_at pair"
+    try:
+        start = _datetime.datetime.fromisoformat(started.replace("Z", "+00:00"))
+        end = _datetime.datetime.fromisoformat(finished.replace("Z", "+00:00"))
+    except ValueError:
+        return None, "result.json timestamps do not parse as ISO-8601"
+    seconds = (end - start).total_seconds()
+    if seconds < 0:
+        return None, "result.json finished_at precedes started_at"
+    return seconds / 3600.0, None
+
+
+def _trial_concurrency(result: dict[str, Any]) -> int:
+    config = result.get("config")
+    agent = config.get("agent") if isinstance(config, dict) else None
+    concurrent = agent.get("n_concurrent") if isinstance(agent, dict) else None
+    if isinstance(concurrent, int) and not isinstance(concurrent, bool) and concurrent >= 1:
+        return concurrent
+    return 1
+
+
+def _step_token_sums(steps: list[Any]) -> dict[str, Any]:
+    """Used prompt/completion sums over stitched unique steps.
+
+    Unmetered agent steps are counted, never zero-filled.
+    """
+    prompt = completion = metered = unmetered = agent_steps = 0
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        if str(step.get("source", "")).lower() not in ("agent", "assistant"):
+            continue
+        agent_steps += 1
+        metrics = step.get("metrics")
+        prompt_tokens = completion_tokens = None
+        if isinstance(metrics, dict):
+            raw_prompt, raw_completion = metrics.get("prompt_tokens"), metrics.get(
+                "completion_tokens"
+            )
+            if isinstance(raw_prompt, (int, float)) and not isinstance(raw_prompt, bool):
+                prompt_tokens = int(raw_prompt)
+            if isinstance(raw_completion, (int, float)) and not isinstance(
+                raw_completion, bool
+            ):
+                completion_tokens = int(raw_completion)
+        if prompt_tokens is None or completion_tokens is None:
+            unmetered += 1
+            continue
+        metered += 1
+        prompt += prompt_tokens
+        completion += completion_tokens
+    total = prompt + completion if metered else None
+    return {
+        "prompt_tokens": prompt if metered else None,
+        "completion_tokens": completion if metered else None,
+        "total_tokens": total,
+        "metered_steps": metered,
+        "unmetered_steps": unmetered,
+        "agent_steps": agent_steps,
+        "reason": None if metered else "no stitched agent step carries token metrics",
+    }
+
+
+def _upstream_findings(
+    command_texts: list[str],
+) -> list[dict[str, Any]] | None:
+    """Canonical answer-leak findings, or None until it lands.
+
+    Seam for HAR-110: ``evallab.upstream_fetch.detect_upstream_fetch``
+    owns upstream-fix fetch detection (model pip-downloads / curls the fix)
+    for GEPA scoring. process-job reuses it instead of a second detector.
+    Until that module merges, the caller falls back to the local patterns
+    below; the fallback shrinks to an import error note once it lands.
+    """
+    try:
+        from evallab.upstream_fetch import detect_upstream_fetch
+    except ImportError:
+        return None
+    findings = detect_upstream_fetch(command_texts)
+    return [
+        {
+            "kind": "network_install",
+            "rule": f"upstream_fetch:{getattr(finding, 'rule', 'fetch')}",
+            "evidence": "",
+            "command": str(getattr(finding, "command", ""))[:160],
+        }
+        for finding in findings
+    ]
+
+
+def _fallback_network_installs(text: str) -> list[str]:
+    """Local network-install shapes until upstream_fetch lands (see above)."""
+    from evallab import probe03
+
+    kinds: list[str] = []
+    if probe03.ENV_WRESTLE_RE.search(text) and probe03.PIP_INSTALL_RE.search(text):
+        kinds.append("pip_install")
+    if _PIP_DOWNLOAD_RE.search(text):
+        kinds.append("pip_download")
+    if _CURL_PIPE_RE.search(text):
+        kinds.append("curl_piped_to_shell")
+    elif _CURL_FETCH_RE.search(text):
+        kinds.append("curl_fetch")
+    if _WGET_PIPE_RE.search(text):
+        kinds.append("wget_piped_to_shell")
+    elif _WGET_FETCH_RE.search(text):
+        kinds.append("wget_fetch")
+    if _NPM_INSTALL_RE.search(text):
+        kinds.append("npm_install")
+    if _APT_INSTALL_RE.search(text):
+        kinds.append("apt_get_install")
+    return kinds
+
+
+def _taint_flags(
+    agent_seq: list[tuple[str, dict]], info: dict, trial_dir: Path
+) -> list[dict[str, Any]]:
+    """Taint candidates: guard rejects and forbidden network installs."""
+    from evallab import probe03
+
+    flags: list[dict[str, Any]] = []
+    try:
+        stdout = (trial_dir / "verifier" / "test-stdout.txt").read_text(
+            encoding="utf-8", errors="replace"
+        )
+    except OSError:
+        stdout = ""
+    guard = probe03.GUARD_REJECT_RE.search(stdout)
+    if guard:
+        writes = probe03.protected_file_writes(agent_seq, guard.group(1))
+        flags.append(
+            {
+                "kind": "guard_reject",
+                "rule": "probe03.GUARD_REJECT_RE",
+                "evidence": guard.group(0)[:160],
+                "guard_mutation_steps": writes,
+            }
+        )
+    texts = [probe03._step_command_text(doc, step, info) for doc, step in agent_seq]
+    upstream = _upstream_findings([text for text in texts if text])
+    if upstream is not None:
+        # Step-ref mapping is finalized against the landed Finding shape.
+        flags.extend(upstream)
+        return flags
+    for (doc, step), text in zip(agent_seq, texts, strict=True):
+        if not text:
+            continue
+        for kind in _fallback_network_installs(text):
+            flags.append(
+                {
+                    "kind": "network_install",
+                    "rule": f"process_job:{kind}",
+                    "evidence": probe03._ref(doc, step.get("step_id")),
+                    "command": text[:160],
+                }
+            )
+    return flags
+
+
+def _process_trial(
+    trial_dir: Path, job_dir: Path, *, nop_runs_dir: str | None = None
+) -> dict[str, Any]:
+    """One trial's run report record (JSON-serializable)."""
+    from evallab import probe03
+    from evallab.step_layers import (
+        coverage_record,
+        discover_trajectory_parts,
+        stitch_steps,
+    )
+
+    trial_name = trial_dir.name
+    result = _read_json(trial_dir / "result.json") or {}
+    agent_result = result.get("agent_result")
+    agent_result = agent_result if isinstance(agent_result, dict) else {}
+    agent_metadata = agent_result.get("metadata")
+    agent_metadata = agent_metadata if isinstance(agent_metadata, dict) else {}
+
+    # Shared stitching library: parts -> unique steps -> coverage.
+    agent_dir = trial_dir / "agent"
+    parts = discover_trajectory_parts(agent_dir) if agent_dir.is_dir() else []
+    docs: list[dict[str, Any]] = []
+    doc_names: list[str] = []
+    for part in parts:
+        if not part.readable:
+            continue
+        try:
+            payload = json.loads(part.path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(payload, dict):
+            docs.append(payload)
+            doc_names.append(part.name)
+    unique_steps, stitch_stats = stitch_steps(docs)
+    step_lists = {
+        name: doc.get("steps") for name, doc in zip(doc_names, docs, strict=True)
+    }
+    coverage = coverage_record(
+        parts,
+        stitch_stats,
+        summarization_count=agent_metadata.get("summarization_count"),
+        step_lists=step_lists,
+    )
+    tokens_steps = _step_token_sums(unique_steps)
+
+    # Reward (probe-02 semantics via the probe03 port).
+    reward, scored, reward_source = probe03.read_reward(trial_dir)
+
+    # First-failure + attribution tags (ported Traces probe-03 rules).
+    try:
+        analysis = probe03.analyze_trial_core(trial_dir, job_dir, nop_runs_dir=nop_runs_dir)
+        analysis_error = None
+    except Exception as exc:  # noqa: BLE001 -- one bad trial must not kill the job
+        analysis = None
+        analysis_error = f"{type(exc).__name__}: {exc}"
+
+    # Loop suspicion + outline counts (shared traj outline).
+    try:
+        from evallab.traj import outline_trajectory
+
+        outline = outline_trajectory(trial_dir)
+        loop = outline.loop_suspicion
+        loop_record = {
+            "score": loop.score,
+            "detected": loop.detected,
+            "reasons": list(loop.reasons),
+            "repeated_command_count": loop.repeated_command_count,
+            "repeated_error_count": loop.repeated_error_count,
+            "cyclic_patterns_count": loop.cyclic_patterns_count,
+        }
+        outline_record: dict[str, Any] | None = {
+            "total_steps": outline.total_steps,
+            "agent_steps": outline.agent_steps,
+            "status": outline.status,
+            "primary_reward": outline.primary_reward,
+            "exception_class": outline.exception_class,
+        }
+        outline_error = None
+    except Exception as exc:  # noqa: BLE001
+        loop_record = None
+        outline_record = None
+        outline_error = f"{type(exc).__name__}: {exc}"
+
+    # Failure-mode taxonomy (existing deterministic diagnosis).
+    try:
+        from evallab.trial_diagnosis import diagnose_trial
+
+        diagnosis = diagnose_trial(trial_dir)
+        diagnosis_record: dict[str, Any] | None = {
+            "outcome": diagnosis.outcome,
+            "reward": diagnosis.reward,
+            "exception_class": diagnosis.exception_class,
+            "heuristic_label": diagnosis.heuristic_label,
+            "modes": [
+                {
+                    "mode": str(mode.mode),
+                    "step_ids": [str(ref) for ref in mode.step_ids],
+                    "excerpt": str(mode.excerpt)[:300],
+                }
+                for mode in diagnosis.modes
+            ],
+            "notices": list(diagnosis.notices),
+        }
+        diagnosis_error = None
+    except Exception as exc:  # noqa: BLE001
+        diagnosis_record = None
+        diagnosis_error = f"{type(exc).__name__}: {exc}"
+
+    # Taint candidates (process-job flag, not a probe-03 rule).
+    if analysis is not None:
+        taint = _taint_flags(analysis["agent_seq"], analysis["info"], trial_dir)
+    else:
+        taint = []
+
+    # Stop reason / tokens / proxy totals from the probe-03 analysis.
+    if analysis is not None:
+        stop_reason = analysis["stop_reason"]
+        first_failure = analysis["first_failure"]
+        outcome_failure = _jsonable(analysis["outcome_failure"])
+        handshake = analysis["handshake"]
+        wedge = {
+            "keystroke_source": analysis["wedge"]["keystroke_source"],
+            "executed_turns": analysis["wedge"]["executed_turns"],
+            "states": analysis["wedge"]["states"],
+            "stretches": analysis["wedge"]["stretches"],
+            "short_stretches": analysis["wedge"]["short_stretches"],
+        }
+        identical = [
+            {
+                "start": probe03._ref(run["start_doc"], run["start"]),
+                "end": probe03._ref(run["end_doc"], run["end"]),
+                "length": run["length"],
+            }
+            for run in analysis["runs"]
+        ]
+        secondaries = list(analysis["secondaries"])
+        tokens_proxy = {
+            "input_tokens": analysis["tokens_result"]["input"],
+            "output_tokens": analysis["tokens_result"]["output"],
+        }
+        shape_counts = dict(analysis["shape_counts"])
+        acceptance = {
+            "counts": dict(analysis["acc_counts"]),
+            "provenance": dict(analysis["acceptance_provenance"]),
+            "agreement": dict(analysis["acceptance_agreement"]),
+        }
+        rejection_causes = {
+            doc: dict(causes) for doc, causes in analysis["rejection_causes"].items()
+        }
+        agent_steps = analysis["agent_steps"]
+        model_steps = analysis["model_steps"]
+        assembly_pattern = analysis["coverage"]["assembly_pattern"]
+        confirmation = analysis["confirmation_loop"]
+        claim_regime = analysis["claim_regime"]
+        completion_refs = list(analysis["completion_refs"])
+        loop_cost = analysis["loop_cost"]
+        task_name = result.get("task_name") or "unknown"
+        model_name = (
+            ((result.get("config") or {}).get("agent") or {}).get("model_name")
+            or "unknown"
+        )
+    else:
+        stop_reason = None
+        first_failure = None
+        outcome_failure = None
+        handshake = None
+        wedge = None
+        identical = []
+        secondaries = []
+        tokens_proxy = {"input_tokens": None, "output_tokens": None}
+        shape_counts = {}
+        acceptance = {}
+        rejection_causes = {}
+        agent_steps = None
+        model_steps = None
+        assembly_pattern = None
+        confirmation = None
+        claim_regime = None
+        completion_refs = []
+        loop_cost = None
+        task_name = result.get("task_name") or "unknown"
+        model_name = "unknown"
+
+    # Cost: job ledger block split across trials happens at the job level;
+    # the per-trial record carries the proxy totals for reference.
+    wall_hours, wall_reason = _trial_wall_hours(result)
+    record: dict[str, Any] = {
+        "schema": PROCESS_JOB_SCHEMA,
+        "trial_name": trial_name,
+        "task_name": task_name,
+        "model_name": model_name,
+        "reward": reward,
+        "scored": scored,
+        "reward_source": reward_source,
+        "stop_reason": stop_reason,
+        "tokens_steps": tokens_steps,
+        "tokens_proxy": tokens_proxy,
+        "tokens_attempted_proxy": None,  # filled at job level (ledger split)
+        "cost_usd": None,  # filled at job level (ledger split)
+        "cost_attempted_usd": None,  # filled at job level (ledger split)
+        "cost_source": "proxy_ledger_x_pinned_price",
+        "cost_reason": None,  # filled at job level (ledger reason)
+        "cost_estimate_usd": None,  # self-hosted time-based estimate
+        "cost_estimate_reason": None,
+        "trial_wall_hours": wall_hours,
+        "trial_wall_reason": wall_reason,
+        "trial_concurrency": _trial_concurrency(result),
+        "stitched_steps": len(unique_steps),
+        "agent_steps": agent_steps,
+        "model_steps": model_steps,
+        "assembly_pattern": assembly_pattern,
+        "coverage": coverage,
+        "first_failure": first_failure,
+        "outcome_failure": outcome_failure,
+        "secondaries": secondaries,
+        "identical_runs": identical,
+        "completion_refs": completion_refs,
+        "claim_regime": claim_regime,
+        "confirmation_loop": confirmation,
+        "handshake": handshake,
+        "wedge": wedge,
+        "loop_cost": loop_cost,
+        "loop_suspicion": loop_record,
+        "diagnosis": diagnosis_record,
+        "shape_counts": shape_counts,
+        "acceptance": acceptance,
+        "rejection_causes": rejection_causes,
+        "taint": taint,
+        "outline": outline_record,
+        "errors": {
+            "analysis": analysis_error,
+            "outline": outline_error,
+            "diagnosis": diagnosis_error,
+        },
+    }
+
+    # Flags: one short string per fired detector for the summary table.
+    flags: list[str] = []
+    if stop_reason is not None and stop_reason.startswith("ceiling:"):
+        flags.append(f"token_ceiling:{stop_reason.partition(':')[2]}")
+    if stop_reason == "agent_timeout":
+        flags.append("timeout")
+    if identical:
+        longest = max(identical, key=lambda run: run["length"])
+        flags.append(f"identical_loop:{longest['length']}x:{longest['start']}-{longest['end']}")
+    if loop_record is not None and loop_record["detected"]:
+        flags.append(f"loop_suspicion:{loop_record['score']:.2f}")
+    if handshake is not None:
+        flags.append(
+            f"completion_handshake:{handshake['first_prompt_ref']}"
+            f":{handshake['echo_task_complete_turns']}x-echo"
+        )
+    if confirmation is not None:
+        flags.append(f"confirmation_loop:{confirmation['rule_id']}:{confirmation['detector']}")
+    if claim_regime is not None and outcome_failure is not None:
+        flags.append(f"claim_regime:{claim_regime['steps']}-steps")
+    if wedge is not None and wedge["stretches"]:
+        flags.append(f"wedged_terminal:{len(wedge['stretches'])}-stretches")
+    if analysis is not None and analysis["livelock"] is not None:
+        flags.append("context_livelock")
+    if outcome_failure is not None:
+        flags.append(
+            f"outcome:{outcome_failure['rule_id']}:{outcome_failure['attribution']}"
+        )
+    if first_failure is not None:
+        flags.append(
+            f"first:{first_failure['rule_id']}:{first_failure['attribution']}"
+        )
+    if shape_counts.get("unparseable"):
+        flags.append(f"parse_error_shapes:{shape_counts['unparseable']}")
+    if taint:
+        kinds = sorted({flag["kind"] for flag in taint})
+        flags.append(f"taint_candidate:{'+'.join(kinds)}")
+    if diagnosis_record is not None and diagnosis_record["modes"]:
+        modes = ",".join(str(mode["mode"]) for mode in diagnosis_record["modes"])
+        flags.append(f"diagnosis:{modes}")
+    if completion_refs and stop_reason != "task_complete_confirmed":
+        flags.append("claimed_unconfirmed")
+    if stop_reason == "task_complete_confirmed":
+        flags.append("completed")
+    record["flags"] = flags
+    return record
+
+
+def _jsonable(value: Any) -> Any:
+    """Convert info-keyed structures to JSON-serializable values."""
+    if isinstance(value, dict):
+        return {str(key): _jsonable(val) for key, val in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(item) for item in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
+def _render_trial_markdown(record: dict[str, Any]) -> str:
+    """Short markdown run report for one trial."""
+    outcome = record.get("outcome_failure") or {}
+    first = record.get("first_failure") or {}
+    lines = [
+        f"# Run report: `{record['trial_name']}`",
+        "",
+        f"- task: `{record['task_name']}`; model: `{record['model_name']}`",
+        f"- reward: `{record['reward']}` (scored={record['scored']}, {record['reward_source']})",
+        f"- stop reason: `{record['stop_reason']}`",
+        _tokens_line(record),
+        _cost_line(record),
+        f"- steps: stitched {record['stitched_steps']}"
+        + (
+            f" (agent {record['agent_steps']}, model {record['model_steps']}"
+            f", {record['assembly_pattern']})"
+            if record["agent_steps"] is not None
+            else ""
+        ),
+        f"- first failure: `{first.get('rule_id', 'none')}`"
+        + (f" ({first.get('attribution')}) at `{first.get('step_ref')}`" if first else " (clean execution)"),
+        f"- outcome: `{outcome.get('rule_id', 'none')}`"
+        + (
+            f" ({outcome.get('attribution')}): {outcome.get('note', '')[:220]}"
+            if outcome
+            else ""
+        ),
+        f"- flags: {', '.join(f'`{flag}`' for flag in record['flags']) or 'none'}",
+    ]
+    errors = {key: val for key, val in (record.get("errors") or {}).items() if val}
+    if errors:
+        lines.append(
+            "- processing gaps: "
+            + "; ".join(f"{key}: {val}" for key, val in errors.items())
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _tokens_line(record: dict[str, Any]) -> str:
+    steps = record.get("tokens_steps") or {}
+    proxy = record.get("tokens_proxy") or {}
+    used = steps.get("total_tokens")
+    attempted = record.get("tokens_attempted_proxy")
+    return (
+        f"- tokens: used `{used}` (steps sum"
+        + (
+            f" {steps.get('prompt_tokens')}/{steps.get('completion_tokens')}"
+            if used is not None
+            else f"; {steps.get('reason')}"
+        )
+        + f"; proxy {proxy.get('input_tokens')}/{proxy.get('output_tokens')})"
+        f" vs attempted `{attempted}` (ledger split)"
+    )
+
+
+def _cost_line(record: dict[str, Any]) -> str:
+    cost, reason = record.get("cost_usd"), record.get("cost_reason")
+    estimate, estimate_reason = record.get("cost_estimate_usd"), record.get(
+        "cost_estimate_reason"
+    )
+    line = f"- cost: `{cost}` ({record.get('cost_source')}"
+    line += f"; {reason}" if reason else ""
+    line += ")"
+    if estimate is not None:
+        line += f"; self-hosted time estimate `${estimate:.4f}`"
+    elif estimate_reason:
+        line += f"; estimate unavailable: {estimate_reason}"
+    return line
+
+
+def _job_ledger_block(job_dir: Path) -> dict[str, Any]:
+    """Job-level cost block from the proxy ledger (cost-at-finalize shape)."""
+    from evallab.ledger import build_cost_block
+
+    lab = _read_json(job_dir / "lab-metadata.json") or {}
+    provider_usage = lab.get("provider_usage")
+    block = build_cost_block(
+        provider_usage if isinstance(provider_usage, dict) else None
+    )
+    totals: dict[str, Any] = {}
+    if isinstance(provider_usage, dict):
+        try:
+            from evallab.ledger import split_usage
+
+            split = split_usage(provider_usage)
+            totals = {
+                "used": split["used"],
+                "attempted": split["attempted"],
+                "unresolved_requests": split["unresolved_requests"],
+            }
+        except ValueError as exc:
+            totals = {"error": f"proxy ledger unreadable: {exc}"}
+    return {"block": block, "totals": totals}
+
+
+def _selfhosted_estimate(
+    record: dict[str, Any], result: dict[str, Any]
+) -> tuple[float | None, str | None]:
+    """Time-based cost estimate for zero-priced self-hosted trials.
+
+    Returns (estimate, None), or (None, reason) when the trial is not a
+    self-hosted trial or the wall time is unknown. The sandbox input is
+    unavailable at finalize, so the estimate excludes it (like the
+    ledger's own zero-priced reason states).
+    """
+    from evallab.execution_contracts import (
+        is_mimo_selfhosted_model,
+        mimo_selfhosted_trial_cost_usd,
+    )
+
+    config = result.get("config")
+    agent = config.get("agent") if isinstance(config, dict) else None
+    model = agent.get("model_name") if isinstance(agent, dict) else None
+    if not is_mimo_selfhosted_model(model):
+        return None, "not a self-hosted route trial"
+    wall_hours = record.get("trial_wall_hours")
+    if not isinstance(wall_hours, (int, float)):
+        return None, record.get("trial_wall_reason") or "trial wall time unknown"
+    try:
+        estimate = mimo_selfhosted_trial_cost_usd(
+            float(wall_hours), record.get("trial_concurrency") or 1, 0.0
+        )
+    except ValueError as exc:
+        return None, str(exc)
+    return estimate, None
+
+
+def _render_job_markdown(report: dict[str, Any]) -> str:
+    """Short markdown job report with the per-trial summary table."""
+    summary = report.get("summary") or {}
+    lines = [
+        f"# Job report: `{report['job_name']}`",
+        "",
+        f"- trials: {summary.get('n_trials')} "
+        f"(pass {summary.get('n_pass')}, fail {summary.get('n_fail')}, "
+        f"unscored {summary.get('n_unscored')})",
+        f"- stop reasons: {summary.get('stop_reasons') or 'none'}",
+        f"- tokens: used `{summary.get('tokens_used')}` "
+        f"vs attempted `{summary.get('tokens_attempted')}`",
+        f"- cost: `{summary.get('cost_usd')}` ({summary.get('cost_source')})"
+        + (
+            f"; self-hosted time estimate `${summary.get('cost_estimate_usd', 0):.4f}`"
+            if summary.get("cost_estimate_usd") is not None
+            else ""
+        ),
+        f"- ingest: {summary.get('ingest')}",
+        "",
+        "| trial | reward | stop reason | tokens used/attempted | cost | flags |",
+        "|---|---|---|---|---|---|",
+    ]
+    for row in report.get("trials") or []:
+        tokens = f"{row.get('tokens_used')}/{row.get('tokens_attempted')}"
+        lines.append(
+            f"| `{row['trial_name']}` | {row.get('reward')} "
+            f"| `{row.get('stop_reason')}` | {tokens} | {row.get('cost')} "
+            f"| {', '.join(f'`{flag}`' for flag in row.get('flags') or [])} |"
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def process_job(
+    job_dir: str | Path,
+    *,
+    output_dir: str | Path | None = None,
+    root: str | Path | None = None,
+    database_url: str | None = None,
+    ingest: bool = True,
+    nop_runs_dir: str | None = None,
+) -> dict[str, Any]:
+    """Process a landed Harbor job directory.
+
+    Writes per-trial and job reports under ``output_dir`` (default
+    ``<job>/processed/``) and ingests the job into the catalog unless
+    ``ingest`` is False. Returns the JSON-serializable job report. A
+    missing catalog raises nothing: the ingest outcome (or skip) is
+    recorded in the report.
+    """
+    job_path = Path(job_dir).resolve()
+    if not job_path.is_dir():
+        raise ValueError(f"Not a job directory: {job_dir}")
+    out_dir = (
+        Path(output_dir).resolve() if output_dir is not None else job_path / "processed"
+    )
+    out_dir.mkdir(parents=True, exist_ok=True)
+    repo_root = Path(root).resolve() if root is not None else job_path.parent
+
+    trials = _iter_trial_dirs(job_path)
+    ledger = _job_ledger_block(job_path)
+    block = ledger["block"]
+    totals = ledger["totals"]
+    n_trials = max(1, len(trials))
+
+    job_cost = block.get("cost_usd")
+    job_attempted = block.get("attempted_cost_usd")
+    attempted_input = (totals.get("attempted") or {}).get("input_tokens")
+    attempted_output = (totals.get("attempted") or {}).get("output_tokens")
+
+    trial_reports: list[dict[str, Any]] = []
+    for trial_path in trials:
+        record = _process_trial(trial_path, job_path, nop_runs_dir=nop_runs_dir)
+        trial_result = _read_json(trial_path / "result.json") or {}
+        # Job ledger split across trials (same convention as
+        # database.trial_cost_columns: daily sums still equal the ledger).
+        record["cost_usd"] = (
+            job_cost / n_trials if isinstance(job_cost, (int, float)) else None
+        )
+        record["cost_attempted_usd"] = (
+            job_attempted / n_trials if isinstance(job_attempted, (int, float)) else None
+        )
+        record["cost_reason"] = block.get("reason")
+        # Attempted (ceiling footprint): settled used tokens plus the
+        # unresolved-reservation extra, split across trials. The gate spends
+        # used + attempted; a fully reconciled job attempts what it used.
+        used_input = (totals.get("used") or {}).get("input_tokens")
+        used_output = (totals.get("used") or {}).get("output_tokens")
+        if (
+            isinstance(used_input, int)
+            and isinstance(used_output, int)
+            and isinstance(attempted_input, int)
+            and isinstance(attempted_output, int)
+        ):
+            record["tokens_attempted_proxy"] = (
+                used_input + used_output + attempted_input + attempted_output
+            ) // n_trials
+        estimate, estimate_reason = _selfhosted_estimate(record, trial_result)
+        record["cost_estimate_usd"] = estimate
+        record["cost_estimate_reason"] = (
+            "excludes sandbox and warm periods; time-based only"
+            if estimate is not None
+            else estimate_reason
+        )
+        trial_reports.append(record)
+        trial_file = out_dir / f"trial-{trial_path.name}.json"
+        trial_file.write_text(
+            json.dumps(_jsonable(record), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        (out_dir / f"trial-{trial_path.name}.md").write_text(
+            _render_trial_markdown(record), encoding="utf-8"
+        )
+
+    # Job aggregates. Unknown stays unknown: sums cover only trials that
+    # measured a value, with an explicit measured count.
+    scored = [record for record in trial_reports if record["scored"]]
+    measured_cost = [
+        record["cost_usd"]
+        for record in trial_reports
+        if isinstance(record["cost_usd"], (int, float))
+    ]
+    measured_attempted = [
+        record["tokens_attempted_proxy"]
+        for record in trial_reports
+        if isinstance(record["tokens_attempted_proxy"], int)
+    ]
+    measured_used = [
+        record["tokens_steps"]["total_tokens"]
+        for record in trial_reports
+        if isinstance((record["tokens_steps"] or {}).get("total_tokens"), int)
+    ]
+    measured_estimate = [
+        record["cost_estimate_usd"]
+        for record in trial_reports
+        if isinstance(record["cost_estimate_usd"], (int, float))
+    ]
+    stop_histogram: dict[str, int] = {}
+    for record in trial_reports:
+        stop_histogram[str(record["stop_reason"])] = stop_histogram.get(
+            str(record["stop_reason"]), 0
+        ) + 1
+
+    ingest_note: str
+    if ingest:
+        try:
+            from evallab import database
+            from evallab.results import load_job
+            from evallab.runner import database_url_from_environment
+
+            url = database_url_from_environment(database_url)
+            job_record = load_job(job_path)
+            database.initialize(url)
+            database.ingest(url, [job_record], root=repo_root)
+            ingest_note = f"ingested into {database.identity(url)}"
+        except Exception as exc:  # noqa: BLE001 -- ingest gaps are recorded, not raised
+            ingest_note = f"ingest skipped: {type(exc).__name__}: {exc}"
+    else:
+        ingest_note = "ingest disabled by caller"
+
+    rows = [
+        {
+            "trial_name": record["trial_name"],
+            "reward": record["reward"],
+            "stop_reason": record["stop_reason"],
+            "tokens_used": (record["tokens_steps"] or {}).get("total_tokens"),
+            "tokens_attempted": record["tokens_attempted_proxy"],
+            "cost": record["cost_usd"],
+            "flags": record["flags"],
+        }
+        for record in trial_reports
+    ]
+    report: dict[str, Any] = {
+        "schema": PROCESS_JOB_SCHEMA,
+        "job_name": job_path.name,
+        "job_dir": str(job_path),
+        "ledger": ledger,
+        "trials": rows,
+        "summary": {
+            "n_trials": len(trial_reports),
+            "n_pass": sum(1 for record in scored if (record["reward"] or 0) >= 1.0),
+            "n_fail": sum(1 for record in scored if (record["reward"] or 0) < 1.0),
+            "n_unscored": sum(1 for record in trial_reports if not record["scored"]),
+            "stop_reasons": stop_histogram,
+            "tokens_used": sum(measured_used) if measured_used else None,
+            "tokens_used_measured": len(measured_used),
+            "tokens_attempted": sum(measured_attempted) if measured_attempted else None,
+            "tokens_attempted_measured": len(measured_attempted),
+            "cost_usd": sum(measured_cost) if measured_cost else None,
+            "cost_measured": len(measured_cost),
+            "cost_source": block.get("source"),
+            "cost_reason": block.get("reason"),
+            "cost_estimate_usd": sum(measured_estimate) if measured_estimate else None,
+            "cost_estimate_measured": len(measured_estimate),
+            "ingest": ingest_note,
+        },
+    }
+    (out_dir / "job.json").write_text(
+        json.dumps(_jsonable(report), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    (out_dir / "job.md").write_text(_render_job_markdown(report), encoding="utf-8")
+    return report

@@ -20,7 +20,7 @@ from typing import Any, Literal
 from evallab.evidence.atif import SUPPORTED_SCHEMA_VERSIONS
 from evallab.interpretation.trajectory_ir import build_trajectory_ir
 from evallab.interpretation.trajectory_quality import evaluate_trial_quality
-from evallab.traj import ChainResolution, _chain_action_steps, _resolve_chain_segments
+from evallab.traj import ChainResolution, _resolve_chain_segments, stitched_chain_action_steps
 
 Verdict = Literal["interpretable", "degraded", "uninterpretable"]
 
@@ -208,7 +208,7 @@ def check_trace_readiness(
         for segment_path, segment_data, _ in resolution.segments
         if not isinstance(segment_data.get("steps"), list) or not segment_data.get("steps")
     )
-    steps = [raw_step for _, raw_step in _chain_action_steps(resolution.segments)]
+    steps = [raw_step for _, raw_step in stitched_chain_action_steps(resolution.segments)[0]]
     schema_version = terminal.get("schema_version")
     if not isinstance(schema_version, str):
         schema_version = raw.get("schema_version")

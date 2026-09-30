@@ -695,9 +695,17 @@ def _parser_field(
         t.set("parser_digest", source_digest(text), f"{PARSER_SOURCE} {note}")
 
 
-def _step_identity(step: Mapping[str, Any]) -> str:
-    content = {key: value for key, value in step.items() if key != "metrics"}
-    return hashlib.sha256(_canonical(content).encode("utf-8")).hexdigest()
+def _load_docs(paths: Iterable[Path]) -> list[dict[str, Any]]:
+    """Trajectory documents for the given files, in order, dicts only."""
+    docs: list[dict[str, Any]] = []
+    for path in paths:
+        try:
+            data = _read_json(path)
+        except (OSError, ValueError):
+            continue
+        if isinstance(data, dict):
+            docs.append(data)
+    return docs
 
 
 def _main_steps(payload: Mapping[str, Any]) -> list[int]:
@@ -800,23 +808,26 @@ def _continuity(
 
 
 def _trajectory_tokens(paths: Iterable[Path]) -> tuple[int, int, int, int]:
-    """(prompt, completion, steps, steps without metrics) over unique steps."""
+    """(prompt, completion, steps, steps without metrics) over unique steps.
+
+    Unique steps come from the shared stitching library
+    (:func:`evallab.step_layers.stitch_steps`): copied-context repeats are
+    history restatements, not new model turns, while genuine repeated turns
+    inside one file each spent tokens and are each counted.
+    """
+    from evallab.step_layers import stitch_steps
+
     prompt = completion = steps = unmetered = 0
-    seen: set[str] = set()
-    for path in paths:
-        for step in _read_json(path).get("steps") or []:
-            if not isinstance(step, dict):
-                continue
-            identity = _step_identity(step)
-            if identity in seen:
-                continue
-            seen.add(identity)
-            steps += 1
-            metrics = _dict(step.get("metrics"))
-            if step.get("source") == "agent" and not metrics:
-                unmetered += 1
-            prompt += int(metrics.get("prompt_tokens") or 0)
-            completion += int(metrics.get("completion_tokens") or 0)
+    unique, _ = stitch_steps(_load_docs(paths))
+    for step in unique:
+        if not isinstance(step, dict):
+            continue
+        steps += 1
+        metrics = _dict(step.get("metrics"))
+        if step.get("source") == "agent" and not metrics:
+            unmetered += 1
+        prompt += int(metrics.get("prompt_tokens") or 0)
+        completion += int(metrics.get("completion_tokens") or 0)
     return prompt, completion, steps, unmetered
 
 
@@ -835,19 +846,16 @@ def _ledger_orphans(
       an exception (timeout, ceiling), cut off before a step was written;
     * ``other``: anything else.
     """
+    from evallab.step_layers import stitch_steps
+
     prompts: dict[int, int] = {}
-    seen: set[str] = set()
-    for path in paths:
-        for step in _read_json(path).get("steps") or []:
-            if not isinstance(step, dict):
-                continue
-            identity = _step_identity(step)
-            if identity in seen:
-                continue
-            seen.add(identity)
-            prompt = _dict(step.get("metrics")).get("prompt_tokens")
-            if isinstance(prompt, int):
-                prompts[prompt] = prompts.get(prompt, 0) + 1
+    unique, _ = stitch_steps(_load_docs(paths))
+    for step in unique:
+        if not isinstance(step, dict):
+            continue
+        prompt = _dict(step.get("metrics")).get("prompt_tokens")
+        if isinstance(prompt, int):
+            prompts[prompt] = prompts.get(prompt, 0) + 1
     shapes = {"truncated": 0, "final": 0, "other": 0, "input_tokens": 0}
     for index, call in enumerate(calls):
         tokens = call.get("input_tokens")

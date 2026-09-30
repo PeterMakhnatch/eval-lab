@@ -34,10 +34,10 @@ from evallab.interpretation.trajectory_hydration import (
 )
 from evallab.results import sha256_file
 from evallab.traj import (
-    _chain_action_steps,
     _resolve_chain_segments,
     outline_trajectory,
     resolve_trial_target,
+    stitched_chain_action_steps,
 )
 
 # Known POSIX programs where exit code 1 indicates an expected negative/non-match
@@ -1048,7 +1048,7 @@ def build_trajectory_ir(
                 chain = ()
             positioned_raw = [
                 (position, raw)
-                for position, raw in _chain_action_steps(chain)
+                for position, raw in stitched_chain_action_steps(chain)[0]
                 if isinstance(raw, dict)
             ]
             for position, raw in positioned_raw:

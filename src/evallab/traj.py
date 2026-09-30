@@ -601,39 +601,17 @@ def _resolve_chain_segments(
     )
 
 
-def _chain_action_steps(segments: Sequence[ChainSegment]) -> list[tuple[int, Any]]:
-    """Non-copied raw steps across a continuation chain, canonical order.
-
-    Returns ``(segment_position, raw_step)`` pairs so views can cite each action
-    against its native document while numbering the merged view ordinally.
-    Copied context repeats history already present in an earlier segment, so it
-    is excluded from action-oriented views (counts, phases, loop/error analysis)
-    while every segment stays cited and every document stays projected. Non-dict
-    entries pass through untouched so malformed shapes still fail closed in the
-    strict consumers instead of being silently dropped here.
-    """
-    stitched: list[tuple[int, Any]] = []
-    for position, (_, data, _) in enumerate(segments):
-        raw_steps = data.get("steps")
-        if not isinstance(raw_steps, list):
-            continue
-        for raw_step in raw_steps:
-            if isinstance(raw_step, dict) and raw_step.get("is_copied_context"):
-                continue
-            stitched.append((position, raw_step))
-    return stitched
-
-
 def stitched_chain_action_steps(
     segments: Sequence[ChainSegment],
 ) -> tuple[list[tuple[int, Any]], StitchStats]:
     """Unique non-copied raw steps across continuation parts, canonical order.
 
-    Same ``(segment_position, raw_step)`` shape as :func:`_chain_action_steps`,
-    plus dedupe across parts: a sealed head re-dumped as a continuation, or a
-    head prefix restated by a cumulative continuation, is counted once (later
-    parts supersede). Kept steps retain their original segment position for
-    citations. See :func:`evallab.step_layers.stitch_steps`.
+    Drops copied-context repeats and dedupes steps shared across parts: a
+    sealed head re-dumped as a continuation, or a head prefix restated by a
+    cumulative continuation, is counted once (later parts supersede). Kept
+    steps retain their original segment position for citations. The one
+    shared stitching implementation lives in
+    :func:`evallab.step_layers.stitch_steps`.
     """
     position_by_id: dict[int, int] = {}
     docs: list[Any] = []

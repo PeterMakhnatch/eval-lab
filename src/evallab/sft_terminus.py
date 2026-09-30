@@ -85,6 +85,7 @@ from evallab.sft_records import (
 )
 from evallab.sft_split import load_split
 from evallab.sft_split import split_digest as split_manifest_digest_of
+from evallab.step_layers import segment_fingerprint
 from evallab.tracing import REDACTION_MARKER_RE, TraceError
 
 CONTRACT_VERSION = "evallab.sft_terminus/1"
@@ -800,7 +801,12 @@ def export_conversations(
             if not isinstance(steps, list):
                 trial_reasons.append("unparseable_trajectory_segment")
                 continue
-            fingerprint = hashlib.sha256(json.dumps(steps, sort_keys=True).encode()).hexdigest()
+            # Whole-segment identity from the shared stitching library
+            # (same sha256-over-steps-array; see step_layers.segment_fingerprint).
+            fingerprint = segment_fingerprint(steps)
+            if fingerprint is None:  # unreachable: steps is a list above
+                trial_reasons.append("unparseable_trajectory_segment")
+                continue
             if fingerprint in exported_steps:
                 # Terminus2._summarize counts a summarization before it can fail,
                 # and a failed proactive one is swallowed: the chat is not split,

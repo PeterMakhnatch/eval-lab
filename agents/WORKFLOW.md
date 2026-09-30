@@ -15,6 +15,14 @@ Keep the primary checkout on `main`; do branch work in an isolated worktree unde
 worker's checkout. External scratch worktrees are permitted; durable deliverables
 must land in the repository's declared structure.
 
+The primary checkout is kept on `origin/main` by a launchd timer
+(`com.petermakhnatch.evallab.sync-primary`, every 5 minutes) that runs
+`scripts/sync-primary-checkout.sh`: fetch plus fast-forward only, and only when
+the tree is clean, HEAD is on `main`, and local `main` is an ancestor of
+`origin/main`. Otherwise it skips and records why in
+`~/Library/Application Support/evallab/sync-status.json`. It never resets,
+stashes, cleans, or switches branches — a dirty checkout is left for its owner.
+
 On Peter's macOS host, use native `/usr/bin/git` for worktree creation. The local
 `git` worktree helper can APFS-copy ignored runtime state, including nested
 `.worktrees/` and an environment pointing at the original interpreter. Do not

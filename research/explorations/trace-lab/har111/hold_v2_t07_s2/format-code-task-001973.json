@@ -1,0 +1,98 @@
+{
+  "task_id": "format-code-task-001973",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "is_tensor",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 18,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "nelement",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 19,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "item",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 20,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "tolist",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 21,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "count",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 111,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "examples/train",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 128,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ", [1.0, 2.0, 3.0], 4,",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 254,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "catch_warnings",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 265,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "simplefilter",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 266,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "category",
+      "file": "usercase-test-coderl/test_reporter_list_state.py",
+      "line": 271,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "all method names, signatures, aliases, reduction semantics, history key formatting, artifact forwarding, warning behavior, exit clearing, and instance independence are explicitly stated or direct consequences in the instruction"
+  ],
+  "reason": "Every tested behavior (weighted averaging, sum/callable reductions, ValueError on bad reduction string, '<key>/<mode>' history keys, add_scalar/add_scalars/flush dispatch, no-op second report, dual indexing of history, artifact forwarding with normalization, warning on unsupported backends, idempotent exit) is stated in the instruction or follows directly from it; the remaining test details are helper/scaffolding calls.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 445,
+    "completion_tokens_details": {
+      "reasoning_tokens": 306
+    },
+    "prompt_tokens": 4569,
+    "prompt_tokens_details": {
+      "cached_tokens": 4544
+    },
+    "total_tokens": 5014
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

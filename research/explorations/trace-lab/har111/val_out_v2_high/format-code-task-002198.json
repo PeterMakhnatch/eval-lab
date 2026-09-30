@@ -1,0 +1,83 @@
+{
+  "task_id": "format-code-task-002198",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "to_offset",
+      "file": "pandas/tests/tseries/test_frequencies.py",
+      "line": 862,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "YearEnd",
+      "file": "pandas/tests/tseries/test_frequencies.py",
+      "line": 865,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "YearBegin",
+      "file": "pandas/tests/tseries/test_frequencies.py",
+      "line": 872,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "BYearEnd",
+      "file": "pandas/tests/tseries/test_frequencies.py",
+      "line": 879,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "BYearBegin",
+      "file": "pandas/tests/tseries/test_frequencies.py",
+      "line": 886,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Aliases for anchored/variant yearly frequencies beyond plain 'Y': 'YS' (YearBegin), 'BY' (BYearEnd), 'BYS' (BYearBegin) must be accepted by to_offset and date_range",
+      "test_ref": "pandas/tests/tseries/test_frequencies.py::test_to_offset_YS_alias, test_to_offset_BY_alias, test_to_offset_BYS_alias, test_date_range_freq_YS, test_date_range_freq_BY, test_date_range_freq_BYS",
+      "quote": "result = frequencies.to_offset('YS'); ... assert isinstance(result, offsets.YearBegin)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Month-anchored yearly strings like 'Y-DEC', 'Y-JAN', 'Y-MAY' must be accepted by the internal _period_str_to_code parser (not just plain 'Y')",
+      "test_ref": "pandas/tests/tseries/test_frequencies.py::test_period_str_to_code_Y_month",
+      "quote": "assert (frequencies._period_str_to_code('Y-DEC') ==\n            frequencies._period_str_to_code('A-DEC'))",
+      "severity": "guessable"
+    },
+    {
+      "what": "_period_str_to_code('Y') must return the Annual period code 1000 (an internal, unnamed behavior; instruction only speaks of date_range freq)",
+      "test_ref": "pandas/tests/tseries/test_frequencies.py::test_period_str_to_code_Y",
+      "quote": "assert frequencies._period_str_to_code('Y') == 1000",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "to_offset('Y') equal to to_offset('A') and yielding YearEnd (direct feature request)",
+    "date_range(..., freq='Y') producing the same dates as freq='A' (the exact reported issue)",
+    "Backward compatibility of existing 'A', 'AS', 'BA', 'BAS' aliases (test_A_alias_still_works)"
+  ],
+  "reason": "The instruction covers plain 'Y' being accepted as a yearly alias, but the hidden tests additionally exercise the sibling alias variants YS/BY/BYS and the internal _period_str_to_code path including month-anchored forms like 'Y-DEC'; these are natural extensions of the A->Y renaming pattern and so are graded as guessable rather than not_inferable.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 1253,
+    "completion_tokens_details": {
+      "reasoning_tokens": 719
+    },
+    "prompt_tokens": 1794,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3047
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

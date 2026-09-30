@@ -1,0 +1,75 @@
+{
+  "task_id": "format-code-task-000927",
+  "label": "suspect",
+  "sample_labels": [
+    "suspect",
+    "suspect",
+    "sound"
+  ],
+  "unstated": [
+    {
+      "what": "Escape function must be exposed as public top-level API name ``sv.escape`` (module alias ``sv``)",
+      "test_ref": "tests/test_api.py::test_escape_api_exists",
+      "quote": "self.assertTrue(hasattr(sv, 'escape'))\n        self.assertTrue(callable(sv.escape))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact output format for 'escaped as code point': lowercase hex with trailing space (``\\\\1 ``, ``\\\\1f ``, ``\\\\7f ``, ``\\\\31 abc``)",
+      "test_ref": "tests/test_api.py::test_escape_control_low",
+      "quote": "self.assertEqual(sv.escape('\\x01'), '\\\\1 ')",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact output format for 'the escaped character': backslash before the character (``a\\\\.b``, ``a\\\\ b``, ``\\\\-``) with no trailing space",
+      "test_ref": "tests/test_api.py::test_escape_special_char_dot",
+      "quote": "self.assertEqual(sv.escape('a.b'), 'a\\\\.b')",
+      "severity": "guessable"
+    },
+    {
+      "what": "The function must be exposed as a module-level public API named ``escape`` on the ``sv`` module (imported as ``sv`` in tests), rather than as an internal/private helper.",
+      "test_ref": "tests/test_api.py::test_escape_api_exists",
+      "quote": "self.assertTrue(hasattr(sv, 'escape'))\n        self.assertTrue(callable(sv.escape))",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "The instruction gives the spec rules but not the exact escape syntax (trailing space after hex escapes, backslash-prefix form), which the tests pin down; the ``sv.escape`` public name is a natural placement in this repo, so it is guessable rather than not_inferable.",
+    "The instruction fully specifies the escape algorithm and all expected outputs appear derivable from the spec; the only unstated requirement is that the function be publicly exposed as ``sv.escape``, a conventional naming choice given the repo (soupsieve) already uses the ``sv`` import alias.",
+    "The instruction quotes the full spec, and every test expectation follows deterministically from it; the only unstated detail is the module alias `sv`, which already exists in the test file's unchanged import lines."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 561,
+      "completion_tokens_details": {
+        "reasoning_tokens": 214
+      },
+      "prompt_tokens": 2088,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 2649
+    },
+    {
+      "completion_tokens": 339,
+      "completion_tokens_details": {
+        "reasoning_tokens": 110
+      },
+      "prompt_tokens": 2088,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 2427
+    },
+    {
+      "completion_tokens": 333,
+      "completion_tokens_details": {
+        "reasoning_tokens": 150
+      },
+      "prompt_tokens": 2088,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 2421
+    }
+  ]
+}

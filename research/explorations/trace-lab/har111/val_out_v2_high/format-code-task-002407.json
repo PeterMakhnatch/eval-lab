@@ -1,0 +1,119 @@
+{
+  "task_id": "format-code-task-002407",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "eye",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1222,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "zeros",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1224,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "input_output_response",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1251,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "step_response",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1259,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "impulse_response",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1285,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "initial_response",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1302,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "input_output_response must also propagate input/output/state labels (the instruction only mentions forced_response)",
+      "test_ref": "control/tests/timeresp_test.py::test_input_output_response_labels_preserved",
+      "quote": "res = ct.input_output_response(sys, T, U=[Va, Tl], X0=[0, 0])\n    assert list(res.output_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "step_response must preserve labels, and state_labels must be non-None (a list of 2) for step responses even though the instruction only discusses forced_response/to_pandas",
+      "test_ref": "control/tests/timeresp_test.py::test_step_response_labels_preserved",
+      "quote": "res = ct.step_response(sys)\n    assert list(res.output_labels) == [\"Ia\", \"Wm\"]\n    assert res.state_labels is not None\n    assert len(res.state_labels) == 2",
+      "severity": "guessable"
+    },
+    {
+      "what": "When step_response selects a subset of inputs (input=0), input_labels must be subset to the selected labels (['Va']) rather than kept or dropped",
+      "test_ref": "control/tests/timeresp_test.py::test_step_response_input_selection_labels",
+      "quote": "res = ct.step_response(sys, input=0)\n    assert list(res.input_labels) == [\"Va\"]",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "When step_response selects input=0, output=1, both input_labels and output_labels must be subset to exactly ['Va'] and ['Wm']",
+      "test_ref": "control/tests/timeresp_test.py::test_step_response_output_selection_labels",
+      "quote": "res = ct.step_response(sys, input=0, output=1)\n    assert list(res.input_labels) == [\"Va\"]\n    assert list(res.output_labels) == [\"Wm\"]",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "impulse_response must preserve labels and produce non-None state_labels of length 2",
+      "test_ref": "control/tests/timeresp_test.py::test_impulse_response_labels_preserved",
+      "quote": "res = ct.impulse_response(sys)\n    assert list(res.output_labels) == [\"Ia\", \"Wm\"]\n    assert res.state_labels is not None",
+      "severity": "guessable"
+    },
+    {
+      "what": "impulse_response with input=1, output=0 must subset labels to ['Tl'] and ['Ia'] respectively",
+      "test_ref": "control/tests/timeresp_test.py::test_impulse_response_selection_labels",
+      "quote": "res = ct.impulse_response(sys, input=1, output=0)\n    assert list(res.input_labels) == [\"Tl\"]\n    assert list(res.output_labels) == [\"Ia\"]",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "initial_response must preserve output labels and produce non-None state_labels of length 2",
+      "test_ref": "control/tests/timeresp_test.py::test_initial_response_labels_preserved",
+      "quote": "res = ct.initial_response(sys, X0=[1, 0])\n    assert list(res.output_labels) == [\"Ia\", \"Wm\"]\n    assert res.state_labels is not None",
+      "severity": "guessable"
+    },
+    {
+      "what": "initial_response with output=1 must subset output_labels to ['Wm']",
+      "test_ref": "control/tests/timeresp_test.py::test_initial_response_output_selection_labels",
+      "quote": "res = ct.initial_response(sys, X0=[1, 0], output=1)\n    assert list(res.output_labels) == [\"Wm\"]",
+      "severity": "not_inferable"
+    }
+  ],
+  "instruction_covers": [
+    "forced_response must populate output_labels, input_labels, and state_labels from the system so that list(res.output_labels) == ['Ia','Wm'] etc.",
+    "to_pandas() must work without manually assigning labels (the NoneType iteration error is fixed)"
+  ],
+  "reason": "The instruction only describes forced_response label propagation and the resulting to_pandas TypeError, but the hidden tests additionally require label propagation through input_output_response, step_response, impulse_response, and initial_response. Most severely, tests demand that when inputs/outputs are selected (input=/output=), the labels be subset to the selected channels \u2014 a behavior the instruction never mentions and that a natural central fix might not implement.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 1467,
+    "completion_tokens_details": {
+      "reasoning_tokens": 506
+    },
+    "prompt_tokens": 2475,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3942
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

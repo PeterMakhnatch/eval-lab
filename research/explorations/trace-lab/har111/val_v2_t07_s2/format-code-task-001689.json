@@ -1,0 +1,60 @@
+{
+  "task_id": "format-code-task-001689",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "is_meta",
+      "file": "keras/src/ops/core_test.py",
+      "line": 739,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_tensor",
+      "file": "keras/src/ops/core_test.py",
+      "line": 742,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "float64",
+      "file": "keras/src/ops/core_test.py",
+      "line": 770,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "convert_to_numpy",
+      "file": "keras/src/ops/core_test.py",
+      "line": 783,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "convert_to_tensor accepting torch meta-device tensors without raising",
+    "resulting tensor is not on meta device",
+    "shape preserved (3,4)",
+    "dtype kwarg still honored (float64)",
+    "regular tensors unchanged"
+  ],
+  "reason": "All test assertions are direct consequences of making convert_to_tensor support torch meta tensors; the checks for is_meta/is_tensor/shape/dtype are natural validations of that support with no new names, strings, or contracts.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 194,
+    "completion_tokens_details": {
+      "reasoning_tokens": 89
+    },
+    "prompt_tokens": 1660,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 1854
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

@@ -1,0 +1,94 @@
+{
+  "task_id": "format-code-task-002407",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "eye",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1222,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "zeros",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1224,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "input_output_response",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1251,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "step_response",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1259,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "impulse_response",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1285,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "initial_response",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1302,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "step_response must preserve input/output/state labels and subset them on input/output selection",
+      "test_ref": "test_step_response_labels_preserved; test_step_response_input_selection_labels; test_step_response_output_selection_labels",
+      "quote": "assert list(res.input_labels) == [\"Va\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "impulse_response must preserve labels and subset on selection",
+      "test_ref": "test_impulse_response_labels_preserved; test_impulse_response_selection_labels",
+      "quote": "assert list(res.input_labels) == [\"Tl\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "initial_response must preserve labels including state labels, and subset output labels on output selection",
+      "test_ref": "test_initial_response_labels_preserved; test_initial_response_output_selection_labels",
+      "quote": "assert res.state_labels is not None",
+      "severity": "guessable"
+    },
+    {
+      "what": "input_output_response must preserve labels (not just forced_response)",
+      "test_ref": "test_input_output_response_labels_preserved",
+      "quote": "res = ct.input_output_response(sys, T, U=[Va, Tl], X0=[0, 0])",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "forced_response preserving input/output/state labels from the system",
+    "labels enabling to_pandas"
+  ],
+  "reason": "The issue only mentions forced_response, but hidden tests also require step_response, impulse_response, initial_response, and input_output_response to propagate (and subset on selection) labels. These are natural sibling extensions of the same fix, so guessable, but an engineer fixing only forced_response would fail.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 452,
+    "completion_tokens_details": {
+      "reasoning_tokens": 97
+    },
+    "prompt_tokens": 2459,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2911
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

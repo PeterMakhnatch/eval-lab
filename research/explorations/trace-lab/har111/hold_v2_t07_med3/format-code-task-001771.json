@@ -1,0 +1,105 @@
+{
+  "task_id": "format-code-task-001771",
+  "label": "suspect",
+  "sample_labels": [
+    "suspect",
+    "suspect",
+    "suspect"
+  ],
+  "unstated": [
+    {
+      "what": "Status line must implement isEnabled() returning a bool",
+      "test_ref": "test_qt_status_line_is_enabled_returns_stable_boolean",
+      "quote": "self.assertIsInstance(status_line.isEnabled(), bool)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Status line must implement setFocus()",
+      "test_ref": "test_qt_status_line_enable_disable_focus_are_safe_noops",
+      "quote": "status_line.setFocus()",
+      "severity": "guessable"
+    },
+    {
+      "what": "Headline wrapper must implement getYScrollPosition returning an int, in addition to the mentioned setXScrollPosition",
+      "test_ref": "test_qheadline_wrapper_scroll_methods_are_compatible_noops",
+      "quote": "self.assertIsInstance(first_y, int)",
+      "severity": "guessable"
+    },
+    {
+      "what": "enable/disable on status line must accept zero args, None, and a color string; disable must be idempotent",
+      "test_ref": "test_qt_status_line_enable_disable_focus_are_safe_noops",
+      "quote": "status_line.disable(None)\n        status_line.disable(\"gray\")\n        status_line.enable(\"blue\")",
+      "severity": "guessable"
+    },
+    {
+      "what": "Headline wrapper getXScrollPosition/getYScrollPosition must return ints (not, e.g., None)",
+      "test_ref": "test_qheadline_wrapper_scroll_methods_are_compatible_noops",
+      "quote": "self.assertIsInstance(first_x, int)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Status line must implement isEnabled() returning a bool",
+      "test_ref": "leo/unittests/test_gui.py::test_qt_status_line_is_enabled_returns_stable_boolean",
+      "quote": "self.assertIsInstance(status_line.isEnabled(), bool)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Status line must implement setFocus() as a safe callable",
+      "test_ref": "leo/unittests/test_gui.py::test_qt_status_line_enable_disable_focus_are_safe_noops",
+      "quote": "status_line.setFocus()",
+      "severity": "guessable"
+    },
+    {
+      "what": "Status line must implement setFocus() (not named in the issue's examples of disable/enable, setXScrollPosition/flashCharacter)",
+      "test_ref": "test_qt_status_line_enable_disable_focus_are_safe_noops",
+      "quote": "status_line.setFocus()",
+      "severity": "guessable"
+    },
+    {
+      "what": "Status line must implement isEnabled() returning a bool (a query method whose exact name is only implied by 'query-style compatibility calls')",
+      "test_ref": "test_qt_status_line_is_enabled_returns_stable_boolean",
+      "quote": "self.assertIsInstance(status_line.isEnabled(), bool)",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "The instruction names disable/enable, setXScrollPosition and flashCharacter, but the tests additionally require isEnabled (bool), setFocus, getYScrollPosition, int return types from scroll getters, and multi-signature enable/disable \u2014 these are only inferable by studying repo conventions, and most are conventional siblings or standard names, hence guessable rather than not_inferable.",
+    "The instruction asks for a shared no-op compatibility API on body/status-line/headline wrappers, covering enable/disable, scroll position methods, and flashCharacter; only the specific query names isEnabled and setFocus on the status line are not literally stated, though they follow existing Leo wrapper conventions.",
+    "The issue names disable/enable, setXScrollPosition, and flashCharacter, and asks for a shared API per repo conventions, which reasonably covers the scroll getters/setters and multi-arg forms. Only setFocus and the exact isEnabled name on the status line are extra, though both are guessable from Leo's existing wrapper conventions."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 636,
+      "completion_tokens_details": {
+        "reasoning_tokens": 201
+      },
+      "prompt_tokens": 1988,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 2624
+    },
+    {
+      "completion_tokens": 349,
+      "completion_tokens_details": {
+        "reasoning_tokens": 112
+      },
+      "prompt_tokens": 1988,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 2337
+    },
+    {
+      "completion_tokens": 520,
+      "completion_tokens_details": {
+        "reasoning_tokens": 222
+      },
+      "prompt_tokens": 1988,
+      "prompt_tokens_details": {
+        "cached_tokens": 1984
+      },
+      "total_tokens": 2508
+    }
+  ]
+}

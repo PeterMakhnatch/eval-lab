@@ -1,0 +1,84 @@
+{
+  "task_id": "format-code-task-002532",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "annotations",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 3,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "\u0627\u06cc\u0646_\u062a\u0648\u06a9\u0646_\u0633\u0627\u062e\u062a\u06af\u06cc_\u0646\u06cc\u0633\u062a",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 53,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "deepcopy",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 199,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "insert",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 211,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stdout",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 214,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 218,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Future-tense joined verb form (auxiliary `\u062e\u0648\u0627\u0647\u062f` + past stem joined by underscore) must be recognized; the instruction's joined-form examples only show passive perfect and negative perfect, so the future variant is an extra case, though the general 'multi-part verb forms' mechanism plausibly covers it.",
+      "test_ref": "test_lemmatizer_acceptance.py::test_custom_joined_verb_parts_are_in_lookup_when_enabled",
+      "quote": "assert lemmatizer.lemmatize(\"\u062e\u0648\u0627\u0647\u062f_\u062f\u0648\u062e\u062a\") == \"\u062f\u0648\u062e\u062a#\u062f\u0648\u0632\"",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "`Lemmatizer` importable from `hazm` with `words_file`, `verbs_file`, `joined_verb_parts` keyword args, and module-level `default_words`/`default_verbs` names (both used verbatim in the instruction's usage example and the tests import exactly these)",
+    "`lemmatize(word, pos='') -> str` signature and `past_root#present_root` return format (given in instruction)",
+    "Words-file tab-separated format `word\\tfreq\\tPOS` and verbs-file `past#present` format: these are the pre-existing hazm data formats referenced by the instruction's 'default data' and identical in the test fixtures/tmp files",
+    "Accepting `pathlib.Path` objects as file paths (natural `open()` behavior, and instruction says 'custom words and verbs file paths')",
+    "Lookup built at initialization (explicitly stated; test_lookup_is_built_at_initialization_time rewrites the file after init)",
+    "Joined negative form (`\u0646\u062f\u0648\u062e\u062a\u0647_\u0627\u0633\u062a`) and passive perfect (`\u06af\u0641\u062a\u0647_\u0634\u062f\u0647_\u0627\u0633\u062a`) matching the instruction's `\u0646\u0686\u0634\u06cc\u062f\u0647_\u0627\u0633\u062a`/`\u06af\u0641\u062a\u0647_\u0634\u062f\u0647_\u0627\u0633\u062a` examples",
+    "POS-hint decision logic: known words unchanged, PRON unchanged, ADJ + `\u06cc`-ending unchanged, verb lookup only for empty/`VERB` (all stated; covers test_known_word_with_pos_hint_remains_unchanged, test_pronoun_pos_hint_remains_unchanged, test_adjective_pos_hint_preserves_y_ending_word, test_verb_pos_hint_uses_verb_lookup, test_nonverb_pos_hint_does_not_use_verb_lookup)",
+    "Determinism and non-mutation of input token (explicitly stated; referential-transparency tests)",
+    "Missing words file raising an error: test uses `pytest.raises(Exception)`, so the natural `FileNotFoundError` from opening the file suffices \u2014 no specific error contract required"
+  ],
+  "reason": "The instruction is unusually detailed: it names the API, keyword arguments, return format, POS-hint semantics, init-time lookup, and joined multi-part verb behavior, and the data-file formats are the pre-existing hazm formats. The only unstated specific is the future-tense joined form `\u062e\u0648\u0627\u0647\u062f_\u062f\u0648\u062e\u062a`, which is a sibling case of the instruction's own 'underscore-joined multi-part verb forms' wording and is guessable from any implementation that permutes verb parts.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 3947,
+    "completion_tokens_details": {
+      "reasoning_tokens": 3293
+    },
+    "prompt_tokens": 3573,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 7520
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

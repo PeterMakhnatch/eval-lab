@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-000328",
+  "label": "sound",
+  "sample_labels": [
+    "sound",
+    "sound",
+    "sound"
+  ],
+  "unstated": [],
+  "reasons": [
+    "All hidden-test assertions map directly to instruction requirements plus standard Airbyte CDK APIs (url_base, path(), read_records, SyncMode), so nothing unstated is required beyond conventional framework usage.",
+    "Every tested behavior (base URL, header string, envelope, pagination, tuple contract, class/module names) is explicitly stated in the instruction; remaining test specifics are CDK/requests-mock library calls, which are excluded.",
+    "Every hidden-test requirement is either explicitly stated in the instruction or is a direct consequence of following the Airbyte CDK conventions the instruction mandates (RestStream with url_base/path, read_records, check_connection tuple). No new names, exact strings, or extra contracts are demanded beyond the spec."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 271,
+      "completion_tokens_details": {
+        "reasoning_tokens": 147
+      },
+      "prompt_tokens": 2911,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 3182
+    },
+    {
+      "completion_tokens": 179,
+      "completion_tokens_details": {
+        "reasoning_tokens": 60
+      },
+      "prompt_tokens": 2911,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3090
+    },
+    {
+      "completion_tokens": 287,
+      "completion_tokens_details": {
+        "reasoning_tokens": 122
+      },
+      "prompt_tokens": 2911,
+      "prompt_tokens_details": {
+        "cached_tokens": 2880
+      },
+      "total_tokens": 3198
+    }
+  ]
+}

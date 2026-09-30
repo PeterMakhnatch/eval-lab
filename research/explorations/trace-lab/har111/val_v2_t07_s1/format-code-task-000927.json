@@ -1,0 +1,55 @@
+{
+  "task_id": "format-code-task-000927",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "through",
+      "file": "tests/test_api.py",
+      "line": 840,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Escape function must be exposed as public top-level API name ``sv.escape`` (module alias ``sv``)",
+      "test_ref": "tests/test_api.py::test_escape_api_exists",
+      "quote": "self.assertTrue(hasattr(sv, 'escape'))\n        self.assertTrue(callable(sv.escape))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact output format for 'escaped as code point': lowercase hex with trailing space (``\\\\1 ``, ``\\\\1f ``, ``\\\\7f ``, ``\\\\31 abc``)",
+      "test_ref": "tests/test_api.py::test_escape_control_low",
+      "quote": "self.assertEqual(sv.escape('\\x01'), '\\\\1 ')",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact output format for 'the escaped character': backslash before the character (``a\\\\.b``, ``a\\\\ b``, ``\\\\-``) with no trailing space",
+      "test_ref": "tests/test_api.py::test_escape_special_char_dot",
+      "quote": "self.assertEqual(sv.escape('a.b'), 'a\\\\.b')",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "All the CSS spec rules (NULL replacement, control-char code point escaping, leading digit rules, single dash, identifier-character passthrough)",
+    "The function name ``escape``"
+  ],
+  "reason": "The instruction gives the spec rules but not the exact escape syntax (trailing space after hex escapes, backslash-prefix form), which the tests pin down; the ``sv.escape`` public name is a natural placement in this repo, so it is guessable rather than not_inferable.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 561,
+    "completion_tokens_details": {
+      "reasoning_tokens": 214
+    },
+    "prompt_tokens": 2088,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2649
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

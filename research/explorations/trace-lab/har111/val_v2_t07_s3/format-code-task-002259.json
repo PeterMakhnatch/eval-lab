@@ -1,0 +1,254 @@
+{
+  "task_id": "format-code-task-002259",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "entries",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 19,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "calls",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 20,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stop_calls",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 21,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ModuleType",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 36,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dictator",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 36,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_int",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 37,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_bool",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_double",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 39,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_size_t",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 40,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_optional_size_t",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 41,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_vector_int",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 44,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_vector_string",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 47,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_string",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 50,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_array_as_vector",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 51,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "addInitFunction1D",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 54,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "addInitFunction2D",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 55,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "addInitFunction3D",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 56,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "modules",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 83,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "global_vars",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 94,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "clearDict",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 97,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ndim",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 178,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "cpp",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 209,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "validate",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 209,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "MaxwellianFluidModel",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 282,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ElectronModel",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 299,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "simulation/models",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 303,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "vector_string",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 303,
+      "stated": false
+    },
+    {
+      "kind": "exception",
+      "value": "RuntimeError",
+      "file": "usercase-test-coderl/test_mhd_population.py",
+      "line": 333,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "Exact dictionary key paths for MHD entries (e.g. 'simulation/algo/fv_method/resistivity', 'simulation/mhd_state/velocity/initializer/x_component', 'simulation/AMR/refinement/tagging/mhd_method', 'simulation/AMR/max_mhd_level')",
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:121-146 (REQUIRED_MHD_ENTRIES_2D)",
+      "quote": "\"simulation/algo/fv_method/resistivity\": (\"double\", 0.1), ... \"simulation/mhd_state/velocity/initializer/x_component\": (\"init2D\", 22.0)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Mapping of simulation fields to entry values: eta -> resistivity, nu -> hyper_resistivity (instruction names eta/nu/hyper_mode/gamma but not which dict key each feeds)",
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:126-127",
+      "quote": "\"simulation/algo/fv_method/resistivity\": (\"double\", 0.1),\n    \"simulation/algo/fv_method/hyper_resistivity\": (\"double\", 0.01),",
+      "severity": "guessable"
+    },
+    {
+      "what": "model_options is expressed as a list (e.g. ['MHDModel']) and 'simulation/models' is registered via add_vector_string",
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:161,303",
+      "quote": "\"model_options\": [\"MHDModel\"], ... \"simulation/models\": (\"vector_string\", [\"MHDModel\"]),",
+      "severity": "guessable"
+    },
+    {
+      "what": "MHD initializer callables are stored with an attribute named 'fn' accessible via getattr(fn, 'fn') \u2014 the wrapped init-function object exposes the raw callable as .fn",
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:61",
+      "quote": "raw_fn = getattr(fn, \"fn\", None)",
+      "severity": "not_inferable"
+    }
+  ],
+  "instruction_covers": [
+    "registering MHD state named 'mhd_state' with gamma in to_conservative_init",
+    "registering density/vx/vy/vz/bx/by/bz/p initializers per dimension",
+    "MHD tagging method 'default' under tagging refinement",
+    "populating only when model_options contains MHDModel",
+    "not disturbing the Hybrid population path",
+    "populateDict called from Simulator.setup()"
+  ],
+  "reason": "The instruction describes the feature and the state name, but the hidden tests pin exact dictionary key paths, the eta/nu-to-resistivity/hyper_resistivity mapping, the list form of model_options, and an internal '.fn' attribute on wrapped initializer callables that the instruction never states. Most key choices mirror the existing Hybrid population path and so are guessable; the '.fn' wrapper attribute is not inferable from the instruction.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 1093,
+    "completion_tokens_details": {
+      "reasoning_tokens": 464
+    },
+    "prompt_tokens": 5862,
+    "prompt_tokens_details": {
+      "cached_tokens": 5824
+    },
+    "total_tokens": 6955
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

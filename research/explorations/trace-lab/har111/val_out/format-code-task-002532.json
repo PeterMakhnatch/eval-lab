@@ -1,0 +1,77 @@
+{
+  "task_id": "format-code-task-002532",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "annotations",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 3,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "\u0627\u06cc\u0646_\u062a\u0648\u06a9\u0646_\u0633\u0627\u062e\u062a\u06af\u06cc_\u0646\u06cc\u0633\u062a",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 53,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "deepcopy",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 199,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "insert",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 211,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stdout",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 214,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "usercase-test-coderl/test_lemmatizer_acceptance.py",
+      "line": 218,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Constructor signature and import path via hazm",
+    "lemmatize signature and return format past#present",
+    "All example lemmatizations including joined and negative verb forms",
+    "POS hint behavior for NOUN/PRON/ADJ/VERB/empty",
+    "Custom words/verbs files",
+    "joined_verb_parts including underscore-joined multi-part verbs",
+    "Lookup built at init (verbs file rewritten after construction)",
+    "Referential transparency and no input mutation",
+    "Unknown tokens returned unchanged",
+    "Missing file raises some Exception (natural FileNotFoundError satisfies pytest.raises(Exception))"
+  ],
+  "reason": "Every tested behavior is stated in the instruction or trivially satisfied by conventional Python behavior (missing files raise). The fixture-based custom tests follow directly from the custom-files and joined-verb-parts requirements.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 299,
+    "completion_tokens_details": {
+      "reasoning_tokens": 120
+    },
+    "prompt_tokens": 3557,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3856
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

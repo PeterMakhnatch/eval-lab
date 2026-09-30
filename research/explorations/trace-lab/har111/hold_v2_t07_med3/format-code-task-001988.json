@@ -1,0 +1,63 @@
+{
+  "task_id": "format-code-task-001988",
+  "label": "sound",
+  "sample_labels": [
+    "sound",
+    "sound",
+    "suspect"
+  ],
+  "unstated": [
+    {
+      "what": "Public method name `is_refreshable_url` on SessionRefresh middleware that tests call directly; instruction never names it (though it exists as the internal exemption check, so refactor must preserve this exact name/shape taking a request)",
+      "test_ref": "tests/test_middleware.py:241",
+      "quote": "middleware = SessionRefresh()\nassert middleware.is_refreshable_url(request)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Regex must match via full/partial match against request.path such that re.compile(r'^/mdo_.*_view/$') exempts '/mdo_fake_view/' \u2014 pattern semantics (match/search against request.path) unstated",
+      "test_ref": "tests/test_middleware.py:test_is_not_refreshable_url_exempt_pattern",
+      "quote": "@override_settings(OIDC_EXEMPT_URLS=[re.compile(r'^/mdo_.*_view/$')])\n...\nassert not middleware.is_refreshable_url(request)",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "The hidden tests only exercise the requested feature: regex entries in OIDC_EXEMPT_URLS causing is_refreshable_url to return False, plus regression checks for view-name and path exemption that already exist in the code. The method name is_refreshable_url and the test helpers are pre-existing/scaffolding, so nothing unstated remains.",
+    "The hidden tests only exercise the requested feature: mixed regex/paths/view-names exempt entries, checked via the pre-existing is_refreshable_url method. Everything tested is stated or pre-existing in the code.",
+    "The regex feature is fully described, but the tests additionally pin the middleware's public method name `is_refreshable_url` (existing in code, so largely covered) and the regex matching semantics against request.path, which are natural-but-unnamed choices."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 219,
+      "completion_tokens_details": {
+        "reasoning_tokens": 89
+      },
+      "prompt_tokens": 1706,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 1925
+    },
+    {
+      "completion_tokens": 192,
+      "completion_tokens_details": {
+        "reasoning_tokens": 102
+      },
+      "prompt_tokens": 1706,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 1898
+    },
+    {
+      "completion_tokens": 308,
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "prompt_tokens": 1706,
+      "prompt_tokens_details": {
+        "cached_tokens": 1664
+      },
+      "total_tokens": 2014
+    }
+  ]
+}

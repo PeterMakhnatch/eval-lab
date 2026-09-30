@@ -1,0 +1,27 @@
+{
+  "task_id": "format-code-task-001261",
+  "rule_label": "sound",
+  "rule_unstated": [],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Raising an error on duplicate CREATE via change_resource_record_sets",
+    "Error code InvalidChangeBatch (shown in the issue's example comment)",
+    "Similar behaviour for DELETE/UPSERT actions mentioned in the issue"
+  ],
+  "reason": "The hidden test checks that a duplicate CREATE raises ClientError with code InvalidChangeBatch, which is explicitly stated in the issue's example code comment and expected behaviour. The test uses pytest.raises(ClientError), a natural assertion fully covered by the instruction.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 148,
+    "completion_tokens_details": {
+      "reasoning_tokens": 33
+    },
+    "prompt_tokens": 1934,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2082
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

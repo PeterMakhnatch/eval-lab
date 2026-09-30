@@ -1,0 +1,15 @@
+{
+  "task_id": "format-code-task-000513",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "QuantileForecast.quantile(float|str) returns a NumPy array aligned to the horizon; 0.5 and 'p50' both return the stored median and '0.1' the stored decile",
+    "a level is matched numerically, so the equivalent string '0.90' returns the stored '0.9' array",
+    "a missing level inside the stored range is linearly interpolated, with 0.75 given as [66.25, 132.5]",
+    "requests in the left or right tail extrapolate from the two nearest stored tail quantiles with an exponential approximation rather than returning NaN",
+    "fewer than two stored quantile arrays, or only a stored 'mean' array, returns an all-NaN array per step for a level that is not present, while a level that is present still returns its array",
+    "repeated calls return equal arrays and a query mutates neither the forecast arrays nor filesystem, network or global state"
+  ],
+  "notes": "QuantileForecast exists and is exported from gluonts.model, but its quantile method is the base Forecast.quantile that raises NotImplementedError, so the engineer adds it. The string handling the tests rely on is the repo's own parser: Quantile.parse('p50').value is 0.5 and Quantile.parse('0.90').value equals Quantile.parse('0.9').value, and the constructor already normalizes keys through Quantile.from_str while keeping 'mean' literal, so matching by numeric level and ignoring 'mean' during interpolation are the existing convention. The tail tests only check finiteness, shape, the correct direction and inequality with linear extrapolation, so the exact exponential formula is not pinned and the instruction's description suffices.",
+  "read_minutes": 20
+}

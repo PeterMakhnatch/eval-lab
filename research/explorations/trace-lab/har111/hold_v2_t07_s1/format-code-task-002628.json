@@ -1,0 +1,245 @@
+{
+  "task_id": "format-code-task-002628",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "annotations",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 9,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "contextmanager",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "BaseHTTPRequestHandler",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 15,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "HTTPServer",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 15,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ranking_models",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 21,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "base_reranker",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 21,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "infinity_rerank",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 22,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "jina_reranker",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 23,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "float32",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "testing",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 42,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "rfile",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 63,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "headers",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 63,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "send_response",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 78,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "send_header",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 79,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "end_headers",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 81,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "wfile",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 82,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Thread",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 88,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "serve_forever",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 88,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "start",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 89,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "server_port",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 91,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "shutdown",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 93,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "server_close",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 94,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "catch_warnings",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 216,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "simplefilter",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 217,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "setenv",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 277,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "delenv",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 315,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "chdir",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 316,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "exceptions",
+      "file": "usercase-test-coderl/test_embedding_rerankers.py",
+      "line": 384,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "Module paths: tests import BaseSemanticSearcher from opendeepsearch.ranking_models.base_reranker, InfinitySemanticSearcher from opendeepsearch.ranking_models.infinity_rerank, and JinaReranker from opendeepsearch.ranking_models.jina_reranker; the instruction names only the classes, not the file/module layout",
+      "test_ref": "test_embedding_rerankers.py:21-23",
+      "quote": "from opendeepsearch.ranking_models.base_reranker import BaseSemanticSearcher",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "The overridable embedding hook must be named `_get_embeddings(texts) -> torch.Tensor` so subclasses (like the test's DeterministicSemanticSearcher) can supply embeddings; the instruction never names this method",
+      "test_ref": "test_embedding_rerankers.py:35-38",
+      "quote": "def _get_embeddings(self, texts: list[str]) -> torch.Tensor:",
+      "severity": "not_inferable"
+    }
+  ],
+  "instruction_covers": [
+    "calculate_scores normalization modes (softmax/scale/none) and exact semantics",
+    "ValueError containing unknown normalize value",
+    "rerank return format: list of {\"document\", \"score\"} dicts, per-query lists for multiple queries",
+    "get_reranked_documents stripped top passage string",
+    "Infinity endpoint payload keys model/input and data[*].embedding parsing",
+    "2048 truncation with warning",
+    "Jina URL, Bearer authorization, payload keys task/late_chunking/dimensions/embedding_type/model",
+    "Jina ValueError on missing key with .env loading and JINA_API_KEY",
+    "RuntimeError containing underlying request error"
+  ],
+  "reason": "The instruction specifies all behavior but omits the concrete module file paths the tests import from and the name of the `_get_embeddings` hook the test subclass overrides; both are new names the fix must invent to pass.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 533,
+    "completion_tokens_details": {
+      "reasoning_tokens": 126
+    },
+    "prompt_tokens": 5658,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 6191
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

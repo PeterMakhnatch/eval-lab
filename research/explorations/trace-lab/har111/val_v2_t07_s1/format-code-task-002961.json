@@ -1,0 +1,70 @@
+{
+  "task_id": "format-code-task-002961",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "add_sample",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 950,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "png",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 950,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "get_view",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 952,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "name",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 952,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "The view returned by get_view must serialize a sort stage with kwarg create_index=False (no index created), an exact kwarg name and value not stated in the instruction",
+      "test_ref": "tests/unittests/server_view_tests.py:955-960",
+      "quote": "[\"field_or_expr\", \"value\"],\n                [\"reverse\", False],\n                [\"create_index\", False],",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "get_view must accept a desc=True parameter for descending sort and serialize it as reverse=True",
+      "test_ref": "tests/unittests/server_view_tests.py:961-969",
+      "quote": "view = fosv.get_view(dataset.name, sort_by=\"value\", desc=True)",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "get_view must honor sort_by even when no other filters are applied",
+    "sorting must not add persistent indexes on the dataset"
+  ],
+  "reason": "The instruction only describes behavior; the test pins the exact serialization kwargs including the create_index=False flag and the desc parameter name, which are not stated.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 295,
+    "completion_tokens_details": {
+      "reasoning_tokens": 51
+    },
+    "prompt_tokens": 1434,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 1729
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

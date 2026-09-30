@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-002256",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "TemporaryDirectory",
+      "file": "persistqueue/tests/test_async_queue.py",
+      "line": 201,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "AsyncQueue",
+      "file": "persistqueue/tests/test_async_queue.py",
+      "line": 203,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "task_done",
+      "file": "persistqueue/tests/test_async_queue.py",
+      "line": 229,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "full() must return False for unbounded queues (maxsize 0/None) at any size",
+    "full() must return True only when a bounded queue reaches maxsize",
+    "explicit maxsize=0 behaves as unbounded",
+    "full() after puts and gets in both bounded and unbounded queues"
+  ],
+  "reason": "The hidden tests only exercise full()/qsize()/empty() behavior for unbounded, explicitly-zero, and bounded queues, all of which the issue's examples and wording directly describe. The AsyncQueue-specific calls (AsyncQueue, task_done, TemporaryDirectory) are pre-existing APIs/test scaffolding already used elsewhere in the test file.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 328,
+    "completion_tokens_details": {
+      "reasoning_tokens": 182
+    },
+    "prompt_tokens": 2589,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2917
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

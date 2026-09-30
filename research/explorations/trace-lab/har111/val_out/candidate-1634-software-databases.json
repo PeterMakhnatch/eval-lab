@@ -1,0 +1,211 @@
+{
+  "task_id": "candidate-1634-software-databases",
+  "rule_label": "broken",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "insert",
+      "file": "tests/test_outputs.py",
+      "line": 9,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "tests/test_outputs.py",
+      "line": 15,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "returncode",
+      "file": "tests/test_outputs.py",
+      "line": 17,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stderr",
+      "file": "tests/test_outputs.py",
+      "line": 17,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stdout",
+      "file": "tests/test_outputs.py",
+      "line": 18,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "load",
+      "file": "tests/test_outputs.py",
+      "line": 20,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "mkstemp",
+      "file": "tests/test_outputs.py",
+      "line": 30,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "close",
+      "file": "tests/test_outputs.py",
+      "line": 31,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "connect",
+      "file": "tests/test_outputs.py",
+      "line": 33,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "execute_sql",
+      "file": "tests/test_outputs.py",
+      "line": 34,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "records",
+      "file": "tests/test_outputs.py",
+      "line": 34,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "select value from records",
+      "file": "tests/test_outputs.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "fetchone",
+      "file": "tests/test_outputs.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "unlink",
+      "file": "tests/test_outputs.py",
+      "line": 41,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "OperationalError",
+      "file": "tests/test_outputs.py",
+      "line": 59,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "select count(*) from records",
+      "file": "tests/test_outputs.py",
+      "line": 77,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "count",
+      "file": "tests/test_outputs.py",
+      "line": 77,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "parse",
+      "file": "tests/test_outputs.py",
+      "line": 89,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "def atomic(self, transaction_type=None, **kwargs):",
+      "file": "tests/test_outputs.py",
+      "line": 90,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "walk",
+      "file": "tests/test_outputs.py",
+      "line": 91,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "FunctionDef",
+      "file": "tests/test_outputs.py",
+      "line": 92,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "name",
+      "file": "tests/test_outputs.py",
+      "line": 92,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "args",
+      "file": "tests/test_outputs.py",
+      "line": 93,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "func",
+      "file": "tests/test_outputs.py",
+      "line": 94,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "peewee.py must contain the exact source line `def atomic(self, transaction_type=None, **kwargs):` \u2014 i.e. the fix must keep the original signature verbatim (including **kwargs passthrough) while also accepting lock_type; the instruction only says atomic must accept lock_type and preserve public API",
+      "test_ref": "tests/test_outputs.py:90",
+      "quote": "assert \"def atomic(self, transaction_type=None, **kwargs):\" in peewee_source",
+      "severity": "guessable"
+    },
+    {
+      "what": "contention test requires the blocked writer to raise specifically peewee's OperationalError class name (not another exception) when IMMEDIATE lock collides",
+      "test_ref": "tests/test_outputs.py:59",
+      "quote": "blocked = error.__class__.__name__ == \"OperationalError\"",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "lock_type keyword on atomic/transaction reaching BEGIN",
+    "positional transaction-type calls still working",
+    "nested atomic uses savepoints, no second BEGIN",
+    "apsw_ext forwarding retained (function named transaction with lock_type arg calling transaction)",
+    "output. schema_version, checks object, all true"
+  ],
+  "reason": "Most requirements map to the instruction, but the exact verbatim signature string in peewee.py and the OperationalError class name in the contention test are unstated details a careful engineer would likely satisfy but could miss.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 556,
+    "completion_tokens_details": {
+      "reasoning_tokens": 273
+    },
+    "prompt_tokens": 1902,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2458
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

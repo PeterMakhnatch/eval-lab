@@ -1,0 +1,76 @@
+{
+  "task_id": "format-code-task-000093",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "StringIO",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 98,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "search",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 103,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "group",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 105,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "index",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 126,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "A new private helper named exactly `_get_gdal_version` must be created inside `pygmt/_show_versions.py` (the tests import it by that exact name from that exact module); the instruction only discusses solution options and never names any function.",
+      "test_ref": "pygmt/tests/test_show_versions.py (test_get_gdal_version_returns_clean_version_string)",
+      "quote": "from pygmt._show_versions import _get_gdal_version ... gdal_version = _get_gdal_version()",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "An extra lifecycle contract: `show_versions` must look up the GDAL version at call time via the module attribute `pygmt._show_versions._get_gdal_version` (so `unittest.mock.patch` can replace it and the output must then print `gdal: None` without raising), rather than using any other internal mechanism or caching.",
+      "test_ref": "pygmt/tests/test_show_versions.py (test_show_versions_gdal_none_when_unavailable)",
+      "quote": "with patch(\"pygmt._show_versions._get_gdal_version\", return_value=None): ... assert \"gdal: None\" in output",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "The returned version must be a clean version string like '3.10.3' (not the verbose 'GDAL 3.10.3, released ...' string that `gdalinfo --version` prints), matched by `r\"^\\d+\\.\\d+\"`.",
+      "test_ref": "pygmt/tests/test_show_versions.py (test_get_gdal_version_returns_clean_version_string)",
+      "quote": "assert re.match(r\"^\\d+\\.\\d+\", gdal_version), (f\"_get_gdal_version() returned non-version-like string: {gdal_version!r}\")",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "That `pygmt.show_versions` should report an actual GDAL version (not None) when the GDAL C library is present without Python bindings",
+    "That the `gdal:` line stays in the Dependency information section",
+    "That missing GDAL must not raise and should fall back to None (existing behavior preserved)"
+  ],
+  "reason": "The instruction describes three optional approaches but never specifies the concrete API the hidden tests demand: a module-level `_get_gdal_version` function in `pygmt._show_versions` that `show_versions` calls through the patchable module attribute and that returns a bare 'x.y.z' string. The clean-string format is guessable from the existing output style, but the function's exact name/location and the patch-time indirection contract are not inferable without the tests.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 942,
+    "completion_tokens_details": {
+      "reasoning_tokens": 332
+    },
+    "prompt_tokens": 2185,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 3127
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

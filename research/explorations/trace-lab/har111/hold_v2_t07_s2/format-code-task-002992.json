@@ -1,0 +1,127 @@
+{
+  "task_id": "format-code-task-002992",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "joinpath",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 33,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "rglob",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 44,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "relative_to",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 45,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "as_posix",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 45,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_file",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 46,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "read_bytes",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 47,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_dir",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 48,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "txt",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 163,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "deepcopy",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 309,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "insert",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 337,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stdout",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 343,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 346,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "chdir",
+      "file": "usercase-test-coderl/test_voc_to_coco.py",
+      "line": 374,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "import path weedcoco.importers.voc.voc_to_coco",
+    "glob pattern [a-zA-Z0-9_]*.xml in sorted order",
+    "inclusive bbox conversion to [x, y, w, h]",
+    "sequential image/annotation IDs and first-seen category IDs",
+    "category_mapping IDs and omission of categories list",
+    "missing bndbox omits bbox",
+    "AssertionError on non-annotation root",
+    "referential transparency and no file/network side effects",
+    "image_dir accepted without effect"
+  ],
+  "reason": "Every hidden-test behavior (glob filtering incl. dotted names like sample.voc.xml, exclusion of -skip.xml, inclusive bbox math, sorted ordering, category ID synthesis, mapping usage, purity constraints, AssertionError) is explicitly stated or a direct consequence of the instruction's wording; the incidental method names in the test rules are test scaffolding.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 326,
+    "completion_tokens_details": {
+      "reasoning_tokens": 134
+    },
+    "prompt_tokens": 4803,
+    "prompt_tokens_details": {
+      "cached_tokens": 4800
+    },
+    "total_tokens": 5129
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

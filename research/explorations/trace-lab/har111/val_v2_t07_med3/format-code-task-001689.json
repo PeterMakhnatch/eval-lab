@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-001689",
+  "label": "sound",
+  "sample_labels": [
+    "sound",
+    "sound",
+    "sound"
+  ],
+  "unstated": [],
+  "reasons": [
+    "All hidden test assertions follow directly from 'make convert_to_tensor support torch meta tensors': no new API names, no exact output strings, and the only value checks apply to a regular tensor. The dtype='float64' case exercises the existing dtype parameter.",
+    "All test assertions are direct consequences of making convert_to_tensor support torch meta tensors; the checks for is_meta/is_tensor/shape/dtype are natural validations of that support with no new names, strings, or contracts.",
+    "All hidden test assertions follow directly from fixing the reported bug: convert_to_tensor on a meta tensor must return a usable, non-meta tensor (necessarily on a real device like cpu) while preserving shape and honoring the existing dtype argument. No new names, messages, or behaviors beyond the fix are required."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 276,
+      "completion_tokens_details": {
+        "reasoning_tokens": 142
+      },
+      "prompt_tokens": 1660,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 1936
+    },
+    {
+      "completion_tokens": 194,
+      "completion_tokens_details": {
+        "reasoning_tokens": 89
+      },
+      "prompt_tokens": 1660,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 1854
+    },
+    {
+      "completion_tokens": 256,
+      "completion_tokens_details": {
+        "reasoning_tokens": 134
+      },
+      "prompt_tokens": 1660,
+      "prompt_tokens_details": {
+        "cached_tokens": 1600
+      },
+      "total_tokens": 1916
+    }
+  ]
+}

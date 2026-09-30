@@ -1,0 +1,76 @@
+{
+  "task_id": "format-code-task-000093",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "StringIO",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 98,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "search",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 103,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "group",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 105,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "index",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 126,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "New module-level private function named exactly _get_gdal_version in pygmt/_show_versions.py, returning the version string (or None)",
+      "test_ref": "pygmt/tests/test_show_versions.py: from pygmt._show_versions import _get_gdal_version",
+      "quote": "from pygmt._show_versions import _get_gdal_version",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "_get_gdal_version must be patchable as pygmt._show_versions._get_gdal_version (i.e., looked up at call time via the module namespace, not imported/cached elsewhere)",
+      "test_ref": "test_show_versions_gdal_none_when_unavailable",
+      "quote": "with patch(\"pygmt._show_versions._get_gdal_version\", return_value=None):",
+      "severity": "guessable"
+    },
+    {
+      "what": "_get_gdal_version must return a clean version string like '3.10.3', not the verbose 'GDAL 3.10.3, released ...' output",
+      "test_ref": "test_get_gdal_version_returns_clean_version_string",
+      "quote": "assert re.match(r\"^\\d+\\.\\d+\", gdal_version)",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Detecting GDAL version without Python bindings (e.g., via gdalinfo --version or ctypes) so show_versions prints a real version instead of None",
+    "Falling back to 'None' without raising when GDAL is unavailable (implied by existing behavior)"
+  ],
+  "reason": "The instruction discusses solution approaches but never names the required function _get_gdal_version or its exact patch target and clean-output contract, which the hidden tests import and assert on directly.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 472,
+    "completion_tokens_details": {
+      "reasoning_tokens": 103
+    },
+    "prompt_tokens": 2185,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2657
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

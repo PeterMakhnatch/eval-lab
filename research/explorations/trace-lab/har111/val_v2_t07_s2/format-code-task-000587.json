@@ -1,0 +1,51 @@
+{
+  "task_id": "format-code-task-000587",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "ThreadPoolExecutor",
+      "file": "tests/test_redlock.py",
+      "line": 197,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "submit",
+      "file": "tests/test_redlock.py",
+      "line": 198,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "result",
+      "file": "tests/test_redlock.py",
+      "line": 199,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Importable name `redlock` from `pottery`",
+    "Decorator accepts key, masters, and auto-release timeout parameters (same as Redlock)",
+    "Sequential (serialized) execution of decorated function across concurrent calls"
+  ],
+  "reason": "The instruction explicitly names the import (`from pottery import redlock`) and states the decorator accepts the same knobs Redlock accepts (key, masters, auto-release timeout), which covers the keyword names the test uses. The timing test is a direct consequence of wrapping calls in the Redlock context manager.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 277,
+    "completion_tokens_details": {
+      "reasoning_tokens": 152
+    },
+    "prompt_tokens": 1606,
+    "prompt_tokens_details": {
+      "cached_tokens": 1600
+    },
+    "total_tokens": 1883
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

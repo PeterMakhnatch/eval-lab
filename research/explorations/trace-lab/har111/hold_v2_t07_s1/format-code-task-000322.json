@@ -1,0 +1,61 @@
+{
+  "task_id": "format-code-task-000322",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "st_size",
+      "file": "tests/test_web_sendfile_functional.py",
+      "line": 357,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "unknown_mime_type",
+      "file": "tests/test_web_sendfile_functional.py",
+      "line": 530,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "Content-Length",
+      "file": "tests/test_web_sendfile_functional.py",
+      "line": 568,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Invalid/unparseable HTTP-dates in If-Unmodified-Since and If-Range headers must be ignored (return 200 full response) rather than erroring or comparing",
+      "test_ref": "tests/test_web_sendfile_functional.py: test_static_file_if_unmodified_since_invalid_date, test_static_file_if_range_invalid_date",
+      "quote": "lastmod = 'not a valid HTTP-date'\n\n    resp = await client.get('/', headers={'If-Unmodified-Since': lastmod})\n    assert 200 == resp.status",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Content-Range header on 206 responses with exact 'bytes start-end/size' format (format shown in issue #1)",
+    "416 for out-of-range start ranges (issue #3)",
+    "clamping out-of-range tail ranges to whole file (issue #4)",
+    "honoring If-Unmodified-Since: past date with/without Range \u2192 412, future date \u2192 normal/206 response (explicitly requested)",
+    "honoring If-Range: past date \u2192 full 200, future date \u2192 206 partial (explicitly requested)",
+    "Accept-Ranges advertisement (issue #2, though untested)"
+  ],
+  "reason": "The tests only add exact-format Content-Range checks, 416/clamp behavior, and If-Unmodified-Since/If-Range handling, all of which the instruction requests (the Content-Range format and conditional header semantics are stated or directly implied by RFC 7233/7232). The only unstated detail is that malformed HTTP-dates in the conditional headers must be silently ignored, a conventional RFC 7232 rule a careful implementer would usually apply.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 622,
+    "completion_tokens_details": {
+      "reasoning_tokens": 256
+    },
+    "prompt_tokens": 4014,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 4636
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

@@ -1,0 +1,33 @@
+{
+  "task_id": "format-code-task-001970",
+  "rule_label": "sound",
+  "rule_unstated": [],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Directories must load only *.conf files, ignoring files with other suffixes (e.g. file2.conf.disabled)",
+      "test_ref": "tests/config/test_config.py::test_load_directory_only_conf_files",
+      "quote": "def test_load_directory_only_conf_files(self): ... expected = {'foo': {'bar': 'baz'}}",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "--config accepting a directory and loading config snippets from it",
+    "later-overrides-earlier precedence when mixing directories and files"
+  ],
+  "reason": "The directory-loading behaviour is stated, but the hidden test additionally requires that only files ending in .conf are picked up (a .conf.disabled file is ignored). That filtering rule is only weakly implied by the word 'snippets', so a careful engineer might miss it, though it is guessable.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 312,
+    "completion_tokens_details": {
+      "reasoning_tokens": 122
+    },
+    "prompt_tokens": 1948,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2260
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

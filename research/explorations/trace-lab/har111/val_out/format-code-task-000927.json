@@ -1,0 +1,39 @@
+{
+  "task_id": "format-code-task-000927",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "through",
+      "file": "tests/test_api.py",
+      "line": 840,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "sv.escape exposed as callable public API (instruction: 'Add escape function')",
+    "NULL \u2192 U+FFFD",
+    "control chars escaped as code point with trailing space (standard CSS escaping implied by 'escaped as code point')",
+    "leading digit / dash-digit handling",
+    "single dash \u2192 \\-",
+    "pass-through of alphanumerics, -, _, and >=U+0080",
+    "other chars escaped with backslash"
+  ],
+  "reason": "The instruction quotes the CSSOM spec verbatim, and all test expectations (including escape formats like '\\1 ' and '\\-') follow directly from standard CSS code-point/character escaping conventions. The only minor unstated detail\u2014trailing space after code-point escapes\u2014is the conventional interpretation of 'escaped as code point'.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 337,
+    "completion_tokens_details": {
+      "reasoning_tokens": 161
+    },
+    "prompt_tokens": 2072,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2409
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

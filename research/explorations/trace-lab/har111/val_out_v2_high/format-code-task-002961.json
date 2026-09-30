@@ -1,0 +1,56 @@
+{
+  "task_id": "format-code-task-002961",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "add_sample",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 950,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "png",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 950,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "get_view",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 952,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "name",
+      "file": "tests/unittests/server_view_tests.py",
+      "line": 952,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "get_view(dataset.name, sort_by=..., desc=...) applying a sort stage even with no other filters",
+    "sort stage serialized with create_index=False so no persistent index is created"
+  ],
+  "reason": "The hidden test only checks that get_view accepts the App's sort parameters and serializes a sort stage with create_index=False \u2014 both direct consequences of the two reported bugs (sort no-op on unfiltered views, and indexes being auto-created). The parameter names and serialization format come from the existing App/View code path the instruction describes repairing.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 633,
+    "completion_tokens_details": {
+      "reasoning_tokens": 510
+    },
+    "prompt_tokens": 1434,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2067
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

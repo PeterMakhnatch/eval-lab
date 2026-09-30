@@ -1,0 +1,81 @@
+{
+  "task_id": "format-code-task-000383",
+  "label": "suspect",
+  "sample_labels": [
+    "suspect",
+    "suspect",
+    "suspect"
+  ],
+  "unstated": [
+    {
+      "what": "Generated 262 MarketDataRequest IDs must be unique across successive calls on the same client instance (and non-empty), not merely present",
+      "test_ref": "test_same_client_advances_generated_market_data_request_ids",
+      "quote": "assert len(set(generated_ids)) == len(generated_ids)",
+      "severity": "guessable"
+    },
+    {
+      "what": "The message must be routable to the quote session such that the mocked Session.sendToTarget receives a session_id whose toString equals the quote session string, or a message with tag 56 equal to the quote target (routing choice)",
+      "test_ref": "_assert_sent_to_quote_session",
+      "quote": "assert session_id.toString() == QUOTE_SESSION ... assert message.getHeader().getField(56) == QUOTE_TARGET",
+      "severity": "guessable"
+    },
+    {
+      "what": "Selecting the quote session among the two configured sessions (matching TargetCompID containing QUOTE) when sending",
+      "test_ref": "test_subscribe_to_data_sends_default_market_data_request / _assert_sent_to_quote_session",
+      "quote": "assert message.getHeader().getField(56) == QUOTE_TARGET",
+      "severity": "guessable"
+    },
+    {
+      "what": "Generated 262 IDs must be unique/non-empty across calls and across separately constructed clients",
+      "test_ref": "test_same_client_advances_generated_market_data_request_ids",
+      "quote": "assert len(set(generated_ids)) == len(generated_ids)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Generated MDReqID (262) values must be unique across calls and across separate client instances, not just non-empty per message",
+      "test_ref": "test_same_client_advances_generated_market_data_request_ids / test_two_configured_clients_emit_generated_market_data_request_ids",
+      "quote": "assert len(set(generated_ids)) == len(generated_ids)",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "The instruction covers nearly all behavior; only the per-client uniqueness/advancement of generated 262 IDs and the concrete quote-session routing mechanism (session_id vs tag 56) are beyond its explicit text.",
+    "The instruction fully specifies message content, defaults, overrides, and error behavior; only quote-session selection among two configured sessions and uniqueness of generated 262 IDs are unstated but conventional choices.",
+    "The instruction fully specifies the message contents, defaults, overrides, error behavior, and quote-session routing. Only unstated requirement is that generated MDReqIDs be globally unique across calls and client instances, which a UUID-based generator would naturally satisfy."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 620,
+      "completion_tokens_details": {
+        "reasoning_tokens": 283
+      },
+      "prompt_tokens": 4225,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 4845
+    },
+    {
+      "completion_tokens": 497,
+      "completion_tokens_details": {
+        "reasoning_tokens": 207
+      },
+      "prompt_tokens": 4225,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 4722
+    },
+    {
+      "completion_tokens": 452,
+      "completion_tokens_details": {
+        "reasoning_tokens": 178
+      },
+      "prompt_tokens": 4225,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 4677
+    }
+  ]
+}

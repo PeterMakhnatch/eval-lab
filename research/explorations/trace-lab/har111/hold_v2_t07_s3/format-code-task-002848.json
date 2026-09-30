@@ -1,0 +1,191 @@
+{
+  "task_id": "format-code-task-002848",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "ModuleType",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 21,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "head",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 22,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "setitem",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 23,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "modules",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 23,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "QtCore",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 28,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "gettempdir",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 33,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "QTcustom",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 41,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "kwargs",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 52,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "pop",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 58,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "constants",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 58,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Util",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 59,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "DownloadModels",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 60,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "import_module",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 61,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "downloadLocation",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 68,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_dir",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 83,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "readouterr",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 184,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "splitlines",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 184,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ").read_text(encoding=",
+      "file": "usercase-test-coderl/test_download_model.py",
+      "line": 274,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "Class must live in module src/DownloadModels.py (tests import src.DownloadModels and reset src.constants/src.Util); instruction never names the file",
+      "test_ref": "test_download_model.py fixture",
+      "quote": "sys.modules.pop(\"src.DownloadModels\", None)\nmodule = importlib.import_module(\"src.DownloadModels\")",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Network availability is checked via a module-level function named networkCheck in DownloadModels that the tests monkeypatch",
+      "test_ref": "test_missing_model_without_network_returns_false_and_does_not_download",
+      "quote": "monkeypatch.setattr(download_module, \"networkCheck\", lambda: False)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Tar extraction is done via a module-level function named extractTarGZ(path) in DownloadModels that the tests monkeypatch",
+      "test_ref": "test_missing_tar_model_downloads_with_progress_then_extracts",
+      "quote": "monkeypatch.setattr(download_module, \"extractTarGZ\", lambda path: extract_calls.append(path))",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Progress dialog is src.ui.QTcustom.DownloadProgressPopup invoked with link, downloadLocation, title (positional or keyword), passing the full destination file path",
+      "test_ref": "assert_progress_dialog_call",
+      "quote": "assert call[\"link\"] == link\n    assert call[\"title\"] == title\n    assert call[\"downloadLocation\"] == download_location",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Module imports (psutil, cpuinfo, distro, PySide6.QtCore, src.constants with MODELS_PATH, src.Util) must be importable in the expected arrangement; test stubs them, implying the real module's import graph",
+      "test_ref": "download_module fixture",
+      "quote": "sys.modules.pop(\"src.constants\", None)\n    sys.modules.pop(\"src.Util\", None)",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "DownloadModel(modelFile, downloadModelFile, modelPath=MODELS_PATH) constructor creating the directory",
+    "downloadModel() -> bool",
+    "existing file/dir returns True without network",
+    "no network returns False",
+    "download URL https://github.com/TNTwise/real-video-enhancer-models/releases/download/models/<downloadModelFile>",
+    "dialog title 'Downloading: <downloadModelFile>'",
+    "print 'Done', print 'Extracting File' and extract for tar.gz, no extraction for plain files"
+  ],
+  "reason": "The instruction describes behaviour but not the module path, the names of the module-level helpers networkCheck and extractTarGZ, nor the DownloadProgressPopup call signature/keyword names \u2014 all of which the tests directly monkeypatch and assert on.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 684,
+    "completion_tokens_details": {
+      "reasoning_tokens": 100
+    },
+    "prompt_tokens": 3794,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 4478
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

@@ -1,0 +1,84 @@
+{
+  "task_id": "format-code-task-001119",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "import",
+      "file": "test/unit/test_semver_precedence_contract.py",
+      "line": 1,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "beta",
+      "file": "test/unit/test_semver_precedence_contract.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "from_version_string",
+      "file": "test/unit/test_semver_precedence_contract.py",
+      "line": 23,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "<=1.0.0-alpha",
+      "file": "test/unit/test_semver_precedence_contract.py",
+      "line": 43,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "1.0.0-alpha.1",
+      "file": "test/unit/test_semver_precedence_contract.py",
+      "line": 43,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ">1.0.0-alpha",
+      "file": "test/unit/test_semver_precedence_contract.py",
+      "line": 44,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "reduce_versions",
+      "file": "test/unit/test_semver_precedence_contract.py",
+      "line": 55,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "prerelease precedence ordering and compare semantics",
+    "numeric vs non-numeric identifier comparison",
+    "build metadata ignored for precedence and compatibility",
+    "exact prerelease vs stable mismatch",
+    "range bound exclusion around prereleases",
+    "find_possible_versions filtering and descending sort returning original strings",
+    "resolve_to_specific_version choosing highest candidate with build metadata",
+    "existing public API preservation"
+  ],
+  "reason": "Every hidden-test assertion maps directly to explicit requirements in the instruction, including exact output orders, build-metadata behavior, and original spelling preservation; nothing unstated remains.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 213,
+    "completion_tokens_details": {
+      "reasoning_tokens": 90
+    },
+    "prompt_tokens": 1982,
+    "prompt_tokens_details": {
+      "cached_tokens": 1920
+    },
+    "total_tokens": 2195
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

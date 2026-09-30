@@ -1,0 +1,99 @@
+{
+  "task_id": "format-code-task-000923",
+  "label": "suspect",
+  "sample_labels": [
+    "suspect",
+    "suspect",
+    "broken"
+  ],
+  "unstated": [
+    {
+      "what": "Import location of the new Transformer class must be the same module as the other override parser types (so `from ...overrides_parser.types import Transformer` resolves); the instruction leaves naming/placement \"up to you\".",
+      "test_ref": "tests/test_overrides_parser.py:25-28 (import block)",
+      "quote": "    Transformer,\n    ValueType,\n)",
+      "severity": "guessable"
+    },
+    {
+      "what": "`sweep_iterator` must accept the element as keyword argument named `transformer`.",
+      "test_ref": "tests/test_overrides_parser.py:test_sweep_iterators",
+      "quote": "ret.sweep_iterator(transformer=Transformer.encode)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact keyword name `transformer=` on the new sweep_iterator API",
+      "test_ref": "tests/test_overrides_parser.py:test_sweep_iterators",
+      "quote": "ret.sweep_iterator(transformer=Transformer.encode)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Transformer.encode must return list/dict/quoted-string elements flattened to the exact existing string form (e.g. \"[1,1.1,'2','a']\", \"'a','b'\") while returning primitives natively",
+      "test_ref": "tests/test_overrides_parser.py:test_sweep_iterators",
+      "quote": "\"x=choice([1, 1.1, '2', 'a'], [True, False])\", [\"[1,1.1,'2','a']\", \"[True,False]\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "Choice sweep string form renders bare booleans as 'True'/'False' and floats as '1.1'/'2.0' \u2014 exact string output format",
+      "test_ref": "tests/test_overrides_parser.py:test_sweep_iterators",
+      "quote": "\"True\", \"True\", \"False\", \"False\", \"a\", \"1\", \"1.1\", \"2.0\", \"3\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "New public name `Transformer` importable from hydra.core.override_parser.overrides_parser (or wherever Sweep types live), and its `encode` policy must map: bare values keep native type; quoted strings stay str; lists/dicts/complex values stringify via Hydra's element-to-string form",
+      "test_ref": "tests/test_overrides_parser.py: test_sweep_iterators (import of Transformer; expected_sweep_encoded_list)",
+      "quote": "Transformer,\n...\nret.sweep_iterator(transformer=Transformer.encode)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact encoded expectations for edge cases the instruction never specifies, e.g. `x=choice('1','2','3')` encodes to strings (quoted strings stay str), `1.1` stays float, `2.0` stays float, `'1.5'`/`'4'` stay strings, and lists of mixed values reproduce Hydra's compact string form like \"[1,1.1,'2','a']\"",
+      "test_ref": "tests/test_overrides_parser.py: test_sweep_iterators parametrizations",
+      "quote": "[True, \"True\", False, \"False\", \"a\", 1, 1.1, 2.0, 3, \"1.5\", \"4\"]",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "The new method must be named `sweep_iterator` on `Override` and accept a keyword parameter `transformer=`; the instruction only suggests it as an example with naming 'up to you'",
+      "test_ref": "tests/test_overrides_parser.py: test_sweep_iterators",
+      "quote": "ret.sweep_iterator(transformer=Transformer.encode)",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "The instruction already proposes sweep_iterator with a caller-provided transformer and an encode-style Transformer, so the API shape and encoded outputs are covered. Only the import path/module of Transformer and the keyword name `transformer` are unstated, but both are natural choices an implementer would almost certainly land on.",
+    "The instruction proposes the names (sweep_iterator, Transformer, encode) but explicitly says naming is up to the implementer, so the exact identifier and keyword, plus the precise string flattening formats for lists/quoted strings, are only inferable from the hidden tests; they are conventional enough to grade as guessable.",
+    "The instruction intentionally leaves naming open, but the hidden tests pin the exact names `sweep_iterator(transformer=Transformer.encode)` and, more critically, exact per-value encode semantics (quoted strings stay str, lists stringify in Hydra's compact form, mixed bool/int/float passthrough) that are not derivable from the issue text."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 420,
+      "completion_tokens_details": {
+        "reasoning_tokens": 160
+      },
+      "prompt_tokens": 2249,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 2669
+    },
+    {
+      "completion_tokens": 623,
+      "completion_tokens_details": {
+        "reasoning_tokens": 211
+      },
+      "prompt_tokens": 2249,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 2872
+    },
+    {
+      "completion_tokens": 513,
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "prompt_tokens": 2249,
+      "prompt_tokens_details": {
+        "cached_tokens": 2240
+      },
+      "total_tokens": 2762
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "task_id": "format-code-task-001896",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "literal",
+      "value": "nested-hero.jpg",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 137,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "png",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 188,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "State paragraph",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 304,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ", ((32, 32),),",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 306,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "site_name from hostname stripping credentials/port",
+    "title from <title> then first <h1>",
+    "description from meta description, paragraph after first h1, then first paragraph",
+    "image from img after h1 (sibling or later in document), else first img with src, ignoring src-less imgs",
+    "None fallback fields for empty/malformed HTML",
+    "favicon tuples (href, sizes, rel) for the four rel values, preserving order/duplicates",
+    "sizes None when absent or 'any', else tuple of (w,h) pairs in '32x32 16x16' and '64\u00d764' formats",
+    "absolute_favicon resolving relative hrefs against page URL",
+    "invalid/empty rel and href ignored",
+    "to_dict including favicon and absolute_favicon keys"
+  ],
+  "reason": "The instruction enumerates every behaviour the hidden tests assert, including exact values, formats, precedence rules, and the to_dict keys; no additional names, strings, or contracts are required by the tests that the instruction does not state.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 347,
+    "completion_tokens_details": {
+      "reasoning_tokens": 119
+    },
+    "prompt_tokens": 3873,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 4220
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

@@ -1,0 +1,66 @@
+{
+  "task_id": "format-code-task-000322",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "st_size",
+      "file": "tests/test_web_sendfile_functional.py",
+      "line": 357,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "unknown_mime_type",
+      "file": "tests/test_web_sendfile_functional.py",
+      "line": 530,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "Content-Length",
+      "file": "tests/test_web_sendfile_functional.py",
+      "line": 568,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Malformed/invalid HTTP-date in If-Unmodified-Since or If-Range must be ignored (response 200) rather than raising or returning 412",
+      "test_ref": "tests/test_web_sendfile_functional.py::test_static_file_if_unmodified_since_invalid_date and ::test_static_file_if_range_invalid_date",
+      "quote": "lastmod = 'not a valid HTTP-date' ... assert 200 == resp.status",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact conditional response bodies/headers: 412 with no body, 206 with Content-Range/Content-Length, and full 200 file (Content-Length 13) when If-Range date is stale",
+      "test_ref": "tests/test_web_sendfile_functional.py:568 etc.",
+      "quote": "assert 412 == resp.status ... assert resp.headers['Content-Range'] == 'bytes 2-12/13' ... assert resp.headers['Content-Length'] == '11'",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Content-Range header on 206 responses with exact format 'bytes start-end/size'",
+    "out-of-range start returning 416 (test_static_file_range_head: 1000000-1200000 \u2192 416)",
+    "tail range clamping (bytes=-99999999999999 \u2192 206, bytes 0-61107/61108)",
+    "honoring If-Unmodified-Since and If-Range for ranged and non-ranged requests",
+    "Accept-Ranges on 200 responses"
+  ],
+  "reason": "Content-Range format, 416 behavior, and tail clamping are all stated in the issue. The only unstated requirements are the invalid-date fallback (treat unparseable dates as absent) and exact response sizes/headers, both standard RFC 7233/7232 behavior a careful implementer would produce.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 546,
+    "completion_tokens_details": {
+      "reasoning_tokens": 143
+    },
+    "prompt_tokens": 4014,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 4560
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

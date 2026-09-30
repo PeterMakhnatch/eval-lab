@@ -1,0 +1,125 @@
+{
+  "task_id": "format-code-task-000635",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "Path",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 13,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Mock",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "conf",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 21,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "task_always_eager",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 21,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "kwargs",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 36,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "call_args",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 120,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "fixture_execute.add",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 121,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "reset_mock",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 124,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "results",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 143,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "TemporaryDirectory",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 164,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dedent",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 166,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "environ",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 177,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "pathsep",
+      "file": "usercase-test-coderl/test_canvas_chunks.py",
+      "line": 180,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "chunks(task, it, n, **options) signature and Task.chunks(it, n) method",
+    "sig.group() generating two starmap signatures with correct task name 'celery.starmap', chunked items, and inner task repr",
+    "callable signature executing via generated group apply_async, forwarding options like countdown=10 and route_name from task name",
+    "from_dict round-trip storing task, iterable, chunk size, and options",
+    "built-in celery.chunks task creating/executing the chunked signature in current app and returning GroupResult",
+    "top-level `from celery import chunks` export and celery shell locals including chunks with group/chain/xmap/xstarmap",
+    "per-instance state so multiple chunk signatures stay independent and repeated construction works (leak/idempotency tests)"
+  ],
+  "reason": "All hidden-test requirements map directly onto the instruction's description of the chunks canvas primitive: names, task strings, option forwarding, routing by task name, from_dict round-trip, the built-in celery.chunks task, and the shell/API exports are all stated. Remaining details (GroupResult shape, inner signature repr) are natural consequences of the real Celery chunks design implied by the starmap-style group the instruction specifies.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 550,
+    "completion_tokens_details": {
+      "reasoning_tokens": 282
+    },
+    "prompt_tokens": 3592,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 4142
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

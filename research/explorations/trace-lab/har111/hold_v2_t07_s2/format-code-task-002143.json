@@ -1,0 +1,172 @@
+{
+  "task_id": "format-code-task-002143",
+  "rule_label": "broken",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "override_settings",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 7,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "test",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 7,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "CMSTestCase",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 9,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "testcases",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 9,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "PageFactory",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 11,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "apps",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 11,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "core",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 11,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "factories",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 11,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "example",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "com",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "courses",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 25,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "edx",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 25,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "TokenEdXLMSBackend",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 25,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "BaseLMSBackend",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 34,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "html",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 55,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "get_public_url",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 56,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "client",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 56,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "status_code",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 57,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "test_frontend_context",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 117,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "https://example.com/sentry/dsn",
+      "file": "tests/apps/core/test_context_processors_frontend.py",
+      "line": 119,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "AUTHENTICATION_DELEGATION setting with BASE_URL/BACKEND/PROFILE_URLS and {base_url} substitution",
+    "authentication entry in frontend context",
+    "lms_backends list with endpoint/backend/course_regexp/selector_regexp keys and empty-list case",
+    "AUTHENTICATION.PROFILE_URLS template context as JSON string",
+    "preservation of existing generic context values"
+  ],
+  "reason": "Every test assertion maps directly to the instruction: the context variable names, JSON structure, key names, {base_url} substitution, and empty-list behavior are all explicitly specified; remaining identifiers (PageFactory, CMSTestCase, override_settings, LMS_BACKENDS) are pre-existing code or test scaffolding.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 295,
+    "completion_tokens_details": {
+      "reasoning_tokens": 140
+    },
+    "prompt_tokens": 3055,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3350
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

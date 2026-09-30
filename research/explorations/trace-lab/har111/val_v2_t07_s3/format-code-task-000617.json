@@ -1,0 +1,58 @@
+{
+  "task_id": "format-code-task-000617",
+  "rule_label": "broken",
+  "rule_unstated": [
+    {
+      "kind": "literal",
+      "value": "There should be no stderr",
+      "file": "snapcraft/tests/test_cmds.py",
+      "line": 81,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "test-package_1_all.snap",
+      "file": "snapcraft/tests/test_cmds.py",
+      "line": 83,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "can not parse package.yaml: missing required fields",
+      "file": "snapcraft/tests/test_cmds.py",
+      "line": 111,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Failure info must be printed to stderr (stdout should only carry the progress output); the instruction says only that error info must be shown, not which stream",
+      "test_ref": "snapcraft/tests/test_cmds.py:108-111",
+      "quote": "output_stderr = mock_stderr.getvalue()\n...\nself.assertTrue('can not parse package.yaml: missing required fields'\n                in output_stderr)",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "exit code 1 on failure is already tested/existing behavior",
+    "the error message text 'can not parse package.yaml: missing required fields' originates from the mocked underlying tool (test scaffolding), matching 'surface whatever the underlying build tool said'",
+    "'Snapping' progress line on stdout"
+  ],
+  "reason": "The instruction asks to surface the underlying build tool's error, which covers the message content; the only unstated choice is that it goes to stderr rather than stdout, a conventional guess a careful engineer would usually make.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 389,
+    "completion_tokens_details": {
+      "reasoning_tokens": 178
+    },
+    "prompt_tokens": 1503,
+    "prompt_tokens_details": {
+      "cached_tokens": 1472
+    },
+    "total_tokens": 1892
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

@@ -1,0 +1,51 @@
+{
+  "task_id": "format-code-task-001218",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "clear",
+      "file": "fsspec/implementations/tests/test_memory.py",
+      "line": 89,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "store",
+      "file": "fsspec/implementations/tests/test_memory.py",
+      "line": 89,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "pseudo_dirs",
+      "file": "fsspec/implementations/tests/test_memory.py",
+      "line": 90,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "mkdir then touch must not duplicate directory entries in ls",
+    "ls with detail=True returning dicts with name/type is existing API behavior",
+    "trailing-slash listing format and leading-slash path handling are existing memory filesystem behaviors"
+  ],
+  "reason": "All hidden tests exercise the exact reported bug (duplicate directory listing after mkdir+touch) using the existing MemoryFileSystem API (store, pseudo_dirs, ls, mkdir, touch), whose output formats ('a/b/' strings and detail dicts) already exist in the code. Nothing extra is requested.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 180,
+    "completion_tokens_details": {
+      "reasoning_tokens": 59
+    },
+    "prompt_tokens": 1642,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 1822
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

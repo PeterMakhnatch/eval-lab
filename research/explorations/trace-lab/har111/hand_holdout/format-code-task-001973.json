@@ -1,0 +1,16 @@
+{
+  "task_id": "format-code-task-001973",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "ReporterList(reporters), set_batch_size, add_value with the stated defaults is_averaged=True, reduction=average, no_sync=False, and the add() and call aliases",
+    "is_averaged=True weights each value by the current batch size, and the stated loss and batch-size example lands at history['loss'][-1]",
+    "reduction sum sums the collected values, a callable reduction receives the list of values and its return becomes the epoch result, and any other reduction string raises ValueError",
+    "dictionary values are reduced per key and reported as grouped scalars; a one-element tensor result is sent as a scalar and a multi-element one as grouped scalars keyed by element index",
+    "report writes key/mode when mode is non-empty and key otherwise, calls add_scalar, add_scalars and flush, and a second report with no new values is a no-op",
+    "history supports both subscript and call access, and exit() clears the persistent history",
+    "add_text, add_figure, add_histogram with its bins argument, and add_image are forwarded, an image is min-max normalized when normalize=True, and a warning is raised when no backend supports the method"
+  ],
+  "notes": "History stores the reduced epoch result, so a multi-element tensor is kept as its list while the backend receives the dispatched grouped scalars; the instruction separates the epoch result from what is sent to backends, and the one-element case confirms history holds the result itself. The add_scalars index keys are compared after str(), so integer or string keys both pass. The instance-independence and leak-floor tests require only ordinary per-instance pending state plus exit() clearing history, which is the natural reading, and dict(history) works for the dict-like history the subscript interface implies.",
+  "read_minutes": 15
+}

@@ -1,0 +1,149 @@
+{
+  "task_id": "format-code-task-000220",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "timedelta",
+      "file": "tests/test_usage_manager.py",
+      "line": 24,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "iter_modules",
+      "file": "tests/test_usage_manager.py",
+      "line": 34,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ", 1)[-1] ==",
+      "file": "tests/test_usage_manager.py",
+      "line": 35,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "rsplit",
+      "file": "tests/test_usage_manager.py",
+      "line": 35,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "import_module",
+      "file": "tests/test_usage_manager.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "mkdtemp",
+      "file": "tests/test_usage_manager.py",
+      "line": 53,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "basedir",
+      "file": "tests/test_usage_manager.py",
+      "line": 53,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "mkstemp",
+      "file": "tests/test_usage_manager.py",
+      "line": 55,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "cache_path",
+      "file": "tests/test_usage_manager.py",
+      "line": 55,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "close",
+      "file": "tests/test_usage_manager.py",
+      "line": 56,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "addCleanup",
+      "file": "tests/test_usage_manager.py",
+      "line": 57,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stat_path",
+      "file": "tests/test_usage_manager.py",
+      "line": 59,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "makedirs",
+      "file": "tests/test_usage_manager.py",
+      "line": 66,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "env_bin_path",
+      "file": "tests/test_usage_manager.py",
+      "line": 102,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "utcnow",
+      "file": "tests/test_usage_manager.py",
+      "line": 113,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "strptime",
+      "file": "tests/test_usage_manager.py",
+      "line": 123,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "count",
+      "file": "tests/test_usage_manager.py",
+      "line": 174,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "get_venvs_metadata yielding stored metadata mappings",
+    "UsageManager(stat_file_path, venvscache) constructor seeding the file only if missing",
+    "store_usage_stat appending without rewriting existing records",
+    "clean_unused_venvs strict whole-day threshold, destroying venv dir, dropping from cache, compacting file to latest record",
+    "exact line format uuid + space + ISO timestamp with %f"
+  ],
+  "reason": "Every behaviour the hidden tests check is explicitly stated in the instruction, and the disk removal / cache removal rely on existing fades APIs (venvs_helper.destroy_venv and the cache index), which the instruction's wording matches.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 330,
+    "completion_tokens_details": {
+      "reasoning_tokens": 187
+    },
+    "prompt_tokens": 4038,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 4368
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

@@ -1,0 +1,69 @@
+{
+  "task_id": "format-code-task-000093",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "StringIO",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 98,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "search",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 103,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "group",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 105,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "index",
+      "file": "pygmt/tests/test_show_versions.py",
+      "line": 126,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Fix must expose a module-level private helper named exactly `_get_gdal_version` in `pygmt/_show_versions.py`, return a clean version string like '3.10.3', and None when unavailable",
+      "test_ref": "pygmt/tests/test_show_versions.py:86 (test_get_gdal_version_returns_clean_version_string)",
+      "quote": "from pygmt._show_versions import _get_gdal_version",
+      "severity": "guessable"
+    },
+    {
+      "what": "show_versions must call `pygmt._show_versions._get_gdal_version` at module level so patching it makes output show 'gdal: None' without raising",
+      "test_ref": "pygmt/tests/test_show_versions.py:139 (test_show_versions_gdal_none_when_unavailable)",
+      "quote": "with patch(\"pygmt._show_versions._get_gdal_version\", return_value=None):",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "GDAL version must be reported instead of None without GDAL Python bindings (core bug)",
+    "'gdal:' line remains in Dependency information section",
+    "fallback to None rather than exception when GDAL undetectable (implied by existing None behavior)"
+  ],
+  "reason": "The instruction never names the private function or its return contract, but tests directly import and patch `_get_gdal_version` expecting a clean 'X.Y...' string or None; these are natural follow-ons from the existing code layout, so guessable but a careful engineer could miss the exact patch point.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 450,
+    "completion_tokens_details": {
+      "reasoning_tokens": 124
+    },
+    "prompt_tokens": 2169,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2619
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

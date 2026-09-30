@@ -1,0 +1,42 @@
+{
+  "task_id": "format-code-task-002178",
+  "rule_label": "sound",
+  "rule_unstated": [],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Exact config field names: `DatasetParams.shuffle`, `DatasetParams.seed`, and `DatasetSplitParams.seed` (tests construct DatasetParams(shuffle=True, seed=1) and set split .seed)",
+      "test_ref": "tests/builders/test_data.py:test_data_multiple_datasets_shuffle_different_seeds",
+      "quote": "sample_count=5, shuffle=True, seed=1, ... config.data.get_split(DatasetSplit.TRAIN).seed = 1",
+      "severity": "guessable"
+    },
+    {
+      "what": "build_dataset must drop its `seed` parameter (tests call it without seed); behavior for unset seeds must still differ per-run or default deterministically such that two unseeded identical datasets yield identical slices but seeded ones differ",
+      "test_ref": "tests/builders/test_data.py:test_data_multiple_datasets_shuffle_different_seeds",
+      "quote": "dataset = build_dataset(config, tokenizer, DatasetSplit.VALIDATION)",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Per-dataset shuffle opt-in before sample_count",
+    "Per-dataset seed for reproducible shuffle",
+    "Split-level seed forwarded to interleave_datasets mixing",
+    "Default-off behavior unchanged when fields unset",
+    "Removal of programmatic seed threading into build_dataset"
+  ],
+  "reason": "The issue clearly states the three features, but the exact config field names (shuffle/seed on DatasetParams, seed on the split params) and the changed build_dataset signature are only inferred; they are conventional and guessable, so not broken.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 609,
+    "completion_tokens_details": {
+      "reasoning_tokens": 311
+    },
+    "prompt_tokens": 2740,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 3349
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

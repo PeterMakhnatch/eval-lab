@@ -1,0 +1,13 @@
+{
+  "task_id": "format-code-task-002222",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "np.add on a DataFrame plus a scalar with an out ndarray writes the result into that array, which is the reported example and its expected output",
+    "the same out-writing for numpy functions generally, covering a DataFrame plus DataFrame binary ufunc and unary ufuncs such as np.exp and np.negative",
+    "a Series with out already works and must keep working, as the report states",
+    "np.add on a DataFrame without kwargs still returns a DataFrame, and the df.values workaround still writes out"
+  ],
+  "notes": "test_np_unary_ufunc_dataframe_dtype_kwarg asserts np.positive(df, dtype=float32) yields float32 columns, which the bug report never names. In pandas 1.2.3 the DataFrame branches of pandas/core/arraylike.py array_ufunc call the ufunc without forwarding kwargs, while the Series branch forwards them; the report's own contrast that Series works and DataFrame does not points straight at that difference. The natural fix, forwarding ufunc kwargs the way the Series path already does, honors dtype together with out, so the dtype assertion falls out of the repo-visible fix rather than being a separate contract.",
+  "read_minutes": 16
+}

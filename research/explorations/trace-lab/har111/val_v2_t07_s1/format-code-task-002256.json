@@ -1,0 +1,52 @@
+{
+  "task_id": "format-code-task-002256",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "TemporaryDirectory",
+      "file": "persistqueue/tests/test_async_queue.py",
+      "line": 201,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "AsyncQueue",
+      "file": "persistqueue/tests/test_async_queue.py",
+      "line": 203,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "task_done",
+      "file": "persistqueue/tests/test_async_queue.py",
+      "line": 229,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "full() returning False for unbounded queues (maxsize=0)",
+    "full() behavior for bounded queues at capacity",
+    "qsize/empty/full lifecycle after puts and gets",
+    "explicit maxsize=0 treated as unbounded"
+  ],
+  "reason": "All hidden test assertions directly exercise the reported bug and its bounded-queue counterpart shown in the instruction. AsyncQueue, task_done, and TemporaryDirectory are pre-existing/test scaffolding, so nothing unstated is required beyond the described fix.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 233,
+    "completion_tokens_details": {
+      "reasoning_tokens": 121
+    },
+    "prompt_tokens": 2589,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2822
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

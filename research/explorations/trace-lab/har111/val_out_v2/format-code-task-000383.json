@@ -1,0 +1,164 @@
+{
+  "task_id": "format-code-task-000383",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "xml",
+      "file": "usercase-test-coderl/fixtures/quickfix_two_sessions.cfg",
+      "line": 12,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "annotations",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 10,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "filterwarnings",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 17,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "SubscriptionRequestType_SNAPSHOT_PLUS_UPDATES",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 29,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "SubscriptionRequestType_DISABLE_PREVIOUS_SNAPSHOT_PLUS_UPDATE_REQUEST",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 33,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "DataStream",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "FixDecoder",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "OrderStore",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Tier1FXAuto",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "SessionSettings",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 41,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "cfg",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 42,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "getSessions",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 48,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "onCreate",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 49,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "MonkeyPatch",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 54,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "toString",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 70,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "getHeader",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 74,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "getField",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 74,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "getGroup",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 81,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "].strip() !=",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 113,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Method names subscribe_to_data / unsubscribe_to_data with **kwargs",
+    "FIX 4.4 MarketDataRequest (35=V) with tags 262/263/264/265/267/269/146/55 as specified",
+    "Default symbol EUR/USD when 55 omitted",
+    "Overrides for 264/267/265 reflected in message",
+    "ValueError on non-integer 264/267 with no send",
+    "Routing through the quote session (session_id or TargetCompID=QUOTE target)"
+  ],
+  "reason": "Everything the hidden tests assert is stated directly or is a direct consequence of the instruction: message composition, defaults, overrides, error behaviour, ID generation, and quote-session routing. Remaining test details are quickfix library calls or scaffolding (monkeypatched sendToTarget, fixture cfg, patched SubscriptionRequestType constants).",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 415,
+    "completion_tokens_details": {
+      "reasoning_tokens": 221
+    },
+    "prompt_tokens": 4225,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 4640
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

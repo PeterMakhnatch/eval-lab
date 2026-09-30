@@ -1,0 +1,93 @@
+{
+  "task_id": "format-code-task-002757",
+  "label": "broken",
+  "sample_labels": [
+    "broken",
+    "broken",
+    "suspect"
+  ],
+  "unstated": [
+    {
+      "what": "A new `init` keyword parameter on Representation.segments() so callers can request only content segments on reload; the instruction never mentions changing the segments() API or adding a parameter.",
+      "test_ref": "tests/stream/dash/test_manifest.py:test_segment_list_dynamic_reload_yields_only_new_segments",
+      "quote": "iter_p2 = rep_p2.segments(init=False)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "MPD constructor must accept a 'timelines' keyword argument used to carry segment-number state across manifest reloads, and MPD must expose a 'timelines' attribute",
+      "test_ref": "tests/stream/dash/test_manifest.py:533 (test_segment_list_dynamic_reload_yields_only_new_segments)",
+      "quote": "mpd_p2 = MPD(mpd_xml_p2, base_url=mpd_p1.base_url, url=mpd_p1.url, timelines=mpd_p1.timelines)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Representation.segments() must accept an 'init' keyword (init=False) that suppresses yielding the initialization segment",
+      "test_ref": "tests/stream/dash/test_manifest.py:534 (test_segment_list_dynamic_reload_yields_only_new_segments)",
+      "quote": "iter_p2 = rep_p2.segments(init=False)",
+      "severity": "guessable"
+    },
+    {
+      "what": "When a reloaded dynamic SegmentList has no new SegmentURLs, segments() must yield an empty list rather than repeating the existing ones",
+      "test_ref": "tests/stream/dash/test_manifest.py (test_segment_list_reload_no_new_segments)",
+      "quote": "segments_after_reload = list(rep_p1b.segments(init=False))\n\n        assert segments_after_reload == []",
+      "severity": "guessable"
+    },
+    {
+      "what": "MPD constructor must accept a timelines argument (or expose timelines) to carry segment-number state across manifest reloads",
+      "test_ref": "tests/stream/dash/test_manifest.py:533 (test_segment_list_dynamic_reload_yields_only_new_segments)",
+      "quote": "MPD(mpd_xml_p2, base_url=mpd_p1.base_url, url=mpd_p1.url, timelines=mpd_p1.timelines)",
+      "severity": "guessable"
+    },
+    {
+      "what": "segments() must support an init=False keyword to skip re-yielding the initialization segment on reload",
+      "test_ref": "tests/stream/dash/test_manifest.py:534 (test_segment_list_dynamic_reload_yields_only_new_segments)",
+      "quote": "iter_p2 = rep_p2.segments(init=False)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Segment attributes: init/content booleans with exact semantics (init segment has init=True, content=True only for media segments) and num starting from startNumber=2",
+      "test_ref": "tests/stream/dash/test_manifest.py:508",
+      "quote": "(\"http://test/init-video-p1.mp4\", -1, True, False),",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "The instruction only asks that reloaded dynamic SegmentList manifests not re-yield already-downloaded segments, which the tests' filtering behaviour and use of pre-existing MPD timelines cover. The only unstated requirement is the new `init=False` keyword on segments(), which no engineer could infer from the issue text alone.",
+    "The instruction only asks that reloads of dynamic SegmentList manifests not re-yield downloaded segments, but the hidden tests drive this through a new 'timelines' state-passing argument to MPD and an 'init=False' kwarg on segments(), neither of which is named in the instruction; the empty-yield-on-no-new-segments contract is also only implied.",
+    "The tests require a timelines-passing mechanism on MPD construction, an init=False parameter on segments(), and specific Segment attribute semantics (init/content flags, numbering) \u2014 none of which are stated in the issue, though each is a fairly natural design choice for implementing the fix; the times attribute is not asserted so SegmentTimeline handling is not required."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 515,
+      "completion_tokens_details": {
+        "reasoning_tokens": 265
+      },
+      "prompt_tokens": 10799,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 11314
+    },
+    {
+      "completion_tokens": 668,
+      "completion_tokens_details": {
+        "reasoning_tokens": 217
+      },
+      "prompt_tokens": 10799,
+      "prompt_tokens_details": {
+        "cached_tokens": 10752
+      },
+      "total_tokens": 11467
+    },
+    {
+      "completion_tokens": 372,
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "prompt_tokens": 10799,
+      "prompt_tokens_details": {
+        "cached_tokens": 10752
+      },
+      "total_tokens": 11171
+    }
+  ]
+}

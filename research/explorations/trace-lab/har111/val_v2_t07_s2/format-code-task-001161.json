@@ -1,0 +1,141 @@
+{
+  "task_id": "format-code-task-001161",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "Path",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 4,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "resolve",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 7,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "parents",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 7,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "TemporaryDirectory",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 11,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "toml",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 16,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "returncode",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 25,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stderr",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 25,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "call_with_a_very_long_argument",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 39,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "very_long_function_name",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 83,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "--wrap-descriptions",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 107,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "NamedTemporaryFile",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 187,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "name",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 189,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "unlink",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 218,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "A `--config <path>` command-line option that loads a pyproject.toml-style config file; the instruction only says the setting must be read from `[tool.docformatter]` configuration, but the tests invoke the formatter with `--config` explicitly.",
+      "test_ref": "tests/test_structured_wrapping_codespec.py:23 and :196",
+      "quote": "command.extend([\"--config\", str(config)]) / \"--config\",\\n                    str(config),",
+      "severity": "not_inferable"
+    }
+  ],
+  "instruction_covers": [
+    "--wrap-structured CLI option",
+    "wrap-structured key in [tool.docformatter] pyproject config",
+    "preserving directives/literal blocks/doctests/lists exactly",
+    "wrapping prose around protected regions and resuming",
+    "Sphinx field-list wrapping adjacent to protected regions",
+    "default cautious behavior without the option",
+    "idempotence/stability on re-run",
+    "existing summary capitalization/period normalization",
+    "--wrap-descriptions width setting (pre-existing)"
+  ],
+  "reason": "The tests drive the formatter via a `--config` CLI flag pointing at a pyproject.toml, which the instruction never mentions and which docformatter does not currently expose; every other tested behavior (option name, config key, default fallback, region preservation, stability) is directly requested.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 527,
+    "completion_tokens_details": {
+      "reasoning_tokens": 245
+    },
+    "prompt_tokens": 3119,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3646
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

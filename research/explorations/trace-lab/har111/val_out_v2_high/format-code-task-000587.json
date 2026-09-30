@@ -1,0 +1,52 @@
+{
+  "task_id": "format-code-task-000587",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "ThreadPoolExecutor",
+      "file": "tests/test_redlock.py",
+      "line": 197,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "submit",
+      "file": "tests/test_redlock.py",
+      "line": 198,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "result",
+      "file": "tests/test_redlock.py",
+      "line": 199,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "importable name `redlock` from pottery",
+    "decorator factory form `redlock(key=...)(func)`",
+    "keyword arguments `key` and `masters` (same knobs Redlock accepts)",
+    "lock acquired before call and released after, serializing concurrent calls (test asserts 1 < delta < 2 between 3 concurrent 1-second calls)",
+    "function return value preserved through the decorator"
+  ],
+  "reason": "The hidden test only exercises exactly what the instruction requests: a `redlock` decorator importable from pottery, called with the same knobs Redlock already accepts (key, masters) in a decorator-factory form, serializing concurrent calls. All names and behaviors are either stated in the instruction or pre-existing in Redlock's API.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 498,
+    "completion_tokens_details": {
+      "reasoning_tokens": 328
+    },
+    "prompt_tokens": 1606,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2104
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

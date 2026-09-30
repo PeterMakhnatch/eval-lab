@@ -1,0 +1,211 @@
+{
+  "task_id": "format-code-task-001868",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "models",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 4,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "AutoField",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 4,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "backends",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 10,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "sqlite3",
+      "file": "usercase-test-coderl/fixtures/acceptance_settings.py",
+      "line": 10,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "machinery",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "DictReader",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "model",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 30,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "environ",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 129,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dirname",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 146,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "makedirs",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 148,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "dump",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 150,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "pop",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 162,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ModuleType",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 178,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ModuleSpec",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 181,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "modules",
+      "file": "usercase-test-coderl/fixtures/sitecustomize.py",
+      "line": 182,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "get_version",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 8,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "run_load_default_names",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 17,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "existing-full",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 67,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "Updated English",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 75,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "Keep English",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 80,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ") in (None,",
+      "file": "usercase-test-coderl/usecase.sh",
+      "line": 89,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "Missing/unopenable file error messages must include the literal relative path string of the failing CSV ('styles/fixtures/default_names.csv') on stderr",
+      "test_ref": "usecase.sh F2",
+      "quote": "grep -q \"styles/fixtures/default_names.csv\" err || fail \"F2 stderr: $(cat err)\"",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Missing translation file error message must include the literal path 'styles/locale/cs/names.csv' on stderr",
+      "test_ref": "usecase.sh F3",
+      "quote": "grep -q \"styles/locale/cs/names.csv\" err || fail \"F3 stderr: $(cat err)\"",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Missing required column error messages must include the literal column name ('slug' for default file, 'name_cs' for translation file) on stderr",
+      "test_ref": "usecase.sh F4/F5",
+      "quote": "grep -q \"slug\" err || fail \"F4 stderr: $(cat err)\" / grep -q \"name_cs\" err || fail \"F5 stderr: $(cat err)\"",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "The unknown-slug warning must include the offending slug value and be emitted on stderr (logger output), not just logged",
+      "test_ref": "usecase.sh F1",
+      "quote": "grep -q 'unknown-slug' err || fail \"F1 missing unknown-slug warning: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "New rows created from partial CSV data may leave missing fields as None/empty (fake model's __getattr__ returns None for name_*); created rows are persisted via save() per-slug replacement semantics matching the fake model's JSON store",
+      "test_ref": "usecase.sh F1 python check",
+      "quote": "assert by_slug[\"new-partial\"].get(\"group\") in (None, \"\")",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "command name load_default_names with no required flags and exit code 0 on success",
+    "reading styles/fixtures/default_names.csv and styles/locale/<lang>/names.csv with given columns",
+    "update-only-non-empty semantics for existing slugs, create for new slugs",
+    "skip settings.LANGUAGE_CODE, walk settings.LANGUAGES",
+    "unknown slug warning without row creation",
+    "failure (non-zero exit) when a CSV cannot be opened or lacks a required column"
+  ],
+  "reason": "The instruction specifies behaviour and failure, but the hidden tests additionally require exact file-path and column-name strings in stderr diagnostics and that warnings/errors be emitted to stderr, none of which are stated; these exact message contents are not inferable without the tests. The None-vs-empty handling of created partial rows is only a mild convention guess.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 868,
+    "completion_tokens_details": {
+      "reasoning_tokens": 267
+    },
+    "prompt_tokens": 4591,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 5459
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

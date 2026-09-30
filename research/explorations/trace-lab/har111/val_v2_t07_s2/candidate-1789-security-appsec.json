@@ -1,0 +1,174 @@
+{
+  "task_id": "candidate-1789-security-appsec",
+  "rule_label": "broken",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "insert",
+      "file": "tests/test_outputs.py",
+      "line": 22,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Metrics",
+      "file": "tests/test_outputs.py",
+      "line": 24,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "checks",
+      "file": "tests/test_outputs.py",
+      "line": 25,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "begin",
+      "file": "tests/test_outputs.py",
+      "line": 42,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "read_bytes",
+      "file": "tests/test_outputs.py",
+      "line": 47,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "splitlines",
+      "file": "tests/test_outputs.py",
+      "line": 47,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_file",
+      "file": "tests/test_outputs.py",
+      "line": 59,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "cfg",
+      "file": "tests/test_outputs.py",
+      "line": 61,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "tests/functional/test_functional.py",
+      "file": "tests/test_outputs.py",
+      "line": 62,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "sha256",
+      "file": "tests/test_outputs.py",
+      "line": 64,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "hexdigest",
+      "file": "tests/test_outputs.py",
+      "line": 64,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "expected_line",
+      "file": "tests/test_outputs.py",
+      "line": 85,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "expected_column",
+      "file": "tests/test_outputs.py",
+      "line": 86,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "col_offset",
+      "file": "tests/test_outputs.py",
+      "line": 86,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "expected_character",
+      "file": "tests/test_outputs.py",
+      "line": 88,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "context_line",
+      "file": "tests/test_outputs.py",
+      "line": 116,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "context_range",
+      "file": "tests/test_outputs.py",
+      "line": 117,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "latin1_clean",
+      "file": "tests/test_outputs.py",
+      "line": 164,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "generic_fallback",
+      "file": "tests/test_outputs.py",
+      "line": 164,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "finding_count",
+      "file": "tests/test_outputs.py",
+      "line": 166,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Plugin-provided non-empty Issue.linerange preserved through BanditTester.run_tests (tests read tester.results linerange)",
+    "Generic empty-linerange context fallback (test_core_generic_fallback_is_preserved)",
+    "B613 HIGH/MEDIUM, line 4 column 25 linerange [4] for UTF-8 example",
+    "Latin-1 example decodes with no findings",
+    "tester.results attribute the hidden tests read already exists in the BanditTester implementation being repaired",
+    "Report schema 'tbench.bandit_location_report.v1' written by the supplied runner described in the instruction",
+    "Protected file hashes / do-not-modify constraints stated in instruction"
+  ],
+  "reason": "All concrete hidden-test requirements map to behaviors the instruction explicitly states (linerange preservation, fallback, B613 location values, Latin-1 cleanliness), pre-existing Bandit APIs (tester.results, Metrics, checks/test_id decorators, Issue), or artifacts produced by the runner the instruction directs the agent to run.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 965,
+    "completion_tokens_details": {
+      "reasoning_tokens": 751
+    },
+    "prompt_tokens": 2838,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3803
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

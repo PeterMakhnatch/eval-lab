@@ -1,0 +1,178 @@
+{
+  "task_id": "format-code-task-000383",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "xml",
+      "file": "usercase-test-coderl/fixtures/quickfix_two_sessions.cfg",
+      "line": 12,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "annotations",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 10,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "filterwarnings",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 17,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "SubscriptionRequestType_SNAPSHOT_PLUS_UPDATES",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 29,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "SubscriptionRequestType_DISABLE_PREVIOUS_SNAPSHOT_PLUS_UPDATE_REQUEST",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 33,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "DataStream",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "FixDecoder",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "OrderStore",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Tier1FXAuto",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 38,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "SessionSettings",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 41,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "cfg",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 42,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "getSessions",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 48,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "onCreate",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 49,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "MonkeyPatch",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 54,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "toString",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 70,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "getHeader",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 74,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "getField",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 74,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "getGroup",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 81,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "].strip() !=",
+      "file": "usercase-test-coderl/test_market_data_requests.py",
+      "line": 113,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Generated 262 MarketDataRequest IDs must be unique across successive calls on the same client instance (and non-empty), not merely present",
+      "test_ref": "test_same_client_advances_generated_market_data_request_ids",
+      "quote": "assert len(set(generated_ids)) == len(generated_ids)",
+      "severity": "guessable"
+    },
+    {
+      "what": "The message must be routable to the quote session such that the mocked Session.sendToTarget receives a session_id whose toString equals the quote session string, or a message with tag 56 equal to the quote target (routing choice)",
+      "test_ref": "_assert_sent_to_quote_session",
+      "quote": "assert session_id.toString() == QUOTE_SESSION ... assert message.getHeader().getField(56) == QUOTE_TARGET",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "subscribe_to_data/unsubscribe_to_data method names and None return",
+    "35=V, 263=1/2, 264=1, 265=0, 267=2, 269 bid/offer, 146=1, 55 symbol groups",
+    "55 default EUR/USD and overrides for 264/267/265",
+    "ValueError on non-integer 264/267 with no send",
+    "tier1 client construction from settings (pre-existing Tier1FXAuto)"
+  ],
+  "reason": "The instruction covers nearly all behavior; only the per-client uniqueness/advancement of generated 262 IDs and the concrete quote-session routing mechanism (session_id vs tag 56) are beyond its explicit text.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 620,
+    "completion_tokens_details": {
+      "reasoning_tokens": 283
+    },
+    "prompt_tokens": 4225,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 4845
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

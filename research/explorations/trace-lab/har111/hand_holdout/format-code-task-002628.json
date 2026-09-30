@@ -1,0 +1,21 @@
+{
+  "task_id": "format-code-task-002628",
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "InfinitySemanticSearcher must be importable from opendeepsearch.ranking_models.infinity_rerank. The instruction names the class but never its module, and the repo does not either: ranking_models/ contains only a README, which documents imports for base_reranker.BaseSemanticSearcher and jina_reranker.JinaReranker but shows no Infinity import, and no file in the snapshot mentions infinity_rerank or InfinitySemanticSearcher. The sibling convention (JinaReranker -> jina_reranker.py) predicts infinity_reranker.py or infinity_semantic_searcher.py, not infinity_rerank.py, so a correct class placed in the natural file fails the import.",
+      "test_ref": "usercase-test-coderl/test_embedding_rerankers.py:22",
+      "quote": "from opendeepsearch.ranking_models.infinity_rerank import InfinitySemanticSearcher",
+      "severity": "not_inferable"
+    }
+  ],
+  "instruction_covers": [
+    "BaseSemanticSearcher.calculate_scores embeds queries and documents, takes the dot product, and supports softmax, scale (times 100) and none, raising ValueError naming any unknown method",
+    "rerank returns [{document, score}] for one query and one ranked list per query for several, with the worked sky example",
+    "get_reranked_documents returns the stripped top passage text ('blue sky')",
+    "InfinitySemanticSearcher posts the selected model and the instruction_prefix-formatted input texts to its endpoint, parses data[*].embedding into a tensor, and warns and truncates one embedding call to 2048",
+    "JinaReranker reads JINA_API_KEY from .env or the environment and raises ValueError when no key exists, posts to the Jina endpoint with bearer auth and the specified payload, and surfaces request failures as RuntimeError including the underlying error"
+  ],
+  "notes": "The two other import paths are discoverable: the repo README explicitly shows 'from opendeepsearch.ranking_models.base_reranker import BaseSemanticSearcher' and 'from opendeepsearch.ranking_models.jina_reranker import JinaReranker', and it tells a subclass to implement _get_embeddings, which is the hook the tests override. Only the Infinity module name is absent everywhere. The instruction's 'formatted input texts' does cover prefixing every text sent, including documents, so that is stated rather than hidden, though the default prefix ending in 'Query: ' could tempt an engineer to prefix queries only. The truncation, warning and per-instance isolation tests follow from the stated behaviour.",
+  "read_minutes": 25
+}

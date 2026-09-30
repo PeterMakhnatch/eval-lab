@@ -1,0 +1,172 @@
+{
+  "task_id": "candidate-1789-security-appsec",
+  "rule_label": "broken",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "insert",
+      "file": "tests/test_outputs.py",
+      "line": 22,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Metrics",
+      "file": "tests/test_outputs.py",
+      "line": 24,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "checks",
+      "file": "tests/test_outputs.py",
+      "line": 25,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "begin",
+      "file": "tests/test_outputs.py",
+      "line": 42,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "read_bytes",
+      "file": "tests/test_outputs.py",
+      "line": 47,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "splitlines",
+      "file": "tests/test_outputs.py",
+      "line": 47,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_file",
+      "file": "tests/test_outputs.py",
+      "line": 59,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "cfg",
+      "file": "tests/test_outputs.py",
+      "line": 61,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "tests/functional/test_functional.py",
+      "file": "tests/test_outputs.py",
+      "line": 62,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "sha256",
+      "file": "tests/test_outputs.py",
+      "line": 64,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "hexdigest",
+      "file": "tests/test_outputs.py",
+      "line": 64,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "expected_line",
+      "file": "tests/test_outputs.py",
+      "line": 85,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "expected_column",
+      "file": "tests/test_outputs.py",
+      "line": 86,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "col_offset",
+      "file": "tests/test_outputs.py",
+      "line": 86,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "expected_character",
+      "file": "tests/test_outputs.py",
+      "line": 88,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "context_line",
+      "file": "tests/test_outputs.py",
+      "line": 116,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "context_range",
+      "file": "tests/test_outputs.py",
+      "line": 117,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "latin1_clean",
+      "file": "tests/test_outputs.py",
+      "line": 164,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "generic_fallback",
+      "file": "tests/test_outputs.py",
+      "line": 164,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "finding_count",
+      "file": "tests/test_outputs.py",
+      "line": 166,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Preserve plugin-provided non-empty Issue.linerange through BanditTester.run_tests (instruction point 1; test_core_non_b613_explicit_range_is_preserved sets result.linerange = [71, 72] and asserts it survives)",
+    "Generic empty-linerange fallback to context (instruction point 2; test_core_generic_fallback_is_preserved with a private B998 plugin)",
+    "B613 severity HIGH, confidence MEDIUM, line 4, column 25, linerange [4] (instruction point 3; matches test_core_private_utf8_location and test_edge_bundled_encoding_paths assertions)",
+    "Latin-1 example decodes with no B613 finding (instruction point 4; test_edge_bundled_encoding_paths asserts latin1 == [])",
+    "No modification of protected files/tests (instruction point 5; PROTECTED_HASHES gate)",
+    "Report artifact /app/repair_report. with schema tbench.bandit_location_report.v1 produced by the supplied runner (instruction's focused workflow; report details are runner output, i.e. scaffolding)"
+  ],
+  "reason": "Every hidden-test requirement maps directly to the instruction: the linerange-authoritative fix, the generic fallback, the exact B613 location/severity values, the Latin-1 clean case, and the report artifact are all explicitly stated. Remaining literals (case ids, Metrics/checks helpers, protected hashes, report shape) come from the supplied runner, fixtures, or existing unchanged code, so no unstated, non-scaffolding requirements exist.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 1015,
+    "completion_tokens_details": {
+      "reasoning_tokens": 677
+    },
+    "prompt_tokens": 2838,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 3853
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

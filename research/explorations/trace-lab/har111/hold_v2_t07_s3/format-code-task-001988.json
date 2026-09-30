@@ -1,0 +1,70 @@
+{
+  "task_id": "format-code-task-001988",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "factory",
+      "file": "tests/test_middleware.py",
+      "line": 237,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "user",
+      "file": "tests/test_middleware.py",
+      "line": 238,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "is_refreshable_url",
+      "file": "tests/test_middleware.py",
+      "line": 241,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "override_settings",
+      "file": "tests/test_middleware.py",
+      "line": 243,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Public method name `is_refreshable_url` on SessionRefresh middleware that tests call directly; instruction never names it (though it exists as the internal exemption check, so refactor must preserve this exact name/shape taking a request)",
+      "test_ref": "tests/test_middleware.py:241",
+      "quote": "middleware = SessionRefresh()\nassert middleware.is_refreshable_url(request)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Regex must match via full/partial match against request.path such that re.compile(r'^/mdo_.*_view/$') exempts '/mdo_fake_view/' \u2014 pattern semantics (match/search against request.path) unstated",
+      "test_ref": "tests/test_middleware.py:test_is_not_refreshable_url_exempt_pattern",
+      "quote": "@override_settings(OIDC_EXEMPT_URLS=[re.compile(r'^/mdo_.*_view/$')])\n...\nassert not middleware.is_refreshable_url(request)",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "OIDC_EXEMPT_URLS accepting compiled regex patterns mixed with strings and view names",
+    "exempt paths/view names continue to work (existing behavior)"
+  ],
+  "reason": "The regex feature is fully described, but the tests additionally pin the middleware's public method name `is_refreshable_url` (existing in code, so largely covered) and the regex matching semantics against request.path, which are natural-but-unnamed choices.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 308,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1706,
+    "prompt_tokens_details": {
+      "cached_tokens": 1664
+    },
+    "total_tokens": 2014
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

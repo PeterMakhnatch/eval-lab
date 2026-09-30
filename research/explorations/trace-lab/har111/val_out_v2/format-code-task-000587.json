@@ -1,0 +1,49 @@
+{
+  "task_id": "format-code-task-000587",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "ThreadPoolExecutor",
+      "file": "tests/test_redlock.py",
+      "line": 197,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "submit",
+      "file": "tests/test_redlock.py",
+      "line": 198,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "result",
+      "file": "tests/test_redlock.py",
+      "line": 199,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "`redlock` importable from `pottery` as a lowercase counterpart of `Redlock`",
+    "decorator factory accepting `key`, `masters`, and timeout knobs",
+    "serialized acquire/release around each call \u2014 verified by the 1\u20132s stagger in test_redlock_decorator"
+  ],
+  "reason": "The tests exercise exactly the feature requested: a `redlock` decorator factory importable from `pottery`, taking the same kwargs as `Redlock` (key, masters). The concurrency test is a direct behavioral check of the requested serialization. ThreadPoolExecutor/submit/result are test scaffolding, not unstated requirements.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 276,
+    "completion_tokens_details": {
+      "reasoning_tokens": 135
+    },
+    "prompt_tokens": 1606,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 1882
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

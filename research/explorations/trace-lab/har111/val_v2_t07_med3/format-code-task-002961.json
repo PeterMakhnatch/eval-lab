@@ -1,0 +1,81 @@
+{
+  "task_id": "format-code-task-002961",
+  "label": "broken",
+  "sample_labels": [
+    "broken",
+    "broken",
+    "sound"
+  ],
+  "unstated": [
+    {
+      "what": "The view returned by get_view must serialize a sort stage with kwarg create_index=False (no index created), an exact kwarg name and value not stated in the instruction",
+      "test_ref": "tests/unittests/server_view_tests.py:955-960",
+      "quote": "[\"field_or_expr\", \"value\"],\n                [\"reverse\", False],\n                [\"create_index\", False],",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "get_view must accept a desc=True parameter for descending sort and serialize it as reverse=True",
+      "test_ref": "tests/unittests/server_view_tests.py:961-969",
+      "quote": "view = fosv.get_view(dataset.name, sort_by=\"value\", desc=True)",
+      "severity": "guessable"
+    },
+    {
+      "what": "get_view must accept a `desc` parameter controlling sort direction, serialized as `reverse`",
+      "test_ref": "tests/unittests/server_view_tests.py:963",
+      "quote": "view = fosv.get_view(dataset.name, sort_by=\"value\", desc=True)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "get_view must accept a `sort_by` parameter (signature name not in instruction)",
+      "test_ref": "tests/unittests/server_view_tests.py:952",
+      "quote": "view = fosv.get_view(dataset.name, sort_by=\"value\")",
+      "severity": "guessable"
+    },
+    {
+      "what": "Serialized stage must include create_index=False (no-index behavior) with exact kwarg names field_or_expr/reverse/create_index",
+      "test_ref": "tests/unittests/server_view_tests.py:955",
+      "quote": "[\"field_or_expr\", \"value\"], [\"reverse\", False], [\"create_index\", False],",
+      "severity": "not_inferable"
+    }
+  ],
+  "reasons": [
+    "The instruction only describes behavior; the test pins the exact serialization kwargs including the create_index=False flag and the desc parameter name, which are not stated.",
+    "The instruction describes the two bug behaviors (sort on unfiltered view, no indexes), which cover create_index=False conceptually, but the tests require a specific `desc` keyword on get_view and an exact serialized kwarg schema that the instruction never states.",
+    "The test only verifies the existing sort stage kwargs (field_or_expr/reverse/create_index) already used by the codebase; the instruction's requirements (sort applies without filters, no indexes created) directly imply create_index=False. Nothing new or unverifiable is required."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 295,
+      "completion_tokens_details": {
+        "reasoning_tokens": 51
+      },
+      "prompt_tokens": 1434,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 1729
+    },
+    {
+      "completion_tokens": 306,
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "prompt_tokens": 1434,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 1740
+    },
+    {
+      "completion_tokens": 206,
+      "completion_tokens_details": {
+        "reasoning_tokens": 102
+      },
+      "prompt_tokens": 1434,
+      "prompt_tokens_details": {
+        "cached_tokens": 1408
+      },
+      "total_tokens": 1640
+    }
+  ]
+}

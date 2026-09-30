@@ -1,0 +1,50 @@
+{
+  "task_id": "candidate-1789-security-appsec",
+  "label": "sound",
+  "sample_labels": [
+    "sound",
+    "sound",
+    "sound"
+  ],
+  "unstated": [],
+  "reasons": [
+    "The instruction states the exact expected location metadata, the generic fallback rule, and the report schema; the remaining test literals (case ids, fixture keys) are written by the supplied runner or are test scaffolding, so nothing unstated is required of the fix.",
+    "All concrete hidden-test requirements map to behaviors the instruction explicitly states (linerange preservation, fallback, B613 location values, Latin-1 cleanliness), pre-existing Bandit APIs (tester.results, Metrics, checks/test_id decorators, Issue), or artifacts produced by the runner the instruction directs the agent to run.",
+    "All test expectations map to the instruction's four required behaviors or to pre-existing code/test scaffolding (metrics, decorators, fixtures, report runner)."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 316,
+      "completion_tokens_details": {
+        "reasoning_tokens": 167
+      },
+      "prompt_tokens": 2838,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 3154
+    },
+    {
+      "completion_tokens": 965,
+      "completion_tokens_details": {
+        "reasoning_tokens": 751
+      },
+      "prompt_tokens": 2838,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3803
+    },
+    {
+      "completion_tokens": 267,
+      "completion_tokens_details": {
+        "reasoning_tokens": 159
+      },
+      "prompt_tokens": 2838,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3105
+    }
+  ]
+}

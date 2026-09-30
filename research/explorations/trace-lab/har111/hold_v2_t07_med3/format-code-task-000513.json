@@ -1,0 +1,117 @@
+{
+  "task_id": "format-code-task-000513",
+  "label": "suspect",
+  "sample_labels": [
+    "suspect",
+    "suspect",
+    "suspect"
+  ],
+  "unstated": [
+    {
+      "what": "Equivalent numeric strings with trailing zeros (e.g. \"0.90\") must normalize to the stored key \"0.9\"; instruction only demonstrates \"0.1\".",
+      "test_ref": "test_equivalent_numeric_string_for_stored_right_decile_returns_array",
+      "quote": "actual = base_forecast().quantile(\"0.90\")\n    assert_array_equal_with_nan(actual, np.array([100.0, 200.0]))",
+      "severity": "guessable"
+    },
+    {
+      "what": "A \"mean\" key must be excluded from the stored quantile levels when interpolating (only mean-only case is described).",
+      "test_ref": "test_mean_key_is_ignored_when_interpolating_quantiles",
+      "quote": "forecast_keys=[\"mean\", \"0.25\", \"0.75\"] ... assert_array_equal_with_nan(actual, np.array([5.5, 11.0, 16.5]))",
+      "severity": "guessable"
+    },
+    {
+      "what": "The \"p\"-prefixed string form must also work for non-median levels like \"p90\", not just the \"p50\" example given.",
+      "test_ref": "test_single_stored_quantile_missing_request_returns_nan_per_step",
+      "quote": "actual = forecast.quantile(\"p90\")",
+      "severity": "guessable"
+    },
+    {
+      "what": "Tail extrapolation must be finite, monotone beyond the stored tails, and differ from linear extrapolation \u2014 the exact exponential formula is never specified.",
+      "test_ref": "test_missing_quantile_in_effective_left_tail_extrapolates",
+      "quote": "assert np.all(np.isfinite(actual))\n    assert np.all(actual < np.array([1.0, 2.0]))\n    ... assert not np.allclose(actual, linear_tail, ...)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Results must be bit-identical across fresh processes (subprocess comparison); instruction only says calls are repeatable and side-effect free.",
+      "test_ref": "test_quantile_result_matches_fresh_process_result",
+      "quote": "np.testing.assert_allclose(\n        np.array(in_process),\n        np.array(.loads(completed.stdout)),\n        rtol=1e-12,\n        atol=1e-12,\n    )",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exponential tail approximation details: tests only require finite values outside stored range, monotone beyond tail quantiles, and differing from linear extrapolation \u2014 exact functional form not specified beyond the phrase 'exponential tail approximation'",
+      "test_ref": "test_missing_quantile_in_effective_left_tail_extrapolates",
+      "quote": "assert not np.allclose(actual, linear_tail, rtol=1e-12, atol=1e-12)",
+      "severity": "guessable"
+    },
+    {
+      "what": "A 'mean' key in forecast_keys must be excluded when selecting stored quantile arrays for interpolation (instruction only mentions the mean-only edge case)",
+      "test_ref": "test_mean_key_is_ignored_when_interpolating_quantiles",
+      "quote": "forecast_keys=[\"mean\", \"0.25\", \"0.75\"] ... assert_array_equal_with_nan(actual, np.array([5.5, 11.0, 16.5]))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Numeric strings with trailing zeros like \"0.90\" must normalize to level 0.9 and match a stored key",
+      "test_ref": "test_equivalent_numeric_string_for_stored_right_decile_returns_array",
+      "quote": "actual = base_forecast().quantile(\"0.90\")",
+      "severity": "guessable"
+    },
+    {
+      "what": "Numeric string \"0.90\" must normalize to match stored key \"0.9\" (string-to-level parsing must tolerate trailing-zero formatting and p-style prefixes)",
+      "test_ref": "test_equivalent_numeric_string_for_stored_right_decile_returns_array",
+      "quote": "actual = base_forecast().quantile(\"0.90\")\n...\nassert_array_equal_with_nan(actual, np.array([100.0, 200.0]))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exponential tail extrapolation must not coincide with linear extrapolation of the two nearest stored quantiles (rules out a trivially linear tail implementation); only monotonicity/finiteness beyond the extreme stored quantile is otherwise checked",
+      "test_ref": "test_missing_quantile_in_effective_left_tail_extrapolates",
+      "quote": "assert not np.allclose(actual, linear_tail, rtol=1e-12, atol=1e-12)",
+      "severity": "guessable"
+    },
+    {
+      "what": "A stored quantile key like \"0.90\" (as a variant of \"0.9\") is not itself in the fixture, so matching \"0.90\" to \"0.9\" requires the same normalization as \"p50\" \u2014 same item as above, listed once",
+      "test_ref": "test_equivalent_numeric_string_for_stored_right_decile_returns_array",
+      "quote": "forecast.quantile(\"0.90\")",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "This is largely a repair of the existing GluonTS QuantileForecast.quantile, so most behavior pre-exists; the remaining hidden-test demands (string normalization variants, mean-key exclusion, exact tail formula differing from linear, cross-process determinism) are natural engineering choices a careful implementer would likely make, though the instruction never states them.",
+    "The instruction covers most behavior; the unstated items are natural engineering choices: ignoring 'mean' keys when interpolating, string float normalization, and the exact (loosely constrained) exponential tail form.",
+    "Nearly all test behaviors are stated in the instruction. The only unstated specifics are formatting tolerance when normalizing quantile strings (e.g. \"0.90\" vs \"0.9\") \u2014 a conventional, guessable parsing choice \u2014 and that the exponential tail must differ from linear extrapolation, which the instruction already implies by naming an exponential tail approximation."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 992,
+      "completion_tokens_details": {
+        "reasoning_tokens": 332
+      },
+      "prompt_tokens": 3465,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 4457
+    },
+    {
+      "completion_tokens": 525,
+      "completion_tokens_details": {
+        "reasoning_tokens": 118
+      },
+      "prompt_tokens": 3465,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3990
+    },
+    {
+      "completion_tokens": 664,
+      "completion_tokens_details": {
+        "reasoning_tokens": 174
+      },
+      "prompt_tokens": 3465,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 4129
+    }
+  ]
+}

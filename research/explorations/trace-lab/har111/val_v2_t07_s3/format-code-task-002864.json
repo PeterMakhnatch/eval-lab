@@ -1,0 +1,56 @@
+{
+  "task_id": "format-code-task-002864",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "dialects",
+      "file": "test_commands.json",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "TestTrino",
+      "file": "test_commands.json",
+      "line": 2,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Bare wrapper variants without the ARRAY keyword: 'WITH WRAPPER' and 'WITHOUT WRAPPER' (instruction only shows 'WITH/WITHOUT ARRAY WRAPPER')",
+      "test_ref": "tests/dialects/test_trino.py test__query_with_wrapper / test__query_without_wrapper",
+      "quote": "\"JSON_QUERY(description, 'strict $.comment' WITH WRAPPER)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "'WITHOUT CONDITIONAL WRAPPER' \u2014 the mirror of the pre-existing 'WITH UNCONDITIONAL WRAPPER'; instruction only mentions WITH/WITHOUT ARRAY WRAPPER",
+      "test_ref": "tests/dialects/test_trino.py test__query_preserves_existing_options",
+      "quote": "\"JSON_QUERY(content, 'strict $.HY.*' WITHOUT CONDITIONAL WRAPPER)\"",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Parsing of 'WITH ARRAY WRAPPER' and 'WITHOUT ARRAY WRAPPER' in Trino JSON_QUERY",
+    "Round-trip output containing those wrapper clauses"
+  ],
+  "reason": "The instruction's example only exercises WITH/WITHOUT ARRAY WRAPPER; the hidden tests additionally require the bare WRAPPER forms and the WITHOUT CONDITIONAL WRAPPER variant, which are natural sibling cases a careful engineer would likely cover but are not stated.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 452,
+    "completion_tokens_details": {
+      "reasoning_tokens": 181
+    },
+    "prompt_tokens": 1665,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2117
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

@@ -1,0 +1,102 @@
+{
+  "task_id": "format-code-task-002407",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "eye",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1222,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "zeros",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1224,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "input_output_response",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1251,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "step_response",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1259,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "impulse_response",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1285,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "initial_response",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1302,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "step_response must propagate input/output/state labels",
+      "test_ref": "timeresp_test.py::test_step_response_labels_preserved",
+      "quote": "assert list(res.output_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "step_response with input/output selection must subset labels",
+      "test_ref": "timeresp_test.py::test_step_response_input_selection_labels",
+      "quote": "assert list(res.input_labels) == [\"Va\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "impulse_response must propagate labels",
+      "test_ref": "timeresp_test.py::test_impulse_response_labels_preserved",
+      "quote": "assert list(res.input_labels) == [\"Tl\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "initial_response must propagate labels and subset on output selection",
+      "test_ref": "timeresp_test.py::test_initial_response_labels_preserved",
+      "quote": "assert list(res.output_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "input_output_response must propagate labels",
+      "test_ref": "timeresp_test.py::test_input_output_response_labels_preserved",
+      "quote": "assert list(res.state_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "forced_response preserving input/output/state labels",
+    "fixing to_pandas None-label TypeError"
+  ],
+  "reason": "The issue only mentions forced_response, but hidden tests require label propagation (and subsetting with input/output kwargs) across step, impulse, initial, and input_output_response. These are natural extensions of the same label-passing fix, so guessable rather than not_inferable.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 449,
+    "completion_tokens_details": {
+      "reasoning_tokens": 75
+    },
+    "prompt_tokens": 2475,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2924
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

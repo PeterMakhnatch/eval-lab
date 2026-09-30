@@ -1,0 +1,100 @@
+{
+  "task_id": "format-code-task-002407",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "eye",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1222,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "zeros",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1224,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "input_output_response",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1251,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "step_response",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1259,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "impulse_response",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1285,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "initial_response",
+      "file": "control/tests/timeresp_test.py",
+      "line": 1302,
+      "stated": false
+    }
+  ],
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "input_output_response must also propagate system labels",
+      "test_ref": "test_input_output_response_labels_preserved",
+      "quote": "res = ct.input_output_response(sys, T, U=[Va, Tl], X0=[0, 0])\n    assert list(res.output_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "step_response must propagate system labels (input, output, and state labels)",
+      "test_ref": "test_step_response_labels_preserved",
+      "quote": "res = ct.step_response(sys)\n    assert list(res.output_labels) == [\"Ia\", \"Wm\"]\n    assert list(res.input_labels) == [\"Va\", \"Tl\"]\n    assert res.state_labels is not None",
+      "severity": "guessable"
+    },
+    {
+      "what": "step_response with input= must subset input labels (and output= subset output labels)",
+      "test_ref": "test_step_response_input_selection_labels / test_step_response_output_selection_labels",
+      "quote": "res = ct.step_response(sys, input=0)\n    assert list(res.input_labels) == [\"Va\"]",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "impulse_response must propagate labels, including with input/output selection",
+      "test_ref": "test_impulse_response_labels_preserved / test_impulse_response_selection_labels",
+      "quote": "res = ct.impulse_response(sys, input=1, output=0)\n    assert list(res.input_labels) == [\"Tl\"]\n    assert list(res.output_labels) == [\"Ia\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "initial_response must propagate labels, including output= selection subsetting output labels",
+      "test_ref": "test_initial_response_labels_preserved / test_initial_response_output_selection_labels",
+      "quote": "res = ct.initial_response(sys, X0=[1, 0], output=1)\n    assert list(res.output_labels) == [\"Wm\"]",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "forced_response returns non-None input_labels, output_labels, state_labels matching the system",
+    "to_pandas works without manual label assignment"
+  ],
+  "reason": "The instruction only mentions forced_response label propagation; the hidden tests additionally require the same propagation (and subsetting under input=/output= selection) for input_output_response, step_response, impulse_response, and initial_response, which are sibling behaviors not stated.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 616,
+    "completion_tokens_details": {
+      "reasoning_tokens": 87
+    },
+    "prompt_tokens": 2475,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 3091
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

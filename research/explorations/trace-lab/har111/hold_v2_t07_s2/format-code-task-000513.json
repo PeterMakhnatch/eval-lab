@@ -1,0 +1,122 @@
+{
+  "task_id": "format-code-task-000513",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "deepcopy",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "model",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 11,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "testing",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 32,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "isfinite",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 95,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "allclose",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 100,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "tolist",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 223,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "insert",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 227,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 240,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "chdir",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 260,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "listdir",
+      "file": "usercase-test-coderl/test_quantile_forecast_quantile.py",
+      "line": 261,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Exponential tail approximation details: tests only require finite values outside stored range, monotone beyond tail quantiles, and differing from linear extrapolation \u2014 exact functional form not specified beyond the phrase 'exponential tail approximation'",
+      "test_ref": "test_missing_quantile_in_effective_left_tail_extrapolates",
+      "quote": "assert not np.allclose(actual, linear_tail, rtol=1e-12, atol=1e-12)",
+      "severity": "guessable"
+    },
+    {
+      "what": "A 'mean' key in forecast_keys must be excluded when selecting stored quantile arrays for interpolation (instruction only mentions the mean-only edge case)",
+      "test_ref": "test_mean_key_is_ignored_when_interpolating_quantiles",
+      "quote": "forecast_keys=[\"mean\", \"0.25\", \"0.75\"] ... assert_array_equal_with_nan(actual, np.array([5.5, 11.0, 16.5]))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Numeric strings with trailing zeros like \"0.90\" must normalize to level 0.9 and match a stored key",
+      "test_ref": "test_equivalent_numeric_string_for_stored_right_decile_returns_array",
+      "quote": "actual = base_forecast().quantile(\"0.90\")",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "quantile(float|str) returning np.ndarray aligned to horizon",
+    "p50 string normalization",
+    "stored-decile lookup",
+    "linear interpolation at 0.75 -> [66.25, 132.5]",
+    "NaN array for <2 stored quantiles or mean-only",
+    "determinism/no mutation/no filesystem/network IO"
+  ],
+  "reason": "The instruction covers most behavior; the unstated items are natural engineering choices: ignoring 'mean' keys when interpolating, string float normalization, and the exact (loosely constrained) exponential tail form.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 525,
+    "completion_tokens_details": {
+      "reasoning_tokens": 118
+    },
+    "prompt_tokens": 3465,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 3990
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

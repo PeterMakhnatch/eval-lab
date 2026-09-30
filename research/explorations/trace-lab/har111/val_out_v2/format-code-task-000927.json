@@ -1,0 +1,48 @@
+{
+  "task_id": "format-code-task-000927",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "through",
+      "file": "tests/test_api.py",
+      "line": 840,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Exact code point escape format: lowercase hex digits followed by a trailing space (e.g. '\\x01' -> '\\\\1 ', '1abc' -> '\\\\31 abc') \u2014 the instruction only says 'escaped as code point' without specifying the output format",
+      "test_ref": "tests/test_api.py::test_escape_control_low",
+      "quote": "self.assertEqual(sv.escape('\\x01'), '\\\\1 ')",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact 'escaped character' output format: backslash prefix before the literal character (e.g. 'a.b' -> 'a\\\\.b', 'a b' -> 'a\\\\ b', '-' -> '\\\\-') \u2014 the instruction only says 'the escaped character'",
+      "test_ref": "tests/test_api.py::test_escape_special_char_dot",
+      "quote": "self.assertEqual(sv.escape('a.b'), 'a\\\\.b')",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Existence of a public callable escape API named 'escape' (exposed as sv.escape, where the sv alias is pre-existing test scaffolding)",
+    "NULL -> U+FFFD replacement, control-char/digit-lead/dash-lead rules, and passthrough rules with all character classes",
+    "Behavior for empty string and all listed passthrough cases"
+  ],
+  "reason": "The instruction reproduces the full CSSOM escape algorithm, and 'escape' is the stated API name, so tests mostly restate it. Only the exact output formatting of 'escaped as code point' and 'escaped character' (lowercase hex + trailing space; backslash prefix) is not spelled out, though these are conventional and dictated by the referenced CSS spec.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 599,
+    "completion_tokens_details": {
+      "reasoning_tokens": 236
+    },
+    "prompt_tokens": 2088,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2687
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-002256",
+  "label": "sound",
+  "sample_labels": [
+    "sound",
+    "sound",
+    "sound"
+  ],
+  "unstated": [],
+  "reasons": [
+    "All hidden test assertions directly exercise the reported bug and its bounded-queue counterpart shown in the instruction. AsyncQueue, task_done, and TemporaryDirectory are pre-existing/test scaffolding, so nothing unstated is required beyond the described fix.",
+    "All hidden tests exercise full()/empty()/qsize() behavior on existing Queue and AsyncQueue classes; the flagged items (TemporaryDirectory, AsyncQueue, task_done) are pre-existing code or test scaffolding, and the maxsize=0 case is stated explicitly in the instruction.",
+    "The hidden tests exercise exactly the behaviors shown in the issue transcript: full() correctness for maxsize=0 (default and explicit) and for bounded queues across the put/get lifecycle. AsyncQueue, task_done, and tempfile usage are pre-existing test scaffolding/library calls."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 233,
+      "completion_tokens_details": {
+        "reasoning_tokens": 121
+      },
+      "prompt_tokens": 2589,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 2822
+    },
+    {
+      "completion_tokens": 211,
+      "completion_tokens_details": {
+        "reasoning_tokens": 92
+      },
+      "prompt_tokens": 2589,
+      "prompt_tokens_details": {
+        "cached_tokens": 2560
+      },
+      "total_tokens": 2800
+    },
+    {
+      "completion_tokens": 220,
+      "completion_tokens_details": {
+        "reasoning_tokens": 79
+      },
+      "prompt_tokens": 2589,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 2809
+    }
+  ]
+}

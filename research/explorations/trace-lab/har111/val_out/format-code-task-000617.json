@@ -1,0 +1,55 @@
+{
+  "task_id": "format-code-task-000617",
+  "rule_label": "broken",
+  "rule_unstated": [
+    {
+      "kind": "literal",
+      "value": "There should be no stderr",
+      "file": "snapcraft/tests/test_cmds.py",
+      "line": 81,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "test-package_1_all.snap",
+      "file": "snapcraft/tests/test_cmds.py",
+      "line": 83,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "can not parse package.yaml: missing required fields",
+      "file": "snapcraft/tests/test_cmds.py",
+      "line": 111,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Error output must go to stderr specifically (stdout must remain clean of error text), rather than any stream",
+      "test_ref": "snapcraft/tests/test_cmds.py:111-113",
+      "quote": "self.assertTrue('can not parse package.yaml: missing required fields' in output_stderr)",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "Non-zero exit on failure is retained",
+    "Underlying tool's error message ('can not parse package.yaml: missing required fields') must be surfaced verbatim, which the instruction requires ('surface whatever the underlying build tool said')"
+  ],
+  "reason": "The instruction clearly requires surfacing the build tool's error text, so the message content itself is covered; the only unstated detail is that it must be printed to stderr (not stdout), which is the conventional but not stated routing and a careful engineer could plausibly print to stdout instead.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 362,
+    "completion_tokens_details": {
+      "reasoning_tokens": 159
+    },
+    "prompt_tokens": 1487,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 1849
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

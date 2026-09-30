@@ -1,0 +1,65 @@
+{
+  "task_id": "format-code-task-001896",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "literal",
+      "value": "nested-hero.jpg",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 137,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "png",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 188,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "State paragraph",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 304,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": ", ((32, 32),),",
+      "file": "usercase-test-coderl/test_generic_html_fallback.py",
+      "line": 306,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "site_name from hostname without credentials/port",
+    "title from <title> then first <h1>",
+    "description from meta, paragraph after h1, then first paragraph",
+    "image from image after h1 (sibling or later) then first document image, ignoring missing src",
+    "None fields for empty/malformed HTML",
+    "favicon tuple (href, sizes, rel) for icon rels, preserving order and duplicates",
+    "sizes None for absent/any, integer pairs for 32x32 and 64\u00d764 formats",
+    "absolute_favicon URL resolution",
+    "invalid/empty rel and empty href ignored",
+    "to_dict includes favicon and absolute_favicon"
+  ],
+  "reason": "Every hidden test assertion corresponds to behavior explicitly described in the instruction, including the nested-image-after-h1 case ('following sibling or later <img>'), the sizes parsing formats, and the to_dict keys.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 297,
+    "completion_tokens_details": {
+      "reasoning_tokens": 103
+    },
+    "prompt_tokens": 3873,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 4170
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

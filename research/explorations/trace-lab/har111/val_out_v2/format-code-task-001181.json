@@ -1,0 +1,61 @@
+{
+  "task_id": "format-code-task-001181",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "Tuple",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Console",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "StringIO",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 20,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_task",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 25,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "positive deltas from advance and update(completed=...) feed one rate estimator",
+    "non-positive deltas excluded from rate evidence but completed updated",
+    "speed = completed / elapsed over retained samples",
+    "time_remaining ceil with None fallback",
+    "finished_time/finished_speed frozen on completion via update",
+    "reset clears rate evidence, retains total, allows fresh estimate",
+    "changing total invalidates rate evidence",
+    "compatibility of fields, rendering, indeterminate tasks"
+  ],
+  "reason": "Every hidden test maps directly to a sentence of the instruction; API names used (speed, time_remaining, finished_speed, finished_time, reset, update, advance) are pre-existing rich Progress/Task fields and behaviors referenced by the instruction.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 234,
+    "completion_tokens_details": {
+      "reasoning_tokens": 78
+    },
+    "prompt_tokens": 2145,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2379
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

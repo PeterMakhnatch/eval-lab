@@ -1,0 +1,136 @@
+{
+  "task_id": "format-code-task-001161",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "Path",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 4,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "resolve",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 7,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "parents",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 7,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "TemporaryDirectory",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 11,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "executable",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 14,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "toml",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 16,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "returncode",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 25,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "stderr",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 25,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "call_with_a_very_long_argument",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 39,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "very_long_function_name",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 83,
+      "stated": false
+    },
+    {
+      "kind": "literal",
+      "value": "--wrap-descriptions",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 107,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "NamedTemporaryFile",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 187,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "name",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 189,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "unlink",
+      "file": "tests/test_structured_wrapping_codespec.py",
+      "line": 218,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "`--wrap-structured` CLI flag (`run_formatter(source, \"--wrap-structured\", ...)` at tests/test_structured_wrapping_codespec.py:240-243) \u2014 named explicitly in the instruction",
+    "`wrap-structured = true` key under `[tool.docformatter]` in pyproject.toml (tests/test_structured_wrapping_codespec.py:18, 185) \u2014 instruction names both the setting and the config section",
+    "`--config` option and config-vs-CLI precedence (`\"--config\", str(config)` at tests/test_structured_wrapping_codespec.py:19, 194) \u2014 pre-existing docformatter mechanism the instruction invokes (\"just like the existing formatter settings\")",
+    "`--wrap-descriptions` widths driving the wrapping (e.g. tests/test_structured_wrapping_codespec.py:107) \u2014 existing setting, instruction says keep configured wrapping widths",
+    "Prose wrapped independently on each side of directive/literal/doctest/list regions with exact expected outputs \u2014 the requested feature, with expectations fixed by the test fixtures themselves",
+    "Preservation of directive option/body text verbatim (`:caption: Keep   option spacing`, tests/test_structured_wrapping_codespec.py:39-47) \u2014 explicitly required",
+    "Literal block and doctest preservation (`mapping = {\"spacing\":   \"must stay\", ...}`, `>>> very_long_function_name(...)` at tests/test_structured_wrapping_codespec.py:83-90) \u2014 explicitly required",
+    "List item and nested/continuation indentation preservation (tests/test_structured_wrapping_codespec.py:112-121) \u2014 explicitly required",
+    "Sphinx fields still wrapped by existing field-list rules next to a directive (tests/test_structured_wrapping_codespec.py:145-153) \u2014 explicitly required",
+    "Default-mode caution preserved (`test_default_mode_retains_cautious_directive_behavior`, tests/test_structured_wrapping_codespec.py:246-262) \u2014 explicitly required; also matches the pre-existing `test_format_docstring_leave_directive_alone` regression test in mimo_test_command.sh",
+    "Idempotency check (second `run_formatter(formatted, ...)` at tests/test_structured_wrapping_codespec.py:58-62) \u2014 instruction requires stability on reprocessing",
+    "Accepting exit code 3 (`assert result.returncode in (0, 3)`, tests/test_structured_wrapping_codespec.py:25) \u2014 pre-existing docformatter changed-file convention / test scaffolding"
+  ],
+  "reason": "Every concrete requirement exercised by the hidden tests \u2014 the option name, the config key and section, config precedence, the wrap width setting, the preservation rules, default-mode behavior, and idempotency \u2014 is stated in the instruction or already exists in docformatter's CLI/config machinery; the remaining test-only names are stdlib/test scaffolding.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 1617,
+    "completion_tokens_details": {
+      "reasoning_tokens": 1006
+    },
+    "prompt_tokens": 3119,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 4736
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

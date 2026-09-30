@@ -1,0 +1,129 @@
+{
+  "task_id": "format-code-task-001868",
+  "label": "suspect",
+  "sample_labels": [
+    "suspect",
+    "broken",
+    "suspect"
+  ],
+  "unstated": [
+    {
+      "what": "When a CSV file cannot be opened, the command's stderr must contain the literal relative file path (e.g. 'styles/fixtures/default_names.csv' or 'styles/locale/cs/names.csv'); instruction only says the command must fail",
+      "test_ref": "usecase.sh F2/F3 grep checks",
+      "quote": "grep -q \"styles/fixtures/default_names.csv\" err || fail \"F2 stderr: $(cat err)\" / grep -q \"styles/locale/cs/names.csv\" err",
+      "severity": "guessable"
+    },
+    {
+      "what": "When a required CSV column is missing, the command's stderr must contain the literal missing column name ('slug' for default_names.csv, 'name_cs' for names.csv); instruction never mentions error message content",
+      "test_ref": "usecase.sh F4/F5 grep checks",
+      "quote": "grep -q \"slug\" err || fail \"F4 stderr: $(cat err)\" / grep -q \"name_cs\" err || fail \"F5 stderr: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "The unknown-slug warning written to stderr must include the offending slug value ('unknown-slug'); instruction only says 'logged as a warning'",
+      "test_ref": "usecase.sh F1",
+      "quote": "grep -q 'unknown-slug' err || fail \"F1 missing unknown-slug warning: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Paths are resolved relative to the current working directory (case dirs contain styles/..., not the repo), i.e. 'styles/fixtures/default_names.csv' and 'styles/locale/<lang>/names.csv' must be opened from cwd, not from a package/app directory",
+      "test_ref": "usecase.sh run_load_default_names / case dirs",
+      "quote": "case1=\"$TMP/case1\"; mkdir -p \"$case1/styles/fixtures\" ... cd \"$case1\"; run_load_default_names",
+      "severity": "guessable"
+    },
+    {
+      "what": "Missing/unopenable file error messages must include the literal relative path string of the failing CSV ('styles/fixtures/default_names.csv') on stderr",
+      "test_ref": "usecase.sh F2",
+      "quote": "grep -q \"styles/fixtures/default_names.csv\" err || fail \"F2 stderr: $(cat err)\"",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Missing translation file error message must include the literal path 'styles/locale/cs/names.csv' on stderr",
+      "test_ref": "usecase.sh F3",
+      "quote": "grep -q \"styles/locale/cs/names.csv\" err || fail \"F3 stderr: $(cat err)\"",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Missing required column error messages must include the literal column name ('slug' for default file, 'name_cs' for translation file) on stderr",
+      "test_ref": "usecase.sh F4/F5",
+      "quote": "grep -q \"slug\" err || fail \"F4 stderr: $(cat err)\" / grep -q \"name_cs\" err || fail \"F5 stderr: $(cat err)\"",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "The unknown-slug warning must include the offending slug value and be emitted on stderr (logger output), not just logged",
+      "test_ref": "usecase.sh F1",
+      "quote": "grep -q 'unknown-slug' err || fail \"F1 missing unknown-slug warning: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "New rows created from partial CSV data may leave missing fields as None/empty (fake model's __getattr__ returns None for name_*); created rows are persisted via save() per-slug replacement semantics matching the fake model's JSON store",
+      "test_ref": "usecase.sh F1 python check",
+      "quote": "assert by_slug[\"new-partial\"].get(\"group\") in (None, \"\")",
+      "severity": "guessable"
+    },
+    {
+      "what": "CSV files must be resolved relative to the process working directory (the tests cd into a temp dir and run the repo's manage.py there), not relative to the app/package directory",
+      "test_ref": "usercase-test-coderl/usecase.sh (case1 setup)",
+      "quote": "case1=\"$TMP/case1\"; mkdir -p \"$case1/styles/fixtures\" ... cd \"$case1\"\nrun_load_default_names; ec=$?",
+      "severity": "guessable"
+    },
+    {
+      "what": "On failure the command must print a diagnostic to stderr that contains the CSV file path (e.g. 'styles/fixtures/default_names.csv' and 'styles/locale/cs/names.csv'), not just exit non-zero",
+      "test_ref": "usercase-test-coderl/usecase.sh case2/case3",
+      "quote": "grep -q \"styles/fixtures/default_names.csv\" err || fail \"F2 stderr: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "When a required CSV column is missing, the stderr diagnostic must include the missing column name (e.g. 'slug', 'name_cs')",
+      "test_ref": "usercase-test-coderl/usecase.sh case4/case5",
+      "quote": "grep -q \"slug\" err || fail \"F4 stderr: $(cat err)\" ... grep -q \"name_cs\" err || fail \"F5 stderr: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "The unknown-slug warning must be written to stderr (not stdout) and include the offending slug text",
+      "test_ref": "usercase-test-coderl/usecase.sh case1",
+      "quote": "grep -q 'unknown-slug' err || fail \"F1 missing unknown-slug warning: $(cat err)\"",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "The functional behavior (exit codes, DB results, no row for unknown slug) is covered by the instruction, but the tests additionally grep stderr for exact diagnostics: file paths and missing column names on failures, and the offending slug in the unknown-slug warning, none of which the instruction specifies. Path resolution relative to cwd is also assumed but is the natural reading of the stated paths.",
+    "The instruction specifies behaviour and failure, but the hidden tests additionally require exact file-path and column-name strings in stderr diagnostics and that warnings/errors be emitted to stderr, none of which are stated; these exact message contents are not inferable without the tests. The None-vs-empty handling of created partial rows is only a mild convention guess.",
+    "The instruction specifies the command's behaviour well; the remaining test-specific demands are diagnostic details (stderr content mentioning paths, column names, and the slug) and that CSV paths resolve relative to the CWD, which a careful implementer would likely infer but are not stated."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 920,
+      "completion_tokens_details": {
+        "reasoning_tokens": 318
+      },
+      "prompt_tokens": 4591,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 5511
+    },
+    {
+      "completion_tokens": 868,
+      "completion_tokens_details": {
+        "reasoning_tokens": 267
+      },
+      "prompt_tokens": 4591,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 5459
+    },
+    {
+      "completion_tokens": 1238,
+      "completion_tokens_details": {
+        "reasoning_tokens": 677
+      },
+      "prompt_tokens": 4591,
+      "prompt_tokens_details": {
+        "cached_tokens": 4544
+      },
+      "total_tokens": 5829
+    }
+  ]
+}

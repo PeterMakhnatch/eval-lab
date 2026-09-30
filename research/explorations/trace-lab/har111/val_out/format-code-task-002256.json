@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-002256",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "TemporaryDirectory",
+      "file": "persistqueue/tests/test_async_queue.py",
+      "line": 201,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "AsyncQueue",
+      "file": "persistqueue/tests/test_async_queue.py",
+      "line": 203,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "task_done",
+      "file": "persistqueue/tests/test_async_queue.py",
+      "line": 229,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "full() returns False for unbounded queues (maxsize not given or 0) regardless of item count",
+    "full() returns True only when bounded queue reaches maxsize",
+    "empty/qsize behavior consistent with full() as shown in the issue transcripts",
+    "same fix applies to async queue since it delegates to the same queue implementation"
+  ],
+  "reason": "All hidden tests directly mirror the behaviors demonstrated in the issue report; async variants use the same underlying queue logic and existing public API (task_done).",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 144,
+    "completion_tokens_details": {
+      "reasoning_tokens": 24
+    },
+    "prompt_tokens": 2573,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2717
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v1"
+}

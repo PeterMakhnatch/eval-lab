@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-002391",
+  "label": "sound",
+  "sample_labels": [
+    "sound",
+    "sound",
+    "sound"
+  ],
+  "unstated": [],
+  "reasons": [
+    "All test requirements (dedup semantics, PYSEC preference, alias merging, API shape) are stated in the instruction; remaining names are pre-existing pip_audit library APIs or test scaffolding.",
+    "Every hidden-test behavior (dedup trigger, PYSEC preference, alias merging, single emitted result, per-dependency independence) is stated in the instruction or its examples; remaining constructs are pre-existing pip-audit APIs and test scaffolding.",
+    "All tested behaviors\u2014dedup rules, PYSEC preference, alias merging, batching via query_all, repeated audits using current service results\u2014are stated directly or follow directly from the instruction; the imported names are pre-existing pip_audit API surface, not new identifiers the fix must invent."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 187,
+      "completion_tokens_details": {
+        "reasoning_tokens": 66
+      },
+      "prompt_tokens": 4354,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 4541
+    },
+    {
+      "completion_tokens": 261,
+      "completion_tokens_details": {
+        "reasoning_tokens": 93
+      },
+      "prompt_tokens": 4354,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 4615
+    },
+    {
+      "completion_tokens": 334,
+      "completion_tokens_details": {
+        "reasoning_tokens": 191
+      },
+      "prompt_tokens": 4354,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 4688
+    }
+  ]
+}

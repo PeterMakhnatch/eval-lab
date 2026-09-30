@@ -1,0 +1,75 @@
+{
+  "task_id": "format-code-task-001019",
+  "label": "suspect",
+  "sample_labels": [
+    "suspect",
+    "suspect",
+    "suspect"
+  ],
+  "unstated": [
+    {
+      "what": "`__file__` values must be the resolved/normalized absolute path of the initial file (str(leaf.resolve())), not just the path as passed in",
+      "test_ref": "test_codespec_root_and_terminal_metadata",
+      "quote": "assert global_conf[\"__file__\"] == str(leaf.resolve())",
+      "severity": "guessable"
+    },
+    {
+      "what": "Errors must be raised at CKANConfigLoader construction time, not when get_config() is called \u2014 tests instantiate the loader inside pytest.raises without calling get_config",
+      "test_ref": "test_codespec_missing_nested_parent_reports_both_paths",
+      "quote": "with pytest.raises(CkanConfigurationException) as error:\n        CKANConfigLoader(str(leaf))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Reported file paths must be os.path.normpath-resolved (leaf.resolve()), i.e. normalized absolute paths rather than as-written",
+      "test_ref": "test_codespec_root_and_terminal_metadata",
+      "quote": "assert global_conf[\"__file__\"] == str(leaf.resolve())",
+      "severity": "guessable"
+    },
+    {
+      "what": "Invalid inheritance must raise at constructor time (CKANConfigLoader(...)), not only at get_config()",
+      "test_ref": "test_codespec_missing_nested_parent_reports_both_paths",
+      "quote": "with pytest.raises(CkanConfigurationException) as error:\n        CKANConfigLoader(str(leaf))",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "The instruction specifies nearly all testable behavior including exact error-message keywords and metadata semantics; the only unstated detail is that __file__ must be the fully resolved absolute path of the initial file, which is a conventional choice an implementer would likely make.",
+    "The instruction covers nearly all behaviors including error messages, but does not state that validation happens in the constructor (tests rely on that) and only loosely implies path normalization.",
+    "The instruction is unusually detailed and covers nearly everything the hidden tests assert, including exact messages, metadata locations, and precedence rules. The only gap is that tests expect the error to be raised during CKANConfigLoader construction rather than get_config(), a natural but unstated lifecycle choice."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 379,
+      "completion_tokens_details": {
+        "reasoning_tokens": 107
+      },
+      "prompt_tokens": 3353,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 3732
+    },
+    {
+      "completion_tokens": 422,
+      "completion_tokens_details": {
+        "reasoning_tokens": 93
+      },
+      "prompt_tokens": 3353,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3775
+    },
+    {
+      "completion_tokens": 374,
+      "completion_tokens_details": {
+        "reasoning_tokens": 113
+      },
+      "prompt_tokens": 3353,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 3727
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "task_id": "format-code-task-002256",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "TemporaryDirectory",
+      "file": "persistqueue/tests/test_async_queue.py",
+      "line": 201,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "AsyncQueue",
+      "file": "persistqueue/tests/test_async_queue.py",
+      "line": 203,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "task_done",
+      "file": "persistqueue/tests/test_async_queue.py",
+      "line": 229,
+      "stated": false
+    }
+  ],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "The fix must also cover AsyncQueue (an async variant never mentioned in the instruction), whose full()/qsize()/empty() must be awaitable and its full() must return the real bool False for an unbounded queue (asserted with `is False`, so a truthy/int result would fail).",
+      "test_ref": "persistqueue/tests/test_async_queue.py: test_full_default_maxsize_empty_queue",
+      "quote": "async with AsyncQueue(queue_path) as queue:\n    assert await queue.qsize() == 0\n    assert await queue.empty() is True\n    assert await queue.full() is False",
+      "severity": "guessable"
+    },
+    {
+      "what": "AsyncQueue must support the async context-manager protocol (`async with`) and awaited `task_done()`. These are likely pre-existing APIs in the repo's async queue module, but if not, the fix would have to add __aenter__/__aexit__ behaviour the instruction never requests.",
+      "test_ref": "persistqueue/tests/test_async_queue.py: test_full_default_maxsize_after_drain",
+      "quote": "async with AsyncQueue(queue_path) as queue:\n    ...\n    await queue.task_done()",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "full() returns False for an empty queue with default/unset maxsize (test_full_default_maxsize_empty_queue)",
+    "full() stays False with items present under default maxsize (test_full_default_maxsize_with_items)",
+    "full() returns False after draining the queue (test_full_default_maxsize_after_drain, test_full_default_maxsize_after_drain async)",
+    "full() returns False with explicit maxsize=0 (test_full_explicit_zero_maxsize) \u2014 the instruction explicitly names maxsize 0",
+    "bounded queue (maxsize=2) reports full() False when empty, True at capacity, False after get (test_full_bounded_queue_empty/at_capacity/after_get, test_full_bounded_queue_lifecycle) \u2014 matches the instruction's maxsize=2 transcript",
+    "Empty exception raised on non-blocking get of an empty queue \u2014 existing behaviour quoted in the issue"
+  ],
+  "reason": "Every assertion about Queue's full()/empty()/qsize() behaviour matches the transcripts in the instruction verbatim. The only unstated requirements are that the fix must also hold for the AsyncQueue variant (not mentioned in the issue) and that its context-manager/task_done plumbing works; both are guessable since AsyncQueue shares Queue's implementation and its test file already exists.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 1629,
+    "completion_tokens_details": {
+      "reasoning_tokens": 1069
+    },
+    "prompt_tokens": 2589,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 4218
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

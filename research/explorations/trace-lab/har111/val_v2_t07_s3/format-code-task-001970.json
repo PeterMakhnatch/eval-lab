@@ -1,0 +1,37 @@
+{
+  "task_id": "format-code-task-001970",
+  "rule_label": "sound",
+  "rule_unstated": [],
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Only files ending in `.conf` are loaded from a directory (non-.conf files like `file2.conf.disabled` are ignored)",
+      "test_ref": "tests/config/test_config.py::test_load_directory_only_conf_files",
+      "quote": "def test_load_directory_only_conf_files(self):\n        directory = path_to_data_dir('conf2.d')\n        expected = {'foo': {'bar': 'baz'}}",
+      "severity": "guessable"
+    }
+  ],
+  "instruction_covers": [
+    "--config accepting a directory path",
+    "loading multiple config files from the directory",
+    "later-overrides-earlier precedence when mixing directories and files",
+    "colon-separated list continuing to work"
+  ],
+  "reason": "The instruction asks for directory support with normal precedence, which covers the main test_load_directory case. The only unstated requirement is filtering to `*.conf` files, which is a conventional drop-in-directory behavior a careful engineer would likely guess, but it is never specified in the instruction.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 332,
+    "completion_tokens_details": {
+      "reasoning_tokens": 122
+    },
+    "prompt_tokens": 1964,
+    "prompt_tokens_details": {
+      "cached_tokens": 1920
+    },
+    "total_tokens": 2296
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

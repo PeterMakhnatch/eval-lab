@@ -1,0 +1,50 @@
+{
+  "task_id": "format-code-task-001373",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "RequestFactory",
+      "file": "tests/unit/handlers/test__helpers.py",
+      "line": 207,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "process_request",
+      "file": "tests/unit/handlers/test__helpers.py",
+      "line": 212,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "put",
+      "file": "tests/unit/handlers/test__helpers.py",
+      "line": 224,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Using Content-Length instead of len(request.body) so requestSize works after the body stream has been read (test_does_not_read_request_body)",
+    "Producing a requestSize value that is None or 0 when no Content-Length is available (test_request_size_none_when_no_content_length)",
+    "Returning consistent requestSize across multiple logging calls in one request (test_does_not_read_request_body_multiple_calls)"
+  ],
+  "reason": "The hidden tests only verify the fix for the reported bug: inferring requestSize without re-reading request.body (via the CONTENT_LENGTH header), which is the direct consequence of the issue described. The flagged names (RequestFactory, process_request, put) are Django test scaffolding, not fix requirements.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 388,
+    "completion_tokens_details": {
+      "reasoning_tokens": 225
+    },
+    "prompt_tokens": 2173,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2561
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "high"
+}

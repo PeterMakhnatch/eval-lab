@@ -1,0 +1,69 @@
+{
+  "task_id": "format-code-task-000635",
+  "label": "suspect",
+  "sample_labels": [
+    "sound",
+    "suspect",
+    "suspect"
+  ],
+  "unstated": [
+    {
+      "what": "Top-level chunks() must accept and preserve a special `app=` keyword alongside countdown/queue options so the signature binds to a given app",
+      "test_ref": "test_top_level_chunks_preserves_options_and_round_trips_from_dict",
+      "quote": "sig = chunks(\n        add.s(),\n        zip(range(3), range(3)),\n        2,\n        app=app,\n        countdown=5,\n        queue=\"math\",\n    )",
+      "severity": "guessable"
+    },
+    {
+      "what": "The generated group's starmap signatures store the inner task as a Signature object under kwargs key \"task\" and the items under kwargs key \"it\", so str(kwargs[\"task\"]) renders as \"<taskname>()\" (e.g. \"fixture_canvas_chunks.add()\")",
+      "test_ref": "test_task_chunks_builds_stateful_group_parts",
+      "quote": "\"inner_task\": str(task.kwargs[\"task\"]),",
+      "severity": "guessable"
+    },
+    {
+      "what": "The top-level chunks() factory must accept and consume an app= keyword among **options rather than forwarding it to the generated signatures",
+      "test_ref": "test_top_level_chunks_preserves_options_and_round_trips_from_dict",
+      "quote": "chunks(\n        add.s(),\n        zip(range(3), range(3)),\n        2,\n        app=app,",
+      "severity": "guessable"
+    }
+  ],
+  "reasons": [
+    "All hidden-test requirements map directly onto the instruction's description of the chunks canvas primitive: names, task strings, option forwarding, routing by task name, from_dict round-trip, the built-in celery.chunks task, and the shell/API exports are all stated. Remaining details (GroupResult shape, inner signature repr) are natural consequences of the real Celery chunks design implied by the starmap-style group the instruction specifies.",
+    "The instruction describes the feature fully; only the special-casing of an `app=` keyword through the **options path of the top-level chunks() constructor is unstated, though it follows the conventional Celery Signature app-binding pattern.",
+    "The instruction covers nearly all behavior; the only unstated details are the kwargs key layout ('task'/'it') of the generated starmap signatures and the app= option being consumed by the factory \u2014 both are natural consequences of mirroring Celery's existing starmap/chunks implementation, so a careful engineer would likely get them right."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 550,
+      "completion_tokens_details": {
+        "reasoning_tokens": 282
+      },
+      "prompt_tokens": 3592,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 4142
+    },
+    {
+      "completion_tokens": 645,
+      "completion_tokens_details": {
+        "reasoning_tokens": 375
+      },
+      "prompt_tokens": 3592,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 4237
+    },
+    {
+      "completion_tokens": 837,
+      "completion_tokens_details": {
+        "reasoning_tokens": 444
+      },
+      "prompt_tokens": 3592,
+      "prompt_tokens_details": {
+        "cached_tokens": 448
+      },
+      "total_tokens": 4429
+    }
+  ]
+}

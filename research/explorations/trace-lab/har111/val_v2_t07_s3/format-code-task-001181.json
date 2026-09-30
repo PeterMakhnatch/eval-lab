@@ -1,0 +1,63 @@
+{
+  "task_id": "format-code-task-001181",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "Tuple",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Console",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "StringIO",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 20,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_task",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 25,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "every positive delta (advance or update completed=) feeding one rate estimate over the sampling window",
+    "zero/negative deltas update completed but add no rate evidence",
+    "Task.speed = completed / elapsed between retained samples",
+    "Task.time_remaining uses the rate and ceils remaining work, None when no estimate",
+    "reaching finite total via update sets finished/finished_time/finished_speed, later updates don't change them",
+    "reset clears rate evidence, retains total, allows fresh estimate",
+    "changing total via update invalidates rate evidence",
+    "backwards compatibility of fields/rendering and total=None behavior"
+  ],
+  "reason": "All tested behaviors (speed from deltas, non-positive deltas ignored, ceil'd time_remaining, frozen finished_time/finished_speed, reset and total-change invalidation) are explicitly described in the instruction; names like speed, time_remaining, finished_speed and the reset/update signatures are pre-existing public API of rich's Task/Progress, so nothing unstated remains.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 326,
+    "completion_tokens_details": {
+      "reasoning_tokens": 117
+    },
+    "prompt_tokens": 2145,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2471
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

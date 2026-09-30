@@ -1,0 +1,63 @@
+{
+  "task_id": "format-code-task-001181",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "Tuple",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 2,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Console",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 6,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "StringIO",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 20,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "add_task",
+      "file": "tests/test_codespec_progress_telemetry.py",
+      "line": 25,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "positive deltas from advance and update(completed=...) feed one rate estimator",
+    "zero/negative deltas update completed but not rate",
+    "Task.speed from retained samples",
+    "time_remaining uses rate and ceils",
+    "update reaching total freezes finished_time/finished_speed",
+    "reset clears rate evidence and keeps total",
+    "changing total invalidates rate evidence",
+    "indeterminate tasks and rendering unchanged"
+  ],
+  "reason": "Every hidden-test assertion corresponds directly to behavior the instruction states; no new names, formats, or extra contracts appear in the tests beyond the described fix.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 272,
+    "completion_tokens_details": {
+      "reasoning_tokens": 146
+    },
+    "prompt_tokens": 2145,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 2417
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

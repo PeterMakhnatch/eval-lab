@@ -1,0 +1,120 @@
+{
+  "task_id": "format-code-task-002391",
+  "rule_label": "suspect",
+  "rule_unstated": [
+    {
+      "kind": "name",
+      "value": "Iterator",
+      "file": "usercase-test-coderl/test_auditor_deduplicates_vulnerabilities.py",
+      "line": 11,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "abc",
+      "file": "usercase-test-coderl/test_auditor_deduplicates_vulnerabilities.py",
+      "line": 11,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "Version",
+      "file": "usercase-test-coderl/test_auditor_deduplicates_vulnerabilities.py",
+      "line": 13,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "version",
+      "file": "usercase-test-coderl/test_auditor_deduplicates_vulnerabilities.py",
+      "line": 13,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "DependencySource",
+      "file": "usercase-test-coderl/test_auditor_deduplicates_vulnerabilities.py",
+      "line": 16,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "import",
+      "file": "usercase-test-coderl/test_auditor_deduplicates_vulnerabilities.py",
+      "line": 17,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "ResolvedDependency",
+      "file": "usercase-test-coderl/test_auditor_deduplicates_vulnerabilities.py",
+      "line": 26,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "deps",
+      "file": "usercase-test-coderl/test_auditor_deduplicates_vulnerabilities.py",
+      "line": 40,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "collect_calls",
+      "file": "usercase-test-coderl/test_auditor_deduplicates_vulnerabilities.py",
+      "line": 41,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "responses",
+      "file": "usercase-test-coderl/test_auditor_deduplicates_vulnerabilities.py",
+      "line": 53,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "query_all_calls",
+      "file": "usercase-test-coderl/test_auditor_deduplicates_vulnerabilities.py",
+      "line": 54,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "spec_batches",
+      "file": "usercase-test-coderl/test_auditor_deduplicates_vulnerabilities.py",
+      "line": 55,
+      "stated": false
+    },
+    {
+      "kind": "name",
+      "value": "name",
+      "file": "usercase-test-coderl/test_auditor_deduplicates_vulnerabilities.py",
+      "line": 58,
+      "stated": false
+    }
+  ],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Deduplication of advisories sharing identifiers across id/aliases",
+    "PYSEC-priority tie-break regardless of provider order",
+    "Merged alias set with own primary id excluded",
+    "Auditor(service, options=AuditOptions()) construction and audit(source) flow via collect()/query_all()"
+  ],
+  "reason": "The instruction fully specifies the dedup rule, PYSEC preference, alias merging, and the existing pip-audit Auditor API (Auditor(service, options=AuditOptions()) is pip-audit's real constructor, so the options-less form in some tests is a pre-existing default). All test assertions map directly onto the stated behavior.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 237,
+    "completion_tokens_details": {
+      "reasoning_tokens": 93
+    },
+    "prompt_tokens": 4354,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 4591
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2"
+}

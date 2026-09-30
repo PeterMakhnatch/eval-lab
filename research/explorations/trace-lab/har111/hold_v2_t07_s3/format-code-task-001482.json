@@ -1,0 +1,28 @@
+{
+  "task_id": "format-code-task-001482",
+  "rule_label": "sound",
+  "rule_unstated": [],
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Empty YAML files loaded via !include_dir_named keep their filename key in the resulting mapping",
+    "The value for an empty file is effectively empty (None), e.g. {\"first\": 1, \"second\": None}"
+  ],
+  "reason": "The hidden test only checks that an empty file's key is retained with an empty (None) value, which the instruction explicitly requests ('placeholder being effectively empty'). No new names, messages, or formats are required.",
+  "parse_error": null,
+  "usage": {
+    "completion_tokens": 143,
+    "completion_tokens_details": {
+      "reasoning_tokens": 35
+    },
+    "prompt_tokens": 1151,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    },
+    "total_tokens": 1294
+  },
+  "model": "glm-5.3-flash",
+  "prompt_version": "v2",
+  "reasoning_effort": "low",
+  "temperature": 0.7
+}

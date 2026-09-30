@@ -254,11 +254,22 @@ def test_route_shaping_overrides_requested_sampling(repo: Path, tmp_path: Path) 
     assert requested["treatment_key"] == explicit["treatment_key"]
 
 
-OPENROUTER_PROXY = '''OPENROUTER_PROVIDER_PIN = {"order": ["xiaomi"], "allow_fallbacks": False}
-OPENROUTER_REASONING_PIN = {"enabled": True}
-OPENROUTER_MIMO_FLASH_PRICES = {"xiaomi/mimo-v2.6-flash": (140000, 280000)}
-OPENROUTER_ENDPOINT_PIN = "xiaomi/fp8"
-OPENROUTER_CONTEXT_INPUT_TOKENS = 1048576
+OPENROUTER_PROXY = '''OPENROUTER_ROUTES = {
+    "xiaomi/mimo-v2.6-flash": {
+        "endpoint": "xiaomi/fp8",
+        "provider": {"order": ["xiaomi"], "allow_fallbacks": False},
+        "reasoning": {"enabled": True},
+        "prices": (140_000, 280_000),
+        "context_input_tokens": 1_048_576,
+    },
+    "openai/gpt-oss-120b": {
+        "endpoint": "deepinfra/bf16",
+        "provider": {"order": ["deepinfra/bf16"], "allow_fallbacks": False},
+        "reasoning": {"effort": "medium"},
+        "prices": (37_000, 170_000),
+        "context_input_tokens": 131_072,
+    },
+}
 '''
 
 
@@ -268,8 +279,39 @@ def _openrouter_sources(proxy: str = OPENROUTER_PROXY) -> dict[str, str]:
     return sources
 
 
+@pytest.mark.parametrize(
+    ("model", "provider", "reasoning", "prices", "endpoint", "context", "thinking"),
+    [
+        (
+            "openrouter-metered/xiaomi/mimo-v2.6-flash",
+            {"order": ["xiaomi"], "allow_fallbacks": False},
+            {"enabled": True},
+            [140000, 280000],
+            "xiaomi/fp8",
+            1048576,
+            "reasoning_enabled=true",
+        ),
+        (
+            "openrouter-metered/openai/gpt-oss-120b",
+            {"order": ["deepinfra/bf16"], "allow_fallbacks": False},
+            {"effort": "medium"},
+            [37000, 170000],
+            "deepinfra/bf16",
+            131072,
+            "reasoning_effort=medium",
+        ),
+    ],
+)
 def test_openrouter_route_pins_land_in_the_treatment_key(
-    repo: Path, tmp_path: Path
+    repo: Path,
+    tmp_path: Path,
+    model: str,
+    provider: dict[str, object],
+    reasoning: dict[str, object],
+    prices: list[int],
+    endpoint: str,
+    context: int,
+    thinking: str,
 ) -> None:
     commit = _commit(repo, _openrouter_sources(), "base")
     row = _row(
@@ -278,7 +320,7 @@ def test_openrouter_route_pins_land_in_the_treatment_key(
             tmp_path / "runs",
             "a",
             commit,
-            model="openrouter-metered/xiaomi/mimo-v2.6-flash",
+            model=model,
             kwargs={
                 "llm_call_kwargs": {"max_tokens": 4096, "top_p": 0.95},
                 "temperature": 0.6,
@@ -287,18 +329,18 @@ def test_openrouter_route_pins_land_in_the_treatment_key(
         ),
     )
     assert row["complete"]
-    # Serving identity comes from the proxy's OpenRouter pins at the commit.
+    # Serving identity comes from the model's proxy route pins at the commit.
     assert json.loads(row["model_revision"]) == {
-        "provider": {"order": ["xiaomi"], "allow_fallbacks": False},
-        "reasoning": {"enabled": True},
-        "prices": {"xiaomi/mimo-v2.6-flash": [140000, 280000]},
+        "provider": provider,
+        "reasoning": reasoning,
+        "prices": prices,
     }
-    assert row["serving_image"] == "xiaomi/fp8"
-    assert row["serving_context_tokens"] == 1048576
+    assert row["serving_image"] == endpoint
+    assert row["serving_context_tokens"] == context
     # Sampling passes through (no forced literals); thinking records the pin.
     assert (row["temperature"], row["top_p"]) == (0.6, 0.95)
     assert row["top_k"] == "default"
-    assert row["thinking"] == "reasoning_enabled=true"
+    assert row["thinking"] == thinking
     # HAR-104 keeps the stock parser on this route.
     assert row["parser_digest"] == "none"
     # The Harbor-default tree omits trajectory_config: ATIF defaults land in

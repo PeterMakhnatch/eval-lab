@@ -76,24 +76,38 @@ ALLOWED_HTTP_HOSTS = frozenset(
 )
 
 # ---------------------------------------------------------------------------
-# OpenRouter route pins (HAR-104). Mirrors OPENROUTER_* in
+# OpenRouter route pins (HAR-104). Mirrors OPENROUTER_ROUTES in
 # src/evallab/execution_contracts.py — this standalone container script cannot
-# import that module. The treatment key reads these literals back from this
-# file at the run's commit, so they must stay plain assignments.
-
-# The pinned Xiaomi endpoint (tag xiaomi/fp8) serves and prices every call:
-# pinning the serving provider keeps upstream behavior and the per-token price
-# exact, and refuses OpenRouter's fallback pool.
-OPENROUTER_PROVIDER_PIN = {"order": ["xiaomi"], "allow_fallbacks": False}
-# MiMo thinking on, matching the self-hosted MiMo treatment.
-OPENROUTER_REASONING_PIN = {"enabled": True}
-# OpenRouter list price for xiaomi/mimo-v2.6-flash (verified 2026-09-29):
-# $0.14 per 1M input, $0.28 per 1M output (cache read $0.0028/M). The pinned
-# endpoint reports supports_implicit_caching=false, so uncached input pricing
-# is exact; the conservative no-cache-credit rule stays.
-OPENROUTER_MIMO_FLASH_PRICES = {"xiaomi/mimo-v2.6-flash": (140_000, 280_000)}
-OPENROUTER_ENDPOINT_PIN = "xiaomi/fp8"
-OPENROUTER_CONTEXT_INPUT_TOKENS = 1_048_576
+# import that module. The treatment key reads this literal back from this
+# file at the run's commit, so it must stay a plain assignment.
+#
+# Per admitted native model: the provider pin names exactly one OpenRouter
+# endpoint (``endpoint``) and refuses the fallback pool, so upstream serving
+# and the per-token price stay exact; the reasoning pin replaces any caller
+# reasoning control; prices are USD micros per 1M tokens (in, out). Every
+# pinned endpoint reports supports_implicit_caching=false, so uncached input
+# pricing is exact; the conservative no-cache-credit rule stays.
+OPENROUTER_ROUTES = {
+    # verified 2026-09-29: $0.14 / $0.28 per 1M; MiMo thinking on, matching
+    # the self-hosted MiMo treatment.
+    "xiaomi/mimo-v2.6-flash": {
+        "endpoint": "xiaomi/fp8",
+        "provider": {"order": ["xiaomi"], "allow_fallbacks": False},
+        "reasoning": {"enabled": True},
+        "prices": (140_000, 280_000),
+        "context_input_tokens": 1_048_576,
+    },
+    # verified 2026-09-30: $0.037 / $0.17 per 1M; the full endpoint slug —
+    # bare "deepinfra" also matches its pricier turbo and fp8 endpoints.
+    # Reasoning effort pinned to the model's default, medium.
+    "openai/gpt-oss-120b": {
+        "endpoint": "deepinfra/bf16",
+        "provider": {"order": ["deepinfra/bf16"], "allow_fallbacks": False},
+        "reasoning": {"effort": "medium"},
+        "prices": (37_000, 170_000),
+        "context_input_tokens": 131_072,
+    },
+}
 
 # Providers whose forwarding rewrites caller request fields: their ledger
 # calls carry ``shaping_applied`` so downstream accounting can treat the
@@ -244,11 +258,12 @@ PROVIDERS: dict[str, Any] = {
         # resolves to provider "openai" (verified 2026-09-29).
         "model_prefix": "openrouter-metered/",
         "allowed_models_env": None,
-        "default_allowed_models": frozenset({"xiaomi/mimo-v2.6-flash"}),
+        "default_allowed_models": frozenset(OPENROUTER_ROUTES),
         "flat_input_price_env": None,
         "flat_output_price_env": None,
-        "model_prices": dict(OPENROUTER_MIMO_FLASH_PRICES),
-        "expected_base_env": None,
+        "model_prices": {model: route["prices"] for model, route in OPENROUTER_ROUTES.items()},
+        # A trial binds exactly one route: the runner pins its native model.
+        "expected_base_env": "EVALLAB_OPENROUTER_EXPECTED_MODEL",
         "checkpoint_models": False,
         # The openrouter branch below forces the provider/reasoning pins and
         # strips caller-supplied provider/reasoning/reasoning_effort on top
@@ -1327,19 +1342,19 @@ class Handler(BaseHTTPRequestHandler):
             forwarded["top_k"] = 20
         if _provider_name() == "openrouter":
             # Proxy-enforced request shaping for the OpenRouter route only.
-            # The provider pin (endpoint tag xiaomi/fp8) fixes which upstream
-            # serves and prices the call — OpenRouter's fallback pool is
-            # refused — and reasoning stays enabled, matching the self-hosted
-            # MiMo treatment. Values mirror OPENROUTER_* in
-            # execution_contracts.py (this standalone script cannot import
-            # it). Caller-supplied provider/reasoning/reasoning_effort — any
-            # of which could reroute or silently disable thinking — are
-            # stripped first.
+            # The model's provider pin fixes which upstream endpoint serves
+            # and prices the call — OpenRouter's fallback pool is refused —
+            # and its reasoning pin fixes the reasoning treatment. Values
+            # mirror OPENROUTER_ROUTES in execution_contracts.py (this
+            # standalone script cannot import it). Caller-supplied
+            # provider/reasoning/reasoning_effort — any of which could reroute
+            # or silently change reasoning — are stripped first.
+            route = OPENROUTER_ROUTES[model]
             forwarded.pop("provider", None)
             forwarded.pop("reasoning", None)
             forwarded.pop("reasoning_effort", None)
-            forwarded["provider"] = dict(OPENROUTER_PROVIDER_PIN)
-            forwarded["reasoning"] = dict(OPENROUTER_REASONING_PIN)
+            forwarded["provider"] = dict(route["provider"])
+            forwarded["reasoning"] = dict(route["reasoning"])
 
         forwarded_body = json.dumps(forwarded, ensure_ascii=False, separators=(",", ":")).encode(
             "utf-8"

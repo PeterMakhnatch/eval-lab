@@ -44,6 +44,7 @@ beyond wiring:
 The runner calls :func:`process_job` automatically when a job finalizes
 (see ``run_experiment``); the call is best-effort and never fails the run.
 """
+
 import datetime as _datetime
 import json
 from pathlib import Path
@@ -112,14 +113,13 @@ def _step_token_sums(steps: list[Any]) -> dict[str, Any]:
         metrics = step.get("metrics")
         prompt_tokens = completion_tokens = None
         if isinstance(metrics, dict):
-            raw_prompt, raw_completion = metrics.get("prompt_tokens"), metrics.get(
-                "completion_tokens"
+            raw_prompt, raw_completion = (
+                metrics.get("prompt_tokens"),
+                metrics.get("completion_tokens"),
             )
             if isinstance(raw_prompt, (int, float)) and not isinstance(raw_prompt, bool):
                 prompt_tokens = int(raw_prompt)
-            if isinstance(raw_completion, (int, float)) and not isinstance(
-                raw_completion, bool
-            ):
+            if isinstance(raw_completion, (int, float)) and not isinstance(raw_completion, bool):
                 completion_tokens = int(raw_completion)
         if prompt_tokens is None or completion_tokens is None:
             unmetered += 1
@@ -139,9 +139,7 @@ def _step_token_sums(steps: list[Any]) -> dict[str, Any]:
     }
 
 
-def _shell_commands(
-    agent_seq: list[tuple[str, dict]], info: dict
-) -> list[tuple[str, Any, str]]:
+def _shell_commands(agent_seq: list[tuple[str, dict]], info: dict) -> list[tuple[str, Any, str]]:
     """``(doc, step_id, shell text)`` per agent step with proposed commands.
 
     Shell text is the harness-recorded executed keystrokes when present,
@@ -161,15 +159,11 @@ def _shell_commands(
             if isinstance(sent, str) and sent.strip():
                 keystrokes = [sent]
             elif isinstance(sent, list):
-                keystrokes = [
-                    part for part in sent if isinstance(part, str) and part.strip()
-                ]
+                keystrokes = [part for part in sent if isinstance(part, str) and part.strip()]
         if not keystrokes:
             keystrokes = [
                 part
-                for part in probe03._replay_keystrokes(
-                    None, str(step.get("message") or "")
-                )
+                for part in probe03._replay_keystrokes(None, str(step.get("message") or ""))
                 if part.strip()
             ]
         if keystrokes:
@@ -260,9 +254,7 @@ def _process_trial(
             docs.append(payload)
             doc_names.append(part.name)
     unique_steps, stitch_stats = stitch_steps(docs)
-    step_lists = {
-        name: doc.get("steps") for name, doc in zip(doc_names, docs, strict=True)
-    }
+    step_lists = {name: doc.get("steps") for name, doc in zip(doc_names, docs, strict=True)}
     coverage = coverage_record(
         parts,
         stitch_stats,
@@ -334,6 +326,17 @@ def _process_trial(
         diagnosis_record = None
         diagnosis_error = f"{type(exc).__name__}: {exc}"
 
+    # Token-flow analysis (HAR-114): where the input-token budget goes.
+    # Best-effort like every other per-trial detector; never fails the job.
+    try:
+        from evallab.token_flow import analyze_token_flow
+
+        token_flow = analyze_token_flow(trial_dir, job_dir)
+        token_flow_error = None
+    except Exception as exc:  # noqa: BLE001
+        token_flow = None
+        token_flow_error = f"{type(exc).__name__}: {exc}"
+
     # Taint candidates (process-job flag, not a probe-03 rule).
     if analysis is not None:
         taint = _taint_flags(analysis["agent_seq"], analysis["info"], trial_dir)
@@ -383,10 +386,9 @@ def _process_trial(
         completion_refs = list(analysis["completion_refs"])
         loop_cost = analysis["loop_cost"]
         task_name = result.get("task_name") or "unknown"
-        model_name = (
-            ((result.get("config") or {}).get("agent") or {}).get("model_name")
-            or "unknown"
-        )
+        model_name = ((result.get("config") or {}).get("agent") or {}).get(
+            "model_name"
+        ) or "unknown"
     else:
         stop_reason = None
         first_failure = None
@@ -455,10 +457,12 @@ def _process_trial(
         "rejection_causes": rejection_causes,
         "taint": taint,
         "outline": outline_record,
+        "token_flow": token_flow,
         "errors": {
             "analysis": analysis_error,
             "outline": outline_error,
             "diagnosis": diagnosis_error,
+            "token_flow": token_flow_error,
         },
     }
 
@@ -487,13 +491,9 @@ def _process_trial(
     if analysis is not None and analysis["livelock"] is not None:
         flags.append("context_livelock")
     if outcome_failure is not None:
-        flags.append(
-            f"outcome:{outcome_failure['rule_id']}:{outcome_failure['attribution']}"
-        )
+        flags.append(f"outcome:{outcome_failure['rule_id']}:{outcome_failure['attribution']}")
     if first_failure is not None:
-        flags.append(
-            f"first:{first_failure['rule_id']}:{first_failure['attribution']}"
-        )
+        flags.append(f"first:{first_failure['rule_id']}:{first_failure['attribution']}")
     if shape_counts.get("unparseable"):
         flags.append(f"parse_error_shapes:{shape_counts['unparseable']}")
     if taint:
@@ -506,6 +506,10 @@ def _process_trial(
         flags.append("claimed_unconfirmed")
     if stop_reason == "task_complete_confirmed":
         flags.append("completed")
+    if token_flow is not None:
+        from evallab.token_flow import trial_flags as _token_flow_flags
+
+        flags.extend(_token_flow_flags(token_flow))
     record["flags"] = flags
     return record
 
@@ -541,20 +545,23 @@ def _render_trial_markdown(record: dict[str, Any]) -> str:
             else ""
         ),
         f"- first failure: `{first.get('rule_id', 'none')}`"
-        + (f" ({first.get('attribution')}) at `{first.get('step_ref')}`" if first else " (clean execution)"),
-        f"- outcome: `{outcome.get('rule_id', 'none')}`"
         + (
-            f" ({outcome.get('attribution')}): {outcome.get('note', '')[:220]}"
-            if outcome
-            else ""
+            f" ({first.get('attribution')}) at `{first.get('step_ref')}`"
+            if first
+            else " (clean execution)"
         ),
+        f"- outcome: `{outcome.get('rule_id', 'none')}`"
+        + (f" ({outcome.get('attribution')}): {outcome.get('note', '')[:220]}" if outcome else ""),
         f"- flags: {', '.join(f'`{flag}`' for flag in record['flags']) or 'none'}",
     ]
+    if record.get("token_flow") is not None:
+        from evallab.token_flow import markdown_lines as _token_flow_lines
+
+        lines.extend(_token_flow_lines(record["token_flow"]))
     errors = {key: val for key, val in (record.get("errors") or {}).items() if val}
     if errors:
         lines.append(
-            "- processing gaps: "
-            + "; ".join(f"{key}: {val}" for key, val in errors.items())
+            "- processing gaps: " + "; ".join(f"{key}: {val}" for key, val in errors.items())
         )
     lines.append("")
     return "\n".join(lines)
@@ -579,9 +586,7 @@ def _tokens_line(record: dict[str, Any]) -> str:
 
 def _cost_line(record: dict[str, Any]) -> str:
     cost, reason = record.get("cost_usd"), record.get("cost_reason")
-    estimate, estimate_reason = record.get("cost_estimate_usd"), record.get(
-        "cost_estimate_reason"
-    )
+    estimate, estimate_reason = record.get("cost_estimate_usd"), record.get("cost_estimate_reason")
     line = f"- cost: `{cost}` ({record.get('cost_source')}"
     line += f"; {reason}" if reason else ""
     line += ")"
@@ -598,9 +603,7 @@ def _job_ledger_block(job_dir: Path) -> dict[str, Any]:
 
     lab = _read_json(job_dir / "lab-metadata.json") or {}
     provider_usage = lab.get("provider_usage")
-    block = build_cost_block(
-        provider_usage if isinstance(provider_usage, dict) else None
-    )
+    block = build_cost_block(provider_usage if isinstance(provider_usage, dict) else None)
     totals: dict[str, Any] = {}
     if isinstance(provider_usage, dict):
         try:
@@ -703,9 +706,7 @@ def process_job(
     job_path = Path(job_dir).resolve()
     if not job_path.is_dir():
         raise ValueError(f"Not a job directory: {job_dir}")
-    out_dir = (
-        Path(output_dir).resolve() if output_dir is not None else job_path / "processed"
-    )
+    out_dir = Path(output_dir).resolve() if output_dir is not None else job_path / "processed"
     out_dir.mkdir(parents=True, exist_ok=True)
     repo_root = Path(root).resolve() if root is not None else job_path.parent
 
@@ -726,9 +727,7 @@ def process_job(
         trial_result = _read_json(trial_path / "result.json") or {}
         # Job ledger split across trials (same convention as
         # database.trial_cost_columns: daily sums still equal the ledger).
-        record["cost_usd"] = (
-            job_cost / n_trials if isinstance(job_cost, (int, float)) else None
-        )
+        record["cost_usd"] = job_cost / n_trials if isinstance(job_cost, (int, float)) else None
         record["cost_attempted_usd"] = (
             job_attempted / n_trials if isinstance(job_attempted, (int, float)) else None
         )
@@ -789,9 +788,9 @@ def process_job(
     ]
     stop_histogram: dict[str, int] = {}
     for record in trial_reports:
-        stop_histogram[str(record["stop_reason"])] = stop_histogram.get(
-            str(record["stop_reason"]), 0
-        ) + 1
+        stop_histogram[str(record["stop_reason"])] = (
+            stop_histogram.get(str(record["stop_reason"]), 0) + 1
+        )
 
     ingest_note: str
     if ingest:

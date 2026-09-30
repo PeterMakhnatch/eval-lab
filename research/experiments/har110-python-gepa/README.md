@@ -339,12 +339,17 @@ uv run --no-sync python $EXP/make_paired_specs.py --plain-dev
   sharing discipline).
 - `tasks/` + `prior-trials/` (worktree-local, gitignored materializations:
   task bytes and staged HAR-104 trial copies; see §7 steps 0/2).
+- `RESULTS.md` (first-look outcome per task and arm, spend, and the DSPy
+  paragraph) + `results-v2-trials.jsonl` (one row per trial: split, arm,
+  reward, GEPA score, upstream-fetch flags, tokens, stop reason, source job).
 
 ## Limits
 
-- Live spend and per-run results are recorded on the HAR-110 Linear card, not
-  here. The per-trial nominal model ceiling ($0.01) and worst-case estimate
-  ($1.85 at c=2) are caps/estimates, not measurements.
+- Per-run results and spend for split v2 are in `RESULTS.md`; milestones are
+  on the HAR-110 Linear card. The per-trial nominal model ceiling ($0.01) and
+  worst-case estimate ($1.85 at c=2) are caps/estimates, not measurements.
+- The §6 nop qualification was not re-run on the v2 development set before
+  the live v2 rounds; the live rounds exercised the same path end to end.
 - The as-committed campaign-train.json is live-ready (priors attached,
   binding `3d5f0cce…`) once the gitignored `tasks/` + `prior-trials/` are
   staged per §7 steps 0/2 and the binding recomputation matches.

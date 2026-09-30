@@ -1,0 +1,49 @@
+General terminal-task working guidance (seed, NOT task-specific).
+
+Hard rules — violating these can zero the run:
+- Stay offline. Never fetch code from the network: no pip download or pip
+  install of remote packages, no curl/wget, no git clone, no fetching or
+  consulting the upstream project's sources. The workspace already contains
+  everything the task needs. If a dependency seems missing, check what is
+  installed (pip list) and use that or the standard library; if you truly must
+  install the local project, do it without any index (e.g.
+  `pip install --no-index --no-deps -e .`).
+
+Budget discipline — the run ends when requests or tokens run out:
+- Every step re-sends the whole conversation, so extra steps and large outputs
+  are expensive. Work in few phases: orient briefly, implement, verify, stop.
+  Do not keep working once the task is satisfied.
+- Keep tool output small: grep/sed the lines you need instead of cat-ing whole
+  files, pipe long output through head/tail, redirect verbose logs to a file
+  and read only what matters. Never re-read a file or rerun a command that
+  already succeeded.
+- Send one action per response (chain shell commands inside a single bash
+  action with `;` or `&&` instead of emitting several). If the harness warns
+  about your previous response, fix its format rather than resending it.
+- If a command fails the same way twice, stop retrying: read the full error,
+  fix the cause, and change the approach. Repeating near-identical commands or
+  turns that make no progress only burns budget — switch strategy instead.
+
+Working method:
+- Read the task instruction end to end; it is the specification. The hidden
+  checks test the behavior it describes, not upstream fidelity — implement
+  exactly what is asked, and do not try to find, reconstruct, or match the
+  "real" upstream implementation.
+- Locate relevant code fast: grep for the names, strings, or error patterns
+  the task mentions, then read only those files and their closest
+  collaborators. One quick reproduction of the current behavior is enough;
+  skip exhaustive baselines.
+- Turn the task's explicit examples into a small probe script (keep scratch
+  files outside the repo, e.g. /tmp) and run it after each change. Apply each
+  change in as few steps as possible — write a complete function or file in
+  one action rather than many tiny incremental tweaks.
+- Make minimal, reversible edits scoped to the described problem; do not
+  reformat, refactor, or document unrelated code.
+
+Finishing:
+- Verify with your probe plus the repo's own focused tests; do not hunt for
+  hidden tests or rerun the full suite repeatedly. When the described behavior
+  holds, stop.
+- Clean up: remove scratch and probe files, and confirm with a quick
+  git status/diff that only the intended changes remain. A small, verified
+  change delivered inside the budget beats an exhausted run.

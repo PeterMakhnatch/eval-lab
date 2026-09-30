@@ -16,9 +16,11 @@ touches the live app.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import time
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -66,9 +68,7 @@ ModalCommandRunner = Callable[[list[str]], "subprocess.CompletedProcess[str]"]
 
 #: Tick hook: decide whether the queue drained and stop the app if so.
 #: Returns the teardown record, or ``None`` when there was nothing to stop.
-ModalTeardownHook = Callable[
-    ["DirectoryQueue", Path, list[ExperimentSpec]], dict[str, Any] | None
-]
+ModalTeardownHook = Callable[["DirectoryQueue", Path, list[ExperimentSpec]], dict[str, Any] | None]
 
 
 def default_runner(repo_root: Path) -> ModalCommandRunner:
@@ -119,9 +119,7 @@ def _spec_state(queue: DirectoryQueue, spec_id: str) -> str | None:
         return None
 
 
-def _run_capture(
-    runner: ModalCommandRunner, argv: list[str]
-) -> dict[str, Any]:
+def _run_capture(runner: ModalCommandRunner, argv: list[str]) -> dict[str, Any]:
     try:
         completed = runner(argv)
     except Exception as exc:  # Transport failure is evidence, not a crash.
@@ -193,7 +191,9 @@ def _poll_until_stopped(
         if polls and clock() >= deadline:
             return app_state, container_count, polls
         polls += 1
-        app_state = _app_state_for(_parse_json(_run_capture(runner, ["app", "list", "--json"])), app_name)
+        app_state = _app_state_for(
+            _parse_json(_run_capture(runner, ["app", "list", "--json"])), app_name
+        )
         container_count = _container_count_for(
             _parse_json(_run_capture(runner, ["container", "list", "--json"])), app_name
         )
@@ -204,21 +204,69 @@ def _poll_until_stopped(
         sleeper(interval_seconds)
 
 
-def daytona_sandbox_count() -> tuple[int | None, str | None]:
-    """Read-only sandbox count for reconcile/teardown receipts.
+#: Label Harbor attaches to every Daytona sandbox it creates (see Harbor's
+#: ``DaytonaEnvironment._sandbox_labels``). The Daytona account is shared
+#: across lanes, so an account-wide count alone is misleading: the
+#: ``harbor_managed`` split separates Harbor runs from other account use.
+HARBOR_MANAGED_LABEL_KEY = "harbor.managed"
+HARBOR_MANAGED_LABEL_VALUE = "true"
 
-    Returns ``(count, None)`` on success, ``(None, reason)`` otherwise.
-    Never raises and never prints credentials; only the count or a short
-    error summary leaves this function.
+
+@dataclass(frozen=True)
+class DaytonaSandboxCounts:
+    """Daytona census for reconcile/teardown receipts.
+
+    ``total`` is the account-wide sandbox count, ``harbor_managed`` the
+    subset carrying Harbor's ``harbor.managed=true`` label, and ``matched``
+    the subset carrying every label in the caller's ``match_labels`` filter
+    (``None`` when no filter was passed). All counts are ``None`` with a
+    short ``reason`` when the SDK is absent, credentials are missing, or the
+    API call fails.
     """
+
+    total: int | None
+    harbor_managed: int | None
+    matched: int | None
+    reason: str | None
+
+
+def daytona_sandbox_counts(
+    match_labels: Mapping[str, str] | None = None,
+) -> DaytonaSandboxCounts:
+    """Read-only Daytona census; never raises, never prints credentials.
+
+    Per-job attribution needs the Harbor labels that identify the job's own
+    sandboxes (e.g. ``{"harbor.session_id": ...}``); pass them as
+    ``match_labels`` and they are reported as ``matched`` alongside the
+    account ``total``. The teardown layer does not retain Harbor session
+    ids, so it records ``total``/``harbor_managed`` with ``matched`` None.
+    """
+    missing = DaytonaSandboxCounts(None, None, None, "daytona-sdk-not-installed")
     try:
         from daytona import Daytona  # ty: ignore[unresolved-import]
     except ImportError:
-        return None, "daytona-sdk-not-installed"
+        return missing
+    if not os.environ.get("DAYTONA_API_KEY"):
+        return DaytonaSandboxCounts(None, None, None, "daytona-credentials-missing")
     try:
-        return len(list(Daytona().list())), None
+        sandboxes = list(Daytona().list())
     except Exception as exc:
-        return None, f"{type(exc).__name__}: {str(exc)[:200]}"
+        return DaytonaSandboxCounts(None, None, None, f"{type(exc).__name__}: {str(exc)[:200]}")
+    wanted = dict(match_labels or {})
+    harbor_managed = 0
+    matched = 0
+    for sandbox in sandboxes:
+        labels = getattr(sandbox, "labels", None) or {}
+        if labels.get(HARBOR_MANAGED_LABEL_KEY) == HARBOR_MANAGED_LABEL_VALUE:
+            harbor_managed += 1
+        if wanted and all(labels.get(key) == value for key, value in wanted.items()):
+            matched += 1
+    return DaytonaSandboxCounts(
+        total=len(sandboxes),
+        harbor_managed=harbor_managed,
+        matched=matched if wanted else None,
+        reason=None,
+    )
 
 
 def stop_selfhosted_app_if_drained(
@@ -267,7 +315,7 @@ def stop_selfhosted_app_if_drained(
     # ("no interactive terminal detected" on modal 1.5.5), so --yes is
     # mandatory here, never optional.
     stop = _run_capture(active, ["app", "stop", "--yes", MODAL_APP_NAME])
-    sandbox_count, sandbox_reason = daytona_sandbox_count()
+    sandbox_counts = daytona_sandbox_counts()
     if not stop.get("ok"):
         app_state = None
         container_count = None
@@ -301,7 +349,12 @@ def stop_selfhosted_app_if_drained(
         "app_state": app_state,
         "container_count": container_count,
         "polls": polls,
-        "daytona_sandboxes": {"count": sandbox_count, "reason": sandbox_reason},
+        "daytona_sandboxes": {
+            "total": sandbox_counts.total,
+            "harbor_managed": sandbox_counts.harbor_managed,
+            "matched": sandbox_counts.matched,
+            "reason": sandbox_counts.reason,
+        },
         "completed_spec_ids": sorted(str(spec.spec_id) for spec in completed),
         "recorded_at": moment.isoformat(),
     }
@@ -331,11 +384,32 @@ def describe_teardown(record: Mapping[str, Any]) -> str:
     """One-line tick progress summary for a teardown record."""
     if not record.get("stopped", False):
         return f"modal teardown skipped: {record.get('reason')}"
-    return (
+    base = (
         f"modal teardown: stopped {record.get('app')} "
         f"(state={record.get('app_state')}, "
         f"containers={record.get('container_count')})"
     )
+    return base + _describe_daytona_sandboxes(record.get("daytona_sandboxes"))
+
+
+def _describe_daytona_sandboxes(sandboxes: object) -> str:
+    """Daytona census suffix for a teardown summary; empty when unknown."""
+    if not isinstance(sandboxes, Mapping):
+        return ""
+    # Older receipts wrote {"count": N}; read them as the account total.
+    total = sandboxes.get("total", sandboxes.get("count"))
+    if total is None:
+        reason = sandboxes.get("reason")
+        return f"; daytona sandboxes: n/a ({reason})" if reason else ""
+    managed = sandboxes.get("harbor_managed")
+    if managed is None:
+        return f"; daytona sandboxes: {total} total"
+    matched = sandboxes.get("matched")
+    if matched is not None:
+        return (
+            f"; daytona sandboxes: {matched} job-matched / {managed} harbor-managed / {total} total"
+        )
+    return f"; daytona sandboxes: {managed} harbor-managed / {total} total"
 
 
 #: Catalog match for self-hosted MiMo trials: the queue selector carries a

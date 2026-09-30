@@ -17,7 +17,7 @@ from typing import Any
 
 import psycopg
 
-from evallab.modal_ops import SELFHOSTED_CATALOG_MODELS, daytona_sandbox_count
+from evallab.modal_ops import SELFHOSTED_CATALOG_MODELS, daytona_sandbox_counts
 
 #: Catalog table holding fetched Modal billing rows. Also applied through
 #: ``sql/schema.sql``; created here too so direct users get the same shape.
@@ -96,9 +96,7 @@ def aggregate_daily(rows: list[BillingRow]) -> dict[date, float]:
     return totals
 
 
-def store_billing_rows(
-    database_url: str, rows: list[BillingRow], *, resolution: str
-) -> int:
+def store_billing_rows(database_url: str, rows: list[BillingRow], *, resolution: str) -> int:
     """Upsert fetched rows into the catalog. Returns the row count."""
     with psycopg.connect(database_url) as connection:
         connection.execute(BILLING_TABLE_DDL)
@@ -127,9 +125,7 @@ def store_billing_rows(
     return len(rows)
 
 
-def lab_selfhosted_daily(
-    database_url: str, day: date
-) -> tuple[float | None, int, int, str | None]:
+def lab_selfhosted_daily(database_url: str, day: date) -> tuple[float | None, int, int, str | None]:
     """Lab-computed self-hosted cost for one UTC day.
 
     Returns ``(total_or_None, trial_count, trials_without_cost, reason)``.
@@ -159,11 +155,7 @@ def lab_selfhosted_daily(
             count,
             "self-hosted trials carry no per-trial cost (time-billed)",
         )
-    reason = (
-        None
-        if valued == count
-        else f"partial: {count - valued} of {count} trials lack cost"
-    )
+    reason = None if valued == count else f"partial: {count - valued} of {count} trials lack cost"
     return float(total), count, count - valued, reason
 
 
@@ -211,8 +203,10 @@ def render_comparisons(comparisons: list[DayComparison]) -> str:
 
 
 def sandbox_receipt_line() -> str:
-    """Read-only Daytona count for reconcile/teardown receipts."""
-    count, reason = daytona_sandbox_count()
-    if count is not None:
-        return f"daytona sandboxes: {count}"
-    return f"daytona sandboxes: n/a ({reason})"
+    """Read-only Daytona census for reconcile/teardown receipts."""
+    counts = daytona_sandbox_counts()
+    if counts.total is None:
+        return f"daytona sandboxes: n/a ({counts.reason})"
+    if counts.harbor_managed is None:
+        return f"daytona sandboxes: {counts.total} total"
+    return f"daytona sandboxes: {counts.harbor_managed} harbor-managed / {counts.total} total"

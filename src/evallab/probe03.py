@@ -316,7 +316,7 @@ def assemble_trial(trial_dir: Path) -> tuple[dict, list[tuple[str, dict]]]:
     )
 
     assembled: list[tuple[str, dict]] = []
-    per_doc = []
+    per_doc: list[dict[str, Any]] = []
     for docname, doc, session in docs:
         raw_steps = doc.get("steps") if isinstance(doc, dict) else None
         steps = [s for s in raw_steps if isinstance(s, dict)] if isinstance(raw_steps, list) else []
@@ -591,7 +591,7 @@ def wedged_terminal(model_seq: list[tuple[str, dict]], info: dict) -> dict:
     as `short_stretches`, never as stretches. Keystrokes come from the
     harness-recorded executed keystrokes; HAR-90 uses normalizer replay
     (what the model proposed), flagged in `keystroke_source`."""
-    executed = []
+    executed: list[dict[str, Any]] = []
     source = "none"
     for index, (doc, step) in enumerate(model_seq):
         cell = info.get((doc, step.get("step_id"))) or {}
@@ -3162,7 +3162,7 @@ def analyze_trial_core(
     model_seq: list[tuple[str, dict]] = []
     native_functions: dict[str, int] = {}
     for doc, step in agent_seq:
-        message = step.get("message") if isinstance(step.get("message"), str) else ""
+        message = str(step.get("message") or "")
         is_standin = message.strip() == HARNESS_STANDIN
         layer = layer_status(step)
         try:
@@ -3170,7 +3170,7 @@ def analyze_trial_core(
         except Exception:  # noqa: BLE001 -- one bad message must not kill the trial
             normalized = None
         replay_calls = normalizer_command_count(normalized)
-        content = obs_content(step)
+        content = str(obs_content(step) or "")
         inferred, infer_rule = harness_accepted(content)
         recorded = recorded_acceptance(layer)
         if layer is not None and recorded is not None:
@@ -3270,8 +3270,8 @@ def analyze_trial_core(
         # task_complete acceptance.
         stop_reason = "task_complete_confirmed"
     grader_ev = suspect_grader_evidence(trial_dir, nop_runs_dir)
-    first = compute_first_failure(model_seq, info, grader_ev)
-    outcome = compute_outcome_failure(
+    first: dict[str, Any] | None = compute_first_failure(model_seq, info, grader_ev)
+    outcome: dict[str, Any] = compute_outcome_failure(
         model_seq,
         info,
         scored,
@@ -3388,7 +3388,7 @@ def analyze_trial_core(
         last_edit = outcome["progress"].get("last_file_changing_step")
         if last_edit and not outcome["evidence_step_refs"]:
             outcome["evidence_step_refs"] = [last_edit]
-    if (first or {}).get("rule_id") == "R-UNC-01" and limit_stop and "progress" not in outcome:
+    if first is not None and first.get("rule_id") == "R-UNC-01" and limit_stop and "progress" not in outcome:
         first["progress"] = progress_block(model_seq, info, metadata, trial_dir)
     for failure in [f for f in (first, outcome) if f]:
         if failure.get("rule_id") in ("R-COMP-01", "R-COMP-02"):

@@ -173,7 +173,7 @@ def _upstream_findings(
     below; the fallback shrinks to an import error note once it lands.
     """
     try:
-        from evallab.upstream_fetch import detect_upstream_fetch
+        from evallab.upstream_fetch import detect_upstream_fetch  # ty: ignore[unresolved-import]
     except ImportError:
         return None
     findings = detect_upstream_fetch(command_texts)

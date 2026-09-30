@@ -106,6 +106,16 @@ def _norm_cmd(text: str) -> str:
     return _DIGIT_RE.sub("#", collapsed)
 
 
+def normalized_command(text: str) -> str:
+    """Public name of the loop-detector command normalizer (HAR-116).
+
+    Replay and the live loop fix share this exact rule: collapse whitespace
+    and replace digit runs, so a retry that only changed a line number still
+    counts as the same command.
+    """
+    return _norm_cmd(text)
+
+
 #: Supplement to the shared traj edit patterns. The shared
 #: ``EDIT_COMMAND_PATTERNS`` is wrapped in ``\b(...)\b``, so a bare
 #: redirection such as ``cat > file`` never matches (``>`` followed by a

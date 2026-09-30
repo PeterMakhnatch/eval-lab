@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>__LABEL__</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>__SCRIPT__</string>
+	</array>
+	<key>StartInterval</key>
+	<integer>__INTERVAL__</integer>
+	<key>RunAtLoad</key>
+	<false/>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>EVALLAB_SYNC_REPO</key>
+		<string>__REPO__</string>
+		<key>EVALLAB_SYNC_STATE_DIR</key>
+		<string>__STATE_DIR__</string>
+		<key>EVALLAB_SYNC_NOTIFY_EVERY_SECONDS</key>
+		<string>__NOTIFY_EVERY__</string>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>__LOG_DIR__/__LABEL__.out</string>
+	<key>StandardErrorPath</key>
+	<string>__LOG_DIR__/__LABEL__.err</string>
+</dict>
+</plist>

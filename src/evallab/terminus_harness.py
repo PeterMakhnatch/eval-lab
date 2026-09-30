@@ -73,8 +73,10 @@ ALLOWED_KNOBS = frozenset(
         "enable_summarize",
         "interleaved_thinking",
         "llm_call_kwargs",
+        "loop_break",
         "max_thinking_tokens",
         "max_turns",
+        "output_cap_chars",
         "parser_name",
         "proactive_summarization_threshold",
         "reasoning_effort",
@@ -89,8 +91,17 @@ TRAJECTORY_CONFIG_KEYS = frozenset({"raw_content", "linear_history"})
 
 #: Top-level keys that select model/transport instead of behavior.
 _EXPLICIT_BINDING_KEYS = frozenset(
-    {"model_name", "api_base", "llm_kwargs", "llm_backend", "model",
-     "custom_llm_provider", "provider", "extra_headers", "headers"}
+    {
+        "model_name",
+        "api_base",
+        "llm_kwargs",
+        "llm_backend",
+        "model",
+        "custom_llm_provider",
+        "provider",
+        "extra_headers",
+        "headers",
+    }
 )
 #: Substrings marking a key as transport/credential binding.
 _BINDING_SUBSTRINGS = ("api_key", "api_base", "base_url", "credential", "secret")
@@ -155,6 +166,15 @@ def _validate_config(config: dict[str, Any]) -> None:
                 + " is model/transport binding, not candidate behavior: "
                 "candidates vary Terminus behavior, never provider routing"
             )
+    # HAR-116 loop fix. Both default off; a tree opts in by setting them.
+    # The adapter rejects the same bad values, but a tree that cannot be
+    # loaded never gets as far as a launch.
+    loop_break = config.get("loop_break")
+    if loop_break is not None and not isinstance(loop_break, bool):
+        raise ValueError("terminus config loop_break must be a boolean")
+    cap = config.get("output_cap_chars")
+    if cap is not None and (isinstance(cap, bool) or not isinstance(cap, int) or cap < 2):
+        raise ValueError("terminus config output_cap_chars must be an integer of at least 2")
 
 
 @dataclass(frozen=True)
@@ -188,8 +208,7 @@ def _collect_files(root: Path) -> list[tuple[str, Path]]:
     for path in entries:
         if path.is_symlink():
             raise ValueError(
-                "harness tree contains unsupported symlink: "
-                + path.relative_to(root).as_posix()
+                "harness tree contains unsupported symlink: " + path.relative_to(root).as_posix()
             )
         if path.is_dir():
             continue
@@ -256,9 +275,7 @@ def _mapping(
     skill_roots: list[Path] = []
     skill_relatives: list[str] = []
     for prefix in (SKILL_ROOT, COMMAND_ROOT):
-        if any(
-            key.startswith(prefix + "/") and key.endswith("/SKILL.md") for key in blobs
-        ):
+        if any(key.startswith(prefix + "/") and key.endswith("/SKILL.md") for key in blobs):
             skill_roots.append(root / prefix)
             skill_relatives.append(prefix)
     return config, rules_path, tuple(skill_roots), rules_relative, skill_relatives
@@ -333,9 +350,7 @@ def _publish_tree(blobs: dict[str, bytes], destination: Path) -> None:
             )
         for relative, data in blobs.items():
             if existing[relative] != data:
-                raise ValueError(
-                    f"immutable harness tree content mismatch: {relative}"
-                )
+                raise ValueError(f"immutable harness tree content mismatch: {relative}")
         return
     destination.mkdir(parents=True, exist_ok=True)
     for relative in sorted(blobs):

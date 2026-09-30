@@ -20,7 +20,9 @@ from evallab.modal_ops import (
     MODAL_APP_NAME,
     TEARDOWN_EVENT,
     TEARDOWN_FILENAME,
-    daytona_sandbox_count,
+    DaytonaSandboxCounts,
+    daytona_sandbox_counts,
+    describe_teardown,
     is_selfhosted_model,
     remaining_selfhosted_specs,
     stop_selfhosted_app_if_drained,
@@ -70,14 +72,18 @@ class FakeRunner:
         return self.outputs[tuple(argv)]
 
 
-def completed(argv: list[str], *, returncode: int = 0, stdout: str = "", stderr: str = "") -> subprocess.CompletedProcess[str]:
+def completed(
+    argv: list[str], *, returncode: int = 0, stdout: str = "", stderr: str = ""
+) -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess(argv, returncode, stdout, stderr)
 
 
 def drain_runner() -> FakeRunner:
     return FakeRunner(
         {
-            ("app", "stop", "--yes", MODAL_APP_NAME): completed(["app", "stop", "--yes", MODAL_APP_NAME]),
+            ("app", "stop", "--yes", MODAL_APP_NAME): completed(
+                ["app", "stop", "--yes", MODAL_APP_NAME]
+            ),
             ("app", "list", "--json"): completed(
                 ["app", "list", "--json"],
                 stdout=json.dumps(
@@ -115,7 +121,11 @@ def drain_runner() -> FakeRunner:
 
 @pytest.fixture
 def sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(modal_ops, "daytona_sandbox_count", lambda: (7, None))
+    monkeypatch.setattr(
+        modal_ops,
+        "daytona_sandbox_counts",
+        lambda **kwargs: DaytonaSandboxCounts(total=9, harbor_managed=7, matched=None, reason=None),
+    )
 
 
 def test_selfhosted_model_matches_queue_selector_only() -> None:
@@ -125,9 +135,7 @@ def test_selfhosted_model_matches_queue_selector_only() -> None:
     assert not is_selfhosted_model(None)
 
 
-def test_remaining_specs_cover_pending_approved_running(
-    tmp_path: Path, sandbox: None
-) -> None:
+def test_remaining_specs_cover_pending_approved_running(tmp_path: Path, sandbox: None) -> None:
     queue = DirectoryQueue(tmp_path / "queue")
     waiting = make_spec("waiting-job", SELFHOSTED, "01AAAAAAAAAAAAAAAAAAAAAAAA")
     pending = make_spec("pending-job", SELFHOSTED, "01BBBBBBBBBBBBBBBBBBBBBB")
@@ -156,9 +164,7 @@ def test_teardown_stops_and_records_evidence(tmp_path: Path, sandbox: None) -> N
     job_dir.mkdir(parents=True)
     runner = drain_runner()
 
-    record = stop_selfhosted_app_if_drained(
-        queue, tmp_path, [spec], runner=runner, now=MOMENT
-    )
+    record = stop_selfhosted_app_if_drained(queue, tmp_path, [spec], runner=runner, now=MOMENT)
 
     assert record is not None
     assert record["stopped"] is True
@@ -166,7 +172,12 @@ def test_teardown_stops_and_records_evidence(tmp_path: Path, sandbox: None) -> N
     assert record["app_state"] == "stopped"
     assert record["container_count"] == 0
     assert record["polls"] == 1
-    assert record["daytona_sandboxes"] == {"count": 7, "reason": None}
+    assert record["daytona_sandboxes"] == {
+        "total": 9,
+        "harbor_managed": 7,
+        "matched": None,
+        "reason": None,
+    }
     assert record["completed_spec_ids"] == [spec.spec_id]
     assert runner.calls[0] == ["app", "stop", "--yes", MODAL_APP_NAME]
     assert {tuple(call) for call in runner.calls} == {
@@ -192,9 +203,7 @@ def test_teardown_skips_when_selfhosted_work_remains(tmp_path: Path, sandbox: No
     place(queue, "approved", leftover)
     runner = drain_runner()
 
-    record = stop_selfhosted_app_if_drained(
-        queue, tmp_path, [finished], runner=runner, now=MOMENT
-    )
+    record = stop_selfhosted_app_if_drained(queue, tmp_path, [finished], runner=runner, now=MOMENT)
 
     assert record is not None
     assert record["stopped"] is False
@@ -246,9 +255,7 @@ def test_teardown_records_stop_failure_without_raising(tmp_path: Path, sandbox: 
         }
     )
 
-    record = stop_selfhosted_app_if_drained(
-        queue, tmp_path, [spec], runner=runner, now=MOMENT
-    )
+    record = stop_selfhosted_app_if_drained(queue, tmp_path, [spec], runner=runner, now=MOMENT)
 
     assert record is not None
     assert record["stopped"] is False
@@ -375,7 +382,6 @@ def test_teardown_waits_through_stopping_state(tmp_path: Path, sandbox: None) ->
     assert [event.reason_code for event in events] == ["modal_app_stopped"]
 
 
-
 def test_teardown_times_out_while_stopping(tmp_path: Path, sandbox: None) -> None:
     """Failure only after the poll window expires still in `stopping...`."""
     queue = DirectoryQueue(tmp_path / "queue")
@@ -441,39 +447,140 @@ def test_teardown_records_runner_crash_without_raising(tmp_path: Path, sandbox: 
     assert "FileNotFoundError" in str(record["reason"])
 
 
+def _daytona_stub(monkeypatch: pytest.MonkeyPatch, client: object) -> None:
+    import types
+
+    stub = types.ModuleType("daytona")
+    stub.Daytona = client  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "daytona", stub)
+    monkeypatch.setenv("DAYTONA_API_KEY", "test-credential")
+
+
+def _sandbox(labels: dict[str, str] | None) -> object:
+    return type("FakeSandbox", (), {"labels": labels})()
+
+
 def test_daytona_helper_reports_missing_sdk(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(sys.modules, "daytona", None)
-    assert daytona_sandbox_count() == (None, "daytona-sdk-not-installed")
+    assert daytona_sandbox_counts() == DaytonaSandboxCounts(
+        None, None, None, "daytona-sdk-not-installed"
+    )
 
 
-def test_daytona_helper_counts_sandboxes(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_daytona_helper_reports_missing_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import types
 
     stub = types.ModuleType("daytona")
 
     class Client:
-        def list(self) -> list[int]:
-            return [1, 2, 3]
+        def list(self) -> list[object]:
+            raise AssertionError("must not reach the network without credentials")
 
     stub.Daytona = Client  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "daytona", stub)
-    assert daytona_sandbox_count() == (3, None)
+    monkeypatch.delenv("DAYTONA_API_KEY", raising=False)
+    assert daytona_sandbox_counts() == DaytonaSandboxCounts(
+        None, None, None, "daytona-credentials-missing"
+    )
 
 
-def test_daytona_helper_reports_listing_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    import types
-
-    stub = types.ModuleType("daytona")
-
+def test_daytona_helper_splits_harbor_managed_from_account_total(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     class Client:
-        def list(self) -> list[int]:
+        def list(self) -> list[object]:
+            return [
+                _sandbox({"harbor.managed": "true", "harbor.session_id": "s-1"}),
+                _sandbox({"harbor.managed": "true", "harbor.session_id": "s-2"}),
+                _sandbox({"other": "lane-sandbox"}),
+                _sandbox(None),
+            ]
+
+    _daytona_stub(monkeypatch, Client)
+    assert daytona_sandbox_counts() == DaytonaSandboxCounts(
+        total=4, harbor_managed=2, matched=None, reason=None
+    )
+
+
+def test_daytona_helper_matches_job_labels(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Client:
+        def list(self) -> list[object]:
+            return [
+                _sandbox({"harbor.managed": "true", "harbor.session_id": "s-1"}),
+                _sandbox({"harbor.managed": "true", "harbor.session_id": "s-2"}),
+                _sandbox({"other": "lane-sandbox"}),
+            ]
+
+    _daytona_stub(monkeypatch, Client)
+    assert daytona_sandbox_counts({"harbor.session_id": "s-1"}) == DaytonaSandboxCounts(
+        total=3, harbor_managed=2, matched=1, reason=None
+    )
+
+
+def test_daytona_helper_reports_listing_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Client:
+        def list(self) -> list[object]:
             raise RuntimeError("Invalid credentials")
 
-    stub.Daytona = Client  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "daytona", stub)
-    count, reason = daytona_sandbox_count()
-    assert count is None
-    assert reason == "RuntimeError: Invalid credentials"
+    _daytona_stub(monkeypatch, Client)
+    counts = daytona_sandbox_counts()
+    assert counts.total is None
+    assert counts.harbor_managed is None
+    assert counts.matched is None
+    assert counts.reason == "RuntimeError: Invalid credentials"
+
+
+def test_describe_teardown_reports_daytona_census() -> None:
+    record = {
+        "app": MODAL_APP_NAME,
+        "stopped": True,
+        "app_state": "stopped",
+        "container_count": 0,
+        "daytona_sandboxes": {
+            "total": 9,
+            "harbor_managed": 7,
+            "matched": None,
+            "reason": None,
+        },
+    }
+    assert describe_teardown(record) == (
+        f"modal teardown: stopped {MODAL_APP_NAME} "
+        "(state=stopped, containers=0); "
+        "daytona sandboxes: 7 harbor-managed / 9 total"
+    )
+
+
+def test_describe_teardown_reads_legacy_count_receipts() -> None:
+    record = {
+        "app": MODAL_APP_NAME,
+        "stopped": True,
+        "app_state": "stopped",
+        "container_count": 0,
+        "daytona_sandboxes": {"count": 7, "reason": None},
+    }
+    assert describe_teardown(record).endswith("daytona sandboxes: 7 total")
+
+
+def test_describe_teardown_marks_daytona_unknown() -> None:
+    record = {
+        "app": MODAL_APP_NAME,
+        "stopped": True,
+        "app_state": "stopped",
+        "container_count": 0,
+        "daytona_sandboxes": {
+            "total": None,
+            "harbor_managed": None,
+            "matched": None,
+            "reason": "daytona-credentials-missing",
+        },
+    }
+    assert describe_teardown(record).endswith(
+        "daytona sandboxes: n/a (daytona-credentials-missing)"
+    )
 
 
 def make_executor(root: Path, **overrides) -> Executor:

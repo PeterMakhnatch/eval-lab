@@ -128,16 +128,18 @@ def test_process_job_maps_diagnosis_modes(tmp_path: Path, monkeypatch) -> None:
     assert "diagnosis:silent_tool_output" in record["flags"]
 
 
-def test_fallback_catches_answer_leak_shapes() -> None:
-    from evallab.process_job import _fallback_network_installs
+def test_shared_detector_catches_answer_leak_shapes() -> None:
+    from evallab.upstream_fetch import detect_upstream_fetch
 
-    # Ground truth from the HAR-104 batch (upstream_fetch owns these once
-    # it lands; the fallback must catch them until then).
-    assert _fallback_network_installs(
-        "cd /testbed && pip download waitress==2.0.0 --no-deps -d /tmp/wtr"
-    ) == ["pip_download"]
-    assert _fallback_network_installs("timeout 10 curl -sL https://raw.x/y") == [
-        "curl_fetch"
+    # Ground truth shapes from the HAR-104 batch, via the canonical guard.
+    findings = detect_upstream_fetch(
+        [
+            (4, "cd /testbed && pip download waitress==2.0.0 --no-deps -d /tmp/wtr"),
+            (10, "timeout 10 curl -sL https://raw.x/y | tail -1"),
+        ]
+    )
+    assert [(finding.step_index, finding.kind) for finding in findings] == [
+        (4, "pip-download-remote-package"),
+        (10, "curl-remote-url"),
     ]
-    assert _fallback_network_installs("pip install requests") == ["pip_install"]
-    assert _fallback_network_installs("ls /tmp && echo done") == []
+    assert detect_upstream_fetch([(2, "pip show soupsieve"), (3, "ls /tmp")]) == []

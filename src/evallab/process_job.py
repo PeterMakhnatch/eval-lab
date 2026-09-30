@@ -35,48 +35,26 @@ beyond wiring:
   submit-contract and suspect-grader evidence).
 * taint candidates: a process-job flag (not a probe-03 rule) combining
   the verifier's ``anti_hack_guard: REJECT`` line (pattern reused from
-  probe-03) with forbidden network-install commands (``pip install`` via
-  probe-03's ``ENV_WRESTLE_RE`` plus ``curl|wget ... | sh``,
-  ``npm install`` and ``apt-get install`` shapes) in executed model
-  commands.
+  probe-03) with remote-content fetches in executed model commands via
+  the canonical :mod:`evallab.upstream_fetch` guard (shared with GEPA
+  scoring: the task images are offline, so a trial that downloads the
+  upstream package or curls the upstream file may have graded something
+  other than the agent's own work).
 
 The runner calls :func:`process_job` automatically when a job finalizes
 (see ``run_experiment``); the call is best-effort and never fails the run.
 """
 import datetime as _datetime
 import json
-import re
 from pathlib import Path
 from typing import Any
 
 PROCESS_JOB_SCHEMA = "process_job/v1"
 
-#: Network-install shapes that make a trial a taint candidate when they
-#: appear in executed model commands (the task images are offline; a trial
-#: that fetches code or packages from the network may have graded
-#: something other than the agent's own work). ``pip install`` itself is
-#: matched by probe-03's ENV_WRESTLE_RE; the rest are fallback patterns
-#: until evallab.upstream_fetch lands (HAR-110 owns them there).
-NET_INSTALL_RES = (
-    "curl_piped_to_shell",
-    "wget_piped_to_shell",
-    "curl_fetch",
-    "wget_fetch",
-    "npm_install",
-    "apt_get_install",
-    "pip_install",
-    "pip_download",
-)
-
-_CURL_PIPE_RE = re.compile(r"curl\b[^\n|]*\|\s*(?:sudo\s+)?(?:ba)?sh\b", re.IGNORECASE)
-_WGET_PIPE_RE = re.compile(r"wget\b[^\n|]*\|\s*(?:sudo\s+)?(?:ba)?sh\b", re.IGNORECASE)
-_NPM_INSTALL_RE = re.compile(r"\bnpm\s+(?:i\b|install\b)", re.IGNORECASE)
-_APT_INSTALL_RE = re.compile(r"\bapt(?:-get)?\s+install\b", re.IGNORECASE)
-# Fallback-only: the HAR-104 answer leak was `pip download <pkg>==<ver>
-# --no-deps -d /tmp/...` plus a bare `curl -sL https://...` fetch.
-_PIP_DOWNLOAD_RE = re.compile(r"\bpip3?\s+download\b", re.IGNORECASE)
-_CURL_FETCH_RE = re.compile(r"\bcurl\b[^\n]*https?://", re.IGNORECASE)
-_WGET_FETCH_RE = re.compile(r"\bwget\b[^\n]*https?://", re.IGNORECASE)
+#: Remote-fetch detection lives in :mod:`evallab.upstream_fetch` (the
+#: canonical answer-leak guard, shared with GEPA scoring); process-job
+#: reuses it instead of a second detector. Only the verifier-side guard
+#: reject stays here.
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -161,62 +139,55 @@ def _step_token_sums(steps: list[Any]) -> dict[str, Any]:
     }
 
 
-def _upstream_findings(
-    command_texts: list[str],
-) -> list[dict[str, Any]] | None:
-    """Canonical answer-leak findings, or None until it lands.
+def _shell_commands(
+    agent_seq: list[tuple[str, dict]], info: dict
+) -> list[tuple[str, Any, str]]:
+    """``(doc, step_id, shell text)`` per agent step with proposed commands.
 
-    Seam for HAR-110: ``evallab.upstream_fetch.detect_upstream_fetch``
-    owns upstream-fix fetch detection (model pip-downloads / curls the fix)
-    for GEPA scoring. process-job reuses it instead of a second detector.
-    Until that module merges, the caller falls back to the local patterns
-    below; the fallback shrinks to an import error note once it lands.
+    Shell text is the harness-recorded executed keystrokes when present,
+    else the normalizer's replay of the proposed Terminus commands -- never
+    the raw message, so model prose about fetching cannot misfire the
+    remote-fetch guard.
     """
-    try:
-        from evallab.upstream_fetch import detect_upstream_fetch  # ty: ignore[unresolved-import]
-    except ImportError:
-        return None
-    findings = detect_upstream_fetch(command_texts)
-    return [
-        {
-            "kind": "network_install",
-            "rule": f"upstream_fetch:{getattr(finding, 'rule', 'fetch')}",
-            "evidence": "",
-            "command": str(getattr(finding, "command", ""))[:160],
-        }
-        for finding in findings
-    ]
-
-
-def _fallback_network_installs(text: str) -> list[str]:
-    """Local network-install shapes until upstream_fetch lands (see above)."""
     from evallab import probe03
 
-    kinds: list[str] = []
-    if probe03.ENV_WRESTLE_RE.search(text) and probe03.PIP_INSTALL_RE.search(text):
-        kinds.append("pip_install")
-    if _PIP_DOWNLOAD_RE.search(text):
-        kinds.append("pip_download")
-    if _CURL_PIPE_RE.search(text):
-        kinds.append("curl_piped_to_shell")
-    elif _CURL_FETCH_RE.search(text):
-        kinds.append("curl_fetch")
-    if _WGET_PIPE_RE.search(text):
-        kinds.append("wget_piped_to_shell")
-    elif _WGET_FETCH_RE.search(text):
-        kinds.append("wget_fetch")
-    if _NPM_INSTALL_RE.search(text):
-        kinds.append("npm_install")
-    if _APT_INSTALL_RE.search(text):
-        kinds.append("apt_get_install")
-    return kinds
+    layer_of = info if isinstance(info, dict) else {}
+    commands: list[tuple[str, Any, str]] = []
+    for doc, step in agent_seq:
+        keystrokes: list[str] = []
+        layer = (layer_of.get((doc, step.get("step_id"))) or {}).get("layer")
+        if isinstance(layer, dict):
+            sent = layer.get("executed_keystrokes") or layer.get("keystrokes_sent")
+            if isinstance(sent, str) and sent.strip():
+                keystrokes = [sent]
+            elif isinstance(sent, list):
+                keystrokes = [
+                    part for part in sent if isinstance(part, str) and part.strip()
+                ]
+        if not keystrokes:
+            keystrokes = [
+                part
+                for part in probe03._replay_keystrokes(
+                    None, str(step.get("message") or "")
+                )
+                if part.strip()
+            ]
+        if keystrokes:
+            commands.append((doc, step.get("step_id"), "\n".join(keystrokes)))
+    return commands
 
 
 def _taint_flags(
     agent_seq: list[tuple[str, dict]], info: dict, trial_dir: Path
 ) -> list[dict[str, Any]]:
-    """Taint candidates: guard rejects and forbidden network installs."""
+    """Taint candidates: guard rejects plus upstream-fetch findings.
+
+    Remote-fetch detection is the canonical :mod:`evallab.upstream_fetch`
+    guard (shared with GEPA scoring); only the verifier-side guard reject
+    stays here.
+    """
     from evallab import probe03
+    from evallab.upstream_fetch import detect_upstream_fetch
 
     flags: list[dict[str, Any]] = []
     try:
@@ -236,24 +207,22 @@ def _taint_flags(
                 "guard_mutation_steps": writes,
             }
         )
-    texts = [probe03._step_command_text(doc, step, info) for doc, step in agent_seq]
-    upstream = _upstream_findings([text for text in texts if text])
-    if upstream is not None:
-        # Step-ref mapping is finalized against the landed Finding shape.
-        flags.extend(upstream)
-        return flags
-    for (doc, step), text in zip(agent_seq, texts, strict=True):
-        if not text:
-            continue
-        for kind in _fallback_network_installs(text):
-            flags.append(
-                {
-                    "kind": "network_install",
-                    "rule": f"process_job:{kind}",
-                    "evidence": probe03._ref(doc, step.get("step_id")),
-                    "command": text[:160],
-                }
-            )
+    commands = _shell_commands(agent_seq, info)
+    doc_of = {step_id: doc for doc, step_id, _ in commands}
+    findings = detect_upstream_fetch(
+        [(step_id if isinstance(step_id, int) else -1, text) for _, step_id, text in commands]
+    )
+    for finding in findings:
+        step_id = finding.step_index if finding.step_index >= 0 else None
+        flags.append(
+            {
+                "kind": "upstream_fetch",
+                "rule": f"upstream_fetch:{finding.kind}",
+                "evidence": probe03._ref(doc_of.get(step_id, "head"), step_id),
+                "command": finding.excerpt[:160],
+                "names_task_repo": finding.names_task_repo,
+            }
+        )
     return flags
 
 

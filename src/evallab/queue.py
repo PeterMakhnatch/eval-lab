@@ -17,7 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
@@ -38,6 +38,7 @@ from evallab.execution_contracts import (
     DispatchCapacity,
     PaidRunAuthorization,
     is_lease_generation,
+    is_mimo_selfhosted_model,
     load_policy,
     new_ulid,
 )
@@ -47,6 +48,11 @@ from evallab.interpretation.trajectory_compliance import (
     TrialEvidenceBundle,
     evaluate_trial_compliance,
 )
+
+if TYPE_CHECKING:
+    from evallab.modal_ops import ModalTeardownHook
+
+
 from evallab.profiles import CONTROL_ADAPTERS
 from evallab.quota import (
     Headroom,
@@ -1297,6 +1303,7 @@ class Executor:
         max_transient_retries: int = MAX_TRANSIENT_RETRIES,
         parallel: int = 1,
         capacity: DispatchCapacity | None = None,
+        modal_teardown: ModalTeardownHook | None = None,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.queue = queue
@@ -1323,6 +1330,7 @@ class Executor:
             raise ValueError("parallel must be at least 1")
         self.parallel = parallel
         self.capacity = capacity
+        self._modal_teardown = modal_teardown
         self.last_tick_reason: str | None = None
 
     def _repo_headroom(self, agent: str) -> Headroom:
@@ -1343,6 +1351,7 @@ class Executor:
         capacity: DispatchCapacity | None = None,
         max_transient_retries: int = MAX_TRANSIENT_RETRIES,
         create_queue: bool = True,
+        modal_teardown: ModalTeardownHook | None = None,
     ) -> Executor:
         return cls(
             repo_root=root,
@@ -1352,6 +1361,7 @@ class Executor:
             capacity=capacity,
             progress=progress,
             max_transient_retries=max_transient_retries,
+            modal_teardown=modal_teardown,
         )
 
     def submit(self, spec: ExperimentSpec) -> tuple[Path, PolicyDecision]:
@@ -1871,6 +1881,7 @@ class Executor:
         parallel: int = 1,
         spec_ids: Sequence[str] | None = None,
     ) -> int:
+        running_before = {spec.spec_id: spec for _, spec in self.queue.list_specs("running")}
         self.reconcile_running()
         if self.queue.stop_path.exists():
             return 0
@@ -1908,6 +1919,7 @@ class Executor:
             ]
         approved_specs = self._capacity_batch(approved_specs)
         if not approved_specs:
+            self._maybe_stop_selfhosted_app(running_before, [])
             return 0
 
         if parallel == 1:
@@ -1917,8 +1929,10 @@ class Executor:
                     break
                 if self._dispatch_one(path, spec, authorizations, credentials):
                     dispatched += 1
+            self._maybe_stop_selfhosted_app(
+                running_before, [spec for _, spec in approved_specs]
+            )
             return dispatched
-
         dispatched = 0
         with ThreadPoolExecutor(max_workers=parallel) as pool:
             futures = [
@@ -1928,7 +1942,49 @@ class Executor:
             for future in futures:
                 if future.result():
                     dispatched += 1
+        self._maybe_stop_selfhosted_app(
+            running_before, [spec for _, spec in approved_specs]
+        )
         return dispatched
+
+    def _maybe_stop_selfhosted_app(
+        self,
+        running_before: dict[str | None, ExperimentSpec],
+        approved_specs: list[ExperimentSpec],
+    ) -> None:
+        """Stop the Modal server when self-hosted work just drained.
+
+        Candidates are specs that were running when the tick started plus
+        specs approved for this dispatch round; the hook itself checks which
+        reached a terminal state and whether any self-hosted work remains.
+        A no-op unless a teardown hook was injected. Teardown failures never
+        fail the tick: the hook records them in job evidence and queue events.
+        """
+        hook = self._modal_teardown
+        if hook is None:
+            return
+        candidates = [
+            spec
+            for spec in list(running_before.values()) + approved_specs
+            if is_mimo_selfhosted_model(spec.model)
+        ]
+        if not candidates:
+            return
+        try:
+            record = hook(self.queue, self.repo_root, candidates)
+        except Exception as exc:
+            self._report_progress(f"modal teardown skipped: {type(exc).__name__}")
+            return
+        if record is not None:
+            reason = record.get("reason")
+            if record.get("stopped"):
+                self._report_progress(
+                    f"modal teardown: stopped {record.get('app')} "
+                    f"(state={record.get('app_state')}, "
+                    f"containers={record.get('container_count')})"
+                )
+            elif reason not in (None, "queue-not-drained"):
+                self._report_progress(f"modal teardown skipped: {reason}")
 
     def execute_spec(
         self,

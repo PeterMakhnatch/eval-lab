@@ -77,6 +77,17 @@ from evallab.labels import (
     select_review_queue,
 )
 from evallab.lineage import lineage_to_dict, render_lineage_tree, resolve_lineage
+from evallab.modal_billing import (
+    aggregate_daily,
+    compare_days,
+    lab_selfhosted_daily,
+    normalize_report_rows,
+    render_comparisons,
+    sandbox_receipt_line,
+    store_billing_rows,
+)
+from evallab.modal_ops import default_runner as modal_default_runner
+from evallab.modal_ops import stop_selfhosted_app_if_drained
 from evallab.preflight import build_preflight_report, render_preflight
 from evallab.queue import (
     DirectoryQueue,
@@ -489,6 +500,7 @@ def _tick_command(
         parallel=getattr(args, "parallel", 1),
         progress=print,
         capacity=capacity,
+        modal_teardown=stop_selfhosted_app_if_drained,
     )
     for spec_id in args.spec_id:
         selected_path = executor.queue.locate(spec_id)
@@ -2000,6 +2012,92 @@ def _db_init_command(
     url = database_url_from_environment(args.database_url)
     database.initialize(url)
     print("database schema is current")
+    return 0
+
+
+def _modal_billing_reconcile_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    """Fetch Modal billing rows (read-only) and compare against lab cost."""
+    del harbor
+    if args.for_day is not None:
+        try:
+            start = date.fromisoformat(args.for_day)
+        except ValueError:
+            print(f"invalid --for day: {args.for_day!r} (expected YYYY-MM-DD)", file=sys.stderr)
+            return 2
+        end = date.fromordinal(start.toordinal() + 1)
+    else:
+        today = date.today()
+        try:
+            start = date.fromisoformat(args.start) if args.start else date.fromordinal(today.toordinal() - 2)
+            end = date.fromisoformat(args.end) if args.end else today
+        except ValueError:
+            print("invalid --start/--end (expected YYYY-MM-DD)", file=sys.stderr)
+            return 2
+    if end <= start or (end - start).days > 93:
+        print("billing range must satisfy start < end and span at most 93 days", file=sys.stderr)
+        return 2
+    runner = modal_default_runner(root)
+    try:
+        completed = runner(
+            [
+                "billing",
+                "report",
+                "--start",
+                start.isoformat(),
+                "--end",
+                end.isoformat(),
+                "--resolution",
+                "d",
+                "--json",
+            ]
+        )
+    except Exception as exc:
+        print(f"modal billing report failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+    if completed.returncode != 0:
+        print(f"modal billing report failed: {completed.stderr[-500:]}", file=sys.stderr)
+        return 1
+    try:
+        rows = normalize_report_rows(json.loads(completed.stdout), resolution="d")
+    except (json.JSONDecodeError, ValueError) as exc:
+        print(f"modal billing report unreadable: {exc}", file=sys.stderr)
+        return 1
+    url = database_url_from_environment(args.database_url)
+    database.initialize(url)
+    stored = store_billing_rows(url, rows, resolution="d")
+    billed = aggregate_daily(rows)
+    days = [date.fromordinal(start.toordinal() + offset) for offset in range((end - start).days)]
+    lab = {day: lab_selfhosted_daily(url, day) for day in days}
+    comparisons = compare_days(days, billed, lab)
+    print(f"billing rows stored: {stored}")
+    print(render_comparisons(comparisons))
+    print(sandbox_receipt_line())
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "start": start.isoformat(),
+                    "end": end.isoformat(),
+                    "rows_stored": stored,
+                    "days": [
+                        {
+                            "day": item.day.isoformat(),
+                            "modal_billed_usd": item.modal_billed_usd,
+                            "modal_reason": item.modal_reason,
+                            "lab_selfhosted_usd": item.lab_selfhosted_usd,
+                            "lab_reason": item.lab_reason,
+                            "lab_trials": item.lab_trials,
+                            "lab_trials_without_cost": item.lab_trials_without_cost,
+                        }
+                        for item in comparisons
+                    ],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
     return 0
 
 
@@ -4607,6 +4705,25 @@ def parser() -> argparse.ArgumentParser:
         help="override the shared Parquet root (same resolution as library)",
     )  # noqa: E501
     db_attach.set_defaults(func=_db_attach_command)
+
+    modal = commands.add_parser("modal", help="Self-hosted Modal operations")
+    modal_commands = modal.add_subparsers(dest="modal_command", required=True)
+    modal_billing = modal_commands.add_parser(
+        "billing-reconcile",
+        help="Fetch Modal billing rows (read-only) and compare against lab cost",
+    )
+    modal_billing.add_argument(
+        "--for",
+        dest="for_day",
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="Reconcile a single UTC day",
+    )
+    modal_billing.add_argument("--start", default=None, metavar="YYYY-MM-DD")
+    modal_billing.add_argument("--end", default=None, metavar="YYYY-MM-DD")
+    modal_billing.add_argument("--database-url")
+    modal_billing.add_argument("--json", action="store_true")
+    modal_billing.set_defaults(func=_modal_billing_reconcile_command)
 
     lineage = commands.add_parser(
         "lineage", help="Trace recursive lineage of generated artifacts back to Z1"

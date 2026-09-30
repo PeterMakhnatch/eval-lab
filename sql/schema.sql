@@ -667,3 +667,17 @@ SELECT DISTINCT ON (pack_digest)
     supersedes_decision_id
 FROM acceptance_decisions
 ORDER BY pack_digest, produced_at DESC;
+
+-- HAR-107: fetched `modal billing report` rows for the billing reconcile.
+-- One row per billed object x interval x resource; re-fetches upsert.
+CREATE TABLE IF NOT EXISTS modal_billing_rows (
+    object_id text NOT NULL,
+    description text NOT NULL,
+    environment text NOT NULL,
+    interval_start timestamptz NOT NULL,
+    resource text NOT NULL DEFAULT '',
+    cost_usd double precision NOT NULL,
+    resolution text NOT NULL,
+    reported_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (object_id, interval_start, resource)
+);

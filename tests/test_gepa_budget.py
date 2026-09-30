@@ -121,3 +121,40 @@ def test_nonfinite_limits_and_symlink_ancestors_are_rejected(tmp_path):
     alias.symlink_to(real, target_is_directory=True)
     with pytest.raises(ValueError):
         budget(alias / "nested")
+
+
+def test_subscription_unknown_cost_allows_completed_runs_until_count_ceiling(tmp_path):
+    ledger = budget(tmp_path, max_proposer_cost_usd=None)
+    ledger.reserve("proposer", "first")
+    ledger.complete("proposer", "first", status="completed")
+    resumed = budget(tmp_path, max_proposer_cost_usd=None)
+    resumed.reserve("proposer", "second")
+    resumed.complete("proposer", "second", status="completed")
+    with pytest.raises(BudgetExhausted):
+        resumed.reserve("proposer", "third")
+    report = resumed.summary()
+    assert report["proposer"]["reserved"] == 2
+    assert report["proposer"]["missing_cost_count"] == 2
+    assert report["proposer"]["complete_estimated_cost_usd"] is None
+    assert report["actual_billing_cost_usd"] is None
+
+
+def test_subscription_unresolved_proposer_still_blocks(tmp_path):
+    ledger = budget(tmp_path, max_proposer_cost_usd=None)
+    ledger.reserve("proposer", "hanging")
+    with pytest.raises(BudgetExhausted):
+        ledger.reserve("proposer", "next")
+    ledger.complete("proposer", "hanging", status="error")
+    with pytest.raises(BudgetExhausted):
+        ledger.reserve("proposer", "after-error")
+
+
+def test_subscription_cost_mode_is_immutable_on_resume(tmp_path):
+    budget(tmp_path, max_proposer_cost_usd=None)
+    with pytest.raises(ValueError):
+        budget(tmp_path)
+    budget(tmp_path, max_proposer_cost_usd=None)
+    other = tmp_path / "other"
+    budget(other)
+    with pytest.raises(ValueError):
+        budget(other, max_proposer_cost_usd=None)

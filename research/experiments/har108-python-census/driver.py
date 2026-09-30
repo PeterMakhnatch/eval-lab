@@ -34,6 +34,9 @@ SCRATCH = Path("/private/tmp/har108-spend.parquet")
 #: Upper-tail per-nop cost (code nops so far: mean $0.0079, p90 about $0.012).
 WAVE_COST_USD = 0.012
 STOP_SETUP_RATE = 0.5
+#: Smaller waves (the cap's tail) are too noisy for the stop rule: the census
+#: stopped on 2/3 at $2.96 although every 100-task wave ran at about 25%.
+STOP_MIN_TRIALS = 20
 
 
 def sh(*args: str) -> str:
@@ -189,7 +192,7 @@ def main() -> None:
         tick(approved_ids(), args.parallel)
         hits, total = setup_rate(names)
         log(f"wave setup-error rate {hits}/{total}")
-        if total and hits / total > STOP_SETUP_RATE:
+        if total >= STOP_MIN_TRIALS and hits / total > STOP_SETUP_RATE:
             log("stop: setup-error rate above threshold; review before continuing")
             return
 

@@ -12,17 +12,12 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from evallab.registry import compute_task_digests  # noqa: E402
 from evallab.storage.paths import shared_checkout_root  # noqa: E402
-#: A nop whose verifier output matches this broke before grading: a raised
-#: missing module or package, a pytest collection or fixture-setup error, a
-#: conftest that cannot import, a package whose C extensions were never built
-#: (pandas, CuPy in part 3), or a missing command. Two near misses are
-#: deliberately not matched: "cannot import name X" from the task's own code
-#: is often the function the agent must write (1702), and a logged "No module
-#: named" (stevedore skipping Bandit's optional sarif formatter in 1789) is not
-#: a raised error. A pytest collection error can also be the missing feature
-#: itself; ``select_python.SETUP_ERROR_OK`` records those checked by hand.
-#: The rule lives in ``evallab.task_health``; this re-exports it.
-from evallab.task_health import SETUP_ERROR  # noqa: E402
+
+#: A nop whose verifier output matches this broke before grading (the rule
+#: and its near misses are documented on ``evallab.task_health.SETUP_ERROR``).
+#: A pytest collection error can also be the missing feature itself;
+#: ``select_python.SETUP_ERROR_OK`` records those checked by hand.
+from evallab.task_health import SETUP_ERROR as SETUP_ERROR  # noqa: E402
 
 OUT = Path(__file__).resolve().parent
 PRIMARY = shared_checkout_root(ROOT)

@@ -720,6 +720,78 @@ def test_detect_grader_guards_dotted_module_by_top_level() -> None:
     ) is None
 
 
+def test_detect_grader_project_submodule_and_startup_noise() -> None:
+    """HAR-108 census false positives: a missing submodule of the project the
+    hidden tests import is the feature under nop, and Debian's .pth start-up
+    traceback is never the root cause. A build artifact of that project is."""
+    noise = (
+        "Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth:\n"
+        "  ModuleNotFoundError: No module named '_distutils_hack'\n"
+    )
+
+    def stdout(module: str) -> str:
+        return (
+            f"{noise}ERROR collecting test/test_plugin.py\n"
+            f"E   ModuleNotFoundError: No module named '{module}'\n"
+            "Interrupted: 1 error during collection\n"
+        )
+
+    instruction = "Add a PagerTree notification service.\n"
+    assert (
+        detect_grader_collection_failure(
+            [stdout("apprise.plugins.NotifyPagerTree")],
+            instruction_text=instruction,
+            project_modules={"apprise"},
+        )
+        is None
+    )
+    assert (
+        detect_grader_collection_failure(
+            [stdout("apprise._version")], instruction_text=instruction, project_modules={"apprise"}
+        )
+        == "ModuleNotFoundError: No module named 'apprise._version'"
+    )
+    assert (
+        detect_grader_collection_failure(
+            [stdout("more_itertools")], instruction_text=instruction, project_modules={"apprise"}
+        )
+        == "ModuleNotFoundError: No module named 'more_itertools'"
+    )
+    # 002218: naming the project never excuses its unbuilt extension.
+    assert (
+        detect_grader_collection_failure(
+            [stdout("pandas._libs.interval")], instruction_text="Fix pandas MultiIndex.\n"
+        )
+        == "ModuleNotFoundError: No module named 'pandas._libs.interval'"
+    )
+    header_only = noise + (
+        "ERROR collecting pkg/tests/test_x.py\n"
+        "ImportError while importing test module '/testbed/pkg/tests/test_x.py'.\n"
+        "pkg/tests/test_x.py:3: in <module>\n"
+        "    from pkg import feature\n"
+        "E   ImportError: cannot import name 'feature' from 'pkg' (/testbed/pkg/__init__.py)\n"
+    )
+    assert detect_grader_collection_failure([header_only], instruction_text="Fix it.\n") is None
+
+
+def test_collect_trial_attributes_killed_executor_job_by_harbor_lock(tmp_path: Path) -> None:
+    """No lab-metadata.json (the executor died): Harbor's lock digest names the
+    version only when the catalog knows it, never by guess."""
+    version, harbor = "sha256:" + "c" * 64, "sha256:" + "d" * 64
+    job = _write_job(tmp_path, "jobk", [{"name": "t__nop", "agent": "nop", "reward": 0.0}])
+    (job / "lab-metadata.json").unlink()
+    lock_path = job / "t__nop" / "lock.json"
+    lock = json.loads(lock_path.read_text())
+    lock["task"]["digest"] = harbor
+    lock_path.write_text(json.dumps(lock))
+
+    (row,) = collect_jobs([job], version_by_harbor={harbor: version})
+    assert (row["task_version_digest"], row["harbor_digest"]) == (version, harbor)
+
+    (row,) = collect_jobs([job], version_by_harbor={"sha256:" + "e" * 64: version})
+    assert (row["task_version_digest"], row["harbor_digest"]) == (None, None)
+
+
 def test_collect_trial_flags_grader_broken_for_controls(tmp_path: Path) -> None:
     staged = _write_staged_task(tmp_path)
     job = _write_job(tmp_path, "jobg", [

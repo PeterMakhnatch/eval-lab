@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from evallab.hidden_patch import project_modules
 from evallab.task_health import (
     blocklist_facts,
     build_health_rows,
@@ -128,6 +129,128 @@ def test_no_nop_is_unknown() -> None:
     assert label == "unknown"
     assert reasons == ["no_nop"]
     assert evidence
+
+
+def test_missing_project_code_is_excused_but_build_artifacts_are_not(tmp_path: Path) -> None:
+    """A name or submodule missing from the project the hidden tests import is
+    the agent's work; a missing version file, compiled extension, or name
+    missing from an installed package is the environment."""
+    trial = _trial(tmp_path, "")
+
+    def excused(stdout: str) -> bool:
+        (trial / "verifier" / "test-stdout.txt").write_text(stdout)
+        return nop_evidence(trial, "Add the HyAB colour metric.\n", {"colour"})[
+            "setup_error_excused"
+        ]
+
+    collecting = "ERROR collecting colour/difference/tests/test_delta_e.py\n"
+    assert excused(
+        collecting + "E   ImportError: cannot import name 'delta_E_HyAB' from "
+        "'colour.difference' (/testbed/colour/difference/__init__.py)\n"
+    )
+    assert excused(collecting + "E   AttributeError: module 'colour' has no attribute 'hyab'\n")
+    assert not excused(collecting + "E   ModuleNotFoundError: No module named 'colour._version'\n")
+    assert not excused(collecting + "E   ModuleNotFoundError: No module named 'colour.version'\n")
+    assert not excused(
+        collecting + "E   ImportError: cannot import name 'x' from 'colour.difference' "
+        "(/usr/lib/python3/dist-packages/colour/difference/__init__.py)\n"
+    )
+    assert not excused(collecting + "E   ModuleNotFoundError: No module named 'scipy.spatial'\n")
+
+
+def test_project_modules_include_the_test_files_package(tmp_path: Path) -> None:
+    """000700: the hidden test adds a name inside an existing parenthesised
+    import, so only the test file's own directory names the project."""
+    patch = (
+        "diff --git a/colour/difference/tests/test_delta_e.py b/colour/difference/tests/test_delta_e.py\n"
+        "--- a/colour/difference/tests/test_delta_e.py\n"
+        "+++ b/colour/difference/tests/test_delta_e.py\n"
+        "@@ -1,3 +1,4 @@\n"
+        " from colour.difference import (\n"
+        "+    delta_E_HyAB,\n"
+        " )\n"
+        "diff --git a/src/pkg/tests/test_y.py b/src/pkg/tests/test_y.py\n"
+        "--- /dev/null\n"
+        "+++ b/src/pkg/tests/test_y.py\n"
+        "@@ -0,0 +1 @@\n"
+        "+import numpy\n"
+        "diff --git a/tests/test_z.py b/tests/test_z.py\n"
+        "--- /dev/null\n"
+        "+++ b/tests/test_z.py\n"
+        "@@ -0,0 +1 @@\n"
+        "+import json\n"
+    )
+    assert project_modules(_task(tmp_path, patch=patch)) == {"colour", "pkg"}
+
+
+_DISTUTILS_NOISE = (
+    "Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth:\n"
+    "  Traceback (most recent call last):\n"
+    "  ModuleNotFoundError: No module named '_distutils_hack'\n"
+)
+
+
+def test_colored_counts_and_startup_noise_still_grade_sound(tmp_path: Path) -> None:
+    """Census false positives: colour codes hid pytest's counts (tests_did_not_run)
+    and Debian's .pth start-up traceback matched ModuleNotFoundError."""
+    stdout = _DISTUTILS_NOISE + "FAILED pkg/tests/test_widget.py::test_widget\n"
+    stdout += "\x1b[31m\x1b[1m1 failed\x1b[0m\x1b[31m in 0.04s\x1b[0m\ntest command exited 1\n"
+    label, reasons, _evidence = _label(tmp_path, stdout)
+    assert (label, reasons) == ("sound", [])
+
+
+def test_counts_win_over_a_collection_error(tmp_path: Path) -> None:
+    """One module failing to import while the rest run is not 'did not run';
+    the collection error itself is still judged as a setup error."""
+    task = _task(tmp_path, instruction="Add a Widget.\n")
+    stdout = "ERROR collecting pkg/tests/test_widget.py\nE   ImportError: cannot import name 'Widget' from 'pkg.widget'\n3 passed, 1 error\n"
+    label, _reasons, _evidence = label_task(
+        static_checks(task), nop_evidence(_trial(tmp_path, stdout), "Add a Widget.\n")
+    )
+    assert label == "sound"
+
+
+def test_custom_runner_output_counts_as_ran_but_silence_does_not(tmp_path: Path) -> None:
+    patch = _one_file_patch("def test_x():\n    pass", command="bash run_checks.sh")
+    static = static_checks(_task(tmp_path, patch=patch))
+    assert static["test_runner"] == "other"
+    spoke = nop_evidence(
+        _trial(tmp_path / "a", "FAIL: F1 missing --open help\ntest command exited 1\n"), ""
+    )
+    assert label_task(static, spoke)[0] == "sound"
+    silent = nop_evidence(_trial(tmp_path / "b", "test command exited 1\n"), "")
+    label, reasons, evidence = label_task(static, silent)
+    assert (label, reasons, evidence) == ("grader_suspect", ["tests_did_not_run"], "no test output")
+
+
+def test_new_environment_shapes_are_setup_errors(tmp_path: Path) -> None:
+    cases = {
+        "/usr/bin/python: No module named pytest\n": "No module named pytest",
+        "pkg_resources.DistributionNotFound: The 'chainer' distribution was not found\n": "DistributionNotFound",
+        "File config.vars not found: you must run ./configure before running make.\n": "configure",
+        "ImportError: cannot import name 'dict2schema' from 'webargs' "
+        "(/root/.venv/lib/python3.11/site-packages/webargs/__init__.py)\n": "dict2schema",
+    }
+    for index, (stdout, needle) in enumerate(cases.items()):
+        label, reasons, evidence = _label(tmp_path / str(index), stdout)
+        assert (label, reasons) == ("broken_environment", ["setup_error"]), stdout
+        assert needle in evidence
+    # Logged by a plugin loader while the tests still ran (001273): not setup.
+    logged = "pkg_resources.DistributionNotFound: The 'uWSGI' distribution was not found\n"
+    label, _reasons, _evidence = _label(tmp_path / "logged", logged + "1 failed, 3 passed\n")
+    assert label == "sound"
+
+
+def test_helper_key_error_for_the_named_function_is_excused(tmp_path: Path) -> None:
+    """001601: ivy's test helper looks the new frontend function up by name."""
+    stdout = (
+        "ERROR collecting ivy_tests/test_general_functions.py\n"
+        "ivy_tests/helpers/testing_helpers.py:179: in _import_fn\n"
+        "E   KeyError: 'sequence_mask'\n"
+    )
+    trial = _trial(tmp_path, stdout)
+    assert nop_evidence(trial, "Add `tf.sequence_mask` to the frontend.\n")["setup_error_excused"]
+    assert not nop_evidence(trial, "Add a boolean mask helper.\n")["setup_error_excused"]
 
 
 def _one_file_patch(

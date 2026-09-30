@@ -172,7 +172,9 @@ split is `unassigned`.
 
 `evallab tasks qualify-collect <job_dir>...` writes one
 `task_qualification.parquet` row per trial: task digests (attributed by the
-package digest the queue staged, as `exploit-collect` does), backend and
+package digest the queue staged, as `exploit-collect` does; when the executor
+died before writing `lab-metadata.json`, by the trial `lock.json` task digest,
+but only if it equals exactly one catalog `task_versions.harbor_digest`), backend and
 environment import path, job/trial/agent names, started/finished times,
 setup/agent/verifier/trial seconds, `setup_ok`, `verifier_completed`,
 reward, `repeat_rewards` (from `verifier/stability.json` when RepeatVerifier
@@ -197,7 +199,7 @@ Reasons (a nop trial with reward exactly 0 and a completed verifier is `ok`):
 | `reward_missing` | no exception explains the trial, yet no usable reward exists |
 | `nop_passes` | a nop/oracle control scored above 0 — the grader accepts no work |
 | `unstable_verifier` | `repeat_rewards` disagree |
-| `grader_broken` | a nop/oracle control's verifier stdout (`<trial>/verifier/test-stdout.txt`, plus any `RepeatVerifier` per-repeat stdout under `<trial>/verifier/repeat/*/`) shows pytest collection failing on a broken test module (`ImportError while importing test module` / `ModuleNotFoundError` / `SyntaxError`), so every run scores 0 whatever the agent does. The row's `grader_error` carries the root-cause line (e.g. `ModuleNotFoundError: No module named 'stevedore'`). Nop guard: when the missing module's top-level name appears as a word in the task's `instruction.md`, the import is expected under nop (the agent is supposed to create it) and does not flag. Workspace guard: an `ImportError` with no missing-module or syntax root cause whose innermost traceback frame is in the task workspace (a rootdir-relative path or `/app/...`, e.g. vendored sources the task asks the agent to repair) does not flag either. For queue runs, whose staged task copy is deleted after the run, `task.toml` and `instruction.md` are read from the job's `experiment-spec.json` source task path |
+| `grader_broken` | a nop/oracle control's verifier stdout (`<trial>/verifier/test-stdout.txt`, plus any `RepeatVerifier` per-repeat stdout under `<trial>/verifier/repeat/*/`) shows pytest collection failing on a broken test module (`ImportError while importing test module` / `ModuleNotFoundError` / `SyntaxError`), so every run scores 0 whatever the agent does. The row's `grader_error` carries the root-cause line (e.g. `ModuleNotFoundError: No module named 'stevedore'`). Interpreter start-up noise (`No module named '_distutils_hack'`, printed by a stale `distutils-precedence.pth` before any test runs) is dropped first. Nop guard (`missing_module_is_task_work`): the missing module is expected under nop, and does not flag, when `instruction.md` names its top-level package or its leaf as a word, or when it is a submodule of a project package the hidden tests import or live in (`hidden_patch.project_modules`: 000625's `apprise.plugins.NotifyPagerTree`). A build artifact always flags, whatever the instruction says: any `_`-prefixed component (pandas' `pandas._libs.interval`, `wordcloud._version`) or a `version`/`lib*` leaf (`linopy.version`). Workspace guard: an `ImportError` with no missing-module or syntax root cause whose innermost traceback frame is in the task workspace (a rootdir-relative path or `/app/...`, e.g. vendored sources the task asks the agent to repair) does not flag either. For queue runs, whose staged task copy is deleted after the run, `task.toml` and `instruction.md` are read from the job's `experiment-spec.json` source task path |
 
 Status is `ok` (no reasons), `broken` (any task-blaming reason), or
 `inconclusive`: a trial whose *only* reason is `backend_quota` failed on
@@ -284,6 +286,12 @@ one release and PyPI is open but no dated upstream fix was found; `git_only`
 when a repo is known and no release followed the fix (the note says whether
 git hosts are blocked, and that a root agent can rewrite `/etc/hosts`);
 `none_found`; `unknown` when the blocklist or the pypi.json entry is missing.
+`leak_check.py` knows a task's repo from the split group, from the matched
+PyPI project's GitHub URL, or, when neither names one, from a GitHub-wide
+search for the task title that finds an exactly matching issue or PR title in
+exactly one repo (`repo_source` `issue_title`); that repo then gets the same
+PyPI lookup by repo URL, so a format-style singleton whose upstream is on
+PyPI is not left at `none_found`.
 
 The markdown summary names the table path and row count. Every count in it is
 a group-by of the table: labels, split × label, the top 25 `project_key`s by
@@ -296,16 +304,38 @@ Labels, first match wins:
 | Label | When |
 |---|---|
 | `unknown` | no nop trial for the task version, or its trial directory is absent from every job root |
-| `broken_environment` | the trial exception is an environment-setup failure, the hidden tests were not applied, no reward exists, or the verifier log matches `SETUP_ERROR` (`ModuleNotFoundError`, `PackageNotFoundError`, `ERROR collecting`, `ERROR at setup`, `command not found`, `ImportError while loading conftest`, `is not correctly installed`, `build_ext`) and the match is not excused. Evidence is always a log excerpt |
+| `broken_environment` | the trial exception is an environment-setup failure, the hidden tests were not applied, no reward exists, or the verifier log matches `SETUP_ERROR` (`ModuleNotFoundError`, `PackageNotFoundError`, `ERROR collecting`, `ERROR at setup`, `command not found`, `ImportError while loading conftest`, `is not correctly installed`, `build_ext`, `No module named pytest`, `must run ./configure`, a `cannot import name` from a file under site-/dist-packages; `DistributionNotFound` only when no test result was reported, since plugin loaders log it and carry on) and the match is not excused. Evidence is always a log excerpt |
 | `grader_suspect` | the nop scores 1 (hidden tests pass with no change), the tests never ran and no setup error explains it, or `literal_source_asserts` is non-empty |
 | `sound` | everything else: the nop graded and the environment held |
 
-A `SETUP_ERROR` match is excused only when it names the agent's missing work:
-`detect_grader_collection_failure` returns nothing, and every name the error
-says is missing (a `cannot import name` symbol, or the leaf of a
-`No module named` module) appears as a whole word in `instruction.md`. An
-environment defect the instruction happens to mention (`CuPy is not correctly
-installed`, pandas `build_ext`) names no missing symbol, so it is never excused.
+The log is read with ANSI colour codes stripped and interpreter start-up
+noise (`STARTUP_NOISE`) dropped. "Tests ran" depends on the runner: for
+`pytest`, `unittest` and `django` a result count must be reported (a count
+wins over a collection error pytest prints alongside it, and `collected 0`
+is not a run); `bundled` and `other` runners state no parseable count, so any
+output line other than the harness's own (`test command exited N`, the
+not-applied notice) counts, and a silent run is `grader_suspect` with evidence
+`no test output`.
+
+A `SETUP_ERROR` match is excused (`nop_setup_error_excused`, label `sound`)
+only when it names the agent's missing work, by the rules the qualification
+nop guard uses: `detect_grader_collection_failure` returns nothing, and every
+root cause read from a raised-error line (a warning that mentions a missing
+optional module names no cause) passes. A `No module named` module passes
+`missing_module_is_task_work` (named by the instruction, or a submodule of a
+project package, and never a build artifact). A `cannot import name` symbol,
+`module has no attribute` name or a test helper's `KeyError` lookup (ivy's
+`_import_fn`, 001601) passes `missing_name_is_task_work`: the instruction
+names it as a word, or it is missing from a project module whose file is not
+installed under site-/dist-packages (000700's `delta_E_HyAB` from
+`/testbed/colour/difference`). Project packages
+(`hidden_patch.project_modules`) are the non-stdlib modules the hidden test
+files' added lines import, plus the package directory the patched test files
+live in (`colour/difference/tests/…` names `colour`, `src/<pkg>/…` names
+`<pkg>`), which covers a name added inside an existing parenthesised import.
+An environment defect the instruction happens to mention (`CuPy is
+not correctly installed`, pandas `build_ext`) names no missing symbol, so it
+is never excused.
 
 ## Current numbers
 

@@ -11,19 +11,32 @@ from __future__ import annotations
 
 import json
 import re
-import sys
 import tomllib
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from evallab.evidence.facts import exception_phase_for
+from evallab.hidden_patch import (
+    GENERIC_DIRS,
+    HARNESS_FILES,
+    added_lines,
+    excluded_module,
+    patch_sections,
+    project_modules,
+)
+from evallab.hidden_patch import (
+    imported_modules as patch_imported_modules,
+)
 from evallab.task_qualification import (
+    STARTUP_NOISE,
     _latest_key,
     _trial_reward_file,
     detect_grader_collection_failure,
+    missing_module_is_task_work,
+    missing_name_is_task_work,
 )
 
 #: Catalog table written by :func:`write_task_health_parquet`.
@@ -32,32 +45,46 @@ TABLE = Path(TABLE_FILENAME).stem
 
 LABELS = ("sound", "broken_environment", "grader_suspect", "unknown")
 
-#: Files the MiMo harness adds to every code task; not hidden tests.
-HARNESS_FILES = frozenset({"mimo_test_command.sh", "test_commands.json"})
-
 #: A nop whose verifier output matches this broke before grading: a raised
 #: missing module or package, a pytest collection or fixture-setup error, a
 #: conftest that cannot import, a package whose C extensions were never built
-#: (pandas, CuPy in part 3), or a missing command. Two near misses are
-#: deliberately not matched: "cannot import name X" from the task's own code
-#: is often the function the agent must write (1702), and a logged "No module
-#: named" (stevedore skipping Bandit's optional sarif formatter in 1789) is not
-#: a raised error. A pytest collection error can also be the missing feature
-#: itself; :func:`setup_error_excused` records those, and
+#: (pandas, CuPy in part 3), a missing command or test runner (``python -m
+#: pytest`` without pytest), an unbuilt native tree (``./configure`` never
+#: ran), or an installed dependency (under site-/dist-packages) lacking a name
+#: the tests import. Two near misses are deliberately not matched: "cannot
+#: import name X" from the task's own code is often the function the agent
+#: must write (1702), and a logged "No module named" (stevedore skipping
+#: Bandit's optional sarif formatter in 1789) is not a raised error. A pytest
+#: collection error can also be the missing feature itself;
+#: :func:`setup_error_excused` records those, and
 #: ``select_python.SETUP_ERROR_OK`` records the ones checked by hand.
 SETUP_ERROR = re.compile(
     r"ModuleNotFoundError|PackageNotFoundError"
     r"|ERROR collecting|ERROR at setup|command not found"
     r"|ImportError while loading conftest|is not correctly installed|build_ext"
+    r"|No module named pytest|must run \./configure"
+    r"|cannot import name '\w+' from '[\w.]+' \(\S*(?:site|dist)-packages/"
 )
+
+#: A setup error only when no test result was reported: ``pkg_resources``
+#: failing to find a distribution stops a unittest run (chainer, 000651) but
+#: is also logged and survived by plugin loaders (Sentry's uWSGI, 001273).
+_SETUP_ERROR_IF_NOTHING_RAN = re.compile(r"DistributionNotFound")
+
+#: Colour codes pytest emits when forced to; they break ``\b`` digit matches.
+_ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+#: Lines the harness itself writes around any test command's output.
+_HARNESS_LINE = re.compile(r"^(test command exited \d+|.*hidden tests could not be applied.*)$")
+
+#: Runners whose output states a result count (unittest backs django's).
+_PARSEABLE_RUNNERS = frozenset({"pytest", "unittest", "django"})
 
 #: Grader text meaning the hidden test patch never landed, so no reward exists.
 _NOT_APPLIED = re.compile(r"the hidden tests could not be applied", re.IGNORECASE)
 
-_PYTEST_RAN = re.compile(r"collected \d+ items?|\b\d+ passed\b|\b\d+ failed\b", re.IGNORECASE)
+_PYTEST_RAN = re.compile(r"collected [1-9]\d* items?|\b\d+ passed\b|\b\d+ failed\b", re.IGNORECASE)
 _UNITTEST_RAN = re.compile(r"^Ran (?P<n>\d+) tests?\b", re.MULTILINE)
-_COLLECTED = re.compile(r"collected (?P<n>\d+) items?", re.IGNORECASE)
-_COLLECTION_ERROR = re.compile(r"ERROR collecting|error during collection", re.IGNORECASE)
 
 _PYTEST_CMD = re.compile(r"\bpytest\b")
 _UNITTEST_CMD = re.compile(r"\bunittest\b")
@@ -80,32 +107,20 @@ _GIT_HEADER = re.compile(
     r"copy from |copy to |--- |\+\+\+ )"
 )
 
-#: Top-level modules a hidden test imports that are not the project.
-_EXCLUDED_IMPORTS = frozenset(
-    {
-        "pytest",
-        "mock",
-        "hypothesis",
-        "numpy",
-        "pandas",
-        "requests",
-        "yaml",
-        "six",
-        "attr",
-        "attrs",
-        "pydantic",
-        "sqlalchemy",
-        "django",
-        "flask",
-        "typing_extensions",
-        "tests",
-        "test",
-        "conftest",
-    }
+#: Root causes, read only from raised-error lines (``…Error: …``): a warning
+#: that mentions a missing optional module (colour's ``ColourUsageWarning``
+#: about matplotlib) names no cause.
+_CANNOT_IMPORT_NAME = re.compile(
+    r"Error\b[^\n]*?cannot import name '(?P<name>[^']+)'"
+    r"(?: from '(?P<module>[\w.]+)'(?: \((?P<path>[^)]*)\))?)?"
 )
-
-_CANNOT_IMPORT_NAME = re.compile(r"cannot import name '(?P<name>[^']+)'")
-_NO_MODULE = re.compile(r"No module named '(?P<module>[^']+)'")
+_NO_MODULE = re.compile(r"Error\b[^\n]*?No module named '(?P<module>[^']+)'")
+_NO_ATTRIBUTE = re.compile(
+    r"Error\b[^\n]*?module '(?P<module>[\w.]+)' has no attribute '(?P<name>\w+)'"
+)
+#: A test helper looking up the function under test by name (ivy's
+#: ``_import_fn``, 001601); only ever excused when the instruction names it.
+_KEY_ERROR = re.compile(r"KeyError: '(?P<name>\w+)'")
 
 _EVIDENCE_LIMIT = 200
 
@@ -127,33 +142,59 @@ def utc_now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def setup_error_excused(stdout_texts: Sequence[str], instruction: str | None) -> bool:
-    """True when every ``SETUP_ERROR`` match is the agent's missing work.
+def setup_error_excused(
+    stdout_texts: Sequence[str],
+    instruction: str | None,
+    project_modules: Collection[str] = frozenset(),
+) -> bool:
+    """True when every ``SETUP_ERROR`` root cause is the agent's missing work.
 
-    :func:`evallab.task_qualification.detect_grader_collection_failure`
-    excuses only a missing *module* whose top-level name the instruction
-    names, and only inside a pytest collection failure. That misses the
-    census case: ``cannot import name 'rename' from 'siuba'`` is a missing
-    symbol, not a missing module, and the instruction names ``rename``.
-    A match is excused when that helper returns ``None`` and every name the
-    error says is missing (the ``cannot import name`` symbol, or the leaf of
-    a ``No module named`` module) appears as a whole word in the instruction.
-    An environment defect the instruction happens to mention (CuPy's
-    ``is not correctly installed``, pandas' ``build_ext``) names no missing
-    symbol, so it is never excused.
+    Root causes are the ``No module named`` modules, ``cannot import name``
+    symbols, ``module has no attribute`` names and ``KeyError`` keys in the
+    output; each must
+    pass :func:`~evallab.task_qualification.missing_module_is_task_work` or
+    :func:`~evallab.task_qualification.missing_name_is_task_work` against the
+    project modules the hidden tests import (001832's ``rename`` is named by
+    the instruction; 000700's ``cannot import name 'delta_E_HyAB' from
+    'colour.difference' (/testbed/…)`` is the project's own missing code).
+    A grader collection failure
+    (:func:`~evallab.task_qualification.detect_grader_collection_failure`)
+    is never excused. Neither is a third-party module, an uncompiled
+    extension, a missing version file, a stdlib name the interpreter lacks,
+    or an environment defect with no parseable cause (CuPy's ``is not
+    correctly installed``, pandas' ``build_ext``).
     """
-    if detect_grader_collection_failure(stdout_texts, instruction_text=instruction) is not None:
-        return False
-    if not instruction:
+    if (
+        detect_grader_collection_failure(
+            stdout_texts, instruction_text=instruction, project_modules=project_modules
+        )
+        is not None
+    ):
         return False
     combined = "\n".join(stdout_texts)
-    matched = [line for line in combined.splitlines() if SETUP_ERROR.search(line)]
-    if not matched:
+    if not any(SETUP_ERROR.search(line) for line in combined.splitlines()):
         return False
-    names = [match.group("name") for match in _CANNOT_IMPORT_NAME.finditer(combined)] + [
-        match.group("module").rsplit(".", 1)[-1] for match in _NO_MODULE.finditer(combined)
-    ]
-    return bool(names) and all(_word_in(instruction, name) for name in names)
+    missing_modules = [match.group("module") for match in _NO_MODULE.finditer(combined)]
+    missing_names = (
+        [
+            (match.group("name"), match.group("module"), match.group("path"))
+            for match in _CANNOT_IMPORT_NAME.finditer(combined)
+        ]
+        + [
+            (match.group("name"), match.group("module"), None)
+            for match in _NO_ATTRIBUTE.finditer(combined)
+        ]
+        + [(match.group("name"), None, None) for match in _KEY_ERROR.finditer(combined)]
+    )
+    if not missing_modules and not missing_names:
+        return False
+    return all(
+        missing_module_is_task_work(module, instruction, project_modules)
+        for module in missing_modules
+    ) and all(
+        missing_name_is_task_work(name, module, path, instruction, project_modules)
+        for name, module, path in missing_names
+    )
 
 
 def _word_in(text: str, word: str) -> bool:
@@ -168,35 +209,10 @@ def _trim(text: str, limit: int = _EVIDENCE_LIMIT) -> str:
 # --- static checks ---------------------------------------------------------
 
 
-def _patch_sections(patch_text: str) -> list[tuple[str, str]]:
-    """``(path, section text)`` for every ``diff --git`` file section."""
-    sections: list[tuple[str, str]] = []
-    for match in re.finditer(
-        r"(?m)^diff --git a/(\S+) b/\S+.*?(?=^diff --git |\Z)", patch_text, re.S
-    ):
-        sections.append((match.group(1), match.group(0)))
-    return sections
-
-
-def _added_lines(section: str) -> list[str]:
-    """Added source lines of one patch section, hunk headers excluded."""
-    lines: list[str] = []
-    in_hunk = False
-    for raw in section.splitlines():
-        if raw.startswith("@@"):
-            in_hunk = True
-            continue
-        if not in_hunk:
-            continue
-        if raw.startswith("+") and not raw.startswith("+++"):
-            lines.append(raw[1:])
-    return lines
-
-
 def _test_command_text(sections: Sequence[tuple[str, str]]) -> str:
     for path, section in sections:
         if Path(path).name == "mimo_test_command.sh":
-            return "\n".join(_added_lines(section))
+            return "\n".join(added_lines(section))
     return ""
 
 
@@ -412,7 +428,7 @@ def _literal_source_asserts(sections: Sequence[tuple[str, str]]) -> list[str]:
     for path, section in sections:
         if Path(path).name in HARNESS_FILES or not str(path).endswith(".py"):
             continue
-        added = _added_lines(section)
+        added = added_lines(section)
         path_names: dict[str, str] = {}
         written_literals: set[str] = set()
         written_names: set[str] = set()
@@ -447,8 +463,12 @@ def _literal_source_asserts(sections: Sequence[tuple[str, str]]) -> list[str]:
                 continue
             assigned = _ASSIGN.match(stripped)
             expr = assigned.group("expr") if assigned else ""
-            if expr and _acquires_project_source(
-                expr, path_names, written_literals, written_names, patched
+            if (
+                assigned
+                and expr
+                and _acquires_project_source(
+                    expr, path_names, written_literals, written_names, patched
+                )
             ):
                 source_names[assigned.group("name")] = stripped
             opened = re.search(r"\bwith\s+open\s*\(\s*([^,)\n]+)", stripped)
@@ -483,56 +503,6 @@ def _imported_names(line: str) -> list[str]:
     return [name for name in _IMPORT_NAME.findall(body) if name != "as"]
 
 
-def _top_level_imports(line: str) -> list[str]:
-    stripped = line.strip()
-    if stripped.startswith("from "):
-        module = stripped[len("from ") :].split(" import ", 1)[0].strip()
-        top = module.split(".")[0]
-        return [top] if top and not top.startswith(".") else []
-    if not stripped.startswith("import "):
-        return []
-    found: list[str] = []
-    for part in stripped[len("import ") :].split("#", 1)[0].split(","):
-        name = part.strip().split()[0] if part.strip() else ""
-        top = name.split(".")[0]
-        if top and top != "as":
-            found.append(top)
-    return found
-
-
-def _imported_modules(sections: Sequence[tuple[str, str]]) -> list[str]:
-    modules: list[str] = []
-    for path, section in sections:
-        if Path(path).name in HARNESS_FILES or not str(path).endswith(".py"):
-            continue
-        for line in _added_lines(section):
-            modules.extend(_top_level_imports(line))
-    return modules
-
-
-def _excluded_module(name: str) -> bool:
-    return name in _EXCLUDED_IMPORTS or name in sys.stdlib_module_names
-
-
-#: Patch path directories that name a test layout, not a project.
-_GENERIC_DIRS = frozenset(
-    {
-        "tests",
-        "test",
-        "testing",
-        "unittests",
-        "unit_tests",
-        "usercase-test-coderl",
-        "src",
-        "lib",
-        "python",
-        "t",
-        "spec",
-        "specs",
-    }
-)
-
-
 def project_key_for(
     split_group: str | None,
     task_id: str | None,
@@ -553,14 +523,14 @@ def project_key_for(
     rest = group.split(":", 1)[1] if group.startswith("code:") else group
     if rest and not rest.startswith("format-code-task-"):
         return rest, "split_group"
-    candidates = [name for name in imported_modules if name and not _excluded_module(name)]
+    candidates = [name for name in imported_modules if name and not excluded_module(name)]
     if candidates:
         counts = Counter(candidates)
         best = min(counts, key=lambda name: (-counts[name], candidates.index(name)))
         return best, "test_import"
     for path in patch_files:
         parts = Path(str(path)).parts
-        if str(path).endswith(".py") and len(parts) > 1 and parts[0] not in _GENERIC_DIRS:
+        if str(path).endswith(".py") and len(parts) > 1 and parts[0] not in GENERIC_DIRS:
             return parts[0], "test_path"
     return str(task_id or "unknown"), "task_id"
 
@@ -572,7 +542,7 @@ def _undisclosed_names(sections: Sequence[tuple[str, str]], instruction: str) ->
         if Path(path).name in HARNESS_FILES or not path.endswith(".py"):
             continue
         project = Path(path).parts[0]
-        for line in _added_lines(section):
+        for line in added_lines(section):
             match = _FROM_IMPORT.match(line.strip())
             if match is None or match.group(1).split(".")[0] != project:
                 continue
@@ -752,7 +722,7 @@ def static_checks(task_dir: Path) -> dict[str, Any]:
         instruction = (task_dir / "instruction.md").read_text(encoding="utf-8", errors="replace")
     except OSError:
         instruction = ""
-    sections = _patch_sections(patch_text)
+    sections = patch_sections(patch_text)
     patch_files = [path for path, _section in sections if Path(path).name not in HARNESS_FILES]
     well_formed = bool(sections) and all(_section_parses(section) for _path, section in sections)
     command = _test_command_text(sections)
@@ -767,7 +737,7 @@ def static_checks(task_dir: Path) -> dict[str, Any]:
         "test_runner": runner,
         "test_targets_in_patch": targets,
         "literal_source_asserts": _literal_source_asserts(sections),
-        "imported_modules": _imported_modules(sections),
+        "imported_modules": patch_imported_modules(sections),
         "undisclosed_names": _undisclosed_names(sections, instruction),
         "instruction_chars": len(instruction),
         **blocklist_facts(task_dir),
@@ -796,34 +766,43 @@ def _reward_of(result: Mapping[str, Any], trial_dir: Path) -> float | None:
 
 
 def _stdout_text(trial_dir: Path) -> str:
+    """Verifier stdout without colour codes and start-up noise lines."""
     try:
-        return (trial_dir / "verifier" / "test-stdout.txt").read_text(
+        raw = (trial_dir / "verifier" / "test-stdout.txt").read_text(
             encoding="utf-8", errors="replace"
         )
     except OSError:
         return ""
+    lines = _ANSI.sub("", raw).splitlines()
+    return "\n".join(line for line in lines if not STARTUP_NOISE.search(line))
 
 
 def _tests_ran(stdout: str) -> bool:
-    if _COLLECTION_ERROR.search(stdout):
-        collected = _COLLECTED.search(stdout)
-        if collected is None or collected.group("n") == "0":
-            return False
+    """Pytest reported results, or unittest ran more than zero tests.
+
+    A result count wins over a collection error: pytest reports both when
+    one module fails to import and the rest run.
+    """
     if _PYTEST_RAN.search(stdout):
         return True
     ran = _UNITTEST_RAN.search(stdout)
     return ran is not None and int(ran.group("n")) > 0
 
 
-def nop_evidence(trial_dir: Path, instruction: str) -> dict[str, Any]:
+def nop_evidence(
+    trial_dir: Path, instruction: str, project_modules: Collection[str] = frozenset()
+) -> dict[str, Any]:
     """What one nop trial shows about the task's environment and grader.
 
     Keys: ``reward``, ``tests_applied`` (false when the stdout says the
     hidden tests could not be applied, or no reward file exists),
-    ``tests_ran`` (pytest collected or reported results, unittest ran more
-    than zero tests, or a collection error), ``setup_error`` (first matching
-    line, trimmed to 200 characters) and ``setup_error_excused``,
-    ``exception_type``.
+    ``tests_ran`` (pytest collected or reported results, or unittest ran more
+    than zero tests), ``test_output`` (the command printed anything besides
+    the harness's own lines; the only evidence a custom runner ran),
+    ``last_line`` (the last such line), ``setup_error`` (first matching line,
+    trimmed to 200 characters) and ``setup_error_excused``,
+    ``exception_type``. The stdout is read without colour codes and without
+    interpreter start-up noise (``_distutils_hack``).
     """
     result = _read_result(trial_dir)
     stdout = _stdout_text(trial_dir)
@@ -838,14 +817,30 @@ def nop_evidence(trial_dir: Path, instruction: str) -> dict[str, Any]:
     reward_file = (trial_dir / "verifier" / "reward.txt").is_file() or (
         trial_dir / "verifier" / "reward.json"
     ).is_file()
-    matched = next((line for line in stdout.splitlines() if SETUP_ERROR.search(line)), None)
+    ran = _tests_ran(stdout)
+    matched = next(
+        (
+            line
+            for line in stdout.splitlines()
+            if SETUP_ERROR.search(line) or (not ran and _SETUP_ERROR_IF_NOTHING_RAN.search(line))
+        ),
+        None,
+    )
     texts = [stdout] if stdout else []
+    output_lines = [
+        line.strip()
+        for line in stdout.splitlines()
+        if line.strip() and not _HARNESS_LINE.match(line.strip())
+    ]
     return {
         "reward": reward,
         "tests_applied": not not_applied and (reward_file or reward is not None),
-        "tests_ran": _tests_ran(stdout),
+        "tests_ran": ran,
+        "test_output": bool(output_lines),
+        "last_line": _trim(output_lines[-1]) if output_lines else None,
         "setup_error": _trim(matched) if matched else None,
-        "setup_error_excused": bool(matched) and setup_error_excused(texts, instruction),
+        "setup_error_excused": bool(matched)
+        and setup_error_excused(texts, instruction, project_modules),
         "exception_type": exception_type,
     }
 
@@ -870,7 +865,9 @@ def label_task(
     applied, no reward exists, or a setup error is not excused — and its
     evidence is always a log excerpt. ``grader_suspect`` when the nop scores
     1 (the hidden tests pass with no change), the tests never ran and no
-    setup error explains it, or the tests assert on source text. Otherwise
+    setup error explains it (for a pytest/unittest/django command: no result
+    count; for any other runner: no output at all, since only the runner's own
+    text shows it ran), or the tests assert on source text. Otherwise
     ``sound``.
     """
     if nop is None:
@@ -897,11 +894,14 @@ def label_task(
     reward = nop.get("reward")
     if isinstance(reward, (int, float)) and not isinstance(reward, bool) and float(reward) == 1.0:
         return "grader_suspect", ["nop_passes"], "nop reward 1: hidden tests pass with no change"
-    if not nop.get("tests_ran") and not setup_error:
+    parseable = static.get("test_runner") in _PARSEABLE_RUNNERS
+    ran = nop.get("tests_ran") if parseable else nop.get("test_output")
+    if not ran and not setup_error:
+        last = nop.get("last_line")
         return (
             "grader_suspect",
             ["tests_did_not_run"],
-            "verifier output shows no collected or executed tests",
+            f"no test results; last output: {last}" if last else "no test output",
         )
     asserts = [str(item) for item in static.get("literal_source_asserts") or []]
     if asserts:
@@ -1052,7 +1052,11 @@ def build_health_rows(
             if latest is not None
             else None
         )
-        nop = nop_evidence(trial, _instruction_of(task_dir)) if trial is not None else None
+        nop = (
+            nop_evidence(trial, _instruction_of(task_dir), project_modules(task_dir))
+            if trial is not None
+            else None
+        )
         label, reasons, evidence = label_task(static, nop)
         cost = latest.get("est_cost_usd") if latest is not None else None
         image_mib = entry.get("image_mib")

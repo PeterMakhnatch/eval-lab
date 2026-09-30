@@ -3003,12 +3003,13 @@ def _tasks_qualify_collect_command(
     missing = [str(job) for job in jobs if not job.is_dir()]
     if missing:
         raise ValueError(f"job directories are missing: {', '.join(missing)}")
-    rows = collect_jobs(jobs, rate_backend=args.backend_rate_card)
-    output = (
-        _resolve(root, args.output)
-        if args.output is not None
-        else derived_root_from_environment(root) / "external/task_catalog" / TABLE_FILENAME
+    catalog = derived_root_from_environment(root) / "external/task_catalog"
+    rows = collect_jobs(
+        jobs,
+        rate_backend=args.backend_rate_card,
+        version_by_harbor=_catalog_version_by_harbor(catalog),
     )
+    output = _resolve(root, args.output) if args.output is not None else catalog / TABLE_FILENAME
     write_task_qualification_parquet(rows, output)
     if args.json:
         print(json.dumps(
@@ -3023,6 +3024,29 @@ def _tasks_qualify_collect_command(
         print(f"wrote {len(rows)} rows to {relative}")
         print(summarize_qualification(rows), end="")
     return 0
+
+
+def _catalog_version_by_harbor(catalog: Path) -> dict[str, str]:
+    """Catalog ``harbor_digest`` -> ``task_version_digest`` (empty without a
+    built catalog). A digest shared by several versions maps to none of them."""
+    import pyarrow.parquet as pq
+
+    path = catalog / "task_versions.parquet"
+    if not path.exists():
+        return {}
+    table = pq.read_table(path, columns=["harbor_digest", "task_version_digest"])
+    mapping: dict[str, str] = {}
+    ambiguous: set[str] = set()
+    for harbor, version in zip(
+        table.column("harbor_digest").to_pylist(),
+        table.column("task_version_digest").to_pylist(),
+        strict=True,
+    ):
+        if not harbor or not version:
+            continue
+        if mapping.setdefault(harbor, version) != version:
+            ambiguous.add(harbor)
+    return {harbor: version for harbor, version in mapping.items() if harbor not in ambiguous}
 
 
 def _tasks_health_collect_command(

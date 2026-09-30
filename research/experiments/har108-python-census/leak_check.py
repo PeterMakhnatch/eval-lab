@@ -16,8 +16,14 @@ Two network passes, both metadata only ($0), cached under ``--cache``:
    ``name`` when a candidate the task title or instruction mentions exists on
    PyPI.
 2. GitHub issue search for the task title, restricted to the repo, where the
-   repo comes from ``split_group`` or the matched PyPI project's GitHub URL. It
-   needs an exact title match and stays under GitHub's 30 searches a minute.
+   repo comes from ``split_group`` or the matched PyPI project's GitHub URL.
+   With no repo known, or no such title in it (000227's split group names
+   devpi/devpi, a repo its issue mentions; its tests are Pylons/waitress's),
+   the title is searched across GitHub. A match names the task's repo
+   (``issue_title``) when exactly one repo has an issue or PR with that title
+   and that repo is credible (not a fork, at least ``MIN_STARS`` stars); the
+   repo then gets the ``repo_url`` PyPI lookup of pass 1. Either search needs
+   an exact title match and stays under GitHub's 30 searches a minute.
 
 Writes ``pypi.json`` (input to ``evallab tasks health-collect --pypi``).
 """
@@ -42,8 +48,11 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 sys.path.insert(0, str(ROOT / "src"))
-from evallab.task_health import _excluded_module, project_key_for, static_checks  # noqa: E402
+from evallab.hidden_patch import excluded_module  # noqa: E402
+from evallab.task_health import project_key_for, static_checks  # noqa: E402
 
+#: Fewest stars for a repo named only by a GitHub-wide issue-title match.
+MIN_STARS = 10
 GITHUB_REPO = re.compile(r"github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)", re.I)
 PRIVATE_IMPORT = re.compile(r"^[+ ]\s*(?:from|import)\s+([A-Za-z]\w*)\._\w+", re.M)
 NOT_REPO_OWNERS = {"sponsors", "orgs", "user-attachments", "apps", "features", "topics"}
@@ -163,9 +172,7 @@ def task_facts(entry: dict) -> dict:
         static["imported_modules"],
         static["patch_files"],
     )
-    modules = [
-        m for m in dict.fromkeys(static["imported_modules"]) if m and not _excluded_module(m)
-    ]
+    modules = [m for m in dict.fromkeys(static["imported_modules"]) if m and not excluded_module(m)]
     patch = (task_dir / "tests" / "test.patch").read_text(errors="replace")
     private = set(PRIVATE_IMPORT.findall(patch))
     return {
@@ -184,20 +191,26 @@ def mentioned(name: str, text: str) -> bool:
     return any(re.search(r"(?<![\w-])" + re.escape(w) + r"(?![\w-])", low) for w in words)
 
 
+def match_repo(repo: str, source: str, cache: Path) -> dict | None:
+    """The PyPI project whose URLs name ``repo`` (tried by repo-name variants)."""
+    for name in repo_name_candidates(repo.split("/")[1]):
+        found = pypi_facts(name, cache)
+        if found and any(r.lower() == repo.lower() for r in found["github_repos"]):
+            return {**found, "match": "repo_url", "repo": repo, "repo_source": source}
+    return None
+
+
 def match_pypi(facts: dict, cache: Path) -> dict:
     """Best PyPI project for one task, with how it was matched."""
     split_repo = None
     if facts["source"] == "split_group" and facts["key"].startswith("github.com/"):
         split_repo = "/".join(facts["key"].split("/")[1:3])
-        for name in repo_name_candidates(split_repo.split("/")[1]):
-            found = pypi_facts(name, cache)
-            if found and any(r.lower() == split_repo.lower() for r in found["github_repos"]):
-                return {
-                    **found,
-                    "match": "repo_url",
-                    "repo": split_repo,
-                    "repo_source": "split_group",
-                }
+        if split_repo.split("/")[0].lower() in NOT_REPO_OWNERS:
+            split_repo = None
+    if split_repo:
+        found = match_repo(split_repo, "split_group", cache)
+        if found:
+            return found
     text = facts["title"] + "\n" + facts["instruction"]
     names = list(facts["modules"])
     if facts["source"] == "test_path":
@@ -219,6 +232,11 @@ def match_pypi(facts: dict, cache: Path) -> dict:
                     if found["github_repos"]
                     else ("split_group" if split_repo else None),
                 }
+    return no_pypi(split_repo, "split_group" if split_repo else None)
+
+
+def no_pypi(repo: str | None, source: str | None) -> dict:
+    """A match with no PyPI project, naming only the repo (if any)."""
     return {
         "pypi_project": None,
         "match": None,
@@ -227,9 +245,25 @@ def match_pypi(facts: dict, cache: Path) -> dict:
         "releases": 0,
         "uploads": {},
         "github_repos": [],
-        "repo": split_repo,
-        "repo_source": "split_group" if split_repo else None,
+        "repo": repo,
+        "repo_source": source,
     }
+
+
+def rematch_to_issue_repo(match: dict, repo: str, cache: Path) -> dict:
+    """The match once the title search has named the task's repo.
+
+    The PyPI project found by repo URL; else the earlier name match unless
+    its URLs name a different repo (a guess that pointed at a repo the issue
+    merely mentions keeps nothing); else no PyPI project.
+    """
+    found = match_repo(repo, "issue_title", cache)
+    if found:
+        return found
+    repos = [r.lower() for r in match["github_repos"]]
+    if match["pypi_project"] and (not repos or repo.lower() in repos):
+        return {**match, "repo": repo, "repo_source": "issue_title"}
+    return no_pypi(repo, "issue_title")
 
 
 def normal(text: str) -> str:
@@ -257,31 +291,52 @@ class GitHubSearch:
         body = fetch_json(f"https://api.github.com/repos/{repo}", self.cache, self.headers)
         return body.get("full_name") if isinstance(body, dict) else None
 
-    def issue(self, repo: str, title: str) -> dict | None:
-        repo = self.canonical_repo(repo) or repo
+    def credible(self, repo: str) -> bool:
+        """A repo a GitHub-wide title match may name: not a fork and at least
+        :data:`MIN_STARS` stars. Personal repos that copy upstream issue titles
+        (``marfl00/git-intro-Martin`` for netbox's and prowler's) are neither."""
+        body = fetch_json(f"https://api.github.com/repos/{repo}", self.cache, self.headers)
+        return (
+            isinstance(body, dict)
+            and not body.get("fork")
+            and (body.get("stargazers_count") or 0) >= MIN_STARS
+        )
+
+    def issue(self, repo: str | None, title: str) -> dict | None:
+        """The issue/PR whose title is ``title``, in ``repo`` or, with no
+        repo, anywhere on GitHub when exactly one repo has that title."""
+        if repo is not None:
+            repo = self.canonical_repo(repo) or repo
         phrase = re.sub(r'["\\]', " ", title).strip()
         if not phrase:
             return None
         if len(phrase) > 200:
             phrase = phrase[:200].rsplit(" ", 1)[0]
-        query = f'repo:{repo} in:title "{phrase}"'
+        query = f'in:title "{phrase}"' if repo is None else f'repo:{repo} in:title "{phrase}"'
         url = "https://api.github.com/search/issues?per_page=10&q=" + urllib.parse.quote(query)
         cached = (self.cache / (hashlib.sha256(url.encode()).hexdigest()[:32] + ".json")).exists()
         if not cached:
             time.sleep(max(0.0, self.last + 2.2 - time.time()))
             self.last = time.time()
         body = fetch_json(url, self.cache, self.headers) or {}
-        for item in body.get("items") or []:
-            if normal(item.get("title") or "") == normal(title):
-                pull = item.get("pull_request") or {}
-                return {
-                    "number": item["number"],
-                    "is_pr": bool(pull),
-                    "state": item.get("state"),
-                    "closed_at": pull.get("merged_at") or item.get("closed_at"),
-                    "url": item.get("html_url"),
-                }
-        return None
+        exact = [
+            item
+            for item in body.get("items") or []
+            if normal(item.get("title") or "") == normal(title)
+        ]
+        repos = {item.get("repository_url", "").rsplit("/repos/", 1)[-1].lower() for item in exact}
+        if not exact or (repo is None and len(repos) != 1):
+            return None
+        item = exact[0]
+        pull = item.get("pull_request") or {}
+        return {
+            "repo": item.get("repository_url", "").rsplit("/repos/", 1)[-1],
+            "number": item["number"],
+            "is_pr": bool(pull),
+            "state": item.get("state"),
+            "closed_at": pull.get("merged_at") or item.get("closed_at"),
+            "url": item.get("html_url"),
+        }
 
 
 def main() -> None:
@@ -301,6 +356,14 @@ def main() -> None:
     tasks = {}
     for n, (entry, fact, match) in enumerate(zip(pool, facts, matches, strict=True)):
         issue = search.issue(match["repo"], fact["title"]) if search and match["repo"] else None
+        if search and issue is None:
+            # No repo, or the title is not in the guessed one: a title found
+            # in exactly one repo names the task's real repo (000227's split
+            # group says devpi/devpi; its tests are Pylons/waitress's).
+            found = search.issue(None, fact["title"])
+            if found and search.credible(found["repo"]):
+                issue = found
+                match = rematch_to_issue_repo(match, found["repo"], args.cache)
         closed = issue["closed_at"] if issue else None
         after = sorted(
             (up, version) for version, up in match["uploads"].items() if closed and up > closed

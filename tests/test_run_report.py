@@ -923,3 +923,148 @@ def test_broken_alternation_is_not_a_cycle(tmp_path: Path) -> None:
 
     assert report["revisits"]["longest_cycle"] is None
     assert report["revisits"]["loop_suspicion"]["detected"] is False
+
+
+def test_first_failure_prefers_read_back_fetch_over_earlier_error(tmp_path: Path) -> None:
+    steps = [
+        _bash(1, 5, "false", "boom", code=1),
+        _bash(2, 10, "pip download waitress==2.0.0 --no-deps -d /tmp/wtr", "saved"),
+        _bash(
+            3,
+            15,
+            "unzip -p /tmp/wtr/waitress-2.0.0-py3-none-any.whl waitress/parser.py | head",
+            "fixed source",
+        ),
+    ]
+    report = build_run_report(_trial(tmp_path, steps))
+
+    assert report["outcome"]["first_failure"] == {
+        "step": 3,  # the fetch (ordinal); the earlier error does not win
+        "kind": "upstream_fetch",
+        "evidence": "pip_download waitress==2.0.0 (read back at step 4)",
+        "confidence": "high",
+    }
+    assert report["errors"]["first_error"]["step"] == 2  # unchanged
+    from evallab.interpretation.run_report import render_run_report_markdown
+
+    markdown = render_run_report_markdown(report)
+    assert "- First failure: step 3 (upstream_fetch, high confidence)" in markdown
+
+
+def test_first_failure_spots_harness_rejection(tmp_path: Path) -> None:
+    prose_claim = {
+        "step_id": 2,
+        "timestamp": "2026-09-01T00:02:10Z",
+        "source": "agent",
+        "message": "The repair is complete.",
+        "observation": {"results": [{"content": "Parse error: expected a tool call"}]},
+    }
+    steps = [_bash(1, 5, "ls /app", "app.py"), prose_claim, _bash(3, 15, "ls /app", "app.py")]
+    report = build_run_report(_trial(tmp_path, steps))
+
+    assert report["outcome"]["first_failure"] == {
+        "step": 3,  # the prose turn executed no tool call
+        "kind": "harness_rejection",
+        "evidence": "agent step with no executed tool call: The repair is complete.",
+        "confidence": "high",
+    }
+
+
+def test_first_failure_spots_terminal_cycle_on_a_pass(tmp_path: Path) -> None:
+    diff, stat = "cd /testbed && git diff", "cd /testbed && git diff --stat"
+    steps = [_bash(i, i * 5, diff if i % 2 else stat, "out") for i in range(1, 9)]
+    report = build_run_report(_trial(tmp_path, steps))
+
+    assert report["outcome"]["first_failure"]["step"] == 2
+    assert report["outcome"]["first_failure"]["kind"] == "stuck_cycle"
+
+
+def test_first_failure_ignores_identical_run_to_the_end_on_a_pass(tmp_path: Path) -> None:
+    steps = [_bash(i, i * 5, "cd /testbed && git diff --stat", "out") for i in range(1, 9)]
+    report = build_run_report(_trial(tmp_path, steps))
+
+    assert report["revisits"]["longest_identical_run"]["end_step"] == 9
+    assert report["outcome"]["first_failure"]["step"] is None
+
+
+def test_first_failure_spots_bad_edit_and_ignores_scratch_writes(tmp_path: Path) -> None:
+    steps = [
+        _bash(1, 5, "cat > app.py <<'EOF'\nprint('v2')\nEOF", ""),
+        _bash(2, 10, "python3 -m pytest tests/ -q", "FAILED tests/test_app.py", code=1),
+    ]
+    report = build_run_report(_trial(tmp_path, steps, name="edited"))
+
+    assert report["outcome"]["first_failure"] == {
+        "step": 2,
+        "kind": "bad_edit",
+        "evidence": "first repo edit (app.py) with a tool error at step 3 or later",
+        "confidence": "medium",
+    }
+
+    scratch = [
+        _bash(1, 5, "cat > /tmp/out.txt <<'EOF'\nprint('v2')\nEOF", ""),
+        _bash(2, 10, "python3 -m pytest tests/ -q", "FAILED tests/test_app.py", code=1),
+    ]
+    scratch_report = build_run_report(_trial(tmp_path, scratch, name="scratch"))
+
+    assert scratch_report["outcome"]["first_failure"]["step"] is None
+
+
+def test_first_failure_ignores_generic_pre_edit_error(tmp_path: Path) -> None:
+    steps = [
+        _bash(1, 5, "ls /nonexistent", "ls: cannot access /nonexistent", code=1),
+        _bash(2, 10, "cat > app.py <<'EOF'\nprint('v2')\nEOF", ""),
+        _bash(3, 15, "cat app.py", "print('v2')"),
+    ]
+    report = build_run_report(_trial(tmp_path, steps))
+
+    # A generic pre-edit error the run works around is exploration noise,
+    # not pre-existing breakage: the field stays null.
+    assert report["outcome"]["first_failure"]["step"] is None
+
+
+def test_first_failure_prefers_unrecovered_missing_dependency(tmp_path: Path) -> None:
+    steps = [
+        _bash(
+            1,
+            5,
+            "python3 -c \"import tqdm\"",
+            "ModuleNotFoundError: No module named 'tqdm'",
+            code=1,
+        ),
+        _bash(2, 10, "cat > app.py <<'EOF'\nprint('v2')\nEOF", ""),
+        _bash(3, 15, "python3 -m pytest tests/ -q", "FAILED tests/test_app.py", code=1),
+    ]
+    failing = _result(verifier_result={"rewards": {"reward": 0.0}})
+    report = build_run_report(_trial(tmp_path, steps, result=failing))
+
+    # The missing dependency predates the edit and the run never passes,
+    # so it outranks the later edit-test loop.
+    assert report["outcome"]["first_failure"]["step"] == 2
+    assert report["outcome"]["first_failure"]["kind"] == "tool_error"
+
+    passing = build_run_report(_trial(tmp_path, steps, name="passing"))
+
+    # The same shape on a passing run was worked around: the edit wins.
+    assert passing["outcome"]["first_failure"]["step"] == 3
+    assert passing["outcome"]["first_failure"]["kind"] == "bad_edit"
+
+
+def test_first_failure_is_null_for_a_clean_run(tmp_path: Path) -> None:
+    steps = [
+        _bash(1, 5, "cat app.py", "print('v1')"),
+        _bash(2, 10, "cat > app.py <<'EOF'\nprint('v2')\nEOF", ""),
+        _bash(3, 15, "cat app.py", "print('v2')"),
+    ]
+    report = build_run_report(_trial(tmp_path, steps))
+    from evallab.interpretation.run_report import render_run_report_markdown
+
+    markdown = render_run_report_markdown(report)
+
+    assert report["outcome"]["first_failure"] == {
+        "step": None,
+        "kind": None,
+        "evidence": None,
+        "confidence": None,
+    }
+    assert "- First failure: none found." in markdown

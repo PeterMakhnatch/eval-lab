@@ -89,7 +89,7 @@ def provider_subscription_description(agent: str, model: str | None = None) -> s
         if is_mimo_selfhosted_model(model):
             return "self-hosted Modal SGLang GPU (time-billed, no per-token charge)"
         if is_openrouter_model(model):
-            return "OpenRouter metered API balance (pinned Xiaomi endpoint)"
+            return "OpenRouter metered API balance (pinned upstream endpoint)"
         if is_tinker_terminus_model(model):
             return "Thinking Machines Tinker API balance"
         if model in ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS:

@@ -95,7 +95,7 @@ inputs:
   - path: src/evallab/evidence_store.py
     digest: sha256:0895da2e4a79ae88fd54dce9b5a5a63f04e2dbe8c663ab0e50145e2a1d9518b7
   - path: src/evallab/execution_contracts.py
-    digest: sha256:5fd0f688a33aa3434821bf19ab92d42a907da50a620df7f7c34fe9dc3ca120b6
+    digest: sha256:e82082d67fc4d25286d8455b859ebafbb4f3f887c27decf61bd0075cb379ac48
   - path: src/evallab/explorer.py
     digest: sha256:384404d4ceeb76b1e2f93031fa5a83f9e833a3df2af4fdd302a31136b5625e51
   - path: src/evallab/fetch.py
@@ -151,7 +151,7 @@ inputs:
   - path: src/evallab/harbor_state_journal.py
     digest: sha256:9b95447082a99c2b8316ec183c97f27a3de3978758e828433b299a51526fe494
   - path: src/evallab/harbor_terminus.py
-    digest: sha256:d8dc36a2ec5f48c24400677c2ea6d8cb5dcf63ad97555468eb6146451c372579
+    digest: sha256:c62bf152f6d838d660a22edaebd731a36b86fa08a45967ad4918bfae97269324
   - path: src/evallab/harbor_zai_miniswe.py
     digest: sha256:61a6c4a69a59cc193e14d802575b945446ee8a74e7bab6c7447346003681a6b3
   - path: src/evallab/harbor_zai_opencode.py
@@ -345,7 +345,7 @@ inputs:
   - path: src/evallab/run_preflight.py
     digest: sha256:c6f34f15c3d8fc8a30ee5b09abda23195d983340d77ea7af2b05bc27c6d37624
   - path: src/evallab/runner.py
-    digest: sha256:fda58be9599cdb0caadf437c9493d32087ca5d002cba9ca8138597658bcefa09
+    digest: sha256:3a5c902c7e776ed4e6d9004ee11564a7732bd06a35969a30d1a3d3e9210d5423
   - path: src/evallab/schemas/__init__.py
     digest: sha256:b6e0a6aea01d7ee73e8555adbc046e63c1cd5d343a08e1d15090bb9e90720294
   - path: src/evallab/screen.py
@@ -441,7 +441,7 @@ inputs:
   - path: src/evallab/trial_diagnosis.py
     digest: sha256:44b1f841fdc14eb5dc0e041be9507961313293a5b134cf3f36081242ee2633a0
   - path: src/evallab/trial_treatment.py
-    digest: sha256:c598c1cdd02cadc5f7be68675d27b75a67c3926af88bf097be36b5a093f46909
+    digest: sha256:8b4d14af6b42a80f2eed6db0a130c6e98a5823e8b471febf569ef1701f4515ca
   - path: src/evallab/upstream_adapter.py
     digest: sha256:7ecf5e66b3e99887465bada34fcc09729dbffdc4346f95d79cb793bdd9bb82fb
   - path: src/evallab/verdicts.py

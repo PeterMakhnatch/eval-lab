@@ -219,7 +219,20 @@ implementations. Metered routes, all host-side through the same loopback proxy:
   whitespace before the non-stream JSON body) is accepted. The parser is the
   stock Terminus-2 JSON parser — no `MimoToolCallParser` wrapper on this
   route; HAR-104 decides from the proof run's raw outputs whether a
-  normalizer is needed.
+  normalizer is needed. A trial's proxy admits only that trial's model
+  (`EVALLAB_OPENROUTER_EXPECTED_MODEL`), even though the route table admits
+  several.
+
+- `openrouter-metered/openai/gpt-oss-120b` (HAR-104) — gpt-oss-120b through
+  the same OpenRouter route, pinned to endpoint `deepinfra/bf16`
+  (`provider {"order": ["deepinfra/bf16"], "allow_fallbacks": false}`; the
+  full endpoint slug is required because bare `deepinfra` also matches its
+  turbo and fp8 endpoints) with `reasoning {"effort": "medium"}`, the model's
+  documented default. Prices: $0.037 per 1M input, $0.17 per 1M output
+  (verified 2026-09-30; `supports_implicit_caching=false`). Context is
+  131 072 tokens with at most 117 964 completion tokens. Both OpenRouter
+  models live in one table, `OPENROUTER_ROUTES` in
+  `src/evallab/execution_contracts.py`, mirrored literally in the proxy.
 
 The MiMo server lives in `tools/modal-mimo-serve/` (see its README for the
 deploy, smoke and stop commands). Daytona Tier 1/2 sandboxes cannot reach

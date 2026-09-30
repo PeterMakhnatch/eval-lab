@@ -60,7 +60,7 @@ from evallab.execution_contracts import (
     MIMO_SELFHOSTED_SECRET_PATH_ENV,
     MIMO_SELFHOSTED_UPSTREAM_ENV,
     OPENROUTER_CAPABILITY_EXPIRES_AT_ENV,
-    OPENROUTER_MODEL_PRICES_MICROS,
+    OPENROUTER_EXPECTED_MODEL_ENV,
     OPENROUTER_PROXY_ATTEMPT_ID_ENV,
     OPENROUTER_PROXY_CAPABILITY_ENV,
     OPENROUTER_PROXY_PROVIDER,
@@ -119,6 +119,7 @@ from evallab.execution_contracts import (
     ZAI_SECRET_FILE_ENV,
     ExecutionFailure,
     HarborProcessResult,
+    OpenRouterRoute,
     ProxyTrialLimits,
     RedactingBinaryWriter,
     RunRequest,
@@ -137,8 +138,8 @@ from evallab.execution_contracts import (
     materialize_tinker_secret_file,
     materialize_zai_openapi_secret_file,
     materialize_zai_secret_file,
+    openrouter_route,
     parse_mimo_selfhosted_model,
-    parse_openrouter_model,
     parse_tinker_model,
     persist_private_bytes,
     proxy_runtime_identity,
@@ -789,6 +790,7 @@ def _terminus_proxy_env(
     timeout_seconds: float,
     tinker_spec: TinkerModelSpec | None = None,
     mimo_native: str | None = None,
+    openrouter_spec: OpenRouterRoute | None = None,
 ) -> dict[str, str]:
     """Build the minimal environment for the host-supervised proxy instance.
 
@@ -844,7 +846,10 @@ def _terminus_proxy_env(
         )
         return env
     if provider == OPENROUTER_PROXY_PROVIDER:
+        if openrouter_spec is None:
+            raise ValueError("openrouter proxy env requires the resolved route")
         env[OPENROUTER_SECRET_PATH_ENV] = str(secret_path)
+        env[OPENROUTER_EXPECTED_MODEL_ENV] = openrouter_spec.native_model
         upstream = os.environ.get(OPENROUTER_UPSTREAM_ENV)
         if upstream:
             env[OPENROUTER_UPSTREAM_ENV] = upstream
@@ -911,6 +916,7 @@ def _start_terminus_proxy(
     work_dir: Path,
     tinker_spec: TinkerModelSpec | None = None,
     mimo_native: str | None = None,
+    openrouter_spec: OpenRouterRoute | None = None,
 ) -> tuple[subprocess.Popen[bytes], str]:
     """Start the per-trial loopback proxy; return (process, proxy URL).
 
@@ -935,6 +941,7 @@ def _start_terminus_proxy(
         timeout_seconds=timeout_seconds,
         tinker_spec=tinker_spec,
         mimo_native=mimo_native,
+        openrouter_spec=openrouter_spec,
     )
     with open(stderr_path, "wb") as stderr_handle:
         os.chmod(stderr_path, 0o600)
@@ -1351,9 +1358,7 @@ def run_harbor_process(
             model_value = model_args[-1] if model_args else None
             mimo_native = parse_mimo_selfhosted_model(model_value) if mimo_client else None
             tinker_spec = parse_tinker_model(model_value) if tinker_client else None
-            openrouter_native = (
-                parse_openrouter_model(model_value) if openrouter_client else None
-            )
+            openrouter_spec = openrouter_route(model_value) if openrouter_client else None
             provider = (
                 MIMO_SELFHOSTED_PROXY_PROVIDER
                 if mimo_client
@@ -1386,13 +1391,16 @@ def run_harbor_process(
                     "input_cost_micros_per_million": tinker_spec.input_cost_micros_per_million,
                     "output_cost_micros_per_million": tinker_spec.output_cost_micros_per_million,
                 }
-            elif openrouter_native is not None:
+            elif openrouter_spec is not None:
                 # The pinned OpenRouter list price is exact for the pinned
                 # endpoint (supports_implicit_caching=false).
-                input_rate, output_rate = OPENROUTER_MODEL_PRICES_MICROS[openrouter_native]
                 proxy_pricing = {
-                    "input_cost_micros_per_million": input_rate,
-                    "output_cost_micros_per_million": output_rate,
+                    "input_cost_micros_per_million": (
+                        openrouter_spec.input_cost_micros_per_million
+                    ),
+                    "output_cost_micros_per_million": (
+                        openrouter_spec.output_cost_micros_per_million
+                    ),
                 }
             else:
                 input_rate, output_rate = zai_openapi_price_for(
@@ -1475,6 +1483,7 @@ def run_harbor_process(
                 work_dir=owned_usage_dir,
                 tinker_spec=tinker_spec,
                 mimo_native=mimo_native,
+                openrouter_spec=openrouter_spec,
             )
             if mimo_client:
                 runtime_environment[MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV] = capability
@@ -1817,12 +1826,8 @@ def _accepted_returned_models(model: str) -> frozenset[str]:
         accepted.add(parse_mimo_selfhosted_model(model))
     if is_openrouter_model(model):
         # OpenRouter echoes the canonical slug of the endpoint that served
-        # the call. The proxy pins provider xiaomi (endpoint tag fp8, no
-        # fallbacks), so the slug and its :fp8 endpoint variant are both
-        # legitimate echoes of this selector.
-        native = parse_openrouter_model(model)
-        accepted.add(native)
-        accepted.add(f"{native}:fp8")
+        # the call; the route lists the echoes of its pinned endpoint.
+        accepted |= openrouter_route(model).returned_models
     return frozenset(accepted)
 
 

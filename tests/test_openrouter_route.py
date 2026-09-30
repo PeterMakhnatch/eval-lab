@@ -1,17 +1,20 @@
-"""Focused behavioral tests for the OpenRouter MiMo-V2.6-Flash Terminus route.
+"""Focused behavioral tests for the OpenRouter Terminus routes.
 
-Covers the consumer-visible boundaries of HAR-104's route addition:
+Covers the consumer-visible boundaries of HAR-104's route table
+(``openrouter-metered/xiaomi/mimo-v2.6-flash`` and
+``openrouter-metered/openai/gpt-oss-120b``):
 
-- ``openrouter-metered/xiaomi/mimo-v2.6-flash`` selector grammar: the exact
-  selector is accepted, anything else fails closed (near-misses included).
+- Selector grammar: exactly the table's selectors are accepted, anything else
+  fails closed (near-misses included).
 - Upstream pinning: the default https URL resolves to
   ``https://openrouter.ai:443/api/v1/chat/completions``; evil hosts, ports,
   paths and userinfo refuse; loopback http stays for tests.
 - The generic metered proxy under the ``openrouter`` provider profile, run as
-  a real subprocess against a loopback stub: exact-selector admission only,
-  forced provider/reasoning shaping with caller pins stripped, the pinned
-  ledger prices (140 000 / 280 000 micros per 1M), and acceptance of
+  a real subprocess against a loopback stub: the trial's own selector is the
+  only one admitted, per-model provider/reasoning shaping with caller pins
+  stripped, the per-model pinned ledger prices, and acceptance of
   OpenRouter's keep-alive padding (leading whitespace) on non-stream JSON.
+- The proxy's standalone OPENROUTER_ROUTES mirror matches the contract table.
 - Adapter binding: runtime-bound context/prices, stock parser (no
   MimoToolCallParser), capability confined to the controller environment.
 - Runner proxy env for the ``openrouter`` provider.
@@ -41,10 +44,10 @@ import pytest
 
 from evallab import runner as runner_module
 from evallab.execution_contracts import (
-    OPENROUTER_MIMO_FLASH_MODEL_SELECTOR,
-    OPENROUTER_NATIVE_MODEL,
     OPENROUTER_PROXY_CAPABILITY_ENV,
     OPENROUTER_PROXY_PROVIDER,
+    OPENROUTER_ROUTES,
+    OpenRouterRoute,
     ProxyTrialLimits,
     parse_openrouter_model,
 )
@@ -54,6 +57,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SECRET_SENTINEL = "test-openrouter-provider-key-13579"
 CAPABILITY_SENTINEL = "test-openrouter-capability-token-abc"
 UPSTREAM_USAGE = {"prompt_tokens": 30, "completion_tokens": 7}
+MIMO = OPENROUTER_ROUTES["xiaomi/mimo-v2.6-flash"]
+GPT_OSS = OPENROUTER_ROUTES["openai/gpt-oss-120b"]
 
 
 def _proxy_module() -> Any:
@@ -70,10 +75,15 @@ def _proxy_module() -> Any:
 # ---------------------------------------------------------------------------
 
 
-def test_parse_openrouter_accepts_exact_selector() -> None:
-    assert parse_openrouter_model(OPENROUTER_MIMO_FLASH_MODEL_SELECTOR) == (
-        OPENROUTER_NATIVE_MODEL
-    )
+@pytest.mark.parametrize(
+    ("selector", "native"),
+    [
+        ("openrouter-metered/xiaomi/mimo-v2.6-flash", "xiaomi/mimo-v2.6-flash"),
+        ("openrouter-metered/openai/gpt-oss-120b", "openai/gpt-oss-120b"),
+    ],
+)
+def test_parse_openrouter_accepts_exact_selectors(selector: str, native: str) -> None:
+    assert parse_openrouter_model(selector) == native
 
 
 @pytest.mark.parametrize(
@@ -85,6 +95,9 @@ def test_parse_openrouter_accepts_exact_selector() -> None:
         "openrouter-metered/xiaomi/mimo-v2.6-flash@checkpoint",
         "openrouter/xiaomi/mimo-v2.6-flash",
         "openrouter-metered/xiaomi/mimo-v2.6-pro",
+        "openrouter-metered/openai/gpt-oss-120b:free",
+        "openrouter-metered/openai/gpt-oss-20b",
+        "openrouter-metered/deepinfra/bf16",
         "openrouter-metered/",
         "openrouter-metered",
         "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
@@ -242,6 +255,7 @@ def _launch_openrouter_proxy(
     openrouter_upstream: ThreadingHTTPServer,
     capability: str,
     limits: ProxyTrialLimits,
+    route: OpenRouterRoute = MIMO,
 ) -> tuple[Any, str, Path]:
     secret_file = tmp_path / "provider-key"
     secret_file.write_text(f"{SECRET_SENTINEL}\n")
@@ -260,6 +274,7 @@ def _launch_openrouter_proxy(
         limits=limits,
         timeout_seconds=60.0,
         work_dir=work_dir,
+        openrouter_spec=route,
     )
     return process, url, usage_path
 
@@ -284,17 +299,40 @@ def _post(
         return exc.code, exc.read()
 
 
+@pytest.mark.parametrize(
+    ("route", "provider_pin", "reasoning_pin", "prices"),
+    [
+        (
+            MIMO,
+            {"order": ["xiaomi"], "allow_fallbacks": False},
+            {"enabled": True},
+            (140_000, 280_000),
+        ),
+        (
+            GPT_OSS,
+            {"order": ["deepinfra/bf16"], "allow_fallbacks": False},
+            {"effort": "medium"},
+            (37_000, 170_000),
+        ),
+    ],
+)
 def test_openrouter_proxy_shapes_request_and_ledger_prices(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, openrouter_upstream: Any
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    openrouter_upstream: Any,
+    route: OpenRouterRoute,
+    provider_pin: dict[str, Any],
+    reasoning_pin: dict[str, Any],
+    prices: tuple[int, int],
 ) -> None:
     process, url, usage_path = _launch_openrouter_proxy(
-        tmp_path, monkeypatch, openrouter_upstream, CAPABILITY_SENTINEL, _proxy_limits()
+        tmp_path, monkeypatch, openrouter_upstream, CAPABILITY_SENTINEL, _proxy_limits(), route
     )
     try:
         status, body = _post(
             f"{url}/api/v1/chat/completions",
             {
-                "model": OPENROUTER_MIMO_FLASH_MODEL_SELECTOR,
+                "model": route.selector,
                 "messages": [{"role": "user", "content": "hi"}],
                 "max_tokens": 1000,
                 "temperature": 0.6,
@@ -310,25 +348,25 @@ def test_openrouter_proxy_shapes_request_and_ledger_prices(
         assert len(_OpenRouterUpstream.seen) == 1
         forwarded = _OpenRouterUpstream.seen[0]
         # The selector is rewritten to the native id; sampling passes through.
-        assert forwarded["model"] == OPENROUTER_NATIVE_MODEL
+        assert forwarded["model"] == route.native_model
         assert forwarded["temperature"] == 0.6
         assert forwarded["top_p"] == 0.95
-        # The proxy's pins replace the caller's provider/reasoning control.
-        assert forwarded["provider"] == {"order": ["xiaomi"], "allow_fallbacks": False}
-        assert forwarded["reasoning"] == {"enabled": True}
+        # The route's pins replace the caller's provider/reasoning control.
+        assert forwarded["provider"] == provider_pin
+        assert forwarded["reasoning"] == reasoning_pin
         assert "reasoning_effort" not in forwarded
 
         usage = json.loads(usage_path.read_text())
-        assert usage["calls"][0]["requested_model"] == OPENROUTER_MIMO_FLASH_MODEL_SELECTOR
+        assert usage["calls"][0]["requested_model"] == route.selector
         assert usage["calls"][0]["shaping_applied"] is True
         assert usage["pricing"] == {
-            "input_cost_micros_per_million": 140_000,
-            "output_cost_micros_per_million": 280_000,
+            "input_cost_micros_per_million": prices[0],
+            "output_cost_micros_per_million": prices[1],
         }
         # Ledger cost uses the pinned prices on the reconciled usage.
         expected_cost = -(-(
-            UPSTREAM_USAGE["prompt_tokens"] * 140_000
-            + UPSTREAM_USAGE["completion_tokens"] * 280_000
+            UPSTREAM_USAGE["prompt_tokens"] * prices[0]
+            + UPSTREAM_USAGE["completion_tokens"] * prices[1]
         ) // 1_000_000)
         assert usage["totals"]["cost_micros"] == expected_cost
         # The provider key never appears in the response or the ledger.
@@ -351,7 +389,7 @@ def test_openrouter_proxy_accepts_padded_non_stream_json(
         status, _ = _post(
             f"{url}/api/v1/chat/completions",
             {
-                "model": OPENROUTER_MIMO_FLASH_MODEL_SELECTOR,
+                "model": MIMO.selector,
                 "messages": [{"role": "user", "content": "hi"}],
                 "max_tokens": 100,
             },
@@ -367,7 +405,7 @@ def test_openrouter_proxy_accepts_padded_non_stream_json(
         process.wait(10)
 
 
-def test_openrouter_proxy_admits_only_the_exact_selector(
+def test_openrouter_proxy_admits_only_the_trials_selector(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, openrouter_upstream: Any
 ) -> None:
     process, url, usage_path = _launch_openrouter_proxy(
@@ -379,6 +417,8 @@ def test_openrouter_proxy_admits_only_the_exact_selector(
             "openrouter-metered/xiaomi/mimo-v2.6-flash:fp8",
             "openrouter-metered/xiaomi/other-model",
             "openrouter/xiaomi/mimo-v2.6-flash",
+            # Another admitted route is still refused: the trial binds one.
+            GPT_OSS.selector,
             "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
         ):
             status, _ = _post(
@@ -392,6 +432,25 @@ def test_openrouter_proxy_admits_only_the_exact_selector(
     finally:
         process.terminate()
         process.wait(10)
+
+
+def test_proxy_route_table_mirrors_contract_table() -> None:
+    """The standalone proxy cannot import the contracts; its copy must agree."""
+    proxy_routes = _proxy_module().OPENROUTER_ROUTES
+    assert set(proxy_routes) == set(OPENROUTER_ROUTES)
+    for native, route in OPENROUTER_ROUTES.items():
+        mirrored = proxy_routes[native]
+        assert mirrored["endpoint"] == route.endpoint
+        assert mirrored["provider"] == {
+            "order": list(route.provider_pin["order"]),
+            "allow_fallbacks": route.provider_pin["allow_fallbacks"],
+        }
+        assert mirrored["reasoning"] == dict(route.reasoning_pin)
+        assert mirrored["prices"] == (
+            route.input_cost_micros_per_million,
+            route.output_cost_micros_per_million,
+        )
+        assert mirrored["context_input_tokens"] == route.context_input_tokens
 
 
 # ---------------------------------------------------------------------------
@@ -477,19 +536,30 @@ def openrouter_transport(monkeypatch: pytest.MonkeyPatch, terminus_module: Any) 
     return terminus_module
 
 
+@pytest.mark.parametrize(
+    ("route", "context", "max_output", "input_per_token", "output_per_token"),
+    [
+        (MIMO, 1_048_576, 131_072, 0.14e-6, 0.28e-6),
+        (GPT_OSS, 131_072, 117_964, 0.037e-6, 0.17e-6),
+    ],
+)
 def test_adapter_binds_openrouter_context_prices_and_capability(
-    openrouter_transport: Any, tmp_path: Path
+    openrouter_transport: Any,
+    tmp_path: Path,
+    route: OpenRouterRoute,
+    context: int,
+    max_output: int,
+    input_per_token: float,
+    output_per_token: float,
 ) -> None:
-    agent = openrouter_transport.SecretSafeTerminus2(
-        logs_dir=tmp_path, model_name=OPENROUTER_MIMO_FLASH_MODEL_SELECTOR
-    )
-    assert agent.model_name == OPENROUTER_MIMO_FLASH_MODEL_SELECTOR
+    agent = openrouter_transport.SecretSafeTerminus2(logs_dir=tmp_path, model_name=route.selector)
+    assert agent.model_name == route.selector
     assert agent.api_base == "http://127.0.0.1:9"
     model_info = agent.extra_kwargs["model_info"]
-    assert model_info["max_input_tokens"] == 1_048_576
-    assert model_info["max_output_tokens"] == 131_072
-    assert model_info["input_cost_per_token"] == pytest.approx(0.14e-6)
-    assert model_info["output_cost_per_token"] == pytest.approx(0.28e-6)
+    assert model_info["max_input_tokens"] == context
+    assert model_info["max_output_tokens"] == max_output
+    assert model_info["input_cost_per_token"] == pytest.approx(input_per_token)
+    assert model_info["output_cost_per_token"] == pytest.approx(output_per_token)
     assert model_info["litellm_provider"] == "openai"
     # Stock parser: the route never wraps the Terminus JSON parser.
     assert agent._mimo_selfhosted is False
@@ -507,7 +577,7 @@ def test_adapter_rejects_openrouter_model_info_override(
     with pytest.raises(ValueError, match="runtime-bound"):
         openrouter_transport.SecretSafeTerminus2(
             logs_dir=tmp_path,
-            model_name=OPENROUTER_MIMO_FLASH_MODEL_SELECTOR,
+            model_name=MIMO.selector,
             model_info={"max_input_tokens": 1},
         )
 
@@ -545,8 +615,10 @@ def test_runner_openrouter_proxy_env(monkeypatch: pytest.MonkeyPatch, tmp_path: 
         usage_path=tmp_path / "usage.json",
         limits=_proxy_limits(),
         timeout_seconds=900.0,
+        openrouter_spec=GPT_OSS,
     )
     assert env["EVALLAB_PROXY_PROVIDER"] == "openrouter"
+    assert env["EVALLAB_OPENROUTER_EXPECTED_MODEL"] == "openai/gpt-oss-120b"
     assert env["EVALLAB_OPENROUTER_SECRET_PATH"] == str(tmp_path / "key")
     assert env["EVALLAB_OPENROUTER_UPSTREAM"] == "https://openrouter.ai/example-stripped"
     assert env[OPENROUTER_PROXY_CAPABILITY_ENV] == CAPABILITY_SENTINEL
@@ -563,10 +635,14 @@ def test_runner_openrouter_proxy_env(monkeypatch: pytest.MonkeyPatch, tmp_path: 
 
 
 def test_runner_accepted_returned_models_for_openrouter() -> None:
-    accepted = runner_module._accepted_returned_models(OPENROUTER_MIMO_FLASH_MODEL_SELECTOR)
-    assert OPENROUTER_NATIVE_MODEL in accepted
-    assert f"{OPENROUTER_NATIVE_MODEL}:fp8" in accepted
+    accepted = runner_module._accepted_returned_models(MIMO.selector)
+    assert "xiaomi/mimo-v2.6-flash" in accepted
+    assert "xiaomi/mimo-v2.6-flash:fp8" in accepted
     assert "xiaomi/other-model" not in accepted
+    assert "openai/gpt-oss-120b" not in accepted
+    gpt_oss = runner_module._accepted_returned_models(GPT_OSS.selector)
+    assert "openai/gpt-oss-120b" in gpt_oss
+    assert "xiaomi/mimo-v2.6-flash" not in gpt_oss
 
 
 def test_runner_reads_openrouter_ledger(
@@ -579,7 +655,7 @@ def test_runner_reads_openrouter_ledger(
         status, _ = _post(
             f"{url}/api/v1/chat/completions",
             {
-                "model": OPENROUTER_MIMO_FLASH_MODEL_SELECTOR,
+                "model": MIMO.selector,
                 "messages": [{"role": "user", "content": "hi"}],
                 "max_tokens": 100,
             },

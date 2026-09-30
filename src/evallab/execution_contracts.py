@@ -505,50 +505,95 @@ def mimo_selfhosted_trial_cost_usd(
             raise ValueError(f"{label} must be a finite non-negative number, got {value!r}")
     return MIMO_SELFHOSTED_SERVER_USD_PER_HOUR * trial_hours / concurrency + sandbox_usd
 
-#: OpenRouter metered route for Terminus-2 (HAR-104): MiMo-V2.6-Flash behind
-#: OpenRouter's OpenAI-compatible chat-completions endpoint. The selector
-#: carries an ``openrouter-metered/`` prefix — NOT ``openrouter/`` — because
+#: OpenRouter metered route for Terminus-2 (HAR-104): a fixed table of models
+#: behind OpenRouter's OpenAI-compatible chat-completions endpoint, each
+#: pinned to one upstream serving endpoint. Selectors carry an
+#: ``openrouter-metered/`` prefix — NOT ``openrouter/`` — because
 #: litellm.get_llm_provider would route that prefix to its own OpenRouter
 #: provider and bypass the openai-compatible path; with the metered prefix and
 #: litellm_provider "openai" the selector resolves to provider "openai"
-#: (verified 2026-09-29). Exactly one selector is admitted and anything else
-#: under the prefix fails closed in :func:`parse_openrouter_model`.
+#: (verified 2026-09-29). Only selectors in :data:`OPENROUTER_ROUTES` are
+#: admitted; anything else under the prefix fails closed in
+#: :func:`parse_openrouter_model`.
 OPENROUTER_MODEL_PREFIX = "openrouter-metered/"
-OPENROUTER_NATIVE_MODEL = "xiaomi/mimo-v2.6-flash"
-OPENROUTER_MIMO_FLASH_MODEL_SELECTOR = f"{OPENROUTER_MODEL_PREFIX}{OPENROUTER_NATIVE_MODEL}"
 OPENROUTER_UPSTREAM_HOST = "openrouter.ai"
 OPENROUTER_UPSTREAM_PATH = "/api/v1/chat/completions"
 OPENROUTER_UPSTREAM_DEFAULT = f"https://{OPENROUTER_UPSTREAM_HOST}"
-#: The upstream serving/provider pin OpenRouter enforces on every call
-#: (endpoint tag ``xiaomi/fp8``: pins upstream serving and price, refuses the
-#: fallback pool) plus the reasoning pin (MiMo thinking on, matching the
-#: self-hosted MiMo treatment). Mirrored in
-#: ``containers/zai_openapi_secret_proxy.py``, which cannot import this
-#: module (standalone container script).
-OPENROUTER_PROVIDER_PIN: Mapping[str, Any] = MappingProxyType(
-    {"order": ("xiaomi",), "allow_fallbacks": False}
-)
-OPENROUTER_ENDPOINT_PIN = "xiaomi/fp8"
-OPENROUTER_REASONING_PIN: Mapping[str, bool] = MappingProxyType({"enabled": True})
-#: Context window of the pinned endpoint: 1,048,576 input tokens, at most
-#: 131,072 completion tokens.
-OPENROUTER_CONTEXT_INPUT_TOKENS = 1_048_576
-OPENROUTER_MAX_COMPLETION_TOKENS = 131_072
-#: OpenRouter list price for ``xiaomi/mimo-v2.6-flash`` (USD per 1M tokens,
-#: micros; verified 2026-09-29): $0.14 in / $0.28 out, cache read $0.0028.
-#: The pinned endpoint reports supports_implicit_caching=false, so uncached
-#: input pricing is exact; cached-prefill discounts are never credited.
-OPENROUTER_INPUT_COST_MICROS_PER_MILLION = 140_000
-OPENROUTER_OUTPUT_COST_MICROS_PER_MILLION = 280_000
-OPENROUTER_MODEL_PRICES_MICROS: Mapping[str, tuple[int, int]] = MappingProxyType(
+
+
+@dataclass(frozen=True)
+class OpenRouterRoute:
+    """One admitted OpenRouter model and the serving pins the proxy forces.
+
+    ``provider_pin`` names exactly one OpenRouter endpoint (``endpoint``) with
+    fallbacks refused, so the upstream weights/quantization and the per-token
+    list price are fixed. Prices are USD micros per 1M tokens; every pinned
+    endpoint reports ``supports_implicit_caching=false``, so uncached input
+    pricing is exact and cached-prefill discounts are never credited.
+    Mirrored in ``containers/zai_openapi_secret_proxy.py``
+    (``OPENROUTER_ROUTES``), which cannot import this module.
+    """
+
+    native_model: str
+    endpoint: str
+    provider_pin: Mapping[str, Any]
+    reasoning_pin: Mapping[str, Any]
+    input_cost_micros_per_million: int
+    output_cost_micros_per_million: int
+    context_input_tokens: int
+    max_completion_tokens: int
+    #: Model ids OpenRouter may echo for a call served by this route.
+    returned_models: frozenset[str]
+
+    @property
+    def selector(self) -> str:
+        return f"{OPENROUTER_MODEL_PREFIX}{self.native_model}"
+
+
+OPENROUTER_ROUTES: Mapping[str, OpenRouterRoute] = MappingProxyType(
     {
-        OPENROUTER_NATIVE_MODEL: (
-            OPENROUTER_INPUT_COST_MICROS_PER_MILLION,
-            OPENROUTER_OUTPUT_COST_MICROS_PER_MILLION,
-        )
+        # MiMo-V2.6-Flash on Xiaomi's own endpoint (verified 2026-09-29):
+        # $0.14 in / $0.28 out per 1M, 1,048,576-token context, 131,072-token
+        # completions; MiMo thinking on, matching the self-hosted MiMo route.
+        "xiaomi/mimo-v2.6-flash": OpenRouterRoute(
+            native_model="xiaomi/mimo-v2.6-flash",
+            endpoint="xiaomi/fp8",
+            provider_pin=MappingProxyType({"order": ("xiaomi",), "allow_fallbacks": False}),
+            reasoning_pin=MappingProxyType({"enabled": True}),
+            input_cost_micros_per_million=140_000,
+            output_cost_micros_per_million=280_000,
+            context_input_tokens=1_048_576,
+            max_completion_tokens=131_072,
+            returned_models=frozenset({"xiaomi/mimo-v2.6-flash", "xiaomi/mimo-v2.6-flash:fp8"}),
+        ),
+        # gpt-oss-120b on DeepInfra's bf16 endpoint (verified 2026-09-30):
+        # $0.037 in / $0.17 out per 1M, 131,072-token context, 117,964-token
+        # completions, 99.9% 30-minute uptime. The full endpoint slug is
+        # required: bare "deepinfra" also matches its turbo (16K output) and
+        # fp8 endpoints at 4-5x the price. Reasoning effort is pinned to the
+        # model's documented default, medium.
+        "openai/gpt-oss-120b": OpenRouterRoute(
+            native_model="openai/gpt-oss-120b",
+            endpoint="deepinfra/bf16",
+            provider_pin=MappingProxyType(
+                {"order": ("deepinfra/bf16",), "allow_fallbacks": False}
+            ),
+            reasoning_pin=MappingProxyType({"effort": "medium"}),
+            input_cost_micros_per_million=37_000,
+            output_cost_micros_per_million=170_000,
+            context_input_tokens=131_072,
+            max_completion_tokens=117_964,
+            returned_models=frozenset({"openai/gpt-oss-120b"}),
+        ),
     }
 )
+OPENROUTER_MODEL_SELECTORS: tuple[str, ...] = tuple(
+    route.selector for route in OPENROUTER_ROUTES.values()
+)
 OPENROUTER_CREDENTIAL_ENVIRONMENT_KEYS: frozenset[str] = frozenset({"OPENROUTER_API_KEY"})
+#: The one native model a trial's proxy admits; the runner sets it from the
+#: trial's selector so a sandbox cannot switch to another admitted route.
+OPENROUTER_EXPECTED_MODEL_ENV = "EVALLAB_OPENROUTER_EXPECTED_MODEL"
 OPENROUTER_PROXY_TOKEN = "evallab-proxy-placeholder"
 OPENROUTER_SECRET_FILE_ENV = "EVALLAB_OPENROUTER_SECRET_FILE"
 OPENROUTER_SECRET_PATH_ENV = "EVALLAB_OPENROUTER_SECRET_PATH"
@@ -561,20 +606,27 @@ OPENROUTER_PROXY_PROVIDER_ENV = "EVALLAB_PROXY_PROVIDER"
 OPENROUTER_PROXY_PROVIDER = "openrouter"
 
 
-def parse_openrouter_model(model: str | None) -> str:
-    """Strictly parse the OpenRouter Terminus selector, returning the native id.
+def openrouter_route(model: str | None) -> OpenRouterRoute:
+    """Strictly resolve an OpenRouter Terminus selector to its pinned route.
 
-    Exactly ``openrouter-metered/xiaomi/mimo-v2.6-flash`` is admitted; any
-    other string under the prefix — other models, suffixes, other providers'
+    Exactly the selectors of :data:`OPENROUTER_ROUTES` are admitted; any other
+    string under the prefix — other models, suffixes, other providers'
     prefixes, or transport kwargs smuggled in the string — fails closed here
     before any execution or spec freeze.
     """
-    if model != OPENROUTER_MIMO_FLASH_MODEL_SELECTOR:
-        raise ValueError(
-            "OpenRouter Terminus model must be exactly "
-            f"{OPENROUTER_MIMO_FLASH_MODEL_SELECTOR!r}, got {model!r}"
-        )
-    return OPENROUTER_NATIVE_MODEL
+    if isinstance(model, str) and model.startswith(OPENROUTER_MODEL_PREFIX):
+        route = OPENROUTER_ROUTES.get(model.removeprefix(OPENROUTER_MODEL_PREFIX))
+        if route is not None and route.selector == model:
+            return route
+    raise ValueError(
+        f"OpenRouter Terminus model must be exactly one of {OPENROUTER_MODEL_SELECTORS!r}, "
+        f"got {model!r}"
+    )
+
+
+def parse_openrouter_model(model: str | None) -> str:
+    """The native OpenRouter model id of an admitted selector (see :func:`openrouter_route`)."""
+    return openrouter_route(model).native_model
 
 
 def is_openrouter_model(model: str | None) -> bool:
@@ -1404,8 +1456,8 @@ def validate_request(request: RunRequest) -> None:
                 f"({sorted(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)}), a Tinker "
                 f"route ({TINKER_MODEL_PREFIX}<base>[@tinker://<run>:train:<i>"
                 "/sampler_weights/<step>]), the self-hosted route "
-                f"{MIMO_SELFHOSTED_MODEL_SELECTOR!r}, the OpenRouter route "
-                f"{OPENROUTER_MIMO_FLASH_MODEL_SELECTOR!r}, or installed local "
+                f"{MIMO_SELFHOSTED_MODEL_SELECTOR!r}, the OpenRouter routes "
+                f"{OPENROUTER_MODEL_SELECTORS!r}, or installed local "
                 f"{TERMINUS_LOCAL_MODEL_SELECTOR!r}; Coding Plan credentials "
                 "are not admitted for this harness"
             )

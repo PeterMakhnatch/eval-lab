@@ -506,6 +506,8 @@ def test_validate_request_accepts_storage_bounds(tmp_path: Path, storage_mb: int
     [
         ("openrouter-metered/xiaomi/mimo-v2.6-flash", True),
         ("openrouter-metered/xiaomi/mimo-v2.6-pro", False),
+        ("openrouter-metered/openai/gpt-oss-120b", True),
+        ("openrouter-metered/openai/gpt-oss-20b", False),
         ("openrouter/xiaomi/mimo-v2.6-flash", False),
     ],
 )

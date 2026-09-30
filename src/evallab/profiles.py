@@ -877,6 +877,29 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 ),
             ),
             AgentProfile(
+                profile_id="terminus-2-openrouter-gpt-oss-120b",
+                adapter=TERMINUS_AGENT,
+                model="openrouter-metered/openai/gpt-oss-120b",
+                auth_mode="api-key-environment",
+                secret_source="env:OPENROUTER_API_KEY",
+                capabilities=(
+                    "credential-transport:host-loopback-proxy",
+                    "structured-trajectory:atif",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=28_800,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-09-30: OpenRouter openai/gpt-oss-120b on pinned "
+                    "endpoint deepinfra/bf16: $0.037 in / $0.17 out per 1M "
+                    "tokens, supports_implicit_caching=false, reasoning "
+                    "effort pinned medium; 131,072-token context, 117,964-token "
+                    "max completion",
+                ),
+            ),
+            AgentProfile(
                 profile_id="glm-selfhosted-base",
                 adapter="mini-swe-agent",
                 model=GLM_SELFHOSTED_BASE_MODEL_SELECTOR,

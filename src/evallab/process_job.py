@@ -41,8 +41,14 @@ beyond wiring:
   upstream package or curls the upstream file may have graded something
   other than the agent's own work).
 
+The trial markdown opens with a decision page
+(:mod:`evallab.trial_decision`). That page invents no label. It quotes
+the probe-03 outcome, the existing grader-gap checks, the taint flags,
+and token-flow's last useful edit, and says whose problem the rule is.
+``R-ENV-02`` reads as the task. A pass with a fetch or a guard reject is
+a taint candidate, not a coordinator ruling.
+
 The runner calls :func:`process_job` automatically when a job finalizes
-(see ``run_experiment``); the call is best-effort and never fails the run.
 """
 
 import datetime as _datetime
@@ -511,6 +517,25 @@ def _process_trial(
 
         flags.extend(_token_flow_flags(token_flow))
     record["flags"] = flags
+    try:
+        from evallab.trial_decision import build_decision
+
+        decision = build_decision(
+            trial_dir,
+            reward=reward,
+            scored=scored,
+            outcome=outcome_failure if isinstance(outcome_failure, dict) else None,
+            first_failure=first_failure if isinstance(first_failure, dict) else None,
+            grader_evidence=(analysis or {}).get("grader_evidence") if analysis else None,
+            taint=taint,
+            token_flow=token_flow if isinstance(token_flow, dict) else None,
+        )
+        decision_error = None
+    except Exception as exc:  # noqa: BLE001 -- one bad trial must not kill the job
+        decision = None
+        decision_error = f"{type(exc).__name__}: {exc}"
+    record["decision"] = decision
+    record["errors"]["decision"] = decision_error
     return record
 
 
@@ -526,34 +551,47 @@ def _jsonable(value: Any) -> Any:
 
 
 def _render_trial_markdown(record: dict[str, Any]) -> str:
-    """Short markdown run report for one trial."""
+    """Short markdown run report for one trial, decision page first."""
+    from evallab.trial_decision import render_decision_markdown
+
     outcome = record.get("outcome_failure") or {}
     first = record.get("first_failure") or {}
     lines = [
         f"# Run report: `{record['trial_name']}`",
         "",
-        f"- task: `{record['task_name']}`; model: `{record['model_name']}`",
-        f"- reward: `{record['reward']}` (scored={record['scored']}, {record['reward_source']})",
-        f"- stop reason: `{record['stop_reason']}`",
-        _tokens_line(record),
-        _cost_line(record),
-        f"- steps: stitched {record['stitched_steps']}"
-        + (
-            f" (agent {record['agent_steps']}, model {record['model_steps']}"
-            f", {record['assembly_pattern']})"
-            if record["agent_steps"] is not None
-            else ""
-        ),
-        f"- first failure: `{first.get('rule_id', 'none')}`"
-        + (
-            f" ({first.get('attribution')}) at `{first.get('step_ref')}`"
-            if first
-            else " (clean execution)"
-        ),
-        f"- outcome: `{outcome.get('rule_id', 'none')}`"
-        + (f" ({outcome.get('attribution')}): {outcome.get('note', '')[:220]}" if outcome else ""),
-        f"- flags: {', '.join(f'`{flag}`' for flag in record['flags']) or 'none'}",
     ]
+    lines.extend(render_decision_markdown(record.get("decision")))
+    lines.extend(
+        [
+            "## Record",
+            "",
+            f"- task: `{record['task_name']}`; model: `{record['model_name']}`",
+            f"- reward: `{record['reward']}` (scored={record['scored']}, {record['reward_source']})",
+            f"- stop reason: `{record['stop_reason']}`",
+            _tokens_line(record),
+            _cost_line(record),
+            f"- steps: stitched {record['stitched_steps']}"
+            + (
+                f" (agent {record['agent_steps']}, model {record['model_steps']}"
+                f", {record['assembly_pattern']})"
+                if record["agent_steps"] is not None
+                else ""
+            ),
+            f"- first failure: `{first.get('rule_id', 'none')}`"
+            + (
+                f" ({first.get('attribution')}) at `{first.get('step_ref')}`"
+                if first
+                else " (clean execution)"
+            ),
+            f"- outcome: `{outcome.get('rule_id', 'none')}`"
+            + (
+                f" ({outcome.get('attribution')}): {outcome.get('note', '')[:220]}"
+                if outcome
+                else ""
+            ),
+            f"- flags: {', '.join(f'`{flag}`' for flag in record['flags']) or 'none'}",
+        ]
+    )
     if record.get("token_flow") is not None:
         from evallab.token_flow import markdown_lines as _token_flow_lines
 

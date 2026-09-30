@@ -1,0 +1,506 @@
+"""Detect agent trials that fetched upstream remote content (answer-leak guard).
+
+A trial that downloads the upstream package (``pip download waitress==2.0.0``)
+or curls the upstream file (``curl .../soupsieve/master/...``) can score a
+verifier reward without doing the task's work. The verifier reward stays as
+recorded; GEPA's objective score for such trials is forced to 0
+(``UPSTREAM_FETCH_ZERO``) so the optimiser cannot select for the leak.
+
+The detector is pure: :func:`detect_upstream_fetch` maps executed shell
+commands to :class:`Finding` records. :func:`commands_from_trial` extracts
+those commands from a Harbor trial directory (ATIF ``agent/trajectory*.json``,
+``tool_calls[].arguments.keystrokes``). Shell parsing is deliberately narrow:
+quote-aware operator splitting, backslash-continuation joining, and heredoc
+grouping, with no subshell evaluation.
+
+Conservative by decision: any remote fetch counts for the GEPA score (task
+images are pre-baked, so the model has no legitimate need to reach the
+network). Informational queries (``pip show/list``, ``git log/diff``,
+``grep http``) and local installs (``-e .``, local paths, local ``-r`` files)
+are not findings.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import shlex
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+
+__all__ = [
+    "KNOWN_SCORE_RULES",
+    "UPSTREAM_FETCH_ZERO",
+    "Finding",
+    "commands_from_trial",
+    "detect_upstream_fetch",
+    "format_fetch_notice",
+]
+
+#: Campaign score rule id: force the GEPA objective score to 0.0 when
+#: :func:`detect_upstream_fetch` reports any finding for the trial.
+UPSTREAM_FETCH_ZERO = "upstream_fetch_zero"
+
+#: Score rule ids accepted by ``load_campaign``.
+KNOWN_SCORE_RULES = frozenset({UPSTREAM_FETCH_ZERO})
+
+_EXCERPT_CHARS = 200
+
+
+@dataclass(frozen=True)
+class Finding:
+    """One executed remote-content fetch."""
+
+    #: ATIF step id, or -1 when the caller did not supply one.
+    step_index: int
+    #: Stable machine-readable kind, e.g. ``pip-download-remote-package``.
+    kind: str
+    #: First 200 chars of the offending command, whitespace-collapsed.
+    excerpt: str
+    #: True when the fetch names the task's own repo/package (strong signal).
+    names_task_repo: bool
+
+
+# ---------------------------------------------------------------------------
+# Shell splitting (narrow, no evaluation)
+# ---------------------------------------------------------------------------
+
+_HEREDOC_OPEN = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
+
+
+def _join_continuations(text: str) -> str:
+    return re.sub(r"\\\r?\n", " ", text)
+
+
+def _split_units(text: str) -> list[tuple[str, str]]:
+    """Split keystrokes into (head, body) units; heredoc bodies stay attached."""
+    units: list[tuple[str, str]] = []
+    pending: list[str] = []
+    head_lines: list[str] = []
+    body_lines: list[str] = []
+
+    def flush() -> None:
+        if head_lines or body_lines:
+            units.append(("\n".join(head_lines), "\n".join(body_lines)))
+        head_lines.clear()
+        body_lines.clear()
+
+    for raw_line in _join_continuations(text).splitlines():
+        line = raw_line
+        if pending:
+            body_lines.append(line)
+            if line.strip() in pending:
+                pending.remove(line.strip())
+                if not pending:
+                    flush()
+            continue
+        flush()
+        head_lines.append(line)
+        for match in _HEREDOC_OPEN.finditer(line):
+            pending.append(match.group(2))
+        if not pending:
+            flush()
+    flush()
+    return units
+
+
+def _split_operators(line: str) -> list[str]:
+    """Split one command line on && || ; | outside quotes (backslash-aware)."""
+    parts: list[str] = []
+    buf: list[str] = []
+    quote: str | None = None
+    escaped = False
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        if escaped:
+            buf.append(ch)
+            escaped = False
+        elif ch == "\\":
+            buf.append(ch)
+            escaped = True
+        elif quote is not None:
+            buf.append(ch)
+            if ch == quote:
+                quote = None
+        elif ch in ("'", '"'):
+            buf.append(ch)
+            quote = ch
+        elif ch == "&" and line[i + 1 : i + 2] == "&" or ch == "|" and line[i + 1 : i + 2] == "|":
+            parts.append("".join(buf))
+            buf = []
+            i += 1
+        elif ch in (";", "|"):
+            parts.append("".join(buf))
+            buf = []
+        else:
+            buf.append(ch)
+        i += 1
+    parts.append("".join(buf))
+    return [part.strip() for part in parts if part.strip()]
+
+
+_PREFIX_WITH_ARG = {"timeout", "sudo"}
+_TIMEOUT_ARG = re.compile(r"^\d+[smh]?$")
+
+
+def _strip_prefix(argv: list[str]) -> list[str]:
+    out = list(argv)
+    while out:
+        head = out[0]
+        if head == "sudo":
+            out.pop(0)
+        elif head == "timeout" and len(out) > 1 and _TIMEOUT_ARG.match(out[1]):
+            out = out[2:]
+        elif head == "env" or re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", head):
+            out.pop(0)
+        else:
+            break
+    return out
+
+
+def _argv(segment: str) -> list[str] | None:
+    try:
+        return _strip_prefix(shlex.split(segment, posix=True))
+    except ValueError:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Repo matching
+# ---------------------------------------------------------------------------
+
+def _repo_parts(task_repo: str | None) -> set[str]:
+    if not task_repo:
+        return set()
+    parts = {part.lower() for part in re.split(r"[/:]", task_repo) if part}
+    return {part for part in parts if len(part) >= 2}
+
+
+def _package_base(operand: str) -> str:
+    base = operand.split("[", 1)[0]
+    base = re.split(r"===|==|>=|<=|~=|!=|>|<|;", base, maxsplit=1)[0]
+    return base.strip().lower()
+
+
+def _names_repo(*, operand: str = "", url: str = "", task_repo: str | None) -> bool:
+    if not task_repo:
+        return False
+    parts = _repo_parts(task_repo)
+    base = _package_base(operand)
+    if base and base in parts:
+        return True
+    lowered = url.lower()
+    if not lowered:
+        return False
+    repo_path = task_repo.lower()
+    if repo_path and repo_path in lowered:
+        return True
+    return any(len(part) >= 3 and part in lowered for part in parts)
+
+
+# ---------------------------------------------------------------------------
+# Per-tool matchers
+# ---------------------------------------------------------------------------
+
+_LOOPBACK = re.compile(
+    r"^https?://(localhost|127\.\d+\.\d+\.\d+|\[?::1\]?|169\.254\.169\.254)([:/]|$)",
+    re.IGNORECASE,
+)
+_URL = re.compile(r"https?://\S+", re.IGNORECASE)
+_REMOTE_URL = re.compile(r"^(https?://|ssh://|git://|git\+|git@)", re.IGNORECASE)
+_ARCHIVE_FILE = re.compile(r"\.(whl|tar\.gz|tgz|zip)$", re.IGNORECASE)
+
+
+def _is_loopback_url(url: str) -> bool:
+    return _LOOPBACK.match(url.strip("<>(),;\"'")) is not None
+
+
+def _pip_findings(argv: list[str], *, tool: str, task_repo: str | None) -> list[tuple[str, str, bool]]:
+    """Match pip/uv-pip argv. Returns (kind, operand-or-url, names_repo)."""
+    out: list[tuple[str, str, bool]] = []
+    if len(argv) < 2:
+        return out
+    sub, rest = argv[1], argv[2:]
+    if sub == "index":
+        out.append(("pip-index-query", " ".join(rest[:2]), False))
+        return out
+    if sub not in {"install", "download", "wheel"}:
+        return out
+    kind = f"{tool}-{sub}-remote-package"
+    remote_index = False
+    no_index = False
+    operands: list[str] = []
+    i = 0
+    while i < len(rest):
+        token = rest[i]
+        if token in ("-e", "--editable"):
+            value = rest[i + 1] if i + 1 < len(rest) else ""
+            if _REMOTE_URL.match(value):
+                out.append((kind, value, _names_repo(operand=value, task_repo=task_repo)))
+            i += 2
+        elif token in ("-r", "--requirement"):
+            value = rest[i + 1] if i + 1 < len(rest) else ""
+            if _REMOTE_URL.match(value):
+                out.append(("pip-requirements-url", value, _names_repo(url=value, task_repo=task_repo)))
+            i += 2
+        elif token in ("-c", "--constraint"):
+            i += 2
+        elif token in ("-f", "--find-links", "--index-url", "--extra-index-url"):
+            value = rest[i + 1] if i + 1 < len(rest) else ""
+            if _REMOTE_URL.match(value):
+                remote_index = True
+                out.append(("pip-remote-index-url", value, _names_repo(url=value, task_repo=task_repo)))
+            i += 2
+        elif token == "--no-index":
+            no_index = True
+            i += 1
+        elif token.startswith("-"):
+            if "=" in token:
+                i += 1
+            elif token in (
+                "-d", "--dest", "--destination", "-o", "--output", "-t", "--target",
+                "--prefix", "--root", "--src", "--platform", "--python-version",
+                "--implementation", "--abi", "--no-binary", "--only-binary",
+            ):
+                i += 2
+            else:
+                i += 1
+        else:
+            operands.append(token)
+            i += 1
+    for operand in operands:
+        if re.match(r"^(\d+)?>&?\d*(/.*)?$", operand) or operand.startswith(("<", ">")):
+            continue  # shell redirection, not an install operand
+        if _REMOTE_URL.match(operand):
+            out.append((kind, operand, _names_repo(operand=operand, task_repo=task_repo)))
+        elif _ARCHIVE_FILE.search(operand) or operand.startswith(("./", "../", "/", "~")):
+            continue  # local file install
+        elif no_index and not remote_index:
+            continue  # --no-index with no remote index cannot fetch
+        elif operand:
+            out.append((kind, operand, _names_repo(operand=operand, task_repo=task_repo)))
+    return out
+
+
+def _transfer_findings(argv: list[str], *, tool: str, kind: str, task_repo: str | None) -> list[tuple[str, str, bool]]:
+    out: list[tuple[str, str, bool]] = []
+    for token in argv[1:]:
+        cleaned = token.strip("<>(),;\"'")
+        match = _URL.search(cleaned)
+        if not match:
+            continue
+        url = match.group(0)
+        if _is_loopback_url(url):
+            continue
+        out.append((kind, url, _names_repo(url=url, task_repo=task_repo)))
+    return out
+
+
+def _git_findings(argv: list[str], *, task_repo: str | None) -> list[tuple[str, str, bool]]:
+    out: list[tuple[str, str, bool]] = []
+    if len(argv) < 2:
+        return out
+    sub = argv[1]
+    if sub == "clone" and len(argv) > 2:
+        url = argv[2]
+        if _REMOTE_URL.match(url):
+            out.append(("git-clone-remote-url", url, _names_repo(url=url, task_repo=task_repo)))
+    elif sub in {"fetch", "pull"}:
+        for token in argv[2:]:
+            if _REMOTE_URL.match(token) and not _is_loopback_url(token):
+                out.append((f"git-{sub}-remote-url", token, _names_repo(url=token, task_repo=task_repo)))
+    elif sub == "remote" and len(argv) > 3 and argv[2] == "add":
+        url = argv[3]
+        if _REMOTE_URL.match(url):
+            out.append(("git-remote-add-url", url, _names_repo(url=url, task_repo=task_repo)))
+    return out
+
+
+_FETCH_CALLS = (
+    "urlopen(", "urlretrieve(",
+    "requests.get(", "requests.post(", "requests.request(", "requests.session(",
+    "urllib.request.", "httpx.", "http.client.", "socket.create_connection(",
+)
+_NODE_FETCH_CALLS = ("fetch(", "https.get", "https.request", "http.get", "http.request")
+
+
+def _script_findings(
+    head: str, body: str, *, interpreter: str, task_repo: str | None,
+) -> list[tuple[str, str, bool]]:
+    """Match python/node -c / stdin-heredoc code that fetches remote URLs."""
+    out: list[tuple[str, str, bool]] = []
+    argv = _argv(head)
+    code: str | None = None
+    if argv is not None and len(argv) >= 2:
+        if argv[1] in {"-c", "-e"} and len(argv) > 2:
+            code = " ".join(argv[2:])
+        elif argv[1] == "-" or (len(argv) > 2 and argv[2] == "-"):
+            code = body
+        elif argv[1] == "-m":
+            return out  # module runs (pytest, pip handled separately) are not -c/heredocs
+    if code is None:
+        # Regex fallback for heads shlex cannot parse: `-c` or stdin-heredoc only.
+        if re.search(r"(^|\s)-(c|e)\s", head):
+            code = head
+        elif re.search(r"(^|\s)-\s*(<<|$)", head):
+            code = head + "\n" + body
+        else:
+            return out
+    lowered = code.lower()
+    tokens = _NODE_FETCH_CALLS if interpreter == "node" else _FETCH_CALLS
+    if not any(token in lowered for token in tokens):
+        return out
+    for match in _URL.finditer(code):
+        url = match.group(0).rstrip(").,;\"'")
+        if _is_loopback_url(url):
+            continue
+        kind = "node-remote-fetch" if interpreter == "node" else "python-remote-fetch"
+        out.append((kind, url, _names_repo(url=url, task_repo=task_repo)))
+    return out
+
+
+def _head_findings(head: str, *, task_repo: str | None) -> list[tuple[str, str, bool]]:
+    out: list[tuple[str, str, bool]] = []
+    for segment in _split_operators(head):
+        argv = _argv(segment)
+        if argv is not None:
+            if not argv:
+                continue
+            tool = argv[0].split("/")[-1]
+            if tool == "pip" or (tool == "uv" and len(argv) > 1 and argv[1] == "pip"):
+                pip_argv = argv if tool == "pip" else [tool + "-pip", *argv[2:]]
+                out.extend(_pip_findings(pip_argv, tool="pip" if tool == "pip" else "uv-pip", task_repo=task_repo))
+            elif tool == "python" and len(argv) > 2 and argv[1] == "-m" and argv[2] == "pip":
+                out.extend(_pip_findings(["pip", *argv[3:]], tool="pip", task_repo=task_repo))
+            elif tool in {"curl"}:
+                out.extend(_transfer_findings(argv, tool=tool, kind="curl-remote-url", task_repo=task_repo))
+            elif tool in {"wget"}:
+                out.extend(_transfer_findings(argv, tool=tool, kind="wget-remote-url", task_repo=task_repo))
+            elif tool in {"http", "https"}:
+                out.extend(_transfer_findings(argv, tool=tool, kind="httpie-remote-url", task_repo=task_repo))
+            elif tool == "git":
+                out.extend(_git_findings(argv, task_repo=task_repo))
+            elif tool in {"apt", "apt-get"} and len(argv) > 1 and argv[1] == "source":
+                out.append(("apt-source", " ".join(argv[2:4]), False))
+            continue
+        lowered = segment.lower()
+        if re.search(r"(^|\s|\()pip\s+(install|download|wheel|index)\b", lowered):
+            out.append(("pip-unparsed-remote", segment[:80], False))
+        elif re.search(r"(^|\s)(curl|wget)\s+https?://", lowered):
+            url = _URL.search(segment)
+            if url and not _is_loopback_url(url.group(0)):
+                out.append(("curl-unparsed-remote-url", url.group(0), _names_repo(url=url.group(0), task_repo=task_repo)))
+    return out
+
+
+def _excerpt(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip()[:_EXCERPT_CHARS]
+
+
+def detect_upstream_fetch(
+    commands: Iterable[str | tuple[int, str]],
+    *,
+    task_repo: str | None = None,
+) -> list[Finding]:
+    """Flag executed remote-content fetches in agent shell commands.
+
+    ``commands`` is an iterable of ``(step_index, command_text)`` tuples;
+    bare strings are accepted with ``step_index=-1``. ``task_repo`` (e.g.
+    ``"Pylons/waitress"``) marks findings that name the task's own repo or
+    package as strong; every remote fetch is reported regardless.
+    """
+    findings: list[Finding] = []
+    for item in commands:
+        if isinstance(item, str):
+            step_index, text = -1, item
+        else:
+            step_index, text = item
+        if not text or not text.strip():
+            continue
+        for head, body in _split_units(text):
+            for kind, operand, strong in _head_findings(head, task_repo=task_repo):
+                findings.append(Finding(
+                    step_index=step_index,
+                    kind=kind,
+                    excerpt=_excerpt(head if kind != "pip-unparsed-remote" else operand),
+                    names_task_repo=strong,
+                ))
+            lowered_head = head.lower()
+            interpreter: str | None = None
+            if re.search(r"(^|\s|;)(sudo\s+)?(timeout\s+\S+\s+)?(python3?|python)\b", lowered_head):
+                interpreter = "python"
+            elif re.search(r"(^|\s|;)(sudo\s+)?(timeout\s+\S+\s+)?(node|nodejs)\b", lowered_head):
+                interpreter = "node"
+            if interpreter is not None:
+                for kind, url, strong in _script_findings(head, body, interpreter=interpreter, task_repo=task_repo):
+                    findings.append(Finding(
+                        step_index=step_index,
+                        kind=kind,
+                        excerpt=_excerpt(url),
+                        names_task_repo=strong,
+                    ))
+    return findings
+
+
+def format_fetch_notice(findings: Sequence[Finding], *, limit: int = 5) -> str:
+    """One-paragraph GEPA feedback notice for upstream-fetch findings."""
+    shown = "; ".join(
+        f"[step {finding.step_index} {finding.kind}] {finding.excerpt[:160]}"
+        for finding in findings[:limit]
+    )
+    extra = f" (+{len(findings) - limit} more)" if len(findings) > limit else ""
+    strong = sum(1 for finding in findings if finding.names_task_repo)
+    scope = f", {strong} naming the task's own repo/package" if strong else ""
+    return (
+        f"upstream fetch detected ({len(findings)} command(s){scope}): "
+        f"{shown}{extra}; scored 0"
+    )
+
+
+def commands_from_trial(trial_dir: str | Path) -> list[tuple[int, str]]:
+    """Extract ``(step_id, keystrokes)`` shell commands from a Harbor trial.
+
+    Reads ``agent/trajectory*.json`` (ATIF steps with
+    ``tool_calls[].arguments.keystrokes``), deduplicating repeated files
+    (summarization mirrors) and sorting by step id. Missing or unreadable
+    files yield no commands rather than an error.
+    """
+    agent_dir = Path(trial_dir) / "agent"
+    seen: set[tuple[int, str]] = set()
+    ordered: list[tuple[int, str]] = []
+    try:
+        files = sorted(agent_dir.glob("trajectory*.json"))
+    except OSError:
+        return []
+    for path in files:
+        if path.is_symlink():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        steps = payload.get("steps") if isinstance(payload, dict) else None
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            step_id = step.get("step_id")
+            calls = step.get("tool_calls")
+            if not isinstance(calls, list):
+                continue
+            for call in calls:
+                if not isinstance(call, dict):
+                    continue
+                args = call.get("arguments")
+                keystrokes = args.get("keystrokes") if isinstance(args, dict) else None
+                if not isinstance(keystrokes, str) or not keystrokes.strip():
+                    continue
+                key = (int(step_id) if isinstance(step_id, int) else -1, keystrokes)
+                if key not in seen:
+                    seen.add(key)
+                    ordered.append(key)
+    ordered.sort(key=lambda item: (item[0] < 0, item[0]))
+    return ordered

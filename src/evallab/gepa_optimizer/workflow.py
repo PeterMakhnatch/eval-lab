@@ -19,6 +19,7 @@ from evallab.execution_contracts import (
     ZAI_OPENCODE_MODEL_SELECTORS,
 )
 from evallab.registry import task_directory_digest
+from evallab.upstream_fetch import KNOWN_SCORE_RULES
 
 from .budget import AggregateBudget, BudgetExhausted
 from .evaluator import (
@@ -314,6 +315,7 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         "max_target_attempts",
         "shared_budget",
         "score_mode",
+        "score_rules",
         "candidate_kind",
         "proposer_transport",
         "proposer_ceilings",
@@ -347,6 +349,16 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         "quality_gated_request_efficiency",
     }:
         raise ValueError("score_mode must be 'native_reward' or 'quality_gated_request_efficiency'")
+    score_rules = raw.get("score_rules", [])
+    if not isinstance(score_rules, list) or any(
+        not isinstance(rule, str) for rule in score_rules
+    ):
+        raise ValueError("score_rules must be a list of known rule ids")
+    unknown_rules = [rule for rule in score_rules if rule not in KNOWN_SCORE_RULES]
+    if unknown_rules:
+        raise ValueError(
+            f"Unknown score_rules {unknown_rules}; known: {sorted(KNOWN_SCORE_RULES)}"
+        )
     candidate_kind = raw.get("candidate_kind", "instructions")
     if not isinstance(candidate_kind, str) or candidate_kind not in {
         "instructions",
@@ -687,6 +699,7 @@ def _run_campaign(
         budgets=budgets,
         candidate_kind=candidate_kind,
         base_spec=base_spec,
+        score_rules=tuple(config.get("score_rules", [])),
     )
     validation_ids = set(config.get("validation_task_ids", []))
     train = [row for row in config["examples"] if row["task_id"] not in validation_ids]

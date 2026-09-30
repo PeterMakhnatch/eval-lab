@@ -39,9 +39,9 @@
       "split": "development"
     },
     {
-      "task_id": "format-code-task-001896",
-      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-001896",
-      "task_package_digest": "sha256:a616c127c86f09f23232eff4810c00fbcee7a739a54b9c05c685f3c0d5a4778d",
+      "task_id": "format-code-task-002391",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-002391",
+      "task_package_digest": "sha256:d0a399b8633cdf47a6c3d00198b50c889ed5c282c016bb4b29bbdaf2f9d75fa1",
       "split": "development"
     }
   ],

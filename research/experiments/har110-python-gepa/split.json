@@ -1,5 +1,5 @@
 {
-  "split_digest": "sha256:4e9861fd34b58675929c6bcc36b85a95571864f7821411e9ec13be18ef29f2ed",
+  "split_digest": "sha256:a7cf5d581ca7f43257daca9eabad7ae1eed50f99558d12a9f363510983c32719",
   "experiment": "har110-python-gepa",
   "salt": "har110-py-v1",
   "development": [
@@ -8,13 +8,13 @@
     "format-code-task-002259",
     "format-code-task-000383",
     "format-code-task-002256",
-    "format-code-task-001896"
+    "format-code-task-002391"
   ],
   "heldout": [
+    "format-code-task-001896",
     "format-code-task-001832",
     "format-code-task-000927",
-    "format-code-task-002391",
     "format-code-task-002864"
   ],
-  "stratified_by_har104_rewards": null
+  "stratified_by_har104_rewards": "sha256:1b2136b71ef6419bc502b784d90c9481063eb2cebc5d8623847cb268fd0011db"
 }

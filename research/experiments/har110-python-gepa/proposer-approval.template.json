@@ -1,7 +1,7 @@
 {
   "approved_at": "",
   "approved_by": "",
-  "binding_sha256": "5f2b37f4e19b18e680da9f3b5bb6cb255e57b502e0ff8a71ba7aa0b59430b330",
+  "binding_sha256": "88a1cc6f7e278fd02be3413c93a6780737237b3f062fe8316e85235a8ca0685d",
   "campaign": "research/experiments/har110-python-gepa/campaign-train.json",
-  "note": "STAGED template, NOT an authorization: approved_by/approved_at are blank. Precomputed binding for campaign-train.json as committed (6 HAR-110 development examples without prior_run_reference yet; config after retained-target derivation from base-specs/student-terminus2-selfhosted-python.json + seed sha256:399ec113 + release pin commit 0632cdb5; workflow.py binding check). Recompute after ANY byte change to campaign-train.json, the retained base spec, the seed, the pinned GEPA release, or the fill_refs --trials pass (see README). The signed file materialized from this template is runtime state and must never be committed."
+  "note": "STAGED template, NOT an authorization: approved_by/approved_at are blank. Precomputed binding for campaign-train.json as committed (6 HAR-110 development examples WITH prior_run_reference from staged prior-trials/ copies of the finished HAR-104 trials, score_rules [upstream_fetch_zero], config after retained-target derivation from base-specs/student-terminus2-selfhosted-python.json + seed sha256:399ec113 + release pin commit 0632cdb5; workflow.py binding check). Recompute after ANY byte change to campaign-train.json, the retained base spec, the seed, or the pinned GEPA release (see README). The signed file materialized from this template is runtime state and must never be committed."
 }

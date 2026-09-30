@@ -732,6 +732,9 @@ def process_job(
     database_url: str | None = None,
     ingest: bool = True,
     nop_runs_dir: str | None = None,
+    publish: bool = True,
+    results_home: str | Path | None = None,
+    pr_lookup: Any = None,
 ) -> dict[str, Any]:
     """Process a landed Harbor job directory.
 
@@ -884,6 +887,18 @@ def process_job(
             "ingest": ingest_note,
         },
     }
+    if publish:
+        from evallab.results_home import publish_job
+
+        published = publish_job(
+            job_path,
+            root=results_home,
+            repo_root=Path(root).resolve() if root is not None else None,
+            pr_lookup=pr_lookup,
+        )
+        report["results_home"] = published["published"]
+    else:
+        report["results_home"] = None
     (out_dir / "job.json").write_text(
         json.dumps(_jsonable(report), indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )

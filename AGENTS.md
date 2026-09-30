@@ -62,6 +62,9 @@ editing that file in the same PR. Buckets in one line each:
 - `digests/`: committed daily derived reports.
 - `queue/`, `runs/`, `derived/`, `backups/`: local runtime and recovery state;
   ignored does not mean disposable. `derived/evidence-cas/` is durable evidence.
+- Finished jobs are published to `~/Developer/eval-lab-results/<date>/<card>-<job>/`
+  by `evallab process-job`, with provenance. Receipts link that local path.
+  The directory is outside every worktree; `wt-prune` does not touch it.
   `queue/events.jsonl` drives unattended work.
 
 ## Safe run pattern

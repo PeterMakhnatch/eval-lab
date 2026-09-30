@@ -7,9 +7,7 @@ from pathlib import Path
 
 from evallab.process_job import process_job
 
-MESSAGE = json.dumps(
-    {"analysis": "", "plan": "", "commands": [{"keystrokes": "echo stuck"}]}
-)
+MESSAGE = json.dumps({"analysis": "", "plan": "", "commands": [{"keystrokes": "echo stuck"}]})
 
 
 def _step(step_id: int, message: str = MESSAGE) -> dict:
@@ -22,9 +20,7 @@ def _step(step_id: int, message: str = MESSAGE) -> dict:
     }
 
 
-def _write_trial(
-    root: Path, name: str, *, n_loop: int, reward: float, ceiling: bool
-) -> Path:
+def _write_trial(root: Path, name: str, *, n_loop: int, reward: float, ceiling: bool) -> Path:
     trial = root / name
     agent = trial / "agent"
     agent.mkdir(parents=True)
@@ -47,9 +43,7 @@ def _job(root: Path) -> Path:
     job = root / "job"
     job.mkdir()
     (job / "lab-metadata.json").write_text(
-        json.dumps(
-            {"trial_budget": {"max_input_tokens": 12078, "max_output_tokens": 200000}}
-        ),
+        json.dumps({"trial_budget": {"max_input_tokens": 12078, "max_output_tokens": 200000}}),
         encoding="utf-8",
     )
     _write_trial(job, "trial-loop", n_loop=12, reward=0.0, ceiling=True)
@@ -57,10 +51,7 @@ def _job(root: Path) -> Path:
     passing.mkdir()
     agent = passing / "agent"
     agent.mkdir()
-    steps = [
-        _step(i, json.dumps({"commands": [{"keystrokes": f"echo {i}"}]}))
-        for i in range(1, 4)
-    ]
+    steps = [_step(i, json.dumps({"commands": [{"keystrokes": f"echo {i}"}]})) for i in range(1, 4)]
     (agent / "trajectory.json").write_text(json.dumps({"steps": steps}), encoding="utf-8")
     (passing / "result.json").write_text(
         json.dumps(
@@ -78,7 +69,7 @@ def _job(root: Path) -> Path:
 def test_process_job_writes_reports_and_flags_loops(tmp_path: Path) -> None:
     job = _job(tmp_path)
     out = tmp_path / "out"
-    report = process_job(job, output_dir=out, ingest=False)
+    report = process_job(job, output_dir=out, ingest=False, publish=False)
 
     assert report["summary"]["n_trials"] == 2
     assert report["summary"]["n_pass"] == 1

@@ -1,20 +1,35 @@
 {
-  "split_digest": "sha256:a7cf5d581ca7f43257daca9eabad7ae1eed50f99558d12a9f363510983c32719",
+  "split_digest": "sha256:8bf591e4d08e4630395a906ff341290e63e4068007aff9d307ffdb7168617c4b",
   "experiment": "har110-python-gepa",
-  "salt": "har110-py-v1",
+  "salt": "har110-py-v2",
+  "decision_source": "HAR-110 Research-Harbor 2026-09-30T07:00Z",
+  "census_labels_sha256": "sha256:ac896955ad1d3a4ab4185fdcf23d1459365ce3f6745c91f94d780a40388a7c82",
+  "eligible_pool": [
+    "format-code-task-001161",
+    "format-code-task-000495",
+    "format-code-task-001181",
+    "format-code-task-000587",
+    "format-code-task-000328",
+    "format-code-task-001373",
+    "format-code-task-002532",
+    "format-code-task-002961",
+    "format-code-task-001689"
+  ],
   "development": [
-    "format-code-task-002407",
-    "format-code-task-000226",
-    "format-code-task-002259",
     "format-code-task-000383",
     "format-code-task-002256",
-    "format-code-task-002391"
-  ],
-  "heldout": [
-    "format-code-task-001896",
+    "format-code-task-002391",
     "format-code-task-001832",
-    "format-code-task-000927",
+    "format-code-task-001896",
     "format-code-task-002864"
   ],
-  "stratified_by_har104_rewards": "sha256:1b2136b71ef6419bc502b784d90c9481063eb2cebc5d8623847cb268fd0011db"
+  "heldout": [
+    "format-code-task-001161",
+    "format-code-task-000495",
+    "format-code-task-001181",
+    "format-code-task-000587"
+  ],
+  "pypi_fix_released_excluded": [
+    "format-code-task-000226"
+  ]
 }

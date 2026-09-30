@@ -43,6 +43,11 @@ from pathlib import Path
 from typing import Any
 
 from evallab.evidence.facts import trial_environment_type
+from evallab.evidence.parquet_io import (
+    parquet_root_lock,
+    parquet_snapshot_paths,
+    write_parquet_snapshot,
+)
 from evallab.ledger import split_usage
 from evallab.task_qualification import task_dir_for_trial
 from evallab.task_stability import iter_trial_dirs
@@ -908,8 +913,8 @@ def collect_capture(job_dir: Path, trial_dir: Path) -> dict[str, Any]:
     totals = _dict((usage or {}).get("totals"))
     if usage is not None:
         with contextlib.suppress(ValueError):
-            split = split_usage(usage)
-            totals = {**split["used"], "total_tokens": split["used"]["total_tokens"]}
+            usage_split = split_usage(usage)
+            totals = usage_split["used"]
     calls = [call for call in (usage or {}).get("calls") or [] if isinstance(call, dict)]
     result_input = (agent_result or {}).get("n_input_tokens")
     result_output = (agent_result or {}).get("n_output_tokens")
@@ -1150,19 +1155,63 @@ def _loaded(row: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _write(rows: Sequence[Mapping[str, Any]], schema: Any, path: Path) -> None:
-    import pyarrow as pa
-    import pyarrow.parquet as pq
-
-    table = pa.table({f.name: [row.get(f.name) for row in rows] for f in schema}, schema=schema)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    pq.write_table(table, path)
-
-
 def _read(path: Path) -> list[dict[str, Any]]:
     import pyarrow.parquet as pq
 
-    return pq.read_table(path).to_pylist() if path.is_file() else []
+    return pq.read_table(path).to_pylist()
+
+
+def _matching_trials(
+    treatments: Sequence[Mapping[str, Any]], captures: Sequence[Mapping[str, Any]]
+) -> None:
+    treatment_keys = {
+        (row["job_name"], row["trial_name"], row.get("produced_at")) for row in treatments
+    }
+    capture_keys = {
+        (row["job_name"], row["trial_name"], row.get("produced_at")) for row in captures
+    }
+    if treatment_keys != capture_keys:
+        missing = treatment_keys ^ capture_keys
+        jobs = ", ".join(sorted({str(job) for job, _, _ in missing}))
+        raise ValueError(
+            "treatment/capture trial identities or collection timestamps differ; "
+            f"rerun tasks treatment-collect for the source jobs: {jobs}"
+        )
+
+
+def _table_paths(catalog: Path) -> dict[str, Path]:
+    """Resolve one immutable snapshot, or the pre-snapshot migration inputs."""
+    filenames = (TREATMENT_TABLE_FILENAME, CAPTURE_TABLE_FILENAME)
+    snapshot = parquet_snapshot_paths(catalog / ".trial-tables")
+    if snapshot is not None:
+        if set(snapshot) != set(filenames):
+            raise ValueError("treatment/capture snapshot must contain exactly both tables")
+        return snapshot
+    return {name: catalog / name for name in filenames if (catalog / name).is_file()}
+
+
+def table_paths(catalog: Path) -> dict[str, Path]:
+    """Pin a complete treatment/capture pair; refuse partial legacy projections."""
+    paths = _table_paths(catalog)
+    if not paths:
+        return {}
+    if len(paths) != 2:
+        raise ValueError(
+            "incomplete treatment/capture catalog; rerun tasks treatment-collect "
+            "for the source jobs"
+        )
+    # Older collectors could leave different trial sets or collection timestamps
+    # after a partial write. File existence alone does not establish consistency.
+    import pyarrow.parquet as pq
+
+    keys = [
+        pq.read_table(
+            paths[name], columns=["job_name", "trial_name", "produced_at"]
+        ).to_pylist()
+        for name in (TREATMENT_TABLE_FILENAME, CAPTURE_TABLE_FILENAME)
+    ]
+    _matching_trials(keys[0], keys[1])
+    return paths
 
 
 def upsert_tables(
@@ -1170,27 +1219,41 @@ def upsert_tables(
     captures: Sequence[Mapping[str, Any]],
     catalog: Path,
 ) -> tuple[Path, Path, int, int]:
-    """Merge rows into both tables, replacing trials collected before.
+    """Merge matching trial records and atomically publish one complete snapshot.
 
-    Trials are identified by ``(job_name, trial_name)``. Returns the two paths
-    and the resulting row counts.
+    The catalog lock covers the read/merge/commit, preventing concurrent writers
+    from losing each other's trials. Old fixed-path files are migration inputs,
+    never overwritten; already-attached readers retain their original evidence.
     """
-    out: list[Any] = []
-    for rows, filename, schema, encode in (
-        (treatments, TREATMENT_TABLE_FILENAME, treatment_schema(), _stored),
-        (captures, CAPTURE_TABLE_FILENAME, capture_schema(), dict),
-    ):
-        path = catalog / filename
-        merged = {(row["job_name"], row["trial_name"]): row for row in _read(path)}
-        merged.update({(row["job_name"], row["trial_name"]): encode(row) for row in rows})
-        ordered = [merged[key] for key in sorted(merged)]
-        _write(ordered, schema, path)
-        out.append((path, len(ordered)))
-    return out[0][0], out[1][0], out[0][1], out[1][1]
+    _matching_trials(treatments, captures)
+    with parquet_root_lock(catalog):
+        paths = _table_paths(catalog)
+        merged_tables: dict[str, tuple[list[dict[str, Any]], Any]] = {}
+        for rows, filename, schema, encode in (
+            (treatments, TREATMENT_TABLE_FILENAME, treatment_schema(), _stored),
+            (captures, CAPTURE_TABLE_FILENAME, capture_schema(), dict),
+        ):
+            existing = _read(paths[filename]) if filename in paths else []
+            merged = {(row["job_name"], row["trial_name"]): row for row in existing}
+            merged.update({(row["job_name"], row["trial_name"]): encode(row) for row in rows})
+            merged_tables[filename] = ([merged[key] for key in sorted(merged)], schema)
+        treatment_rows = merged_tables[TREATMENT_TABLE_FILENAME][0]
+        capture_rows = merged_tables[CAPTURE_TABLE_FILENAME][0]
+        _matching_trials(treatment_rows, capture_rows)
+        published = write_parquet_snapshot(catalog / ".trial-tables", merged_tables)
+    return (
+        published[TREATMENT_TABLE_FILENAME],
+        published[CAPTURE_TABLE_FILENAME],
+        len(treatment_rows),
+        len(capture_rows),
+    )
 
 
 def read_treatments(catalog: Path) -> list[dict[str, Any]]:
-    return [_loaded(row) for row in _read(catalog / TREATMENT_TABLE_FILENAME)]
+    paths = table_paths(catalog)
+    if not paths:
+        return []
+    return [_loaded(row) for row in _read(paths[TREATMENT_TABLE_FILENAME])]
 
 
 @dataclass(frozen=True)

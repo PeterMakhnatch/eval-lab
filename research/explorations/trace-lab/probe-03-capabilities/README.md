@@ -48,7 +48,15 @@ skipped and listed as still running.
 
 ```sh
 E=~/Developer/eval-lab/.worktrees
-P=~/Developer/eval-lab/derived/parquet/external/task_catalog/trial_treatment.parquet
+# Pin the current pair; the capture table is its immutable sibling.
+P=$(uv run --project ~/Developer/eval-lab python -c '
+from pathlib import Path
+from evallab.storage.paths import derived_root_from_environment
+from evallab.trial_treatment import table_paths
+root = Path.home() / "Developer/eval-lab"
+catalog = derived_root_from_environment(root) / "external/task_catalog"
+print(table_paths(catalog)["trial_treatment.parquet"])
+')
 uv run --no-project --with pyarrow python capabilities.py \
   $E/har90-modal-mimo/runs/har90-mimo-{0036,0036-b,0036-c,0036-d,0036-e,0036-f,0758-a,0758-b,0758-c,0758-d} \
   --out-dir har90 --treatment-key-source har93:$P \

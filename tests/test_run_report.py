@@ -652,10 +652,14 @@ def test_completion_confirmation_follows_the_terminus_two_turn_handshake(tmp_pat
     # was confirmed. HAR-104 001896: two claims in a row are the confirmation.
     budget = _result(
         agent_result={"metadata": {"stop_reason": "trial_budget_exhausted"}},
-        exception_info={"exception_type": "TrialBudgetExhaustedError", "exception_message": "budget"},
+        exception_info={
+            "exception_type": "TrialBudgetExhaustedError",
+            "exception_message": "budget",
+        },
     )
     alternating = [
-        _layered(i, i, _claim_layer() if i % 2 == 0 else _calls_layer("echo done")) for i in range(1, 9)
+        _layered(i, i, _claim_layer() if i % 2 == 0 else _calls_layer("echo done"))
+        for i in range(1, 9)
     ]
     report = build_run_report(_trial(tmp_path, alternating, result=budget))
     assert "never confirmed" in report["outcome"]["completion"]
@@ -873,3 +877,49 @@ def test_joined_step_takes_kind_from_the_call_that_holds_the_url(tmp_path: Path)
     assert (
         section["items"][0]["target"] == "https://raw.githubusercontent.com/org/repo/master/util.py"
     )
+
+
+def test_period_two_cycle_is_reported_and_raises_loop_suspicion(tmp_path: Path) -> None:
+    diff, stat = "cd /testbed && git diff", "cd /testbed && git diff --stat"
+    steps = [_bash(i, i * 5, diff if i % 2 else stat, "out") for i in range(1, 9)]
+    report = build_run_report(_trial(tmp_path, steps))
+    cycle = report["revisits"]["longest_cycle"]
+
+    assert cycle["period"] == 2
+    assert cycle["commands"] == [diff, stat]
+    assert (cycle["start_step"], cycle["end_step"]) == (2, 9)
+    loop = report["revisits"]["loop_suspicion"]
+    assert loop["detected"] is True
+    assert any("repeating_command_cycle" in reason for reason in loop["reasons"])
+
+
+def test_period_three_cycle_is_reported(tmp_path: Path) -> None:
+    cmds = ["cd /testbed && make alpha", "cd /testbed && make beta", "cd /testbed && make gamma"]
+    steps = [_bash(i, i * 5, cmds[(i - 1) % 3], "out") for i in range(1, 10)]
+    report = build_run_report(_trial(tmp_path, steps))
+    cycle = report["revisits"]["longest_cycle"]
+
+    assert cycle["period"] == 3
+    assert cycle["repeats"] == 3
+    assert (cycle["start_step"], cycle["end_step"]) == (2, 10)
+    assert report["revisits"]["loop_suspicion"]["detected"] is True
+
+
+def test_broken_alternation_is_not_a_cycle(tmp_path: Path) -> None:
+    diff, stat = "cd /testbed && git diff", "cd /testbed && git diff --stat"
+    # Two repeats, then a different command breaks the alternation each time.
+    cmds = [
+        diff,
+        stat,
+        diff,
+        "cd /testbed && git status",
+        stat,
+        diff,
+        stat,
+        "cd /testbed && git log",
+    ]
+    steps = [_bash(i, i * 5, cmd, "out") for i, cmd in enumerate(cmds, start=1)]
+    report = build_run_report(_trial(tmp_path, steps))
+
+    assert report["revisits"]["longest_cycle"] is None
+    assert report["revisits"]["loop_suspicion"]["detected"] is False

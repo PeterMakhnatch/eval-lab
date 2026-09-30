@@ -678,6 +678,19 @@ def _int_env(name: str, default: int | None = None) -> int:
     return value
 
 
+#: Input-token reservation divisor (HAR-114 follow-up). The reservation is
+#: ceil(billed JSON bytes / _RESERVATION_DIVISOR). Calibrated on 6,871
+#: settled calls from 82 runs (research/experiments/har114-tokenflow/
+#: reservation-calibration.json): reserved/actual in [2.61, 4.80], median
+#: 3.56, so divisor 2 keeps the reservation above actual on 100% of
+#: observed calls with ~31% headroom over the worst case (hex-dense
+#: terminal output). No tokenizer: the container is stdlib-only (pinned
+#: image, no pip deps), so estimation is pure arithmetic with no
+#: dependency to fail — fail-closed by construction. The bare byte
+#: length remains the fail-closed bound if this divisor is ever removed.
+_RESERVATION_DIVISOR = 2
+
+
 def _estimate_tokens(payload: dict[str, Any]) -> int:
     """Reserve a conservative upper bound. Never trust characters/4."""
     billed = {
@@ -686,7 +699,7 @@ def _estimate_tokens(payload: dict[str, Any]) -> int:
         "tool_choice": payload.get("tool_choice"),
     }
     encoded = json.dumps(billed, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    return max(1, len(encoded))
+    return max(1, -(-len(encoded) // _RESERVATION_DIVISOR))
 
 
 def _cost_micros(input_tokens: int, output_tokens: int, rates: tuple[int, int]) -> int:

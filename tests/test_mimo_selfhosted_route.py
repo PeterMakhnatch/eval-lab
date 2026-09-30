@@ -994,3 +994,72 @@ def test_mimo_trial_cost_rejects_bad_inputs(hours: float, concurrency: Any, sand
 def test_mimo_returned_model_identity(returned: str, accepted: bool) -> None:
     allowed = runner_module._accepted_returned_models(MIMO_SELFHOSTED_MODEL_SELECTOR)
     assert (returned in allowed) is accepted
+
+
+# ---------------------------------------------------------------------------
+# 6. Input-token reservation (HAR-114 follow-up)
+# ---------------------------------------------------------------------------
+#
+# Fixture pairs are (reserved byte-length, real prompt tokens) from settled
+# ledger calls in research/experiments/har114-tokenflow/
+# reservation-calibration.json: (171301, 47486) is the 002391 held call,
+# (34903, 13351) the tightest observed ratio (2.614).
+
+
+def _payload_with_billed_bytes(n: int) -> dict[str, Any]:
+    """Build a request whose billed JSON is exactly ``n`` bytes."""
+    probe: dict[str, Any] = {
+        "messages": [{"role": "user", "content": ""}],
+        "tools": None,
+        "tool_choice": None,
+    }
+    overhead = len(json.dumps(probe, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+    assert n > overhead
+    return {
+        "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
+        "messages": [{"role": "user", "content": "x" * (n - overhead)}],
+        "tools": None,
+        "tool_choice": None,
+        "max_tokens": 8,
+    }
+
+
+def _billed_bytes(payload: dict[str, Any]) -> int:
+    billed = {
+        "messages": payload.get("messages"),
+        "tools": payload.get("tools"),
+        "tool_choice": payload.get("tool_choice"),
+    }
+    return len(json.dumps(billed, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+
+
+def test_estimate_tokens_halves_byte_length_rounded_up() -> None:
+    module = _proxy_module()
+    payload = {
+        "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
+        "messages": [
+            {"role": "system", "content": "You are a coding agent."},
+            {"role": "user", "content": "Fix the parser."},
+        ],
+        "max_tokens": 64,
+    }
+    n_bytes = _billed_bytes(payload)
+    assert module._estimate_tokens(payload) == -(-n_bytes // 2)
+
+
+@pytest.mark.parametrize(
+    "reserved,actual",
+    [(171301, 47486), (34903, 13351)],
+)
+def test_estimate_tokens_covers_real_calls_and_beats_old_bound(reserved: int, actual: int) -> None:
+    module = _proxy_module()
+    payload = _payload_with_billed_bytes(reserved)
+    assert _billed_bytes(payload) == reserved
+    estimate = module._estimate_tokens(payload)
+    assert estimate >= actual
+    assert estimate < reserved
+
+
+def test_estimate_tokens_never_below_one() -> None:
+    module = _proxy_module()
+    assert module._estimate_tokens({}) >= 1

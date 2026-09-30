@@ -467,6 +467,7 @@ _resolve_candidate_roots = resolve_runs_roots
 def _safe_str(val: Any, default: str = "") -> str:
     return str(val) if val is not None else default
 
+
 def _authoritative_int(value: Any) -> int | None:
     """Return a declared aggregate token count, or None when absent/invalid."""
     if isinstance(value, bool):
@@ -745,7 +746,7 @@ def _analyze_loop_suspicion(steps: Sequence[LoopStepView]) -> LoopSuspicion:
     failed_cmds: Counter[str] = Counter()
     for step in steps:
         if step.is_error and step.tool_command:
-            norm = f"{step.tool_name}:{step.tool_command[:60]}:{step.exit_code}"
+            norm = f"{step.tool_name}:{step.tool_command[:60]}:{step.exit_code if step.exit_code is not None else 'unknown'}"
             failed_cmds[norm] += 1
     for failed_cmd, count in failed_cmds.items():
         if count >= 3:
@@ -844,9 +845,7 @@ def extract_loop_step(raw_step: dict[str, Any]) -> tuple[LoopStep, str | None, E
         }:
             error_msg = error_msg or content[:120].strip() or "tool result reported an error"
     # Deterministic error taxonomy and expected negative probe classification.
-    _, primary_text = split_envelope(
-        results[0].get("content") if results else None
-    )
+    _, primary_text = split_envelope(results[0].get("content") if results else None)
     primary_content = primary_text or error_msg
     error_classification = classify_step_error(
         tool_name=primary_tool_name,
@@ -1666,9 +1665,7 @@ def outline_trajectory(
     agent_section_value = traj_data.get("agent")
     agent_section = agent_section_value if isinstance(agent_section_value, dict) else {}
     if not agent_name or agent_name == "unknown":
-        agent_name = _safe_str(
-            root_section.get("name") or agent_section.get("name") or "unknown"
-        )
+        agent_name = _safe_str(root_section.get("name") or agent_section.get("name") or "unknown")
     if not model_name or model_name == "unknown":
         model_name = _safe_str(
             root_section.get("model_name") or agent_section.get("model_name") or "unknown"
@@ -1968,15 +1965,11 @@ def outline_trajectory(
     declared_completion = _authoritative_int(declared_metrics.get("total_completion_tokens"))
     declared_cached = _authoritative_int(declared_metrics.get("total_cached_tokens"))
     declared_cost = _authoritative_float(declared_metrics.get("total_cost_usd"))
-    outline_prompt_tokens = (
-        declared_prompt if declared_prompt is not None else total_prompt_tokens
-    )
+    outline_prompt_tokens = declared_prompt if declared_prompt is not None else total_prompt_tokens
     outline_completion_tokens = (
         declared_completion if declared_completion is not None else total_completion_tokens
     )
-    outline_cached_tokens = (
-        declared_cached if declared_cached is not None else total_cached_tokens
-    )
+    outline_cached_tokens = declared_cached if declared_cached is not None else total_cached_tokens
     outline_cost_usd: float | None
     if declared_cost is not None:
         outline_cost_usd = declared_cost
@@ -1988,7 +1981,9 @@ def outline_trajectory(
         outline_cost_usd = None
     state_metrics = _extract_state_journal_metrics(trial_dir, steps_out, citations)
     ref_metrics = _extract_reference_and_citation_metrics(trial_dir, steps_out, citations)
-    edit_call_count = sum(1 for step in steps_out if _is_edit_action(step.tool_name, step.tool_command))
+    edit_call_count = sum(
+        1 for step in steps_out if _is_edit_action(step.tool_name, step.tool_command)
+    )
     return TrajectoryOutline(
         trial_id=trial_id,
         job_id=job_id,

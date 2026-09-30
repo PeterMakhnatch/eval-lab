@@ -1228,6 +1228,7 @@ def _tools(actions: Sequence[_Action]) -> dict[str, Any]:
 _CYCLE_PERIODS = (2, 3)
 _CYCLE_MIN_REPEATS = 3
 _CYCLE_MIN_COMMAND_CHARS = 6
+_MISSING_DEPENDENCY_RE = re.compile(r"ModuleNotFoundError|No module named [\w.]+")
 
 
 def _is_cycle_command(action: _Action) -> bool:
@@ -1843,19 +1844,27 @@ def _first_failure(
        rule stays silent and the edit signals below decide. A plain
        identical run to the end is still task-directed verification and does
        not count.
-    4. ``bad_edit`` (medium): the first repo edit (writes under /tmp and
+    4. ``tool_error`` (low): a missing-dependency error
+       (``ModuleNotFoundError`` / ``No module named ...``) before the first
+       repo edit, on a run that never passes. A missing dependency is
+       pre-existing breakage no later code edit can fix, so it outranks the
+       edit signals below; anything else pre-edit is exploration noise the
+       agent worked around. Recovery is run-level (pass/fail) because
+       per-command success is unobservable: the modal harness never emits
+       an ``ok`` status. Tried and rejected: any pre-edit error on a failed
+       run (loses two hand reads whose probes errored before the decisive
+       edit), and any pre-edit error whose text recurs later (a hand-read
+       probe's ``AttributeError`` recurs in later exploration noise).
+    5. ``bad_edit`` (medium): the first repo edit (writes under /tmp and
        other scratch never count) when a tool error occurs at or after it.
        The edit changed what later checks observe.
-    5. ``tool_error`` (low): the first tool error, but only when the agent
-       later edited and the error came first -- pre-existing breakage such
-       as a broken environment, not fallout from the agent's own changes.
-       Errors after editing belong to the edit-test loop above.
 
     No signal fires for a silent failure (an incomplete edit with no failing
     check, a detour that never touches the repo): the field is null rather
     than a guess. Calibrated on 10 HAR-104 hand reads (8/10 within +/-2
     steps, misses are the two silent cases) and 44 probe-03 capability
-    labels (28/44 agreement, up from 10/44 for ``first_error``).
+    labels (29/44 agreement, up from 10/44 for ``first_error``, with no
+    baseline hit lost).
     """
     none: dict[str, Any] = {"step": None, "kind": None, "evidence": None, "confidence": None}
     if not steps:
@@ -1906,6 +1915,25 @@ def _first_failure(
     errors = [action for action in actions if action.status == "error"]
     if edits:
         first_edit = min(edits)
+        first_error = min((action.step for action in errors), default=None)
+        recovered = reward is not None and reward >= PASS_REWARD
+        if (
+            first_error is not None
+            and first_error < first_edit
+            and not recovered
+            and any(
+                _MISSING_DEPENDENCY_RE.search(action.excerpt or "")
+                for action in errors
+                if action.step == first_error
+            )
+        ):
+            culprit = next(action for action in errors if action.step == first_error)
+            return {
+                "step": first_error,
+                "kind": "tool_error",
+                "evidence": _clip(f"{culprit.tool} {culprit.target} [{culprit.category}]", 160),
+                "confidence": "low",
+            }
         if any(action.step >= first_edit for action in errors):
             wrote = sorted(set(edits[first_edit]))[:3]
             first_error_at = min(action.step for action in errors if action.step >= first_edit)
@@ -1917,15 +1945,6 @@ def _first_failure(
                     f"at step {first_error_at} or later"
                 ),
                 "confidence": "medium",
-            }
-        first_error = min((action.step for action in errors), default=None)
-        if first_error is not None and first_error < first_edit:
-            culprit = next(action for action in errors if action.step == first_error)
-            return {
-                "step": first_error,
-                "kind": "tool_error",
-                "evidence": _clip(f"{culprit.tool} {culprit.target} [{culprit.category}]", 160),
-                "confidence": "low",
             }
     return none
 

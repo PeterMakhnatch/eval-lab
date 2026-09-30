@@ -1010,7 +1010,7 @@ def test_first_failure_spots_bad_edit_and_ignores_scratch_writes(tmp_path: Path)
     assert scratch_report["outcome"]["first_failure"]["step"] is None
 
 
-def test_first_failure_falls_back_to_pre_edit_error(tmp_path: Path) -> None:
+def test_first_failure_ignores_generic_pre_edit_error(tmp_path: Path) -> None:
     steps = [
         _bash(1, 5, "ls /nonexistent", "ls: cannot access /nonexistent", code=1),
         _bash(2, 10, "cat > app.py <<'EOF'\nprint('v2')\nEOF", ""),
@@ -1018,9 +1018,36 @@ def test_first_failure_falls_back_to_pre_edit_error(tmp_path: Path) -> None:
     ]
     report = build_run_report(_trial(tmp_path, steps))
 
+    # A generic pre-edit error the run works around is exploration noise,
+    # not pre-existing breakage: the field stays null.
+    assert report["outcome"]["first_failure"]["step"] is None
+
+
+def test_first_failure_prefers_unrecovered_missing_dependency(tmp_path: Path) -> None:
+    steps = [
+        _bash(
+            1,
+            5,
+            "python3 -c \"import tqdm\"",
+            "ModuleNotFoundError: No module named 'tqdm'",
+            code=1,
+        ),
+        _bash(2, 10, "cat > app.py <<'EOF'\nprint('v2')\nEOF", ""),
+        _bash(3, 15, "python3 -m pytest tests/ -q", "FAILED tests/test_app.py", code=1),
+    ]
+    failing = _result(verifier_result={"rewards": {"reward": 0.0}})
+    report = build_run_report(_trial(tmp_path, steps, result=failing))
+
+    # The missing dependency predates the edit and the run never passes,
+    # so it outranks the later edit-test loop.
     assert report["outcome"]["first_failure"]["step"] == 2
     assert report["outcome"]["first_failure"]["kind"] == "tool_error"
-    assert report["outcome"]["first_failure"]["confidence"] == "low"
+
+    passing = build_run_report(_trial(tmp_path, steps, name="passing"))
+
+    # The same shape on a passing run was worked around: the edit wins.
+    assert passing["outcome"]["first_failure"]["step"] == 3
+    assert passing["outcome"]["first_failure"]["kind"] == "bad_edit"
 
 
 def test_first_failure_is_null_for_a_clean_run(tmp_path: Path) -> None:

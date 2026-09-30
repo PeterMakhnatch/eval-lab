@@ -42,6 +42,8 @@ DRAIN_WATCH_STATES: tuple[QueueState, ...] = ("pending", "approved", "running")
 
 #: States that mean a spec will never need the server again.
 TERMINAL_STATES = ("done", "failed")
+#: `modal app list` states that mean the stop took effect.
+_STOPPED_STATES = frozenset({"stopped", "stopping"})
 
 #: Evidence filename written into each draining job directory.
 TEARDOWN_FILENAME = "modal-teardown.json"
@@ -205,7 +207,10 @@ def stop_selfhosted_app_if_drained(
             "recorded_at": moment.isoformat(),
         }
     active = runner or default_runner(repo_root)
-    stop = _run_capture(active, ["app", "stop", MODAL_APP_NAME])
+    # Non-interactive tick: `modal app stop` aborts without confirmation
+    # ("no interactive terminal detected" on modal 1.5.5), so --yes is
+    # mandatory here, never optional.
+    stop = _run_capture(active, ["app", "stop", "--yes", MODAL_APP_NAME])
     app_list = _run_capture(active, ["app", "list", "--json"])
     containers = _run_capture(active, ["container", "list", "--json"])
     app_entries: Any = None
@@ -221,14 +226,23 @@ def stop_selfhosted_app_if_drained(
         except (json.JSONDecodeError, TypeError, ValueError):
             container_entries = None
     sandbox_count, sandbox_reason = daytona_sandbox_count()
-    stopped = bool(stop.get("ok"))
+    app_state = _app_state_for(app_entries, MODAL_APP_NAME)
+    if not stop.get("ok"):
+        stopped = False
+        reason: str | None = str(stop.get("reason") or "modal-stop-failed")
+    elif app_state not in _STOPPED_STATES:
+        stopped = False
+        reason = f"modal-app-not-stopped: state={app_state}"
+    else:
+        stopped = True
+        reason = None
     record: dict[str, Any] = {
         "app": MODAL_APP_NAME,
         "stopped": stopped,
-        "reason": None if stopped else str(stop.get("reason") or "modal-stop-failed"),
+        "reason": reason,
         "stop_returncode": stop.get("returncode"),
         "stop_stderr_tail": stop.get("stderr_tail", ""),
-        "app_state": _app_state_for(app_entries, MODAL_APP_NAME),
+        "app_state": app_state,
         "container_count": _container_count_for(container_entries, MODAL_APP_NAME),
         "daytona_sandboxes": {"count": sandbox_count, "reason": sandbox_reason},
         "completed_spec_ids": sorted(str(spec.spec_id) for spec in completed),

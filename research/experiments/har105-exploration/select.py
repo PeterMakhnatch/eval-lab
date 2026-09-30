@@ -32,29 +32,20 @@ import tomllib
 from pathlib import Path
 
 import pyarrow.parquet as pq
-from nopspec import OUT, PRIMARY, ROOT, SETUP_ERROR, nop_spec, nop_verifier_text
+from nopspec import (
+    OUT,
+    PRIMARY,
+    ROOT,
+    SETUP_ERROR,
+    SNAPSHOTS,
+    SUSPECTS,
+    nop_spec,
+    nop_verifier_text,
+)
 
 SEED = "har105:"
 PICKS = {"code": 2, "cyber": 1, "terminal": 1, "general": 2, "music": 2, "webdev": 2}
 CANDIDATES = 3
-SNAPSHOTS = {
-    "code": "FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6",
-    "cyber": "FineEnvs__MiMo-V2.6-RL-harbor-cyber@763882ade5fc",
-    "general": "FineEnvs__MiMo-V2.6-RL-harbor-general@10b732c5079c",
-    "music": "FineEnvs__MiMo-V2.6-RL-harbor-music@e1a66d4553ee",
-    "terminal": "FineEnvs__MiMo-V2.6-RL-harbor-terminal@fe1c2b665aae",
-    "webdev": "FineEnvs__MiMo-V2.6-RL-harbor-webdev@e1a6293376e8",
-}
-#: HAR-97 suspects (fixed as variants in part 2) and 2684 (pass_tainted: the
-#: same missing-stevedore environment as 1789).
-SUSPECTS = {
-    "candidate-1634-software-databases",
-    "candidate-1789-security-appsec",
-    "candidate-1702-ml-inference",
-    "candidate-2684-security-appsec",
-    "arvo_18737",
-    "arvo_57589",
-}
 JUDGE_BLOCK = (
     "the grader needs a model-judge key (task.toml [verifier.env] = ${HF_TOKEN}); Harbor refuses "
     "the job at start when HF_TOKEN is unset, and Eval Lab's executor passes no such key"

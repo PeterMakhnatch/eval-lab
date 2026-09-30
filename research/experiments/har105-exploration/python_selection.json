@@ -1,0 +1,469 @@
+{
+  "card": "HAR-105 part 3",
+  "seed": "har105-py:",
+  "split_manifest_digest": "sha256:c3df70a5551c47d6c695abb3b8e51ca009b48d606289de4f637a7c1329e49f58",
+  "picks": 10,
+  "shortlist": 30,
+  "candidates": 13,
+  "in_set": 10,
+  "selection": [
+    {
+      "task_id": "format-code-task-000226",
+      "title": "Don't use urlsplit on request path",
+      "split_group": "code:github.com/Pylons/waitress",
+      "repo_key": "code:github.com/Pylons/waitress",
+      "task_version_digest": "sha256:54bfbfa4a4b0360834bd84b620fdc4e2fae070d6f672c442f631d33dfe58db58",
+      "rank": "0813ff9a18c7",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000226",
+      "image_mb": 407.3,
+      "spec": "specs/har105-qual-py-000226.json",
+      "nop": {
+        "status": "clean",
+        "qualification": "ok",
+        "job_name": "har105-qual-py-000226",
+        "reward": 0.0,
+        "setup_error": null,
+        "setup_error_ok": null,
+        "est_cost_usd": 0.005472912601600001
+      },
+      "repo": "Pylons/waitress",
+      "in_set": true
+    },
+    {
+      "task_id": "format-code-task-001896",
+      "title": "I want `link_preview(url: str = None, content: str = None, parser: str | None = None, headers: dict | str |\u2026",
+      "split_group": "code:format-code-task-001896",
+      "repo_key": "pkg:linkpreview",
+      "task_version_digest": "sha256:a616c127c86f09f23232eff4810c00fbcee7a739a54b9c05c685f3c0d5a4778d",
+      "rank": "0202417fe6fd",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001896",
+      "image_mb": 416.1,
+      "spec": "specs/har105-qual-py-001896.json",
+      "nop": {
+        "status": "clean",
+        "qualification": "ok",
+        "job_name": "har105-qual-py-001896",
+        "reward": 0.0,
+        "setup_error": null,
+        "setup_error_ok": null,
+        "est_cost_usd": 0.005666333896750001
+      },
+      "repo": "meyt/linkpreview",
+      "in_set": true
+    },
+    {
+      "task_id": "format-code-task-000927",
+      "title": "Add escape function to escape CSS identifiers",
+      "split_group": "code:format-code-task-000927",
+      "repo_key": "path:tests",
+      "task_version_digest": "sha256:5dd33cce83218e4c7c8d5b10ccb6955db23420634a6be9d4819fa0715ddaa69a",
+      "rank": "010ee679146c",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000927",
+      "image_mb": 417.7,
+      "spec": "specs/har105-qual-py-000927.json",
+      "nop": {
+        "status": "clean",
+        "qualification": "ok",
+        "job_name": "har105-qual-py-000927",
+        "reward": 0.0,
+        "setup_error": null,
+        "setup_error_ok": null,
+        "est_cost_usd": 0.0027213575718999998
+      },
+      "repo": "facelessuser/soupsieve",
+      "in_set": true
+    },
+    {
+      "task_id": "format-code-task-002256",
+      "title": "Queue reports full with no items",
+      "split_group": "code:format-code-task-002256",
+      "repo_key": "path:persistqueue",
+      "task_version_digest": "sha256:062cfbc341847e89226d394b293e79f2e57f4be467dc4ecb5f0ee52f9f5e629a",
+      "rank": "0506336ac303",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002256",
+      "image_mb": 467.3,
+      "spec": "specs/har105-qual-py-002256.json",
+      "nop": {
+        "status": "clean",
+        "qualification": "ok",
+        "job_name": "har105-qual-py-002256",
+        "reward": 0.0,
+        "setup_error": null,
+        "setup_error_ok": null,
+        "est_cost_usd": 0.006296090790200001
+      },
+      "repo": "peter-wangxu/persist-queue",
+      "in_set": true
+    },
+    {
+      "task_id": "format-code-task-001832",
+      "title": "I want siuba to provide a pure table verb `rename(__data, **kwargs)` exported from the package so I can\u2026",
+      "split_group": "code:format-code-task-001832",
+      "repo_key": "pkg:siuba",
+      "task_version_digest": "sha256:7a03868fea89dc4b079d9c3be7f0fe3d3e2ad988d95cab521cc1f7a92d832a1b",
+      "rank": "036205b06b06",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001832",
+      "image_mb": 478.2,
+      "spec": "specs/har105-qual-py-001832.json",
+      "nop": {
+        "status": "clean",
+        "qualification": "ok",
+        "job_name": "har105-qual-py-001832",
+        "reward": 0.0,
+        "setup_error": "ERROR collecting",
+        "setup_error_ok": "the collection error is `cannot import name 'rename' from 'siuba'`, the verb the instruction asks for",
+        "est_cost_usd": 0.0057009332634
+      },
+      "repo": "machow/siuba",
+      "in_set": true
+    },
+    {
+      "task_id": "format-code-task-000738",
+      "title": "No validation for kernel name",
+      "split_group": "code:format-code-task-000738",
+      "repo_key": "pkg:cupy",
+      "task_version_digest": "sha256:0d18c26f2006af449db94bdc2107608bf036d5720e3679f105530969ee6d6218",
+      "rank": "018e11e3d289",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000738",
+      "image_mb": 498.0,
+      "spec": "specs/har105-qual-py-000738.json",
+      "nop": {
+        "status": "unclean",
+        "qualification": "ok",
+        "job_name": "har105-qual-py-000738",
+        "reward": 0.0,
+        "setup_error": "is not correctly installed",
+        "setup_error_ok": null,
+        "est_cost_usd": 0.0012995047044500002
+      },
+      "repo": "cupy/cupy",
+      "in_set": false
+    },
+    {
+      "task_id": "format-code-task-000383",
+      "title": "I want a configured FIX client instance to expose `subscribe_to_data(**kargs) -> None` and\u2026",
+      "split_group": "code:format-code-task-000383",
+      "repo_key": "pkg:quickfix",
+      "task_version_digest": "sha256:da5de5025dc1e2446c236bfd7d89337a7e478cc41d8645e8ae79c0d331941303",
+      "rank": "055db48818a5",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000383",
+      "image_mb": 521.9,
+      "spec": "specs/har105-qual-py-000383.json",
+      "nop": {
+        "status": "clean",
+        "qualification": "ok",
+        "job_name": "har105-qual-py-000383",
+        "reward": 0.0,
+        "setup_error": null,
+        "setup_error_ok": null,
+        "est_cost_usd": 0.0056546270991
+      },
+      "repo": "quickfix (Python FIX client)",
+      "in_set": true
+    },
+    {
+      "task_id": "format-code-task-002407",
+      "title": "Missing labels from forced_response output",
+      "split_group": "code:format-code-task-002407",
+      "repo_key": "path:control",
+      "task_version_digest": "sha256:37e0fa09f7da072b8671168795b1695b01a7ed659578be06000833d1fd0d798c",
+      "rank": "0665873df4ad",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002407",
+      "image_mb": 586.8,
+      "spec": "specs/har105-qual-py-002407.json",
+      "nop": {
+        "status": "clean",
+        "qualification": "ok",
+        "job_name": "har105-qual-py-002407",
+        "reward": 0.0,
+        "setup_error": null,
+        "setup_error_ok": null,
+        "est_cost_usd": 0.0020674169624000003
+      },
+      "repo": "python-control/python-control",
+      "in_set": true
+    },
+    {
+      "task_id": "format-code-task-002391",
+      "title": "I want the `Auditor` library API to collapse duplicate vulnerability advisories while producing audit results.",
+      "split_group": "code:format-code-task-002391",
+      "repo_key": "pkg:pip_audit",
+      "task_version_digest": "sha256:d0a399b8633cdf47a6c3d00198b50c889ed5c282c016bb4b29bbdaf2f9d75fa1",
+      "rank": "022280990bbb",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002391",
+      "image_mb": 751.7,
+      "spec": "specs/har105-qual-py-002391.json",
+      "nop": {
+        "status": "clean",
+        "qualification": "ok",
+        "job_name": "har105-qual-py-002391",
+        "reward": 0.0,
+        "setup_error": null,
+        "setup_error_ok": null,
+        "est_cost_usd": 0.0021009199413999998
+      },
+      "repo": "pypa/pip-audit",
+      "in_set": true
+    },
+    {
+      "task_id": "format-code-task-002401",
+      "title": "Default \"skew angle\" for CF grid mapping \"oblique mercator\" seems wrong",
+      "split_group": "code:github.com/user-attachments/assets",
+      "repo_key": "code:github.com/user-attachments/assets",
+      "task_version_digest": "sha256:eaadb715c096d80aad6f05a89187c3da78789cad506bed64ab2dcd594f6cf21f",
+      "rank": "066431cee240",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002401",
+      "image_mb": 1044.7,
+      "spec": "specs/har105-qual-py-002401.json",
+      "nop": {
+        "status": "unclean",
+        "qualification": "ok",
+        "job_name": "har105-qual-py-002401",
+        "reward": 0.0,
+        "setup_error": "ImportError while loading conftest",
+        "setup_error_ok": null,
+        "est_cost_usd": 0.0021048203897
+      },
+      "repo": "pyproj4/pyproj",
+      "in_set": false
+    },
+    {
+      "task_id": "format-code-task-002259",
+      "title": "I want PHARE's Python simulation input population step to support simulations whose model options include\u2026",
+      "split_group": "code:format-code-task-002259",
+      "repo_key": "pkg:pyphare",
+      "task_version_digest": "sha256:a90ba7fca34b2019dff5a6f9226c28130d5919e4820c0faf2e3661df9d779033",
+      "rank": "0555fdb3ff6f",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002259",
+      "image_mb": 1097.9,
+      "spec": "specs/har105-qual-py-002259.json",
+      "nop": {
+        "status": "clean",
+        "qualification": "ok",
+        "job_name": "har105-qual-py-002259",
+        "reward": 0.0,
+        "setup_error": null,
+        "setup_error_ok": null,
+        "est_cost_usd": 0.0056475908705
+      },
+      "repo": "PHAREHUB/PHARE",
+      "in_set": true
+    },
+    {
+      "task_id": "format-code-task-002218",
+      "title": "Multiindex with single level no longer allows selecting columns",
+      "split_group": "code:format-code-task-002218",
+      "repo_key": "path:pandas",
+      "task_version_digest": "sha256:ad731f5e5dfee6e854712cd5446dccd75e6a90e47fb4dfe7a7d6a9e262e067dc",
+      "rank": "012916d08b7a",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002218",
+      "image_mb": 1183.1,
+      "spec": "specs/har105-qual-py-002218.json",
+      "nop": {
+        "status": "unclean",
+        "qualification": "ok",
+        "job_name": "har105-qual-py-002218",
+        "reward": 0.0,
+        "setup_error": "ImportError while loading conftest",
+        "setup_error_ok": null,
+        "est_cost_usd": 0.0056063814878500005
+      },
+      "repo": "pandas-dev/pandas",
+      "in_set": false
+    },
+    {
+      "task_id": "format-code-task-002864",
+      "title": "Unable to parse `WITH` / `WITHOUT` in Trino in JSON_QUERY",
+      "split_group": "code:github.com/apache/superset",
+      "repo_key": "code:github.com/apache/superset",
+      "task_version_digest": "sha256:46cd97ec4f8cbb0f0bf565901b626d58062f0cbcbc4280dd6f16ab5366691754",
+      "rank": "053f023c28f3",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002864",
+      "image_mb": 1602.8,
+      "spec": "specs/har105-qual-py-002864.json",
+      "nop": {
+        "status": "clean",
+        "qualification": "ok",
+        "job_name": "har105-qual-py-002864",
+        "reward": 0.0,
+        "setup_error": null,
+        "setup_error_ok": null,
+        "est_cost_usd": 0.0031860547833000006
+      },
+      "repo": "tobymao/sqlglot",
+      "in_set": true
+    }
+  ],
+  "not_nop_checked": [
+    {
+      "task_id": "format-code-task-000119",
+      "title": "Missing wrapper for `TNoOp` in `lale.lib.autoai_libs`",
+      "split_group": "code:format-code-task-000119",
+      "repo_key": "pkg:lale",
+      "task_version_digest": "sha256:dca0b23dcf86336b8f76a7eef6dd3097ee75a9a32e877083c5844607ba080e0a",
+      "rank": "003ee7fa7a10",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000119",
+      "image_mb": 4319.1
+    },
+    {
+      "task_id": "format-code-task-001087",
+      "title": "Machine consumers use Deepchecks results outside notebooks, so SuiteResult JSON must be safe to persist and\u2026",
+      "split_group": "code:format-code-task-001087",
+      "repo_key": "pkg:deepchecks",
+      "task_version_digest": "sha256:6db572f6e6febd13783574cbabbb18be7bd5b050377c73c39d4c2f95b0572e8f",
+      "rank": "00a943ebb89d",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001087",
+      "image_mb": 3832.3
+    },
+    {
+      "task_id": "format-code-task-001196",
+      "title": "Strict isinstance check rejects values that the transformer could actually convert",
+      "split_group": "code:format-code-task-001196",
+      "repo_key": "pkg:flytekit",
+      "task_version_digest": "sha256:aabadc9a2eeace83445828e502c5782456c4ead89d62e6eeb65ac13d799c3550",
+      "rank": "00b4aefeeaa7",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001196",
+      "image_mb": 3413.7
+    },
+    {
+      "task_id": "format-code-task-001132",
+      "title": "Make bundled Python protocol ZIPs lossless to round-trip and safe to consume.",
+      "split_group": "code:format-code-task-001132",
+      "repo_key": "pkg:opentrons",
+      "task_version_digest": "sha256:1e56e97a21db1f0eb90b010009418ef5246d1997854b56afc2ecfc87dc871d51",
+      "rank": "01152fdec9e9",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001132",
+      "image_mb": 4677.0
+    },
+    {
+      "task_id": "format-code-task-001068",
+      "title": "Incident escalation is currently difficult to reason about and impossible to replay: calendar lookups\u2026",
+      "split_group": "code:format-code-task-001068",
+      "repo_key": "pkg:openduty",
+      "task_version_digest": "sha256:42d3f4ffb4129a393a91f25eb820180c0eac206b8a7499452f796b2d8227f71e",
+      "rank": "020bcd8ce814",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001068",
+      "image_mb": 3190.2
+    },
+    {
+      "task_id": "format-code-task-002495",
+      "title": "External version HTML files are showing up in search results and \"random page\"",
+      "split_group": "code:format-code-task-002495",
+      "repo_key": "pkg:readthedocs",
+      "task_version_digest": "sha256:a91ff043517b6ce0dd9f75ec1c096a1643b2551876566a274ee8a5d4f2c53ed1",
+      "rank": "022cce9e9da2",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002495",
+      "image_mb": 3403.2
+    },
+    {
+      "task_id": "format-code-task-000726",
+      "title": "Fix double-backprop through shared feature networks",
+      "split_group": "code:format-code-task-000726",
+      "repo_key": "pkg:torch",
+      "task_version_digest": "sha256:7c980a4ba0e7b4e19e0899c19137ae2b4bec1786ca6808f016b88bca99e8e551",
+      "rank": "02f01a7880c1",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000726",
+      "image_mb": 5943.6
+    },
+    {
+      "task_id": "format-code-task-000972",
+      "title": "The resource export writers are used by CSV, KML, and shapefile exports, but their shared mapping layer\u2026",
+      "split_group": "code:format-code-task-000972",
+      "repo_key": "pkg:arches",
+      "task_version_digest": "sha256:3407080433195218081a6d2a74bcf9c54369b8e3cc09b0b55fdaea31691e89dc",
+      "rank": "038b265bd393",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000972",
+      "image_mb": 3660.7
+    },
+    {
+      "task_id": "format-code-task-000370",
+      "title": "I'm passing `cutoff_time` into `Entity.head()` / `EntitySet.head()`, but the rows I get back still include\u2026",
+      "split_group": "code:format-code-task-000370",
+      "repo_key": "path:featuretools",
+      "task_version_digest": "sha256:774da686671749b0c404cbc0767d227ea3b8ad5f1daad332ffd56d0d78553440",
+      "rank": "03f8e7715e1e",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000370",
+      "image_mb": 3342.5
+    },
+    {
+      "task_id": "format-code-task-000708",
+      "title": "I'm hitting a bare `AssertionError` (no message at all) when conda tries to install into my env \u2014 the\u2026",
+      "split_group": "code:format-code-task-000708",
+      "repo_key": "pkg:conda",
+      "task_version_digest": "sha256:951af79f28cad0568889e8edf8746c0e5c6a0a593014d9f53c31a0d188e53fc3",
+      "rank": "040fb564dd5f",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000708",
+      "image_mb": 3306.9
+    },
+    {
+      "task_id": "format-code-task-002189",
+      "title": "Configurable identity matching for sign-in",
+      "split_group": "code:format-code-task-002189",
+      "repo_key": "pkg:flask_security",
+      "task_version_digest": "sha256:3cca0245352e3292a4399ac2fe953f5cc59fc33973ac221b52effed68a4745fc",
+      "rank": "05031a42ec31",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002189",
+      "image_mb": 3114.4
+    },
+    {
+      "task_id": "format-code-task-001527",
+      "title": "Add the InceptionNeXt model family",
+      "split_group": "code:format-code-task-001527",
+      "repo_key": "pkg:timm",
+      "task_version_digest": "sha256:bd83a5621be357717ce27cd792e606d31cbbd7f3ed2cadd88c44db9541c698e2",
+      "rank": "0625e4bf02aa",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001527",
+      "image_mb": 4156.9
+    },
+    {
+      "task_id": "format-code-task-002699",
+      "title": "Dynamic mapping for CI pipeline generation",
+      "split_group": "code:format-code-task-002699",
+      "repo_key": "pkg:spack",
+      "task_version_digest": "sha256:c18e9e6868022eb63d3bd87d4c0f4849d5bcb199096bed77c6fb7e505d80e8ff",
+      "rank": "062f5d3b886f",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002699",
+      "image_mb": 3629.3
+    },
+    {
+      "task_id": "format-code-task-001023",
+      "title": "Boot option prefix handling currently loses provenance when the same normalized option appears both with and\u2026",
+      "split_group": "code:format-code-task-001023",
+      "repo_key": "pkg:pyanaconda",
+      "task_version_digest": "sha256:eb15d51318bfa94d0ed6d8b0afadb78737605f756eeac3990c4bdb3f9637e62b",
+      "rank": "06eb362c7087",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001023",
+      "image_mb": 3397.9
+    },
+    {
+      "task_id": "format-code-task-001801",
+      "title": "I'm using Litestar's session middleware with a server-side backend (Redis) and I noticed that when a user\u2026",
+      "split_group": "code:format-code-task-001801",
+      "repo_key": "pkg:starlite",
+      "task_version_digest": "sha256:32fa9accc5e2eb23e8560e4134c377abceafc66dd284cb46ebcdf6922d3b3901",
+      "rank": "071104e853a9",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001801",
+      "image_mb": 3353.1
+    },
+    {
+      "task_id": "format-code-task-002466",
+      "title": "`quilt3.admin.sso_config.set(None)` errors out instead of removing SSO config",
+      "split_group": "code:format-code-task-002466",
+      "repo_key": "path:api",
+      "task_version_digest": "sha256:9cf7192be7ecfc3e87a93169881139f2dcb6fcb029b2da3624804cf60bcb57f3",
+      "rank": "0716f554406a",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002466",
+      "image_mb": 3672.9
+    },
+    {
+      "task_id": "format-code-task-000802",
+      "title": "When using Dragonfly `IntegerRef` \"extras\" with the engine language set to German, numbers can't be spoken\u2026",
+      "split_group": "code:github.com/dictation-toolbox/dragonfly",
+      "repo_key": "code:github.com/dictation-toolbox/dragonfly",
+      "task_version_digest": "sha256:d08bb2b2d54b22ff695e6c4a9955537726388c99abaa56e8497e67d2c02c15ba",
+      "rank": "07827b023c5a",
+      "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000802",
+      "image_mb": 3091.8
+    }
+  ]
+}

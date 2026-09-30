@@ -66,7 +66,7 @@ from evallab.execution_contracts import (
     HARBOR_AGENT_IMPORT_PATHS,
 )
 from evallab.queue import Executor, new_ulid
-from evallab.registry import task_directory_digest
+from evallab.registry import compute_task_digests, task_directory_digest
 from evallab.results import JobRecord, load_job
 from evallab.runner import CONTROL_AGENTS, RunRequest, profile_for_request, resolve_harbor_model
 from evallab.schemas import CohortComparisonSpec, CohortSelector, ExperimentSpec, RunProvenance
@@ -1196,6 +1196,13 @@ class LabEvaluator:
                 jobs_dir=relative_jobs,
                 candidate_kind=self.candidate_kind,
             )
+            # The retained spec was frozen for one task; every task-bound digest must be
+            # rebound to the example's task, or the queue refuses the run as tampered.
+            verifier_digest = (
+                compute_task_digests((self.repo_root / declared["task_path"]).resolve()).verifier
+                if spec.verifier_digest is not None
+                else None
+            )
             spec = spec.model_copy(
                 update={
                     "spec_id": new_ulid(),
@@ -1204,6 +1211,7 @@ class LabEvaluator:
                     "task_path": declared["task_path"],
                     "task_id": task_id,
                     "task_package_digest": declared["task_package_digest"],
+                    "verifier_digest": verifier_digest,
                 }
             )
         else:

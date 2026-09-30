@@ -1,0 +1,92 @@
+{
+  "name": "har110-python-codex-search",
+  "engine": "gepa",
+  "target": {
+    "base_spec_path": "research/experiments/har110-python-gepa/base-specs/student-terminus2-selfhosted-python.json"
+  },
+  "seed_candidate_path": "research/experiments/har110-python-gepa/candidates/seed-addendum-v1.txt",
+  "candidate_kind": "instructions",
+  "candidate_evaluation": "review",
+  "score_rules": [
+    "upstream_fetch_zero"
+  ],
+  "examples": [
+    {
+      "task_id": "format-code-task-000383",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-000383",
+      "task_package_digest": "sha256:da5de5025dc1e2446c236bfd7d89337a7e478cc41d8645e8ae79c0d331941303",
+      "split": "development",
+      "prior_run_reference": {
+        "trial_path": "research/experiments/har110-python-gepa/prior-trials/har104-d-000383/har104-d-000383__PmZMZ6z",
+        "result_sha256": "sha256:5fca68d63355457e2db6fe17ab9f98cd980ed438d04b85512db733f4c5f4b44b",
+        "task_package_digest": "sha256:da5de5025dc1e2446c236bfd7d89337a7e478cc41d8645e8ae79c0d331941303"
+      }
+    },
+    {
+      "task_id": "format-code-task-002256",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-002256",
+      "task_package_digest": "sha256:062cfbc341847e89226d394b293e79f2e57f4be467dc4ecb5f0ee52f9f5e629a",
+      "split": "development",
+      "prior_run_reference": {
+        "trial_path": "research/experiments/har110-python-gepa/prior-trials/har104-d-002256/har104-d-002256__RDffvXQ",
+        "result_sha256": "sha256:78661f307b26397556cfb20c941975296dab159596499d06b4c85eb9a5a6d2c0",
+        "task_package_digest": "sha256:062cfbc341847e89226d394b293e79f2e57f4be467dc4ecb5f0ee52f9f5e629a"
+      }
+    },
+    {
+      "task_id": "format-code-task-002391",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-002391",
+      "task_package_digest": "sha256:d0a399b8633cdf47a6c3d00198b50c889ed5c282c016bb4b29bbdaf2f9d75fa1",
+      "split": "development",
+      "prior_run_reference": {
+        "trial_path": "research/experiments/har110-python-gepa/prior-trials/har104-d-002391/har104-d-002391__WxBjcjX",
+        "result_sha256": "sha256:a93476c58aab4fb5f4bafc2d5aae150eeffe4ca99cb52e17879d103de5ae9ed2",
+        "task_package_digest": "sha256:d0a399b8633cdf47a6c3d00198b50c889ed5c282c016bb4b29bbdaf2f9d75fa1"
+      }
+    },
+    {
+      "task_id": "format-code-task-001832",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-001832",
+      "task_package_digest": "sha256:7a03868fea89dc4b079d9c3be7f0fe3d3e2ad988d95cab521cc1f7a92d832a1b",
+      "split": "development",
+      "prior_run_reference": {
+        "trial_path": "research/experiments/har110-python-gepa/prior-trials/har104-d-001832/har104-d-001832__d7Hop8E",
+        "result_sha256": "sha256:3983fcd9ad374ed8806bcc1f7bb503172f13788041f2fbb1dddd67f5b28792f4",
+        "task_package_digest": "sha256:7a03868fea89dc4b079d9c3be7f0fe3d3e2ad988d95cab521cc1f7a92d832a1b"
+      }
+    },
+    {
+      "task_id": "format-code-task-001896",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-001896",
+      "task_package_digest": "sha256:a616c127c86f09f23232eff4810c00fbcee7a739a54b9c05c685f3c0d5a4778d",
+      "split": "development",
+      "prior_run_reference": {
+        "trial_path": "research/experiments/har110-python-gepa/prior-trials/har104-d-001896/har104-d-001896__MDkTErY",
+        "result_sha256": "sha256:10015f887b27d87f541c6ab5dcf2600ec85243305aa2151fb7cfa282eb058fd6",
+        "task_package_digest": "sha256:a616c127c86f09f23232eff4810c00fbcee7a739a54b9c05c685f3c0d5a4778d"
+      }
+    },
+    {
+      "task_id": "format-code-task-002864",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-002864",
+      "task_package_digest": "sha256:46cd97ec4f8cbb0f0bf565901b626d58062f0cbcbc4280dd6f16ab5366691754",
+      "split": "development",
+      "prior_run_reference": {
+        "trial_path": "research/experiments/har110-python-gepa/prior-trials/har104-d-002864/har104-d-002864__B7cJ4cG",
+        "result_sha256": "sha256:0162d4eb34741ca88a9d83838368e1813dd491bf4b1f351f53f98993df63a1ea",
+        "task_package_digest": "sha256:46cd97ec4f8cbb0f0bf565901b626d58062f0cbcbc4280dd6f16ab5366691754"
+      }
+    }
+  ],
+  "max_evals": 10,
+  "max_target_attempts": 22,
+  "max_iterations": 1,
+  "max_candidates_per_iter": 1,
+  "proposer_model": "codex/gpt-6-astra",
+  "proposer_transport": "codex",
+  "max_proposer_requests": 2,
+  "max_proposer_cost_usd": null,
+  "output_dir": "runs/gepa-har110-python-codex-search",
+  "objective": "Find a general instruction addendum that helps the self-hosted MiMo-V2.6-Distill-Qwen-9B Terminus-2 agent fix Python repository tasks so the hidden tests pass. Trials run under a 120-request / 2.5M-input-token ceiling that most runs hit, so wasted turns cost the task. A trial that fetches upstream code (pip download/install of a remote package, curl/wget, git clone) scores 0 regardless of the verifier.",
+  "enabled": false
+}

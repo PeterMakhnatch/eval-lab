@@ -2,6 +2,13 @@
 
 Reservations precede side effects and are never refunded. Request/attempt caps
 are hard local limits; reported-cost checks cannot guarantee provider billing.
+
+``max_proposer_cost_usd=None`` selects explicit request-count-only subscription
+accounting: the ``max_proposer_requests`` ceiling still bounds local CLI
+invocations, but reported/billed dollars are unknown and no dollar figure (not
+even $0) is ever imputed. A ``None`` cap is not a physical upstream quota: it
+cannot measure subscription quota or provider billing, only completed local
+invocations.
 """
 
 from __future__ import annotations
@@ -15,7 +22,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 
 class BudgetExhausted(BaseException):
@@ -24,6 +31,12 @@ class BudgetExhausted(BaseException):
 
 class DuplicateReservationError(BudgetExhausted):
     """An ambiguous or already-spent reservation must not be retried."""
+
+
+class _BudgetLimits(TypedDict):
+    max_target_attempts: int
+    max_proposer_requests: int
+    max_proposer_cost_usd: float | None
 
 
 def _cost(value: Any) -> bool:
@@ -42,17 +55,17 @@ class AggregateBudget:
         *,
         max_target_attempts: int,
         max_proposer_requests: int,
-        max_proposer_cost_usd: float,
+        max_proposer_cost_usd: float | None,
     ) -> None:
         for value in (max_target_attempts, max_proposer_requests):
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise ValueError("Budget counts must be nonnegative integers")
-        if not _cost(max_proposer_cost_usd):
-            raise ValueError("Budget cost must be finite and nonnegative")
+        if max_proposer_cost_usd is not None and not _cost(max_proposer_cost_usd):
+            raise ValueError("Budget cost must be finite and nonnegative, or None")
         self.directory = Path(directory).absolute()
         self.state_path = self.directory / "aggregate_budget.json"
         self.lock_path = self.directory / ".aggregate_budget.lock"
-        self.limits = {
+        self.limits: _BudgetLimits = {
             "max_target_attempts": max_target_attempts,
             "max_proposer_requests": max_proposer_requests,
             "max_proposer_cost_usd": max_proposer_cost_usd,
@@ -166,13 +179,14 @@ class AggregateBudget:
                     raise BudgetExhausted(
                         "Previous proposer outcome is unknown or failed; no automatic retry"
                     )
-                if any(row["estimated_cost_usd"] is None for row in rows.values()):
-                    raise BudgetExhausted("Previous proposer cost is unknown")
-                if (
-                    sum(row["estimated_cost_usd"] for row in rows.values())
-                    >= self.limits["max_proposer_cost_usd"]
-                ):
-                    raise BudgetExhausted("Aggregate reported proposer cost ceiling reached")
+                if self.limits["max_proposer_cost_usd"] is not None:
+                    if any(row["estimated_cost_usd"] is None for row in rows.values()):
+                        raise BudgetExhausted("Previous proposer cost is unknown")
+                    if (
+                        sum(row["estimated_cost_usd"] for row in rows.values())
+                        >= self.limits["max_proposer_cost_usd"]
+                    ):
+                        raise BudgetExhausted("Aggregate reported proposer cost ceiling reached")
             rows[identity] = {
                 "identity": identity,
                 "kind": kind,
@@ -238,10 +252,18 @@ class AggregateBudget:
                 if row["estimated_cost_usd"] is not None
             ]
             missing = len(proposer) - len(costs)
+            if self.limits["max_proposer_cost_usd"] is None:
+                cost_limit_scope = (
+                    "Subscription counted CLI invocations; quota/billing not measured"
+                )
+            else:
+                cost_limit_scope = (
+                    "Reported-estimate stop, not a hard provider billing guarantee"
+                )
             summary["proposer"].update(
                 known_estimated_cost_usd=sum(costs),
                 missing_cost_count=missing,
                 complete_estimated_cost_usd=sum(costs) if not missing else None,
-                cost_limit_scope="Reported-estimate stop, not a hard provider billing guarantee",
+                cost_limit_scope=cost_limit_scope,
             )
             return summary

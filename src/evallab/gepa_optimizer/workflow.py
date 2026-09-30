@@ -6,6 +6,7 @@ import fcntl
 import hashlib
 import json
 import math
+import re
 import uuid
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -366,8 +367,8 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
     }:
         raise ValueError("candidate_kind must be instructions or python_toolbox")
     transport = raw.get("proposer_transport", "direct")
-    if transport not in {"direct", "opencode"}:
-        raise ValueError("proposer_transport must be direct or opencode")
+    if transport not in {"direct", "opencode", "codex"}:
+        raise ValueError("proposer_transport must be direct, opencode or codex")
     if transport == "opencode":
         from .opencode_transport import MODEL
 
@@ -383,6 +384,16 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
             raise ValueError("Each OpenCode proposal is limited to one physical request")
     elif "proposer_ceilings" in raw:
         raise ValueError("proposer_ceilings requires the OpenCode transport")
+    if transport == "codex":
+        model = raw.get("proposer_model")
+        if raw["engine"] != "gepa" or not isinstance(model, str) or not re.fullmatch(
+            r"codex/[A-Za-z0-9][A-Za-z0-9._-]*", model
+        ):
+            raise ValueError("Codex transport requires GEPA and a pinned codex/<model> selector")
+        if "max_proposer_cost_usd" not in raw or raw["max_proposer_cost_usd"] is not None:
+            raise ValueError("Codex subscription accounting requires max_proposer_cost_usd=null")
+        if "max_proposer_requests" not in raw or "max_target_attempts" not in raw:
+            raise ValueError("Codex campaigns require explicit proposer and target attempt counts")
     for key in (
         "max_evals",
         "max_iterations",
@@ -487,7 +498,10 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
             if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
                 raise ValueError("Shared budget counts must be positive integers")
         value = shared["max_proposer_cost_usd"]
-        if (
+        if transport == "codex":
+            if value is not None:
+                raise ValueError("Shared Codex subscription accounting requires a null cost cap")
+        elif (
             isinstance(value, bool)
             or not isinstance(value, (int, float))
             or not math.isfinite(value)
@@ -612,9 +626,12 @@ def _run_campaign(
             raise PermissionError(
                 "Actual proposer execution needs an explicit authorization reference"
             )
-        if config.get("max_proposer_cost_usd") is None or not config.get("proposer_model"):
+        subscription = config.get("proposer_transport") == "codex"
+        if not config.get("proposer_model") or (
+            not subscription and config.get("max_proposer_cost_usd") is None
+        ):
             raise ValueError(
-                "Actual proposer execution requires a pinned model and separate proposer cost cap"
+                "Actual proposer execution requires a pinned model and API cost cap or subscription count bound"
             )
         authorization_bytes = proposer_approval_ref.read_bytes()
     output = _path(repo_root, config["output_dir"])
@@ -714,7 +731,7 @@ def _run_campaign(
     pending_candidate = None
     availability = None
     route_blocker = None
-    opencode_transport = None
+    proposer_transport = None
     transport_facts = None
     stage_lms: dict[str, JournaledReflectionLM] = {}
     invalid_candidates: dict[str, dict[str, Any]] = {}
@@ -753,13 +770,24 @@ def _run_campaign(
                 from .opencode_transport import OpenCodeTransport, OpenCodeTransportError
 
                 proposal_limits = ProviderCeilings(**config["proposer_ceilings"])
-                opencode_transport = OpenCodeTransport(
+                proposer_transport = OpenCodeTransport(
                     repo_root=repo_root,
                     limits=ProxyTrialLimits(**proposal_limits.expected_usage_limits()),
                 )
                 try:
-                    transport_facts = opencode_transport.preflight()
+                    transport_facts = proposer_transport.preflight()
                 except (OpenCodeTransportError, OSError) as exc:
+                    route_blocker = str(exc)
+                    raise ProposalUnavailable(route_blocker) from exc
+            elif config.get("proposer_transport") == "codex":
+                from .codex_transport import CodexTransport, CodexTransportError
+
+                proposer_transport = CodexTransport(
+                    repo_root=repo_root, model=config["proposer_model"]
+                )
+                try:
+                    transport_facts = proposer_transport.preflight()
+                except (CodexTransportError, OSError) as exc:
                     route_blocker = str(exc)
                     raise ProposalUnavailable(route_blocker) from exc
             else:
@@ -768,7 +796,10 @@ def _run_campaign(
                     raise ProposalUnavailable(route_blocker)
         for budget in budgets:
             proposer_state = budget.summary()["proposer"]
-            if any(proposer_state[key] for key in ("unsettled", "errors", "missing_cost_count")):
+            unresolved = ("unsettled", "errors")
+            if budget.limits["max_proposer_cost_usd"] is not None:
+                unresolved += ("missing_cost_count",)
+            if any(proposer_state[key] for key in unresolved):
                 raise BudgetExhausted(
                     "Retained proposer accounting is unresolved; refusing baseline dispatch"
                 )
@@ -820,7 +851,7 @@ def _run_campaign(
                         max_requests=stage_requests,
                         before_request=lambda: _check_running(output),
                         budgets=budgets,
-                        transport=opencode_transport,
+                        transport=proposer_transport,
                     )
                     stage_lms[stage_id] = reflection_lm
                 engine_options = {
@@ -843,7 +874,11 @@ def _run_campaign(
                 name=config["name"] + ("-" + stage_id if composing else ""),
                 max_evals=max_evals,
                 max_concurrency=1,
-                max_token_cost=None if qualification else config["max_proposer_cost_usd"] / stages,
+                max_token_cost=(
+                    None
+                    if qualification or config.get("proposer_transport") == "codex"
+                    else config["max_proposer_cost_usd"] / stages
+                ),
                 output_dir=attempt / "upstream" / stage_id if composing else attempt / "upstream",
                 run_dir=str(stage_output / "search-state"),
                 sandbox=True,
@@ -1009,14 +1044,18 @@ def _run_campaign(
                 else None
             ),
             "replayed_responses": sum(lm.replayed for lm in stage_lms.values()),
-            "reported_cost_usd": 0.0
+            "reported_cost_usd": None
+            if not qualification and config.get("proposer_transport") == "codex"
+            else 0.0
             if qualification
             else (result.metadata.get("adapter_cost") if result else None),
             "actual_billing_cost_usd": None,
             "accounting_basis": "fixture_no_model"
             if qualification
+            else "subscription_cli_invocations_not_physical_requests_or_billing"
+            if config.get("proposer_transport") == "codex"
             else "broker_physical_usage_api_price_estimate_not_subscription_billing"
-            if opencode_transport is not None
+            if config.get("proposer_transport") == "opencode"
             else "upstream_reported_estimate_not_complete_provider_billing",
             "cost_cap_excludes_target_evaluation": True,
         },

@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-30",
+  "scope": "Real released GEPA reflection using saved distill seed evaluations; candidate review and no new target execution",
+  "release": {
+    "commit": "0632cdb5dcc052e690eab439e1b4a7e3e9cfe407",
+    "version": "0.1.4",
+    "python_source_tree_sha256": "sha256:e8bc3facf961884faca73e7a434773231b3c1ba0eb79688072bf65bc1a268dd1"
+  },
+  "proposer": {
+    "requested_model": "codex/gpt-6-astra",
+    "route": "chatgpt_subscription",
+    "cli_version": "codex-cli 0.154.0",
+    "launcher_sha256": "sha256:61b0194f3bb6534439c8d26a3ed57d0805f84b884588b761795323eeb92fcf70",
+    "usage": {
+      "input_tokens": 33662,
+      "cached_input_tokens": 6784,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 778,
+      "reasoning_output_tokens": 43,
+      "requested_model": "codex/gpt-6-astra"
+    },
+    "actual_billing_cost_usd": null,
+    "subscription_quota_consumed": null,
+    "setup_cli_invocations": 3,
+    "successful_invocations": 1,
+    "prior_failures": [
+      {
+        "disposition": "Local parser aborted on nonterminal startup-warning events; remote outcome remains unknown; retained and counted"
+      },
+      {
+        "disposition": "Definitive HTTP 400: gpt-6.1-sol is not supported for this native ChatGPT account; retained and counted"
+      }
+    ],
+    "model_selection": "Explicitly selected authenticated model/list default gpt-6-astra; no automatic model or API fallback"
+  },
+  "seed": {
+    "candidate_sha256": "sha256:399ec1138ff0279833957b996439d4f119f37de2ba90ef915f9c4db2eeed0241",
+    "development_task_ids": [
+      "format-code-task-000383",
+      "format-code-task-002256",
+      "format-code-task-002391",
+      "format-code-task-001832",
+      "format-code-task-001896",
+      "format-code-task-002864"
+    ],
+    "retained_evaluations": 6,
+    "all_seed_scores": 0,
+    "new_target_trials": 0,
+    "new_modal_deployments": 0,
+    "heldout_examples_supplied": false
+  },
+  "result": {
+    "status": "candidate_review_required",
+    "candidate_sha256": "sha256:5d24cdf099a9efb3e30015e766dce54a3a5b2232481fe8a7b207bc548fa2e544",
+    "candidate_file": "candidates/codex-subscription-5d24cdf0.txt",
+    "instructions_automatically_adopted": false,
+    "candidate_score": null,
+    "student_improvement_measured": false
+  },
+  "replay": {
+    "status": "candidate_review_required",
+    "new_proposer_invocations": 0,
+    "replayed_responses": 1,
+    "same_candidate": true
+  },
+  "verification": {
+    "focused_command": "python -m pytest -n 0 tests/test_gepa_budget.py tests/test_gepa_codex_transport.py tests/test_gepa_subscription_workflow.py tests/test_gepa_optimizer_workflow.py",
+    "focused_passed": 88,
+    "ruff_touched_files": "passed",
+    "real_smoke": "run_campaign(native-campaign.json) with frozen native-approval.json",
+    "real_replay": "same frozen run_campaign invocation"
+  },
+  "private_evidence": {
+    "uri": "cas://sha256/343f3b15a2a80a18bcc15b8191c2b62e4e765f3fea5e4f8418ddcf38363887ef",
+    "content_digest": "sha256:343f3b15a2a80a18bcc15b8191c2b62e4e765f3fea5e4f8418ddcf38363887ef",
+    "archive_digest": "sha256:6324a3046a84b51e9034fbe5638417239c0114040d0c239a9d04067baf17d3fd",
+    "record_id": "gepa-codex-subscription-20260930",
+    "store": "/Users/petermakhnatch/Developer/agent-evals/gepa-subscription-evidence",
+    "file_count": 482,
+    "uncompressed_bytes": 25694032,
+    "source_worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-subscription-20260930"
+  },
+  "limits": [
+    "Setup proof only; candidate not evaluated or adopted",
+    "Subscription quota and billing unknown, not zero",
+    "New campaigns need their own exact proposer binding and target approvals",
+    "Read-only CLI sandbox is not host file-read isolation"
+  ]
+}

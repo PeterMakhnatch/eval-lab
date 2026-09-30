@@ -139,6 +139,55 @@ Proposer and target budgets are separate; catalog-based dollar estimates are not
 authoritative subscription billing. Broker-backed targets require all five
 `provider_ceilings` fields, while a proposer has its own request and cost limits.
 
+### Subscription rewriting with Codex
+
+GEPA's reflection LM can use the authenticated `codex exec` CLI instead of an
+API key. The installed **Codex CLI 0.154.0** is the qualified version; a different
+version fails preflight rather than silently changing the protocol.
+
+```json
+{
+  "proposer_transport": "codex",
+  "proposer_model": "codex/gpt-6-astra",
+  "max_proposer_requests": 2,
+  "max_proposer_cost_usd": null,
+  "max_target_attempts": 22
+}
+```
+
+Use an explicitly pinned **native Codex account model**, not an OMP provider
+selector. On September 30, `codex login status` confirmed ChatGPT authentication,
+but the local configured `gpt-6.1-sol` was rejected by the provider with HTTP 400.
+The authenticated app-server `model/list` advertised `gpt-6-astra` as its default,
+and that model completed a real GEPA reflection. Account discovery starts no
+inference thread; an advertised model still needs a live route proof.
+
+The child receives no API credentials or provider-override environment variables.
+It ignores user config, project instructions and rules, disables shell/browser/
+MCP/plugin/hook features, and runs ephemerally in an empty read-only workspace.
+Read-only is **not host file-read isolation**. The file-patch tool has no disable
+flag in this CLI release; the OS write sandbox and transcript rejection remain
+its boundary. Only a complete single-turn text response is usable. Nonterminal
+startup warnings are retained; actual errors, model reroutes, tool attempts and
+incomplete/multiple turns are refused.
+
+`max_proposer_requests` bounds **CLI invocations**, not physical upstream calls,
+subscription quota or dollars. The null cost cap explicitly selects count-only
+accounting; reported/billed costs remain unknown, never fabricated as `$0`.
+Completed unknown-cost subscription responses may resume within the count bound.
+API routes retain their separate dollar caps and missing-cost refusal. Ambiguous
+or failed responses never become automatic retries or provider/model fallbacks.
+The same frozen proposer authorization and candidate-review gate still apply.
+
+The disabled `research/experiments/har110-python-gepa/campaign-codex.json` keeps
+the existing distill target, six development tasks and upstream-fetch scoring.
+It does not modify the historical GLM campaign or authorize Modal/target trials.
+Its [subscription smoke receipt](../research/experiments/har110-python-gepa/subscription-smoke.json)
+records real reflection from six retained distill seed evaluations and response
+replay without another model request. This proves the rewriting path, **not**
+student improvement; candidate rollout and held-out scoring remain separate.
+
+
 The Z.ai/OpenCode proxy accepts OpenCode's native bare model IDs and preserves
 streaming with final usage capture. Its input reservation is deliberately a
 conservative byte bound, not a tokenizer estimate: leave reservation headroom

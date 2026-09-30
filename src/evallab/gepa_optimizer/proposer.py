@@ -18,6 +18,7 @@ from evallab.execution_contracts import ZAI_OPENAPI_ALLOWED_MODELS
 from .budget import AggregateBudget
 
 if TYPE_CHECKING:
+    from .codex_transport import CodexTransport
     from .opencode_transport import OpenCodeTransport
 
 
@@ -30,7 +31,7 @@ ZAI_OPENAPI_KEY_ENV = "ZAI_OPENAPI_API_KEY"
 
 
 def direct_proposer_blocker(model: str) -> str | None:
-    """Only the Z.ai standard API is a direct grant; the Coding Plan is tool-restricted."""
+    """Keep tool-restricted subscriptions off the direct API path."""
     if model.startswith("zai-coding-plan/"):
         return (
             "Direct GEPA/LiteLLM use of the Z.ai Coding Plan is not a qualified proposer route. "
@@ -40,6 +41,8 @@ def direct_proposer_blocker(model: str) -> str | None:
         )
     if model.startswith("zai/") and model not in ZAI_OPENAPI_ALLOWED_MODELS:
         return f"Direct Z.ai standard-API proposers are limited to {sorted(ZAI_OPENAPI_ALLOWED_MODELS)}"
+    if model.startswith("codex/"):
+        return "Codex subscription models require proposer_transport='codex'; no API fallback"
     return None
 
 
@@ -124,7 +127,7 @@ class JournaledReflectionLM:
         max_requests: int,
         before_request: Callable[[], None] | None = None,
         budgets: tuple[AggregateBudget, ...] = (),
-        transport: OpenCodeTransport | None = None,
+        transport: OpenCodeTransport | CodexTransport | None = None,
     ) -> None:
         self.model = model
         self.directory = directory
@@ -158,7 +161,7 @@ class JournaledReflectionLM:
         if self.transport is not None:
             facts = self.transport.preflight()
             if facts["model"] != self.model:
-                raise ProposalUnavailable("OpenCode transport model differs from campaign")
+                raise ProposalUnavailable("Proposer transport model differs from campaign")
             identity["transport"] = facts
         key = hashlib.sha256(
             json.dumps(identity, sort_keys=True, ensure_ascii=False).encode()
@@ -196,7 +199,9 @@ class JournaledReflectionLM:
             "actual_cost_usd": None,
             "actual_usage": None,
             "accounting_limit": (
-                "Broker physical usage and API-price estimate; actual subscription billing unknown"
+                "Subscription CLI invocation count and reported usage; quota and billing unknown"
+                if self.transport is not None and identity["transport"]["transport"] == "codex"
+                else "Broker physical usage and API-price estimate; actual subscription billing unknown"
                 if self.transport is not None
                 else "upstream LM converts missing cost/usage to zero; these are not authoritative billing receipts"
             ),
@@ -211,7 +216,7 @@ class JournaledReflectionLM:
                 result = self.transport.request(prompt, directory=self.directory / key)
             except Exception as exc:
                 raise ProposalUnavailable(
-                    "OpenCode proposal failed; retained outcome must be inspected before continuing"
+                    "Proposer transport failed; retained outcome must be inspected before continuing"
                 ) from exc
             response = result["response"]
             receipt.update(

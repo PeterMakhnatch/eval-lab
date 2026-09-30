@@ -4,11 +4,11 @@ Question: can GEPA, searching ONLY on 6 development Python code tasks, find a
 general agent-side instruction addendum that beats the seed addendum on 4
 HELD-OUT Python code tasks under a fixed student route?
 
-Status: split v2 staged (sound tasks only, §2b) + nop qualification proven on
-Daytona on the v1 stratified split (~$0.01 sandbox, $0.00 model; §6 must be
-re-run on the v2 development set before the live campaign). No paid trial
-exists on v2, no spec approved, no proposer authorization written. Blocked at
-paid stages pending Peter's approvals (see §7).
+Status: HAR-110 v2 completed; the first-look results are in [RESULTS.md](RESULTS.md)
+(merged PR #564). They showed no held-out gain. The September 30 subscription
+setup below adds a separately verified Codex rewriting route; it does not
+rewrite that historical campaign, run new student trials, or adopt its candidate.
+The v1 nop qualification was not rerun on the v2 development set.
 
 ## 1. Route (fixed student)
 
@@ -157,6 +157,51 @@ cut off mid-sentence. The campaign pins `proposer_model: zai/glm-5.3` and
 `proposer_transport: direct`, which is the card's GLM-5.3. A precheck on the
 real 85 KB prompt took 113 s: 25,428 in / 5,406 out (4,922 reasoning), $0.059.
 Run the campaign under `keys run --` so the key is present.
+
+### 5a. Subscription rewriting: native Codex, verified September 30
+
+`campaign-codex.json` is a disabled, separate campaign using the same distill
+target, six development task packages, seed and `upstream_fetch_zero` rule.
+It pins `proposer_transport: codex` and `proposer_model: codex/gpt-6-astra`.
+Do not change the historical `campaign-train.json` or its retained binding.
+
+The Codex CLI is already authenticated through Peter's ChatGPT subscription;
+no key or renewed Z.ai plan is needed for this route. The locally configured
+`gpt-6.1-sol` name was **not supported by native Codex** (provider HTTP 400).
+Authenticated `model/list` advertised `gpt-6-astra` as the native account default,
+and it worked. Peter's persistent OMP models/configuration were not changed.
+
+The real released GEPA engine consumed six unchanged retained HAR-110 seed
+evaluations, sent its reflection prompt through Codex, retained a complete
+instruction candidate, and stopped at `candidate_review_required`. Rerunning the
+same frozen campaign replayed that response: **0 new requests, 1 replay**.
+The candidate is
+`sha256:5d24cdf099a9efb3e30015e766dce54a3a5b2232481fe8a7b207bc548fa2e544`.
+No new target/Modal trial ran, no held-out task entered search, and no candidate
+was adopted. This is a setup proof, not an improvement result.
+
+Measured successful-call usage: **33,662 input tokens** (6,784 cached), **778
+output tokens**, including 43 reported reasoning tokens. Subscription quota and
+billing remain unknown. Three CLI invocations were consumed during setup: one
+locally aborted startup-warning parse, one definitive unsupported-model refusal,
+and the successful native-model call. Both failures remain retained and counted;
+they were not silently retried or reported free.
+
+The complete compact receipt is [subscription-smoke.json](subscription-smoke.json);
+the candidate text is `candidates/codex-subscription-5d24cdf0.txt`. Private run
+evidence is archived separately from the authoring worktree, as linked by the
+receipt. See [the operator guide](../../../docs/operations.md#subscription-rewriting-with-codex)
+for CLI containment, account/model checks and the distinction between invocation
+count limits and subscription quota.
+
+To run a newly authorized campaign, stage the unchanged task/prior-run bytes
+as in §7, enable `campaign-codex.json`, and bind a **new** proposer authorization
+to its exact configuration/seed/release. Use the same `run ... --proposer-approval-ref`
+command as §7, with the Codex campaign and its approval reference; **no `keys run`
+is needed for rewriting**. Target dispatch still needs its own approval and
+credentials. Never reuse the historical GLM approval, reset a retained budget,
+or treat this route proof as permission to redeploy Modal.
+
 
 ## 6. Nop qualification evidence (~$0.005 sandbox, $0.00 model, 2026-09-30)
 
@@ -320,6 +365,9 @@ uv run --no-sync python $EXP/make_paired_specs.py --plain-dev
   refs, target -> student base, `score_rules: [upstream_fetch_zero]`,
   direct GLM-5.3 proposer on the Z.ai standard API, §5; keeps the v1
   name/output_dir so the 3 retained seed trials are reused at $0, §2).
+- `campaign-codex.json` (disabled native Codex subscription proposer, §5a);
+  `subscription-smoke.json` and `candidates/codex-subscription-5d24cdf0.txt`
+  retain the verified setup receipt and unadopted candidate.
 - `qualification-campaign.json` (regenerated for the v2 development set by
   fill_refs; MUST be re-run per §6 before the live campaign -- the §6
   evidence below is on the v1 set; outputs under

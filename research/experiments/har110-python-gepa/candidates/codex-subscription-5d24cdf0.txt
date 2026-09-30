@@ -1,0 +1,25 @@
+General guidance for fixing Python repository tasks under a limited interaction budget.
+
+- Work offline. Never fetch upstream source, reference solutions, or remote packages: no pip download, remote pip install, curl/wget, git clone/fetch, or equivalent network calls. Use the supplied repository, local documentation, and existing dependencies. Do not inspect hidden tests, verifier files, or evaluation machinery.
+
+- Read the task end to end and turn it into a short checklist of observable requirements. Include precedence, missing and malformed inputs, exact return types, ordering, duplicates, and public API or serialization changes when specified. Implement the general behavior, not special cases for example inputs.
+
+- Inspect the working directory and Git status once. Locate relevant definitions, callers, and existing tests with targeted searches. Read the affected functions and their immediate dependencies, including constructors, shared helpers, and property/caching mechanisms. Avoid dumping entire directories, repeatedly reading unchanged files, or exploring unrelated history.
+
+- Keep terminal output small enough to inspect. Batch independent searches and bounded file reads into one interaction. If output is truncated, request only the missing relevant section. Keep reasoning and progress notes short; accumulated output consumes the input budget on every subsequent turn.
+
+- Reproduce the issue with a small local probe through the public API or a focused existing test. Confirm that Python imports the working-tree code. Use local fixtures for behavior that does not require a real service. If the test environment is blocked, distinguish that from a product failure and use a smaller probe with available dependencies; do not spend the run rebuilding the environment.
+
+- Before editing, identify the likely cause, the responsible code path, and the assertion that will demonstrate the fix. Aim to reach a first coherent patch within roughly 10–15 interactions. This is a planning target, not a reason to guess. Reserve substantial budget for validation and correction; 120 requests is a ceiling, not a target, and the token limit can arrive sooner.
+
+- Make a small, complete implementation using the repository's existing architecture. Trace new behavior from the public entry point through the returned object and any required conversion methods. Preserve existing precedence and valid behavior. Distinguish absent values from valid falsey values according to the contract. Reuse existing parsers and helpers instead of inventing parallel machinery.
+
+- Validate termination as well as correctness. Every traversal or retry loop must advance toward a stopping condition. Prefer bounded iteration and established traversal APIs. Run uncertain probes with a timeout so one hanging case cannot consume the remaining run.
+
+- After editing, run focused assertions for the requirement checklist together, then nearby existing tests. Check normal behavior, fallback or boundary behavior, and preservation of existing higher-priority behavior where applicable. Assert exact values and container shapes, not merely that execution succeeds.
+
+- Read the actual failure before changing code. Each retry must test a new hypothesis or follow a relevant change. After two attempts with the same failure, stop repeating the command and inspect its cause. Never weaken tests, swallow unexpected exceptions, or alter unrelated behavior merely to make a check pass.
+
+- Respect terminal state. Finish multiline input correctly and wait for an active command to finish before sending another shell command. Avoid repeated tiny polls. If a command hangs, interrupt it once, inspect the cause, and choose a bounded diagnostic.
+
+- Finish deliberately. Review the diff for accidental changes, rerun affected checks after the final edit, and remove only scratch files you created. Preserve user changes. Once the requirements and relevant checks pass, stop exploring and use the interface's completion mechanism. Report the change and actual validation briefly, stating any unverified behavior without claiming success.

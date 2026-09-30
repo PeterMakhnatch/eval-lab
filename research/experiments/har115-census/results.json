@@ -1,0 +1,2275 @@
+{
+ "repair": {
+  "format-code-task-000158": {
+   "repair": "keep-build-outputs",
+   "cause": "package metadata (PackageNotFoundError)",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "package metadata (PackageNotFoundError)",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000158/648af3093326.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:648af3093326c8af48859e416cdaf1995d9270821b7aef7de6104fe3d9ccf3e8",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000158/648af3093326.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000158/648af3093326",
+   "nop_job": "har115-rnop-000158-648af3093326",
+   "before": {
+    "job": "har113-nop-000158",
+    "trial": "har113-nop-000158__eUHeuFb",
+    "label": "broken_environment",
+    "evidence": "raise PackageNotFoundError(name)",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-000158-648af3093326",
+    "trial": "har115-rnop-000158-648af3093326__gRsMBDt",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-000159": {
+   "repair": "keep-build-outputs",
+   "cause": "flake8_simplify package metadata",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "flake8_simplify package metadata",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000159/2ad471b8c15d.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:2ad471b8c15d6d1a1cfc5f295e5fd5ce8ead313ea2c3a1b7822893cfb53097d9",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000159/2ad471b8c15d.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000159/2ad471b8c15d",
+   "nop_job": "har115-rnop-000159-2ad471b8c15d",
+   "before": {
+    "job": "har113-nop-000159",
+    "trial": "har113-nop-000159__Lvj3kPy",
+    "label": "broken_environment",
+    "evidence": "___________________ ERROR collecting tests/test_simplify.py ____________________",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-000159-2ad471b8c15d",
+    "trial": "har115-rnop-000159-2ad471b8c15d__uPmeCUg",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-000160": {
+   "repair": "keep-build-outputs",
+   "cause": "flake8_simplify package metadata",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "flake8_simplify package metadata",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000160/6e67105d2c97.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:6e67105d2c972c449345976b65467e36299a674c448b89e4cd5aceb9f3403775",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000160/6e67105d2c97.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000160/6e67105d2c97",
+   "nop_job": "har115-rnop-000160-6e67105d2c97",
+   "before": {
+    "job": "har113-nop-000160",
+    "trial": "har113-nop-000160__QVu3QoQ",
+    "label": "broken_environment",
+    "evidence": "___________________ ERROR collecting tests/test_simplify.py ____________________",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-000160-6e67105d2c97",
+    "trial": "har115-rnop-000160-6e67105d2c97__czyD3t5",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-000161": {
+   "repair": "keep-build-outputs",
+   "cause": "flake8_simplify package metadata",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "flake8_simplify package metadata",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000161/eee3b18c925e.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:eee3b18c925e21496850a51bdeaecf76d744c12299a37fc9aa56bc93b65d737c",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000161/eee3b18c925e.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000161/eee3b18c925e",
+   "nop_job": "har115-rnop-000161-eee3b18c925e",
+   "before": {
+    "job": "har113-nop-000161",
+    "trial": "har113-nop-000161__uxAYGAh",
+    "label": "broken_environment",
+    "evidence": "___________________ ERROR collecting tests/test_simplify.py ____________________",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-000161-eee3b18c925e",
+    "trial": "har115-rnop-000161-eee3b18c925e__oxiMK2y",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-000190": {
+   "repair": "keep-build-outputs",
+   "cause": "pydp._pydp extension",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pydp._pydp extension",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000190/dd4c842c8aee.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:dd4c842c8aeedd04d9d13587946a1a5319e423804fe96896ec27310ae2a3b504",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000190/dd4c842c8aee.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000190/dd4c842c8aee",
+   "nop_job": "har115-rnop-000190-dd4c842c8aee",
+   "before": {
+    "job": "har113-nop-000190",
+    "trial": "har113-nop-000190__K7CP95r",
+    "label": "broken_environment",
+    "evidence": "__ ERROR collecting tests/algorithms/test_laplacian_batch_stream_contract.py ___",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-000190-dd4c842c8aee",
+    "trial": "har115-rnop-000190-dd4c842c8aee__RAXqoyu",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-000354": {
+   "repair": "keep-build-outputs",
+   "cause": "package metadata (DistributionNotFound)",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "package metadata (DistributionNotFound)",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000354/2e6e4ec12b96.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:2e6e4ec12b96606550a19b37d7691f0dc6b78e0550072c774e031394eda839f2",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000354/2e6e4ec12b96.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000354/2e6e4ec12b96",
+   "nop_job": "har115-rnop-000354-2e6e4ec12b96",
+   "before": {
+    "job": "har113-nop-000354",
+    "trial": "har113-nop-000354__YrdJyAy",
+    "label": "broken_environment",
+    "evidence": "raise DistributionNotFound(req, requirers)",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-000354-2e6e4ec12b96",
+    "trial": "har115-rnop-000354-2e6e4ec12b96__89G4oYM",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-000968": {
+   "repair": "login-path-pyenv",
+   "cause": "the test command runs py.test; the login shell's pyenv 2.7.18 runs this Python 2 code (urlparse), the non-login py.test is Python 3's",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "the test command runs py.test; the login shell's pyenv 2.7.18 runs this Python 2 code (urlparse), the non-login py.test is Python 3's",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000968/818dcd350ca0.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:818dcd350ca077427bedcadde1eab0ae349c6c709badd650006d69cddebe939f",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000968/818dcd350ca0.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000968/818dcd350ca0",
+   "nop_job": "har115-rnop-000968-818dcd350ca0",
+   "before": {
+    "job": "har113-nop-000968",
+    "trial": "har113-nop-000968__N73YpaA",
+    "label": "broken_environment",
+    "evidence": "______ ERROR collecting f5/bigip/test/test_REST_interface_collections.py _______",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-000968-818dcd350ca0",
+    "trial": "har115-rnop-000968-818dcd350ca0__8wBd75D",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-001024": {
+   "repair": "login-path-pyenv",
+   "cause": "the login shell's pyenv 3.7.17 has pytest and cgi.escape; the grader's non-login pytest is Python 3.11's, where cgi.escape is gone",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "the login shell's pyenv 3.7.17 has pytest and cgi.escape; the grader's non-login pytest is Python 3.11's, where cgi.escape is gone",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001024/edfd45ce7e93.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:edfd45ce7e934ac4793dcf42d69fcb0245f4d659bdff1cd248589db88f77ddd3",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001024/edfd45ce7e93.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001024/edfd45ce7e93",
+   "nop_job": "har115-rnop-001024-edfd45ce7e93",
+   "before": {
+    "job": "har113-nop-001024",
+    "trial": "har113-nop-001024__8YmKNJi",
+    "label": "broken_environment",
+    "evidence": "______________ ERROR collecting supervisor/tests/test_process.py _______________",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-001024-edfd45ce7e93",
+    "trial": "har115-rnop-001024-edfd45ce7e93__H4Mch6j",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-001058": {
+   "repair": "login-path-pyenv",
+   "cause": "oslo_config missing for the non-login python",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "oslo_config missing for the non-login python",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001058/4793b3d87a6c.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:4793b3d87a6cbd8b71ec831a58e86b4463020595c34abdf8832cb315256cdca9",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001058/4793b3d87a6c.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001058/4793b3d87a6c",
+   "nop_job": "har115-rnop-001058-4793b3d87a6c",
+   "before": {
+    "job": "har113-nop-001058",
+    "trial": "har113-nop-001058__CJ9iSRx",
+    "label": "broken_environment",
+    "evidence": "ModuleNotFoundError: No module named 'oslo_config'",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-001058-4793b3d87a6c",
+    "trial": "har115-rnop-001058-4793b3d87a6c__ABkkHeL",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-001068": {
+   "repair": "login-path-pyenv",
+   "cause": "django missing for the non-login python",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "django missing for the non-login python",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001068/095c628afbf9.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:095c628afbf98ad780d229a9bf3350f8889f8cb1add465425a96e1389d49d705",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001068/095c628afbf9.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001068/095c628afbf9",
+   "nop_job": "har115-rnop-001068-095c628afbf9",
+   "before": {
+    "job": "har113-nop-001068",
+    "trial": "har113-nop-001068__46ARLuV",
+    "label": "broken_environment",
+    "evidence": "ModuleNotFoundError: No module named 'django'",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-001068-095c628afbf9",
+    "trial": "har115-rnop-001068-095c628afbf9__DdcHLHz",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-001176": {
+   "repair": "login-pythonpath",
+   "cause": "the image's .bashrc exports PYTHONPATH=/testbed; the grader's non-login python cannot import bzt from /testbed",
+   "steps": [
+    {
+     "repair": "login-pythonpath",
+     "cause": "the image's .bashrc exports PYTHONPATH=/testbed; the grader's non-login python cannot import bzt from /testbed",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001176/52862dc0cdbb.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:52862dc0cdbbb58bd3cc7d547c7775f811fae400f7b9753f97ad43a1fe2e6be8",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001176/52862dc0cdbb.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001176/52862dc0cdbb",
+   "nop_job": "har115-rnop-001176-52862dc0cdbb",
+   "before": {
+    "job": "har113-nop-001176",
+    "trial": "har113-nop-001176__2YqBRph",
+    "label": "broken_environment",
+    "evidence": "ModuleNotFoundError: No module named 'bzt'",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-001176-52862dc0cdbb",
+    "trial": "har115-rnop-001176-52862dc0cdbb__5KHRDYN",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {
+    "library/task-variants/mimo-v2.6-rl__format-code-task-001176/7554f2f5ee8e.json": {
+     "job": "har115-rnop-001176-7554f2f5ee8e",
+     "trial": "har115-rnop-001176-7554f2f5ee8e__eddnh7J",
+     "label": "broken_environment",
+     "reasons": [
+      "setup_error"
+     ],
+     "evidence": "ModuleNotFoundError: No module named 'bzt'",
+     "reward": 0.0,
+     "exception": null
+    }
+   }
+  },
+  "format-code-task-001406": {
+   "repair": "login-path-pyenv",
+   "cause": "pytest: command not found",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "pytest: command not found",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001406/db655f2e25fb.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:db655f2e25fbb86ef15e78b492337a49029c0d55412964412982398ccba5a423",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001406/db655f2e25fb.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001406/db655f2e25fb",
+   "nop_job": "har115-rnop-001406-db655f2e25fb",
+   "before": {
+    "job": "har113-nop-001406",
+    "trial": "har113-nop-001406__hz4Eqnd",
+    "label": "broken_environment",
+    "evidence": "/testbed/mimo_test_command.sh: line 5: pytest: command not found",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-001406-db655f2e25fb",
+    "trial": "har115-rnop-001406-db655f2e25fb__XYShSae",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0; setup error excused as the agent's missing work",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-001607": {
+   "repair": "keep-build-outputs",
+   "cause": "cloup/_version.py",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "cloup/_version.py",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001607/2028fb031bca.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:2028fb031bca68a2d629f853dd9447a9c78c7160e4815a09cbec3eb30163b494",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001607/2028fb031bca.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001607/2028fb031bca",
+   "nop_job": "har115-rnop-001607-2028fb031bca",
+   "before": {
+    "job": "har113-nop-001607",
+    "trial": "har113-nop-001607__YrRrWMP",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/tests/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-001607-2028fb031bca",
+    "trial": "har115-rnop-001607-2028fb031bca__souAFto",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-001618": {
+   "repair": "pin",
+   "cause": "/usr/local python 3.9 has pip 20.2.4's dist-info over a later pip's files (python -m pip fails on import) and the base commit's pip-tools 4.5.0 predates pip 20.1; reinstall pip 20.0.2 cleanly",
+   "steps": [
+    {
+     "repair": "pin",
+     "cause": "/usr/local python 3.9 has pip 20.2.4's dist-info over a later pip's files (python -m pip fails on import) and the base commit's pip-tools 4.5.0 predates pip 20.1; reinstall pip 20.0.2 cleanly",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001618/6711d55bc4e5.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:6711d55bc4e54b46a4a17eee08a44c2a283667191b43ce0719a39316fc6bada5",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001618/6711d55bc4e5.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001618/6711d55bc4e5",
+   "nop_job": "har115-rnop-001618-6711d55bc4e5",
+   "before": {
+    "job": "har113-nop-001618",
+    "trial": "har113-nop-001618__4ouCtVe",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/tests/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-001618-6711d55bc4e5",
+    "trial": "har115-rnop-001618-6711d55bc4e5__H2kU7qe",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002017": {
+   "repair": "keep-build-outputs",
+   "cause": "napari/_version.py",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "napari/_version.py",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002017/d58b321d3fe5.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:d58b321d3fe5c6c5cf7a56ed1df10d7942b559e5d91e37bb40f52efb428ed44d",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002017/d58b321d3fe5.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002017/d58b321d3fe5",
+   "nop_job": "har115-rnop-002017-d58b321d3fe5",
+   "before": {
+    "job": "har113-nop-002017",
+    "trial": "har113-nop-002017__qDkHygY",
+    "label": "broken_environment",
+    "evidence": "ModuleNotFoundError: No module named 'napari._version'",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002017-d58b321d3fe5",
+    "trial": "har115-rnop-002017-d58b321d3fe5__DFWs5a9",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002055": {
+   "repair": "keep-files",
+   "cause": "the conftest needs the git-ignored built frontend/dist/static",
+   "steps": [
+    {
+     "repair": "keep-files",
+     "cause": "the conftest needs the git-ignored built frontend/dist/static",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002055/fcf17343b2dd.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:fcf17343b2ddf76415ce0b297634ab8af1551f28e896ab119310dbf0d7ccf2be",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002055/fcf17343b2dd.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002055/fcf17343b2dd",
+   "nop_job": "har115-rnop-002055-fcf17343b2dd",
+   "before": {
+    "job": "har113-nop-002055",
+    "trial": "har113-nop-002055__cATjwFE",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/tests/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002055-fcf17343b2dd",
+    "trial": "har115-rnop-002055-fcf17343b2dd__BtRH9zZ",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0; setup error excused as the agent's missing work",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002191": {
+   "repair": "pin",
+   "cause": "the base commit's werkzeug imports OpenSSL.tsafe, which /testbed/.venv's pyOpenSSL 26.2.0 no longer has; install the last pyOpenSSL with tsafe",
+   "steps": [
+    {
+     "repair": "pin",
+     "cause": "the base commit's werkzeug imports OpenSSL.tsafe, which /testbed/.venv's pyOpenSSL 26.2.0 no longer has; install the last pyOpenSSL with tsafe",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002191/016fcb1b54e2.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:016fcb1b54e20bafe95a02a1a3842cc1b5d617a9406e9191a3efb59a77c66d41",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002191/016fcb1b54e2.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002191/016fcb1b54e2",
+   "nop_job": "har115-rnop-002191-016fcb1b54e2",
+   "before": {
+    "job": "har113-nop-002191",
+    "trial": "har113-nop-002191__BDorvio",
+    "label": "broken_environment",
+    "evidence": "ImportError: cannot import name 'tsafe' from 'OpenSSL' (/testbed/.venv/lib/python3.11/site-packages/OpenSSL/__init__.py)",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002191-016fcb1b54e2",
+    "trial": "har115-rnop-002191-016fcb1b54e2__sKtLeLA",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002196": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002196/940f6cdda133.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:940f6cdda133ccde4529882e901252f9713731bda805bc304a10c6c391b76375",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002196/940f6cdda133.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002196/940f6cdda133",
+   "nop_job": "har115-rnop-002196-940f6cdda133",
+   "before": {
+    "job": "har113-nop-002196",
+    "trial": "har113-nop-002196__YVkKiJC",
+    "label": "broken_environment",
+    "evidence": "ModuleNotFoundError: No module named 'pandas._libs.tslib'",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002196-940f6cdda133",
+    "trial": "har115-rnop-002196-940f6cdda133__4GqNhiT",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002197": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002197/5f52378d3ad0.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:5f52378d3ad0b560421d42c21b1d3855d36e7a6d78cdf0ad959887003c300070",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002197/5f52378d3ad0.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002197/5f52378d3ad0",
+   "nop_job": "har115-rnop-002197-5f52378d3ad0",
+   "before": {
+    "job": "har113-nop-002197",
+    "trial": "har113-nop-002197__oRc4BqY",
+    "label": "broken_environment",
+    "evidence": "ModuleNotFoundError: No module named 'pandas._libs.tslib'",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002197-5f52378d3ad0",
+    "trial": "har115-rnop-002197-5f52378d3ad0__sNfJ4pN",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002199": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002199/a7a0de5e6746.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:a7a0de5e67460b3964e14c9f7bf9b71bc9acb8b6f23f503c905b601ac75d5ce4",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002199/a7a0de5e6746.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002199/a7a0de5e6746",
+   "nop_job": "har115-rnop-002199-a7a0de5e6746",
+   "before": {
+    "job": "har113-nop-002199",
+    "trial": "har113-nop-002199__WKtb7d4",
+    "label": "broken_environment",
+    "evidence": "ModuleNotFoundError: No module named 'pandas._libs.tslib'",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002199-a7a0de5e6746",
+    "trial": "har115-rnop-002199-a7a0de5e6746__UyXcwxR",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002202": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002202/c8cff14e78a4.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:c8cff14e78a4278c0dae0f4385813d8b1d8f5ec5c5081837a92d289af2b498ff",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002202/c8cff14e78a4.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002202/c8cff14e78a4",
+   "nop_job": "har115-rnop-002202-c8cff14e78a4",
+   "before": {
+    "job": "har113-nop-002202",
+    "trial": "har113-nop-002202__R4BWteG",
+    "label": "broken_environment",
+    "evidence": "ModuleNotFoundError: No module named 'pandas._libs.tslib'",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002202-c8cff14e78a4",
+    "trial": "har115-rnop-002202-c8cff14e78a4__Ly9rJ6D",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002206": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002206/dec48c46c29c.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:dec48c46c29c34502fd69072fea926bca22ef2f57d99f9a6645b02d2be6fb8a9",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002206/dec48c46c29c.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002206/dec48c46c29c",
+   "nop_job": "har115-rnop-002206-dec48c46c29c",
+   "before": {
+    "job": "har113-nop-002206",
+    "trial": "har113-nop-002206__HHidp9X",
+    "label": "broken_environment",
+    "evidence": "ModuleNotFoundError: No module named 'pandas._libs.tslibs.conversion'",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002206-dec48c46c29c",
+    "trial": "har115-rnop-002206-dec48c46c29c__nLgdkiX",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002208": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002208/b3b73a84cf09.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:b3b73a84cf091c682196a69b7fac4f8d4fab1eadcbf43eeba3946b7452e54d6a",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002208/b3b73a84cf09.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002208/b3b73a84cf09",
+   "nop_job": "har115-rnop-002208-b3b73a84cf09",
+   "before": {
+    "job": "har113-nop-002208",
+    "trial": "har113-nop-002208__V9rVzGM",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/pandas/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002208-b3b73a84cf09",
+    "trial": "har115-rnop-002208-b3b73a84cf09__oixsYtB",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002211": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002211/977f6394b276.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:977f6394b2767b6f97e960083948ffd479ee56b17856b041634649056fb9b788",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002211/977f6394b276.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002211/977f6394b276",
+   "nop_job": "har115-rnop-002211-977f6394b276",
+   "before": {
+    "job": "har113-nop-002211",
+    "trial": "har113-nop-002211__H9KxVBR",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/pandas/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002211-977f6394b276",
+    "trial": "har115-rnop-002211-977f6394b276__fDhXAKw",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002212": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002212/73a5e4e83325.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:73a5e4e8332540d4f860d44f22c4709f957b7c514f6d154da37dfc9fec69afa7",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002212/73a5e4e83325.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002212/73a5e4e83325",
+   "nop_job": "har115-rnop-002212-73a5e4e83325",
+   "before": {
+    "job": "har113-nop-002212",
+    "trial": "har113-nop-002212__gPqNkvY",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/pandas/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002212-73a5e4e83325",
+    "trial": "har115-rnop-002212-73a5e4e83325__KhSj5oQ",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002214": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002214/6440947cd849.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:6440947cd8490b72eb9de05456f0dc57e501992b23848069b0ef1d170f863ab3",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002214/6440947cd849.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002214/6440947cd849",
+   "nop_job": "har115-rnop-002214-6440947cd849",
+   "before": {
+    "job": "har113-nop-002214",
+    "trial": "har113-nop-002214__fX5N4Dv",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/pandas/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002214-6440947cd849",
+    "trial": "har115-rnop-002214-6440947cd849__gBWhZ43",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002215": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002215/ec291f0ca0d9.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:ec291f0ca0d98d787faffd0be3ddfb2b31456f5b13179f344bc3e45d166be4bf",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002215/ec291f0ca0d9.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002215/ec291f0ca0d9",
+   "nop_job": "har115-rnop-002215-ec291f0ca0d9",
+   "before": {
+    "job": "har113-nop-002215",
+    "trial": "har113-nop-002215__ggnyU6Y",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/pandas/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002215-ec291f0ca0d9",
+    "trial": "har115-rnop-002215-ec291f0ca0d9__BjJHMug",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002216": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002216/a84d99c3541b.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:a84d99c3541b2ccb822c20b677b8c7c8b4280b01e5cf17915d1676f57f667127",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002216/a84d99c3541b.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002216/a84d99c3541b",
+   "nop_job": "har115-rnop-002216-a84d99c3541b",
+   "before": {
+    "job": "har113-nop-002216",
+    "trial": "har113-nop-002216__GWktPs8",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/pandas/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002216-a84d99c3541b",
+    "trial": "har115-rnop-002216-a84d99c3541b__d3Sg6Fw",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002220": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002220/227a9dd7bec6.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:227a9dd7bec693342767b862cabbeafe30b4f8d62e4963be6a3d68a8b1e7d70d",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002220/227a9dd7bec6.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002220/227a9dd7bec6",
+   "nop_job": "har115-rnop-002220-227a9dd7bec6",
+   "before": {
+    "job": "har113-nop-002220",
+    "trial": "har113-nop-002220__Ynxokr5",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/pandas/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002220-227a9dd7bec6",
+    "trial": "har115-rnop-002220-227a9dd7bec6__iyX5YR9",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002221": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002221/661e1d7ac8fa.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:661e1d7ac8fac75f99da48c958df49a9d82b8421ba70c52096a8b7d023aa64b6",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002221/661e1d7ac8fa.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002221/661e1d7ac8fa",
+   "nop_job": "har115-rnop-002221-661e1d7ac8fa",
+   "before": {
+    "job": "har113-nop-002221",
+    "trial": "har113-nop-002221__Sco4ZAa",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/pandas/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002221-661e1d7ac8fa",
+    "trial": "har115-rnop-002221-661e1d7ac8fa__xq7vwek",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002224": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002224/5e42d8119c8d.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:5e42d8119c8d9a1ff814bd6b4169793efbfdcb523a42d1f53a12718de7d9ec4b",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002224/5e42d8119c8d.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002224/5e42d8119c8d",
+   "nop_job": "har115-rnop-002224-5e42d8119c8d",
+   "before": {
+    "job": "har113-nop-002224",
+    "trial": "har113-nop-002224__4UfCbrw",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/pandas/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002224-5e42d8119c8d",
+    "trial": "har115-rnop-002224-5e42d8119c8d__X8NrWbd",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002229": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002229/2b4a9ee29a46.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:2b4a9ee29a46408c6830847bafb2c59b8e66d3f2aff807326590c28018eecd05",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002229/2b4a9ee29a46.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002229/2b4a9ee29a46",
+   "nop_job": "har115-rnop-002229-2b4a9ee29a46",
+   "before": {
+    "job": "har113-nop-002229",
+    "trial": "har113-nop-002229__4tSZfSr",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/pandas/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002229-2b4a9ee29a46",
+    "trial": "har115-rnop-002229-2b4a9ee29a46__osG8wTi",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002230": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002230/2a625da07b0b.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:2a625da07b0b05f20744c26a62de56550830770485da53d6e0398be46596d680",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002230/2a625da07b0b.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002230/2a625da07b0b",
+   "nop_job": "har115-rnop-002230-2a625da07b0b",
+   "before": {
+    "job": "har113-nop-002230",
+    "trial": "har113-nop-002230__mFXyEYD",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/pandas/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002230-2a625da07b0b",
+    "trial": "har115-rnop-002230-2a625da07b0b__74DpWKT",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002231": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002231/72355a73c510.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:72355a73c51048def8bdb012a310f59ae13d5cf0a58479888062efeb78ab20d4",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002231/72355a73c510.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002231/72355a73c510",
+   "nop_job": "har115-rnop-002231-72355a73c510",
+   "before": {
+    "job": "har113-nop-002231",
+    "trial": "har113-nop-002231__YPNw9oX",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/pandas/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002231-72355a73c510",
+    "trial": "har115-rnop-002231-72355a73c510__M927LCN",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002281": {
+   "repair": "keep-build-outputs",
+   "cause": "gensim Cython extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "gensim Cython extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002281/14cb2299e4c9.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:14cb2299e4c9881aa7ba742aa529a90bfd483da436f73ac896b28f95f704d23a",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002281/14cb2299e4c9.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002281/14cb2299e4c9",
+   "nop_job": "har115-rnop-002281-14cb2299e4c9",
+   "before": {
+    "job": "har113-nop-002281",
+    "trial": "har113-nop-002281__M7SwmtW",
+    "label": "broken_environment",
+    "evidence": "E RuntimeError: Cython extensions are unavailable. Without them, this gensim functionality is disabled. If you've installed from a package, ask the package maintainer to include Cython extensions. If\u2026",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002281-14cb2299e4c9",
+    "trial": "har115-rnop-002281-14cb2299e4c9__3xd2yS2",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002307": {
+   "repair": "keep-build-outputs",
+   "cause": "pre_commit package metadata",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pre_commit package metadata",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002307/2232110e2cd8.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:2232110e2cd88ef7cb3ed3a4e3aef82d41684a080a65cc671f21f23bf60f1060",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002307/2232110e2cd8.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002307/2232110e2cd8",
+   "nop_job": "har115-rnop-002307-2232110e2cd8",
+   "before": {
+    "job": "har113-nop-002307",
+    "trial": "har113-nop-002307__hy4jCqQ",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/tests/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002307-2232110e2cd8",
+    "trial": "har115-rnop-002307-2232110e2cd8__SxDo8rH",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0; setup error excused as the agent's missing work",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002353": {
+   "repair": "keep-build-outputs",
+   "cause": "_black_version.py",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "_black_version.py",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002353/bb683e0a553f.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:bb683e0a553f5f01dd3347479cf7fc3ff57e3929cb6ed126404683f6b88fb12a",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002353/bb683e0a553f.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002353/bb683e0a553f",
+   "nop_job": "har115-rnop-002353-bb683e0a553f",
+   "before": {
+    "job": "har113-nop-002353",
+    "trial": "har113-nop-002353__qmPKkvv",
+    "label": "broken_environment",
+    "evidence": "_____________________ ERROR collecting tests/test_black.py _____________________",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002353-bb683e0a553f",
+    "trial": "har115-rnop-002353-bb683e0a553f__Utw5LWD",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002400": {
+   "repair": "keep-build-outputs",
+   "cause": "pyproj._network extension",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pyproj._network extension",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002400/5aa6b7569d22.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:5aa6b7569d222ba3dd87a71db40bca8ebf0265e7739fd26b8210405d49189c16",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002400/5aa6b7569d22.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002400/5aa6b7569d22",
+   "nop_job": "har115-rnop-002400-5aa6b7569d22",
+   "before": {
+    "job": "har113-nop-002400",
+    "trial": "har113-nop-002400__6jcX2nF",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/test/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002400-5aa6b7569d22",
+    "trial": "har115-rnop-002400-5aa6b7569d22__sHe38wh",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002410": {
+   "repair": "keep-build-outputs",
+   "cause": "pylsp/_version.py",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pylsp/_version.py",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002410/52d60b01c0b0.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:52d60b01c0b0e87c76e57dac1f643b99ec8531240591bd8dda36a89b764c4baa",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002410/52d60b01c0b0.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002410/52d60b01c0b0",
+   "nop_job": "har115-rnop-002410-52d60b01c0b0",
+   "before": {
+    "job": "har113-nop-002410",
+    "trial": "har113-nop-002410__DCu76eD",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/test/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002410-52d60b01c0b0",
+    "trial": "har115-rnop-002410-52d60b01c0b0__VZDUZvw",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002451": {
+   "repair": "keep-build-outputs",
+   "cause": "satpy/version.py",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "satpy/version.py",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002451/78f8541d0e9d.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:78f8541d0e9df91aca63d654c276ad28784c065cdea03fda2780cc3340f39e1d",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002451/78f8541d0e9d.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002451/78f8541d0e9d",
+   "nop_job": "har115-rnop-002451-78f8541d0e9d",
+   "before": {
+    "job": "har113-nop-002451",
+    "trial": "har113-nop-002451__noCzHUm",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/satpy/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002451-78f8541d0e9d",
+    "trial": "har115-rnop-002451-78f8541d0e9d__pYjyNnd",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002483": {
+   "repair": "keep-build-outputs",
+   "cause": "rasterio extensions (rasterio.errors fails to import at pytest start)",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "rasterio extensions (rasterio.errors fails to import at pytest start)",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002483/e74de2cac39e.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:e74de2cac39e964dfc79a251de89b236475d2afa161ae8a0f98ebf742ec4c524",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002483/e74de2cac39e.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002483/e74de2cac39e",
+   "nop_job": "har115-rnop-002483-e74de2cac39e",
+   "before": {
+    "job": "har113-nop-002483",
+    "trial": "har113-nop-002483__jD6XAwL",
+    "label": "grader_suspect",
+    "evidence": "no test results; last output: warnings._OptionError: invalid module name: 'rasterio.errors'",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002483-e74de2cac39e",
+    "trial": "har115-rnop-002483-e74de2cac39e__bTddoUA",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002644": {
+   "repair": "keep-build-outputs",
+   "cause": "sherpa.utils._utils extension",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "sherpa.utils._utils extension",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002644/349be3539d16.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:349be3539d16b765d540b0c69ac2d19c4a7d925c83ab849ddffe5acee3c3a4b7",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002644/349be3539d16.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002644/349be3539d16",
+   "nop_job": "har115-rnop-002644-349be3539d16",
+   "before": {
+    "job": "har113-nop-002644",
+    "trial": "har113-nop-002644__p2kJwxj",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/sherpa/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002644-349be3539d16",
+    "trial": "har115-rnop-002644-349be3539d16__joCTDTM",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002739": {
+   "repair": "keep-build-outputs",
+   "cause": "statsmodels/_version.py",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "statsmodels/_version.py",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002739/adde3189ea52.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:adde3189ea520f19525037a45dcdd623358f80f167d89211dbc134ad88e662e2",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002739/adde3189ea52.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002739/adde3189ea52",
+   "nop_job": "har115-rnop-002739-adde3189ea52",
+   "before": {
+    "job": "har113-nop-002739",
+    "trial": "har113-nop-002739__iwSA4Kz",
+    "label": "broken_environment",
+    "evidence": "ModuleNotFoundError: No module named 'statsmodels._version'",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002739-adde3189ea52",
+    "trial": "har115-rnop-002739-adde3189ea52__VS6xkph",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002873": {
+   "repair": "keep-build-outputs",
+   "cause": "tox/version.py",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "tox/version.py",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002873/52c6ab8d6d04.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:52c6ab8d6d0440aeb14ca884fe26a2b12d0e8d774db17b22b4e8fc084b77f64a",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002873/52c6ab8d6d04.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002873/52c6ab8d6d04",
+   "nop_job": "har115-rnop-002873-52c6ab8d6d04",
+   "before": {
+    "job": "har113-nop-002873",
+    "trial": "har113-nop-002873__zRCSZKs",
+    "label": "broken_environment",
+    "evidence": "ImportError while loading conftest '/testbed/tests/conftest.py'.",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002873-52c6ab8d6d04",
+    "trial": "har115-rnop-002873-52c6ab8d6d04__KMQ3enL",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  }
+ },
+ "diagnosis": {
+  "har115-diag-000124": {
+   "task_id": "format-code-task-000124",
+   "trial": "har115-diag-000124__N6Meuck",
+   "listing": [
+    "== cwd /testbed; PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "== which -a python: /usr/bin/python /bin/python ",
+    "== which -a python3: /usr/bin/python3 /bin/python3 ",
+    "== which -a pytest: ",
+    "== which -a pip: /usr/bin/pip /bin/pip ",
+    "== which -a pip3: /usr/bin/pip3 /bin/pip3 ",
+    "== which -a conda: ",
+    "== which -a uv: ",
+    "== login-shell PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "== /usr/bin/python: 3.11.15 {'pytest': None, 'app': None, 'setuptools': '/usr/local/lib/python3.11/dist-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/bin/python3: 3.11.15 {'pytest': None, 'app': None, 'setuptools': '/usr/local/lib/python3.11/dist-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/bin/python3.11: 3.11.15 {'pytest': None, 'app': None, 'setuptools': '/usr/local/lib/python3.11/dist-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/bin/python3.12: Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth:",
+    "== /usr/bin/python3.12: ",
+    "== /usr/bin/python3.12:   Traceback (most recent call last):",
+    "== /usr/bin/python3.12:     File \"<frozen site>\", line 201, in addpackage",
+    "== /usr/bin/python3.12:     File \"<string>\", line 1, in <module>",
+    "== /usr/bin/python3.12:   ModuleNotFoundError: No module named '_distutils_hack'",
+    "== /usr/bin/python3.12: ",
+    "== /usr/bin/python3.12: Remainder of file ignored",
+    "== /usr/bin/python3.12: 3.12.3 {'pytest': None, 'app': None, 'setuptools': None, 'Cython': None}",
+    "== /usr/bin/python3.13: Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth:",
+    "== /usr/bin/python3.13: ",
+    "== /usr/bin/python3.13:   Traceback (most recent call last):",
+    "== /usr/bin/python3.13:     File \"<frozen site>\", line 213, in addpackage",
+    "== /usr/bin/python3.13:     File \"<string>\", line 1, in <module>",
+    "== /usr/bin/python3.13:   ModuleNotFoundError: No module named '_distutils_hack'",
+    "== /usr/bin/python3.13: ",
+    "== /usr/bin/python3.13: Remainder of file ignored",
+    "== /usr/bin/python3.13: 3.13.13 {'pytest': None, 'app': None, 'setuptools': None, 'Cython': None}",
+    "== /usr/bin/python3.14: Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth:",
+    "== /usr/bin/python3.14: ",
+    "== /usr/bin/python3.14:   Traceback (most recent call last):",
+    "== /usr/bin/python3.14:     File \"<frozen site>\", line 219, in addpackage",
+    "== /usr/bin/python3.14:     File \"<string>\", line 1, in <module>",
+    "== /usr/bin/python3.14:   ModuleNotFoundError: No module named '_distutils_hack'",
+    "== /usr/bin/python3.14: ",
+    "== /usr/bin/python3.14: Remainder of file ignored",
+    "== /usr/bin/python3.14: 3.14.5 {'pytest': None, 'app': None, 'setuptools': None, 'Cython': None}",
+    "== /var/lib/dpkg/info/python3.11-minimal.preinst: preinst called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.11-minimal.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.11-venv.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.11.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12-minimal.preinst: preinst called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12-minimal.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12-venv.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.13-venv.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.13.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.14-venv.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.14.prerm: prerm called with unknown argument `-'",
+    "== pytest executables:",
+    "/testbed/.build_env/venv/bin/pytest",
+    "== git status --ignored (top 30):"
+   ],
+   "extra": [
+    "LICENSE",
+    "README.md",
+    "README_zh-CN.md",
+    "docker-compose.fiftyone.yml",
+    "docker-compose.label_studio.yml",
+    "docker-compose.labelfree.yml",
+    "docker-compose.yml",
+    "docker_executor",
+    "docs",
+    "plugin",
+    "ymir",
+    "ymir.sh",
+    "./ymir/backend/src/ymir_app/app/db/base.py:2:# imported by Alembic",
+    "./ymir/backend/src/ymir_app/app/db/init_db.py:19:    # Tables should be created with Alembic migrations",
+    "./ymir/backend/src/ymir_app/app/db/init_db.py:22:    # Base.metadata.create_all(bind=engine)",
+    "./ymir/backend/src/ymir_app/alembic/env.py:6:from alembic import context",
+    "./ymir/backend/src/ymir_app/alembic/env.py:9:# this is the Alembic Config object, which provides",
+    "./ymir/backend/src/ymir_app/alembic/versions/0a65ca497350_add_model_stage.py:8:from alembic import op",
+    "./ymir/backend/src/ymir_app/alembic/versions/0a65ca497350_add_model_stage.py:12:# revision identifiers, used by Alembic.",
+    "./ymir/backend/src/ymir_app/alembic/versions/0a65ca497350_add_model_stage.py:20:    # ### commands auto generated by Alembic - please adjust! ###",
+    "./ymir/backend/src/ymir_app/alembic/versions/0a65ca497350_add_model_stage.py:42:    # ### end Alembic commands ###",
+    "./ymir/backend/src/ymir_app/alembic/versions/0a65ca497350_add_model_stage.py:46:    # ### commands auto generated by Alembic - please adjust! ###",
+    "./ymir/backend/src/ymir_app/alembic/versions/0a65ca497350_add_model_stage.py:55:    # ### end Alembic commands ###",
+    "./ymir/backend/src/ymir_app/alembic/versions/32b2a244fd5d_set_image_description_length_limit_to_.py:8:from alembic import op",
+    "./ymir/backend/src/ymir_app/alembic/versions/32b2a244fd5d_set_image_description_length_limit_to_.py:12:# revision identifiers, used by Alembic.",
+    "./ymir/backend/src/ymir_app/alembic/versions/32b2a244fd5d_set_image_description_length_limit_to_.py:20:    # ### commands auto generated by Alembic - please adjust! ###",
+    "./ymir/backend/src/ymir_app/alembic/versions/32b2a244fd5d_set_image_description_length_limit_to_.py:26:    # ### end Alembic commands ###",
+    "./ymir/backend/src/ymir_app/alembic/versions/32b2a244fd5d_set_image_description_length_limit_to_.py:30:    # ### commands auto generated by Alembic - please adjust! ###",
+    "./ymir/backend/src/ymir_app/alembic/versions/32b2a244fd5d_set_image_description_length_limit_to_.py:36:    # ### end Alembic commands ###",
+    "./ymir/backend/src/ymir_app/alembic/versions/3c495c9f691e_add_is_visible_to_model_and_dataset.py:8:from alembic import op",
+    "./ymir/backend/src/ymir_app/alembic/versions/3c495c9f691e_add_is_visible_to_model_and_dataset.py:12:# revision identifiers, used by Alembic.",
+    "./ymir/backend/src/ymir_app/alembic/versions/3c495c9f691e_add_is_visible_to_model_and_dataset.py:20:    # ### commands auto generated by Alembic - please adjust! ###"
+   ],
+   "graded": {
+    "job": "har115-diag-000124",
+    "trial": "har115-diag-000124__N6Meuck",
+    "label": "grader_suspect",
+    "reasons": [
+     "tests_did_not_run"
+    ],
+    "evidence": "no test results; last output: ======================== 7 warnings, 11 errors in 2.33s ========================",
+    "reward": 0.0,
+    "exception": null
+   }
+  },
+  "har115-diag-000393": {
+   "task_id": "format-code-task-000393",
+   "trial": "har115-diag-000393__Pm6Agmn",
+   "listing": [
+    "== cwd /testbed; PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "== which -a python: /usr/local/bin/python ",
+    "== which -a python3: /usr/local/bin/python3 /usr/bin/python3 /bin/python3 ",
+    "== which -a pytest: /usr/local/bin/pytest ",
+    "== which -a pip: /usr/local/bin/pip ",
+    "== which -a pip3: /usr/local/bin/pip3 ",
+    "== which -a conda: ",
+    "== which -a uv: ",
+    "== login-shell PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "== /usr/bin/python3: 3.11.2 {'pytest': None, 'molecule': None, 'setuptools': None, 'Cython': None}",
+    "== /usr/bin/python3.11: 3.11.2 {'pytest': None, 'molecule': None, 'setuptools': None, 'Cython': None}",
+    "== /usr/local/bin/python: 3.8.20 {'pytest': '/usr/local/lib/python3.8/site-packages/pytest/__init__.py', 'molecule': '/testbed/src/molecule/__init__.py', 'setuptools': '/usr/local/lib/python3.8/site-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/local/bin/python3: 3.8.20 {'pytest': '/usr/local/lib/python3.8/site-packages/pytest/__init__.py', 'molecule': '/testbed/src/molecule/__init__.py', 'setuptools': '/usr/local/lib/python3.8/site-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/local/bin/python3.8: 3.8.20 {'pytest': '/usr/local/lib/python3.8/site-packages/pytest/__init__.py', 'molecule': '/testbed/src/molecule/__init__.py', 'setuptools': '/usr/local/lib/python3.8/site-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/share/gdb/auto-load/usr/local/bin/python3.8-gdb.py: /solution/solve.sh: line 20: /usr/share/gdb/auto-load/usr/local/bin/python3.8-gdb.py: cannot execute: required file not found",
+    "== /var/lib/dpkg/info/python3.11-minimal.preinst: preinst called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.11-minimal.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.11.prerm: prerm called with unknown argument `-'",
+    "== pytest executables:",
+    "/usr/local/bin/pytest",
+    "== git status --ignored (top 30):"
+   ],
+   "extra": [
+    "\u001b[31mE\u001b[0m",
+    "==================================== ERRORS ====================================",
+    "\u001b[31m\u001b[1m_________________ ERROR at setup of test_config_private_member _________________\u001b[0m",
+    "molecule_file_fixture = '/tmp/pytest-of-root/pytest-0/test_config_private_member0/XKGBE/molecule/default/molecule.yml'",
+    "molecule_data = {'dependency': {'name': 'galaxy'}, 'driver': {'name': 'delegated', 'options': {'managed': True}}, 'platforms': [{'chil...'], 'name': 'instance-2'}], 'provisioner': {'config_options': {}, 'name': 'ansible', 'options': {'become': True}}, ...}",
+    "request = <SubRequest 'config_instance' for <Function test_config_private_member>>",
+    "    \u001b[37m@pytest\u001b[39;49;00m.fixture",
+    "    \u001b[94mdef\u001b[39;49;00m \u001b[92mconfig_instance\u001b[39;49;00m(",
+    "        molecule_file_fixture: \u001b[96mstr\u001b[39;49;00m, molecule_data, request",
+    "    ) -> config.Config:",
+    "        mdc = copy.deepcopy(molecule_data)",
+    "        \u001b[94mif\u001b[39;49;00m \u001b[96mhasattr\u001b[39;49;00m(request, \u001b[33m\"\u001b[39;49;00m\u001b[33mparam\u001b[39;49;00m\u001b[33m\"\u001b[39;49;00m):",
+    "            mdc = util.merge_dicts(mdc, request.getfixturevalue(request.param))",
+    "        pytest.helpers.write_molecule_file(molecule_file_fixture, mdc)",
+    ">       c = config.Config(molecule_file_fixture)",
+    "\u001b[1m\u001b[31m/testbed/src/molecule/test/unit/conftest.py\u001b[0m:148: ",
+    "_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ",
+    "\u001b[1m\u001b[31m/testbed/src/molecule/config.py\u001b[0m:60: in __call__",
+    "    obj = \u001b[96mtype\u001b[39;49;00m.\u001b[92m__call__\u001b[39;49;00m(\u001b[96mcls\u001b[39;49;00m, *args, **kwargs)",
+    "\u001b[1m\u001b[31m/testbed/src/molecule/config.py\u001b[0m:102: in __init__",
+    "    \u001b[96mself\u001b[39;49;00m.config = \u001b[96mself\u001b[39;49;00m._get_config()",
+    "\u001b[1m\u001b[31m/testbed/src/molecule/config.py\u001b[0m:262: in _get_config",
+    "    \u001b[94mreturn\u001b[39;49;00m \u001b[96mself\u001b[39;49;00m._combine(keep_string=MOLECULE_KEEP_STRING)",
+    "\u001b[1m\u001b[31m/testbed/src/molecule/config.py\u001b[0m:306: in _combine",
+    "    \u001b[96mself\u001b[39;49;00m._preflight(s)",
+    "\u001b[1m\u001b[31m/testbed/src/molecule/config.py\u001b[0m:425: in _preflight",
+    "    util.sysexit_with_message(msg, detail=data)",
+    "\u001b[1m\u001b[31m/testbed/src/molecule/util.py\u001b[0m:111: in sysexit_with_message",
+    "    sysexit(code)",
+    "_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ",
+    "code = 1",
+    "    \u001b[94mdef\u001b[39;49;00m \u001b[92msysexit\u001b[39;49;00m(code: \u001b[96mint\u001b[39;49;00m = \u001b[94m1\u001b[39;49;00m) -> NoReturn:",
+    "        \u001b[33m\"\"\"Perform a system exit with given code, default 1.\"\"\"\u001b[39;49;00m",
+    ">       sys.exit(code)",
+    "\u001b[1m\u001b[31mE       SystemExit: 1\u001b[0m",
+    "\u001b[1m\u001b[31m/testbed/src/molecule/util.py\u001b[0m:95: SystemExit",
+    "---------------------------- Captured stdout setup -----------------------------",
+    "---",
+    "dependency:",
+    "  name: galaxy",
+    "driver:",
+    "  name: delegated",
+    "  options:",
+    "    managed: true",
+    "platforms:",
+    "  - children:",
+    "      - child1",
+    "    groups:",
+    "      - foo",
+    "      - bar",
+    "    name: instance-1",
+    "  - children:",
+    "      - child2",
+    "    groups:",
+    "      - baz",
+    "      - foo",
+    "    name: instance-2",
+    "provisioner:",
+    "  config_options: {}",
+    "  name: ansible"
+   ],
+   "graded": {
+    "job": "har115-diag-000393",
+    "trial": "har115-diag-000393__Pm6Agmn",
+    "label": "broken_environment",
+    "reasons": [
+     "setup_error"
+    ],
+    "evidence": "_______ ERROR at setup of test_default_env_double_nested_does_not_raise ________",
+    "reward": 0.0,
+    "exception": null
+   }
+  },
+  "har115-diag-000968": {
+   "task_id": "format-code-task-000968",
+   "trial": "har115-diag-000968__bmKRqeU",
+   "listing": [
+    "== cwd /testbed; PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "== which -a python: /usr/bin/python /bin/python ",
+    "== which -a python3: /usr/bin/python3 /bin/python3 ",
+    "== which -a pytest: /usr/local/bin/pytest ",
+    "== which -a pip: /usr/bin/pip /bin/pip ",
+    "== which -a pip3: /usr/bin/pip3 /bin/pip3 ",
+    "== which -a conda: ",
+    "== which -a uv: ",
+    "== login-shell PATH: /root/.pyenv/shims:/root/.pyenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "== /root/.pyenv/versions/2.7.18/bin/python:   File \"<stdin>\", line 10",
+    "== /root/.pyenv/versions/2.7.18/bin/python:     found[name] = f\"error {type(exc).__name__}\"",
+    "== /root/.pyenv/versions/2.7.18/bin/python:                                               ^",
+    "== /root/.pyenv/versions/2.7.18/bin/python: SyntaxError: invalid syntax",
+    "== /usr/bin/python: Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth:",
+    "== /usr/bin/python: ",
+    "== /usr/bin/python:   Traceback (most recent call last):",
+    "== /usr/bin/python:     File \"<frozen site>\", line 219, in addpackage",
+    "== /usr/bin/python:     File \"<string>\", line 1, in <module>",
+    "== /usr/bin/python:   ModuleNotFoundError: No module named '_distutils_hack'",
+    "== /usr/bin/python: ",
+    "== /usr/bin/python: Remainder of file ignored",
+    "== /usr/bin/python: 3.14.5 {'pytest': '/usr/local/lib/python3.14/dist-packages/pytest/__init__.py', 'urlparse': None, 'setuptools': None, 'Cython': None}",
+    "== /usr/bin/python3: Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth:",
+    "== /usr/bin/python3: ",
+    "== /usr/bin/python3:   Traceback (most recent call last):",
+    "== /usr/bin/python3:     File \"<frozen site>\", line 219, in addpackage",
+    "== /usr/bin/python3:     File \"<string>\", line 1, in <module>",
+    "== /usr/bin/python3:   ModuleNotFoundError: No module named '_distutils_hack'",
+    "== /usr/bin/python3: ",
+    "== /usr/bin/python3: Remainder of file ignored",
+    "== /usr/bin/python3: 3.14.5 {'pytest': '/usr/local/lib/python3.14/dist-packages/pytest/__init__.py', 'urlparse': None, 'setuptools': None, 'Cython': None}",
+    "== /usr/bin/python3.11: 3.11.15 {'pytest': None, 'urlparse': None, 'setuptools': '/usr/local/lib/python3.11/dist-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/bin/python3.12: Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth:",
+    "== /usr/bin/python3.12: ",
+    "== /usr/bin/python3.12:   Traceback (most recent call last):",
+    "== /usr/bin/python3.12:     File \"<frozen site>\", line 201, in addpackage",
+    "== /usr/bin/python3.12:     File \"<string>\", line 1, in <module>",
+    "== /usr/bin/python3.12:   ModuleNotFoundError: No module named '_distutils_hack'",
+    "== /usr/bin/python3.12: ",
+    "== /usr/bin/python3.12: Remainder of file ignored",
+    "== /usr/bin/python3.12: 3.12.3 {'pytest': None, 'urlparse': None, 'setuptools': None, 'Cython': None}",
+    "== /usr/bin/python3.13: Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth:",
+    "== /usr/bin/python3.13: ",
+    "== /usr/bin/python3.13:   Traceback (most recent call last):",
+    "== /usr/bin/python3.13:     File \"<frozen site>\", line 213, in addpackage",
+    "== /usr/bin/python3.13:     File \"<string>\", line 1, in <module>",
+    "== /usr/bin/python3.13:   ModuleNotFoundError: No module named '_distutils_hack'",
+    "== /usr/bin/python3.13: ",
+    "== /usr/bin/python3.13: Remainder of file ignored",
+    "== /usr/bin/python3.13: 3.13.13 {'pytest': None, 'urlparse': None, 'setuptools': None, 'Cython': None}",
+    "== /usr/bin/python3.14: Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth:",
+    "== /usr/bin/python3.14: ",
+    "== /usr/bin/python3.14:   Traceback (most recent call last):",
+    "== /usr/bin/python3.14:     File \"<frozen site>\", line 219, in addpackage",
+    "== /usr/bin/python3.14:     File \"<string>\", line 1, in <module>",
+    "== /usr/bin/python3.14:   ModuleNotFoundError: No module named '_distutils_hack'",
+    "== /usr/bin/python3.14: ",
+    "== /usr/bin/python3.14: Remainder of file ignored",
+    "== /usr/bin/python3.14: 3.14.5 {'pytest': '/usr/local/lib/python3.14/dist-packages/pytest/__init__.py', 'urlparse': None, 'setuptools': None, 'Cython': None}",
+    "== /var/lib/dpkg/info/python3.11-minimal.preinst: preinst called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.11-minimal.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.11-venv.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.11.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12-minimal.preinst: preinst called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12-minimal.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12-venv.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.13-venv.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.13.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.14-venv.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.14.prerm: prerm called with unknown argument `-'",
+    "== pytest executables:",
+    "/root/.pyenv/versions/2.7.18/bin/pytest",
+    "/usr/local/bin/pytest",
+    "== git status --ignored (top 30):"
+   ],
+   "extra": [
+    "2.7.18",
+    "/usr/local/bin/py.test"
+   ],
+   "graded": {
+    "job": "har115-diag-000968",
+    "trial": "har115-diag-000968__bmKRqeU",
+    "label": "broken_environment",
+    "reasons": [
+     "setup_error"
+    ],
+    "evidence": "______ ERROR collecting f5/bigip/test/test_REST_interface_collections.py _______",
+    "reward": 0.0,
+    "exception": null
+   }
+  },
+  "har115-diag-001024": {
+   "task_id": "format-code-task-001024",
+   "trial": "har115-diag-001024__sVjhXDf",
+   "listing": [
+    "== cwd /testbed; PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "== which -a python: /usr/bin/python /bin/python ",
+    "== which -a python3: /usr/bin/python3 /bin/python3 ",
+    "== which -a pytest: /usr/local/bin/pytest ",
+    "== which -a pip: /usr/bin/pip /bin/pip ",
+    "== which -a pip3: /usr/bin/pip3 /bin/pip3 ",
+    "== which -a conda: ",
+    "== which -a uv: ",
+    "== login-shell PATH: /root/.pyenv/shims:/root/.pyenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "== /root/.pyenv/shims/python3.7: 3.7.17 {'pytest': '/root/.pyenv/versions/3.7.17/lib/python3.7/site-packages/pytest/__init__.py', 'supervisor': '/testbed/supervisor/__init__.py', 'setuptools': '/root/.pyenv/versions/3.7.17/lib/python3.7/site-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /root/.pyenv/shims/python3.7-gdb.py: Traceback (most recent call last):",
+    "== /root/.pyenv/shims/python3.7-gdb.py:   File \"/root/.pyenv/versions/3.7.17/bin/python3.7-gdb.py\", line 48, in <module>",
+    "== /root/.pyenv/shims/python3.7-gdb.py:     import gdb",
+    "== /root/.pyenv/shims/python3.7-gdb.py: ModuleNotFoundError: No module named 'gdb'",
+    "== /root/.pyenv/shims/python3.7m: 3.7.17 {'pytest': '/root/.pyenv/versions/3.7.17/lib/python3.7/site-packages/pytest/__init__.py', 'supervisor': '/testbed/supervisor/__init__.py', 'setuptools': '/root/.pyenv/versions/3.7.17/lib/python3.7/site-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /root/.pyenv/versions/3.7.17/bin/python: 3.7.17 {'pytest': '/root/.pyenv/versions/3.7.17/lib/python3.7/site-packages/pytest/__init__.py', 'supervisor': '/testbed/supervisor/__init__.py', 'setuptools': '/root/.pyenv/versions/3.7.17/lib/python3.7/site-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /root/.pyenv/versions/3.7.17/bin/python3.7: 3.7.17 {'pytest': '/root/.pyenv/versions/3.7.17/lib/python3.7/site-packages/pytest/__init__.py', 'supervisor': '/testbed/supervisor/__init__.py', 'setuptools': '/root/.pyenv/versions/3.7.17/lib/python3.7/site-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /root/.pyenv/versions/3.7.17/bin/python3.7-gdb.py: Traceback (most recent call last):",
+    "== /root/.pyenv/versions/3.7.17/bin/python3.7-gdb.py:   File \"/root/.pyenv/versions/3.7.17/bin/python3.7-gdb.py\", line 48, in <module>",
+    "== /root/.pyenv/versions/3.7.17/bin/python3.7-gdb.py:     import gdb",
+    "== /root/.pyenv/versions/3.7.17/bin/python3.7-gdb.py: ModuleNotFoundError: No module named 'gdb'",
+    "== /root/.pyenv/versions/3.7.17/bin/python3.7m: 3.7.17 {'pytest': '/root/.pyenv/versions/3.7.17/lib/python3.7/site-packages/pytest/__init__.py', 'supervisor': '/testbed/supervisor/__init__.py', 'setuptools': '/root/.pyenv/versions/3.7.17/lib/python3.7/site-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/bin/python: 3.11.15 {'pytest': '/usr/local/lib/python3.11/dist-packages/pytest/__init__.py', 'supervisor': '/testbed/supervisor/__init__.py', 'setuptools': '/usr/local/lib/python3.11/dist-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/bin/python3: 3.11.15 {'pytest': '/usr/local/lib/python3.11/dist-packages/pytest/__init__.py', 'supervisor': '/testbed/supervisor/__init__.py', 'setuptools': '/usr/local/lib/python3.11/dist-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/bin/python3.11: 3.11.15 {'pytest': '/usr/local/lib/python3.11/dist-packages/pytest/__init__.py', 'supervisor': '/testbed/supervisor/__init__.py', 'setuptools': '/usr/local/lib/python3.11/dist-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/bin/python3.12: Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth:",
+    "== /usr/bin/python3.12: ",
+    "== /usr/bin/python3.12:   Traceback (most recent call last):",
+    "== /usr/bin/python3.12:     File \"<frozen site>\", line 201, in addpackage",
+    "== /usr/bin/python3.12:     File \"<string>\", line 1, in <module>",
+    "== /usr/bin/python3.12:   ModuleNotFoundError: No module named '_distutils_hack'",
+    "== /usr/bin/python3.12: ",
+    "== /usr/bin/python3.12: Remainder of file ignored",
+    "== /usr/bin/python3.12: 3.12.3 {'pytest': None, 'supervisor': '/testbed/supervisor/__init__.py', 'setuptools': None, 'Cython': None}",
+    "== /usr/bin/python3.13: Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth:",
+    "== /usr/bin/python3.13: ",
+    "== /usr/bin/python3.13:   Traceback (most recent call last):",
+    "== /usr/bin/python3.13:     File \"<frozen site>\", line 213, in addpackage",
+    "== /usr/bin/python3.13:     File \"<string>\", line 1, in <module>",
+    "== /usr/bin/python3.13:   ModuleNotFoundError: No module named '_distutils_hack'",
+    "== /usr/bin/python3.13: ",
+    "== /usr/bin/python3.13: Remainder of file ignored",
+    "== /usr/bin/python3.13: 3.13.13 {'pytest': None, 'supervisor': '/testbed/supervisor/__init__.py', 'setuptools': None, 'Cython': None}",
+    "== /usr/bin/python3.14: 3.14.5 {'pytest': '/usr/local/lib/python3.14/dist-packages/pytest/__init__.py', 'supervisor': '/testbed/supervisor/__init__.py', 'setuptools': '/usr/local/lib/python3.14/dist-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /var/lib/dpkg/info/python3.11-minimal.preinst: preinst called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.11-minimal.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.11-venv.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.11.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12-minimal.preinst: preinst called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12-minimal.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12-venv.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.13-venv.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.13.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.14-venv.prerm: prerm called with unknown argument `-'",
+    "== pytest executables:",
+    "/root/.pyenv/versions/3.7.17/bin/pytest",
+    "/usr/local/bin/pytest",
+    "== git status --ignored (top 30):"
+   ],
+   "extra": [
+    "3.11.15 (main, Mar  3 2026, 09:26:23) [GCC 13.3.0]",
+    "3.7.17"
+   ],
+   "graded": {
+    "job": "har115-diag-001024",
+    "trial": "har115-diag-001024__sVjhXDf",
+    "label": "broken_environment",
+    "reasons": [
+     "setup_error"
+    ],
+    "evidence": "______________ ERROR collecting supervisor/tests/test_process.py _______________",
+    "reward": 0.0,
+    "exception": null
+   }
+  },
+  "har115-diag-001618": {
+   "task_id": "format-code-task-001618",
+   "trial": "har115-diag-001618__BxyScSU",
+   "listing": [
+    "== cwd /testbed; PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "== which -a python: /usr/local/bin/python ",
+    "== which -a python3: /usr/local/bin/python3 /usr/bin/python3 /bin/python3 ",
+    "== which -a pytest: /usr/local/bin/pytest ",
+    "== which -a pip: /usr/local/bin/pip ",
+    "== which -a pip3: /usr/local/bin/pip3 ",
+    "== which -a conda: ",
+    "== which -a uv: ",
+    "== login-shell PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "== /usr/bin/python3: 3.13.5 {'pytest': None, 'piptools': '/testbed/piptools/__init__.py', 'setuptools': None, 'Cython': None}",
+    "== /usr/bin/python3.13: 3.13.5 {'pytest': None, 'piptools': '/testbed/piptools/__init__.py', 'setuptools': None, 'Cython': None}",
+    "== /usr/local/bin/python: 3.9.23 {'pytest': '/usr/local/lib/python3.9/site-packages/pytest/__init__.py', 'piptools': '/testbed/piptools/__init__.py', 'setuptools': '/usr/local/lib/python3.9/site-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/local/bin/python3: 3.9.23 {'pytest': '/usr/local/lib/python3.9/site-packages/pytest/__init__.py', 'piptools': '/testbed/piptools/__init__.py', 'setuptools': '/usr/local/lib/python3.9/site-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/local/bin/python3.9: 3.9.23 {'pytest': '/usr/local/lib/python3.9/site-packages/pytest/__init__.py', 'piptools': '/testbed/piptools/__init__.py', 'setuptools': '/usr/local/lib/python3.9/site-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/share/gdb/auto-load/usr/local/bin/python3.9-gdb.py: /solution/solve.sh: line 20: /usr/share/gdb/auto-load/usr/local/bin/python3.9-gdb.py: cannot execute: required file not found",
+    "== /var/lib/dpkg/info/python3.13-minimal.preinst: preinst called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.13-minimal.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.13.prerm: prerm called with unknown argument `-'",
+    "== pytest executables:",
+    "/usr/local/bin/pytest",
+    "== git status --ignored (top 30):"
+   ],
+   "extra": [
+    "Traceback (most recent call last):",
+    "  File \"/usr/local/lib/python3.9/runpy.py\", line 197, in _run_module_as_main",
+    "    return _run_code(code, main_globals, None,",
+    "  File \"/usr/local/lib/python3.9/runpy.py\", line 87, in _run_code",
+    "    exec(code, run_globals)",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/__main__.py\", line 23, in <module>",
+    "    from pip._internal.cli.main import main as _main  # isort:skip # noqa",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/_internal/cli/main.py\", line 10, in <module>",
+    "    from pip._internal.cli.autocompletion import autocomplete",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/_internal/cli/autocompletion.py\", line 9, in <module>",
+    "    from pip._internal.cli.main_parser import create_main_parser",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/_internal/cli/main_parser.py\", line 7, in <module>",
+    "    from pip._internal.cli import cmdoptions",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/_internal/cli/cmdoptions.py\", line 23, in <module>",
+    "    from pip._internal.cli.progress_bars import BAR_TYPES",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/_internal/cli/progress_bars.py\", line 12, in <module>",
+    "    from pip._internal.utils.logging import get_indentation",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/_internal/utils/logging.py\", line 18, in <module>",
+    "    from pip._internal.utils.misc import ensure_dir",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/_internal/utils/misc.py\", line 33, in <module>",
+    "    from pip._internal.locations import (",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/_internal/locations/__init__.py\", line 14, in <module>",
+    "    from . import _sysconfig",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/_internal/locations/_sysconfig.py\", line 7, in <module>",
+    "    from pip._internal.exceptions import InvalidSchemeCombination, UserInstallationInvalid",
+    "ImportError: cannot import name 'InvalidSchemeCombination' from 'pip._internal.exceptions' (/usr/local/lib/python3.9/site-packages/pip/_internal/exceptions.py)",
+    "/usr/bin/python3: No module named pip",
+    "/bin/python3: No module named pip",
+    "Traceback (most recent call last):",
+    "  File \"/usr/local/lib/python3.9/runpy.py\", line 197, in _run_module_as_main",
+    "    return _run_code(code, main_globals, None,",
+    "  File \"/usr/local/lib/python3.9/runpy.py\", line 87, in _run_code",
+    "    exec(code, run_globals)",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/__main__.py\", line 23, in <module>",
+    "    from pip._internal.cli.main import main as _main  # isort:skip # noqa",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/_internal/cli/main.py\", line 10, in <module>",
+    "    from pip._internal.cli.autocompletion import autocomplete",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/_internal/cli/autocompletion.py\", line 9, in <module>",
+    "    from pip._internal.cli.main_parser import create_main_parser",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/_internal/cli/main_parser.py\", line 7, in <module>",
+    "    from pip._internal.cli import cmdoptions",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/_internal/cli/cmdoptions.py\", line 23, in <module>",
+    "    from pip._internal.cli.progress_bars import BAR_TYPES",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/_internal/cli/progress_bars.py\", line 12, in <module>",
+    "    from pip._internal.utils.logging import get_indentation",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/_internal/utils/logging.py\", line 18, in <module>",
+    "    from pip._internal.utils.misc import ensure_dir",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/_internal/utils/misc.py\", line 33, in <module>",
+    "    from pip._internal.locations import (",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/_internal/locations/__init__.py\", line 14, in <module>",
+    "    from . import _sysconfig",
+    "  File \"/usr/local/lib/python3.9/site-packages/pip/_internal/locations/_sysconfig.py\", line 7, in <module>",
+    "    from pip._internal.exceptions import InvalidSchemeCombination, UserInstallationInvalid",
+    "ImportError: cannot import name 'InvalidSchemeCombination' from 'pip._internal.exceptions' (/usr/local/lib/python3.9/site-packages/pip/_internal/exceptions.py)"
+   ],
+   "graded": {
+    "job": "har115-diag-001618",
+    "trial": "har115-diag-001618__BxyScSU",
+    "label": "broken_environment",
+    "reasons": [
+     "setup_error"
+    ],
+    "evidence": "ImportError while loading conftest '/testbed/tests/conftest.py'.",
+    "reward": 0.0,
+    "exception": null
+   }
+  },
+  "har115-diag-002191": {
+   "task_id": "format-code-task-002191",
+   "trial": "har115-diag-002191__WjeS6tD",
+   "listing": [
+    "== cwd /testbed; PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "== which -a python: /usr/bin/python /bin/python ",
+    "== which -a python3: /usr/bin/python3 /bin/python3 ",
+    "== which -a pytest: ",
+    "== which -a pip: /usr/bin/pip /bin/pip ",
+    "== which -a pip3: /usr/bin/pip3 /bin/pip3 ",
+    "== which -a conda: ",
+    "== which -a uv: ",
+    "== login-shell PATH: /testbed/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "== /testbed/.venv/bin/python: 3.11.15 {'pytest': '/testbed/.venv/lib/python3.11/site-packages/pytest/__init__.py', 'OpenSSL': '/testbed/.venv/lib/python3.11/site-packages/OpenSSL/__init__.py', 'setuptools': '/testbed/.venv/lib/python3.11/site-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/bin/python: 3.11.15 {'pytest': None, 'OpenSSL': None, 'setuptools': '/usr/local/lib/python3.11/dist-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/bin/python3: 3.11.15 {'pytest': None, 'OpenSSL': None, 'setuptools': '/usr/local/lib/python3.11/dist-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/bin/python3.11: 3.11.15 {'pytest': None, 'OpenSSL': None, 'setuptools': '/usr/local/lib/python3.11/dist-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/bin/python3.12: Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth:",
+    "== /usr/bin/python3.12: ",
+    "== /usr/bin/python3.12:   Traceback (most recent call last):",
+    "== /usr/bin/python3.12:     File \"<frozen site>\", line 201, in addpackage",
+    "== /usr/bin/python3.12:     File \"<string>\", line 1, in <module>",
+    "== /usr/bin/python3.12:   ModuleNotFoundError: No module named '_distutils_hack'",
+    "== /usr/bin/python3.12: ",
+    "== /usr/bin/python3.12: Remainder of file ignored",
+    "== /usr/bin/python3.12: 3.12.3 {'pytest': None, 'OpenSSL': None, 'setuptools': None, 'Cython': None}",
+    "== /usr/bin/python3.13: Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth:",
+    "== /usr/bin/python3.13: ",
+    "== /usr/bin/python3.13:   Traceback (most recent call last):",
+    "== /usr/bin/python3.13:     File \"<frozen site>\", line 213, in addpackage",
+    "== /usr/bin/python3.13:     File \"<string>\", line 1, in <module>",
+    "== /usr/bin/python3.13:   ModuleNotFoundError: No module named '_distutils_hack'",
+    "== /usr/bin/python3.13: ",
+    "== /usr/bin/python3.13: Remainder of file ignored",
+    "== /usr/bin/python3.13: 3.13.13 {'pytest': None, 'OpenSSL': None, 'setuptools': None, 'Cython': None}",
+    "== /usr/bin/python3.14: 3.14.5 {'pytest': None, 'OpenSSL': None, 'setuptools': '/usr/local/lib/python3.14/dist-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /var/lib/dpkg/info/python3.11-minimal.preinst: preinst called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.11-minimal.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.11-venv.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.11.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12-minimal.preinst: preinst called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12-minimal.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12-venv.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.13-venv.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.13.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.14-venv.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.14.prerm: prerm called with unknown argument `-'",
+    "== pytest executables:",
+    "/testbed/.venv/bin/pytest",
+    "== git status --ignored (top 30):",
+    "?? .venv/",
+    "!! .venv/lib/python3.11/site-packages/OpenSSL/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/_pytest/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/_pytest/_code/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/_pytest/_io/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/_pytest/_py/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/_pytest/assertion/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/_pytest/config/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/_pytest/mark/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/cffi/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/cryptography/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/cryptography/hazmat/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/cryptography/hazmat/asn1/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/cryptography/hazmat/backends/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/cryptography/hazmat/backends/openssl/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/cryptography/hazmat/bindings/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/cryptography/hazmat/bindings/openssl/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/cryptography/hazmat/decrepit/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/cryptography/hazmat/decrepit/ciphers/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/cryptography/hazmat/primitives/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/cryptography/hazmat/primitives/asymmetric/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/cryptography/hazmat/primitives/ciphers/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/cryptography/hazmat/primitives/kdf/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/cryptography/hazmat/primitives/serialization/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/cryptography/hazmat/primitives/twofactor/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/cryptography/x509/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/iniconfig/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/packaging/__pycache__/",
+    "!! .venv/lib/python3.11/site-packages/packaging/licenses/__pycache__/"
+   ],
+   "extra": [
+    "cryptography      48.0.0",
+    "pyOpenSSL         26.2.0"
+   ],
+   "graded": {
+    "job": "har115-diag-002191",
+    "trial": "har115-diag-002191__WjeS6tD",
+    "label": "broken_environment",
+    "reasons": [
+     "setup_error"
+    ],
+    "evidence": "ImportError: cannot import name 'tsafe' from 'OpenSSL' (/testbed/.venv/lib/python3.11/site-packages/OpenSSL/__init__.py)",
+    "reward": 0.0,
+    "exception": null
+   }
+  },
+  "har115-diag2-000393": {
+   "task_id": "format-code-task-000393",
+   "trial": "har115-diag2-000393__TpJsPsN",
+   "listing": [
+    "== cwd /testbed; PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "== which -a python: /usr/local/bin/python ",
+    "== which -a python3: /usr/local/bin/python3 /usr/bin/python3 /bin/python3 ",
+    "== which -a pytest: /usr/local/bin/pytest ",
+    "== which -a pip: /usr/local/bin/pip ",
+    "== which -a pip3: /usr/local/bin/pip3 ",
+    "== which -a conda: ",
+    "== which -a uv: ",
+    "== login-shell PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "== /usr/bin/python3: 3.11.2 {'pytest': None, 'molecule': None, 'setuptools': None, 'Cython': None}",
+    "== /usr/bin/python3.11: 3.11.2 {'pytest': None, 'molecule': None, 'setuptools': None, 'Cython': None}",
+    "== /usr/local/bin/python: 3.8.20 {'pytest': '/usr/local/lib/python3.8/site-packages/pytest/__init__.py', 'molecule': '/testbed/src/molecule/__init__.py', 'setuptools': '/usr/local/lib/python3.8/site-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/local/bin/python3: 3.8.20 {'pytest': '/usr/local/lib/python3.8/site-packages/pytest/__init__.py', 'molecule': '/testbed/src/molecule/__init__.py', 'setuptools': '/usr/local/lib/python3.8/site-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/local/bin/python3.8: 3.8.20 {'pytest': '/usr/local/lib/python3.8/site-packages/pytest/__init__.py', 'molecule': '/testbed/src/molecule/__init__.py', 'setuptools': '/usr/local/lib/python3.8/site-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/share/gdb/auto-load/usr/local/bin/python3.8-gdb.py: /solution/solve.sh: line 20: /usr/share/gdb/auto-load/usr/local/bin/python3.8-gdb.py: cannot execute: required file not found",
+    "== /var/lib/dpkg/info/python3.11-minimal.preinst: preinst called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.11-minimal.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.11.prerm: prerm called with unknown argument `-'",
+    "== pytest executables:",
+    "/usr/local/bin/pytest",
+    "== git status --ignored (top 30):"
+   ],
+   "extra": [
+    "ansible-base               2.10.8",
+    "ansible-lint               5.0.7",
+    "molecule-docker            0.3.3",
+    "molecule-podman            0.3.0",
+    "\u001b[31mE\u001b[0m",
+    "==================================== ERRORS ====================================",
+    "\u001b[31m\u001b[1m_________________ ERROR at setup of test_config_private_member _________________\u001b[0m",
+    "",
+    "molecule_file_fixture = '/tmp/pytest-of-root/pytest-0/test_config_private_member0/BDGKU/molecule/default/molecule.yml'",
+    "molecule_data = {'dependency': {'name': 'galaxy'}, 'driver': {'name': 'delegated', 'options': {'managed': True}}, 'platforms': [{'chil...'], 'name': 'instance-2'}], 'provisioner': {'config_options': {}, 'name': 'ansible', 'options': {'become': True}}, ...}",
+    "request = <SubRequest 'config_instance' for <Function test_config_private_member>>",
+    "",
+    "    \u001b[37m@pytest\u001b[39;49;00m.fixture",
+    "--",
+    "",
+    "------------------------------ Captured log setup ------------------------------",
+    "\u001b[31mCRITICAL\u001b[0m molecule.util:util.py:110 Failed to pre-validate.",
+    "",
+    "{'driver': [{'name': ['unallowed value delegated']}], 'verifier': [{'name': ['unallowed value ansible']}]}",
+    "============================= slowest 10 durations =============================",
+    "0.12s setup    src/molecule/test/unit/provisioner/test_ansible.py::test_config_private_member",
+    "",
+    "(1 durations < 0.005s hidden.  Use -vv to show these durations.)",
+    "=========================== short test summary info ============================",
+    "ERROR src/molecule/test/unit/provisioner/test_ansible.py::test_config_private_member",
+    "\u001b[31m!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!\u001b[0m",
+    "\u001b[31m\u001b[31m\u001b[1m1 error\u001b[0m\u001b[31m in 0.33s\u001b[0m\u001b[0m"
+   ],
+   "graded": {
+    "job": "har115-diag2-000393",
+    "trial": "har115-diag2-000393__TpJsPsN",
+    "label": "broken_environment",
+    "reasons": [
+     "setup_error"
+    ],
+    "evidence": "_______ ERROR at setup of test_default_env_double_nested_does_not_raise ________",
+    "reward": 0.0,
+    "exception": null
+   }
+  },
+  "har115-diag2-001176": {
+   "task_id": "format-code-task-001176",
+   "trial": "har115-diag2-001176__SdU2pnx",
+   "listing": [
+    "== cwd /testbed; PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "== which -a python: /usr/bin/python /bin/python ",
+    "== which -a python3: /usr/bin/python3 /bin/python3 ",
+    "== which -a pytest: ",
+    "== which -a pip: /usr/bin/pip /bin/pip ",
+    "== which -a pip3: /usr/bin/pip3 /bin/pip3 ",
+    "== which -a conda: ",
+    "== which -a uv: ",
+    "== login-shell PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "== /usr/bin/python: 3.11.15 {'pytest': None, 'bzt': '/testbed/bzt/__init__.py', 'setuptools': '/usr/local/lib/python3.11/dist-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/bin/python3: 3.11.15 {'pytest': None, 'bzt': '/testbed/bzt/__init__.py', 'setuptools': '/usr/local/lib/python3.11/dist-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/bin/python3.11: 3.11.15 {'pytest': None, 'bzt': '/testbed/bzt/__init__.py', 'setuptools': '/usr/local/lib/python3.11/dist-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/bin/python3.12: Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth:",
+    "== /usr/bin/python3.12: ",
+    "== /usr/bin/python3.12:   Traceback (most recent call last):",
+    "== /usr/bin/python3.12:     File \"<frozen site>\", line 201, in addpackage",
+    "== /usr/bin/python3.12:     File \"<string>\", line 1, in <module>",
+    "== /usr/bin/python3.12:   ModuleNotFoundError: No module named '_distutils_hack'",
+    "== /usr/bin/python3.12: ",
+    "== /usr/bin/python3.12: Remainder of file ignored",
+    "== /usr/bin/python3.12: 3.12.3 {'pytest': None, 'bzt': '/testbed/bzt/__init__.py', 'setuptools': None, 'Cython': None}",
+    "== /usr/bin/python3.13: Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth:",
+    "== /usr/bin/python3.13: ",
+    "== /usr/bin/python3.13:   Traceback (most recent call last):",
+    "== /usr/bin/python3.13:     File \"<frozen site>\", line 213, in addpackage",
+    "== /usr/bin/python3.13:     File \"<string>\", line 1, in <module>",
+    "== /usr/bin/python3.13:   ModuleNotFoundError: No module named '_distutils_hack'",
+    "== /usr/bin/python3.13: ",
+    "== /usr/bin/python3.13: Remainder of file ignored",
+    "== /usr/bin/python3.13: 3.13.13 {'pytest': None, 'bzt': '/testbed/bzt/__init__.py', 'setuptools': None, 'Cython': None}",
+    "== /usr/bin/python3.14: Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth:",
+    "== /usr/bin/python3.14: ",
+    "== /usr/bin/python3.14:   Traceback (most recent call last):",
+    "== /usr/bin/python3.14:     File \"<frozen site>\", line 219, in addpackage",
+    "== /usr/bin/python3.14:     File \"<string>\", line 1, in <module>",
+    "== /usr/bin/python3.14:   ModuleNotFoundError: No module named '_distutils_hack'",
+    "== /usr/bin/python3.14: ",
+    "== /usr/bin/python3.14: Remainder of file ignored",
+    "== /usr/bin/python3.14: 3.14.5 {'pytest': None, 'bzt': '/testbed/bzt/__init__.py', 'setuptools': None, 'Cython': None}",
+    "== /var/lib/dpkg/info/python3.11-minimal.preinst: preinst called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.11-minimal.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.11-venv.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.11.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12-minimal.preinst: preinst called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12-minimal.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12-venv.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.12.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.13-venv.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.13.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.14-venv.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.14.prerm: prerm called with unknown argument `-'",
+    "== pytest executables:",
+    "== git status --ignored (top 30):",
+    "!! .venv/"
+   ],
+   "extra": [
+    "/root/.bashrc: line 6: /testbed/.venv/bin/activate: No such file or directory",
+    "PYTHONPATH=/testbed:",
+    "/usr/bin/python",
+    "/testbed/bzt/__init__.py",
+    "Dockerfile",
+    "Jenkinsfile",
+    "LICENSE",
+    "MANIFEST.in",
+    "NOTICE",
+    "README.md",
+    "appveyor.yml",
+    "build-artifacts.bash",
+    "build-sdist.sh",
+    "build-windows-installer.sh",
+    "bzt",
+    "cli-bza.png",
+    "dockerized-release.sh",
+    "dotnet",
+    "examples",
+    "profiled-test.sh",
+    "pull_request_template.md",
+    "release.bash",
+    "requirements.txt",
+    "scripts",
+    "setup.cfg",
+    "setup.py",
+    "site",
+    "sonar-project.properties",
+    "tests",
+    "/testbed/bzt",
+    "WARNING: Package(s) not found: bzt"
+   ],
+   "graded": {
+    "job": "har115-diag2-001176",
+    "trial": "har115-diag2-001176__SdU2pnx",
+    "label": "broken_environment",
+    "reasons": [
+     "setup_error"
+    ],
+    "evidence": "ModuleNotFoundError: No module named 'bzt'",
+    "reward": 0.0,
+    "exception": null
+   }
+  },
+  "har115-diag2-001618": {
+   "task_id": "format-code-task-001618",
+   "trial": "har115-diag2-001618__7afrFfu",
+   "listing": [
+    "== cwd /testbed; PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "== which -a python: /usr/local/bin/python ",
+    "== which -a python3: /usr/local/bin/python3 /usr/bin/python3 /bin/python3 ",
+    "== which -a pytest: /usr/local/bin/pytest ",
+    "== which -a pip: /usr/local/bin/pip ",
+    "== which -a pip3: /usr/local/bin/pip3 ",
+    "== which -a conda: ",
+    "== which -a uv: ",
+    "== login-shell PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "== /usr/bin/python3: 3.13.5 {'pytest': None, 'pip': None, 'setuptools': None, 'Cython': None}",
+    "== /usr/bin/python3.13: 3.13.5 {'pytest': None, 'pip': None, 'setuptools': None, 'Cython': None}",
+    "== /usr/local/bin/python: 3.9.23 {'pytest': '/usr/local/lib/python3.9/site-packages/pytest/__init__.py', 'pip': '/usr/local/lib/python3.9/site-packages/pip/__init__.py', 'setuptools': '/usr/local/lib/python3.9/site-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/local/bin/python3: 3.9.23 {'pytest': '/usr/local/lib/python3.9/site-packages/pytest/__init__.py', 'pip': '/usr/local/lib/python3.9/site-packages/pip/__init__.py', 'setuptools': '/usr/local/lib/python3.9/site-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/local/bin/python3.9: 3.9.23 {'pytest': '/usr/local/lib/python3.9/site-packages/pytest/__init__.py', 'pip': '/usr/local/lib/python3.9/site-packages/pip/__init__.py', 'setuptools': '/usr/local/lib/python3.9/site-packages/setuptools/__init__.py', 'Cython': None}",
+    "== /usr/share/gdb/auto-load/usr/local/bin/python3.9-gdb.py: /solution/solve.sh: line 20: /usr/share/gdb/auto-load/usr/local/bin/python3.9-gdb.py: cannot execute: required file not found",
+    "== /var/lib/dpkg/info/python3.13-minimal.preinst: preinst called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.13-minimal.prerm: prerm called with unknown argument `-'",
+    "== /var/lib/dpkg/info/python3.13.prerm: prerm called with unknown argument `-'",
+    "== pytest executables:",
+    "/usr/local/bin/pytest",
+    "== git status --ignored (top 30):"
+   ],
+   "extra": [
+    "/usr/local/lib/python3.9/site-packages/pip",
+    "/usr/local/lib/python3.9/site-packages/pip-20.2.4.dist-info",
+    "/usr/local/lib/python3.9/site-packages/pip-tools.egg-link",
+    "Version: 20.2.4",
+    "2:pip-tools keeps your pinned dependencies fresh.",
+    "16:    name=\"pip-tools\",",
+    "18:    url=\"https://github.com/jazzband/pip-tools/\",",
+    "33:            \"pip-compile = piptools.scripts.compile:cli\",",
+    "34:            \"pip-sync = piptools.scripts.sync:cli\",",
+    "Sun Feb 2 07:49:24 2020 +0600"
+   ],
+   "graded": {
+    "job": "har115-diag2-001618",
+    "trial": "har115-diag2-001618__7afrFfu",
+    "label": "broken_environment",
+    "reasons": [
+     "setup_error"
+    ],
+    "evidence": "ImportError while loading conftest '/testbed/tests/conftest.py'.",
+    "reward": 0.0,
+    "exception": null
+   }
+  }
+ },
+ "renop": {
+  "har115-nop-002649": {
+   "job": "har115-nop-002649",
+   "trial": "har115-nop-002649__hmaagRi",
+   "label": "sound",
+   "reasons": [],
+   "evidence": "nop graded with reward 0",
+   "reward": 0.0,
+   "exception": null
+  }
+ }
+}

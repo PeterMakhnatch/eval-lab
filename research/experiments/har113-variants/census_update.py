@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Rebuild HAR-108's Python census with this card's nops.
+"""Rebuild HAR-108's Python census with HAR-113's and HAR-115's nops.
 
 1. ``evallab tasks qualify-collect`` over every nop job the census has used
-   (HAR-104's ``mimo-qual-*``, HAR-95, HAR-105, HAR-108) plus this card's
+   (HAR-104's ``mimo-qual-*``, HAR-95, HAR-105, HAR-108) plus HAR-113's
    ``har113-nop-*`` (originals), ``har113-vnop-*`` and ``har113-rnop-*``
-   (variants), rewriting the shared catalog's ``task_qualification.parquet``.
-   Oracle probes and diagnoses (``har113-probe-*``, ``har113-diag*``) are not
-   nops and stay out.
+   (variants, in its locked worktree) and HAR-115's ``har115-nop-*`` and
+   ``har115-rnop-*`` (this checkout), rewriting the shared catalog's
+   ``task_qualification.parquet``. Oracle probes and diagnoses
+   (``*-probe-*``, ``*-diag*``) are not nops and stay out.
 2. ``evallab tasks health-collect`` over HAR-108's pool into
    ``research/experiments/har108-python-census/task_health.parquet`` and its
    ``SUMMARY.md``. Variant nops carry variant digests, which are not in the
@@ -45,7 +46,8 @@ PATTERNS = {
     runs_of("har105-taskfix-20260929"): (),
     runs_of("har105-python-20260930"): ("har105-qual-py-*",),
     runs_of("har108-census-20260930"): ("har108-nop-*",),
-    ROOT / "runs": ("har113-nop-*", "har113-vnop-*", "har113-rnop-*"),
+    runs_of("har113-variants-20260930"): ("har113-nop-*", "har113-vnop-*", "har113-rnop-*"),
+    ROOT / "runs": ("har115-nop-*", "har115-rnop-*"),
 }
 FIXES = WORKTREES / "har105-taskfix-20260929/research/experiments/har105-exploration/fixes.json"
 

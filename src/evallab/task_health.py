@@ -31,6 +31,7 @@ from evallab.hidden_patch import (
     imported_modules as patch_imported_modules,
 )
 from evallab.task_qualification import (
+    _INSTALLED_PATH,
     STARTUP_NOISE,
     _latest_key,
     _trial_reward_file,
@@ -109,14 +110,33 @@ _GIT_HEADER = re.compile(
 
 #: Root causes, read only from raised-error lines (``…Error: …``): a warning
 #: that mentions a missing optional module (colour's ``ColourUsageWarning``
-#: about matplotlib) names no cause.
+#: about matplotlib) names no cause. The name quotes are optional: 001981's
+#: pytest prints ``cannot import name STAGE_JOBS`` with none.
 _CANNOT_IMPORT_NAME = re.compile(
-    r"Error\b[^\n]*?cannot import name '(?P<name>[^']+)'"
+    r"Error\b[^\n]*?cannot import name '?(?P<name>\w+)'?"
     r"(?: from '(?P<module>[\w.]+)'(?: \((?P<path>[^)]*)\))?)?"
 )
 _NO_MODULE = re.compile(r"Error\b[^\n]*?No module named '(?P<module>[^']+)'")
+#: ``import of lzma halted; None in sys.modules``: a test that planted
+#: ``sys.modules['lzma'] = None`` so the import fails on purpose (002207).
+_HALTED_IMPORT = re.compile(
+    r"Error\b[^\n]*?import of (?P<module>\w+) halted; None in sys\.modules"
+)
+#: A file the tests load by a literal path that does not exist yet (000211's
+#: ``spec_from_file_location`` of the module the instruction asks for).
+_MISSING_FILE = re.compile(
+    r"FileNotFoundError\b[^\n]*?No such file or directory: '(?P<path>[^']+\.py)'"
+)
 _NO_ATTRIBUTE = re.compile(
     r"Error\b[^\n]*?module '(?P<module>[\w.]+)' has no attribute '(?P<name>\w+)'"
+)
+#: ``mock.patch.object`` failing on a missing attribute, whose message names
+#: the module only inside its repr: ``<module 'pre_commit.languages.docker'
+#: from '/testbed/…/docker.py'> does not have the attribute
+#: '_get_container_id'`` (002307).
+_PATCH_ATTRIBUTE = re.compile(
+    r"Error\b[^\n]*?<module '(?P<module>[\w.]+)' from '(?P<path>[^']+)'>"
+    r" does not have the attribute '(?P<name>\w+)'"
 )
 #: A test helper looking up the function under test by name (ivy's
 #: ``_import_fn``, 001601); only ever excused when the instruction names it.
@@ -142,10 +162,115 @@ def utc_now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def patch_added_text(task_dir: Path) -> str:
+    """The hidden patch's added source lines, joined.
+
+    Evidence for a name the task defines but the instruction never states:
+    001860 adds ``RoomGuestAccessEvent`` inside an existing parenthesised
+    import whose ``from`` line is outside every hunk, so only the added name
+    is visible, and 002307's tests call ``docker._get_container_id``. A patch
+    that cannot be read contributes nothing.
+    """
+    try:
+        patch_text = (task_dir / "tests" / "test.patch").read_text(
+            encoding="utf-8", errors="replace"
+        )
+    except OSError:
+        return ""
+    return "\n".join(
+        line
+        for path, section in patch_sections(patch_text)
+        if Path(path).name not in HARNESS_FILES and path.endswith(".py")
+        for line in added_lines(section)
+    )
+
+
+def _workspace_path(path: str | None) -> bool:
+    """A traceback path in the task workspace, not an installed package."""
+    return bool(path) and _INSTALLED_PATH.search(path) is None and (
+        not path.startswith("/") or path.startswith(("/testbed/", "/app/", "/workspace/"))
+    )
+
+
+def _relative_workspace_path(path: str) -> str:
+    """``path`` with a workspace root prefix removed.
+
+    ``str.lstrip`` would not do: its argument is a set of characters, so it
+    would eat the leading slash and hide the ``/testbed/`` root.
+    """
+    normalized = path.removeprefix("./")
+    for root in ("/testbed/", "/app/", "/workspace/"):
+        if normalized.startswith(root):
+            return normalized[len(root) :]
+    return normalized
+
+
+def _instruction_names_module(module: str, path: str, instruction: str) -> bool:
+    """The instruction names the module or the file the name is missing from.
+
+    001860's instruction says the feature belongs to ``nio``; 002307's names
+    the file (``pre_commit/languages/docker.py``) rather than the dotted
+    module, so either is enough.
+    """
+    if _word_in(instruction, module.split(".")[0]):
+        return True
+    relative = _relative_workspace_path(path)
+    return bool(relative) and relative in instruction
+
+
+def _name_is_missing_work(
+    name: str,
+    module: str | None,
+    path: str | None,
+    instruction: str | None,
+    projects: Collection[str],
+    patch_added: str,
+) -> bool:
+    """A missing name that is the feature the task asks the agent to add.
+
+    The qualification rules cover a name the instruction states as a word and
+    a name missing from a known project module. Beyond those, the hidden
+    patch is evidence the task defines the name: its added lines reference it,
+    it is missing from the task's own code rather than an installed package,
+    and the instruction names that module or its file (001860's
+    ``RoomGuestAccessEvent`` from ``nio.events``; 002307's
+    ``_get_container_id`` on ``pre_commit.languages.docker``).
+    """
+    if missing_name_is_task_work(name, module, path, instruction, projects):
+        return True
+    if module is None or not patch_added or not instruction or not _word_in(patch_added, name):
+        return False
+    # A traceback path decides: the task's own tree is missing work, an
+    # installed package is the environment. With no path, only a module that
+    # is not a known third-party or stdlib module can be the agent's work, so
+    # ``module 'django.db' has no attribute 'X'`` stays an environment defect.
+    if path is not None:
+        if not _workspace_path(path):
+            return False
+    elif excluded_module(module.split(".")[0]):
+        return False
+    return _instruction_names_module(module, path or "", instruction)
+
+
+def _file_is_missing_work(path: str, instruction: str | None) -> bool:
+    """A missing ``.py`` file whose path the instruction names (000211).
+
+    The whole path, or its dotted module form, must appear in the
+    instruction, so a missing file the task never mentions stays an
+    environment defect.
+    """
+    if not instruction:
+        return False
+    normalized = _relative_workspace_path(path)
+    dotted = normalized[: -len(".py")].replace("/", ".") if normalized.endswith(".py") else ""
+    return normalized in instruction or bool(dotted) and dotted in instruction
+
+
 def setup_error_excused(
     stdout_texts: Sequence[str],
     instruction: str | None,
     project_modules: Collection[str] = frozenset(),
+    patch_added: str = "",
 ) -> bool:
     """True when every ``SETUP_ERROR`` root cause is the agent's missing work.
 
@@ -157,6 +282,13 @@ def setup_error_excused(
     project modules the hidden tests import (001832's ``rename`` is named by
     the instruction; 000700's ``cannot import name 'delta_E_HyAB' from
     'colour.difference' (/testbed/…)`` is the project's own missing code).
+    The same judgement covers three further shapes of the agent's own missing
+    work: an unquoted ``cannot import name`` (001981's ``STAGE_JOBS``), a
+    name the hidden patch imports from a workspace module (001860) or that
+    the patch and the instruction both describe (002307's
+    ``_get_container_id``), a ``.py`` file the instruction names that does
+    not exist yet (000211), and a stdlib import the tests themselves halt by
+    planting ``None`` in ``sys.modules`` (002207's ``lzma``).
     A grader collection failure
     (:func:`~evallab.task_qualification.detect_grader_collection_failure`)
     is never excused. Neither is a third-party module, an uncompiled
@@ -172,7 +304,9 @@ def setup_error_excused(
     ):
         return False
     combined = "\n".join(stdout_texts)
-    if not any(SETUP_ERROR.search(line) for line in combined.splitlines()):
+    if not any(
+        SETUP_ERROR.search(line) or _MISSING_FILE.search(line) for line in combined.splitlines()
+    ):
         return False
     missing_modules = [match.group("module") for match in _NO_MODULE.finditer(combined)]
     missing_names = (
@@ -184,16 +318,32 @@ def setup_error_excused(
             (match.group("name"), match.group("module"), None)
             for match in _NO_ATTRIBUTE.finditer(combined)
         ]
+        + [
+            (match.group("name"), match.group("module"), match.group("path"))
+            for match in _PATCH_ATTRIBUTE.finditer(combined)
+        ]
         + [(match.group("name"), None, None) for match in _KEY_ERROR.finditer(combined)]
     )
-    if not missing_modules and not missing_names:
+    missing_files = [match.group("path") for match in _MISSING_FILE.finditer(combined)]
+    halted = [match.group("module") for match in _HALTED_IMPORT.finditer(combined)]
+    if not missing_modules and not missing_names and not missing_files and not halted:
         return False
-    return all(
-        missing_module_is_task_work(module, instruction, project_modules)
-        for module in missing_modules
-    ) and all(
-        missing_name_is_task_work(name, module, path, instruction, project_modules)
-        for name, module, path in missing_names
+    return (
+        all(
+            missing_module_is_task_work(module, instruction, project_modules)
+            for module in missing_modules
+        )
+        and all(
+            _name_is_missing_work(name, module, path, instruction, project_modules, patch_added)
+            for name, module, path in missing_names
+        )
+        and all(_file_is_missing_work(path, instruction) for path in missing_files)
+        and all(
+            bool(instruction) and _word_in(instruction, module)
+            and module not in project_modules
+            and not any(part.startswith("_") for part in module.split("."))
+            for module in halted
+        )
     )
 
 
@@ -789,8 +939,25 @@ def _tests_ran(stdout: str) -> bool:
     return ran is not None and int(ran.group("n")) > 0
 
 
+def _setup_error_line(line: str, *, ran: bool, instruction: str | None) -> bool:
+    """A line that broke the run before grading.
+
+    A ``FileNotFoundError`` for a ``.py`` file counts only when the
+    instruction names that file (000211): the tests load the module the agent
+    must create by path, and the loader's traceback names no module. Any other
+    missing file is not a setup error, so it cannot change a label.
+    """
+    if SETUP_ERROR.search(line) or (not ran and _SETUP_ERROR_IF_NOTHING_RAN.search(line)):
+        return True
+    missing = _MISSING_FILE.search(line)
+    return missing is not None and _file_is_missing_work(missing.group("path"), instruction)
+
+
 def nop_evidence(
-    trial_dir: Path, instruction: str, project_modules: Collection[str] = frozenset()
+    trial_dir: Path,
+    instruction: str,
+    project_modules: Collection[str] = frozenset(),
+    patch_added: str = "",
 ) -> dict[str, Any]:
     """What one nop trial shows about the task's environment and grader.
 
@@ -802,7 +969,10 @@ def nop_evidence(
     ``last_line`` (the last such line), ``setup_error`` (first matching line,
     trimmed to 200 characters) and ``setup_error_excused``,
     ``exception_type``. The stdout is read without colour codes and without
-    interpreter start-up noise (``_distutils_hack``).
+    interpreter start-up noise (``_distutils_hack``). ``patch_added`` is the
+    hidden patch's added source (:func:`patch_added_text`); it is how a name
+    the instruction never states is still recognised as the agent's missing
+    work.
     """
     result = _read_result(trial_dir)
     stdout = _stdout_text(trial_dir)
@@ -822,7 +992,7 @@ def nop_evidence(
         (
             line
             for line in stdout.splitlines()
-            if SETUP_ERROR.search(line) or (not ran and _SETUP_ERROR_IF_NOTHING_RAN.search(line))
+            if _setup_error_line(line, ran=ran, instruction=instruction)
         ),
         None,
     )
@@ -840,7 +1010,7 @@ def nop_evidence(
         "last_line": _trim(output_lines[-1]) if output_lines else None,
         "setup_error": _trim(matched) if matched else None,
         "setup_error_excused": bool(matched)
-        and setup_error_excused(texts, instruction, project_modules),
+        and setup_error_excused(texts, instruction, project_modules, patch_added),
         "exception_type": exception_type,
     }
 
@@ -1053,7 +1223,12 @@ def build_health_rows(
             else None
         )
         nop = (
-            nop_evidence(trial, _instruction_of(task_dir), project_modules(task_dir))
+            nop_evidence(
+                trial,
+                _instruction_of(task_dir),
+                project_modules(task_dir),
+                patch_added_text(task_dir),
+            )
             if trial is not None
             else None
         )

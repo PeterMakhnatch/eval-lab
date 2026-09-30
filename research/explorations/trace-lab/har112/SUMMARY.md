@@ -18,7 +18,7 @@ HAR-111's checker (v2) failed the gate. Its wrong "broken" calls were all names 
 
 Frozen at 2026-09-30T07:57:55Z ([`checker_v3.sha256`](checker_v3.sha256): v3 code, the extractor, and the HAR-111 modules it imports), before any holdout scoring. The one later change is a lint fix to `repo_extract.py` for `make check`: it removed an unused import and renamed a loop variable, with no change in behaviour. The manifest lists both the as-run hash (`repo_extract.py.as_run`) and the committed one.
 
-Disclosure: the rater agents' one-line label lists for 5 of the 8 batches reached me a few minutes before this freeze. I made no checker change between seeing them and freezing. The last change, the broken-only cascade, went in before any holdout label existed.
+Disclosure: the rater agents' one-line label lists for 6 of the 8 batches (one of them partial) reached me a few minutes before this freeze. I made no checker change between seeing them and freezing. The last change, the broken-only cascade, went in before any holdout label existed.
 
 ## Fresh holdout
 

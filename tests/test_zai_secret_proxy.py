@@ -1495,13 +1495,6 @@ def test_proxy_sse_reflected_credentials_stay_redacted(
             "charset",
             "iso-8859-1",
         ),
-        (
-            {"Content-Type": f"text/html; charset={SECRET_SENTINEL}"},
-            503,
-            "unsupported_content_type",
-            "media_type",
-            "text/html",
-        ),
     ],
 )
 def test_rejected_response_retains_safe_diagnosis_without_refunding(
@@ -1577,6 +1570,67 @@ def test_proxy_can_bind_only_loopback_from_environment(tmp_path, monkeypatch):
         monkeypatch.setenv("EVALLAB_ZAI_PROXY_BIND_HOST", "192.0.2.1")
         with pytest.raises(ValueError):
             module.serve(port=0)
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+
+def test_non_json_upstream_error_settles_with_fixed_body(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """HAR-114: a gateway-style 503 with a text/html body settles with zero
+    usage and forwards the status with a fixed body — never upstream bytes.
+    """
+
+    class GatewayErrorUpstream(BaseHTTPRequestHandler):
+        def log_message(self, *args: object) -> None:
+            del args
+
+        def do_POST(self) -> None:  # noqa: N802
+            length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(length)
+            body = (
+                b"<html><body>no healthy upstream " + SECRET_SENTINEL.encode() + b"</body></html>"
+            )
+            self.send_response(503)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("X-Private", SECRET_SENTINEL)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    usage_file = tmp_path / "usage.json"
+    proxy, upstream, base = _setup_proxy(
+        tmp_path / "proxy",
+        monkeypatch,
+        upstream_handler=GatewayErrorUpstream,
+        capability="valid-cap",
+        usage_file=usage_file,
+        max_requests=2,
+    )
+    try:
+        request = urllib.request.Request(
+            f"{base}/api/paas/v4/chat/completions",
+            data=b'{"model":"zai-coding-plan/glm-5.3-flash","messages":[]}',
+            headers={"Authorization": "Bearer valid-cap", "Content-Type": "application/json"},
+        )
+        with pytest.raises(urllib.error.HTTPError) as failure:
+            urllib.request.urlopen(request, timeout=5)
+        assert failure.value.code == 503
+        reply = failure.value.read()
+        assert SECRET_SENTINEL.encode() not in reply
+        assert b"no healthy upstream" not in reply
+        assert json.loads(reply)["code"] == 503
+        retained = usage_file.read_text()
+        assert SECRET_SENTINEL not in retained
+        usage = json.loads(retained)
+        call = usage["calls"][0]
+        assert call["state"] == "reconciled"
+        assert call["error"] == "upstream_error_503"
+        assert call["status"] == 503
+        assert call["input_tokens"] == 0
+        assert call["output_tokens"] == 0
+        assert usage["unresolved_requests"] == 0
     finally:
         proxy.shutdown()
         upstream.shutdown()

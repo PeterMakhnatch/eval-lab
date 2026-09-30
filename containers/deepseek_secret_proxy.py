@@ -35,6 +35,7 @@ ALLOWED_MODEL = "deepseek-flash"
 ALLOWED_PATH = "/v1/chat/completions"
 HEALTHZ_PATH = "/healthz"
 MAX_REQUEST_BYTES = 4 * 1024 * 1024
+MAX_RESPONSE_BYTES = 16 * 1024 * 1024
 PINNED_HTTPS_HOST = "api.deepseek.com"
 PINNED_HTTPS_PORT = 443
 ALLOWED_HTTP_HOSTS = frozenset(
@@ -175,12 +176,32 @@ def _canonicalize_and_redact_json(data: bytes, key: str) -> bytes:
             }
         return value
 
-    canonical = json.dumps(_scrub(payload), ensure_ascii=True, separators=(",", ":")).encode("ascii")
+    canonical = json.dumps(_scrub(payload), ensure_ascii=True, separators=(",", ":")).encode(
+        "ascii"
+    )
     sanitized = _redact_key(canonical, key)
     for needle in _key_needles(key):
         if needle in sanitized:
             raise ValueError("reflected secret remains")
     return sanitized
+
+
+def _upstream_error_body(status: int) -> bytes:
+    """Fixed error body for upstream failures with no trustworthy payload.
+
+    Upstream error pages are never forwarded: the caller gets the real
+    status with a fixed JSON body, so clients still map 4xx/5xx to their
+    retryable/non-retryable classes.
+    """
+    return json.dumps(
+        {
+            "object": "error",
+            "message": "upstream provider error",
+            "type": "upstream_error",
+            "code": status,
+        },
+        separators=(",", ":"),
+    ).encode("ascii")
 
 
 def _response_encoding_ok(headers: http.client.HTTPMessage) -> bool:
@@ -317,10 +338,7 @@ class TrialBudget:
             if self._output_tokens + output_tokens > self._limits["max_output_tokens"]:
                 return None
             if (
-                self._input_tokens
-                + self._output_tokens
-                + input_tokens
-                + output_tokens
+                self._input_tokens + self._output_tokens + input_tokens + output_tokens
                 > self._limits["max_total_tokens"]
             ):
                 return None
@@ -339,7 +357,8 @@ class TrialBudget:
                     "reasoning_effort": reasoning_effort,
                     "reasoning_effort_integer": (
                         REASONING_EFFORT_TIERS[reasoning_effort]
-                        if reasoning_effort is not None else None
+                        if reasoning_effort is not None
+                        else None
                     ),
                     "reasoning_effort_reason": (
                         "not_requested" if reasoning_effort is None else None
@@ -365,6 +384,7 @@ class TrialBudget:
         status: int,
         returned_model: Any = None,
         returned_model_reason: str | None = "response_not_observed",
+        error: str | None = None,
     ) -> None:
         if min(used_input, used_output, used_cost) < 0:
             raise ValueError("negative provider usage")
@@ -387,6 +407,7 @@ class TrialBudget:
                     "input_tokens": used_input,
                     "output_tokens": used_output,
                     "cost_micros": used_cost,
+                    **({"error": error} if error is not None else {}),
                 }
             )
             self._sequence += 1
@@ -470,6 +491,87 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(message)
 
+    def _read_upstream_body(self, response: Any) -> bytes | None:
+        content_length_hdr = response.headers.get("Content-Length")
+        declared_len: int | None = None
+        if content_length_hdr is not None:
+            try:
+                declared_len = int(content_length_hdr)
+                if declared_len < 0 or declared_len > MAX_RESPONSE_BYTES:
+                    return None
+            except ValueError:
+                return None
+        chunks: list[bytes] = []
+        total_read = 0
+        try:
+            while True:
+                chunk = response.read(65536)
+                if not chunk:
+                    break
+                total_read += len(chunk)
+                if total_read > MAX_RESPONSE_BYTES:
+                    return None
+                chunks.append(chunk)
+        except (OSError, http.client.HTTPException):
+            return None
+        if declared_len is not None and total_read != declared_len:
+            return None
+        return b"".join(chunks)
+
+    def _reject_json(self, status: int, body: bytes) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _settle_upstream_error(self, *, call_id: int, status: int, key: str, response: Any) -> None:
+        """Settle an upstream error status with explicit zero usage.
+
+        HAR-114: an error status is itself the signal that no model output
+        was produced, so a readable error body settles the call with zero
+        usage instead of leaving it unresolved and failing the run's
+        reconciliation. The provider's own JSON error (redacted) is
+        forwarded when it parses, otherwise a fixed body — never upstream
+        bytes. An unreadable or truncated error body stays unresolved.
+        """
+        upstream_body = self._read_upstream_body(response)
+        if upstream_body is None or b"\x00" in upstream_body:
+            self._budget().mark_unresolved(
+                call_id=call_id,
+                reason=f"upstream_error_{status}_body_unknown",
+            )
+            self._reject(502, b"provider unavailable\n")
+            return
+        sanitized_body: bytes | None = None
+        returned_model = None
+        returned_model_reason = "response_not_observed"
+        try:
+            sanitized_body = _canonicalize_and_redact_json(upstream_body, key)
+            upstream_payload = json.loads(sanitized_body.decode("ascii"))
+            if not isinstance(upstream_payload, dict):
+                raise ValueError("upstream payload is not an object")
+            returned_model = upstream_payload.get("model")
+            returned_model_reason = "model_absent_or_null" if returned_model is None else None
+            if "<redacted>" in json.dumps(returned_model):
+                returned_model = None
+                returned_model_reason = "model_redacted"
+        except (KeyError, TypeError, ValueError):
+            sanitized_body = None
+        reply = _upstream_error_body(status) if sanitized_body is None else sanitized_body
+        self._budget().reconcile(
+            call_id=call_id,
+            used_input=0,
+            used_output=0,
+            used_cost=0,
+            status=status,
+            returned_model=returned_model,
+            returned_model_reason=returned_model_reason,
+            error=f"upstream_error_{status}",
+        )
+        self._reject_json(status, reply)
+
     def do_GET(self) -> None:  # noqa: N802
         path = self.path.partition("?")[0]
         if path == HEALTHZ_PATH:
@@ -531,8 +633,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         reasoning_effort = payload.get("reasoning_effort")
         if "reasoning_effort" in payload and (
-            not isinstance(reasoning_effort, str)
-            or reasoning_effort not in REASONING_EFFORT_TIERS
+            not isinstance(reasoning_effort, str) or reasoning_effort not in REASONING_EFFORT_TIERS
         ):
             self._reject(400, b"reasoning_effort must be one of low, high, max\n")
             return
@@ -662,6 +763,17 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 self._reject(502, b"redirects disabled\n")
                 return
+            if status >= 400:
+                # The status itself proves no model output was produced, so
+                # error responses settle without trusting the body.
+                self._settle_upstream_error(
+                    call_id=call_id,
+                    status=status,
+                    key=key,
+                    response=response,
+                )
+                return
+
             if not _response_encoding_ok(response.headers):  # ty: ignore[invalid-argument-type]
                 self._budget().mark_unresolved(
                     call_id=call_id,
@@ -685,9 +797,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(upstream_payload, dict):
                     raise ValueError("upstream payload is not an object")
                 returned_model = upstream_payload.get("model")
-                returned_model_reason = (
-                    "model_absent_or_null" if returned_model is None else None
-                )
+                returned_model_reason = "model_absent_or_null" if returned_model is None else None
                 # Existing secret redaction still wins over identity capture.
                 if "<redacted>" in json.dumps(returned_model):
                     returned_model = None

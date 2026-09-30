@@ -201,9 +201,7 @@ def test_mimo_pinning_accepts_modal_and_loopback(
         "ftp://abc123.modal.run",
     ],
 )
-def test_mimo_pinning_refuses_non_modal(
-    monkeypatch: pytest.MonkeyPatch, upstream: str
-) -> None:
+def test_mimo_pinning_refuses_non_modal(monkeypatch: pytest.MonkeyPatch, upstream: str) -> None:
     module = _proxy_module()
     monkeypatch.setenv("EVALLAB_PROXY_PROVIDER", "mimo_selfhosted")
     monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_UPSTREAM", upstream)
@@ -231,8 +229,9 @@ class _MimoUpstream(BaseHTTPRequestHandler):
 
     protocol_version = "HTTP/1.1"
     seen: list[dict[str, Any]] = []
-    #: Scripted (status, JSON body) replies served before any success.
-    errors: list[tuple[int, dict[str, Any]]] = []
+    #: Scripted replies served before any success: (status, JSON body) or
+    #: (status, raw bytes, content type) for non-JSON upstream errors.
+    errors: list[Any] = []
     #: Seconds each reply takes, standing in for generation time.
     delay = 0.0
 
@@ -248,8 +247,13 @@ class _MimoUpstream(BaseHTTPRequestHandler):
         type(self).seen.append(body)
         time.sleep(type(self).delay)
         if type(self).errors:
-            status, error = type(self).errors.pop(0)
-            self._reply(status, json.dumps(error).encode(), content_type="application/json")
+            scripted = type(self).errors.pop(0)
+            if len(scripted) == 3:
+                status, raw, content_type = scripted
+                self._reply(status, raw, content_type=content_type)
+            else:
+                status, error = scripted
+                self._reply(status, json.dumps(error).encode(), content_type="application/json")
             return
         response = {
             "id": "cmpl-local",
@@ -262,9 +266,7 @@ class _MimoUpstream(BaseHTTPRequestHandler):
             200, json.dumps(response).encode(), content_type="application/json; charset=utf-8"
         )
 
-    def _reply(
-        self, status: int, body: bytes, content_type: str = "text/plain"
-    ) -> None:
+    def _reply(self, status: int, body: bytes, content_type: str = "text/plain") -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
@@ -497,23 +499,167 @@ def test_mimo_proxy_settles_a_usage_less_400_as_a_zero_usage_call(
         assert ledger["calls"][0]["input_tokens"] == 0
         assert ledger["calls"][0]["output_tokens"] == 0
 
-        status, _ = _post(endpoint, payload, capability=CAPABILITY_SENTINEL)
+        status, body = _post(endpoint, payload, capability=CAPABILITY_SENTINEL)
         assert status == 503
+        assert b"server overloaded" in body
     finally:
         process.terminate()
         process.wait(10)
 
     ledger = json.loads(usage_path.read_text())
-    # Only a 400 settles: other usage-less errors stay unresolved.
-    assert [call["state"] for call in ledger["calls"]] == ["reconciled", "unresolved"]
-    assert ledger["unresolved_requests"] == 1
-    # The open reservation never inflates the totals: used covers only the
-    # settled zero-usage 400, the reservation sits in ``attempted``.
-    assert ledger["totals"]["requests"] == 1
+    # HAR-114: every usage-less error settles — the 400 keeps its ledger
+    # string, other statuses record upstream_error_<status>.
+    assert [call["state"] for call in ledger["calls"]] == ["reconciled", "reconciled"]
+    assert ledger["unresolved_requests"] == 0
+    assert ledger["calls"][1]["error"] == "upstream_error_503"
+    assert ledger["calls"][1]["input_tokens"] == 0
+    assert ledger["calls"][1]["output_tokens"] == 0
+    # Settled calls release their reservations: nothing sits in attempted.
+    assert ledger["totals"]["requests"] == 2
     assert ledger["totals"]["input_tokens"] == 0
     assert ledger["totals"]["output_tokens"] == 0
-    assert ledger["attempted"]["requests"] == 1
-    assert ledger["attempted"]["input_tokens"] > 0
+    assert ledger["attempted"]["requests"] == 0
+
+
+def test_mimo_proxy_settles_non_json_upstream_errors_with_zero_usage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mimo_upstream: Any
+) -> None:
+    # HAR-114 (002256 shape): the Modal gateway answers with text/plain and
+    # text/html error pages mid-run. Those settle with zero usage instead of
+    # failing the run's reconciliation, and the agent still sees the status.
+    _MimoUpstream.errors = [
+        (502, b"Bad Gateway\n", "text/plain"),
+        (503, b"<html><body>no healthy upstream</body></html>", "text/html"),
+    ]
+    process, url, usage_path = _launch_mimo_proxy(
+        tmp_path, monkeypatch, mimo_upstream, CAPABILITY_SENTINEL, _proxy_limits()
+    )
+    payload = {
+        "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
+        "messages": [{"role": "user", "content": "hi"}],
+        "max_tokens": 100,
+    }
+    endpoint = f"{url}/v1/chat/completions"
+    try:
+        status, body = _post(endpoint, payload, capability=CAPABILITY_SENTINEL)
+        assert status == 502
+        assert json.loads(body)["code"] == 502
+        assert b"Bad Gateway" not in body
+        status, body = _post(endpoint, payload, capability=CAPABILITY_SENTINEL)
+        assert status == 503
+        assert json.loads(body)["code"] == 503
+        assert b"no healthy upstream" not in body
+        status, _ = _post(endpoint, payload, capability=CAPABILITY_SENTINEL)
+        assert status == 200
+    finally:
+        process.terminate()
+        process.wait(10)
+
+    ledger = json.loads(usage_path.read_text())
+    assert [call["state"] for call in ledger["calls"]] == [
+        "reconciled",
+        "reconciled",
+        "reconciled",
+    ]
+    assert [call["error"] for call in ledger["calls"][:2]] == [
+        "upstream_error_502",
+        "upstream_error_503",
+    ]
+    assert ledger["unresolved_requests"] == 0
+    assert ledger["attempted"]["requests"] == 0
+    assert ledger["totals"]["requests"] == 3
+    assert ledger["totals"]["input_tokens"] == UPSTREAM_USAGE["prompt_tokens"]
+    # The provider key never appears in a fixed error body or the ledger.
+    assert SECRET_SENTINEL not in usage_path.read_text()
+
+    usage = runner_module._read_proxy_usage(
+        usage_path,
+        capability_id="sha256:" + hashlib.sha256(CAPABILITY_SENTINEL.encode()).hexdigest(),
+        attempt_id="mimo-test-attempt",
+        limits=_proxy_limits(),
+        provider_label="MiMo self-hosted",
+        expected_pricing={
+            "input_cost_micros_per_million": 0,
+            "output_cost_micros_per_million": 0,
+        },
+    )
+    assert usage["unresolved_requests"] == 0
+
+
+def test_mimo_proxy_non_json_400_settles_and_releases_its_reservation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mimo_upstream: Any
+) -> None:
+    # HAR-114 (002391 shape): a single failing call at the end of a run must
+    # not hold its reservation open — the held reservation is what starved
+    # every later call into 429 "trial budget exhausted".
+    _MimoUpstream.errors = [(400, b"request rejected\n", "text/plain")]
+    process, url, usage_path = _launch_mimo_proxy(
+        tmp_path, monkeypatch, mimo_upstream, CAPABILITY_SENTINEL, _proxy_limits()
+    )
+    payload = {
+        "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
+        "messages": [{"role": "user", "content": "hi"}],
+        "max_tokens": 100,
+    }
+    endpoint = f"{url}/v1/chat/completions"
+    try:
+        status, body = _post(endpoint, payload, capability=CAPABILITY_SENTINEL)
+        assert status == 400
+        assert json.loads(body)["code"] == 400
+        # The next call still runs: the failed call released its reservation.
+        status, _ = _post(endpoint, payload, capability=CAPABILITY_SENTINEL)
+        assert status == 200
+    finally:
+        process.terminate()
+        process.wait(10)
+
+    ledger = json.loads(usage_path.read_text())
+    assert ledger["calls"][0]["state"] == "reconciled"
+    assert ledger["calls"][0]["error"] == "upstream_error_400"
+    assert ledger["calls"][0]["status"] == 400
+    assert ledger["calls"][0]["input_tokens"] == 0
+    assert ledger["unresolved_requests"] == 0
+    assert ledger["attempted"]["requests"] == 0
+
+
+def test_mimo_proxy_leaves_an_unparseable_200_unresolved(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mimo_upstream: Any
+) -> None:
+    # A 2xx with an unparseable body may still have been billed, so it stays
+    # unresolved and keeps failing reconciliation.
+    _MimoUpstream.errors = [(200, b"<html>wut</html>", "text/html")]
+    process, url, usage_path = _launch_mimo_proxy(
+        tmp_path, monkeypatch, mimo_upstream, CAPABILITY_SENTINEL, _proxy_limits()
+    )
+    payload = {
+        "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
+        "messages": [{"role": "user", "content": "hi"}],
+        "max_tokens": 100,
+    }
+    try:
+        status, body = _post(f"{url}/v1/chat/completions", payload, capability=CAPABILITY_SENTINEL)
+        assert status == 502
+        assert b"unsupported upstream encoding" in body
+    finally:
+        process.terminate()
+        process.wait(10)
+
+    ledger = json.loads(usage_path.read_text())
+    assert ledger["calls"][0]["state"] == "unresolved"
+    assert ledger["calls"][0]["reason"] == "unsupported_upstream_encoding"
+    assert ledger["unresolved_requests"] == 1
+    usage = runner_module._read_proxy_usage(
+        usage_path,
+        capability_id="sha256:" + hashlib.sha256(CAPABILITY_SENTINEL.encode()).hexdigest(),
+        attempt_id="mimo-test-attempt",
+        limits=_proxy_limits(),
+        provider_label="MiMo self-hosted",
+        expected_pricing={
+            "input_cost_micros_per_million": 0,
+            "output_cost_micros_per_million": 0,
+        },
+    )
+    assert usage["unresolved_requests"] == 1
 
 
 def test_runner_accepts_a_ledger_whose_only_failure_was_a_usage_less_400(
@@ -530,9 +676,7 @@ def test_runner_accepts_a_ledger_whose_only_failure_was_a_usage_less_400(
     }
     try:
         for expected in (400, 200):
-            status, _ = _post(
-                f"{url}/v1/chat/completions", payload, capability=CAPABILITY_SENTINEL
-            )
+            status, _ = _post(f"{url}/v1/chat/completions", payload, capability=CAPABILITY_SENTINEL)
             assert status == expected
     finally:
         process.terminate()
@@ -694,7 +838,9 @@ def terminus_module(monkeypatch: pytest.MonkeyPatch) -> Any:
         ),
     )
     monkeypatch.setitem(
-        sys.modules, "harbor.llms.lite_llm", _module("harbor.llms.lite_llm", LiteLLM=type("LiteLLM", (), {}))
+        sys.modules,
+        "harbor.llms.lite_llm",
+        _module("harbor.llms.lite_llm", LiteLLM=type("LiteLLM", (), {})),
     )
     monkeypatch.setitem(
         sys.modules,
@@ -717,9 +863,7 @@ def mimo_transport(monkeypatch: pytest.MonkeyPatch, terminus_module: Any) -> Any
     return terminus_module
 
 
-def test_adapter_binds_mimo_context_and_capability(
-    mimo_transport: Any, tmp_path: Path
-) -> None:
+def test_adapter_binds_mimo_context_and_capability(mimo_transport: Any, tmp_path: Path) -> None:
     agent = mimo_transport.SecretSafeTerminus2(
         logs_dir=tmp_path, model_name=MIMO_SELFHOSTED_MODEL_SELECTOR
     )
@@ -740,9 +884,7 @@ def test_adapter_binds_mimo_context_and_capability(
     assert CAPABILITY_SENTINEL not in json.dumps(agent._extra_env)
 
 
-def test_adapter_rejects_mimo_model_info_override(
-    mimo_transport: Any, tmp_path: Path
-) -> None:
+def test_adapter_rejects_mimo_model_info_override(mimo_transport: Any, tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="runtime-bound"):
         mimo_transport.SecretSafeTerminus2(
             logs_dir=tmp_path,
@@ -751,9 +893,7 @@ def test_adapter_rejects_mimo_model_info_override(
         )
 
 
-def test_adapter_rejects_transport_overrides_on_mimo(
-    mimo_transport: Any, tmp_path: Path
-) -> None:
+def test_adapter_rejects_transport_overrides_on_mimo(mimo_transport: Any, tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="api_base"):
         mimo_transport.SecretSafeTerminus2(
             logs_dir=tmp_path,
@@ -786,23 +926,18 @@ def test_adapter_rejects_non_exact_mimo_models(
 
 def test_mimo_route_requires_mimo_credential() -> None:
     empty = frozenset[str]()
-    assert missing_credential_for(
-        "terminus-2", empty, MIMO_SELFHOSTED_MODEL_SELECTOR
-    ) == (MIMO_SELFHOSTED_API_CREDENTIAL)
-    present = frozenset({MIMO_SELFHOSTED_API_CREDENTIAL})
-    assert (
-        missing_credential_for("terminus-2", present, MIMO_SELFHOSTED_MODEL_SELECTOR)
-        is None
+    assert missing_credential_for("terminus-2", empty, MIMO_SELFHOSTED_MODEL_SELECTOR) == (
+        MIMO_SELFHOSTED_API_CREDENTIAL
     )
+    present = frozenset({MIMO_SELFHOSTED_API_CREDENTIAL})
+    assert missing_credential_for("terminus-2", present, MIMO_SELFHOSTED_MODEL_SELECTOR) is None
 
 
 def test_mimo_probe_requires_key_and_upstream() -> None:
     from evallab.credentials import probe_mimo_selfhosted_api_result
 
     assert probe_mimo_selfhosted_api_result({}).ok is False
-    assert (
-        probe_mimo_selfhosted_api_result({"MIMO_SELFHOSTED_API_KEY": "k"}).ok is False
-    )
+    assert probe_mimo_selfhosted_api_result({"MIMO_SELFHOSTED_API_KEY": "k"}).ok is False
     assert (
         probe_mimo_selfhosted_api_result(
             {"EVALLAB_MIMO_SELFHOSTED_UPSTREAM": "https://x.us-east.modal.direct"}
@@ -839,9 +974,7 @@ def test_mimo_trial_cost_arithmetic() -> None:
         (1.0, True, 0.0),
     ],
 )
-def test_mimo_trial_cost_rejects_bad_inputs(
-    hours: float, concurrency: Any, sandbox: float
-) -> None:
+def test_mimo_trial_cost_rejects_bad_inputs(hours: float, concurrency: Any, sandbox: float) -> None:
     with pytest.raises(ValueError):
         mimo_selfhosted_trial_cost_usd(hours, concurrency, sandbox)
 

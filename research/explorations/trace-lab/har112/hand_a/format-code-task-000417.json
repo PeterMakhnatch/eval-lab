@@ -1,0 +1,12 @@
+{
+  "task_id": "format-code-task-000417",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Do not deactivate a DAG solely because fileloc is outside the configured dags_folder while the processor is still parsing it",
+    "Still deactivate a DAG that is actually gone or whose last_parsed_time is older than the stale threshold relative to the file parse",
+    "Standalone processor_subdir filtering is existing behavior and is preserved if the folder-path check is removed"
+  ],
+  "notes": "The hidden patch deletes test_scan_stale_dags_when_dag_folder_change, which encoded the opposite policy, and retargets the remaining stale-DAG fixtures so commonpath is not the thing under test. Deactivation in test_scan_stale_dags is still the stated threshold case (last_finish_time an hour ahead). The scheduler fileloc=os.devnull line is removed so an outside path does not trip the old check; a correct fix does not need that line. Grading runs the whole two test modules after the patch.",
+  "read_minutes": 18
+}

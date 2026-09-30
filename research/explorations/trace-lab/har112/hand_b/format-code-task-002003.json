@@ -1,0 +1,18 @@
+{
+  "task_id": "format-code-task-002003",
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "order_results must rank a lower-score document whose title contains the query term above higher-score documents, and must not crash when title or extract is None",
+      "test_ref": "test/test_rank.py:test_order_result",
+      "quote": "ordered_results = order_results([\"bananas\"], documents, True); assert ordered_results[0].title == 'Bananas and apples'",
+      "severity": "not_inferable",
+      "names": ["order_results"],
+      "rules": ["R2"]
+    }
+  ],
+  "instruction_covers": [],
+  "notes": "Instruction is only a search URL and a screenshot, with no stated bug. Hidden tests call mwmbl.tinysearchengine.rank.order_results and require title-term ranking plus None-safe title/extract. Repo get_features assumes title and extract are strings (len/regex), so the None case is a real crash, but nothing in the instruction names the function or the ranking rule. A second implementation (drop None docs, or rank by the existing score field) would fail. R2: the entity is unnamed and the change is new null-handling plus ranking semantics.",
+  "read_minutes": 10,
+  "rules": ["R2"]
+}

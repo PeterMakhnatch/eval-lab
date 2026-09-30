@@ -1,0 +1,52 @@
+{
+  "items": [
+    {
+      "what": "The humidity sensor class must be named DysonHumiditySensor and expose device_class == DEVICE_CLASS_HUMIDITY (also when device has no state).",
+      "kind": "new_name",
+      "names": [
+        "DysonHumiditySensor",
+        "DEVICE_CLASS_HUMIDITY"
+      ],
+      "strings": [],
+      "test_ref": "tests/components/dyson/test_sensor.py:299-307",
+      "quote": "sensor = dyson.DysonHumiditySensor(_get_with_state()) ... assert sensor.device_class == DEVICE_CLASS_HUMIDITY",
+      "severity": "guessable"
+    },
+    {
+      "what": "The temperature sensor class DysonTemperatureSensor must expose device_class == DEVICE_CLASS_TEMPERATURE.",
+      "kind": "new_name",
+      "names": [
+        "DysonTemperatureSensor",
+        "DEVICE_CLASS_TEMPERATURE"
+      ],
+      "strings": [],
+      "test_ref": "tests/components/dyson/test_sensor.py:313-317",
+      "quote": "sensor = dyson.DysonTemperatureSensor(_get_with_state(), TEMP_CELSIUS) ... assert sensor.device_class == DEVICE_CLASS_TEMPERATURE",
+      "severity": "guessable"
+    },
+    {
+      "what": "DysonDustSensor and DysonFilterLifeSensor must return device_class None (existing classes must keep no device_class).",
+      "kind": "extra_behavior",
+      "names": [
+        "DysonDustSensor",
+        "DysonFilterLifeSensor"
+      ],
+      "strings": [],
+      "test_ref": "tests/components/dyson/test_sensor.py:320-331",
+      "quote": "assert sensor.device_class is None",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The issue names the humidity and pm25 device_class fix; the temperature device_class and the None device_class guards follow as the same mechanical change to the same sensor family. Class names (DysonHumiditySensor etc.) already exist in the repo, so they are guessable context rather than new API; no pm25-specific test exists, so nothing is not_inferable.",
+  "usage": {
+    "completion_tokens": 453,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 2410,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2863
+  }
+}

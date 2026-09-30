@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "All test requirements (segments(init=False), MPD timelines, Segment attributes uri/num/init/content, base_url joining) use the existing public API of stream.dash; the new behavior tested is exactly the requested fix for dynamic SegmentList reload filtering.",
+  "usage": {
+    "completion_tokens": 467,
+    "completion_tokens_details": {
+      "reasoning_tokens": 350
+    },
+    "prompt_tokens": 11063,
+    "prompt_tokens_details": {
+      "cached_tokens": 11008
+    },
+    "total_tokens": 11530
+  }
+}

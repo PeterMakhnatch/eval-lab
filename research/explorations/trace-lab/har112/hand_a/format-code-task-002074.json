@@ -1,0 +1,12 @@
+{
+  "task_id": "format-code-task-002074",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "f2py's reported version is stuck at '2' because the __svn_version__ import always fails",
+    "f2py should use a versioning mechanism that works, or at least include the NumPy version in the reported version",
+    "The concrete useful mechanism: the compiled module exposes a __f2py_numpy_version__ attribute that downstream code (SciPy) can query at runtime"
+  ],
+  "notes": "Repo verified: numpy/f2py/__version__.py falls back to version='2' when __svn_version__ is missing; the generated C module init already writes __version__ and __doc__ into the module dict (f2py/rules.py:201-207), and the compiling f2py knows numpy_version (f2py2e.py:38). The hidden test only asserts the compiled module has a __f2py_numpy_version__ attribute that is a str equal to np.__version__. The attribute name is stated verbatim in the instruction, the value is the stated 'NumPy version' the tool compiles against (same environment at test time), and stamping one more string into the existing module-dict setup is mechanical. No docstring-format, version-string, or additional attribute behaviour is pinned.",
+  "read_minutes": 14
+}

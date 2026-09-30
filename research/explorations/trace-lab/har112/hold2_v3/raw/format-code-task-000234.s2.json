@@ -1,0 +1,49 @@
+{
+  "items": [
+    {
+      "what": "Branch method name get_chain_id",
+      "kind": "new_name",
+      "names": [
+        "get_chain_id"
+      ],
+      "strings": [],
+      "test_ref": "test_zero_chain_id_backward_compatible",
+      "quote": "self.assertEqual(b.get_chain_id(), 0)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Branch method name get_full_shard_id",
+      "kind": "new_name",
+      "names": [
+        "get_full_shard_id"
+      ],
+      "strings": [],
+      "test_ref": "test_zero_chain_id_backward_compatible",
+      "quote": "self.assertEqual(b.get_full_shard_id(), 8 | 6)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Address method get_full_shard_id taking a shard_size parameter and raising RuntimeError on non-power-of-two",
+      "kind": "new_name",
+      "names": [
+        "get_full_shard_id"
+      ],
+      "strings": [],
+      "test_ref": "TestAddressFullShardId.test_computes_full_shard_id",
+      "quote": "self.assertEqual(addr.get_full_shard_id(4), make_full_shard_id(5, 4, 3))",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The instruction specifies all behavior and semantics precisely but never names the required methods; the tests call get_chain_id, get_full_shard_id (on both Branch and Address), which may or may not exist in the repo and cannot be inferred from the instruction text.",
+  "usage": {
+    "completion_tokens": 572,
+    "completion_tokens_details": {
+      "reasoning_tokens": 195
+    },
+    "prompt_tokens": 3287,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3859
+  }
+}

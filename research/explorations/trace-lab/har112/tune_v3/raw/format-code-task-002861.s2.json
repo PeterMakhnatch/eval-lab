@@ -1,0 +1,49 @@
+{
+  "items": [
+    {
+      "what": "Exact expected output for pad=4, indent=4 with leading_comma=True: first line indented 6 spaces ('      a'), commas at 4 spaces \u2014 a specific indentation scheme not stated or implied by the issue text (which suggests 4-space-consistent output)",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "SELECT\n      a\n    , b\n    , c\nFROM my_table"
+      ],
+      "test_ref": "tests/test_transpile.py:test_leading_comma_pad_indent_consistency_pad4_indent4",
+      "quote": "\"SELECT\\n      a\\n    , b\\n    , c\\nFROM my_table\", pretty=True, pad=4, indent=4",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Default (unspecified pad/indent) with leading_comma=True must produce pad=2-style output ('    a\\n  , b'), i.e. the fix changes default formatting semantics not described in the instruction",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "SELECT\n    a\n  , b\n  , c\nFROM my_table"
+      ],
+      "test_ref": "tests/test_transpile.py:test_leading_comma_default_pad_indent",
+      "quote": "result, \"SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table\",",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "pad=2/indent=4 must yield '    a\\n  , b\\n  , c' (first column at 4 spaces, commas at 2) \u2014 matches the issue example but codified as an exact string; guessable from the issue text",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "SELECT\n    a\n  , b\n  , c\nFROM my_table"
+      ],
+      "test_ref": "tests/test_transpile.py:test_leading_comma_pad_indent_consistency_pad2_indent4",
+      "quote": "\"SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table\", pretty=True, pad=2, indent=4",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The tests pin exact output strings that differ from the issue's implied 'consistent 4-space' fix (6-space first line at pad4/indent4, and changed default formatting), which cannot be derived from the instruction; the pad2/indent4 case matches the issue example and is guessable.",
+  "usage": {
+    "completion_tokens": 660,
+    "completion_tokens_details": {
+      "reasoning_tokens": 102
+    },
+    "prompt_tokens": 1947,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2607
+  }
+}

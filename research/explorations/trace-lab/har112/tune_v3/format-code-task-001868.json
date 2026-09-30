@@ -1,0 +1,89 @@
+{
+  "task_id": "format-code-task-001868",
+  "label": "suspect",
+  "label_without_repo": "suspect",
+  "sample_labels": [
+    "suspect"
+  ],
+  "repo_used": false,
+  "unstated": [
+    {
+      "what": "The unknown-slug warning must be written to stderr (tests grep the err file, not stdout) and must include the offending slug value.",
+      "kind": "other",
+      "names": [],
+      "strings": [],
+      "test_ref": "usercase-test-coderl/usecase.sh:99",
+      "quote": "grep -q 'unknown-slug' err || fail \"F1 missing unknown-slug warning\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "When the default CSV cannot be opened, the stderr diagnostic must contain the literal path \"styles/fixtures/default_names.csv\".",
+      "kind": "exact_string",
+      "names": [
+        "styles/fixtures/default_names.csv"
+      ],
+      "strings": [
+        "styles/fixtures/default_names.csv"
+      ],
+      "test_ref": "usercase-test-coderl/usecase.sh:118",
+      "quote": "grep -q \"styles/fixtures/default_names.csv\" err || fail \"F2 stderr\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "When a translation CSV is missing, the stderr diagnostic must contain the concrete locale path \"styles/locale/cs/names.csv\" (the per-language path format is not spelled out as required in the message).",
+      "kind": "exact_string",
+      "names": [
+        "styles/locale/cs/names.csv"
+      ],
+      "strings": [
+        "styles/locale/cs/names.csv"
+      ],
+      "test_ref": "usercase-test-coderl/usecase.sh:139",
+      "quote": "grep -q \"styles/locale/cs/names.csv\" err || fail \"F3 stderr\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "When the default CSV lacks a column, the stderr diagnostic must mention the missing column name (e.g. \"slug\").",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "slug"
+      ],
+      "test_ref": "usercase-test-coderl/usecase.sh:159",
+      "quote": "grep -q \"slug\" err || fail \"F4 stderr\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "When the translation CSV lacks the language-specific column, the diagnostic must mention it as \"name_cs\" (derived name_<lang_code> spelling).",
+      "kind": "exact_string",
+      "names": [
+        "name_cs"
+      ],
+      "strings": [
+        "name_cs"
+      ],
+      "test_ref": "usercase-test-coderl/usecase.sh:180",
+      "quote": "grep -q \"name_cs\" err || fail \"F5 stderr\"",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction covers the data semantics and failure conditions; the only unstated bits are diagnostics going to stderr and the exact message content (file paths / column names), which are largely derived from the paths and columns the instruction itself names, so they are graded guessable."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 1323,
+      "completion_tokens_details": {
+        "reasoning_tokens": 659
+      },
+      "prompt_tokens": 4855,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 6178
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

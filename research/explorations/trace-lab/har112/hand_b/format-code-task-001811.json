@@ -1,0 +1,13 @@
+{
+  "task_id": "format-code-task-001811",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "restarting a LoadTestShape test must not wait for tick() to return a different state",
+    "shape_worker skips spawn when shape_last_state equals the new tick",
+    "stop() must reset shape_last_state to None"
+  ],
+  "notes": "Tests only check MasterRunner.stop sets shape_last_state to None and that start_shape after stop emits spawn. MasterRunner.stop does not call Runner.stop, so the reset has to be on MasterRunner (or both). The instruction quotes the comparison and says the reset is missing in stop(); grep of shape_last_state shows the field and both stop methods. Spawn-on-restart is the stated expected behavior, not a new contract.",
+  "read_minutes": 11,
+  "rules": []
+}

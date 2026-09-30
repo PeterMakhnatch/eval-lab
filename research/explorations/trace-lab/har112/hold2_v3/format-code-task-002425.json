@@ -1,0 +1,46 @@
+{
+  "task_id": "format-code-task-002425",
+  "label": "sound",
+  "label_without_repo": "broken",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": true,
+  "unstated": [],
+  "dropped_existing": [
+    {
+      "what": "Tests import and call a helper named `_set_nodelay` from `asyncio.selector_events`; the instruction never names this function or its location.",
+      "kind": "new_name",
+      "names": [
+        "_set_nodelay",
+        "asyncio.selector_events"
+      ],
+      "strings": [],
+      "test_ref": "Lib/test/test_asyncio/test_selector_events.py:20 (TestSelectorUtils.check_set_nodelay)",
+      "quote": "from asyncio.selector_events import _set_nodelay ... _set_nodelay(sock) ... self.assertTrue(opt)",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "_set_nodelay": "Lib/asyncio/selector_events.py:44",
+        "asyncio.selector_events": "module asyncio/selector_events"
+      }
+    }
+  ],
+  "reasons": [
+    "The instruction only describes the behavioral fix; the hidden test additionally requires a module-level helper with the exact name `_set_nodelay` in `asyncio.selector_events`, which cannot be inferred from the issue text."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 398,
+      "completion_tokens_details": {
+        "reasoning_tokens": 194
+      },
+      "prompt_tokens": 2258,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 2656
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

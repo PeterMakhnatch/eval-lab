@@ -1,0 +1,41 @@
+{
+  "items": [
+    {
+      "what": "Oracle dialect must parse table aliases written with the AS keyword (no PRS parse error), even though the issue only complains about implicit aliases being flagged",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        "PRS"
+      ],
+      "test_ref": "test/rules/std_AL01_test.py::test_oracle_table_alias_with_as_no_violation_default_config",
+      "quote": "assert \"AL01\" not in codes\n    assert \"PRS\" not in codes",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "The aliasing.table config option must be honored so that setting aliasing=implicit suppresses AL01 for explicit 'AS' aliases in Oracle",
+      "kind": "extra_behavior",
+      "names": [
+        "aliasing.table",
+        "aliasing"
+      ],
+      "strings": [
+        "implicit"
+      ],
+      "test_ref": "test/rules/std_AL01_test.py::test_oracle_table_alias_with_as_no_violation_implicit_config",
+      "quote": "configs = {\"rules\": {\"aliasing.table\": {\"aliasing\": \"implicit\"}}}",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The issue only asks that implicit table aliases not be flagged in Oracle, but hidden tests additionally require Oracle to parse explicit 'AS' table aliases without a parse error (a dialect grammar change not mentioned in the issue), which is not inferable from the instruction.",
+  "usage": {
+    "completion_tokens": 604,
+    "completion_tokens_details": {
+      "reasoning_tokens": 261
+    },
+    "prompt_tokens": 2317,
+    "prompt_tokens_details": {
+      "cached_tokens": 2304
+    },
+    "total_tokens": 2921
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "items": [
+    {
+      "what": "Tensor must support addition with scalar 0 on both sides (T + 0 and 0 + T). The instruction only proposes an Observable.__add__ change; Tensor is a separate class needing its own __add__/__radd__ handling with zero.",
+      "kind": "extra_behavior",
+      "names": [
+        "__add__",
+        "__radd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py:TestTensorAddZero",
+      "quote": "T = qml.PauliX(0) @ qml.PauliZ(1)\n        result = T + 0 ... result = 0 + T",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Hamiltonian must support addition with 0 on both sides, including __radd__ (0 + H) and the sum-of-Hamiltonians case which starts from int 0.",
+      "kind": "extra_behavior",
+      "names": [
+        "__add__",
+        "__radd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py:TestHamiltonianAddZero.test_zero_plus_hamiltonian / test_sum_of_hamiltonians",
+      "quote": "result = 0 + H ... H = sum(terms)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Hamiltonian must keep working under augmented assignment with zero (H += 0), implying __iadd__ or in-place semantics consistent with the zero case.",
+      "kind": "extra_behavior",
+      "names": [
+        "__iadd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py:TestHamiltonianAddZero.test_hamiltonian_iadd_zero",
+      "quote": "H += 0\n        assert H.compare(expected)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Observable needs a reflected addition path (__radd__) so that `0 + obs` works, since int.__add__ returns NotImplemented; the instruction only shows __add__.",
+      "kind": "new_name",
+      "names": [
+        "__radd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py:TestObservableAddZero.test_zero_plus_observable_returns_self",
+      "quote": "result = 0 + obs\n        assert isinstance(result, type(obs)) or result.compare(obs)",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction's proposed patch only touches Observable.__add__, but hidden tests also require zero-handling on Tensor and Hamiltonian (both sides, plus iadd and reflected sum from int 0), which are sibling classes not named in the instruction and require separate code changes; __radd__ on Observable is the direct mechanical consequence of making sum() work, hence guessable.",
+  "usage": {
+    "completion_tokens": 1294,
+    "completion_tokens_details": {
+      "reasoning_tokens": 645
+    },
+    "prompt_tokens": 2424,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 3718
+  }
+}

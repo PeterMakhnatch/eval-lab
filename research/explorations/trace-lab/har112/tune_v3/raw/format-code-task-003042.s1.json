@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The instruction explicitly asks for defaults (default= and default_factory=) of any type to be respected in both from_dict and from_tuple, which covers all the hidden test assertions; 'asdict' is a dataclasses helper used by the test file, not a repo API the fix must provide.",
+  "usage": {
+    "completion_tokens": 246,
+    "completion_tokens_details": {
+      "reasoning_tokens": 129
+    },
+    "prompt_tokens": 3308,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3554
+  }
+}

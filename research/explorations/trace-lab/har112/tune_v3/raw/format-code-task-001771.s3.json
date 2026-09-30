@@ -1,0 +1,89 @@
+{
+  "items": [
+    {
+      "what": "Status line class must be accessible as LeoQtFrame.QtStatusLineClass and expose a textWidget1 attribute (constructible via object.__new__ without full frame).",
+      "kind": "new_name",
+      "names": [
+        "LeoQtFrame.QtStatusLineClass",
+        "textWidget1"
+      ],
+      "strings": [],
+      "test_ref": "leo/unittests/test_gui.py:139-140 (make_qt_status_line)",
+      "quote": "status_line = object.__new__(LeoQtFrame.QtStatusLineClass)\nstatus_line.textWidget1 = object()",
+      "severity": "guessable"
+    },
+    {
+      "what": "Status line must support setFocus() as a safe callable (no-op).",
+      "kind": "extra_behavior",
+      "names": [
+        "setFocus"
+      ],
+      "strings": [],
+      "test_ref": "test_qt_status_line_enable_disable_focus_are_safe_noops",
+      "quote": "status_line.setFocus()",
+      "severity": "guessable"
+    },
+    {
+      "what": "Status line must implement isEnabled() returning a bool, and it must remain a bool after enable()/disable() calls.",
+      "kind": "extra_behavior",
+      "names": [
+        "isEnabled"
+      ],
+      "strings": [],
+      "test_ref": "test_qt_status_line_is_enabled_returns_stable_boolean",
+      "quote": "self.assertIsInstance(status_line.isEnabled(), bool)",
+      "severity": "guessable"
+    },
+    {
+      "what": "QHeadlineWrapper flashCharacter must accept a 5-argument call signature flashCharacter(i, bg, bg2, flashCount, flashDelay) as a no-op.",
+      "kind": "extra_behavior",
+      "names": [
+        "flashCharacter"
+      ],
+      "strings": [],
+      "test_ref": "test_qheadline_wrapper_flash_character_is_safe_noop",
+      "quote": "wrapper.flashCharacter(1, \"yellow\", \"blue\", 1, 1)",
+      "severity": "guessable"
+    },
+    {
+      "what": "QHeadlineWrapper getXScrollPosition/getYScrollPosition must return ints that stay stable (not mutated by setXScrollPosition/setYScrollPosition no-ops).",
+      "kind": "extra_behavior",
+      "names": [
+        "getXScrollPosition",
+        "getYScrollPosition",
+        "setXScrollPosition",
+        "setYScrollPosition"
+      ],
+      "strings": [],
+      "test_ref": "test_qheadline_wrapper_scroll_methods_are_compatible_noops",
+      "quote": "self.assertEqual(wrapper.getXScrollPosition(), first_x)",
+      "severity": "guessable"
+    },
+    {
+      "what": "StringTextWrapper must gain no-op disable()/enable() while getAllText() keeps working.",
+      "kind": "extra_behavior",
+      "names": [
+        "StringTextWrapper",
+        "disable",
+        "enable",
+        "getAllText"
+      ],
+      "strings": [],
+      "test_ref": "test_string_text_wrapper_enable_disable_are_safe_noops",
+      "quote": "wrapper.disable()\nwrapper.enable()\nself.assertEqual(wrapper.getAllText(), '')",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction deliberately delegates the exact method set, signatures, and return conventions to 'existing wrapper/status-line conventions in the repository', and the required names (disable/enable, setFocus, isEnabled, get/setX/YScrollPosition, flashCharacter) are the standard Leo wrapper API a repo-convention-following fix would supply, so most items are guessable; class/attribute names like QtStatusLineClass and textWidget1 are repo internals verified automatically.",
+  "usage": {
+    "completion_tokens": 1101,
+    "completion_tokens_details": {
+      "reasoning_tokens": 373
+    },
+    "prompt_tokens": 2252,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3353
+  }
+}

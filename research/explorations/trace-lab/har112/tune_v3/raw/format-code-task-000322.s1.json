@@ -1,0 +1,70 @@
+{
+  "items": [
+    {
+      "what": "Invalid date values in If-Unmodified-Since and If-Range must be ignored, returning a normal 200 full-body response (no 412, no 206); the instruction never mentions malformed date handling.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "test_static_file_if_unmodified_since_invalid_date / test_static_file_if_range_invalid_date",
+      "quote": "lastmod = 'not a valid HTTP-date' ... assert 200 == resp.status",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "If-Unmodified-Since unsatisfied must yield status 412 both with and without a Range header; the instruction only says 'honored', never naming 412 or that the check applies also when no Range is present.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        "412"
+      ],
+      "test_ref": "test_static_file_if_unmodified_since_past_with_range / test_static_file_if_unmodified_since_past_without_range",
+      "quote": "assert 412 == resp.status",
+      "severity": "guessable"
+    },
+    {
+      "what": "If-Range semantics: when the If-Range date does not match the file mtime the server must return the full file with 200 (even with a Range header); when it matches (future date vs old mtime) it must return 206 with Content-Range.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        "Content-Range"
+      ],
+      "test_ref": "test_static_file_if_range_past_with_range / test_static_file_if_range_future_with_range",
+      "quote": "assert 200 == resp.status ... assert 206 == resp.status; assert resp.headers['Content-Range'] == 'bytes 2-12/13'",
+      "severity": "guessable"
+    },
+    {
+      "what": "An over-large tail range (bytes=-99999999999999) must be clamped to the whole file but still answered with 206 and Content-Range 'bytes 0-<size-1>/<size>'; the instruction says 'returning the whole file', which could reasonably mean 200.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        "Content-Range"
+      ],
+      "test_ref": "test_static_file_range_tail",
+      "quote": "assert resp2.status == 206, resp.reason; assert resp2.headers['Content-Range'] == 'bytes 0-61107/61108'",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact Content-Range header casing/format 'Content-Range: bytes <start>-<end>/<size>' asserted on 206 responses; format is given in the issue, casing 'Content-Range' is the conventional spelling (tests use resp.headers which is case-insensitive, so guessable).",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Content-Range",
+        "bytes 0-999/{0}"
+      ],
+      "test_ref": "test_static_file_range",
+      "quote": "assert responses[0].headers['Content-Range'] == 'bytes 0-999/{0}'.format(filesize)",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The core Range fixes (Content-Range, 416, tail clamping) and basic conditional-header honoring follow directly from the issue, but the tests additionally pin down invalid-date handling (must be ignored, returning 200), the 412 status for failed If-Unmodified-Since, and exact If-Range match/mismatch semantics (200 full body vs 206 partial), none of which the instruction states.",
+  "usage": {
+    "completion_tokens": 1474,
+    "completion_tokens_details": {
+      "reasoning_tokens": 590
+    },
+    "prompt_tokens": 4278,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 5752
+  }
+}

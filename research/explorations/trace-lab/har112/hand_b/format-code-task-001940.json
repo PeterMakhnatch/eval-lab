@@ -1,0 +1,37 @@
+{
+  "task_id": "format-code-task-001940",
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "Every existing directory listed on its own line in a .pth file must be added to search_paths, not just the first semicolon-separated token",
+      "test_ref": "test_pth_file_multiple_valid_directories_all_added",
+      "quote": "assert dir1 in finder.search_paths",
+      "severity": "not_inferable",
+      "names": ["search_paths"],
+      "rules": ["tie-break"]
+    },
+    {
+      "what": "Lines starting with # must be skipped while a valid directory on another line is still added",
+      "test_ref": "test_pth_file_comment_lines_skipped",
+      "quote": "assert valid_dir in finder.search_paths",
+      "severity": "not_inferable",
+      "names": [],
+      "rules": ["tie-break"]
+    },
+    {
+      "what": "Lines starting with import must be skipped while a valid directory on another line is still added",
+      "test_ref": "test_pth_file_import_lines_skipped",
+      "quote": "assert \"import some_bootstrap_module\" not in str(sp)",
+      "severity": "not_inferable",
+      "names": [],
+      "rules": ["tie-break"]
+    }
+  ],
+  "instruction_covers": [
+    "A pywin32-style .pth file must not raise out of _handle_pth_file / ModuleFinder",
+    "the whole file text, comment markers, and import lines must not be inserted into search_paths as one bogus path",
+    "a single existing directory line is still added, and a nonexistent directory is not"
+  ],
+  "notes": "Base _handle_pth_file splits on ';' and calls Path.exists on the first token. On Linux the pywin32 sample raises UnhandledPthFileError, which the caller suppresses, so a crash-only fix passes the pywin32 regression and the single-dir/missing-dir cases (verified by executing the base logic). It does not add every valid line or skip comments and import lines. The instruction's expected behavior is only that griffe runs successfully; it does not quote the site.py .pth spec.",
+  "read_minutes": 18
+}

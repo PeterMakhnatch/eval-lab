@@ -1,0 +1,13 @@
+{
+  "task_id": "format-code-task-002882",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "deserialize_bytes_tensor accepts bytes-like input, parses little-endian uint32 prefixes, returns a 1-d object array, preserves NULs and empty elements, and returns an empty object array for an empty payload",
+    "Incomplete prefix, overlong length, trailing fragment, and non-buffer input raise InferenceServerException",
+    "deserialize_bf16_tensor accepts bytes-like input, decodes 2-byte little-endian bf16 to the existing 1-d float32 result, and raises InferenceServerException on non-buffer or odd-length input",
+    "serialize_byte_tensor frames bytes, bytearray, memoryview, and np.bytes_ scalars from their raw contents in C order, keeping NULs and empty elements, without changing the existing return convention"
+  ],
+  "notes": "Wire format and np.object_ / np.float32 returns already exist in tritonclient.utils; the instruction says not to change them. Tests do not pin exception message text, only the exception type the instruction names.",
+  "read_minutes": 12
+}

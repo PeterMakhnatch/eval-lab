@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The issue's example directly exercises WITH/WITHOUT ARRAY WRAPPER parsing, and the Trino docs linked in the issue define the full wrapper syntax; the referenced prior fix (issue 4623) covers unconditional/conditional wrappers. All tested variants follow from the quoted documentation and the same mechanism, so nothing is not_inferable.",
+  "usage": {
+    "completion_tokens": 143,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1929,
+    "prompt_tokens_details": {
+      "cached_tokens": 1920
+    },
+    "total_tokens": 2072
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "items": [
+    {
+      "what": "Constructor with a nonexistent path must raise exceptions.CollectionNotFound specifically (instruction only says 'require that the target path already points to a regular file', naming no exception type).",
+      "kind": "other",
+      "names": [
+        "CollectionNotFound"
+      ],
+      "strings": [],
+      "test_ref": "test_constructor_create_and_discover_contract",
+      "quote": "with pytest.raises(exceptions.CollectionNotFound):\n        SingleFileStorage(str(tmp_path / \"missing.ics\"))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Constructor given a directory must raise OSError (only natural if implementation opens/stats the path; instruction doesn't specify directory behavior).",
+      "kind": "other",
+      "names": [],
+      "strings": [],
+      "test_ref": "test_constructor_create_and_discover_contract",
+      "quote": "with pytest.raises(OSError):\n        SingleFileStorage(str(directory))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Public attributes must expose resolved state as s.path (absolute string), s.encoding, s.collection, s.read_only, s.no_delete; instruction names them only as constructor parameters.",
+      "kind": "new_name",
+      "names": [
+        "path",
+        "encoding",
+        "collection",
+        "read_only",
+        "no_delete"
+      ],
+      "strings": [],
+      "test_ref": "test_constructor_create_and_discover_contract",
+      "quote": "assert s.path == str(existing)\n    assert s.encoding == \"utf-8\"\n    assert s.collection == \"work\"",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction covers nearly all behavior; the only gaps are the specific exception type for a missing file (CollectionNotFound, guessable from vdirsyncer convention), OSError for a directory (natural from statting/opening), and the exposed attribute names, which mirror the stated constructor parameters.",
+  "usage": {
+    "completion_tokens": 1102,
+    "completion_tokens_details": {
+      "reasoning_tokens": 607
+    },
+    "prompt_tokens": 5417,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 6519
+  }
+}

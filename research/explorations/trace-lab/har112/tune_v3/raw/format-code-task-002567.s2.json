@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The hidden test only exercises the behavior the issue asks for: when sysctl.show returns None (missing file) or an empty list, present() returns the standard preview comment 'Sysctl option {0} would be changed to {1}', which is the exact string already produced by the existing absent-key code path referenced in the instruction, so the minimal fix passes without unstated names or strings.",
+  "usage": {
+    "completion_tokens": 465,
+    "completion_tokens_details": {
+      "reasoning_tokens": 332
+    },
+    "prompt_tokens": 1915,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 2380
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "items": [
+    {
+      "what": "Tests import and call a helper named `_set_nodelay` from `asyncio.selector_events`; the instruction never names this function or its location.",
+      "kind": "new_name",
+      "names": [
+        "_set_nodelay",
+        "asyncio.selector_events"
+      ],
+      "strings": [],
+      "test_ref": "Lib/test/test_asyncio/test_selector_events.py:20 (TestSelectorUtils.check_set_nodelay)",
+      "quote": "from asyncio.selector_events import _set_nodelay ... _set_nodelay(sock) ... self.assertTrue(opt)",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The instruction only describes the behavioral fix; the hidden test additionally requires a module-level helper with the exact name `_set_nodelay` in `asyncio.selector_events`, which cannot be inferred from the issue text.",
+  "usage": {
+    "completion_tokens": 398,
+    "completion_tokens_details": {
+      "reasoning_tokens": 194
+    },
+    "prompt_tokens": 2258,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2656
+  }
+}

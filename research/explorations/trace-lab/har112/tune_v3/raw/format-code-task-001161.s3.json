@@ -1,0 +1,56 @@
+{
+  "items": [
+    {
+      "what": "CLI flag `--config <path>` accepted by `python -m docformatter` to load a TOML config file; the instruction only mentions a configuration-file setting, never names this flag.",
+      "kind": "new_name",
+      "names": [
+        "--config"
+      ],
+      "strings": [
+        "--config"
+      ],
+      "test_ref": "tests/test_structured_wrapping_codespec.py:run_formatter / test_structured_mode_can_be_enabled_from_pyproject_configuration",
+      "quote": "command.extend([\"--config\", str(config)])",
+      "severity": "guessable"
+    },
+    {
+      "what": "Reading settings from a `[tool.docformatter]` section of a `pyproject.toml` file (including existing settings like `wrap-descriptions = 52` from TOML); instruction references such configuration but never states the file name or that TOML parsing must be added if the repo lacks it.",
+      "kind": "new_name",
+      "names": [
+        "pyproject.toml",
+        "[tool.docformatter]"
+      ],
+      "strings": [
+        "[tool.docformatter]",
+        "wrap-structured = true"
+      ],
+      "test_ref": "tests/test_structured_wrapping_codespec.py:test_structured_mode_can_be_enabled_from_pyproject_configuration",
+      "quote": "config.write_text(\"[tool.docformatter]\\nwrap-structured = true\\nwrap-descriptions = 52\\n\")",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact wrapped line-break positions and preserved indentation in expected outputs (e.g. field continuation indented 8 spaces, prose broken at width 52, blank lines inserted between prose and structured regions) \u2014 these exact strings are graded but only derivable from the wrapping algorithm plus width, not stated.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        ":param value: This parameter explanation is",
+        "    deliberately long enough that the normal"
+      ],
+      "test_ref": "tests/test_structured_wrapping_codespec.py:test_structured_mode_keeps_sphinx_fields_wrappable_next_to_directive",
+      "quote": ":param value: This parameter explanation is\\n        deliberately long enough that the normal",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction names the new option/setting and all preservation semantics, so most test expectations follow from it plus existing docformatter behavior. The only weakly stated pieces are the `--config` flag spelling and pyproject.toml TOML loading, which are strongly implied by 'supported configuration files' / '[tool.docformatter]' and standard convention, and the exact wrapped output strings, which follow mechanically from the existing wrapping algorithm at the given width.",
+  "usage": {
+    "completion_tokens": 1300,
+    "completion_tokens_details": {
+      "reasoning_tokens": 699
+    },
+    "prompt_tokens": 3383,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 4683
+  }
+}

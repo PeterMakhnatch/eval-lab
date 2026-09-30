@@ -1,0 +1,21 @@
+{
+  "task_id": "format-code-task-001499",
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "DysonTemperatureSensor.device_class must be DEVICE_CLASS_TEMPERATURE, and DysonDustSensor and DysonFilterLifeSensor must keep device_class None",
+      "test_ref": "tests/components/dyson/test_sensor.py:test_temperature_sensor_device_class",
+      "quote": "assert sensor.device_class == DEVICE_CLASS_TEMPERATURE",
+      "severity": "guessable",
+      "names": ["DysonTemperatureSensor.device_class", "DysonDustSensor.device_class", "DysonFilterLifeSensor.device_class"],
+      "rules": ["R2", "R3"]
+    }
+  ],
+  "instruction_covers": [
+    "Dyson humidity sensor must expose device_class humidity so HomeKit sees it",
+    "air quality (pm25) should be exposed via device_class pm25 or a name containing pm25"
+  ],
+  "notes": "Humidity is stated. Entity.device_class already returns None, so dust and filter-life staying None is R3 preservation if the fix only sets classes on the named sensors. Temperature is a sibling sensor in the same file; setting DEVICE_CLASS_TEMPERATURE is the same one-line pattern as humidity and is the class the instruction says already works for HomeKit, but the instruction never asks to change temperature. pm25 is not asserted by the hidden tests. Severity stays guessable: a minimal humidity-only fix fails the temperature assertion.",
+  "read_minutes": 12,
+  "rules": ["R2", "R3"]
+}

@@ -1,0 +1,153 @@
+{
+  "task_id": "format-code-task-002628",
+  "label": "broken",
+  "label_without_repo": "broken",
+  "sample_labels": [
+    "broken",
+    "broken",
+    "broken"
+  ],
+  "repo_used": true,
+  "unstated": [
+    {
+      "what": "Abstract embedding hook method name `_get_embeddings(texts: list[str]) -> torch.Tensor` that subclasses must override; the instruction says classes 'embed' and 'POST ... and return them as a torch.Tensor' but never names this method.",
+      "kind": "new_name",
+      "names": [
+        "_get_embeddings"
+      ],
+      "strings": [],
+      "test_ref": "test_embedding_rerankers.py:33-34",
+      "quote": "def _get_embeddings(self, texts: list[str]) -> torch.Tensor:\n        return torch.tensor([self.embeddings[text] for text in texts], dtype=torch.float32)",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "_get_embeddings": null
+      }
+    },
+    {
+      "what": "Embedding hook method `_get_embeddings(texts) -> torch.Tensor` that subclasses must override and BaseSemanticSearcher must call; instruction only describes calculate_scores behavior",
+      "kind": "new_name",
+      "names": [
+        "_get_embeddings"
+      ],
+      "strings": [],
+      "test_ref": "test_embedding_rerankers.py:33-35 (DeterministicSemanticSearcher)",
+      "quote": "def _get_embeddings(self, texts: list[str]) -> torch.Tensor:\n    return torch.tensor([self.embeddings[text] for text in texts], dtype=torch.float32)",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "_get_embeddings": null
+      }
+    },
+    {
+      "what": "Base class must call an overridable hook named `_get_embeddings(texts) -> torch.Tensor` that subclasses implement",
+      "kind": "new_name",
+      "names": [
+        "_get_embeddings"
+      ],
+      "strings": [],
+      "test_ref": "DeterministicSemanticSearcher",
+      "quote": "def _get_embeddings(self, texts: list[str]) -> torch.Tensor:\n    return torch.tensor([self.embeddings[text] for text in texts], ...)",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "_get_embeddings": null
+      }
+    }
+  ],
+  "dropped_existing": [
+    {
+      "what": "Module file paths for the new classes: tests import from opendeepsearch.ranking_models.base_reranker, opendeepsearch.ranking_models.infinity_rerank, and opendeepsearch.ranking_models.jina_reranker; the instruction names the classes but never specifies module/package paths or file names.",
+      "kind": "new_name",
+      "names": [
+        "opendeepsearch/ranking_models/base_reranker.py",
+        "opendeepsearch/ranking_models/infinity_rerank.py",
+        "opendeepsearch/ranking_models/jina_reranker.py"
+      ],
+      "strings": [],
+      "test_ref": "test_embedding_rerankers.py:21-23",
+      "quote": "from opendeepsearch.ranking_models.base_reranker import BaseSemanticSearcher\nfrom opendeepsearch.ranking_models.infinity_rerank import InfinitySemanticSearcher\nfrom opendeepsearch.ranking_models.jina_reranker import JinaReranker",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "opendeepsearch/ranking_models/base_reranker.py": "imported as opendeepsearch.ranking_models.base_reranker at src/opendeepsearch/ranking_models/README.md:10",
+        "opendeepsearch/ranking_models/infinity_rerank.py": "imported as opendeepsearch.ranking_models.infinity_rerank at src/opendeepsearch/context_building/process_sources_pro.py:4",
+        "opendeepsearch/ranking_models/jina_reranker.py": "imported as opendeepsearch.ranking_models.jina_reranker at src/opendeepsearch/ranking_models/README.md:66"
+      }
+    },
+    {
+      "what": "Module file paths for the three classes: tests import opendeepsearch.ranking_models.base_reranker, infinity_rerank, and jina_reranker; the instruction never names files or package layout",
+      "kind": "new_name",
+      "names": [
+        "opendeepsearch.ranking_models.base_reranker",
+        "opendeepsearch.ranking_models.infinity_rerank",
+        "opendeepsearch.ranking_models.jina_reranker"
+      ],
+      "strings": [],
+      "test_ref": "test_embedding_rerankers.py:21-23",
+      "quote": "from opendeepsearch.ranking_models.base_reranker import BaseSemanticSearcher\nfrom opendeepsearch.ranking_models.infinity_rerank import InfinitySemanticSearcher\nfrom opendeepsearch.ranking_models.jina_reranker import JinaReranker",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "opendeepsearch.ranking_models.base_reranker": "opendeepsearch.ranking_models.base_reranker -> src/opendeepsearch/ranking_models/README.md:10",
+        "opendeepsearch.ranking_models.infinity_rerank": "opendeepsearch.ranking_models.infinity_rerank -> src/opendeepsearch/context_building/process_sources_pro.py:4",
+        "opendeepsearch.ranking_models.jina_reranker": "opendeepsearch.ranking_models.jina_reranker -> src/opendeepsearch/ranking_models/README.md:66"
+      }
+    },
+    {
+      "what": "Module file paths for the three classes (opendeepsearch/ranking_models/{base_reranker,infinity_rerank,jina_reranker}.py) are never named in the instruction",
+      "kind": "new_name",
+      "names": [
+        "opendeepsearch/ranking_models/base_reranker.py",
+        "opendeepsearch/ranking_models/infinity_rerank.py",
+        "opendeepsearch/ranking_models/jina_reranker.py"
+      ],
+      "strings": [],
+      "test_ref": "test_embedding_rerankers.py:21-23",
+      "quote": "from opendeepsearch.ranking_models.base_reranker import BaseSemanticSearcher\nfrom opendeepsearch.ranking_models.infinity_rerank import InfinitySemanticSearcher\nfrom opendeepsearch.ranking_models.jina_reranker import JinaReranker",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "opendeepsearch/ranking_models/base_reranker.py": "imported as opendeepsearch.ranking_models.base_reranker at src/opendeepsearch/ranking_models/README.md:10",
+        "opendeepsearch/ranking_models/infinity_rerank.py": "imported as opendeepsearch.ranking_models.infinity_rerank at src/opendeepsearch/context_building/process_sources_pro.py:4",
+        "opendeepsearch/ranking_models/jina_reranker.py": "imported as opendeepsearch.ranking_models.jina_reranker at src/opendeepsearch/ranking_models/README.md:66"
+      }
+    }
+  ],
+  "reasons": [
+    "The instruction specifies behavior, defaults, payloads, and error contracts thoroughly, but never states the module file paths the tests import from nor the `_get_embeddings` hook method the deterministic test subclass must override; both are required for tests to pass and are not derivable from the instruction text.",
+    "The instruction fully specifies behavior but never names the module files or the subclass-overridable embedding hook (_get_embeddings) the tests depend on; those exact names cannot be derived from the instruction alone.",
+    "The instruction covers the algorithms, payloads, and error contracts, but never names the package file paths or the subclass-overridable embedding hook `_get_embeddings`, both of which the tests require exactly."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 848,
+      "completion_tokens_details": {
+        "reasoning_tokens": 256
+      },
+      "prompt_tokens": 5922,
+      "prompt_tokens_details": {
+        "cached_tokens": 768
+      },
+      "total_tokens": 6770
+    },
+    {
+      "completion_tokens": 684,
+      "completion_tokens_details": {
+        "reasoning_tokens": 159
+      },
+      "prompt_tokens": 5922,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 6606
+    },
+    {
+      "completion_tokens": 756,
+      "completion_tokens_details": {
+        "reasoning_tokens": 224
+      },
+      "prompt_tokens": 5922,
+      "prompt_tokens_details": {
+        "cached_tokens": 5888
+      },
+      "total_tokens": 6678
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

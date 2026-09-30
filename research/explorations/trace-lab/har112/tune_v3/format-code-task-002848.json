@@ -1,0 +1,79 @@
+{
+  "task_id": "format-code-task-002848",
+  "label": "suspect",
+  "label_without_repo": "suspect",
+  "sample_labels": [
+    "suspect"
+  ],
+  "repo_used": false,
+  "unstated": [
+    {
+      "what": "Module must live at src/DownloadModels.py and be importable as src.DownloadModels",
+      "kind": "new_name",
+      "names": [
+        "src.DownloadModels",
+        "src/DownloadModels.py"
+      ],
+      "strings": [],
+      "test_ref": "fixture download_module",
+      "quote": "sys.modules.pop(\"src.DownloadModels\", None); module = importlib.import_module(\"src.DownloadModels\")",
+      "severity": "guessable"
+    },
+    {
+      "what": "Module-level helper networkCheck must exist in src.DownloadModels namespace and be consulted before downloading",
+      "kind": "new_name",
+      "names": [
+        "networkCheck"
+      ],
+      "strings": [],
+      "test_ref": "test_missing_model_without_network_returns_false_and_does_not_download",
+      "quote": "monkeypatch.setattr(download_module, \"networkCheck\", lambda: False)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Module-level helper extractTarGZ must exist and be called with str path of the downloaded tar.gz",
+      "kind": "new_name",
+      "names": [
+        "extractTarGZ"
+      ],
+      "strings": [],
+      "test_ref": "test_missing_tar_model_downloads_with_progress_then_extracts",
+      "quote": "monkeypatch.setattr(download_module, \"extractTarGZ\", lambda path: extract_calls.append(path))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Progress popup positional-arg contract (link, downloadLocation, title) from src.ui.QTcustom must be invoked with those exact values including downloadLocation path",
+      "kind": "exact_string",
+      "names": [
+        "DownloadProgressPopup",
+        "downloadLocation",
+        "src.ui.QTcustom"
+      ],
+      "strings": [
+        "downloadLocation"
+      ],
+      "test_ref": "assert_progress_dialog_call",
+      "quote": "assert call[\"link\"] == link ... assert call[\"downloadLocation\"] == download_location",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "Instruction specifies the API and behaviours; the module path and the module-level helpers networkCheck/extractTarGZ are not stated but are the natural existing repo utilities the fix would import, and the popup argument contract matches the repo's DownloadProgressPopup signature."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 1165,
+      "completion_tokens_details": {
+        "reasoning_tokens": 642
+      },
+      "prompt_tokens": 4058,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 5223
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

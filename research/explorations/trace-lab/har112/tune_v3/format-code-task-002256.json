@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-002256",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "All hidden tests directly assert the behavior shown in the issue's transcripts for Queue and its async sibling; AsyncQueue, task_done, and pytest/tempdir scaffolding already exist in the repository and are exercised by the same one-line fix (maxsize check treating 0 as unbounded)."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 279,
+      "completion_tokens_details": {
+        "reasoning_tokens": 169
+      },
+      "prompt_tokens": 2853,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 3132
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

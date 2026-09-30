@@ -1,0 +1,21 @@
+{
+  "task_id": "format-code-task-002718",
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "On the oracle dialect, an explicit table alias (FROM tbl AS a) must produce no AL01 violation even when the user explicitly configures rules.aliasing.table.aliasing = implicit, which normally flags and removes an explicit AS. The stated bug only covers the default config flagging a missing AS.",
+      "test_ref": "test/rules/std_AL01_test.py:test_oracle_table_alias_with_as_no_violation_implicit_config",
+      "quote": "configs = {\"rules\": {\"aliasing.table\": {\"aliasing\": \"implicit\"}}}; ... assert \"AL01\" not in codes",
+      "severity": "not_inferable",
+      "names": ["aliasing.table", "implicit"],
+      "rules": ["R2"]
+    }
+  ],
+  "instruction_covers": [
+    "Oracle implicit table alias (FROM customers base / FROM tbl a) must not raise AL01",
+    "The failure is the AL01 rule (aliasing.table) demanding an AS keyword Oracle table aliases do not support",
+    "Expected result is no lint violations for the oracle repro"
+  ],
+  "notes": "Repo verified: AL01._eval flags a missing AS whenever aliasing != 'implicit' and removes an explicit AS when aliasing == 'implicit' (src/sqlfluff/rules/aliasing/AL01.py:73-115); default aliasing is explicit (core/default_config.cfg). Oracle inherits the ansi AliasExpressionSegment where AS is optional, so 'FROM tbl AS a' already parses (no PRS) and is not flagged under the default explicit config — those assertions (test 3, the no-PRS assertions, AL02 column-alias cases, ansi/bigquery still flagged) are pre-existing and preserved by any oracle-only fix (R3). The implicit-config variant is a config value the instruction never names; grep surfaces it (config_info.py validation ['implicit','explicit']), but the minimal fix of the stated bug — stop flagging a missing AS on oracle — leaves the remove-AS branch intact and still fails test 4, so the exemption-overriding-explicit-user-config is new semantics (R2 not_inferable). Environment/dbt framing is out of scope.",
+  "read_minutes": 25
+}

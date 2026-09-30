@@ -1,0 +1,19 @@
+{
+  "task_id": "format-code-task-001024",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "buffer_overflow values discard_oldest and discard_newest, case-insensitive, normalized to lowercase, default discard_oldest",
+    "discard_oldest drops the head and appends; discard_newest drops the arriving event and keeps the FIFO",
+    "Rejected events are reinserted at the head, and a full-buffer reinsertion applies the policy (discard_oldest drops the old head, discard_newest drops the tail)",
+    "Every overflow discard logs ERROR identifying the pool and the discarded event serial",
+    "event_retries integer, default -1 unlimited, 0 discards on first rejection, positive caps redeliveries after the initial delivery",
+    "Exhausted retries discard the event, keep later events deliverable, and log ERROR naming pool, serial, and that the retry/redelivery limit was reached",
+    "Retry accounting is independent per pool even for a shared event object",
+    "A transient EPIPE rebuffers the event as today and does not consume the rejection allowance",
+    "Unknown buffer_overflow, non-integer event_retries, and retries below -1 raise a config error naming the section, option, and bad value",
+    "Both settings are part of event-listener pool config comparison for reread/reload"
+  ],
+  "notes": "Repo verified: EventListenerPool._acceptEvent already discards the oldest on overflow and logs 'pool %s event buffer overflowed, discarding event %s' at error level (supervisor/process.py:912-918), and reinserts a rejected event at the head (handle_rejected -> _acceptEvent head=True). The tests' overflow substring check ('pool delivery event buffer overflowed' plus the serial) matches this pre-existing format, which the instruction says must continue (R3/R5 substrings are the stated pool name and serial). EventListenerPoolConfig.__eq__ compares buffer_size, pool_events, result_handler (options.py:1992-1995), so adding the two new fields is the stated comparison change. The config error is checked only by substring (section, option, value), all stated, with no exact format pinned. The retry-limit log is checked for 'retry'/'redeliver' and 'limit', which are the instruction's own words ('retry/redelivery limit'). No checked behaviour goes beyond the instruction.",
+  "read_minutes": 20
+}

@@ -1,0 +1,36 @@
+{
+  "items": [
+    {
+      "what": "Directories must load only files ending in .conf, ignoring other files (e.g. .conf.disabled)",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        ".conf"
+      ],
+      "test_ref": "test_load_directory_only_conf_files",
+      "quote": "def test_load_directory_only_conf_files(self): ... expected = {'foo': {'bar': 'baz'}}",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Files within a directory are loaded in sorted (alphabetical) order so later overrides earlier deterministically",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "test_load_directory",
+      "quote": "directory = path_to_data_dir('conf1.d'); expected = {'foo': {'bar': 'baz'}, 'foo2': {'bar': 'baz'}}",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction's 'pick up the config snippets inside it' doesn't specify the .conf-only filter (a new filtering criterion the conf2.d test enforces), which is not inferable; sorted ordering is implied by the 00-/10- example naming and is guessable.",
+  "usage": {
+    "completion_tokens": 366,
+    "completion_tokens_details": {
+      "reasoning_tokens": 118
+    },
+    "prompt_tokens": 2228,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 2594
+  }
+}

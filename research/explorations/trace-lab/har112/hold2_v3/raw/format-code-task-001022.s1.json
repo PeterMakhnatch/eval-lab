@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "Every requirement exercised by the hidden tests is explicitly stated in the instruction; remaining identifiers (data1, function1_str, DEFAULT_* params, UserDict, etc.) are existing repo APIs or test scaffolding.",
+  "usage": {
+    "completion_tokens": 481,
+    "completion_tokens_details": {
+      "reasoning_tokens": 241
+    },
+    "prompt_tokens": 4260,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 4741
+  }
+}

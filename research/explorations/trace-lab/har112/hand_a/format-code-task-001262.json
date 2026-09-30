@@ -1,0 +1,21 @@
+{
+  "task_id": "format-code-task-001262",
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "A mismatched instance engine must raise botocore ClientError whose Error.Code is exactly InvalidParameterCombination, and the message must contain both the instance engine string and the cluster engine string. The instruction only says an error should be raised. A generic ClientError or ValueError fails. The code string is not stated and is not produced by a tool the instruction names.",
+      "test_ref": "test_create_db_instance_mismatch_engine_aurora_postgresql_raises",
+      "quote": "assert err[\"Code\"] == \"InvalidParameterCombination\"",
+      "severity": "not_inferable",
+      "names": ["InvalidParameterCombination"],
+      "rules": ["R5"]
+    }
+  ],
+  "instruction_covers": [
+    "create_db_instance must fail when Engine differs from the cluster Engine; the example is aurora-postgresql cluster vs mysql instance",
+    "The same engine-equality rule covers other pairs (mysql vs postgres, aurora-mysql vs aurora-postgresql) without new criteria",
+    "A matching engine still creates the instance and the existing cluster_members serialization exposes it in DBClusterMembers"
+  ],
+  "notes": "moto.rds.exceptions.InvalidParameterCombination exists and is used for other parameter conflicts, but R5 decides the asserted code and message substrings: they are not in the instruction. The issue comment says 'engine versions' while the example and tests compare engine names, not versions. Version mismatch is not tested.",
+  "read_minutes": 14
+}

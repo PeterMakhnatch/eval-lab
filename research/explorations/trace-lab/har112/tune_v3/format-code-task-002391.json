@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-002391",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "All names used by the hidden tests (pip_audit._audit.AuditOptions/Auditor, pip_audit._service types, DependencySource) belong to the existing pip_audit repository API the instruction describes, and every behavioral assertion (PYSEC preference, alias merging, per-dependency dedup, independence across instances) is stated in the instruction."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 263,
+      "completion_tokens_details": {
+        "reasoning_tokens": 85
+      },
+      "prompt_tokens": 4618,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 4881
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

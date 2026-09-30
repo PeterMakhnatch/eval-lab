@@ -1,0 +1,27 @@
+{
+  "items": [
+    {
+      "what": "Public method `is_refreshable_url` on SessionRefresh middleware that tests call directly; the instruction never names this method or requires refactoring the path check into one.",
+      "kind": "new_name",
+      "names": [
+        "is_refreshable_url"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_middleware.py:241",
+      "quote": "assert middleware.is_refreshable_url(request)",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The regex-exemption feature is fully covered by the instruction; the only unstated requirement is the tests calling a public `is_refreshable_url` method by name, which the instruction never mentions.",
+  "usage": {
+    "completion_tokens": 378,
+    "completion_tokens_details": {
+      "reasoning_tokens": 201
+    },
+    "prompt_tokens": 1970,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 2348
+  }
+}

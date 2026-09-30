@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-002074",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction explicitly names the `__f2py_numpy_version__` attribute and says it should expose the NumPy version, which the test checks equals np.__version__ as a string; the test fixture (inout.f90, F2PyTest harness) is scaffolding."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 205,
+      "completion_tokens_details": {
+        "reasoning_tokens": 89
+      },
+      "prompt_tokens": 1855,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2060
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

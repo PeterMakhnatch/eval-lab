@@ -1,0 +1,40 @@
+{
+  "items": [
+    {
+      "what": "Module file paths for the new classes: tests import from opendeepsearch.ranking_models.base_reranker, opendeepsearch.ranking_models.infinity_rerank, and opendeepsearch.ranking_models.jina_reranker; the instruction names the classes but never specifies module/package paths or file names.",
+      "kind": "new_name",
+      "names": [
+        "opendeepsearch/ranking_models/base_reranker.py",
+        "opendeepsearch/ranking_models/infinity_rerank.py",
+        "opendeepsearch/ranking_models/jina_reranker.py"
+      ],
+      "strings": [],
+      "test_ref": "test_embedding_rerankers.py:21-23",
+      "quote": "from opendeepsearch.ranking_models.base_reranker import BaseSemanticSearcher\nfrom opendeepsearch.ranking_models.infinity_rerank import InfinitySemanticSearcher\nfrom opendeepsearch.ranking_models.jina_reranker import JinaReranker",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Abstract embedding hook method name `_get_embeddings(texts: list[str]) -> torch.Tensor` that subclasses must override; the instruction says classes 'embed' and 'POST ... and return them as a torch.Tensor' but never names this method.",
+      "kind": "new_name",
+      "names": [
+        "_get_embeddings"
+      ],
+      "strings": [],
+      "test_ref": "test_embedding_rerankers.py:33-34",
+      "quote": "def _get_embeddings(self, texts: list[str]) -> torch.Tensor:\n        return torch.tensor([self.embeddings[text] for text in texts], dtype=torch.float32)",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The instruction specifies behavior, defaults, payloads, and error contracts thoroughly, but never states the module file paths the tests import from nor the `_get_embeddings` hook method the deterministic test subclass must override; both are required for tests to pass and are not derivable from the instruction text.",
+  "usage": {
+    "completion_tokens": 848,
+    "completion_tokens_details": {
+      "reasoning_tokens": 256
+    },
+    "prompt_tokens": 5922,
+    "prompt_tokens_details": {
+      "cached_tokens": 768
+    },
+    "total_tokens": 6770
+  }
+}

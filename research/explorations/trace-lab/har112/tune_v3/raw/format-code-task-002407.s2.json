@@ -1,0 +1,42 @@
+{
+  "items": [
+    {
+      "what": "Label propagation to sibling response functions step_response, impulse_response, initial_response, input_output_response (instruction only names forced_response); same-family fix of passing system labels through, no new semantics",
+      "kind": "new_name",
+      "names": [
+        "step_response",
+        "impulse_response",
+        "initial_response",
+        "input_output_response"
+      ],
+      "strings": [],
+      "test_ref": "timeresp_test.py test_step_response_labels_preserved etc.",
+      "quote": "res = ct.step_response(sys)\nassert list(res.output_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "Labels must be subset according to input/output selection (e.g. input=0 yields ['Va']), i.e. label filtering follows the selected indices",
+      "kind": "extra_behavior",
+      "names": [
+        "input",
+        "output"
+      ],
+      "strings": [],
+      "test_ref": "timeresp_test.py test_step_response_input_selection_labels",
+      "quote": "res = ct.step_response(sys, input=0)\nassert list(res.input_labels) == [\"Va\"]",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction covers the core bug for forced_response; the tests extend the identical label-forwarding fix to sibling time-response functions and require index-based subsetting of labels, both of which follow from the standard TimeResponseData label machinery (mechanical propagation), so they are guessable.",
+  "usage": {
+    "completion_tokens": 557,
+    "completion_tokens_details": {
+      "reasoning_tokens": 219
+    },
+    "prompt_tokens": 2739,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3296
+  }
+}

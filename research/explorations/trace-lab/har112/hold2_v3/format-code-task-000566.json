@@ -1,0 +1,190 @@
+{
+  "task_id": "format-code-task-000566",
+  "label": "broken",
+  "label_without_repo": "broken",
+  "sample_labels": [
+    "broken",
+    "suspect",
+    "broken"
+  ],
+  "repo_used": true,
+  "unstated": [
+    {
+      "what": "Exact prompt string has no trailing question mark: 'Do you want to write a description for fct_orders' \u2014 the instruction's proposed text ends with '?'",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Do you want to write a description for fct_orders"
+      ],
+      "test_ref": "tests/doc_task_test.py::test_prompt_for_new_model_when_no_schema_exists",
+      "quote": "== \"Do you want to write a description for fct_orders\"",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "Do you want to write a description for fct_orders": null
+      }
+    },
+    {
+      "what": "The existing-model prompt is also changed to drop its trailing '?' ('Do you want to change the model description of fct_orders') \u2014 the instruction never asks to touch the existing-model message",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Do you want to change the model description of fct_orders"
+      ],
+      "test_ref": "tests/doc_task_test.py::test_prompt_for_existing_model_with_real_description",
+      "quote": "== \"Do you want to change the model description of fct_orders\"",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "Do you want to change the model description of fct_orders": null
+      }
+    },
+    {
+      "what": "Prompts must go through questionary.prompt with a payload dict shaped {\"message\": ...} (mocked via questionary.prompt in module dbt_sugar.core.task.doc)",
+      "kind": "new_name",
+      "names": [
+        "questionary.prompt",
+        "dbt_sugar.core.task.doc"
+      ],
+      "strings": [],
+      "test_ref": "tests/doc_task_test.py:_capture_prompt_message",
+      "quote": "mocker.patch(\n        \"questionary.prompt\",\n        return_value={\n            \"wants_to_document_model\": True,",
+      "severity": "guessable",
+      "repo_evidence": {
+        "questionary.prompt": null,
+        "dbt_sugar.core.task.doc": "module dbt_sugar/core/task/doc"
+      }
+    },
+    {
+      "what": "Same 'write a description' message must be used for both the no-schema.yml case and the schema-exists-but-model-missing case",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "tests/doc_task_test.py::test_prompt_for_new_model_when_schema_exists_without_model",
+      "quote": "\"\"\"First-time documentation (schema.yml present but model not in it).\"\"\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact prompt message strings with no trailing question mark: 'Do you want to write a description for fct_orders' and 'Do you want to change the model description of fct_orders'. The instruction quotes 'Do you want to write a description for fct_orders?' including a '?', but tests require the message without it; exact strings beyond the instruction's literal text.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Do you want to write a description for fct_orders",
+        "Do you want to change the model description of fct_orders"
+      ],
+      "test_ref": "tests/doc_task_test.py::test_prompt_for_new_model_when_no_schema_exists",
+      "quote": "== \"Do you want to write a description for fct_orders\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact prompt message strings: 'Do you want to write a description for fct_orders' and 'Do you want to change the model description of fct_orders' \u2014 note no '?' and no '(Y/n)', while the instruction quotes a message WITH a trailing '?'",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Do you want to write a description for fct_orders",
+        "Do you want to change the model description of fct_orders"
+      ],
+      "test_ref": "tests/doc_task_test.py:622-627, 663-667",
+      "quote": "== \"Do you want to write a description for fct_orders\" / == \"Do you want to change the model description of fct_orders\"",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "Do you want to write a description for fct_orders": null,
+        "Do you want to change the model description of fct_orders": null
+      }
+    },
+    {
+      "what": "Prompt must go through questionary.prompt with a payload dict keyed by 'message' (and return key 'wants_to_document_model'), instead of whatever channel (click/confirm) the current code uses",
+      "kind": "new_name",
+      "names": [
+        "questionary.prompt",
+        "wants_to_document_model",
+        "model_description",
+        "message"
+      ],
+      "strings": [],
+      "test_ref": "tests/doc_task_test.py:596-604",
+      "quote": "mocker.patch(\"questionary.prompt\", return_value={\"wants_to_document_model\": True, \"model_description\": \"Some description\"})",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "questionary.prompt": null,
+        "wants_to_document_model": "tests/cli_ui_test.py:21",
+        "model_description": "tests/cli_ui_test.py:27",
+        "message": "tests/cli_ui_test.py:22"
+      }
+    },
+    {
+      "what": "Existing-model path must keep the 'change the model description of' wording without '(Y/n)' suffix \u2014 an exact-string sibling not derivable from the instruction which only gives the new-model message with '?'",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Do you want to change the model description of fct_orders"
+      ],
+      "test_ref": "tests/doc_task_test.py::test_prompt_for_existing_model_with_real_description",
+      "quote": "== \"Do you want to change the model description of fct_orders\"",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "Do you want to change the model description of fct_orders": null
+      }
+    }
+  ],
+  "dropped_existing": [
+    {
+      "what": "orchestrate_model_documentation must call module-level functions open_yaml/save_yaml (patched at 'dbt_sugar.core.task.doc.open_yaml') rather than inline yaml handling",
+      "kind": "new_name",
+      "names": [
+        "open_yaml",
+        "save_yaml",
+        "dbt_sugar.core.task.doc"
+      ],
+      "strings": [],
+      "test_ref": "tests/doc_task_test.py:589-590",
+      "quote": "mocker.patch(\"dbt_sugar.core.task.doc.open_yaml\", ...); mocker.patch(\"dbt_sugar.core.task.doc.save_yaml\")",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "open_yaml": "tests/doc_task_test.py:130",
+        "save_yaml": "tests/doc_task_test.py:131",
+        "dbt_sugar.core.task.doc": "module dbt_sugar/core/task/doc"
+      }
+    }
+  ],
+  "reasons": [
+    "The instruction only sketches the new prompt (with a '?') for the first-time case; the tests require that exact string without a '?', also rewrite the existing-model prompt to drop its '?', and assume the prompts flow through questionary.prompt with a 'message' key \u2014 none of which the instruction states.",
+    "The instruction only states the new 'write a description' prompt; the tests also require exact message strings without the trailing '?' and confirm the 'change' wording remains for existing models, which is the minimal fix's mechanical propagation, so it is guessable.",
+    "The instruction only sketches the new-model message with a question mark and (Y/n); the tests require exact strings without '?' or '(Y/n)', a specific questionary.prompt dict contract, and open_yaml/save_yaml refactoring, none of which are stated or inferable."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 892,
+      "completion_tokens_details": {
+        "reasoning_tokens": 349
+      },
+      "prompt_tokens": 2382,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 3274
+    },
+    {
+      "completion_tokens": 262,
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "prompt_tokens": 2382,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2644
+    },
+    {
+      "completion_tokens": 637,
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "prompt_tokens": 2382,
+      "prompt_tokens_details": {
+        "cached_tokens": 2368
+      },
+      "total_tokens": 3019
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The instruction explicitly specifies the dict field name, the null-when-missing behavior, and the protobuf NodeInfo.node_checksum field; all hidden tests check exactly these behaviors, which a minimal correct fix covers.",
+  "usage": {
+    "completion_tokens": 199,
+    "completion_tokens_details": {
+      "reasoning_tokens": 92
+    },
+    "prompt_tokens": 3737,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3936
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "task_id": "format-code-task-001022",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "data= and config= accept Mapping (not only dict), path, PathLike, and readable text/binary streams, with a mutable snapshot",
+    "save_data and save_config accept paths, PathLike, and writable text/binary streams; caller streams stay open",
+    "Path success message is the absolute path in the existing status dict; stream success is {\"status\": true, \"message\": \"Everything seems good.\"}",
+    "Stream write failure is a false-status result whose message includes the underlying error",
+    "Snapshots keep both point arrays or both function expressions plus seed/start/step/stop (including zeros) and color, bgcolor, spot_size, size, projection, alpha, linewidth, depth",
+    "JSON size is an array; loaded size is the library tuple",
+    "samilaConfigError is importable from samila; malformed JSON, read failures, and non-object JSON raise samilaDataError or samilaConfigError with __cause__",
+    "Missing plot/generate sections and a config with only f1 or only f2 keep existing defaults and still generate the missing function"
+  ],
+  "notes": "samilaConfigError already exists in samila/errors.py next to samilaDataError but is not re-exported in samila/__init__.py; the instruction names the export. function1_str/function2_str, DEFAULT_* in samila.params, Projection.POLAR == 'polar', and DATA_SAVE_SUCCESS_MESSAGE == 'Everything seems good.' are repo-given (R1). Legacy default tests compare against those constants. Partial-config seed is None because load_config only sets seed from a generate section and the initializer leaves it unset. Size is not in the current save/load plot dicts; the instruction explicitly requires the array/tuple round trip.",
+  "read_minutes": 20
+}

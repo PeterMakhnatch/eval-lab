@@ -1,0 +1,279 @@
+{
+  "task_id": "candidate-1702-ml-inference",
+  "label": "suspect",
+  "label_without_repo": "broken",
+  "sample_labels": [
+    "broken",
+    "suspect",
+    "suspect"
+  ],
+  "repo_used": true,
+  "unstated": [
+    {
+      "what": "Shared helper must be named exactly `resolve_max_length` and be importable from `lm_eval.models.utils`",
+      "kind": "new_name",
+      "names": [
+        "lm_eval.models.utils",
+        "resolve_max_length"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_outputs.py:81-82",
+      "quote": "from lm_eval.models.huggingface import HFLM\n    from lm_eval.models.utils import resolve_max_length",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "lm_eval.models.utils": "module lm_eval/models/utils",
+        "resolve_max_length": null
+      }
+    },
+    {
+      "what": "The regression runner must be runnable with an absolute input path `/app/inputs.` and write `/app/output.`, and the seven case ids (`composite_nested`, `text_n_positions`, `text_max_position`, `text_n_ctx`, `finite_tokenizer`, `infinite_tokenizer`, `explicit_override`) come from the fixture, not the instruction",
+      "kind": "new_name",
+      "names": [
+        "inputs.",
+        "output.",
+        "tools/run_fixture.py"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_outputs.py:97",
+      "quote": "subprocess.run([sys.executable, '/app/tools/run_fixture.py', '/app/inputs.'], check=True)",
+      "severity": "guessable",
+      "repo_evidence": {
+        "inputs.": null,
+        "output.": null,
+        "tools/run_fixture.py": "path tools/run_fixture.py"
+      }
+    },
+    {
+      "what": "HFLM must read the explicit override from the `_max_length` attribute and keep using `_tokenizer`/`_model`/`_DEFAULT_MAX_LENGTH` internals",
+      "kind": "extra_behavior",
+      "names": [
+        "_max_length",
+        "_tokenizer",
+        "_model",
+        "_DEFAULT_MAX_LENGTH"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_outputs.py:151-156",
+      "quote": "model._max_length = case.get('explicit_max_length')\n        ...\n        assert model.max_length == (case.get('explicit_max_length') or expected(case))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Shared helper must be named resolve_max_length and accept positional config, tokenizer plus default keyword",
+      "kind": "new_name",
+      "names": [
+        "resolve_max_length",
+        "default"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_outputs.py:82,150",
+      "quote": "from lm_eval.models.utils import resolve_max_length ... resolve_max_length(config, tokenizer, default=2048) == expected(case)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Output result entries must use the keys 'resolved' and 'via_property' (and case 'id')",
+      "kind": "exact_string",
+      "names": [
+        "resolved",
+        "via_property",
+        "id"
+      ],
+      "strings": [
+        "resolved",
+        "via_property"
+      ],
+      "test_ref": "tests/test_outputs.py:125-133,143",
+      "quote": "result['resolved'] == expected(case) ... item['resolved'] == item['via_property']",
+      "severity": "guessable"
+    },
+    {
+      "what": "Top-level output object must nest results under the key 'schema_version'",
+      "kind": "exact_string",
+      "names": [
+        "schema_version"
+      ],
+      "strings": [
+        "schema_version",
+        "lm-eval-context-repair.v1"
+      ],
+      "test_ref": "tests/test_outputs.py:111",
+      "quote": "assert data['schema_version'] == 'lm-eval-context-repair.v1'",
+      "severity": "guessable"
+    },
+    {
+      "what": "HFLM.max_length must be a property backed by attributes _max_length, _tokenizer/tokenizer, _model.config and _DEFAULT_MAX_LENGTH for the direct-instantiation tests",
+      "kind": "new_name",
+      "names": [
+        "_max_length",
+        "_tokenizer",
+        "_model",
+        "_DEFAULT_MAX_LENGTH",
+        "max_length"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_outputs.py:152-157",
+      "quote": "model._max_length = case.get('explicit_max_length'); model._tokenizer = tokenizer; model._model = ...; assert model.max_length ==",
+      "severity": "guessable"
+    },
+    {
+      "what": "Shared resolution function must be named `resolve_max_length` and importable from lm_eval.models.utils (instruction says keep logic there but gives no name).",
+      "kind": "new_name",
+      "names": [
+        "resolve_max_length",
+        "lm_eval.models.utils"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_outputs.py:82",
+      "quote": "from lm_eval.models.utils import resolve_max_length",
+      "severity": "guessable",
+      "repo_evidence": {
+        "resolve_max_length": null,
+        "lm_eval.models.utils": "module lm_eval/models/utils"
+      }
+    },
+    {
+      "what": "Explicit override behavior: HFLM.max_length must return cached `_max_length` (1234) even when set via object.__new__ without constructor, i.e. read the `_max_length` attribute as explicit override in the property.",
+      "kind": "extra_behavior",
+      "names": [
+        "_max_length",
+        "max_length"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_outputs.py:158-159",
+      "quote": "model._max_length = case.get('explicit_max_length') ... assert model.max_length == (case.get('explicit_max_length') or expected(case))",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [
+    {
+      "what": "Each result object must expose a `via_property` field equal to the HFLM.max_length property value, alongside `resolved`",
+      "kind": "new_name",
+      "names": [
+        "via_property",
+        "resolved",
+        "schema_version"
+      ],
+      "strings": [
+        "via_property",
+        "resolved"
+      ],
+      "test_ref": "tests/test_outputs.py:133",
+      "quote": "item['resolved'] == item['via_property']",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "via_property": "tools/run_fixture.py:93",
+        "resolved": "tools/run_fixture.py:86",
+        "schema_version": "tools/run_fixture.py:95"
+      }
+    },
+    {
+      "what": "Result objects must include a `resolved` key (result field name never stated; only 'one result per case')",
+      "kind": "new_name",
+      "names": [
+        "resolved"
+      ],
+      "strings": [
+        "resolved"
+      ],
+      "test_ref": "tests/test_outputs.py:128",
+      "quote": "assert result['resolved'] == expected(case)",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "resolved": "tools/run_fixture.py:86"
+      }
+    },
+    {
+      "what": "The output artifact must use the key `schema_version` (instruction only gives the value string)",
+      "kind": "new_name",
+      "names": [
+        "schema_version"
+      ],
+      "strings": [
+        "schema_version"
+      ],
+      "test_ref": "tests/test_outputs.py:111",
+      "quote": "assert data['schema_version'] == 'lm-eval-context-repair.v1'",
+      "severity": "guessable",
+      "repo_evidence": {
+        "schema_version": "tools/run_fixture.py:95"
+      }
+    },
+    {
+      "what": "Each result entry must contain a `via_property` field equal to the HFLM.max_length property value (auto path), distinct from `resolved`.",
+      "kind": "new_name",
+      "names": [
+        "via_property",
+        "resolved"
+      ],
+      "strings": [
+        "via_property"
+      ],
+      "test_ref": "tests/test_outputs.py:133",
+      "quote": "item['resolved'] == item['via_property']",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "via_property": "tools/run_fixture.py:93",
+        "resolved": "tools/run_fixture.py:86"
+      }
+    },
+    {
+      "what": "Output JSON must expose the schema string under the top-level key `schema_version` (instruction only gives the literal value, not the key).",
+      "kind": "new_name",
+      "names": [
+        "schema_version"
+      ],
+      "strings": [
+        "schema_version",
+        "lm-eval-context-repair.v1"
+      ],
+      "test_ref": "tests/test_outputs.py:111",
+      "quote": "assert data['schema_version'] == 'lm-eval-context-repair.v1'",
+      "severity": "guessable",
+      "repo_evidence": {
+        "schema_version": "tools/run_fixture.py:95",
+        "lm-eval-context-repair.v1": "string in inputs.json"
+      }
+    }
+  ],
+  "reasons": [
+    "The instruction states the semantics and schema value but never names the shared helper (`resolve_max_length`) or the result object's field names (`resolved`, `via_property`), which the hidden tests read directly; the remaining items (schema key spelling, runner path, HFLM internals) are inferable from the instruction or existing repo behavior.",
+    "The instruction states the semantics but not the exact helper name resolve_max_length with its default keyword, the output field names resolved/via_property/schema_version, or the HFLM internal attributes the tests set directly; all are plausibly present in the existing repo files the tests target, hence guessable.",
+    "The instruction specifies the precedence rules and artifact but omits the shared function's exact name and the per-result `via_property` field; the function name likely exists in the repo (auto-droppable), while `via_property` is an invented output field a minimal fix would not add."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 1062,
+      "completion_tokens_details": {
+        "reasoning_tokens": 234
+      },
+      "prompt_tokens": 3268,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 4330
+    },
+    {
+      "completion_tokens": 993,
+      "completion_tokens_details": {
+        "reasoning_tokens": 420
+      },
+      "prompt_tokens": 3268,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 4261
+    },
+    {
+      "completion_tokens": 771,
+      "completion_tokens_details": {
+        "reasoning_tokens": 203
+      },
+      "prompt_tokens": 3268,
+      "prompt_tokens_details": {
+        "cached_tokens": 3264
+      },
+      "total_tokens": 4039
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

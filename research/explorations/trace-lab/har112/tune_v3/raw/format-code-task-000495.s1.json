@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The hidden test only exercises the exact scenario described in the issue: a Definition given as an intrinsic function (Fn::Join) should not be validated as a raw string and should produce no errors, which any correct fix to the reported bug provides.",
+  "usage": {
+    "completion_tokens": 155,
+    "completion_tokens_details": {
+      "reasoning_tokens": 45
+    },
+    "prompt_tokens": 1758,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 1913
+  }
+}

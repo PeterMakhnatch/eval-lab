@@ -1,0 +1,69 @@
+{
+  "items": [
+    {
+      "what": "Module-level function `networkCheck()` in src.DownloadModels that downloadModel must call to test connectivity (tests monkeypatch it on the module)",
+      "kind": "new_name",
+      "names": [
+        "networkCheck",
+        "src.DownloadModels"
+      ],
+      "strings": [],
+      "test_ref": "test_download_model.py:107",
+      "quote": "monkeypatch.setattr(download_module, \"networkCheck\", lambda: False)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Module-level function `extractTarGZ(path)` called with the archive path as a str after download for tar.gz assets",
+      "kind": "new_name",
+      "names": [
+        "extractTarGZ",
+        "src.DownloadModels"
+      ],
+      "strings": [],
+      "test_ref": "test_download_model.py:158",
+      "quote": "monkeypatch.setattr(download_module, \"extractTarGZ\", lambda path: extract_calls.append(path)) ... assert extract_calls == [str(model_dir / \"rife-v4.6.tar.gz\")]",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Progress dialog via `DownloadProgressPopup` imported from `src.ui.QTcustom`, called with keyword/link args `link`, `downloadLocation`, `title`",
+      "kind": "new_name",
+      "names": [
+        "DownloadProgressPopup",
+        "src.ui.QTcustom",
+        "link",
+        "downloadLocation",
+        "title"
+      ],
+      "strings": [
+        "downloadLocation"
+      ],
+      "test_ref": "test_download_model.py:41-68",
+      "quote": "for name, value in zip((\"link\", \"downloadLocation\", \"title\"), args): ... assert call[\"downloadLocation\"] == download_location",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Implementation must live in module `src.DownloadModels` (file src/DownloadModels.py)",
+      "kind": "new_name",
+      "names": [
+        "src.DownloadModels",
+        "src/DownloadModels.py"
+      ],
+      "strings": [],
+      "test_ref": "test_download_model.py:61",
+      "quote": "module = importlib.import_module(\"src.DownloadModels\")",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The instruction describes behavior but never names the module-level helpers the tests patch (networkCheck, extractTarGZ), the DownloadProgressPopup API with its link/downloadLocation/title parameters, or the src.DownloadModels module path; these are not inferable from the text.",
+  "usage": {
+    "completion_tokens": 852,
+    "completion_tokens_details": {
+      "reasoning_tokens": 287
+    },
+    "prompt_tokens": 4058,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 4910
+  }
+}

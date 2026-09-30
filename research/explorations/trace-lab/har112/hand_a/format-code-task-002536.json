@@ -1,0 +1,12 @@
+{
+  "task_id": "format-code-task-002536",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Editing a Kraken history event to use a custom asset breaks retrieval of the Kraken events list",
+    "The edit itself succeeds; the failure happens when the events are fetched or displayed afterwards",
+    "Custom assets already work elsewhere, so they should be usable on Kraken events without breaking the list"
+  ],
+  "notes": "Repo verified: HistoryBaseEntry.serialize builds Kraken notes only when location is KRAKEN and notes is empty, and every branch calls self.asset.resolve_to_asset_with_symbol().symbol (history/events/structures/base.py:281-303). CustomAsset extends AssetWithNameAndType, not AssetWithSymbol (assets/asset.py:397), so resolve_to_asset_with_symbol raises WrongAssetType and serialization crashes. Asset.symbol_or_name() already returns the symbol for symbol assets and the name otherwise (asset.py:181-193), so the natural fix is to use it in those branches. The hidden test pins the eight existing type/subtype note templates with the custom asset name 'Gold Bar' substituted; those exact strings are the pre-existing templates, and one substitution fixes all of them (R1/R3, mechanical propagation). No new event types, formats, or APIs are required.",
+  "read_minutes": 14
+}

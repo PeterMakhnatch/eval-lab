@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-000116",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "The hidden test checks exactly the behavior requested: registering a strategy for `tuple` should make `st.from_type(tuple[int])` produce it (and unregistering restores default behavior). All test-specific names (`temp_registered`, `st.just`, `.example()`) are existing repo/test helpers or library calls, not new requirements."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 181,
+      "completion_tokens_details": {
+        "reasoning_tokens": 60
+      },
+      "prompt_tokens": 1561,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 1742
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

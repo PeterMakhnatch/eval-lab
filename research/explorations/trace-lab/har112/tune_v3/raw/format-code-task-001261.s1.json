@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The hidden test only asserts a ClientError with Code 'InvalidChangeBatch' for a duplicate CREATE, which the instruction explicitly requests (including the exact exception name and message context).",
+  "usage": {
+    "completion_tokens": 126,
+    "completion_tokens_details": {
+      "reasoning_tokens": 50
+    },
+    "prompt_tokens": 2214,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 2340
+  }
+}

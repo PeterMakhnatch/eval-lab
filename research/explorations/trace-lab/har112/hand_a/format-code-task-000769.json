@@ -1,0 +1,12 @@
+{
+  "task_id": "format-code-task-000769",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "node_info dicts expose node_checksum: the source checksum string when the node has one, and None when checksum is missing or None, with the key still present",
+    "The protobuf NodeInfo message exposes the same field as node_checksum, which the existing LogStartLine dict-to-proto path already maps field-for-field",
+    "Existing node_info fields such as meta stay intact"
+  ],
+  "notes": "FileHash.checksum is the source checksum written to the manifest; the functional test compares against manifest nodes[id].checksum.checksum. SeedNode with a FileHash and SourceDefinition/ModelNode without a checksum are the stated available vs unavailable cases, not extra APIs. test_command.sh runs base and new; the patched test_meta still checks existing meta payloads, now keyed by unique_id which node_info already has. The engineer must update the generated pb2 as well as the proto, because events are built from the generated descriptor; that is the stated protobuf contract, not a hidden behavior.",
+  "read_minutes": 18
+}

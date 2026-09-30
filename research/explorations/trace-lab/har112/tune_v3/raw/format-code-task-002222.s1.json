@@ -1,0 +1,51 @@
+{
+  "items": [
+    {
+      "what": "Ufunc support for a dtype= keyword (np.positive(df, dtype=np.float32) must return a DataFrame with float32 dtypes); the instruction only mentions the out parameter",
+      "kind": "extra_behavior",
+      "names": [
+        "dtype"
+      ],
+      "strings": [
+        "np.float32"
+      ],
+      "test_ref": "test_np_unary_ufunc_dataframe_dtype_kwarg",
+      "quote": "result = np.positive(df, dtype=np.float32)\n    assert all(d == np.float32 for d in result.dtypes)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "np.negative with out= must write into an int64 ndarray (sibling unary ufunc; same __array_ufunc__ out-handling fix covers it)",
+      "kind": "extra_behavior",
+      "names": [
+        "negative"
+      ],
+      "strings": [],
+      "test_ref": "test_np_negative_dataframe_with_out",
+      "quote": "np.negative(df, out=bar)",
+      "severity": "guessable"
+    },
+    {
+      "what": "np.exp with out= writes to ndarray (sibling unary ufunc, same fix)",
+      "kind": "extra_behavior",
+      "names": [
+        "exp"
+      ],
+      "strings": [],
+      "test_ref": "test_np_unary_ufunc_dataframe_with_out",
+      "quote": "np.exp(df, out=bar)",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction only describes the out= bug; the dtype= keyword behavior for ufuncs (float32 dtypes) is an extra semantic the instruction never mentions, so it is not inferable. The other ufunc/out cases (negative, exp) are covered by the same minimal __array_ufunc__ out fix.",
+  "usage": {
+    "completion_tokens": 575,
+    "completion_tokens_details": {
+      "reasoning_tokens": 144
+    },
+    "prompt_tokens": 3059,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3634
+  }
+}

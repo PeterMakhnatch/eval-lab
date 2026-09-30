@@ -1,0 +1,30 @@
+{
+  "items": [
+    {
+      "what": "Ufuncs applied to a DataFrame must honor the numpy `dtype` keyword, returning a DataFrame whose dtypes are the requested dtype (np.float32) \u2014 the instruction only mentions the `out` parameter, never `dtype`.",
+      "kind": "extra_behavior",
+      "names": [
+        "positive",
+        "dtype"
+      ],
+      "strings": [
+        "np.float32"
+      ],
+      "test_ref": "test_np_unary_ufunc_dataframe_dtype_kwarg",
+      "quote": "result = np.positive(df, dtype=np.float32)\n    assert all(d == np.float32 for d in result.dtypes)",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The instruction only describes fixing the `out` parameter for DataFrame ufunc dispatch; all out-related and preservation tests follow from that fix or guard existing behavior. The dtype-kwarg test requires extra semantics (dtype propagation to result dtypes) never mentioned in the issue, which a minimal out-fix would not implement.",
+  "usage": {
+    "completion_tokens": 391,
+    "completion_tokens_details": {
+      "reasoning_tokens": 115
+    },
+    "prompt_tokens": 3059,
+    "prompt_tokens_details": {
+      "cached_tokens": 3008
+    },
+    "total_tokens": 3450
+  }
+}

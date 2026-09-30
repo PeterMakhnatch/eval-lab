@@ -1,0 +1,20 @@
+{
+  "task_id": "format-code-task-002201",
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "DataFrame.astype('category') must also keep the original column index class, name, and dtype. The instruction only shows astype(dict) dropping UInt64Index name/dtype. The category branch is a second concat path in the same NDFrame.astype method; the same column-preservation fix covers it and adds no new semantics.",
+      "test_ref": "test_astype_column_metadata_categorical",
+      "quote": "result = df.astype('category')",
+      "severity": "guessable",
+      "names": ["astype"],
+      "rules": ["R2"]
+    }
+  ],
+  "instruction_covers": [
+    "astype with a dtype dict must keep columns identical to the pre-astype index, including UInt64Index, name, and uint64 dtype",
+    "The requested column dtypes are still applied (float64 and uint64 in the example)"
+  ],
+  "notes": "Both branches in pandas/core/generic.py NDFrame.astype rebuild the frame with pd.concat, which drops column metadata. Grading -k test_astype_column_metadata matches both new tests. A dict-only fix fails the category test.",
+  "read_minutes": 16
+}

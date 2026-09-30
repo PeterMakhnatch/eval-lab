@@ -1,0 +1,101 @@
+{
+  "task_id": "format-code-task-002567",
+  "label": "suspect",
+  "label_without_repo": "suspect",
+  "sample_labels": [
+    "broken",
+    "sound",
+    "suspect"
+  ],
+  "repo_used": false,
+  "unstated": [
+    {
+      "what": "Distinguish two sysctl.show outcomes in test mode: returning None must keep the original comment in ret (result None), while returning [] must produce the 'would be changed to' comment. The instruction only describes the missing-file case and implies a preview comment, not a two-way contract on show's return value.",
+      "kind": "extra_behavior",
+      "names": [
+        "sysctl.show",
+        "present"
+      ],
+      "strings": [],
+      "test_ref": "tests/unit/states/test_sysctl.py:test_present",
+      "quote": "mock = MagicMock(return_value=None)\n ... self.assertDictEqual(sysctl.present(name, value), ret)\n mock = MagicMock(return_value=[]) ... ret.update({'comment': comment_empty})",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact comment string for the empty/missing-config case: 'Sysctl option {0} would be changed to {1}' \u2014 the instruction paraphrases it ('would be changed to ...') but never gives the exact wording, which the test asserts via comment_empty.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Sysctl option {0} would be changed to {1}"
+      ],
+      "test_ref": "tests/unit/states/test_sysctl.py:test_present",
+      "quote": "comment_empty = ('Sysctl option {0} would be changed to {1}'\n                         ''.format(name, value))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact success-preview comment string 'Sysctl option {name} would be changed to {value}' used when the config file exists but lacks the key (empty show output)",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Sysctl option {0} would be changed to {1}"
+      ],
+      "test_ref": "tests/unit/states/test_sysctl.py:comment_empty",
+      "quote": "comment_empty = ('Sysctl option {0} would be changed to {1}' ''.format(name, value))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Behavior distinction between sysctl.show returning None (missing/unreadable file -> keep generic 'might be changed' comment, result None) vs returning [] (empty file -> 'would be changed to' comment)",
+      "kind": "extra_behavior",
+      "names": [
+        "sysctl.show"
+      ],
+      "strings": [],
+      "test_ref": "tests/unit/states/test_sysctl.py:test_present",
+      "quote": "mock = MagicMock(return_value=None) ... self.assertDictEqual(sysctl.present(name, value), ret) ... mock = MagicMock(return_value=[])",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction says a missing config file should yield a preview comment, but the hidden test additionally requires a separate behavior for sysctl.show returning None (keeping the old comment) versus [] (yielding the new comment), a distinction and exact comment format the instruction never states.",
+    "The hidden test only exercises the behavior the issue asks for: when sysctl.show returns None (missing file) or an empty list, present() returns the standard preview comment 'Sysctl option {0} would be changed to {1}', which is the exact string already produced by the existing absent-key code path referenced in the instruction, so the minimal fix passes without unstated names or strings.",
+    "The instruction implies test=True with a missing file should yield a preview like the existing-file case; the exact 'would be changed to' wording is quoted in the issue, and the None-vs-empty show distinction follows from keeping the existing default comment for unreadable files while fixing the missing case."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 1285,
+      "completion_tokens_details": {
+        "reasoning_tokens": 898
+      },
+      "prompt_tokens": 1915,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 3200
+    },
+    {
+      "completion_tokens": 465,
+      "completion_tokens_details": {
+        "reasoning_tokens": 332
+      },
+      "prompt_tokens": 1915,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2380
+    },
+    {
+      "completion_tokens": 515,
+      "completion_tokens_details": {
+        "reasoning_tokens": 168
+      },
+      "prompt_tokens": 1915,
+      "prompt_tokens_details": {
+        "cached_tokens": 1856
+      },
+      "total_tokens": 2430
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

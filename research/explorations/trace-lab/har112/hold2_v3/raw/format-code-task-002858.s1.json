@@ -1,0 +1,52 @@
+{
+  "items": [
+    {
+      "what": "Explicit ASC must be preserved verbatim as 'ASC' (not dropped) when generating duckdb SQL \u2014 the instruction only says sort order 'is not rendered', not that the fix is to keep explicit ASC tokens.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "ORDER BY i ASC"
+      ],
+      "test_ref": "tests/dialects/test_duckdb.py:test_order_by_explicit_asc_duckdb",
+      "quote": "\"SELECT i FROM RANGE(5) AS _(i) ORDER BY i ASC\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Default (unspecified) and DESC orderings must round-trip unchanged, including for the default dialect \u2014 implied by the issue but not literally stated as required outputs.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        "SELECT i FROM RANGE(5) AS _(i) ORDER BY i DESC",
+        "SELECT x FROM t ORDER BY x"
+      ],
+      "test_ref": "tests/dialects/test_duckdb.py:test_order_by_unspecified_duckdb, test_order_by_desc_duckdb, test_order_by_unspecified_default_dialect",
+      "quote": "\"SELECT i FROM RANGE(5) AS _(i) ORDER BY i DESC\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "In duckdb, 'ORDER BY x ASC NULLS LAST' must render as 'ORDER BY x ASC' \u2014 i.e. explicit NULLS LAST is dropped as the duckdb default. The instruction never mentions NULLS ordering, so dropping an explicitly-written modifier is extra semantics beyond 'preserve sort order'.",
+      "kind": "extra_behavior",
+      "names": [
+        "nulls_are_sorted"
+      ],
+      "strings": [
+        "SELECT x FROM t ORDER BY x ASC"
+      ],
+      "test_ref": "tests/dialects/test_duckdb.py:test_order_by_asc_nulls_last_duckdb",
+      "quote": "parse_one(\"SELECT x FROM t ORDER BY x ASC NULLS LAST\").sql(\"duckdb\"), \"SELECT x FROM t ORDER BY x ASC\"",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The issue only demonstrates ASC being dropped; the tests additionally demand exact round-trip strings and that duckdb's default NULLS LAST is elided. The first two are the direct consequence of the requested fix; the NULLS LAST elision relies on duckdb's existing default null-order behavior in the generator, which makes it guessable but not stated.",
+  "usage": {
+    "completion_tokens": 1048,
+    "completion_tokens_details": {
+      "reasoning_tokens": 517
+    },
+    "prompt_tokens": 1954,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3002
+  }
+}

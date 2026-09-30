@@ -1,0 +1,105 @@
+{
+  "items": [
+    {
+      "what": "Exact dictionary key paths for the MHD finite-volume algorithm entries (resistivity, hyper_resistivity, heat_capacity_ratio, hyper_mode) are never given in the instruction; only the concepts are.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "simulation/algo/fv_method/resistivity",
+        "simulation/algo/fv_method/hyper_resistivity",
+        "simulation/algo/fv_method/heat_capacity_ratio",
+        "simulation/algo/fv_method/hyper_mode"
+      ],
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:148-152",
+      "quote": "\"simulation/algo/fv_method/resistivity\": (\"double\", 0.1), \"simulation/algo/fv_method/hyper_resistivity\": (\"double\", 0.01), ...",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact dictionary key paths for to_primitive/to_conservative heat_capacity_ratio.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "simulation/algo/to_primitive/heat_capacity_ratio",
+        "simulation/algo/to_conservative/heat_capacity_ratio"
+      ],
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:153-155",
+      "quote": "\"simulation/algo/to_primitive/heat_capacity_ratio\": (\"double\", 2.0), \"simulation/algo/to_conservative/heat_capacity_ratio\": ...",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact dictionary key paths for constrained_transport entries.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "simulation/algo/constrained_transport/resistivity",
+        "simulation/algo/constrained_transport/hyper_resistivity",
+        "simulation/algo/constrained_transport/hyper_mode"
+      ],
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:156-159",
+      "quote": "\"simulation/algo/constrained_transport/resistivity\": (\"double\", 0.1), \"simulation/algo/constrained_transport/hyper_resistivity\": ...",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact mhd_state initializer sub-paths (x_component/y_component/z_component under velocity and magnetic; density/pressure initializer paths).",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "simulation/mhd_state/density/initializer",
+        "simulation/mhd_state/velocity/initializer/x_component",
+        "simulation/mhd_state/velocity/initializer/y_component",
+        "simulation/mhd_state/velocity/initializer/z_component",
+        "simulation/mhd_state/magnetic/initializer/x_component",
+        "simulation/mhd_state/magnetic/initializer/y_component",
+        "simulation/mhd_state/magnetic/initializer/z_component",
+        "simulation/mhd_state/pressure/initializer"
+      ],
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:162-171",
+      "quote": "\"simulation/mhd_state/velocity/initializer/x_component\": (\"init2D\", 22.0), ...",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "A new Simulation constructor parameter `max_mhd_level` (and its dict path) that the instruction never mentions; only `max_nbr_levels`-style config exists.",
+      "kind": "new_name",
+      "names": [
+        "max_mhd_level",
+        "simulation/AMR/max_mhd_level"
+      ],
+      "strings": [],
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:128,143",
+      "quote": "\"max_mhd_level\": 1, ... \"simulation/AMR/max_mhd_level\": (\"int\", 1),",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "MHDModel registration must raise RuntimeError when called before any Simulation and when a second model is registered; extra lifecycle/error contracts not stated in the instruction (likely inherited from existing HybridModel machinery, hence guessable).",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:test_mhd_model_before_simulation_raises_specific_runtime_error / test_second_model_registration_raises_specific_runtime_error",
+      "quote": "with pytest.raises(RuntimeError) as excinfo: ph.MHDModel(density=lambda x, y: 1.0)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Simulation kwarg `model_options` must be a list (test asserts `sim.model_options == [\"MHDModel\"]` and `model is None` before registration), an attribute contract beyond 'model_options contain MHDModel'.",
+      "kind": "extra_behavior",
+      "names": [
+        "model_options"
+      ],
+      "strings": [],
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:179-181",
+      "quote": "assert sim.model_options == [\"MHDModel\"]\n    assert sim.model is None",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction names the feature areas but not the exact dictionary key paths or the new max_mhd_level parameter, which the hidden tests check as exact strings/names; the RuntimeError contracts are plausibly inherited from existing model-registration machinery.",
+  "usage": {
+    "completion_tokens": 2348,
+    "completion_tokens_details": {
+      "reasoning_tokens": 1162
+    },
+    "prompt_tokens": 6126,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 8474
+  }
+}

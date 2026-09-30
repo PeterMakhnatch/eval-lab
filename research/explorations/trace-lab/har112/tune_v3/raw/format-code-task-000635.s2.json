@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "Every hidden-test requirement (signature naming, group/starmap generation, execution delegation with routing, from_dict round-trip, builtin task, exports, shell locals) is stated in the instruction; remaining assertions are guards on behavior a correct fix keeps (statelessness, idempotency) or library/scaffolding calls.",
+  "usage": {
+    "completion_tokens": 731,
+    "completion_tokens_details": {
+      "reasoning_tokens": 499
+    },
+    "prompt_tokens": 3856,
+    "prompt_tokens_details": {
+      "cached_tokens": 3840
+    },
+    "total_tokens": 4587
+  }
+}

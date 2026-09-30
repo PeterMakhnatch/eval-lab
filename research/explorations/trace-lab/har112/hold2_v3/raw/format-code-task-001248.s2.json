@@ -1,0 +1,38 @@
+{
+  "items": [
+    {
+      "what": "set_crs must not only preserve the spatial partitions but also update their CRS to the newly set CRS (spatial_partitions is a GeoSeries whose .crs must be set).",
+      "kind": "extra_behavior",
+      "names": [
+        "spatial_partitions"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_core.py::test_set_crs_updates_spatial_partitions_crs",
+      "quote": "assert new.spatial_partitions.crs is not None\nassert CRS.from_user_input(new.spatial_partitions.crs) == CRS.from_user_input(new_crs)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "GeoSeries.set_crs (not just GeoDataFrame.set_crs) must preserve spatial partitions and set their CRS.",
+      "kind": "extra_behavior",
+      "names": [
+        "set_crs"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_core.py::test_set_crs_geoseries_preserves_spatial_partitions",
+      "quote": "dask_obj = dask_geopandas.from_geopandas(geoseries_points, npartitions=2)\n...\nassert CRS.from_user_input(new.spatial_partitions.crs) == CRS.from_user_input(\"EPSG:4326\")",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction only asks to preserve spatial_partitions; the tests additionally require their CRS attribute to be updated to the new CRS, which is extra semantics (only preserving values would leave crs None and fail). The GeoSeries variant is a mechanical sibling of the same fix, so it is guessable.",
+  "usage": {
+    "completion_tokens": 547,
+    "completion_tokens_details": {
+      "reasoning_tokens": 171
+    },
+    "prompt_tokens": 2035,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2582
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The instruction explicitly names the API `job.delete(delete_dependents=True)`, states the default stays as-is, and the hidden tests only check Redis key existence and queue membership for the described scenarios; the only flagged 'save' usage is test scaffolding, not a requirement on the fix.",
+  "usage": {
+    "completion_tokens": 173,
+    "completion_tokens_details": {
+      "reasoning_tokens": 62
+    },
+    "prompt_tokens": 2135,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 2308
+  }
+}

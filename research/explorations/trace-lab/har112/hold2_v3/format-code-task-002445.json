@@ -1,0 +1,46 @@
+{
+  "task_id": "format-code-task-002445",
+  "label": "sound",
+  "label_without_repo": "broken",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": true,
+  "unstated": [],
+  "dropped_existing": [
+    {
+      "what": "The color picker example must be importable at module path 'arcade.examples.gui.5_uicolor_picker' with a view class named 'ColorView'; the instruction never gives the file path or class name.",
+      "kind": "new_name",
+      "names": [
+        "arcade/examples/gui/5_uicolor_picker.py",
+        "ColorView"
+      ],
+      "strings": [],
+      "test_ref": "tests/unit/gui/test_color_picker_example_layout.py:8,31",
+      "quote": "importlib.import_module(\"arcade.examples.gui.5_uicolor_picker\") ... view = module.ColorView()",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "arcade/examples/gui/5_uicolor_picker.py": "path arcade/examples/gui/5_uicolor_picker.py",
+        "ColorView": "arcade/examples/gui/5_uicolor_picker.py:102"
+      }
+    }
+  ],
+  "reasons": [
+    "Background color and zero-size layout behaviors (including the exact warning string) are fully specified in the instruction. Only the example's module path and view class name 'ColorView' are unstated test requirements."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 290,
+      "completion_tokens_details": {
+        "reasoning_tokens": 45
+      },
+      "prompt_tokens": 3063,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 3353
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

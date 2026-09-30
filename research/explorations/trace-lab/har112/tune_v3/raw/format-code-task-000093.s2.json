@@ -1,0 +1,28 @@
+{
+  "items": [
+    {
+      "what": "The fix must provide a function named `_get_gdal_version` in module `pygmt._show_versions` that returns a clean version string like '3.10.3' or None; tests import and mock it directly.",
+      "kind": "new_name",
+      "names": [
+        "_get_gdal_version",
+        "pygmt._show_versions"
+      ],
+      "strings": [],
+      "test_ref": "pygmt/tests/test_show_versions.py:9 (import) and test_get_gdal_version_returns_clean_version_string",
+      "quote": "from pygmt._show_versions import _get_gdal_version",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The instruction only asks to fix GDAL version detection and discusses three solution options without naming any API; the hidden tests additionally require a specific private function `_get_gdal_version` in `pygmt._show_versions`, which is a new name the instruction never states.",
+  "usage": {
+    "completion_tokens": 290,
+    "completion_tokens_details": {
+      "reasoning_tokens": 48
+    },
+    "prompt_tokens": 2449,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2739
+  }
+}

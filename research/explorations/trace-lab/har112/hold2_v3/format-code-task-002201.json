@@ -1,0 +1,52 @@
+{
+  "task_id": "format-code-task-002201",
+  "label": "suspect",
+  "label_without_repo": "suspect",
+  "sample_labels": [
+    "suspect"
+  ],
+  "repo_used": false,
+  "unstated": [
+    {
+      "what": "Whole-frame astype('category') must also preserve UInt64Index column metadata (name and dtype), not just the dict-of-dtypes path from the issue",
+      "kind": "extra_behavior",
+      "names": [
+        "test_astype_column_metadata_categorical"
+      ],
+      "strings": [],
+      "test_ref": "pandas/tests/frame/test_dtypes.py:test_astype_column_metadata_categorical",
+      "quote": "result = df.astype('category') ... tm.assert_index_equal(result.columns, original_columns); assert isinstance(result.columns, pd.UInt64Index)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Column dtypes after astype must equal np.float64 and np.uint64 for keys 100 and 200 of the dict, accessed via result.dtypes[100]/[200]",
+      "kind": "exact_string",
+      "names": [
+        "dtypes"
+      ],
+      "strings": [],
+      "test_ref": "pandas/tests/frame/test_dtypes.py:test_astype_column_metadata",
+      "quote": "assert result.dtypes[100] == np.float64; assert result.dtypes[200] == np.uint64",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction covers the dict-astype metadata preservation shown in the issue. The only extra is the categorical variant, which is covered by the identical fix (reassigning result.columns = self.columns in astype), so it is guessable; dtype assertions are direct consequences of the dict contents."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 543,
+      "completion_tokens_details": {
+        "reasoning_tokens": 213
+      },
+      "prompt_tokens": 2209,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 2752
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

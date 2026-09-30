@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "All test-specific names (model_config, ConfigDict, model_dump, ValidationError, env_nested_delimiter, error type 'extra_forbidden') are pydantic library API, and the tested behaviors (forbid/allow/ignore applied to env_file values, nested delimiter populating nested models) are either the direct fix requested or existing BaseSettings behavior preserved by any correct fix.",
+  "usage": {
+    "completion_tokens": 725,
+    "completion_tokens_details": {
+      "reasoning_tokens": 593
+    },
+    "prompt_tokens": 3113,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3838
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "task_id": "format-code-task-002858",
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Explicit ASC must be rendered for DuckDB even when NULLS LAST is also present, while the NULLS LAST clause itself must still be omitted. parse_one('SELECT x FROM t ORDER BY x ASC NULLS LAST').sql('duckdb') must equal 'SELECT x FROM t ORDER BY x ASC'. The instruction and the linked orderby page only discuss default_order making bare ORDER BY differ from ASC; they never mention NULLS.",
+      "test_ref": "tests/dialects/test_duckdb.py:test_order_by_asc_nulls_last_duckdb",
+      "quote": "parse_one(\"SELECT x FROM t ORDER BY x ASC NULLS LAST\").sql(\"duckdb\") == \"SELECT x FROM t ORDER BY x ASC\"",
+      "severity": "guessable",
+      "rules": ["R4"],
+      "names": ["ASC", "NULLS LAST"]
+    }
+  ],
+  "instruction_covers": [
+    "DuckDB read/write of 'order by i asc' must keep ASC, shown as SELECT i FROM RANGE(5) AS _(i) ORDER BY i ASC",
+    "Unspecified ORDER BY must stay unspecified because default_order can be DESC",
+    "The assumption that ORDER BY x ASC equals ORDER BY x is invalid for duckdb"
+  ],
+  "notes": "Parser._parse_ordered consumes ASC without recording it (sqlglot/parser.py:2947), and ordered_sql emits DESC only. DESC preservation and unspecified default-dialect ORDER BY already match the generator, so those tests are R3. DuckDB.NULL_ORDERING is nulls_are_last, so NULLS LAST on ASC is already suppressed by ordered_sql; a fix that only stops discarding the ASC token keeps that omission. The linked docs are not quoted, so R4 applies to the NULLS interaction: the existing dialect test at test_duckdb.py:384-388 already shows duckdb dropping NULLS LAST on ASC, which makes the combined behavior guessable rather than not_inferable.",
+  "read_minutes": 22
+}

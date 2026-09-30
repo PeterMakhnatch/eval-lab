@@ -1,0 +1,66 @@
+{
+  "items": [
+    {
+      "what": "Exact prompt message strings: 'Do you want to write a description for fct_orders' and 'Do you want to change the model description of fct_orders' \u2014 note no '?' and no '(Y/n)', while the instruction quotes a message WITH a trailing '?'",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Do you want to write a description for fct_orders",
+        "Do you want to change the model description of fct_orders"
+      ],
+      "test_ref": "tests/doc_task_test.py:622-627, 663-667",
+      "quote": "== \"Do you want to write a description for fct_orders\" / == \"Do you want to change the model description of fct_orders\"",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Prompt must go through questionary.prompt with a payload dict keyed by 'message' (and return key 'wants_to_document_model'), instead of whatever channel (click/confirm) the current code uses",
+      "kind": "new_name",
+      "names": [
+        "questionary.prompt",
+        "wants_to_document_model",
+        "model_description",
+        "message"
+      ],
+      "strings": [],
+      "test_ref": "tests/doc_task_test.py:596-604",
+      "quote": "mocker.patch(\"questionary.prompt\", return_value={\"wants_to_document_model\": True, \"model_description\": \"Some description\"})",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "orchestrate_model_documentation must call module-level functions open_yaml/save_yaml (patched at 'dbt_sugar.core.task.doc.open_yaml') rather than inline yaml handling",
+      "kind": "new_name",
+      "names": [
+        "open_yaml",
+        "save_yaml",
+        "dbt_sugar.core.task.doc"
+      ],
+      "strings": [],
+      "test_ref": "tests/doc_task_test.py:589-590",
+      "quote": "mocker.patch(\"dbt_sugar.core.task.doc.open_yaml\", ...); mocker.patch(\"dbt_sugar.core.task.doc.save_yaml\")",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Existing-model path must keep the 'change the model description of' wording without '(Y/n)' suffix \u2014 an exact-string sibling not derivable from the instruction which only gives the new-model message with '?'",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Do you want to change the model description of fct_orders"
+      ],
+      "test_ref": "tests/doc_task_test.py::test_prompt_for_existing_model_with_real_description",
+      "quote": "== \"Do you want to change the model description of fct_orders\"",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The instruction only sketches the new-model message with a question mark and (Y/n); the tests require exact strings without '?' or '(Y/n)', a specific questionary.prompt dict contract, and open_yaml/save_yaml refactoring, none of which are stated or inferable.",
+  "usage": {
+    "completion_tokens": 637,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 2382,
+    "prompt_tokens_details": {
+      "cached_tokens": 2368
+    },
+    "total_tokens": 3019
+  }
+}

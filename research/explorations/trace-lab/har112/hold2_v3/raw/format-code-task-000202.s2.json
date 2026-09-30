@@ -1,0 +1,65 @@
+{
+  "items": [
+    {
+      "what": "Reflected addition __radd__ on Observable so that 0 + observable returns the observable (sum starts with int 0 whose __add__ returns NotImplemented); instruction only provides Observable.__add__",
+      "kind": "new_name",
+      "names": [
+        "__radd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py::TestObservableAddZero::test_zero_plus_observable_returns_self",
+      "quote": "result = 0 + obs\n        assert isinstance(result, type(obs)) or result.compare(obs)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Tensor.__add__/__radd__ must accept scalar 0 and return the tensor; instruction only gives Observable.__add__",
+      "kind": "extra_behavior",
+      "names": [
+        "Tensor",
+        "__add__",
+        "__radd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py::TestTensorAddZero",
+      "quote": "T = qml.PauliX(0) @ qml.PauliZ(1)\n        result = T + 0\n        assert result.compare(T)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Hamiltonian.__add__/__radd__ must accept scalar 0 and return self/itself; instruction only gives Observable.__add__",
+      "kind": "extra_behavior",
+      "names": [
+        "Hamiltonian",
+        "__add__",
+        "__radd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py::TestHamiltonianAddZero::test_hamiltonian_plus_zero",
+      "quote": "result = H + 0\n        assert result.compare(H)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Hamiltonian.__iadd__ with 0 must work in place (H += 0)",
+      "kind": "extra_behavior",
+      "names": [
+        "Hamiltonian",
+        "__iadd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py::TestHamiltonianAddZero::test_hamiltonian_iadd_zero",
+      "quote": "H += 0\n        assert H.compare(expected)",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction only shows Observable.__add__, but the hidden tests also exercise the reflected and sibling paths (0 + Observable/Tensor/Hamiltonian, Hamiltonian += 0) needed to make sum() work. These are mechanical propagation of the same zero-element change to same-family methods, so guessable; the named repo API (compare, PauliX/Y/Z, Hamiltonian) already exists.",
+  "usage": {
+    "completion_tokens": 763,
+    "completion_tokens_details": {
+      "reasoning_tokens": 196
+    },
+    "prompt_tokens": 2424,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3187
+  }
+}

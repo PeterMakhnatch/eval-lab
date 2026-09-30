@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "Every requirement exercised by the hidden tests is stated in the instruction, including the exact option and config names, and remaining details (helper/library calls, existing flags like --wrap-descriptions and --config, summary normalization) are repository-existing behavior or test scaffolding.",
+  "usage": {
+    "completion_tokens": 317,
+    "completion_tokens_details": {
+      "reasoning_tokens": 149
+    },
+    "prompt_tokens": 3383,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3700
+  }
+}

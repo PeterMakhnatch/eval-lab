@@ -1,0 +1,39 @@
+{
+  "items": [
+    {
+      "what": "Distinguish two sysctl.show outcomes in test mode: returning None must keep the original comment in ret (result None), while returning [] must produce the 'would be changed to' comment. The instruction only describes the missing-file case and implies a preview comment, not a two-way contract on show's return value.",
+      "kind": "extra_behavior",
+      "names": [
+        "sysctl.show",
+        "present"
+      ],
+      "strings": [],
+      "test_ref": "tests/unit/states/test_sysctl.py:test_present",
+      "quote": "mock = MagicMock(return_value=None)\n ... self.assertDictEqual(sysctl.present(name, value), ret)\n mock = MagicMock(return_value=[]) ... ret.update({'comment': comment_empty})",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact comment string for the empty/missing-config case: 'Sysctl option {0} would be changed to {1}' \u2014 the instruction paraphrases it ('would be changed to ...') but never gives the exact wording, which the test asserts via comment_empty.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Sysctl option {0} would be changed to {1}"
+      ],
+      "test_ref": "tests/unit/states/test_sysctl.py:test_present",
+      "quote": "comment_empty = ('Sysctl option {0} would be changed to {1}'\n                         ''.format(name, value))",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction says a missing config file should yield a preview comment, but the hidden test additionally requires a separate behavior for sysctl.show returning None (keeping the old comment) versus [] (yielding the new comment), a distinction and exact comment format the instruction never states.",
+  "usage": {
+    "completion_tokens": 1285,
+    "completion_tokens_details": {
+      "reasoning_tokens": 898
+    },
+    "prompt_tokens": 1915,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3200
+  }
+}

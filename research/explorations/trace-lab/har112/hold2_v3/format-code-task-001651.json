@@ -1,0 +1,77 @@
+{
+  "task_id": "format-code-task-001651",
+  "label": "suspect",
+  "label_without_repo": "suspect",
+  "sample_labels": [
+    "suspect"
+  ],
+  "repo_used": false,
+  "unstated": [
+    {
+      "what": "FFTSceneManager must release a 'peak' list attribute on eliminate (not retain previous value)",
+      "kind": "new_name",
+      "names": [
+        "peak"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_scene_manager_lifecycle.py:test_fft_scene_manager_eliminate_releases_peak_state",
+      "quote": "_assert_not_retaining_previous(manager, \"peak\", peak)",
+      "severity": "guessable"
+    },
+    {
+      "what": "FFTSceneManager must release a 'peak_item' graphics item on eliminate, and clear_peak must leave it non-QGraphicsItem",
+      "kind": "new_name",
+      "names": [
+        "peak_item",
+        "clear_peak"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_scene_manager_lifecycle.py:test_fft_scene_manager_eliminate_releases_peak_state",
+      "quote": "_assert_no_graphics_item_retained(manager, \"peak_item\")",
+      "severity": "guessable"
+    },
+    {
+      "what": "SignalSceneManager must drop its 'signal' reference on eliminate",
+      "kind": "new_name",
+      "names": [
+        "signal"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_scene_manager_lifecycle.py:test_signal_scene_manager_eliminate_releases_signal_reference",
+      "quote": "_assert_not_retaining_previous(manager, \"signal\", sentinel_signal)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Teardown must also clear the QGraphicsScene (items() == 0 and parent None, or scene replaced by non-scene/None) and null line_item/text_item",
+      "kind": "extra_behavior",
+      "names": [
+        "scene",
+        "line_item",
+        "text_item"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_scene_manager_lifecycle.py:_assert_scene_resource_released",
+      "quote": "assert previous_scene.parent() is None\n        assert len(previous_scene.items()) == 0",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction explicitly requires eliminate(), plot_data=None, subclass participation, and post-teardown safety; the only unstated specifics are the exact attribute names the tests probe (peak, peak_item, signal) and that scene/item clearing covers base attributes \u2014 all consistent with the stated 'no longer retain owned resources' contract and subject to automatic repo-name dropping."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 996,
+      "completion_tokens_details": {
+        "reasoning_tokens": 479
+      },
+      "prompt_tokens": 3053,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 4049
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

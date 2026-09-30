@@ -1,0 +1,43 @@
+{
+  "task_id": "format-code-task-000879",
+  "label": "suspect",
+  "label_without_repo": "suspect",
+  "sample_labels": [
+    "suspect"
+  ],
+  "repo_used": false,
+  "unstated": [
+    {
+      "what": "The redirect target must carry the original URL as a query parameter named exactly 'next' (e.g. /login?next=http://testserver/admin). The instruction mentions Django's convention ('via a next query param') but does not mandate that key; still, following that convention with request.url reproduces the test.",
+      "kind": "exact_string",
+      "names": [
+        "next"
+      ],
+      "strings": [
+        "next"
+      ],
+      "test_ref": "tests/test_authentication.py::test_authentication_redirect",
+      "quote": "url = \"{}?{}\".format(\"http://testserver/\", urlencode({\"next\": \"http://testserver/admin\"}))",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The only hidden-test requirement beyond the instruction is the exact query-key 'next'; the instruction explicitly cites Django's 'next query param' as the model, so a minimal fix (redirect to request.url_for(redirect) + '?next=' + str(request.url)) passes."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 349,
+      "completion_tokens_details": {
+        "reasoning_tokens": 96
+      },
+      "prompt_tokens": 1720,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 2069
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

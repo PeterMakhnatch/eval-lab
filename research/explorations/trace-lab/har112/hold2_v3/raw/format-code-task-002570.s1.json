@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The instruction explicitly states each required behavior: the distro dependency and 1.5.0 pin, removal of the singledispatch backport, and pymssql==2.1.4 exclusion on Python 3.8+ while keeping it for older versions. File paths the tests glob (pkg/*/req.txt, requirements/static) already exist in the repo and the instruction defers to existing conventions; the version marker (python_version < \"3.8\") is the minimal mechanical way to satisfy the stated selection behavior.",
+  "usage": {
+    "completion_tokens": 556,
+    "completion_tokens_details": {
+      "reasoning_tokens": 335
+    },
+    "prompt_tokens": 2768,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3324
+  }
+}

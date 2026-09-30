@@ -1,0 +1,13 @@
+{
+  "task_id": "format-code-task-002570",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Base install includes distro and drops the singledispatch==3.4.0.3 pin",
+    "Packaged and static requirement sets pin distro==1.5.0, including Windows",
+    "Windows resolution keeps pymssql==2.1.4 only for Python older than 3.8",
+    "Files and generation follow existing packaging conventions"
+  ],
+  "notes": "Hidden tests read requirements/base.txt, pkg/*/req.txt, and requirements/static/py*/{darwin,linux,windows}.txt. Those paths exist (pkg/osx/req.txt, pkg/windows/req.txt, static py3.5-py3.9 darwin/linux, windows only through py3.7). pip-compile headers in the static files name the inputs, so updating base.txt and pkg/*/req.txt and regenerating is the repo workflow the instruction points at. Marker evaluation for 3.7 vs 3.8/3.9 matches the stated version split; pyzmq in pkg/windows/req.txt is the sibling marker pattern. No extra pin, filename, or message is required.",
+  "read_minutes": 18
+}

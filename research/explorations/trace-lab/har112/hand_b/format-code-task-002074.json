@@ -1,0 +1,13 @@
+{
+  "task_id": "format-code-task-002074",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "compiled f2py modules must not report version '2' from the failing __svn_version__ import",
+    "the version must be queryable at runtime and should include the NumPy version used to compile",
+    "one stated mechanism is a __f2py_numpy_version__ attribute equal to the compiling NumPy version"
+  ],
+  "notes": "Hidden test compiles inout.f90 and asserts the module has string __f2py_numpy_version__ equal to np.__version__. That name and the equality are the instruction's concrete proposal. Repo numpy/f2py/__version__.py sets version = str(major) after ImportError, and rules.py injects f2py_version into the module docstring via #f2py_version#. f2py2e.py already imports numpy.__version__ as numpy_version. No exact docstring spelling is asserted.",
+  "read_minutes": 14,
+  "rules": []
+}

@@ -1,0 +1,66 @@
+{
+  "task_id": "format-code-task-000191",
+  "label": "suspect",
+  "label_without_repo": "suspect",
+  "sample_labels": [
+    "suspect"
+  ],
+  "repo_used": false,
+  "unstated": [
+    {
+      "what": "PipetteStateView method get_aspirated_volume must exist and be consulted by the execution handler's dispense_in_place to raise InvalidDispenseVolumeError when aspirated volume is None or less than dispense volume",
+      "kind": "new_name",
+      "names": [
+        "get_aspirated_volume",
+        "dispense_in_place",
+        "InvalidDispenseVolumeError"
+      ],
+      "strings": [],
+      "test_ref": "api/tests/opentrons/protocol_engine/execution/test_pipetting_handler.py:401 test_dispense_in_place_virtual_raises_invalid_dispense",
+      "quote": "decoy.when(mock_state_view.pipettes.get_aspirated_volume(\"pipette-id\")).then_return(aspirated_volume) ... with pytest.raises(InvalidDispenseVolumeError): await subject.dispense_in_place(...)",
+      "severity": "guessable"
+    },
+    {
+      "what": "The attached-tip check (get_attached_tip) must run before/as part of dispense validation even when the test only sets get_attached_tip and push_out=-7 (previously may not have been fetched on that path)",
+      "kind": "extra_behavior",
+      "names": [
+        "get_attached_tip",
+        "InvalidPushOutVolumeError"
+      ],
+      "strings": [],
+      "test_ref": "api/tests/opentrons/protocol_engine/execution/test_pipetting_handler.py:383 test_dispense_in_place_virtual_raises_invalid_push_out",
+      "quote": "decoy.when(mock_state_view.pipettes.get_attached_tip(\"pipette-id\")).then_return(TipGeometry(length=1, diameter=2, volume=3))",
+      "severity": "guessable"
+    },
+    {
+      "what": "InvalidDispenseVolumeError must be exported from the errors module imported by the handler test (exact class name beyond 'along the lines of' in the instruction)",
+      "kind": "new_name",
+      "names": [
+        "InvalidDispenseVolumeError"
+      ],
+      "strings": [],
+      "test_ref": "api/tests/opentrons/protocol_engine/execution/test_pipetting_handler.py:22 import block",
+      "quote": "InvalidDispenseVolumeError,",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction describes the analysis-level behavior and the error name; the hidden tests additionally require the execution handler (VirtualPipettingHandler.dispense_in_place) to call get_aspirated_volume and raise InvalidDispenseVolumeError, which follows mechanically from the described semantics and the existing state-view API, so those items are guessable."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 684,
+      "completion_tokens_details": {
+        "reasoning_tokens": 115
+      },
+      "prompt_tokens": 2224,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2908
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

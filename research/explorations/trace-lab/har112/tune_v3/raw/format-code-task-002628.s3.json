@@ -1,0 +1,40 @@
+{
+  "items": [
+    {
+      "what": "Module file paths for the three classes (opendeepsearch/ranking_models/{base_reranker,infinity_rerank,jina_reranker}.py) are never named in the instruction",
+      "kind": "new_name",
+      "names": [
+        "opendeepsearch/ranking_models/base_reranker.py",
+        "opendeepsearch/ranking_models/infinity_rerank.py",
+        "opendeepsearch/ranking_models/jina_reranker.py"
+      ],
+      "strings": [],
+      "test_ref": "test_embedding_rerankers.py:21-23",
+      "quote": "from opendeepsearch.ranking_models.base_reranker import BaseSemanticSearcher\nfrom opendeepsearch.ranking_models.infinity_rerank import InfinitySemanticSearcher\nfrom opendeepsearch.ranking_models.jina_reranker import JinaReranker",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Base class must call an overridable hook named `_get_embeddings(texts) -> torch.Tensor` that subclasses implement",
+      "kind": "new_name",
+      "names": [
+        "_get_embeddings"
+      ],
+      "strings": [],
+      "test_ref": "DeterministicSemanticSearcher",
+      "quote": "def _get_embeddings(self, texts: list[str]) -> torch.Tensor:\n    return torch.tensor([self.embeddings[text] for text in texts], ...)",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The instruction covers the algorithms, payloads, and error contracts, but never names the package file paths or the subclass-overridable embedding hook `_get_embeddings`, both of which the tests require exactly.",
+  "usage": {
+    "completion_tokens": 756,
+    "completion_tokens_details": {
+      "reasoning_tokens": 224
+    },
+    "prompt_tokens": 5922,
+    "prompt_tokens_details": {
+      "cached_tokens": 5888
+    },
+    "total_tokens": 6678
+  }
+}

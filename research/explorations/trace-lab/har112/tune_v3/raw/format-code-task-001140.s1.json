@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The tests exercise only behaviors, names, and options that the instruction states or that already exist in the package's public surface (envelope keys, JSONResponse, process_response/process_exception, mandatory=False, cls/sort_keys); no new identifiers, exact strings, or extra contracts beyond the stated rules are required.",
+  "usage": {
+    "completion_tokens": 439,
+    "completion_tokens_details": {
+      "reasoning_tokens": 267
+    },
+    "prompt_tokens": 2632,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3071
+  }
+}

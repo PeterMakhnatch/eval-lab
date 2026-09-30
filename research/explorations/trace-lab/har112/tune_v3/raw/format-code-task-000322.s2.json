@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "Every hidden-test assertion maps directly to one of the four numbered issues or the explicitly requested If-Unmodified-Since/If-Range support; the exact Content-Range format is given in the instruction, and invalid-date handling is the standard RFC behavior any correct implementation of 'honor these headers' would produce.",
+  "usage": {
+    "completion_tokens": 514,
+    "completion_tokens_details": {
+      "reasoning_tokens": 294
+    },
+    "prompt_tokens": 4278,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 4792
+  }
+}

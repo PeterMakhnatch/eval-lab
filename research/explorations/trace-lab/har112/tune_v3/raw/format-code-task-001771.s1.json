@@ -1,0 +1,75 @@
+{
+  "items": [
+    {
+      "what": "Status line must expose isEnabled() returning a bool",
+      "kind": "new_name",
+      "names": [
+        "isEnabled"
+      ],
+      "strings": [],
+      "test_ref": "test_qt_status_line_is_enabled_returns_stable_boolean",
+      "quote": "self.assertIsInstance(status_line.isEnabled(), bool)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Status line must expose setFocus() as a safe no-op",
+      "kind": "new_name",
+      "names": [
+        "setFocus"
+      ],
+      "strings": [],
+      "test_ref": "test_qt_status_line_enable_disable_focus_are_safe_noops",
+      "quote": "status_line.setFocus()",
+      "severity": "guessable"
+    },
+    {
+      "what": "QHeadlineWrapper getX/getYScrollPosition must return ints and set* must not change the returned value (stable values on a bare object() widget)",
+      "kind": "extra_behavior",
+      "names": [
+        "getXScrollPosition",
+        "getYScrollPosition",
+        "setXScrollPosition",
+        "setYScrollPosition"
+      ],
+      "strings": [],
+      "test_ref": "test_qheadline_wrapper_scroll_methods_are_compatible_noops",
+      "quote": "self.assertIsInstance(first_x, int) ... self.assertEqual(wrapper.getXScrollPosition(), first_x)",
+      "severity": "guessable"
+    },
+    {
+      "what": "flashCharacter must accept (i) and (i, bg, fg, flashes, delay) signatures as a no-op on QHeadlineWrapper",
+      "kind": "new_name",
+      "names": [
+        "flashCharacter"
+      ],
+      "strings": [],
+      "test_ref": "test_qheadline_wrapper_flash_character_is_safe_noop",
+      "quote": "wrapper.flashCharacter(1, \"yellow\", \"blue\", 1, 1)",
+      "severity": "guessable"
+    },
+    {
+      "what": "enable/disable on status line must accept zero args plus optional single argument (None or a color string)",
+      "kind": "extra_behavior",
+      "names": [
+        "enable",
+        "disable"
+      ],
+      "strings": [],
+      "test_ref": "test_qt_status_line_enable_disable_focus_are_safe_noops",
+      "quote": "status_line.disable(None)\n        status_line.disable(\"gray\")\n        status_line.enable(\"blue\")",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction names the enable/disable and scroll/flash compatibility methods, but the tests additionally require isEnabled and setFocus on the status line, int-returning stable scroll getters whose setters no-op, multi-signature flashCharacter, and optional-argument enable/disable; these are near-mechanical extensions of the named compatibility set, so mostly guessable.",
+  "usage": {
+    "completion_tokens": 694,
+    "completion_tokens_details": {
+      "reasoning_tokens": 103
+    },
+    "prompt_tokens": 2252,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 2946
+  }
+}

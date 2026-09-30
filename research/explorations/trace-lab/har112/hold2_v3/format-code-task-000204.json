@@ -1,0 +1,41 @@
+{
+  "task_id": "format-code-task-000204",
+  "label": "suspect",
+  "label_without_repo": "suspect",
+  "sample_labels": [
+    "suspect"
+  ],
+  "repo_used": false,
+  "unstated": [
+    {
+      "what": "Exact depth arithmetic: a custom ResourcesOperation's declared depth is added on top of the incoming path depth (e.g. Hadamard+CNOT giving incoming depth 2 plus CustomOpDepth3's depth 3 yields 5), rather than just taking max(depth, custom depth). The instruction only says 'honor the depth' without specifying how it combines with surrounding gates.",
+      "kind": "extra_behavior",
+      "names": [
+        "get_depth"
+      ],
+      "strings": [],
+      "test_ref": "tests/circuit_graph/test_circuit_graph.py::TestCircuitGraph::test_get_depth",
+      "quote": "([qml.Hadamard(0), qml.CNOT([0, 1]), CustomOpDepth3(wires=[1, 0])], 5)",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction clearly requires the underlying depth computation to use the custom op's declared depth; the only unstated detail is the additive combination rule, which the minimal natural fix (custom op contributes resources.depth on top of incoming depth) satisfies and is therefore guessable. Changed expected integers in test_resource.py follow directly from depths now being concrete."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 589,
+      "completion_tokens_details": {
+        "reasoning_tokens": 297
+      },
+      "prompt_tokens": 2896,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 3485
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

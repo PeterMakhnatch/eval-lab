@@ -1,0 +1,13 @@
+{
+  "task_id": "format-code-task-000191",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Analysis must reject a dispense when the pipette never aspirated",
+    "Analysis must reject a dispense whose volume exceeds what was previously aspirated",
+    "Both should fail with a dedicated error type named InvalidDispenseVolumeError",
+    "The check applies to protocols on apiLevel 2.15+"
+  ],
+  "notes": "Repo verified: VirtualPipettingHandler.dispense_in_place (protocol_engine/execution/pipetting.py:205) validates the tip and push_out but never the aspirated volume, and get_aspirated_volume returns Optional[float] (None when nothing aspirated). The hidden test only asserts dispense_in_place raises InvalidDispenseVolumeError when get_aspirated_volume is None or below the requested volume. The error class name is stated; its module, base class and constructor are the exact sibling pattern of InvalidPushOutVolumeError and InvalidPipettingVolumeError in protocol_engine/errors/exceptions.py, surfaced by grep and exported the same way (R1/R2 identical propagation). The test imports it from opentrons.protocol_engine.errors.exceptions, which is where those siblings live. The apiLevel 2.15+ gate is stated but not checked by the hidden test. The added get_aspirated_volume stub in the existing virtual-dispense test only preserves current behaviour (R3).",
+  "read_minutes": 18
+}

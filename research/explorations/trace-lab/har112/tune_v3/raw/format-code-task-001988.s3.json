@@ -1,0 +1,27 @@
+{
+  "items": [
+    {
+      "what": "Tests call middleware.is_refreshable_url(request) directly; the fix must implement regex exemption inside this method (the instruction only says 'the middleware' should treat matches as exempt, without naming the method).",
+      "kind": "new_name",
+      "names": [
+        "is_refreshable_url"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_middleware.py:241",
+      "quote": "assert middleware.is_refreshable_url(request)",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction describes the regex-exemption feature but never names the method the tests invoke directly; is_refreshable_url is the existing mozilla-django-oidc method implementing refresh eligibility, so it is likely already present (dropped automatically) and otherwise guessable as the standard hook.",
+  "usage": {
+    "completion_tokens": 381,
+    "completion_tokens_details": {
+      "reasoning_tokens": 180
+    },
+    "prompt_tokens": 1970,
+    "prompt_tokens_details": {
+      "cached_tokens": 1920
+    },
+    "total_tokens": 2351
+  }
+}

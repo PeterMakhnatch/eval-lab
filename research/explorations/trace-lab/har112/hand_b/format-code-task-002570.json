@@ -1,0 +1,13 @@
+{
+  "task_id": "format-code-task-002570",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "base install includes distro and drops singledispatch==3.4.0.3",
+    "packaged and static requirement sets pin distro==1.5.0, including Windows",
+    "Windows keeps pymssql==2.1.4 only for Python older than 3.8 and not on 3.8+"
+  ],
+  "notes": "Tests read requirements/base.txt, pkg/*/req.txt, and requirements/static/py*/{darwin,linux,windows}.txt via the repo's existing packaging layout, which the instruction says to follow. Markers are evaluated with python_version/sys_platform/platform_system/os_name. Exact pins and the version guard are stated. Environment breakage is out of scope.",
+  "read_minutes": 11,
+  "rules": []
+}

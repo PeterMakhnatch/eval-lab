@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "Every tested behavior\u2014including finished_speed freezing, reset semantics, total-change invalidation, and speed/time_remaining calculations\u2014is explicitly stated in the instruction; all other test-only names are existing rich Progress/Task API or test scaffolding.",
+  "usage": {
+    "completion_tokens": 214,
+    "completion_tokens_details": {
+      "reasoning_tokens": 71
+    },
+    "prompt_tokens": 2409,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2623
+  }
+}

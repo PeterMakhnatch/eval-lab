@@ -1,0 +1,47 @@
+{
+  "task_id": "format-code-task-001161",
+  "label": "suspect",
+  "label_without_repo": "suspect",
+  "sample_labels": [
+    "suspect"
+  ],
+  "repo_used": false,
+  "unstated": [
+    {
+      "what": "The CLI flag `--config <path>` used to point at a pyproject.toml file is never mentioned in the instruction; the fix must expose (or rely on) a `--config` option that accepts a `[tool.docformatter]` pyproject.toml, with the toml value `wrap-structured = true` honored through it.",
+      "kind": "new_name",
+      "names": [
+        "--config",
+        "wrap-structured",
+        "tool.docformatter"
+      ],
+      "strings": [
+        "--config",
+        "[tool.docformatter]",
+        "wrap-structured = true"
+      ],
+      "test_ref": "tests/test_structured_wrapping_codespec.py:17-18 and run_formatter",
+      "quote": "config.write_text(\"[tool.docformatter]\\nwrap-structured = true\\n\")\n            command.extend([\"--config\", str(config)])",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction names the option, the config key and section, the preservation guarantees, and the default behavior, and the expected outputs follow from the named wrap width plus existing summary/field-list rules. The only unstated element is the `--config` CLI flag used to load pyproject.toml, which the instruction implies exists ('just like the existing formatter settings'), making it guessable at worst."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 1052,
+      "completion_tokens_details": {
+        "reasoning_tokens": 597
+      },
+      "prompt_tokens": 3383,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 4435
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

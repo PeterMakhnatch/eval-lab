@@ -1,0 +1,27 @@
+{
+  "items": [
+    {
+      "what": "Task exposes the captured completion speed as a field named `finished_speed`",
+      "kind": "new_name",
+      "names": [
+        "finished_speed"
+      ],
+      "strings": [],
+      "test_ref": "test_completion_via_update_records_and_freezes_finished_speed",
+      "quote": "assert task.finished_speed == 5.0",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction fully specifies the rate-estimation, freezing, reset and total-invalidation semantics; the only unstated detail is the exact field name `finished_speed`, which is a direct sibling of the named `finished_time` and matches the instruction's 'capture the speed at that moment'.",
+  "usage": {
+    "completion_tokens": 526,
+    "completion_tokens_details": {
+      "reasoning_tokens": 273
+    },
+    "prompt_tokens": 2409,
+    "prompt_tokens_details": {
+      "cached_tokens": 2368
+    },
+    "total_tokens": 2935
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "task_id": "format-code-task-000202",
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Hamiltonian.__add__ and Hamiltonian.__iadd__ must treat numeric 0 as the identity (H + 0, H += 0) instead of raising. The pasted sketch only adds the zero guard to Observable.__add__. Hamiltonian overrides both methods and does not call super, so the Observable guard does not cover them. Grep for def __add__/def __iadd__ finds the pair; the same zero guard fixes both.",
+      "test_ref": "TestHamiltonianAddZero.test_hamiltonian_plus_zero",
+      "quote": "result = H + 0",
+      "severity": "guessable",
+      "names": ["Hamiltonian.__add__", "Hamiltonian.__iadd__"],
+      "rules": ["R2"]
+    }
+  ],
+  "instruction_covers": [
+    "sum of Pauli observables starting at integer 0 must work, which requires Observable.__radd__ as well as the sketched __add__ zero guard",
+    "obs + 0 and obs + 0.0 return the observable; the sketch uses numbers.Number and other == 0",
+    "Tensor inherits Observable, so Tensor + 0 and 0 + Tensor follow from the Observable guards",
+    "Nonzero numeric add still raises; obs + obs still builds a Hamiltonian"
+  ],
+  "notes": "0 + Hamiltonian and sum of Hamiltonians pass if Observable.__radd__ returns self, because Hamiltonian does not override __radd__. Only the forward and in-place Hamiltonian adds are extra. Tests accept ValueError or TypeError for nonzero add, matching the existing ValueError.",
+  "read_minutes": 15
+}

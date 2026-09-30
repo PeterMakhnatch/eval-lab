@@ -1,0 +1,22 @@
+{
+  "task_id": "format-code-task-000413",
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "clear_not_launched_queued_tasks must make exactly one list_namespaced_pod call for all queued TIs of this job, not one batch call per existing lookup strategy. The instruction allows one or a few batch calls; the existing function does a run_id lookup and then an execution_date fallback, so two batched lookups satisfy the written request and still fail call_count == 1.",
+      "test_ref": "test_clear_not_launched_queued_tasks_batched_single_api_call",
+      "quote": "assert mock_kube_client.list_namespaced_pod.call_count == 1",
+      "severity": "guessable",
+      "names": ["list_namespaced_pod"],
+      "rules": ["tie-break"]
+    }
+  ],
+  "instruction_covers": [
+    "Replace per-task pod existence checks in clear_not_launched_queued_tasks with a batch list of airflow worker pods",
+    "Queued TIs with no matching pod become SCHEDULED; a matching pod keeps the TI QUEUED",
+    "Match still uses the existing dag_id/task_id/airflow-worker/run_id/map_index labels, which are already built in the function",
+    "No list call when this job has no queued TIs, because the existing query-then-loop structure already skips the API"
+  ],
+  "notes": "Selector text airflow-worker={job_id} and namespace=default are repo-given (R1): the function and sibling adopt calls already use that label, and _list_pods passes kube_config.kube_namespace, which the executor tests treat as default. Mapped-task matching is the existing map_index selector, preserved by a correct local match (R3). Grading runs only the six new -k tests, not the older per-TI tests.",
+  "read_minutes": 22
+}

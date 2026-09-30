@@ -1,0 +1,58 @@
+{
+  "items": [
+    {
+      "what": "MPD constructor must accept a new keyword argument 'timelines' (and expose mpd.timelines) used to carry segment-number state between manifest reloads",
+      "kind": "new_name",
+      "names": [
+        "timelines"
+      ],
+      "strings": [],
+      "test_ref": "tests/stream/dash/test_manifest.py::test_segment_list_dynamic_reload_yields_only_new_segments",
+      "quote": "mpd_p2 = MPD(mpd_xml_p2, base_url=mpd_p1.base_url, url=mpd_p1.url, timelines=mpd_p1.timelines)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Representation.segments() must accept an 'init' keyword parameter (init=False skips yielding the initialization segment)",
+      "kind": "new_name",
+      "names": [
+        "init"
+      ],
+      "strings": [],
+      "test_ref": "tests/stream/dash/test_manifest.py::test_segment_list_dynamic_reload_yields_only_new_segments",
+      "quote": "iter_p2 = rep_p2.segments(init=False)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact filtering semantics: on reload with the same/older publishTime, zero segments are yielded (empty list, no fallback to last-N segments), based on startNumber/segment numbering tracked via the timelines state",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "tests/stream/dash/test_manifest.py::test_segment_list_reload_no_new_segments",
+      "quote": "assert segments_after_reload == []",
+      "severity": "guessable"
+    },
+    {
+      "what": "Segment numbering must honor startNumber (segments numbered 2..17 and 18..19), reflected in seg.num",
+      "kind": "extra_behavior",
+      "names": [
+        "startNumber"
+      ],
+      "strings": [],
+      "test_ref": "tests/stream/dash/test_manifest.py::test_segment_list_dynamic_reload_yields_only_new_segments",
+      "quote": "(\"http://test/seg-2.mp4\", 2, False, True),",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction only describes filtering out already-downloaded segments on reload. The tests additionally require a new MPD(timelines=...) constructor keyword/attribute and a new segments(init=False) keyword, neither of which is stated or inferable, to pass state between manifest parses.",
+  "usage": {
+    "completion_tokens": 820,
+    "completion_tokens_details": {
+      "reasoning_tokens": 243
+    },
+    "prompt_tokens": 11063,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 11883
+  }
+}

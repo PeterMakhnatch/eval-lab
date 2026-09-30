@@ -1,0 +1,15 @@
+{
+  "task_id": "format-code-task-001176",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "identifiers invalid-include-scenario, undefined-include-scenario, recursive-include-scenario as ConfigWarning.ERROR",
+    "include-scenario must be a non-empty string; missing alias message names the alias; path is dotted from config root",
+    "walk requests plus then/else, once, and do of loop/while/foreach/transaction; payload keys like body are data",
+    "cycle reporting once per participating include edge, no duplicates from repeated execution, DAG reuse is clean",
+    "ignored-warnings filter, lint() replaces findings, possible-typo and undefined-scenario preserved, linter importable without lxml"
+  ],
+  "notes": "Repo Path.__str__ is already dotted components, ConfigWarning.ERROR is 'Error', report() already honors ignored_warnings, and possible-typo/undefined-scenario exist. Tests pin exact paths such as scenarios.root.requests.0.do.0.include-scenario and execution.0.scenario.requests.0.once.0.include-scenario, which follow the stated full dotted path and the named block keys. lxml is imported in bzt.six, not in linter.py; the no-lxml subprocess test is stated. Cycle example (a->b twice, b->c, c->a, self) matches the stated per-edge rule.",
+  "read_minutes": 18,
+  "rules": []
+}

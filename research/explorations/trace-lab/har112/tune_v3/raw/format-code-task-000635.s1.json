@@ -1,0 +1,51 @@
+{
+  "items": [
+    {
+      "what": "Generated inner signatures must be the existing celery.starmap task (exact task name string \"celery.starmap\"), with the iterable in kwargs['it'] and the inner signature in kwargs['task']",
+      "kind": "exact_string",
+      "names": [
+        "celery.starmap"
+      ],
+      "strings": [
+        "celery.starmap"
+      ],
+      "test_ref": "test_task_chunks_builds_stateful_group_parts",
+      "quote": "\"task\": \"celery.starmap\", \"it\": [(0, 0), (1, 1)]",
+      "severity": "guessable"
+    },
+    {
+      "what": "apply_async on the chunk signature must delegate to the generated group's apply_async, forwarding route_name set to the underlying task name plus user options",
+      "kind": "extra_behavior",
+      "names": [
+        "route_name"
+      ],
+      "strings": [],
+      "test_ref": "test_chunks_call_and_apply_async_delegate_to_generated_group_with_route",
+      "quote": "call_kwargs[\"route_name\"] == \"fixture_execute.add\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "The builtin celery.chunks task must return a GroupResult (eager backend) whose child results are per-chunk lists",
+      "kind": "extra_behavior",
+      "names": [
+        "GroupResult"
+      ],
+      "strings": [],
+      "test_ref": "test_builtin_celery_chunks_task_executes_same_chunked_signature",
+      "quote": "assert type(result).__name__ == \"GroupResult\"",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction describes the celery chunks canvas feature almost completely; the only unstated details (the existing celery.starmap task name, route_name delegation, GroupResult return) follow from the named feature and existing celery conventions, so they are guessable rather than not_inferable.",
+  "usage": {
+    "completion_tokens": 779,
+    "completion_tokens_details": {
+      "reasoning_tokens": 296
+    },
+    "prompt_tokens": 3856,
+    "prompt_tokens_details": {
+      "cached_tokens": 768
+    },
+    "total_tokens": 4635
+  }
+}

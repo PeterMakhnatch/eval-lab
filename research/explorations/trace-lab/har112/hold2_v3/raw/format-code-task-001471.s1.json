@@ -1,0 +1,28 @@
+{
+  "items": [
+    {
+      "what": "The answer parser must accept signed and decimal numbers (e.g. '-3', '3.5'), not just positive integers; the instruction's examples only show positive integers.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        "-3",
+        "3.5"
+      ],
+      "test_ref": "usecase.sh F2 expected outputs",
+      "quote": "{\"problem\": \"What is -5 plus 2?\", \"solution\": \"Combine integers. The answer is $\\\\boxed{-3}$.\", \"answer\": \"-3\"}",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction covers essentially all tested behavior including the exact ValueError message and output format. The only unstated requirement is that the number parser handle negative signs and decimal points, which a natural reading of '<number>' plus a minimal regex would satisfy.",
+  "usage": {
+    "completion_tokens": 630,
+    "completion_tokens_details": {
+      "reasoning_tokens": 339
+    },
+    "prompt_tokens": 4965,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 5595
+  }
+}

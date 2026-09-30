@@ -1,0 +1,11 @@
+{
+  "task_id": "format-code-task-002425",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "asyncio must actually set TCP_NODELAY on the AF_INET TCP sockets it uses on Linux, including after the socket is nonblocking",
+    "The existing _set_nodelay helper is the function that sets the option; Linux sock.type is a bitmask (SOCK_STREAM | SOCK_NONBLOCK), which the same package already documents in _is_dgram_socket"
+  ],
+  "notes": "The new test constructs sockets with proto=IPPROTO_TCP and calls _set_nodelay directly, including after setblocking(False). Fixing the type equality check is enough for that test; proto==0 is not asserted. The patch deletes the old assertion that _ipaddr_info returns None for SOCK_STREAM|SOCK_NONBLOCK, so leaving that function unchanged still passes. Grading runs the full test_asyncio.test_base_events and test_selector_events modules.",
+  "read_minutes": 16
+}

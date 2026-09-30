@@ -1,0 +1,142 @@
+{
+  "items": [
+    {
+      "what": "to_offset must accept 'Y' alias mapping to YearEnd (test calls frequencies.to_offset('Y'))",
+      "kind": "extra_behavior",
+      "names": [
+        "to_offset"
+      ],
+      "strings": [],
+      "test_ref": "test_to_offset_Y_alias",
+      "quote": "result = frequencies.to_offset('Y')",
+      "severity": "guessable"
+    },
+    {
+      "what": "to_offset must accept 'YS' alias mapping to YearBegin",
+      "kind": "extra_behavior",
+      "names": [
+        "to_offset"
+      ],
+      "strings": [
+        "YS"
+      ],
+      "test_ref": "test_to_offset_YS_alias",
+      "quote": "result = frequencies.to_offset('YS'); expected = frequencies.to_offset('AS'); assert isinstance(result, offsets.YearBegin)",
+      "severity": "guessable"
+    },
+    {
+      "what": "to_offset must accept 'BY' alias mapping to BYearEnd",
+      "kind": "extra_behavior",
+      "names": [
+        "to_offset"
+      ],
+      "strings": [
+        "BY"
+      ],
+      "test_ref": "test_to_offset_BY_alias",
+      "quote": "result = frequencies.to_offset('BY'); expected = frequencies.to_offset('BA'); assert isinstance(result, offsets.BYearEnd)",
+      "severity": "guessable"
+    },
+    {
+      "what": "to_offset must accept 'BYS' alias mapping to BYearBegin",
+      "kind": "extra_behavior",
+      "names": [
+        "to_offset"
+      ],
+      "strings": [
+        "BYS"
+      ],
+      "test_ref": "test_to_offset_BYS_alias",
+      "quote": "result = frequencies.to_offset('BYS'); expected = frequencies.to_offset('BAS'); assert isinstance(result, offsets.BYearBegin)",
+      "severity": "guessable"
+    },
+    {
+      "what": "date_range must accept freq='YS'",
+      "kind": "extra_behavior",
+      "names": [
+        "date_range"
+      ],
+      "strings": [
+        "YS"
+      ],
+      "test_ref": "test_date_range_freq_YS",
+      "quote": "result = date_range('2017-01-01', periods=3, freq='YS')",
+      "severity": "guessable"
+    },
+    {
+      "what": "date_range must accept freq='BY'",
+      "kind": "extra_behavior",
+      "names": [
+        "date_range"
+      ],
+      "strings": [
+        "BY"
+      ],
+      "test_ref": "test_date_range_freq_BY",
+      "quote": "result = date_range('2017-01-01', periods=3, freq='BY')",
+      "severity": "guessable"
+    },
+    {
+      "what": "date_range must accept freq='BYS'",
+      "kind": "extra_behavior",
+      "names": [
+        "date_range"
+      ],
+      "strings": [
+        "BYS"
+      ],
+      "test_ref": "test_date_range_freq_BYS",
+      "quote": "result = date_range('2017-01-01', periods=3, freq='BYS')",
+      "severity": "guessable"
+    },
+    {
+      "what": "internal helper _period_str_to_code must accept 'Y' returning code 1000",
+      "kind": "new_name",
+      "names": [
+        "_period_str_to_code"
+      ],
+      "strings": [],
+      "test_ref": "test_period_str_to_code_Y",
+      "quote": "assert frequencies._period_str_to_code('Y') == 1000",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "_period_str_to_code must accept 'Y-<MONTH>' anchors like 'Y-DEC', 'Y-JAN', 'Y-MAY'",
+      "kind": "extra_behavior",
+      "names": [
+        "_period_str_to_code"
+      ],
+      "strings": [
+        "Y-DEC",
+        "Y-JAN",
+        "Y-MAY"
+      ],
+      "test_ref": "test_period_str_to_code_Y_month",
+      "quote": "frequencies._period_str_to_code('Y-DEC') == frequencies._period_str_to_code('A-DEC')",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "'A' family aliases must keep working unchanged (A, AS, BA, BAS)",
+      "kind": "extra_behavior",
+      "names": [
+        "to_offset"
+      ],
+      "strings": [],
+      "test_ref": "test_A_alias_still_works",
+      "quote": "assert frequencies.to_offset('A') == offsets.YearEnd()",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction only mentions freq='Y' for date_range, but hidden tests require the full alias family (YS, BY, BYS) in to_offset and date_range (mechanically propagable, guessable), plus the internal helper _period_str_to_code accepting 'Y' and anchored 'Y-MONTH' strings, which is neither named nor implied \u2014 not_inferable.",
+  "usage": {
+    "completion_tokens": 1050,
+    "completion_tokens_details": {
+      "reasoning_tokens": 95
+    },
+    "prompt_tokens": 2058,
+    "prompt_tokens_details": {
+      "cached_tokens": 2048
+    },
+    "total_tokens": 3108
+  }
+}

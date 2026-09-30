@@ -1,0 +1,13 @@
+{
+  "task_id": "format-code-task-001768",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "include_missing=True must keep extra grouping columns such as Algorithm on rows filled for users missing from that group's recs",
+    "filled rows have nrecs=0 and ntruth filled, and each test user appears once per algorithm",
+    "include_missing=False still drops missing users"
+  ],
+  "notes": "Hidden patch only adds assertions to existing test_fill_users/test_adv_fill_users: per-algo user count/nunique equals the full truth user set (100), and rec_users is a proper subset. Repo already has include_missing, nrecs/ntruth fill, and group keys (Algorithm/algo). The bug is the groupby(ug_cols).apply outer join, which drops the group column from the index; carrying those columns is exactly the stated failure. No new names or formats.",
+  "read_minutes": 12,
+  "rules": []
+}

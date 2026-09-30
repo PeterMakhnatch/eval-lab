@@ -1,0 +1,12 @@
+{
+  "task_id": "format-code-task-001768",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "include_missing=True must keep extra rec grouping columns such as Algorithm on rows filled in for users that algorithm did not recommend",
+    "Each truth user appears once per grouping key, with nrecs=0 when that group had no recs and ntruth filled",
+    "include_missing=False behavior stays the drop-missing path"
+  ],
+  "notes": "Hidden assertions are added to existing fixtures. test_adv_fill_users groupby('algo') count/nunique == 100 follows from the stated fill (2 parts x 50 users) once the grouping column is no longer NaN; the column name in that fixture is algo, and the instruction's Algorithm example is the same extra-key bug in _df_keys/include_missing. The added assert len(rec_users) < 50 is a property of the test sample, not a product contract; it can flake if 50 sampled rows are 50 distinct users. Not scored as an item.",
+  "read_minutes": 14
+}

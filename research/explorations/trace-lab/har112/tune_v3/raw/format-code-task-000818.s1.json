@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "All test requirements map directly to the stated outcomes: zoo registration, default forward with 1000 classes, public entry points. The classes=17 kwarg is the standard GluonCV classification model parameter family, and mx.np.zeros/initialize are library calls, so nothing extra is unstated.",
+  "usage": {
+    "completion_tokens": 240,
+    "completion_tokens_details": {
+      "reasoning_tokens": 74
+    },
+    "prompt_tokens": 1943,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 2183
+  }
+}

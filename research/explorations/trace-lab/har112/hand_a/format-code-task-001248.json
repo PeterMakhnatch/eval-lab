@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-001248",
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Preserved spatial_partitions must have their own CRS updated to the CRS passed to set_crs, not merely be reattached. The bug report only shows that ddf.spatial_partitions becomes None. calculate_spatial_partitions builds a GeoSeries with no CRS; after set_crs('EPSG:4326') the test requires spatial_partitions.crs to compare equal via pyproj.CRS.",
+      "test_ref": "tests/test_core.py:test_set_crs_updates_spatial_partitions_crs",
+      "quote": "assert CRS.from_user_input(new.spatial_partitions.crs) == CRS.from_user_input(new_crs)",
+      "severity": "guessable",
+      "rules": ["R2"],
+      "names": ["spatial_partitions.crs"]
+    },
+    {
+      "what": "GeoSeries.set_crs must preserve spatial partitions and update their CRS. The instruction and example only name GeoDataFrame.set_crs. set_crs is defined once on _Frame, so GeoSeries is the same method; grep for def set_crs / spatial_partitions surfaces it, and the copy() sibling already copies partitions for both frame types.",
+      "test_ref": "tests/test_core.py:test_set_crs_geoseries_preserves_spatial_partitions",
+      "quote": "dask_obj = dask_geopandas.from_geopandas(geoseries_points, npartitions=2); new = dask_obj.set_crs(\"EPSG:4326\")",
+      "severity": "guessable",
+      "rules": ["R2"],
+      "names": ["GeoSeries.set_crs"]
+    }
+  ],
+  "instruction_covers": [
+    "GeoDataFrame.set_crs must keep an existing spatial_partitions geometry instead of clearing it",
+    "set_crs with no partitions stays None and still sets the frame CRS",
+    "The copy() fix is the stated analogue"
+  ],
+  "notes": "set_crs lives on _Frame and returns map_partitions without _propagate_spatial_partitions. copy() assigns spatial_partitions.copy() and would not by itself update CRS. Updating CRS is a small extra step on the same GeoSeries (set_crs on the partitions), not a new API, so guessable rather than not_inferable. Existing tests/test_core.py::test_geodataframe_crs and test_geoseries_crs still require allow_override and that the original object is unchanged; the hidden tests use frames whose CRS is unset, so that contract is preserved.",
+  "read_minutes": 16
+}

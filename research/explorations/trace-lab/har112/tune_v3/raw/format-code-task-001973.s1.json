@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "Every concrete requirement exercised by the hidden tests (weighted averaging, reductions including callables, dict/tensor grouping, history key formatting, no-op re-report, artifact forwarding with normalize, missing-backend warning, ValueError, exit clearing) is explicitly stated in the instruction; test-only helpers like _plain, RecordingBackend, and pytest.approx are scaffolding.",
+  "usage": {
+    "completion_tokens": 997,
+    "completion_tokens_details": {
+      "reasoning_tokens": 743
+    },
+    "prompt_tokens": 4833,
+    "prompt_tokens_details": {
+      "cached_tokens": 768
+    },
+    "total_tokens": 5830
+  }
+}

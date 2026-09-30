@@ -1,0 +1,116 @@
+{
+  "task_id": "format-code-task-002864",
+  "label": "suspect",
+  "label_without_repo": "suspect",
+  "sample_labels": [
+    "broken",
+    "suspect",
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [
+    {
+      "what": "Support for bare WITH/WITHOUT WRAPPER variants (no ARRAY keyword) \u2014 the instruction only shows 'WITH ARRAY WRAPPER' and 'WITHOUT ARRAY WRAPPER', but hidden tests require parsing and round-tripping 'WITH WRAPPER' and 'WITHOUT WRAPPER', which need additional grammar options beyond the reported examples.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        "WITH WRAPPER",
+        "WITHOUT WRAPPER"
+      ],
+      "test_ref": "tests/dialects/test_trino.py:test__query_with_wrapper / test__query_without_wrapper",
+      "quote": "\"JSON_QUERY(description, 'strict $.comment' WITH WRAPPER)\" ... \"JSON_QUERY(description, 'strict $.comment' WITHOUT WRAPPER)\"",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact output strings 'WITH ARRAY WRAPPER' and 'WITHOUT ARRAY WRAPPER' must appear verbatim in generated SQL (round-trip formatting of wrapper options, not just parseability).",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "WITH ARRAY WRAPPER",
+        "WITHOUT ARRAY WRAPPER"
+      ],
+      "test_ref": "tests/dialects/test_trino.py:test__query_issue_full_statement",
+      "quote": "self.assertIn(\"WITH ARRAY WRAPPER\", out); self.assertIn(\"WITHOUT ARRAY WRAPPER\", out)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Bare wrapper variants 'WITH WRAPPER' / 'WITHOUT WRAPPER' (no ARRAY, no CONDITIONAL/UNCONDITIONAL) must parse and round-trip; the issue only shows 'WITH/WITHOUT ARRAY WRAPPER'.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        "WITH WRAPPER",
+        "WITHOUT WRAPPER"
+      ],
+      "test_ref": "tests/dialects/test_trino.py:test__query_with_wrapper / test__query_without_wrapper",
+      "quote": "\"JSON_QUERY(description, 'strict $.comment' WITH WRAPPER)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Optional qualifier+ARRAY combinations 'WITHOUT CONDITIONAL WRAPPER' and 'WITH UNCONDITIONAL ARRAY WRAPPER' must parse and round-trip; the issue text never mentions CONDITIONAL/UNCONDITIONAL combined this way.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        "WITHOUT CONDITIONAL WRAPPER",
+        "WITH UNCONDITIONAL ARRAY WRAPPER"
+      ],
+      "test_ref": "tests/dialects/test_trino.py:test__query_preserves_existing_options",
+      "quote": "\"JSON_QUERY(content, 'strict $.HY.*' WITHOUT CONDITIONAL WRAPPER)\" / \"'strict $.HY.*' WITH UNCONDITIONAL ARRAY WRAPPER\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "The generated Trino SQL must contain the exact substrings 'WITH ARRAY WRAPPER' and 'WITHOUT ARRAY WRAPPER' (round-trip fidelity of the wrapper clause), not just parse without error.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "WITH ARRAY WRAPPER",
+        "WITHOUT ARRAY WRAPPER"
+      ],
+      "test_ref": "tests/dialects/test_trino.py:test__query_issue_full_statement",
+      "quote": "self.assertIn(\"WITH ARRAY WRAPPER\", out); self.assertIn(\"WITHOUT ARRAY WRAPPER\", out)",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction's examples only cover WITH/WITHOUT ARRAY WRAPPER, but the hidden tests also require bare WITH/WITHOUT WRAPPER variants that the instruction never mentions, which is an extra grammar variant not inferable from the issue text. The exact round-trip strings for the array-wrapper forms follow mechanically from the reported examples, so those are guessable.",
+    "The issue demonstrates only the ARRAY-wrapper forms, but the hidden tests also require bare 'WITH/WITHOUT WRAPPER' and CONDITIONAL/UNCONDITIONAL variants to parse and round-trip, plus exact output substrings. These follow from the natural minimal fix (making the ARRAY and CONDITIONAL/UNCONDITIONAL tokens optional in the JSON_QUERY wrapper grammar), so they are guessable rather than not_inferable.",
+    "The issue's example directly exercises WITH/WITHOUT ARRAY WRAPPER parsing, and the Trino docs linked in the issue define the full wrapper syntax; the referenced prior fix (issue 4623) covers unconditional/conditional wrappers. All tested variants follow from the quoted documentation and the same mechanism, so nothing is not_inferable."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 593,
+      "completion_tokens_details": {
+        "reasoning_tokens": 193
+      },
+      "prompt_tokens": 1929,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2522
+    },
+    {
+      "completion_tokens": 750,
+      "completion_tokens_details": {
+        "reasoning_tokens": 215
+      },
+      "prompt_tokens": 1929,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2679
+    },
+    {
+      "completion_tokens": 143,
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "prompt_tokens": 1929,
+      "prompt_tokens_details": {
+        "cached_tokens": 1920
+      },
+      "total_tokens": 2072
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

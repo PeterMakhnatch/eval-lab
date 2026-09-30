@@ -1,0 +1,13 @@
+{
+  "task_id": "format-code-task-000204",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "qml.specs returns an integer depth for circuits containing a custom ResourcesOperation whose resources().depth is greater than 1",
+    "The underlying depth computation qml.specs relies on must honor the depth a custom op declares",
+    "depth=1 custom ops already report a proper integer, so the change is specific to depth > 1"
+  ],
+  "notes": "Repo verified: specs reads qtape.specs['depth'], which is resources.depth from _count_resources (tape/qscript.py:1206, resource/resource.py:136,145). _count_resources sets depth = None whenever a ResourcesOperation reports depth > 1, and CircuitGraph.get_depth counts every op as one node (circuit_graph.py:458-473) with edges between consecutive ops on each wire (circuit_graph.py:154-166). The hidden tests pin CircuitGraph.get_depth and the resource counts to the natural fix: weight each op by its declared depth (default 1). The expected numbers follow mechanically from the existing per-wire DAG — e.g. Hadamard(0)+CNOT([0,1])+CustomOpDepth3([1,0]) overlaps on wire 1 giving 1+1+3 = 5, and the modified resource cases (None -> 5 and None -> 6) are the same weighting. The instruction explicitly names both qml.specs and 'whichever underlying depth computation it relies on', so get_depth is in scope, not a sibling. No exact strings, signatures, or extra contracts are pinned.",
+  "read_minutes": 20,
+  "repo_complete_at_label": true
+}

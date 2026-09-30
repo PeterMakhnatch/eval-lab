@@ -1,0 +1,39 @@
+{
+  "items": [
+    {
+      "what": "A helper function named `_get_gdal_version` must exist in module `pygmt._show_versions`, returning a clean version string like '3.10.3' (or None). The instruction never names this function or module.",
+      "kind": "new_name",
+      "names": [
+        "_get_gdal_version",
+        "pygmt._showversions"
+      ],
+      "strings": [],
+      "test_ref": "test_show_versions.py:test_get_gdal_version_returns_clean_version_string",
+      "quote": "from pygmt._show_versions import _get_gdal_version ... assert re.match(r\"^\\d+\\.\\d+\", gdal_version)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "The show_versions output must call the patchable hook `pygmt._show_versions._get_gdal_version` so that patching it to return None yields 'gdal: None' without raising \u2014 i.e., the dependency listing must route through this exact function.",
+      "kind": "extra_behavior",
+      "names": [
+        "pygmt._show_versions._get_gdal_version"
+      ],
+      "strings": [],
+      "test_ref": "test_show_versions.py:test_show_versions_gdal_none_when_unavailable",
+      "quote": "with patch(\"pygmt._show_versions._get_gdal_version\", return_value=None): ... assert \"gdal: None\" in output",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The instruction asks only to fix the GDAL version detection; the hidden tests additionally require a specifically named helper `_get_gdal_version` in `pygmt._show_versions` whose failure path is patched by exact dotted path \u2014 names and structure not stated in the instruction.",
+  "usage": {
+    "completion_tokens": 496,
+    "completion_tokens_details": {
+      "reasoning_tokens": 74
+    },
+    "prompt_tokens": 2449,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2945
+  }
+}

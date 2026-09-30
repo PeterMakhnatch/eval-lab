@@ -1,0 +1,64 @@
+{
+  "items": [
+    {
+      "what": "Reflected addition __radd__ on Observable so that `0 + obs` returns the observable (int.__add__ fails first); instruction only shows an __add__ patch",
+      "kind": "new_name",
+      "names": [
+        "__radd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py:26 test_zero_plus_observable_returns_self",
+      "quote": "result = 0 + obs\n        assert isinstance(result, type(obs)) or result.compare(obs)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Tensor class must also accept scalar 0 in both __add__ and __radd__ and return itself; instruction's patch targets Observable only",
+      "kind": "extra_behavior",
+      "names": [
+        "Tensor",
+        "__add__",
+        "__radd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py TestTensorAddZero",
+      "quote": "T = qml.PauliX(0) @ qml.PauliZ(1)\n        result = T + 0\n        assert result.compare(T)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Hamiltonian must support `0 + H` via __radd__ returning an equivalent Hamiltonian; zero-adding Hamiltonians is not mentioned in the instruction",
+      "kind": "extra_behavior",
+      "names": [
+        "Hamiltonian",
+        "__radd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py:72 test_zero_plus_hamiltonian",
+      "quote": "result = 0 + H\n        assert result.compare(H)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Hamiltonian + nonzero scalar must raise ValueError/TypeError, contradicting PennyLane's existing scalar-addition semantics for Hamiltonian (H + number adds a scalar term)",
+      "kind": "contradiction",
+      "names": [
+        "Hamiltonian",
+        "__add__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py:87 test_hamiltonian_plus_nonzero_raises",
+      "quote": "with pytest.raises((ValueError, TypeError)):\n            _ = H + 5",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The instruction only provides an Observable.__add__ patch; the hidden tests additionally exercise reflected addition (__radd__) for Observable/Tensor/Hamiltonian and Tensor/Hamiltonian zero handling, which are mechanical propagation of the same zero-identity rule (guessable), but the requirement that Hamiltonian + 5 raise contradicts PennyLane's documented scalar-addition behavior and is not inferable.",
+  "usage": {
+    "completion_tokens": 1438,
+    "completion_tokens_details": {
+      "reasoning_tokens": 768
+    },
+    "prompt_tokens": 2424,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3862
+  }
+}

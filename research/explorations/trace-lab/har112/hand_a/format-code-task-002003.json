@@ -1,0 +1,25 @@
+{
+  "task_id": "format-code-task-002003",
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "order_results(['bananas'], documents, True) must rank a lower-scored document whose title contains the query term ahead of higher-scored documents that do not. The instruction is only a search URL and an image link; it never names order_results, title matching, or this ordering.",
+      "test_ref": "test/test_rank.py:test_order_result",
+      "quote": "ordered_results = order_results([\"bananas\"], documents, True); assert ordered_results[0].title == 'Bananas and apples'",
+      "severity": "not_inferable",
+      "rules": ["R2"],
+      "names": ["order_results"]
+    },
+    {
+      "what": "order_results must not raise when title or extract is None, and must still rank the title match first. get_match_features calls re.finditer on the raw string and only logs TypeError before re-raising.",
+      "test_ref": "test/test_rank.py:test_order_results_where_document_has_properties_that_are_none",
+      "quote": "Document(title=None, ...); Document(..., extract=None, ...); assert ordered_results[0].title == 'Bananas and apples'",
+      "severity": "not_inferable",
+      "rules": ["R2"],
+      "names": ["title", "extract"]
+    }
+  ],
+  "instruction_covers": [],
+  "notes": "Instruction text is the URL https://mwmbl.org/?q=wikidata+project+wetenschappers plus a GitHub image link. No network fetch was used. The query string does not appear in the tests or in rank.py. Current score_result multiplies match features by the document score and returns 0 when fewer than half the terms match, so the tested title-boost is not existing behavior (not R3). A correct fix of the unstated screenshot cannot be inferred from the instruction plus the repo.",
+  "read_minutes": 12
+}

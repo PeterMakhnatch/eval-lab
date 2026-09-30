@@ -1,0 +1,22 @@
+{
+  "task_id": "format-code-task-000202",
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "integer 0 on the left (0 + obs/tensor/hamiltonian, and therefore sum()) must return the observable; Hamiltonian += 0 must keep the Hamiltonian",
+      "test_ref": "tests/test_add_zero.py:test_zero_plus_observable_returns_self",
+      "quote": "result = 0 + obs; assert isinstance(result, type(obs)) or result.compare(obs)",
+      "severity": "guessable",
+      "names": ["Observable.__radd__", "Hamiltonian.__radd__", "Hamiltonian.__iadd__"],
+      "rules": ["tie-break"]
+    }
+  ],
+  "instruction_covers": [
+    "sum([qml.PauliX(i) for i in range(10)]) must work because 0 is the additive identity",
+    "quoted Observable.__add__ returns self for numbers.Number == 0, delegates Hamiltonian, builds Hamiltonian for Observable/Tensor, else ValueError",
+    "existing observable+observable Hamiltonian construction is preserved"
+  ],
+  "notes": "The quoted snippet is only __add__. Python sum() evaluates 0 + first, which needs __radd__ (int.__add__ returns NotImplemented). Hamiltonian.__iadd__ already exists and raises on a number, so += 0 needs the same zero branch. Tensor inherits Observable. Nonzero may raise ValueError or TypeError, so the quoted ValueError is not pinned. A careful engineer who knows sum() will add __radd__; one who only pastes the snippet fails. Guessable, not not_inferable: the sum() example determines the reflected case.",
+  "read_minutes": 16,
+  "rules": ["tie-break"]
+}

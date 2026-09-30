@@ -1,0 +1,80 @@
+{
+  "task_id": "format-code-task-002961",
+  "label": "sound",
+  "label_without_repo": "broken",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": true,
+  "unstated": [],
+  "dropped_existing": [
+    {
+      "what": "The server view getter must accept a keyword parameter named exactly `sort_by` (the instruction only says 'pick a field to sort by' in the App, never naming the API parameter).",
+      "kind": "new_name",
+      "names": [
+        "sort_by"
+      ],
+      "strings": [],
+      "test_ref": "tests/unittests/server_view_tests.py: test_sort_by",
+      "quote": "view = fosv.get_view(dataset.name, sort_by=\"value\")",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "sort_by": "fiftyone/core/cli.py:513"
+      }
+    },
+    {
+      "what": "The view getter must accept a keyword parameter named exactly `desc` to request descending sort (mapped to `reverse=True`); the instruction never names it.",
+      "kind": "new_name",
+      "names": [
+        "desc"
+      ],
+      "strings": [],
+      "test_ref": "tests/unittests/server_view_tests.py: test_sort_by",
+      "quote": "view = fosv.get_view(dataset.name, sort_by=\"value\", desc=True)",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "desc": "app/gen-docs.js:355"
+      }
+    },
+    {
+      "what": "The produced sort stage must serialize with kwarg names `field_or_expr` and `reverse`, and include `create_index` set to False in exactly that order.",
+      "kind": "exact_string",
+      "names": [
+        "field_or_expr",
+        "reverse",
+        "create_index"
+      ],
+      "strings": [
+        "field_or_expr",
+        "reverse",
+        "create_index"
+      ],
+      "test_ref": "tests/unittests/server_view_tests.py: test_sort_by",
+      "quote": "[\"field_or_expr\", \"value\"], [\"reverse\", False], [\"create_index\", False],",
+      "severity": "guessable",
+      "repo_evidence": {
+        "field_or_expr": "fiftyone/core/clips.py:598",
+        "reverse": "fiftyone/core/expressions.py:2608",
+        "create_index": "fiftyone/core/stages.py:3048"
+      }
+    }
+  ],
+  "reasons": [
+    "The instruction describes only App-level behavior; the hidden test exercises server-side API parameters `sort_by`/`desc` and the serialized kwarg names, of which only `create_index: False` is guessable from the no-indexes requirement \u2014 the parameter names themselves are not stated."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 556,
+      "completion_tokens_details": {
+        "reasoning_tokens": 129
+      },
+      "prompt_tokens": 1698,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2254
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

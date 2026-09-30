@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-002975",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction explicitly requires a public CallViolation error for any direct call to __default__ with a raw_call hint, and the implementation notes leave the mechanism free; all hidden tests (self-call, interface staticcall/extcall, non-pytest environment) are direct consequences of that requirement, and the remaining test lines are library calls or base-behavior checks."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 464,
+      "completion_tokens_details": {
+        "reasoning_tokens": 307
+      },
+      "prompt_tokens": 2501,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2965
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

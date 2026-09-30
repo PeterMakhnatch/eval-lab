@@ -1,0 +1,21 @@
+{
+  "task_id": "format-code-task-000832",
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "AppStoreValidator.__aenter__ must return self, so `async with validator as v` binds v to the validator instance and v.validate(...) works. The instruction's working example is `async with validator:` with no `as` clause and never mentions the context manager's return value.",
+      "test_ref": "tests/asyncio/test_asyncio_appstore.py:test_appstore_aenter_returns_self_for_async_with_as",
+      "quote": "async with appstore_validator as v: assert v is appstore_validator",
+      "severity": "not_inferable",
+      "names": ["__aenter__"],
+      "rules": ["tie-break"]
+    }
+  ],
+  "instruction_covers": [
+    "The session is created only inside __aenter__, so validate/post_json outside the context manager hits a None session",
+    "Using the validator as an async context manager (async with validator) is the working usage",
+    "The reported failure is AttributeError on self._session.post"
+  ],
+  "notes": "Repo verified: inapppy/asyncio/appstore.py __aenter__ sets self._session = ClientSession() and returns None; __aexit__ closes and clears it. The session-init and session-close assertions are pre-existing behaviour preserved by any fix (R3), so they are not items. The only new checked behaviour is that __aenter__ returns self. The instruction frames a bug (session exists only inside the context manager) whose minimal fix is lazy session creation or a docs change to the example; neither makes __aenter__ return self, so the `as v` identity assertion fails the minimal-fix test and is not_inferable. No R2 sibling applies: this is the same method, not a named-but-unmentioned variant.",
+  "read_minutes": 12
+}

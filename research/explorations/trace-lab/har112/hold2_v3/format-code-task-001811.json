@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-001811",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "All test-only names (environment, shape_class, start_shape, get_runner, mocked_rpc, outbox) exist in the Locust 1.2.1 codebase and are test scaffolding; the behavioural requirement (stop() resets shape_last_state so the next tick spawns) is explicitly stated in the instruction's diagnosis."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 222,
+      "completion_tokens_details": {
+        "reasoning_tokens": 96
+      },
+      "prompt_tokens": 2187,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2409
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

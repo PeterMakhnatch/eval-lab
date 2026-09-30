@@ -1,0 +1,128 @@
+{
+  "task_id": "format-code-task-000322",
+  "label": "suspect",
+  "label_without_repo": "suspect",
+  "sample_labels": [
+    "broken",
+    "sound",
+    "suspect"
+  ],
+  "repo_used": false,
+  "unstated": [
+    {
+      "what": "Invalid date values in If-Unmodified-Since and If-Range must be ignored, returning a normal 200 full-body response (no 412, no 206); the instruction never mentions malformed date handling.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "test_static_file_if_unmodified_since_invalid_date / test_static_file_if_range_invalid_date",
+      "quote": "lastmod = 'not a valid HTTP-date' ... assert 200 == resp.status",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "If-Unmodified-Since unsatisfied must yield status 412 both with and without a Range header; the instruction only says 'honored', never naming 412 or that the check applies also when no Range is present.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        "412"
+      ],
+      "test_ref": "test_static_file_if_unmodified_since_past_with_range / test_static_file_if_unmodified_since_past_without_range",
+      "quote": "assert 412 == resp.status",
+      "severity": "guessable"
+    },
+    {
+      "what": "If-Range semantics: when the If-Range date does not match the file mtime the server must return the full file with 200 (even with a Range header); when it matches (future date vs old mtime) it must return 206 with Content-Range.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        "Content-Range"
+      ],
+      "test_ref": "test_static_file_if_range_past_with_range / test_static_file_if_range_future_with_range",
+      "quote": "assert 200 == resp.status ... assert 206 == resp.status; assert resp.headers['Content-Range'] == 'bytes 2-12/13'",
+      "severity": "guessable"
+    },
+    {
+      "what": "An over-large tail range (bytes=-99999999999999) must be clamped to the whole file but still answered with 206 and Content-Range 'bytes 0-<size-1>/<size>'; the instruction says 'returning the whole file', which could reasonably mean 200.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        "Content-Range"
+      ],
+      "test_ref": "test_static_file_range_tail",
+      "quote": "assert resp2.status == 206, resp.reason; assert resp2.headers['Content-Range'] == 'bytes 0-61107/61108'",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact Content-Range header casing/format 'Content-Range: bytes <start>-<end>/<size>' asserted on 206 responses; format is given in the issue, casing 'Content-Range' is the conventional spelling (tests use resp.headers which is case-insensitive, so guessable).",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Content-Range",
+        "bytes 0-999/{0}"
+      ],
+      "test_ref": "test_static_file_range",
+      "quote": "assert responses[0].headers['Content-Range'] == 'bytes 0-999/{0}'.format(filesize)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Invalid If-Unmodified-Since / If-Range dates must be ignored (return 200), not treated as failed preconditions or errors",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "tests/test_web_sendfile_functional.py: test_static_file_if_unmodified_since_invalid_date / test_static_file_if_range_invalid_date",
+      "quote": "lastmod = 'not a valid HTTP-date' ... assert 200 == resp.status",
+      "severity": "guessable"
+    },
+    {
+      "what": "If-Range matching a past (mismatched) date must return a full 200 response rather than 412/416, per RFC 7233 If-Range semantics",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "tests/test_web_sendfile_functional.py: test_static_file_if_range_past_with_range",
+      "quote": "assert 200 == resp.status\n    assert resp.headers['Content-Length'] == '13'",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The core Range fixes (Content-Range, 416, tail clamping) and basic conditional-header honoring follow directly from the issue, but the tests additionally pin down invalid-date handling (must be ignored, returning 200), the 412 status for failed If-Unmodified-Since, and exact If-Range match/mismatch semantics (200 full body vs 206 partial), none of which the instruction states.",
+    "Every hidden-test assertion maps directly to one of the four numbered issues or the explicitly requested If-Unmodified-Since/If-Range support; the exact Content-Range format is given in the instruction, and invalid-date handling is the standard RFC behavior any correct implementation of 'honor these headers' would produce.",
+    "The tests cover exactly the four range issues plus the two conditional headers named in the instruction; only RFC-standard invalid-date handling and If-Range mismatch semantics (full 200, not an error status) are not literally spelled out, and both follow the RFC 7232/7233 behavior the instruction asks for."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 1474,
+      "completion_tokens_details": {
+        "reasoning_tokens": 590
+      },
+      "prompt_tokens": 4278,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 5752
+    },
+    {
+      "completion_tokens": 514,
+      "completion_tokens_details": {
+        "reasoning_tokens": 294
+      },
+      "prompt_tokens": 4278,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 4792
+    },
+    {
+      "completion_tokens": 709,
+      "completion_tokens_details": {
+        "reasoning_tokens": 318
+      },
+      "prompt_tokens": 4278,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 4987
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

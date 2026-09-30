@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "All hidden tests either assert the requested fix (no AL01 for implicit table alias in Oracle) or guard existing default behavior (AL02 still flags implicit column aliases; ANSI/BigQuery still flag implicit table aliases), which any correct dialect-aware fix preserves.",
+  "usage": {
+    "completion_tokens": 378,
+    "completion_tokens_details": {
+      "reasoning_tokens": 265
+    },
+    "prompt_tokens": 2317,
+    "prompt_tokens_details": {
+      "cached_tokens": 2304
+    },
+    "total_tokens": 2695
+  }
+}

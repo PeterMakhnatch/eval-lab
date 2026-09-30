@@ -1,0 +1,14 @@
+{
+  "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001832",
+  "task_package_digest": "sha256:7a03868fea89dc4b079d9c3be7f0fe3d3e2ad988d95cab521cc1f7a92d832a1b",
+  "agent": "nop",
+  "environment": "daytona",
+  "name": "har105-qual-py-001832",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "timeout_seconds": 5400,
+  "purpose": "calibration",
+  "hypothesis": "The Python code task starts, passes its healthcheck and grades on Daytona: a nop control completes the verifier with reward 0 and no setup error.",
+  "submitted_by": "har105-qualification",
+  "override_storage_mb": 10240
+}

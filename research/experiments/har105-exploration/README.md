@@ -122,3 +122,33 @@ Packages live in the shared store, `derived/task-store/variants/<slug>/<digest12
 | arvo_57589 | `mimo-v2.6-rl__arvo_57589/634bbec7b602` | the agent submits (`submitted: true`) |
 
 **Spend:** 14 Daytona nop jobs over both parts cost $0.0059: 3 music, 11 fix nops, superseded attempts included. No model calls.
+
+## Part 3: Python code tasks only
+
+**Scope (Peter via Research-Harbor, 2026-09-30 about 02:30Z):** narrow exploration to one niche, MiMo Python code tasks. They grade with hidden tests, not a model judge. The other domains and the part-2 variants are parked. 1634, 1789 and 1702 are terminal tasks, not code tasks, so none of them carry over.
+
+`select_python.py` writes `python_selection.json` and the nop specs `specs/har105-qual-py-*.json`. The rule:
+
+1. **Pool:** train-side code tasks with `metadata.category = "Python"` whose hidden test patch touches a `.py` file, minus the part-1 exclusions. That is 1,047 of the 1,179 Python code tasks (the other 132 are held out).
+2. **One task per repo.** `split_group` names the repo for only 126 of the 1,047 and is wrong for two picks: 002401 is pyproj, not `user-attachments/assets`, and 002864 is sqlglot, not `apache/superset`. Otherwise the repo key is the project package the hidden tests import. The repo column below was checked by hand against test paths and nop tracebacks.
+3. **Light images first.** Take the top 30 by `sha256("har105-py:" + id)` with distinct repos. Nop-check the 13 with the smallest compressed image (Docker Hub manifest sizes, cached in `image_sizes.json`). The set is the first 10 clean ones.
+
+| task | repo | image | nop failures (all feature-level) | in set |
+|---|---|---|---|---|
+| format-code-task-000226 | Pylons/waitress | 407 MB | 6 of 13 unittest failures | yes |
+| format-code-task-001896 | meyt/linkpreview | 416 MB | 16 failed, 2 passed (`no attribute 'favicon'`) | yes |
+| format-code-task-000927 | facelessuser/soupsieve | 418 MB | 22 failed (`no attribute 'escape'`) | yes |
+| format-code-task-002256 | peter-wangxu/persist-queue | 467 MB | 5 failed, 6 passed | yes |
+| format-code-task-001832 | machow/siuba | 478 MB | collection error: `cannot import name 'rename'`, the verb the instruction asks for | yes |
+| format-code-task-000738 | cupy/cupy | 498 MB | **broken:** "CuPy is not correctly installed", so the tests can't import | no |
+| format-code-task-000383 | quickfix (Python FIX client) | 522 MB | 13 failed (`no attribute 'subscribe_to_data'`) | yes |
+| format-code-task-002407 | python-control/python-control | 587 MB | 8 failed, 1 passed | yes |
+| format-code-task-002391 | pypa/pip-audit | 752 MB | 6 failed, 2 passed | yes |
+| format-code-task-002401 | pyproj4/pyproj | 1,045 MB | **broken:** `No module named 'pyproj._context'` (C extension never built) | no |
+| format-code-task-002259 | PHAREHUB/PHARE | 1,098 MB | 5 failed, 3 passed (`KeyError` on the new MHD keys) | yes |
+| format-code-task-002218 | pandas-dev/pandas | 1,183 MB | **broken:** conftest import fails, `pandas._libs.interval` not built | no |
+| format-code-task-002864 | tobymao/sqlglot | 1,603 MB | 5 errors, all `ParseError` on the new syntax | yes |
+
+Every nop has reward 0 and no trial exception. The qualification table marks all 13 `ok`, including the 3 broken ones. `nopspec.SETUP_ERROR` now also matches `ImportError while loading conftest`, `is not correctly installed` and `build_ext`, so it catches all three. Part 1's `selection.json` is unchanged under the wider rule.
+
+**Spend:** 13 Daytona nops, $0.0535 (cap $0.10). No model calls.

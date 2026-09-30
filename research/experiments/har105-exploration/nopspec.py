@@ -17,7 +17,7 @@ from evallab.storage.paths import shared_checkout_root  # noqa: E402
 OUT = Path(__file__).resolve().parent
 PRIMARY = shared_checkout_root(ROOT)
 #: Worktrees whose ``runs/`` hold the Daytona nop jobs this card reads:
-#: HAR-88 (mimo-ops), HAR-95, and HAR-105's own music and fixed-variant nops.
+#: HAR-88 (mimo-ops), HAR-95, and HAR-105's own music, fixed-variant and Python-code nops.
 NOP_ROOTS = tuple(
     PRIMARY / ".worktrees" / name / "runs"
     for name in (
@@ -25,18 +25,41 @@ NOP_ROOTS = tuple(
         "har95-nop-20260929",
         "har105-explore-20260929",
         "har105-taskfix-20260929",
+        "har105-python-20260930",
     )
 )
 #: A nop whose verifier output matches this broke before grading: a raised
-#: missing module or package, a pytest collection or fixture-setup error, or a
-#: missing command. Two near misses are deliberately not matched: "cannot
-#: import name X" from the task's own code is often the function the agent
-#: must write (1702), and a logged "No module named" (stevedore skipping
-#: Bandit's optional sarif formatter in 1789) is not a raised error.
+#: missing module or package, a pytest collection or fixture-setup error, a
+#: conftest that cannot import, a package whose C extensions were never built
+#: (pandas, CuPy in part 3), or a missing command. Two near misses are
+#: deliberately not matched: "cannot import name X" from the task's own code
+#: is often the function the agent must write (1702), and a logged "No module
+#: named" (stevedore skipping Bandit's optional sarif formatter in 1789) is not
+#: a raised error. A pytest collection error can also be the missing feature
+#: itself; ``select_python.SETUP_ERROR_OK`` records those checked by hand.
 SETUP_ERROR = re.compile(
     r"ModuleNotFoundError|PackageNotFoundError"
     r"|ERROR collecting|ERROR at setup|command not found"
+    r"|ImportError while loading conftest|is not correctly installed|build_ext"
 )
+SNAPSHOTS = {
+    "code": "FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6",
+    "cyber": "FineEnvs__MiMo-V2.6-RL-harbor-cyber@763882ade5fc",
+    "general": "FineEnvs__MiMo-V2.6-RL-harbor-general@10b732c5079c",
+    "music": "FineEnvs__MiMo-V2.6-RL-harbor-music@e1a66d4553ee",
+    "terminal": "FineEnvs__MiMo-V2.6-RL-harbor-terminal@fe1c2b665aae",
+    "webdev": "FineEnvs__MiMo-V2.6-RL-harbor-webdev@e1a6293376e8",
+}
+#: HAR-97 suspects (fixed as variants in part 2) and 2684 (pass_tainted: the
+#: same missing-stevedore environment as 1789).
+SUSPECTS = {
+    "candidate-1634-software-databases",
+    "candidate-1789-security-appsec",
+    "candidate-1702-ml-inference",
+    "candidate-2684-security-appsec",
+    "arvo_18737",
+    "arvo_57589",
+}
 MARGIN_S = 300
 DAYTONA_MAX_DISK_MB = 10240
 

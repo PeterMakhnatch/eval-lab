@@ -61,6 +61,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from evallab.database import AGENT_STOP_EXCEPTIONS
 from evallab.execution_contracts import (
     DEEPSEEK_ALLOWED_MODEL,
     HARBOR_AGENT_IMPORT_PATHS,
@@ -789,6 +790,21 @@ class LabEvaluator:
             name: value if math.isfinite(value) else None
             for name, value in (trial.rewards.items() if trial is not None else ())
         }
+        # An agent timeout or trial-ceiling stop ends the agent's run while Harbor still
+        # runs the verifier: with a finite reward that is the agent's outcome, not an
+        # infrastructure failure, so it is scored like a clean trial.
+        exception_info = trial.result.get("exception_info") if trial is not None else None
+        if (
+            trial is not None
+            and error_info
+            and isinstance(exception_info, dict)
+            and exception_info.get("exception_type") in AGENT_STOP_EXCEPTIONS
+            and not trial.result.get("error")
+            and primary_reward is not None
+            and math.isfinite(float(primary_reward))
+        ):
+            usage["agent_stop"] = exception_info["exception_type"]
+            error_info = None
 
         # Handle failure cases: persist error record and raise EvaluationUnavailable (never return NaN)
         if error_info:

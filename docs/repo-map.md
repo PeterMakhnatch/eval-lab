@@ -111,7 +111,7 @@ inputs:
   - path: src/evallab/gepa_optimizer/composition.py
     digest: sha256:8cee253a03e935db6d30b97a96480928270cc015782c502429ac07f5dcd69195
   - path: src/evallab/gepa_optimizer/evaluator.py
-    digest: sha256:16fda8d1873b0d2663ae7b5e98f05ef0478d1669c200ee5458044b4ec9b95d31
+    digest: sha256:05cd7d49363904ef1ddac99bf3a4850cf11ddafe0c3c6292a689d3c0e4899f50
   - path: src/evallab/gepa_optimizer/feedback.py
     digest: sha256:69993d3d936918ac3641cf2e8c4ebb9a90476c07329c67c000e1092d95587ef5
   - path: src/evallab/gepa_optimizer/intake.py

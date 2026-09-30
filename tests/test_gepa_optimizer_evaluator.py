@@ -107,7 +107,7 @@ def create_completed_job_fixture(
     package_digest: str,
     candidate_sha256: str,
     reward: float | None = 1.0,
-    exception_info: str | None = None,
+    exception_info: str | dict[str, Any] | None = None,
 ) -> Path:
     """Create a fully compliant completed Harbor job directory on disk."""
     job_dir = jobs_dir / job_name
@@ -750,6 +750,72 @@ def test_infra_error_raises_evaluation_unavailable(tmp_path: Path) -> None:
     assert record.score is None
     assert record.status == "error"
     assert "TrialTimeoutFailure" in str(record.error)
+
+
+@pytest.mark.parametrize(
+    ("exception_type", "reward", "expected"),
+    [
+        ("TrialBudgetExhaustedError", 1.0, 1.0),
+        ("TrialBudgetExhaustedError", 0.0, 0.0),
+        ("AgentTimeoutError", 1.0, 1.0),
+        ("TrialBudgetExhaustedError", None, None),
+        ("RuntimeError", 1.0, None),
+    ],
+    ids=["ceiling-pass", "ceiling-fail", "timeout-pass", "ceiling-unscored", "other-error"],
+)
+def test_agent_stop_with_verifier_reward_is_scored(
+    tmp_path: Path, exception_type: str, reward: float | None, expected: float | None
+) -> None:
+    """A trial-ceiling or agent-timeout stop the verifier scored is the agent's outcome.
+
+    Only a finite reward after an agent stop is scored; an unscored stop or any other
+    exception still halts the campaign as an unavailable evaluation.
+    """
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = create_task_fixture(repo_root, "tasks/task_1")
+    candidate_text = "Candidate that ran out of budget."
+    cand_hash = f"sha256:{hashlib.sha256(candidate_text.encode('utf-8')).hexdigest()}"
+    job_name = deterministic_job_name(
+        campaign_path="out",
+        agent="oracle",
+        model=None,
+        task_id="task_1",
+        candidate_sha256=cand_hash,
+    )
+    create_completed_job_fixture(
+        repo_root / "runs",
+        job_name=job_name,
+        agent="oracle",
+        model=None,
+        task_id="task_1",
+        task_path="tasks/task_1",
+        package_digest=task["task_package_digest"],
+        candidate_sha256=cand_hash,
+        reward=reward,
+        exception_info={
+            "exception_type": exception_type,
+            "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+        },
+    )
+    evaluator = LabEvaluator(
+        repo_root=repo_root,
+        output_dir=repo_root / "out",
+        examples=[task],
+        agent="oracle",
+        executor=MockExecutor(repo_root),
+    )
+
+    if expected is None:
+        with pytest.raises(EvaluationUnavailable):
+            evaluator(candidate_text, task)
+        assert evaluator.records[-1].status == "error"
+        return
+    score, info = evaluator(candidate_text, task)
+    assert score == expected
+    assert info["status"] == "completed"
+    assert info["usage"]["agent_stop"] == exception_type
+    assert evaluator.records[-1].status == "completed"
 
 
 def test_resumption_from_matching_completed_job(tmp_path: Path) -> None:

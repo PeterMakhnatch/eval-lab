@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import time
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -42,8 +43,15 @@ DRAIN_WATCH_STATES: tuple[QueueState, ...] = ("pending", "approved", "running")
 
 #: States that mean a spec will never need the server again.
 TERMINAL_STATES = ("done", "failed")
-#: `modal app list` states that mean the stop took effect.
-_STOPPED_STATES = frozenset({"stopped", "stopping"})
+#: `modal app list` states that mean the stop took effect. `stopping...`
+#: (dots included) is transitional and is polled, not treated as failure.
+_STOPPED_STATES = frozenset({"stopped"})
+_STOPPING_STATES = frozenset({"stopping..."})
+#: How long a drained tick waits for the stop to finish before calling it a
+#: failure. A container drains in well under a minute; the bound keeps a tick
+#: from hanging if the stop never lands.
+STOP_POLL_INTERVAL_SECONDS = 5.0
+STOP_POLL_TIMEOUT_SECONDS = 90.0
 
 #: Evidence filename written into each draining job directory.
 TEARDOWN_FILENAME = "modal-teardown.json"
@@ -152,6 +160,50 @@ def _container_count_for(entries: Any, app_name: str) -> int | None:
     return count
 
 
+def _parse_json(captured: Mapping[str, Any]) -> Any:
+    if not captured.get("ok"):
+        return None
+    try:
+        return json.loads(str(captured["stdout"]))
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return None
+
+
+def _poll_until_stopped(
+    runner: ModalCommandRunner,
+    app_name: str,
+    *,
+    clock: Callable[[], float],
+    sleeper: Callable[[float], None],
+    timeout_seconds: float,
+    interval_seconds: float,
+) -> tuple[str | None, int | None, int]:
+    """Poll app and container lists until the app is stopped and drained.
+
+    Returns ``(app_state, container_count, polls)``. ``container_count`` is
+    ``None`` when the container list could not be parsed. The deadline is
+    checked before every poll, so a zero timeout records one observation and
+    never waits.
+    """
+    deadline = clock() + timeout_seconds
+    app_state: str | None = None
+    container_count: int | None = None
+    polls = 0
+    while True:
+        if polls and clock() >= deadline:
+            return app_state, container_count, polls
+        polls += 1
+        app_state = _app_state_for(_parse_json(_run_capture(runner, ["app", "list", "--json"])), app_name)
+        container_count = _container_count_for(
+            _parse_json(_run_capture(runner, ["container", "list", "--json"])), app_name
+        )
+        if app_state == "stopped" and container_count == 0:
+            return app_state, container_count, polls
+        if clock() >= deadline:
+            return app_state, container_count, polls
+        sleeper(interval_seconds)
+
+
 def daytona_sandbox_count() -> tuple[int | None, str | None]:
     """Read-only sandbox count for reconcile/teardown receipts.
 
@@ -176,6 +228,10 @@ def stop_selfhosted_app_if_drained(
     *,
     runner: ModalCommandRunner | None = None,
     now: datetime | None = None,
+    clock: Callable[[], float] = time.monotonic,
+    sleeper: Callable[[float], None] = time.sleep,
+    poll_timeout_seconds: float = STOP_POLL_TIMEOUT_SECONDS,
+    poll_interval_seconds: float = STOP_POLL_INTERVAL_SECONDS,
 ) -> dict[str, Any] | None:
     """Stop the Modal app when self-hosted queue work just drained.
 
@@ -211,31 +267,31 @@ def stop_selfhosted_app_if_drained(
     # ("no interactive terminal detected" on modal 1.5.5), so --yes is
     # mandatory here, never optional.
     stop = _run_capture(active, ["app", "stop", "--yes", MODAL_APP_NAME])
-    app_list = _run_capture(active, ["app", "list", "--json"])
-    containers = _run_capture(active, ["container", "list", "--json"])
-    app_entries: Any = None
-    container_entries: Any = None
-    if app_list.get("ok"):
-        try:
-            app_entries = json.loads(str(app_list["stdout"]))
-        except (json.JSONDecodeError, TypeError, ValueError):
-            app_entries = None
-    if containers.get("ok"):
-        try:
-            container_entries = json.loads(str(containers["stdout"]))
-        except (json.JSONDecodeError, TypeError, ValueError):
-            container_entries = None
     sandbox_count, sandbox_reason = daytona_sandbox_count()
-    app_state = _app_state_for(app_entries, MODAL_APP_NAME)
     if not stop.get("ok"):
+        app_state = None
+        container_count = None
+        polls = 0
         stopped = False
         reason: str | None = str(stop.get("reason") or "modal-stop-failed")
-    elif app_state not in _STOPPED_STATES:
-        stopped = False
-        reason = f"modal-app-not-stopped: state={app_state}"
     else:
-        stopped = True
-        reason = None
+        # A zero exit only starts the stop: Modal reports `stopping...` (dots
+        # included) while the container drains. Poll until `stopped` with no
+        # containers left, and only then record success.
+        app_state, container_count, polls = _poll_until_stopped(
+            active,
+            MODAL_APP_NAME,
+            clock=clock,
+            sleeper=sleeper,
+            timeout_seconds=poll_timeout_seconds,
+            interval_seconds=poll_interval_seconds,
+        )
+        if app_state == "stopped" and container_count == 0:
+            stopped = True
+            reason = None
+        else:
+            stopped = False
+            reason = f"modal-app-not-stopped: state={app_state} after {polls} poll(s)"
     record: dict[str, Any] = {
         "app": MODAL_APP_NAME,
         "stopped": stopped,
@@ -243,7 +299,8 @@ def stop_selfhosted_app_if_drained(
         "stop_returncode": stop.get("returncode"),
         "stop_stderr_tail": stop.get("stderr_tail", ""),
         "app_state": app_state,
-        "container_count": _container_count_for(container_entries, MODAL_APP_NAME),
+        "container_count": container_count,
+        "polls": polls,
         "daytona_sandboxes": {"count": sandbox_count, "reason": sandbox_reason},
         "completed_spec_ids": sorted(str(spec.spec_id) for spec in completed),
         "recorded_at": moment.isoformat(),

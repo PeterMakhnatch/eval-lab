@@ -273,7 +273,7 @@ inputs:
   - path: src/evallab/modal_billing.py
     digest: sha256:bfd638892b1a0efc3b99d550330a739fa027a4a33bc8c6cfdd3609bb4b2c5cc3
   - path: src/evallab/modal_ops.py
-    digest: sha256:a34b51d238c494b6e00c4646707b8b124f36ae3c608389fcc8f5db1a5f6266d9
+    digest: sha256:df1c81a031f53d5eade4eabb3f8fdec0583210e820e6403ec8b0048a8b9e100f
   - path: src/evallab/model_capture.py
     digest: sha256:aca6cb4b6eb38d9cc3efbba4eb126e69fc01e0d94af4b2414d468e1472122a44
   - path: src/evallab/modeladapter.py

@@ -165,6 +165,7 @@ def test_teardown_stops_and_records_evidence(tmp_path: Path, sandbox: None) -> N
     assert record["app"] == MODAL_APP_NAME
     assert record["app_state"] == "stopped"
     assert record["container_count"] == 0
+    assert record["polls"] == 1
     assert record["daytona_sandboxes"] == {"count": 7, "reason": None}
     assert record["completed_spec_ids"] == [spec.spec_id]
     assert runner.calls[0] == ["app", "stop", "--yes", MODAL_APP_NAME]
@@ -254,8 +255,9 @@ def test_teardown_records_stop_failure_without_raising(tmp_path: Path, sandbox: 
     assert record["reason"] == "modal-stop-failed"
     assert record["stop_returncode"] == 1
     assert "boom" in record["stop_stderr_tail"]
-    assert record["app_state"] == "deployed"
+    assert record["app_state"] is None
     assert record["container_count"] is None
+    assert record["polls"] == 0
     events = [event for event in load_events(queue.events_path) if event.event == TEARDOWN_EVENT]
     assert [event.reason_code for event in events] == ["modal_stop_failed"]
 
@@ -314,14 +316,111 @@ def test_teardown_fails_when_app_stays_deployed(tmp_path: Path, sandbox: None) -
     )
 
     record = stop_selfhosted_app_if_drained(
-        queue, tmp_path, [spec], runner=runner, now=MOMENT
+        queue, tmp_path, [spec], runner=runner, now=MOMENT, poll_timeout_seconds=0
     )
 
     assert record is not None
     assert record["stopped"] is False
-    assert record["reason"] == "modal-app-not-stopped: state=deployed"
+    assert record["reason"] == "modal-app-not-stopped: state=deployed after 1 poll(s)"
     stored = json.loads((job_dir / TEARDOWN_FILENAME).read_text())
     assert stored["stopped"] is False
+    events = [event for event in load_events(queue.events_path) if event.event == TEARDOWN_EVENT]
+    assert [event.reason_code for event in events] == ["modal_stop_failed"]
+
+
+def test_teardown_waits_through_stopping_state(tmp_path: Path, sandbox: None) -> None:
+    """`stopping...` is transitional: poll until `stopped` and containers drain."""
+    queue = DirectoryQueue(tmp_path / "queue")
+    spec = make_spec("drained-job", SELFHOSTED, "01AAAAAAAAAAAAAAAAAAAAAAAA")
+    place(queue, "done", spec)
+    (tmp_path / "runs" / spec.name).mkdir(parents=True)
+    app_states = iter(["stopping...", "stopped"])
+    container_lists = iter(
+        [
+            [{"container_id": "ta-draining", "app_name": MODAL_APP_NAME}],
+            [],
+        ]
+    )
+    waits: list[float] = []
+
+    def scripted(argv: list[str]) -> subprocess.CompletedProcess[str]:
+        if argv == ["app", "list", "--json"]:
+            state = next(app_states)
+            return completed(
+                argv, stdout=json.dumps([{"description": MODAL_APP_NAME, "state": state}])
+            )
+        if argv == ["container", "list", "--json"]:
+            return completed(argv, stdout=json.dumps(next(container_lists)))
+        return completed(argv)
+
+    record = stop_selfhosted_app_if_drained(
+        queue,
+        tmp_path,
+        [spec],
+        runner=scripted,
+        now=MOMENT,
+        clock=lambda: 0.0,
+        sleeper=waits.append,
+        poll_interval_seconds=5.0,
+    )
+
+    assert record is not None
+    assert record["stopped"] is True
+    assert record["reason"] is None
+    assert record["app_state"] == "stopped"
+    assert record["container_count"] == 0
+    assert record["polls"] == 2
+    assert waits == [5.0]
+    events = [event for event in load_events(queue.events_path) if event.event == TEARDOWN_EVENT]
+    assert [event.reason_code for event in events] == ["modal_app_stopped"]
+
+
+
+def test_teardown_times_out_while_stopping(tmp_path: Path, sandbox: None) -> None:
+    """Failure only after the poll window expires still in `stopping...`."""
+    queue = DirectoryQueue(tmp_path / "queue")
+    spec = make_spec("drained-job", SELFHOSTED, "01AAAAAAAAAAAAAAAAAAAAAAAA")
+    place(queue, "done", spec)
+    (tmp_path / "runs" / spec.name).mkdir(parents=True)
+    now_seconds = {"value": 0.0}
+
+    def clock() -> float:
+        return now_seconds["value"]
+
+    def sleeper(seconds: float) -> None:
+        now_seconds["value"] += seconds
+
+    def still_stopping(argv: list[str]) -> subprocess.CompletedProcess[str]:
+        if argv == ["app", "list", "--json"]:
+            return completed(
+                argv,
+                stdout=json.dumps([{"description": MODAL_APP_NAME, "state": "stopping..."}]),
+            )
+        if argv == ["container", "list", "--json"]:
+            return completed(
+                argv,
+                stdout=json.dumps([{"container_id": "ta-draining", "app_name": MODAL_APP_NAME}]),
+            )
+        return completed(argv)
+
+    record = stop_selfhosted_app_if_drained(
+        queue,
+        tmp_path,
+        [spec],
+        runner=still_stopping,
+        now=MOMENT,
+        clock=clock,
+        sleeper=sleeper,
+        poll_timeout_seconds=10.0,
+        poll_interval_seconds=5.0,
+    )
+
+    assert record is not None
+    assert record["stopped"] is False
+    assert record["app_state"] == "stopping..."
+    assert record["container_count"] == 1
+    assert record["polls"] == 2
+    assert record["reason"] == "modal-app-not-stopped: state=stopping... after 2 poll(s)"
     events = [event for event in load_events(queue.events_path) if event.event == TEARDOWN_EVENT]
     assert [event.reason_code for event in events] == ["modal_stop_failed"]
 

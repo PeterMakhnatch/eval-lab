@@ -123,7 +123,7 @@ inputs:
   - path: src/evallab/gepa_optimizer/paired_analysis.py
     digest: sha256:8316fc2493762b387a70b2e2d8435d813fdf4cc98b32aa207f9b5eb73000cbdd
   - path: src/evallab/gepa_optimizer/proposer.py
-    digest: sha256:0bc954cf2f984c64ef09cdef980f8a3e1fc22dfefd4581b96ea6f6fec5a5d0c5
+    digest: sha256:85b7876378b17c6fc7f581a3f4dbf3b1dad1980d0ab8c8a496b169c19b92d7dd
   - path: src/evallab/gepa_optimizer/release.py
     digest: sha256:64f8d2c60bcedcc8da4e75c6dd354993897967abdec14abf879d65a956fab214
   - path: src/evallab/gepa_optimizer/workflow.py

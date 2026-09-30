@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from evallab.execution_contracts import ZAI_OPENAPI_ALLOWED_MODELS
 
 from .budget import AggregateBudget
 
@@ -22,16 +25,39 @@ class ProposalUnavailable(BaseException):
     """A spent/unknown request must not become an automatic paid retry."""
 
 
+#: The lab's pay-as-you-go Z.ai standard-API credential (the ``zai/`` route).
+ZAI_OPENAPI_KEY_ENV = "ZAI_OPENAPI_API_KEY"
+
+
 def direct_proposer_blocker(model: str) -> str | None:
-    """The existing Z.ai binding is a Coding Plan credential, not a general API grant."""
-    if model.startswith(("zai/", "zai-coding-plan/")):
+    """Only the Z.ai standard API is a direct grant; the Coding Plan is tool-restricted."""
+    if model.startswith("zai-coding-plan/"):
         return (
             "Direct GEPA/LiteLLM use of the Z.ai Coding Plan is not a qualified proposer route. "
             "The plan is restricted to supported tools: https://docs.z.ai/devpack/tool/others . "
             "Use a separately approved API route or qualify an actual supported-tool transport; "
             "do not spoof a tool identity or substitute a provider."
         )
+    if model.startswith("zai/") and model not in ZAI_OPENAPI_ALLOWED_MODELS:
+        return f"Direct Z.ai standard-API proposers are limited to {sorted(ZAI_OPENAPI_ALLOWED_MODELS)}"
     return None
+
+
+def _direct_lm_options(model: str) -> dict[str, Any]:
+    """LiteLLM options for a direct proposer; Z.ai binds the standard-API key explicitly.
+
+    LiteLLM's ``zai`` provider would otherwise read ``ZAI_API_KEY``, which is not the
+    lab's pay-as-you-go grant. GLM-5.3 reasons before answering, so it gets a larger
+    output ceiling and a longer timeout than the generic route.
+    """
+    if not model.startswith("zai/"):
+        return {"max_tokens": 4096, "timeout": 60}
+    key = os.environ.get(ZAI_OPENAPI_KEY_ENV)
+    if not key:
+        raise ProposalUnavailable(
+            f"Z.ai standard-API proposer needs {ZAI_OPENAPI_KEY_ENV}; no request was sent"
+        )
+    return {"max_tokens": 8192, "timeout": 300, "api_key": key}
 
 
 class _FeedbackOnlyServer:
@@ -149,7 +175,7 @@ class JournaledReflectionLM:
             from gepa.lm import LM  # ty: ignore[unresolved-import]
 
             if self._lm is None:
-                self._lm = LM(self.model, max_tokens=4096, num_retries=0, timeout=60)
+                self._lm = LM(self.model, num_retries=0, **_direct_lm_options(self.model))
         receipt = {
             "identity": identity,
             "status": "sent_remote_outcome_unknown",

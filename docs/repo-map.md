@@ -425,7 +425,7 @@ inputs:
   - path: src/evallab/task_stability.py
     digest: sha256:69b4693e188cacfbc0b7725e8eb8e06f7d7474c9a31b19396cc4dc9f440aa1c4
   - path: src/evallab/task_variants.py
-    digest: sha256:18b2c62f2d66dd110ca22d9f98d94cf68bd6fa4c1af8a7ea4142ee5fbaeb3418
+    digest: sha256:8efd528c46e2bdd285906bb2cd1bdbe4bce1ad3d25bd7a3d6e0241d07b68c0c3
   - path: src/evallab/task_workbench.py
     digest: sha256:a533e57816d80e550bbb8656cd6765abf99162d4b3c0098ce65f71ddc22a3c76
   - path: src/evallab/terminus_harness.py

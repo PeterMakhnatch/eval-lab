@@ -1,0 +1,51 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-002838",
+  "variant_digest": "sha256:2920ed481e4dde2e8332552f5bd03b28b2d4001aef67ab624e71517d911df054",
+  "variant_harbor_digest": "sha256:3665c15a6ba8c081a6617287bd4e5febf53e1e124d10777e8f0aab4fee38c1f7",
+  "parent": {
+    "digest": "sha256:cd83f22625006e7bdbaee6116baa11fee5aa4a2984b6b324ed1166ceb0ce0e8c",
+    "harbor_digest": "sha256:ffd15ea28eac1b825298853864496804709fabe6d8b73a66e96f3a8a36b3f04c",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-code",
+      "revision": "5746e2f0c5c61af12d7c5bf15d7efdd77d1f0785",
+      "path": "tasks/format-code-task-002838",
+      "record": null
+    }
+  },
+  "transform": "leak-close-pypi@1",
+  "components_changed": [
+    "task_toml",
+    "environment"
+  ],
+  "files": [
+    {
+      "path": "environment/setup/files/blocklist",
+      "before_sha256": "sha256:11ebbfdf90646ce2718eabb409655e66d1e5a3129a514ff96b5f2bf57d3c4a92",
+      "after_sha256": "sha256:9c9a99f595284d2e303b04b1ce324f65f16386e854f157782651a0ccc68a81fd",
+      "content": "# mimo answer-leak blocklist (mimoagent)\n0.0.0.0 github.com\n0.0.0.0 www.github.com\n0.0.0.0 api.github.com\n0.0.0.0 raw.githubusercontent.com\n0.0.0.0 codeload.github.com\n0.0.0.0 objects.githubusercontent.com\n0.0.0.0 gist.github.com\n0.0.0.0 gist.githubusercontent.com\n0.0.0.0 gitlab.com\n0.0.0.0 bitbucket.org\n0.0.0.0 sourceforge.net\n0.0.0.0 git.kernel.org\n0.0.0.0 chromium.googlesource.com\n0.0.0.0 android.googlesource.com\n0.0.0.0 sourcegraph.com\n0.0.0.0 bugs.chromium.org\n0.0.0.0 issues.oss-fuzz.com\n0.0.0.0 oss-fuzz.com\n0.0.0.0 osv.dev\n0.0.0.0 api.osv.dev\n0.0.0.0 bugzilla.mozilla.org\n0.0.0.0 proxy.golang.org\n0.0.0.0 sum.golang.org\n0.0.0.0 pkg.go.dev\n0.0.0.0 google.com\n0.0.0.0 www.google.com\n0.0.0.0 bing.com\n0.0.0.0 www.bing.com\n0.0.0.0 duckduckgo.com\n0.0.0.0 html.duckduckgo.com\n0.0.0.0 search.brave.com\n0.0.0.0 stackoverflow.com\n# HAR-113: PyPI hosts (the fix is a PyPI release)\n0.0.0.0 pypi.org\n0.0.0.0 files.pythonhosted.org\n0.0.0.0 pypi.python.org\n"
+    },
+    {
+      "path": "task.toml",
+      "before_sha256": "sha256:c28cd5dd97adbdf210c2da193d3069f097dc8c6c32a9d1bc071f99d9f0792188",
+      "after_sha256": "sha256:efc126dd2fb6e3aeb6734c3cc6745d8ea8fc76079de2658d521826f19e894edb",
+      "content": "schema_version = \"1.4\"\n\n[task]\nname = \"mimo-v2.6-rl/format-code-task-002838\"\ndescription = \"Trying to launch thumbor with a unix socket ends with \\\"No such device or address\\\"\"\nkeywords = [\"mimo-v2.6-rl\", \"code\"]\n\n[metadata]\nadapter = \"mimo_harbor 1.1.0\"\ncategory = \"Python\"\ndomain = \"code\"\nkeywords = [\"code\", \"Python\"]\nreference_harness = \"XiaomiMiMo/verl a2ad9f6 + XiaomiMiMo/mimoagent 467f0a1\"\nreference_step_limit = 500\nsource_dataset = \"XiaomiMiMo/MiMo-V2.6-RL-oss\"\nsource_id = \"format-code-task-002838\"\nsource_revision = \"639865fd3374018d6cb29b9fb82dd531406fcf5f\"\ntitle = \"Trying to launch thumbor with a unix socket ends with \\\"No such device or address\\\"\"\n\n[agent]\ntimeout_sec = 3600.0\n\n[verifier]\ntimeout_sec = 2100.0\nuser = \"root\"\n\n[environment]\ndocker_image = \"docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:7b8c05510f55dea07c90d40d5675c9865f7a1bd10a502ad940c7ae23477a1cdf\"\nworkdir = \"/testbed\"\ncpus = 2\nmemory_mb = 8192\nnetwork_mode = \"public\"\nbuild_timeout_sec = 1800.0\n\n[environment.healthcheck]\n# one-time setup before the agent (environment/setup/setup.sh)\ncommand = \"bash -c 'test -f /var/lib/mimo/ready || { mkdir -p /var/lib/mimo && echo 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 | base64 -d | tar -xzf - -C /var/lib/mimo && bash /var/lib/mimo/setup.sh; }'\"\ntimeout_sec = 1200.0\nretries = 0\ninterval_sec = 5.0\n"
+    }
+  ],
+  "rationale": "close the PyPI answer leak: thumbor 7.0.7 was released after https://github.com/thumbor/thumbor/issues/1269 closed, so pip download fetches the fix; add pypi.org, files.pythonhosted.org and pypi.python.org to the answer-leak blocklist the harness appends to /etc/hosts, and re-embed environment/setup in the healthcheck payload that runs it. Setup runs before the blocklist and grading fetches nothing, so the verifier is unchanged",
+  "inputs": {
+    "pypi_project": "thumbor",
+    "fixed_release": "7.0.7",
+    "issue_url": "https://github.com/thumbor/thumbor/issues/1269",
+    "hosts_added": [
+      "pypi.org",
+      "files.pythonhosted.org",
+      "pypi.python.org"
+    ]
+  },
+  "created_by": "har113-leak",
+  "created_at": "2026-09-30T07:48:07Z",
+  "status": "candidate",
+  "evidence": []
+}

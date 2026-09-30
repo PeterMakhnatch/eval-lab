@@ -171,6 +171,13 @@ Deleting `derived/` and rerunning pinned fetch/projection commands must recreate
 the same schemas, row counts, and content digests. Rebuildability is tested from
 fixtures in CI and from one public sample during mission acceptance.
 
+Evidence-pipeline reliability owns **engineering data quality**: complete
+capture, consistent projections, traceable provenance, usable consumer
+interfaces, and safe replay from retained raw evidence. It does not decide
+whether a task or verifier is scientifically valid, or whether a reward
+counts as a pass. For the paired treatment/capture publication and recovery
+contract, see [`docs/trial-treatment.md`](trial-treatment.md).
+
 For the cross-zone entity join invariants and canonical `v_spine` contract, see [`docs/join-spine.md`](join-spine.md).
 
 ## Retention

@@ -15,7 +15,12 @@ import pytest
 
 from evallab.cli import _redact_database_dsn, run_cli
 from evallab.runner import database_url_from_environment
-from evallab.storage.attach import SEMANTIC_COMPARISON_COLUMNS, TABLES, attach, build_sql_preamble
+from evallab.storage.attach import (
+    SEMANTIC_COMPARISON_COLUMNS,
+    TABLES,
+    attach,
+    build_sql_preamble,
+)
 
 
 def _catalog_reachable(dsn: str | None = None) -> bool:
@@ -1109,3 +1114,216 @@ def test_every_z3_sql_view_remains_registered(tmp_path: Path) -> None:
             assert f"CREATE OR REPLACE VIEW z3.{table} AS" in result.sql_preamble
     finally:
         result.connection.close()
+
+
+# ---- HAR-118: treatment/capture snapshot pair attach ------------------------
+
+
+def _trial_catalog(derived: Path) -> Path:
+    catalog = derived / "external" / "task_catalog"
+    catalog.mkdir(parents=True, exist_ok=True)
+    return catalog
+
+
+def _publish_trial_pair(
+    catalog: Path, treatments: list[dict], captures: list[dict]
+) -> dict[str, Path]:
+    """Publish one immutable generation via the snapshot writer API."""
+    from evallab.evidence.parquet_io import parquet_root_lock, write_parquet_snapshot
+    from evallab.trial_treatment import capture_schema, treatment_schema
+
+    with parquet_root_lock(catalog):
+        return write_parquet_snapshot(
+            catalog / ".trial-tables",
+            {
+                "trial_treatment.parquet": (treatments, treatment_schema()),
+                "trial_capture.parquet": (captures, capture_schema()),
+            },
+        )
+
+
+def _pair_rows(marker: str, stamp: str) -> tuple[list[dict], list[dict]]:
+    treatments = [
+        {
+            "job_name": "job-a",
+            "trial_name": "trial-1",
+            "treatment_key": marker,
+            "produced_at": stamp,
+        },
+    ]
+    captures = [
+        {
+            "job_name": "job-a",
+            "trial_name": "trial-1",
+            "proxy_calls": 7 if marker == "gen1" else 9,
+            "produced_at": stamp,
+        },
+    ]
+    return treatments, captures
+
+
+def test_task_catalog_pair_queries_published_snapshot(tmp_path: Path) -> None:
+    derived = tmp_path / "derived"
+    derived.mkdir()
+    catalog = _trial_catalog(derived)
+    treatments, captures = _pair_rows("gen1", "2026-09-30T00:00:00+00:00")
+    _publish_trial_pair(catalog, treatments, captures)
+    result = attach(repo_root=tmp_path, explicit_derived=derived)
+    try:
+        for view in ("trial_treatment", "z3.trial_treatment"):
+            assert result.connection.execute(
+                f"SELECT job_name, trial_name, treatment_key FROM {view}"  # noqa: E501
+            ).fetchall() == [("job-a", "trial-1", "gen1")]
+        for view in ("trial_capture", "z3.trial_capture"):
+            assert result.connection.execute(
+                f"SELECT job_name, trial_name, proxy_calls FROM {view}"
+            ).fetchall() == [("job-a", "trial-1", 7)]
+    finally:
+        result.connection.close()
+
+
+def test_task_catalog_pair_generation_isolation(tmp_path: Path) -> None:
+    derived = tmp_path / "derived"
+    derived.mkdir()
+    catalog = _trial_catalog(derived)
+    treatments, captures = _pair_rows("gen1", "2026-09-30T00:00:00+00:00")
+    _publish_trial_pair(catalog, treatments, captures)
+    first = attach(repo_root=tmp_path, explicit_derived=derived)
+    try:
+        treatments, captures = _pair_rows("gen2", "2026-09-30T01:00:00+00:00")
+        _publish_trial_pair(catalog, treatments, captures)
+        # An already-attached connection keeps its original generation.
+        assert first.connection.execute(
+            "SELECT treatment_key FROM trial_treatment"
+        ).fetchall() == [("gen1",)]
+        assert first.connection.execute(
+            "SELECT proxy_calls FROM trial_capture"
+        ).fetchall() == [(7,)]
+        second = attach(repo_root=tmp_path, explicit_derived=derived)
+        try:
+            assert second.connection.execute(
+                "SELECT treatment_key FROM trial_treatment"
+            ).fetchall() == [("gen2",)]
+            assert second.connection.execute(
+                "SELECT proxy_calls FROM trial_capture"
+            ).fetchall() == [(9,)]
+        finally:
+            second.connection.close()
+    finally:
+        first.connection.close()
+
+
+def test_task_catalog_absent_pair_is_empty(tmp_path: Path) -> None:
+    derived = tmp_path / "derived"
+    derived.mkdir()
+    result = attach(repo_root=tmp_path, explicit_derived=derived)
+    try:
+        for view in (
+            "trial_treatment",
+            "z3.trial_treatment",
+            "trial_capture",
+            "z3.trial_capture",
+        ):
+            assert result.connection.execute(
+                f"SELECT COUNT(*) FROM {view}"
+            ).fetchone() == (0,)
+    finally:
+        result.connection.close()
+
+
+def test_task_catalog_corrupt_snapshot_refuses(tmp_path: Path) -> None:
+    derived = tmp_path / "derived"
+    derived.mkdir()
+    catalog = _trial_catalog(derived)
+    treatments, captures = _pair_rows("gen1", "2026-09-30T00:00:00+00:00")
+    _publish_trial_pair(catalog, treatments, captures)
+    (catalog / ".trial-tables" / "current.json").write_text("not a manifest", encoding="utf-8")
+    with pytest.raises(ValueError):
+        attach(repo_root=tmp_path, explicit_derived=derived)
+
+
+def test_task_catalog_partial_pair_refuses(tmp_path: Path) -> None:
+    # A lone legacy file is an incomplete pair, not an available table.
+    derived = tmp_path / "derived"
+    derived.mkdir()
+    catalog = _trial_catalog(derived)
+    pq.write_table(
+        pa.table(
+            {
+                "job_name": ["job-a"],
+                "trial_name": ["trial-1"],
+                "produced_at": ["2026-09-30T00:00:00+00:00"],
+            }
+        ),
+        catalog / "trial_treatment.parquet",
+    )
+    with pytest.raises(ValueError):
+        attach(repo_root=tmp_path, explicit_derived=derived)
+
+
+def test_task_catalog_mismatched_companion_refuses(tmp_path: Path) -> None:
+    # Same trial identities but a stale companion timestamp must not attach.
+    derived = tmp_path / "derived"
+    derived.mkdir()
+    catalog = _trial_catalog(derived)
+    pq.write_table(
+        pa.table(
+            {
+                "job_name": ["job-a"],
+                "trial_name": ["trial-1"],
+                "produced_at": ["2026-09-30T00:00:00+00:00"],
+            }
+        ),
+        catalog / "trial_treatment.parquet",
+    )
+    pq.write_table(
+        pa.table(
+            {
+                "job_name": ["job-a"],
+                "trial_name": ["trial-1"],
+                "produced_at": ["2026-09-29T00:00:00+00:00"],
+            }
+        ),
+        catalog / "trial_capture.parquet",
+    )
+    with pytest.raises(ValueError):
+        attach(repo_root=tmp_path, explicit_derived=derived)
+
+
+def test_attach_keeps_live_views_and_exported_sql_on_the_same_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import importlib
+
+    module = importlib.import_module("evallab.storage.attach")
+    derived = tmp_path / "derived"
+    catalog = _trial_catalog(derived)
+    _publish_trial_pair(catalog, *_pair_rows("gen1", "first"))
+    real_attach = module._attach_task_catalog
+
+    def publish_after_binding(conn, derived_arg: Path) -> dict[str, Path]:
+        pair = real_attach(conn, derived_arg)
+        _publish_trial_pair(catalog, *_pair_rows("gen2", "second"))
+        return pair
+
+    monkeypatch.setattr(module, "_attach_task_catalog", publish_after_binding)
+    result = attach(repo_root=tmp_path, explicit_derived=derived)
+    exported = duckdb.connect(":memory:")
+    try:
+        for statement in result.sql_preamble.splitlines():
+            if statement.startswith(
+                (
+                    "CREATE OR REPLACE VIEW trial_treatment AS ",
+                    "CREATE OR REPLACE VIEW trial_capture AS ",
+                )
+            ):
+                exported.execute(statement)
+        query = (
+            "SELECT treatment_key, proxy_calls FROM trial_treatment "
+            "JOIN trial_capture USING (job_name, trial_name)"
+        )
+        assert result.connection.execute(query).fetchall() == [("gen1", 7)]
+        assert exported.execute(query).fetchall() == [("gen1", 7)]
+    finally:
+        result.connection.close()
+        exported.close()

@@ -450,8 +450,8 @@ def _empty_view_sql() -> str:
     return "SELECT * FROM (VALUES (NULL)) t LIMIT 0"
 
 
-def _attach_task_catalog(conn: duckdb.DuckDBPyConnection, derived: Path) -> None:
-    """Register catalog tables plus v_task_outcomes / v_task_audit (top-level and z3)."""
+def _attach_task_catalog(conn: duckdb.DuckDBPyConnection, derived: Path) -> dict[str, Path]:
+    """Register catalog views and return their pinned treatment/capture paths."""
     from evallab.task_catalog import (
         EXPLOITS_TABLE,
         STABILITY_TABLE,
@@ -459,15 +459,37 @@ def _attach_task_catalog(conn: duckdb.DuckDBPyConnection, derived: Path) -> None
         task_outcomes_sql,
     )
     from evallab.task_qualification import TABLE as QUALIFICATION_TABLE
+    from evallab.trial_treatment import (
+        CAPTURE_TABLE,
+        CAPTURE_TABLE_FILENAME,
+        TREATMENT_TABLE,
+        TREATMENT_TABLE_FILENAME,
+        table_paths,
+    )
 
     catalog = derived / _CATALOG_RELPATH
     present = {
         name
         for name in CATALOG_TABLES
-        if (catalog / f"{name}.parquet").is_file()
+        if name not in (TREATMENT_TABLE, CAPTURE_TABLE)
+        and (catalog / f"{name}.parquet").is_file()
+    }
+    # One resolution pins both views to a single generation: {} when nothing
+    # is published (optional-absence), ValueError on a corrupt or incomplete
+    # pair — never a silent empty or split-generation read. No legacy
+    # fixed-path fallback here; table_paths owns the migration inputs.
+    pair = table_paths(catalog)
+    if pair:
+        present |= {TREATMENT_TABLE, CAPTURE_TABLE}
+    snapshot_filenames = {
+        TREATMENT_TABLE: TREATMENT_TABLE_FILENAME,
+        CAPTURE_TABLE: CAPTURE_TABLE_FILENAME,
     }
     for name in CATALOG_TABLES:
-        if name in present:
+        if name in snapshot_filenames and name in present:
+            path = pair[snapshot_filenames[name]].as_posix().replace("'", "''")
+            select = f"SELECT * FROM read_parquet(['{path}'])"
+        elif name in present:
             path = (catalog / f"{name}.parquet").as_posix().replace("'", "''")
             select = f"SELECT * FROM read_parquet(['{path}'])"
         else:
@@ -493,6 +515,7 @@ def _attach_task_catalog(conn: duckdb.DuckDBPyConnection, derived: Path) -> None
     except Exception:
         conn.execute(f"CREATE OR REPLACE VIEW v_task_audit AS {_empty_view_sql()}")
         conn.execute(f"CREATE OR REPLACE VIEW z3.v_task_audit AS {_empty_view_sql()}")
+    return pair
 
 
 def attach(
@@ -514,19 +537,24 @@ def attach(
     )  # explicit_derived for CLI flag  # noqa: E501
 
     conn = duckdb.connect(":memory:")
-    conn.execute("CREATE SCHEMA IF NOT EXISTS z3")
-    conn.execute("CREATE SCHEMA IF NOT EXISTS z4")
-    z2 = _attach_z2(conn, dsn)
-    z3 = _attach_z3(conn, derived)
-    z4 = _attach_z4(conn, root)
-    _attach_task_catalog(conn, derived)
+    try:
+        conn.execute("CREATE SCHEMA IF NOT EXISTS z3")
+        conn.execute("CREATE SCHEMA IF NOT EXISTS z4")
+        z2 = _attach_z2(conn, dsn)
+        z3 = _attach_z3(conn, derived)
+        z4 = _attach_z4(conn, root)
+        pair = _attach_task_catalog(conn, derived)
+        zones = (z2, z3, z4)
+        sql = build_sql_preamble(dsn, derived, root, catalog_pair=pair)
+        return AttachResult(conn, zones, sql)
+    except Exception:
+        conn.close()
+        raise
 
-    zones = (z2, z3, z4)
-    sql = build_sql_preamble(dsn, derived, root)
-    return AttachResult(conn, zones, sql)
 
-
-def build_sql_preamble(dsn: str, derived: Path, root: Path) -> str:
+def build_sql_preamble(
+    dsn: str, derived: Path, root: Path, *, catalog_pair: dict[str, Path] | None = None
+) -> str:
     lines = [
         "INSTALL postgres_scanner;",
         "LOAD postgres_scanner;",
@@ -555,12 +583,38 @@ def build_sql_preamble(dsn: str, derived: Path, root: Path) -> str:
         + _semantic_comparison_sql("z3.agent_actions", "z3.semantic_action_facts")
         + ";"
     )
+    from evallab.trial_treatment import (
+        CAPTURE_TABLE,
+        CAPTURE_TABLE_FILENAME,
+        TREATMENT_TABLE,
+        TREATMENT_TABLE_FILENAME,
+        table_paths,
+    )
+
     catalog = derived / _CATALOG_RELPATH
     present = {
-        name for name in CATALOG_TABLES if (catalog / f"{name}.parquet").is_file()
+        name
+        for name in CATALOG_TABLES
+        if name not in (TREATMENT_TABLE, CAPTURE_TABLE)
+        and (catalog / f"{name}.parquet").is_file()
+    }
+    # Same single-generation pin as the live views; a corrupt or incomplete
+    # pair refuses here rather than emitting a stale or empty preamble.
+    pair = table_paths(catalog) if catalog_pair is None else catalog_pair
+    if pair:
+        present |= {TREATMENT_TABLE, CAPTURE_TABLE}
+    snapshot_filenames = {
+        TREATMENT_TABLE: TREATMENT_TABLE_FILENAME,
+        CAPTURE_TABLE: CAPTURE_TABLE_FILENAME,
     }
     for name in CATALOG_TABLES:
-        if name in present:
+        if name in snapshot_filenames and name in present:
+            select = (
+                "SELECT * FROM read_parquet(["
+                + _sql_string_literal(pair[snapshot_filenames[name]].as_posix())
+                + "])"
+            )
+        elif name in present:
             select = (
                 "SELECT * FROM read_parquet(["
                 + _sql_string_literal((catalog / f"{name}.parquet").as_posix())

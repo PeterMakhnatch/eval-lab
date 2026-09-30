@@ -7,6 +7,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 
 from evallab.trial_treatment import (
@@ -16,6 +18,7 @@ from evallab.trial_treatment import (
     collect_treatment,
     pool_check,
     read_treatments,
+    table_paths,
     upsert_tables,
 )
 
@@ -587,3 +590,115 @@ def test_tables_upsert_by_trial_and_round_trip_key_values(repo: Path, tmp_path: 
     assert {row["produced_at"] for row in rows} == {"t2"}
     assert rows[0]["max_requests"] == 2000 and rows[0]["top_p"] == 0.95
     assert pool_check(rows).ok
+
+
+@pytest.mark.parametrize("version", [1, 2])
+@pytest.mark.parametrize("has_continuation", [False, True])
+def test_metered_capture_keeps_continuity_separate_from_usage(
+    repo: Path, tmp_path: Path, version: int, has_continuation: bool
+) -> None:
+    commit = _commit(repo, _base_sources(), "base")
+    job, trial = _job(tmp_path / "runs", "metered", commit, session_id="first")
+    lab = json.loads((job / "lab-metadata.json").read_text())
+    lab["provider_usage"] = {
+        "schema_version": version,
+        "calls": [
+            {
+                "call_id": 1,
+                "state": "reconciled",
+                "input_tokens": 1000,
+                "output_tokens": 10,
+                "cost_micros": 0,
+                "shaping_applied": True,
+            },
+            {
+                "call_id": 2,
+                "state": "unresolved",
+                "reserved_input_tokens": 500,
+                "reserved_output_tokens": 20,
+                "reserved_cost_micros": 0,
+            },
+        ],
+        "totals": {
+            "requests": 1,
+            "input_tokens": 1000 if version == 2 else 1500,
+            "output_tokens": 10 if version == 2 else 30,
+            "total_tokens": 1010 if version == 2 else 1530,
+            "cost_micros": 0,
+        },
+        "attempted": {
+            "requests": 1,
+            "input_tokens": 500,
+            "output_tokens": 20,
+            "cost_micros": 0,
+        },
+        "unresolved_requests": 1,
+    }
+    _write(job / "lab-metadata.json", lab)
+    if has_continuation:
+        head = json.loads((trial / "agent" / "trajectory.json").read_text())
+        _write(
+            trial / "agent" / "trajectory.cont-1.json",
+            {**head, "session_id": "second"},
+        )
+
+    treatments, captures = collect_jobs([job], repo_root=repo)
+    _, capture_path, _, _ = upsert_tables(treatments, captures, tmp_path / "catalog")
+    stored = pq.read_table(capture_path).to_pylist()[0]
+    assert stored["continuation_split"] is has_continuation
+    assert stored["proxy_input_tokens"] == 1000
+    assert stored["proxy_output_tokens"] == 10
+    assert stored["proxy_unresolved_requests"] == 1
+
+
+def test_upsert_refuses_unpaired_trials_without_changing_snapshot(
+    repo: Path, tmp_path: Path
+) -> None:
+    commit = _commit(repo, _base_sources(), "base")
+    first, _ = _job(tmp_path / "runs", "first", commit)
+    second, _ = _job(tmp_path / "runs", "second", commit)
+    catalog = tmp_path / "catalog"
+    original = collect_jobs([first], repo_root=repo)
+    upsert_tables(*original, catalog)
+    before = table_paths(catalog)
+    treatments, _ = collect_jobs([second], repo_root=repo)
+    with pytest.raises(ValueError, match="treatment/capture"):
+        upsert_tables(treatments, [], catalog)
+    assert table_paths(catalog) == before
+    assert [row["job_name"] for row in read_treatments(catalog)] == ["first"]
+
+
+@pytest.mark.parametrize("capture_state", ["missing", "missing_trial", "stale_collection"])
+def test_partial_legacy_catalog_recovers_only_when_missing_trials_are_recollected(
+    repo: Path, tmp_path: Path, capture_state: str
+) -> None:
+    commit = _commit(repo, _base_sources(), "base")
+    first, _ = _job(tmp_path / "runs", "first", commit)
+    second, _ = _job(tmp_path / "runs", "second", commit)
+    treatments, captures = collect_jobs([first, second], repo_root=repo)
+    treatment_path, capture_path, _, _ = upsert_tables(
+        treatments, captures, tmp_path / "source"
+    )
+    legacy = tmp_path / "legacy"
+    legacy.mkdir()
+    (legacy / treatment_path.name).write_bytes(treatment_path.read_bytes())
+    if capture_state == "missing_trial":
+        pq.write_table(pq.read_table(capture_path).slice(0, 1), legacy / capture_path.name)
+    elif capture_state == "stale_collection":
+        table = pq.read_table(capture_path)
+        stale = [{**row, "produced_at": "older"} for row in table.to_pylist()]
+        pq.write_table(pa.Table.from_pylist(stale, schema=table.schema), legacy / capture_path.name)
+
+    with pytest.raises(ValueError, match="rerun tasks treatment-collect"):
+        read_treatments(legacy)
+    partial = collect_jobs([first], repo_root=repo)
+    with pytest.raises(ValueError, match="source jobs: second"):
+        upsert_tables(*partial, legacy)
+
+    # Replay the retained jobs rather than inventing absent capture evidence.
+    upsert_tables(treatments, captures, legacy)
+    rows = read_treatments(legacy)
+    assert {row["job_name"] for row in rows} == {"first", "second"}
+    published = table_paths(legacy)
+    assert pq.read_table(published["trial_capture.parquet"]).num_rows == 2
+    assert (legacy / treatment_path.name).read_bytes() == treatment_path.read_bytes()

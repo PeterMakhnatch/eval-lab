@@ -12,14 +12,57 @@ A pass rate or a learnability call may only pool trials that ran under the same 
 - a **treatment key**: a hash of every setting that changes behaviour;
 - a **capture record**: which evidence the trial left behind, and how complete it is.
 
-Both are catalog tables next to `task_qualification.parquet`, under `derived/parquet/external/task_catalog/`:
+Both are paired catalog tables, with catalog root `derived/parquet/external/task_catalog/`:
 
 | Table | One row per | Written by |
 |---|---|---|
 | `trial_treatment.parquet` | trial | `evallab tasks treatment-collect <job_dir>...` |
 | `trial_capture.parquet` | trial | the same command |
 
-`treatment-collect` merges into the existing tables, replacing rows for trials it has seen before. The trial identity is `(job_name, trial_name)`. `evallab attach` exposes both tables as views.
+`treatment-collect` merges into the existing pair, replacing rows for trials it has seen before without duplicating them. The trial identity is `(job_name, trial_name)`. `evallab attach` exposes both tables as top-level and `z3` views.
+
+## Collection publication and recovery
+
+The collector writes both tables into one immutable generation under
+`<catalog>/.trial-tables/generations/<id>/`. Only after both files are durable
+does it atomically publish `.trial-tables/current.json`, which records the
+generation, file digests, and row counts. A catalog lock covers read, merge,
+and publication so concurrent collectors do not lose each other's trials.
+Serialization failure or process termination before that commit leaves the
+previous pair readable, or no published pair on the first collection.
+
+Consumers resolve `evallab.trial_treatment.table_paths(catalog)` once for the
+pair; the CLI prints those immutable file paths. Do not scan all generations
+or hardcode the old catalog-root filenames. Readers check file integrity and
+matching trial identities and `produced_at` values before using either table.
+An attached DuckDB connection and its exported SQL keep their original
+generation even when another collector publishes a newer one.
+
+Recovery does **not** rerun the agent, provider, or verifier:
+
+```sh
+uv run evallab tasks treatment-collect /path/to/job-a /path/to/job-b
+```
+
+- **Before the first snapshot:** a complete, consistent legacy pair of
+  catalog-root files can be read and migrated. A missing companion, missing
+  trial, or stale collection timestamp refuses reads. Recollect every
+  affected source job to repair it; replaying only some missing rows cannot
+  silently drop the others.
+- **After snapshot publication:** corrupt manifests, missing files, and digest
+  mismatches are errors, never reasons to fall back to a legacy pair. Preserve
+  the damaged catalog for diagnosis and rebuild from all retained source jobs
+  into a fresh `--catalog-dir`; inspect that new catalog with `pool-check
+  --catalog-dir` before using it.
+- **Retention:** old generations and legacy files remain unchanged because
+  already-attached readers may still reference them. There is no automatic
+  generation pruning. Stop those readers before removing obsolete projection
+  files; never delete the retained source jobs as part of catalog repair.
+
+This is engineering data quality: consistent, recoverable evidence, not a
+claim that a trial is scientifically valid or poolable. Missing provenance
+remains unknown after successful collection.
+
 
 ## Pool check
 

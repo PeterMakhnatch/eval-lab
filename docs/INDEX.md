@@ -49,7 +49,7 @@ inputs:
   - path: docs/dashboard.md
     digest: sha256:ee56108fa8961f0e0bb6d6f7f2174973bfce4fd15337bfe2c9e3b9c8af61c42a
   - path: docs/data-architecture.md
-    digest: sha256:53d793e883eff9d2248866a72f7baca16e15ec81e4e19e17423b5319c33860cf
+    digest: sha256:3da92ed792d6c995bc79be4d078f62af534b020ecaa3c52885d6d4ec677777fe
   - path: docs/deepseek-v4-flash-lane.md
     digest: sha256:efe12fcfc333012d835c097f02b64535305bf108e7f9d820c97327d1072d3633
   - path: docs/engineering.md
@@ -121,7 +121,7 @@ inputs:
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
   - path: docs/trial-treatment.md
-    digest: sha256:46aa7eecaa6ffb29a8875717e2dd5d9295ad1050202e5ae41edd894e19748b1e
+    digest: sha256:779df80f35315d61d857f437c388d07bd675b759f79ec33cb41adc2caa71eb6a
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md

@@ -639,6 +639,7 @@ def test_unqualified_coding_plan_proposer_never_issues_or_reserves_request(tmp_p
 
 def test_zai_standard_api_proposer_binds_its_own_key_and_journals_without_it(tmp_path, monkeypatch):
     """The ``zai/`` proposer uses the pay-as-you-go key, never the Coding Plan's ZAI_API_KEY."""
+    pytest.importorskip("gepa", reason="Install the isolated harness-gepa requirements")
     import gepa.lm
 
     from evallab.gepa_optimizer.budget import AggregateBudget

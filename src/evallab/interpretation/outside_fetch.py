@@ -398,6 +398,89 @@ def _is_edit(command: str, tool: str) -> bool:
     return False
 
 
+_WRITE_REDIRECT_RE = re.compile(r"(?<![-=])>>?\s*([^\s|;&>'\"]+)")
+_OPEN_WRITE_RE = re.compile(r"open\(\s*([A-Za-z_]\w*|['\"][^'\"]+['\"])\s*,\s*['\"][wa]")
+_OPEN_DOT_WRITE_RE = re.compile(
+    r"open\(\s*([A-Za-z_]\w*|['\"][^'\"]+['\"])[^)]*\)\s*\.\s*write\s*\("
+)
+_NAME_WRITE_RE = re.compile(r"\b([A-Za-z_]\w*)\s*\.\s*(?:write_text|write_bytes|write)\s*\(")
+_PATH_WRITE_RE = re.compile(
+    r"Path\(\s*['\"]([^'\"]+)['\"]\s*\)\s*\.\s*(?:write_text|write_bytes|open)\s*\("
+)
+_ASSIGN_RE = re.compile(r"(?m)^\s*([A-Za-z_]\w*)\s*=\s*(?:Path\(\s*)?['\"]([^'\"]+)['\"]")
+_SED_FILE_RE = re.compile(r"\bsed\s+(?:-[^\s|;&]*\s+)*-[^\s|;&]*i[^\s|;&]*\s+(.*?)(?:\s*[|;&]|\s*$)")
+_TEE_FILE_RE = re.compile(r"\btee\s+(?:-[^\s|;&]+\s+)*([^\s|;&]+)")
+_COPY_DEST_RE = re.compile(r"\b(?:cp|mv|install)\b(.*?)(?:\s*[|;&]|\s*$)")
+
+
+def _is_scratch_path(path: str) -> bool:
+    """Writes under /tmp, /dev, /proc or /sys are scratch, never repo edits."""
+    return not path or path == "/dev/null" or path.startswith(("/tmp/", "/dev/", "/proc/", "/sys/"))
+
+
+def repo_edit_paths(tool: str, command: str) -> list[str]:
+    """Repo paths an action writes, or [] when it writes only scratch or nothing.
+
+    Heredoc bodies are the model's own script text, so a write there counts
+    only when it names a repo path -- directly, or through a ``name = 'path'``
+    / ``name = Path('path')`` assignment in the same command (the
+    ``path.read_text()`` ... ``path.write_text()`` idiom). Shell ``>`` targets
+    skip ``->`` arrows; ``sed -i`` takes path-like trailing tokens, never the
+    ``s`` command.
+    """
+    if tool.lower() in _EDIT_TOOLS:
+        paths = re.findall(r"[A-Za-z0-9_./~+-]+(?:/[A-Za-z0-9_./~+-]+)+", command[:200])
+        if paths and all(_is_scratch_path(path) for path in paths):
+            return []
+        return ["<edit-tool>"]
+    assigns = dict(_ASSIGN_RE.findall(command))
+
+    def _resolve(name: str) -> str | None:
+        if len(name) > 1 and name[0] in "'\"":
+            return name.strip("'\"")
+        return assigns.get(name)
+
+    paths: list[str] = []
+    for match in _WRITE_REDIRECT_RE.finditer(command):
+        if match.group(1) not in ("&1", "&2", "1", "2"):
+            paths.append(match.group(1))
+    for match in _OPEN_WRITE_RE.finditer(command):
+        resolved = _resolve(match.group(1))
+        if resolved:
+            paths.append(resolved)
+    for match in _OPEN_DOT_WRITE_RE.finditer(command):
+        resolved = _resolve(match.group(1))
+        if resolved:
+            paths.append(resolved)
+    for match in _NAME_WRITE_RE.finditer(command):
+        resolved = assigns.get(match.group(1))
+        if resolved:
+            paths.append(resolved)
+    for match in _PATH_WRITE_RE.finditer(command):
+        paths.append(match.group(1))
+    for match in _SED_FILE_RE.finditer(command):
+        tokens = [
+            token.strip("'\"")
+            for token in match.group(1).split()
+            if token and not token.startswith("-") and "=" not in token
+        ]
+        tokens = [token for token in tokens if token and "(" not in token and ")" not in token]
+        files = [token for token in tokens if "/" in token or re.search(r"\.\w+$", token)]
+        paths += files[-1:] if files else []
+    match = _TEE_FILE_RE.search(command)
+    if match:
+        paths.append(match.group(1))
+    for match in _COPY_DEST_RE.finditer(command):
+        tokens = [
+            token
+            for token in match.group(1).split()
+            if token and not token.startswith("-") and "=" not in token and not token.startswith("$")
+        ]
+        if tokens:
+            paths.append(tokens[-1])
+    return [path for path in dict.fromkeys(paths) if not _is_scratch_path(path)]
+
+
 def _clip(command: str) -> str:
     return sanitize_excerpt(command, CLIP_CHARS) or ""
 

@@ -47,7 +47,11 @@ from evallab.interpretation.claude_sessions import (
 )
 from evallab.interpretation.codex_rollouts import read_codex_rollouts
 from evallab.interpretation.domains import domain_section, render_domain_markdown
-from evallab.interpretation.outside_fetch import outside_fetch_section, render_outside_fetch_line
+from evallab.interpretation.outside_fetch import (
+    outside_fetch_section,
+    render_outside_fetch_line,
+    repo_edit_paths,
+)
 from evallab.interpretation.price_table import estimate_cost_usd, lookup_price
 from evallab.interpretation.run_report_scale import (
     MIN_STEPS_FOR_WINDOWS,
@@ -1810,6 +1814,124 @@ def _errors(
     }
 
 
+def _first_failure(
+    steps: Sequence[_Step],
+    actions: Sequence[_Action],
+    fetches: Sequence[Mapping[str, Any]],
+    cycle: Mapping[str, Any] | None,
+    reward: float | None,
+    total_steps: int,
+) -> dict[str, Any]:
+    """Estimate the first outcome-relevant failure: ``outcome.first_failure``.
+
+    ``errors.first_error`` answers "what errored first", which on hand labels
+    matches where a run really went wrong only 3/10 times: early
+    exploration noise (a missed grep, a failed import probe) fires before the
+    decisive step. This estimate instead walks a precedence of cheap,
+    deterministic signals, first match wins:
+
+    1. ``upstream_fetch`` (high): the first outside-code fetch that was read
+       back into the transcript. A fetch nobody reads is reconnaissance; a
+       read-back fetch is the step a copied pass starts from.
+    2. ``harness_rejection`` (high): the first agent step with no executed
+       tool call. The harness declined the turn (malformed call, prose with
+       no call), so nothing ran.
+    3. ``stuck_cycle`` (medium): the start of an alternating command cycle
+       that runs to the final step of a passing run. After a pass, ping-
+       ponging instead of confirming means the agent stalled on the finish;
+       after a failure the same shape is thrash around the real bug, so the
+       rule stays silent and the edit signals below decide. A plain
+       identical run to the end is still task-directed verification and does
+       not count.
+    4. ``bad_edit`` (medium): the first repo edit (writes under /tmp and
+       other scratch never count) when a tool error occurs at or after it.
+       The edit changed what later checks observe.
+    5. ``tool_error`` (low): the first tool error, but only when the agent
+       later edited and the error came first -- pre-existing breakage such
+       as a broken environment, not fallout from the agent's own changes.
+       Errors after editing belong to the edit-test loop above.
+
+    No signal fires for a silent failure (an incomplete edit with no failing
+    check, a detour that never touches the repo): the field is null rather
+    than a guess. Calibrated on 10 HAR-104 hand reads (8/10 within +/-2
+    steps, misses are the two silent cases) and 44 probe-03 capability
+    labels (28/44 agreement, up from 10/44 for ``first_error``).
+    """
+    none: dict[str, Any] = {"step": None, "kind": None, "evidence": None, "confidence": None}
+    if not steps:
+        return {**none, "evidence": "no trajectory"}
+    for fetch in fetches:
+        if fetch.get("read_back_step") is not None:
+            return {
+                "step": fetch["step"],
+                "kind": "upstream_fetch",
+                "evidence": (
+                    f"{fetch.get('kind')} {fetch.get('target')} "
+                    f"(read back at step {fetch['read_back_step']})"
+                ),
+                "confidence": "high",
+            }
+    for step in steps:
+        if step.source == "agent" and not step.actions:
+            detail = _clip(f"agent step with no executed tool call: {step.message.strip()}", 160)
+            return {
+                "step": step.step,
+                "kind": "harness_rejection",
+                "evidence": detail or "agent step with no executed tool call",
+                "confidence": "high",
+            }
+    if (
+        cycle is not None
+        and reward is not None
+        and reward >= PASS_REWARD
+        and (cycle.get("end_step") or 0) >= total_steps - 1
+    ):
+        commands = " / ".join(
+            clipped for command in (cycle.get("commands") or [])[:2] if (clipped := _clip(command, 60))
+        )
+        return {
+            "step": cycle["start_step"],
+            "kind": "stuck_cycle",
+            "evidence": (
+                f"period-{cycle.get('period')} command cycle "
+                f"x{cycle.get('repeats')} to step {cycle.get('end_step')}"
+                + (f": {commands}" if commands else "")
+            ),
+            "confidence": "medium",
+        }
+    edits: dict[int, list[str]] = {}
+    for action in actions:
+        for path in repo_edit_paths(action.tool, action.target or ""):
+            edits.setdefault(action.step, []).append(path)
+    errors = [action for action in actions if action.status == "error"]
+    if edits:
+        first_edit = min(edits)
+        if any(action.step >= first_edit for action in errors):
+            wrote = sorted(set(edits[first_edit]))[:3]
+            first_error_at = min(action.step for action in errors if action.step >= first_edit)
+            return {
+                "step": first_edit,
+                "kind": "bad_edit",
+                "evidence": (
+                    f"first repo edit ({', '.join(wrote)}) with a tool error "
+                    f"at step {first_error_at} or later"
+                ),
+                "confidence": "medium",
+            }
+        first_error = min((action.step for action in errors), default=None)
+        if first_error is not None and first_error < first_edit:
+            culprit = next(action for action in errors if action.step == first_error)
+            return {
+                "step": first_error,
+                "kind": "tool_error",
+                "evidence": _clip(f"{culprit.tool} {culprit.target} [{culprit.category}]", 160),
+                "confidence": "low",
+            }
+    return none
+
+
+
+
 def _binding_ceiling(trial_dir: Path, result: dict[str, Any]) -> str | None:
     """Name the binding trial-budget ceiling, or None when caps are unknown.
 
@@ -2403,6 +2525,15 @@ def build_run_report(
         completion=completion,
     )
     outside_fetches, copied_pass = outside_fetch_section(actions, outcome["reward"])
+    revisits = _revisits(actions, loop_view, len(steps))
+    outcome["first_failure"] = _first_failure(
+        steps,
+        actions,
+        outside_fetches["items"],
+        revisits.get("longest_cycle"),
+        outcome["reward"],
+        len(steps),
+    )
     report: dict[str, Any] = {
         "schema": RUN_REPORT_SCHEMA,
         "identity": _identity(result, trial, root_doc),
@@ -2412,7 +2543,7 @@ def build_run_report(
         "tokens": tokens,
         "cost": cost,
         "tools": _tools(actions),
-        "revisits": _revisits(actions, loop_view, len(steps)),
+        "revisits": revisits,
         "subagents": subagents,
         "context": context,
         "errors": errors,
@@ -2705,6 +2836,16 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
     if outcome["final_agent_message"]:
         lines.append(f"- Final agent message: {outcome['final_agent_message']}")
     lines.append(render_outside_fetch_line(report.get("outside_fetches") or {"items": []}))
+    first_failure = outcome.get("first_failure") or {}
+    if first_failure.get("step") is not None:
+        lines.append(
+            f"- First failure: step {first_failure['step']} ({first_failure['kind']}, "
+            f"{first_failure['confidence']} confidence): {first_failure['evidence']}"
+        )
+    elif first_failure.get("evidence"):
+        lines.append(f"- First failure: none found ({first_failure['evidence']}).")
+    else:
+        lines.append("- First failure: none found.")
     copied = report.get("pass_may_be_copied")
     if copied:
         evidence = ", ".join(

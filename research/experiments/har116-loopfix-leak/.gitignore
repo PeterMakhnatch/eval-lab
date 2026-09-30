@@ -1,0 +1,8 @@
+# HAR-116 worktree-local task bytes and generated specs (reproducible, never
+# committed). tasks/<id>/ are byte-identical copies of the pinned read-only
+# snapshot derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6
+# (originals) or of materialized HAR-113 leak variants (see tasks.json);
+# regenerate with make_specs.py. specs/ are generated from tasks.json plus
+# the two harness trees (see README); submit parks them in queue/waiting/.
+/tasks/
+/specs/

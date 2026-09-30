@@ -86,6 +86,8 @@ def _exception_phase(exception_class: str | None) -> str | None:
     lowered = exception_class.lower()
     if lowered.startswith("agent") or "model" in lowered or "api" in lowered:
         return "agent"
+    if "budget" in lowered:
+        return "agent"
     if lowered.startswith("verifier") or lowered.startswith("reward"):
         return "verifier"
     if "environment" in lowered or "docker" in lowered or "sandbox" in lowered:

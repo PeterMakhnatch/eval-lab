@@ -38,7 +38,6 @@ from evallab.interpretation.trajectory_hydration import (
 from evallab.results import sha256_file
 from evallab.traj import (
     PhaseOutline,
-    TrajectoryOutline,
     outline_trajectory,
     resolve_trial_target,
 )
@@ -229,50 +228,6 @@ def _inspect_semantic_coverage(trial_dir: Path) -> SemanticCoverageInspection:
     )
 
 
-def _analyze_intervention_provenance(outline: TrajectoryOutline) -> InterventionProvenance:
-    """Analyze whether the agent executed autonomously or with intermediate human/supervisor steering."""
-    user_steps = 0
-    intermediate_user_turns = False
-    system_steps = 0
-    agent_steps = 0
-
-    for i, step in enumerate(outline.steps):
-        if step.source == "user":
-            user_steps += 1
-            # If user turn occurs after step index 1 (0-based) or after agent has acted, it is an intervention
-            if i > 1 and agent_steps > 0:
-                intermediate_user_turns = True
-        elif step.source in ("system", "verifier", "setup"):
-            system_steps += 1
-        elif step.source in ("agent", "model"):
-            agent_steps += 1
-    if intermediate_user_turns:
-        category = "user_assisted"
-        summary = (
-            f"User-assisted execution ({user_steps} user turns; intermediate steering detected)"
-        )
-    elif user_steps > 0:
-        category = "autonomous"
-        summary = (
-            "Autonomous execution (initial task instruction only; no intermediate user steering)"
-        )
-    elif agent_steps > 0:
-        category = "autonomous"
-        summary = "Autonomous execution (zero human turns in trajectory)"
-    else:
-        category = "unknown"
-        summary = "No agent execution steps recorded"
-
-    return InterventionProvenance(
-        category=category,
-        user_steps_count=user_steps,
-        system_steps_count=system_steps,
-        agent_steps_count=agent_steps,
-        has_intermediate_user_turns=intermediate_user_turns,
-        summary=summary,
-    )
-
-
 def build_traj_card_data(
     target: str | Path,
     repo_root: Path,
@@ -356,8 +311,17 @@ def build_traj_card_data(
     # Semantic coverage inspection
     semantic_coverage = _inspect_semantic_coverage(trial_dir)
 
-    # Intervention provenance
-    intervention = _analyze_intervention_provenance(outline)
+    # Intervention provenance comes from the outline's shared taxonomy
+    # (trajectory_error_taxonomy.classify_intervention_provenance), so §6
+    # always agrees with the baseline metrics.
+    intervention = InterventionProvenance(
+        category=outline.intervention_category,
+        user_steps_count=outline.user_steps,
+        system_steps_count=outline.system_steps,
+        agent_steps_count=outline.agent_steps,
+        has_intermediate_user_turns=outline.intervention_count > 0,
+        summary=outline.intervention_provenance_notes,
+    )
 
     # Hydrate error observations
     error_evidences = tuple(hydrate_error_observations(trial_dir, outline, policy=policy))
@@ -537,7 +501,7 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
         f"| **Tool Calls (total / unique)** | {b.tool_call_count} ({b.unique_tools_count}) | `mechanical_fact` (exact tool call counts) |"
     )
     lines.append(
-        f"| **Errors / Recoveries** | {b.error_count} / {b.recovery_count} | `mechanical_fact` (exact execution error counts) |"
+        f"| **Errors / Recoveries (incl. output-inferred)** | {b.error_count} (inferred from output: {b.inferred_error_count}) / {b.recovery_count} | `mechanical_fact` (exact execution error counts) |"
     )
     neg_label = "YES (Control)" if b.is_expected_negative else "NO"
     lines.append(
@@ -550,7 +514,7 @@ def render_traj_card_markdown(card: TrajectoryCardData) -> str:
         else "none"
     )
     lines.append(
-        f"| **Step / Time to First Error** | {first_err_s} ({first_err_t}) | `mechanical_fact` (first error latency) |"
+        f"| **Step / Time to First Error (incl. output-inferred)** | {first_err_s} ({first_err_t}) | `mechanical_fact` (first error latency; signalled errors and output-inferred errors share one count, see run report) |"
     )
     rec_lat_s = (
         f"{b.recovery_latency_steps} steps" if b.recovery_latency_steps is not None else "none"

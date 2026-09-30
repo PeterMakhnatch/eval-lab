@@ -211,6 +211,112 @@ def test_loop_suspicion_consecutive_commands() -> None:
     assert any("repeated_consecutive_command" in r for r in loop.reasons)
 
 
+def _loop_step(step_id: int, command: str | None) -> StepOutline:
+    """Minimal agent step carrying one tool command for loop-suspicion tests."""
+    return StepOutline(
+        step_id=step_id,
+        source="agent",
+        timestamp=None,
+        model_name="model-a",
+        tool_name="exec" if command else None,
+        tool_command=command,
+        exit_code=0,
+        is_error=False,
+        error_message=None,
+        prompt_tokens=100,
+        completion_tokens=50,
+        cached_tokens=0,
+        cost_usd=0.001,
+        thought_snippet=None,
+    )
+
+
+def test_loop_score_grows_with_identical_run_length() -> None:
+    """A 95-long identical run scores clearly above a 3-long run."""
+    short = [_loop_step(i, "echo task_complete_marker") for i in (1, 2, 3)]
+    long = [_loop_step(i, "echo task_complete_marker") for i in range(1, 96)]
+
+    short_loop = _analyze_loop_suspicion(short)
+    long_loop = _analyze_loop_suspicion(long)
+
+    assert short_loop.score == 0.50
+    assert long_loop.score > 0.60
+    assert long_loop.score > short_loop.score
+    assert long_loop.detected is True
+    (reason,) = [r for r in long_loop.reasons if "repeated_consecutive_command" in r]
+    assert "95\u00d7 consecutively" in reason
+    assert "steps 1\u201395" in reason
+
+
+def test_loop_reason_names_run_length_and_step_span() -> None:
+    """The repeat reason carries the run length and its step span."""
+    steps = [
+        _loop_step(1, "pytest tests/unit_run"),
+        _loop_step(2, "pytest tests/other_run"),
+        _loop_step(3, "pytest tests/third_run"),
+        *[_loop_step(i, "echo task_complete_marker") for i in (4, 5, 6, 7, 8)],
+    ]
+    loop = _analyze_loop_suspicion(steps)
+    assert loop.repeated_command_count == 1
+    (reason,) = [r for r in loop.reasons if "repeated_consecutive_command" in r]
+    assert "5\u00d7 consecutively" in reason
+    assert "steps 4\u20138" in reason
+
+
+def _write_cost_trial(path: Path, final_metrics: dict | None = None) -> Path:
+    """Trial dir whose steps carry tokens but no per-step cost."""
+    agent = path / "agent"
+    agent.mkdir(parents=True)
+    (agent / "trajectory.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "ATIF-v1.7",
+                "session_id": "synthetic-cost",
+                "agent": {"name": "fixture", "model_name": "fixture-model"},
+                "steps": [
+                    {
+                        "source": "agent",
+                        "message": "working",
+                        "metrics": {"prompt_tokens": 10, "completion_tokens": 5},
+                    }
+                ],
+                **({"final_metrics": final_metrics} if final_metrics is not None else {}),
+            }
+        ),
+        encoding="utf-8",
+    )
+    (path / "result.json").write_text(
+        json.dumps(
+            {
+                "id": "cost-id",
+                "trial_name": path.name,
+                "task_name": "fixture-task",
+                "config": {"agent": {"name": "fixture"}},
+                "verifier_result": {"rewards": {"reward": 0.0}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_outline_cost_is_none_when_no_cost_exists(tmp_path: Path) -> None:
+    """Unknown spend stays None (rendered n/a), never $0.0000."""
+    trial = _write_cost_trial(tmp_path / "trial")
+    outline = outline_trajectory(trial, explicit_runs_root=trial)
+    assert outline.status == "featured"
+    assert outline.total_cost_usd is None
+    assert "(n/a)" in render_outline(outline)
+    assert "$0.0000" not in render_outline(outline)
+
+
+def test_outline_cost_prefers_declared_total(tmp_path: Path) -> None:
+    """A declared native total still wins over summed step costs."""
+    trial = _write_cost_trial(tmp_path / "trial", final_metrics={"total_cost_usd": 0.25})
+    outline = outline_trajectory(trial, explicit_runs_root=trial)
+    assert outline.total_cost_usd == 0.25
+
+
 def test_loop_suspicion_failing_commands() -> None:
     """Repeated failing commands trigger loop suspicion."""
     steps = [

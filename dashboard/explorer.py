@@ -139,7 +139,10 @@ def _outline_metrics(outline: TrajectoryOutline) -> list[dict[str, Any]]:
             "value": f"{outline.total_prompt_tokens:,} / {outline.total_completion_tokens:,}",
         },
         {"metric": "cached tokens", "value": str(outline.total_cached_tokens)},
-        {"metric": "cost USD", "value": f"{outline.total_cost_usd:.6f}"},
+        {
+            "metric": "cost USD",
+            "value": "n/a" if outline.total_cost_usd is None else f"{outline.total_cost_usd:.6f}",
+        },
         {
             "metric": "first tool",
             "value": "" if outline.step_to_first_tool is None else str(outline.step_to_first_tool),

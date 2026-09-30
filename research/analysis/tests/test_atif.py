@@ -309,3 +309,39 @@ def test_raw_content_steps_project_recorded_calls_as_stock_terminus_calls(
         (2, "bash_command", "call_2_1"),
         (2, "mark_task_complete", "call_2_2"),
     ]
+
+
+def test_steps_without_llm_call_count_fall_back_to_usage_presence(
+    tmp_path: Path,
+) -> None:
+    # Harbor ATIF steps never carry llm_call_count; usage lives in metrics.
+    job = load_job(_make_job(tmp_path))
+    trajectory_path = job.trials[0].path / "agent/trajectory.json"
+    _write_json(
+        trajectory_path,
+        {
+            "schema_version": "ATIF-v1.7",
+            "session_id": "usage-session",
+            "agent": {"name": "stub-agent", "version": "1.0", "model_name": "stub-model"},
+            "steps": [
+                {"step_id": 1, "source": "user", "message": "task"},
+                {
+                    "step_id": 2,
+                    "source": "agent",
+                    "message": "used the model",
+                    "metrics": {"prompt_tokens": 10, "completion_tokens": 3},
+                },
+                {
+                    "step_id": 3,
+                    "source": "agent",
+                    "message": "explicit count wins over usage",
+                    "llm_call_count": 2,
+                    "metrics": {"prompt_tokens": 4, "completion_tokens": 1},
+                },
+            ],
+        },
+    )
+
+    projection = project_trial(job, job.trials[0])
+    root_steps = [step for step in projection.steps if step.source_path == "agent/trajectory.json"]
+    assert [step.llm_call_count for step in root_steps] == [0, 1, 2]

@@ -528,3 +528,149 @@ def test_missing_layers_and_ledger_markdown_unknown(
     markdown = render_run_report_markdown(report)
     assert "- Execution problems: unknown (unknown:" in markdown
     assert "none recorded" not in markdown.split("## Time")[0]
+
+def _layered(
+    step_id: int, second: int, accepted: dict[str, Any], content: str = "ok"
+) -> dict[str, Any]:
+    """A raw_content Terminus agent step carrying recorded step layers."""
+    return {
+        "step_id": step_id,
+        "timestamp": f"2026-09-01T00:02:{second:02d}Z",
+        "source": "agent",
+        "message": "",
+        "observation": {"results": [{"content": content}]},
+        "extra": {
+            "step_layers": {
+                "schema": "evallab.step_layers/v1",
+                "provenance": "recorded",
+                "accepted": accepted,
+            }
+        },
+    }
+
+
+def _calls_layer(command: str) -> dict[str, Any]:
+    return {
+        "kind": "calls",
+        "calls": [{"keystrokes": f"{command}\n", "duration_sec": 1.0}],
+        "task_complete": None,
+        "parse_error": None,
+        "prose_shaped": False,
+        "reason": None,
+    }
+
+
+def _claim_layer() -> dict[str, Any]:
+    return {
+        "kind": "prose_completion",
+        "calls": [{"task_complete": True}],
+        "task_complete": True,
+        "parse_error": None,
+        "prose_shaped": True,
+        "reason": None,
+    }
+
+
+def test_completion_verdict_unconfirmed_claim_names_the_final_turn(tmp_path: Path) -> None:
+    # The golden-run shape: prose completion claimed mid-run, the harness
+    # demanded the real call, and the run continued on plain commands.
+    # Ordinals count the leading user step, so agent step_id 21 is step 22.
+    steps = [_layered(i, i % 60, _calls_layer(f"echo step-{i}")) for i in range(1, 41)]
+    steps[20] = _layered(21, 21, _claim_layer(), content="Are you sure? task_complete:true")
+    report = build_run_report(_trial(tmp_path, steps))
+
+    completion = report["outcome"]["completion"]
+    assert completion is not None
+    assert "claimed at step 22" in completion
+    assert "never confirmed" in completion
+    assert "ended on step 41" in completion
+
+
+def test_completion_verdict_confirmed_and_never_claimed(tmp_path: Path) -> None:
+    steps = [_layered(i, i, _calls_layer(f"echo step-{i}")) for i in range(1, 4)]
+    confirmed = build_run_report(_trial(tmp_path, [*steps, _layered(4, 4, _claim_layer())]))
+    assert "confirmed" in confirmed["outcome"]["completion"]
+    assert "never confirmed" not in confirmed["outcome"]["completion"]
+    assert confirmed["outcome"]["stop_reason"] == "prose_completion"
+
+    unclaimed = build_run_report(_trial(tmp_path / "runs", steps, name="trial"))
+    assert "never claimed" in unclaimed["outcome"]["completion"]
+
+
+def test_default_timeline_keeps_the_completion_claim_and_the_step_after(tmp_path: Path) -> None:
+    steps = [_layered(i, i, _calls_layer(f"echo step-{i}")) for i in range(1, 41)]
+    steps[20] = _layered(21, 21, _claim_layer(), content="Are you sure? task_complete:true")
+    timeline = build_run_report(_trial(tmp_path, steps), timeline_limit=10)["timeline"]
+
+    shown = [e["step"] for e in timeline["entries"] if "step" in e]
+    assert 22 in shown and 23 in shown  # the claim and the harness's answer to it
+    flags = {e["step"]: e["flags"] for e in timeline["entries"] if "step" in e}
+    assert flags[22] == ["completion"]
+
+
+def test_budget_exhausted_stop_detail_names_the_binding_ceiling(tmp_path: Path) -> None:
+    result = _result(
+        agent_result={
+            "n_input_tokens": 120_000,
+            "n_output_tokens": 100,
+            "metadata": {"stop_reason": "trial_budget_exhausted", "n_episodes": 5},
+        },
+        exception_info={
+            "exception_type": "TrialBudgetExhaustedError",
+            "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+        },
+    )
+    runs = tmp_path / "runs"
+    trial = _trial(runs, [_layered(1, 5, _calls_layer("ls"))], result=result)
+    (runs / "lab-metadata.json").write_text(
+        json.dumps({
+            "provider_usage": {"limits": {
+                "max_input_tokens": 100_000,
+                "max_output_tokens": 50_000,
+                "max_requests": 200,
+                "max_total_tokens": 150_000,
+            }}
+        }),
+        encoding="utf-8",
+    )
+
+    detail = build_run_report(trial)["outcome"]["stop_detail"]
+    assert detail == "agent metadata stop_reason; binding ceiling: input_tokens"
+
+
+def test_budget_exhausted_without_caps_says_unknown_rather_than_guessing(tmp_path: Path) -> None:
+    result = _result(
+        agent_result={"metadata": {"stop_reason": "trial_budget_exhausted"}},
+    )
+    trial = _trial(tmp_path / "runs", [_layered(1, 5, _calls_layer("ls"))], result=result)
+
+    detail = build_run_report(trial)["outcome"]["stop_detail"]
+    assert detail == "agent metadata stop_reason; binding ceiling unknown (no trial caps recorded)"
+
+
+def test_first_error_is_labelled_a_tool_error_with_its_evidence_channel(tmp_path: Path) -> None:
+    call_id = "call-1"
+    step = {
+        "step_id": 1,
+        "timestamp": "2026-09-01T00:02:05Z",
+        "source": "agent",
+        "message": "",
+        "tool_calls": [
+            {"tool_call_id": call_id, "function_name": "bash", "arguments": {"command": "gcc -v"}}
+        ],
+        "observation": {
+            "results": [{"source_call_id": call_id, "content": "bash: gcc: command not found"}]
+        },
+        "metrics": {"prompt_tokens": 1000, "completion_tokens": 100},
+    }
+    from evallab.interpretation.run_report import render_run_report_markdown
+
+    report = build_run_report(_trial(tmp_path, [step]))
+
+    assert report["errors"]["first_error"] == {
+        "step": 2,  # ordinal: the leading user step is step 1
+        "offset_seconds": 5.0,
+        "evidence": "output_text",
+    }
+    markdown = render_run_report_markdown(report)
+    assert "- First tool error: step 2 (inferred from output text)." in markdown

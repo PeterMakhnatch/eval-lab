@@ -34,9 +34,12 @@ from evallab.storage.paths import (
     resolve_runs_roots,
 )
 from evallab.trajectory_error_taxonomy import (
+    STRONG_ERROR_TEXT_RE,
+    ErrorCategory,
     ErrorClassification,
     classify_intervention_provenance,
     classify_step_error,
+    has_script_completed_lead,
     split_envelope,
 )
 
@@ -121,6 +124,7 @@ class LoopStep:
     tool_command: str | None
     exit_code: int | None
     is_error: bool
+    is_inferred_error: bool = False
 
 
 class LoopStepView(Protocol):
@@ -173,6 +177,7 @@ class StepOutline:
     source_path: str | None = None
     source_sha256: str | None = None
     source_step_id: int | None = None
+    is_inferred_error: bool = False
 
 
 @dataclass(frozen=True)
@@ -190,7 +195,7 @@ class PhaseOutline:
     prompt_tokens: int
     completion_tokens: int
     cached_tokens: int
-    cost_usd: float
+    cost_usd: float | None
     summary: str
 
 
@@ -227,7 +232,7 @@ class TrajectoryOutline:
     total_prompt_tokens: int
     total_completion_tokens: int
     total_cached_tokens: int
-    total_cost_usd: float
+    total_cost_usd: float | None
     loop_suspicion: LoopSuspicion
     phases: tuple[PhaseOutline, ...]
     steps: tuple[StepOutline, ...]
@@ -265,6 +270,7 @@ class TrajectoryOutline:
     edit_call_count: int = 0
     state_coverage_extra: dict[str, Any] = field(default_factory=dict)
     final_metrics_present: bool = False
+    inferred_errors: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -306,7 +312,7 @@ class TrajectoryFeatures:
     prompt_tokens: int
     completion_tokens: int
     cached_tokens: int
-    cost_usd: float
+    cost_usd: float | None
     primary_reward: float | None
     exception_class: str | None
     duration_seconds: float | None
@@ -346,6 +352,7 @@ class TrajectoryFeatures:
     path_reference_validity_rate_screening: float | None = None
     citation_reference_validity_rate_screening: float | None = None
     projected_at: str = ""
+    inferred_error_count: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -385,6 +392,7 @@ TRAJ_FEATURES_PARQUET_SCHEMA = pa.schema(
         pa.field("unique_tools_count", pa.int64(), nullable=False),
         pa.field("tool_mix_json", pa.string(), nullable=False),
         pa.field("error_count", pa.int64(), nullable=False),
+        pa.field("inferred_error_count", pa.int64(), nullable=False),
         pa.field("recovery_count", pa.int64(), nullable=False),
         pa.field("loop_suspicion_score", pa.float64(), nullable=False),
         pa.field("loop_suspicion_detected", pa.bool_(), nullable=False),
@@ -397,7 +405,7 @@ TRAJ_FEATURES_PARQUET_SCHEMA = pa.schema(
         pa.field("prompt_tokens", pa.int64(), nullable=False),
         pa.field("completion_tokens", pa.int64(), nullable=False),
         pa.field("cached_tokens", pa.int64(), nullable=False),
-        pa.field("cost_usd", pa.float64(), nullable=False),
+        pa.field("cost_usd", pa.float64(), nullable=True),
         pa.field("primary_reward", pa.float64(), nullable=True),
         pa.field("exception_class", pa.string(), nullable=True),
         pa.field("duration_seconds", pa.float64(), nullable=True),
@@ -708,23 +716,52 @@ def _analyze_loop_suspicion(steps: Sequence[LoopStepView]) -> LoopSuspicion:
     cyclic_patterns = 0
     reasons: list[str] = []
 
-    # 1. Consecutive identical tool commands
-    consecutive_cmd_count = 1
+    # 1. Consecutive identical tool commands. Step ordinals prefer the real
+    # step id when the input carries one (StepOutline) and fall back to the
+    # 1-based position in the analyzed sequence (LoopStep).
+    consecutive_cmd_count = 0
     last_cmd: str | None = None
-    for step in steps:
+    run_start: int | None = None
+    prev_ordinal: int | None = None
+    max_consecutive_run = 0
+
+    def _finalize_run() -> None:
+        nonlocal repeated_commands, max_consecutive_run
+        if (
+            last_cmd is not None
+            and consecutive_cmd_count >= 3
+            and run_start is not None
+            and prev_ordinal is not None
+        ):
+            repeated_commands += 1
+            reasons.append(
+                f"repeated_consecutive_command: {last_cmd[:40]!r} "
+                f"({consecutive_cmd_count}\u00d7 consecutively, "
+                f"steps {run_start}\u2013{prev_ordinal})"
+            )
+        if last_cmd is not None and consecutive_cmd_count > max_consecutive_run:
+            max_consecutive_run = consecutive_cmd_count
+
+    for position, step in enumerate(steps, start=1):
+        raw_sid = getattr(step, "step_id", None)
+        ordinal = (
+            raw_sid if isinstance(raw_sid, int) and not isinstance(raw_sid, bool) else position
+        )
         cmd = step.tool_command
-        if cmd and len(cmd) > 5:
-            if cmd == last_cmd:
-                consecutive_cmd_count += 1
-                if consecutive_cmd_count == 3:
-                    repeated_commands += 1
-                    reasons.append(f"repeated_consecutive_command: {cmd[:40]!r} (3+ times)")
-            else:
-                consecutive_cmd_count = 1
-                last_cmd = cmd
+        if cmd and len(cmd) > 5 and cmd == last_cmd:
+            consecutive_cmd_count += 1
         else:
-            consecutive_cmd_count = 1
-            last_cmd = None
+            _finalize_run()
+            if cmd and len(cmd) > 5:
+                last_cmd = cmd
+                consecutive_cmd_count = 1
+                run_start = ordinal
+            else:
+                last_cmd = None
+                consecutive_cmd_count = 0
+                run_start = None
+        prev_ordinal = ordinal
+    _finalize_run()
 
     # 2. Repeated failing commands with identical error/exit code
     failed_cmds: Counter[str] = Counter()
@@ -756,6 +793,11 @@ def _analyze_loop_suspicion(steps: Sequence[LoopStepView]) -> LoopSuspicion:
     score = 0.0
     if repeated_commands > 0:
         score += 0.35 + min(0.35, repeated_commands * 0.15)
+        # A 3-long run stays at the historical value; longer identical runs
+        # push the score clearly above the detection threshold.
+        if max_consecutive_run > 3:
+            score += min(0.30, 0.10 * math.log10(max_consecutive_run / 3))
+
     if repeated_errors > 0:
         score += 0.30 + min(0.30, repeated_errors * 0.15)
     if cyclic_patterns > 0:
@@ -836,12 +878,40 @@ def extract_loop_step(raw_step: dict[str, Any]) -> tuple[LoopStep, str | None, E
         result_type=result_type if results else None,
         result_status=result_status if results else None,
     )
+    # Output-text inference: when the harness records no exit code and no
+    # error flag, and the taxonomy sees neither an error nor an expected
+    # probe, a strong failure signature in the command output still marks the
+    # step as an error (same pattern the run report uses). An explicit exit
+    # code 0 means the call was accepted, so inference never overrides it.
+    is_inferred_error = False
+    if (
+        not error_classification.is_error
+        and not error_classification.is_expected_probe
+        and exit_code is None
+        and (result_type or "") not in {"error", "tool_error"}
+        and (result_status or "") not in {"error", "failed"}
+        and not has_script_completed_lead(str(primary_content or ""))
+        and STRONG_ERROR_TEXT_RE.search(str(primary_content or ""))
+    ):
+        is_inferred_error = True
+        inferred_text = str(primary_content or "").strip()
+        error_msg = error_msg or (
+            inferred_text[:120].strip() or "error inferred from command output"
+        )
+        error_classification = ErrorClassification(
+            is_error=True,
+            is_expected_probe=False,
+            category=ErrorCategory.INFERRED_FROM_OUTPUT,
+            exit_code=exit_code,
+            error_message=error_msg,
+        )
     return (
         LoopStep(
             tool_name=primary_tool_name,
             tool_command=primary_tool_cmd,
             exit_code=exit_code,
             is_error=error_classification.is_error,
+            is_inferred_error=is_inferred_error,
         ),
         error_msg,
         error_classification,
@@ -1105,6 +1175,9 @@ def _build_phases(steps: Sequence[StepOutline]) -> tuple[PhaseOutline, ...]:
         c_tok = sum(s.completion_tokens or 0 for s in phase_steps)
         ca_tok = sum(s.cached_tokens or 0 for s in phase_steps)
         c_usd = sum(s.cost_usd or 0.0 for s in phase_steps)
+        phase_cost_usd = (
+            round(c_usd, 6) if any(s.cost_usd is not None for s in phase_steps) else None
+        )
 
         summary = f"{len(phase_steps)} step(s), {t_calls} tool(s), {errs} error(s)"
         phases.append(
@@ -1120,7 +1193,7 @@ def _build_phases(steps: Sequence[StepOutline]) -> tuple[PhaseOutline, ...]:
                 prompt_tokens=p_tok,
                 completion_tokens=c_tok,
                 cached_tokens=ca_tok,
-                cost_usd=round(c_usd, 6),
+                cost_usd=phase_cost_usd,
                 summary=summary,
             )
         )
@@ -1204,7 +1277,7 @@ def _unavailable_outline(
         total_prompt_tokens=0,
         total_completion_tokens=0,
         total_cached_tokens=0,
-        total_cost_usd=0.0,
+        total_cost_usd=None,
         loop_suspicion=LoopSuspicion(0.0, False, (), 0, 0, 0),
         phases=(),
         steps=(),
@@ -1392,7 +1465,7 @@ def outline_trajectory(
             total_prompt_tokens=0,
             total_completion_tokens=0,
             total_cached_tokens=0,
-            total_cost_usd=0.0,
+            total_cost_usd=None,
             loop_suspicion=LoopSuspicion(0.0, False, (), 0, 0, 0),
             phases=(),
             steps=(),
@@ -1486,7 +1559,7 @@ def outline_trajectory(
             total_prompt_tokens=0,
             total_completion_tokens=0,
             total_cached_tokens=0,
-            total_cost_usd=0.0,
+            total_cost_usd=None,
             loop_suspicion=LoopSuspicion(0.0, False, (), 0, 0, 0),
             phases=(),
             steps=(),
@@ -1528,7 +1601,7 @@ def outline_trajectory(
             total_prompt_tokens=0,
             total_completion_tokens=0,
             total_cached_tokens=0,
-            total_cost_usd=0.0,
+            total_cost_usd=None,
             loop_suspicion=LoopSuspicion(0.0, False, (), 0, 0, 0),
             phases=(),
             steps=(),
@@ -1674,6 +1747,7 @@ def outline_trajectory(
     total_completion_tokens = 0
     total_cached_tokens = 0
     total_cost_usd = 0.0
+    has_cost_usd = False
 
     step_to_first_tool: int | None = None
     step_to_first_edit: int | None = None
@@ -1688,6 +1762,7 @@ def outline_trajectory(
     last_was_error = False
     recovery_count = 0
     total_errors = 0
+    inferred_errors = 0
     expected_probe_count = 0
     for idx, (segment_position, raw_step) in enumerate(positioned_steps, start=1):
         native_path, _, native_sha = chain_segments[segment_position]
@@ -1742,6 +1817,8 @@ def outline_trajectory(
 
         if is_error:
             total_errors += 1
+            if loop.is_inferred_error:
+                inferred_errors += 1
             if step_to_first_error is None:
                 step_to_first_error = step_id
                 first_error_timestamp = timestamp
@@ -1768,6 +1845,7 @@ def outline_trajectory(
             total_cached_tokens += ca_tok
         if isinstance(c_usd, int | float):
             total_cost_usd += float(c_usd)
+            has_cost_usd = True
 
         # Reasoning content & CAS storage
         raw_reasoning = raw_step.get("reasoning_content") or raw_step.get("thought")
@@ -1852,6 +1930,7 @@ def outline_trajectory(
                 source_path=str(native_path),
                 source_sha256=native_sha,
                 source_step_id=native_step_id,
+                is_inferred_error=loop.is_inferred_error,
             )
         )
 
@@ -1920,7 +1999,15 @@ def outline_trajectory(
     outline_cached_tokens = (
         declared_cached if declared_cached is not None else total_cached_tokens
     )
-    outline_cost_usd = declared_cost if declared_cost is not None else total_cost_usd
+    outline_cost_usd: float | None
+    if declared_cost is not None:
+        outline_cost_usd = declared_cost
+    elif has_cost_usd:
+        outline_cost_usd = total_cost_usd
+    else:
+        # Neither a declared total nor any per-step cost exists: spend is
+        # unknown, never zero.
+        outline_cost_usd = None
     state_metrics = _extract_state_journal_metrics(trial_dir, steps_out, citations)
     ref_metrics = _extract_reference_and_citation_metrics(trial_dir, steps_out, citations)
     edit_call_count = sum(1 for step in steps_out if _is_edit_action(step.tool_name, step.tool_command))
@@ -1954,7 +2041,7 @@ def outline_trajectory(
         total_prompt_tokens=outline_prompt_tokens,
         total_completion_tokens=outline_completion_tokens,
         total_cached_tokens=outline_cached_tokens,
-        total_cost_usd=round(outline_cost_usd, 6),
+        total_cost_usd=round(outline_cost_usd, 6) if outline_cost_usd is not None else None,
         loop_suspicion=loop_suspicion,
         phases=phases,
         steps=tuple(steps_out),
@@ -1992,6 +2079,7 @@ def outline_trajectory(
         edit_call_count=edit_call_count,
         state_coverage_extra=state_metrics["state_coverage_extra"],
         final_metrics_present=final_metrics_present,
+        inferred_errors=inferred_errors,
     )
 
 
@@ -2018,6 +2106,7 @@ def extract_features(outline: TrajectoryOutline) -> TrajectoryFeatures:
         unique_tools_count=len(outline.tool_mix),
         tool_mix_json=json.dumps(outline.tool_mix, sort_keys=True),
         error_count=outline.total_errors,
+        inferred_error_count=outline.inferred_errors,
         recovery_count=outline.recovery_count,
         loop_suspicion_score=outline.loop_suspicion.score,
         loop_suspicion_detected=outline.loop_suspicion.detected,
@@ -2132,15 +2221,19 @@ def render_outline(
     lines.append(
         f"  Tools:        {outline.total_tool_calls} (unique: {len(outline.tool_mix)}, {mix_str})"
     )
-    lines.append(f"  Errors:       {outline.total_errors} (recoveries: {outline.recovery_count})")
+    lines.append(
+        f"  Errors:       {outline.total_errors} "
+        f"(inferred from output: {outline.inferred_errors}; recoveries: {outline.recovery_count})"
+    )
     loop_str = f"{outline.loop_suspicion.score:.2f} (detected={outline.loop_suspicion.detected})"
     if outline.loop_suspicion.reasons:
         loop_str += f" -> {', '.join(outline.loop_suspicion.reasons)}"
     lines.append(f"  Loop Suspicion: {loop_str}")
+    cost_str = f"${outline.total_cost_usd:.4f}" if outline.total_cost_usd is not None else "n/a"
     lines.append(
         f"  Tokens:       prompt={outline.total_prompt_tokens:,}, "
         f"completion={outline.total_completion_tokens:,}, "
-        f"cached={outline.total_cached_tokens:,} (${outline.total_cost_usd:.4f})"
+        f"cached={outline.total_cached_tokens:,} ({cost_str})"
     )
     if outline.final_metrics_present:
         step_prompt = sum(step.prompt_tokens or 0 for step in outline.steps)
@@ -2157,9 +2250,10 @@ def render_outline(
     lines.append("ORDERED PHASES:")
     for phase in outline.phases:
         tok_sum = phase.prompt_tokens + phase.completion_tokens
+        phase_cost = f"${phase.cost_usd:.4f}" if phase.cost_usd is not None else "n/a"
         lines.append(
             f"  [{phase.name}] steps {phase.step_start}–{phase.step_end} "
-            f"({phase.summary}, {tok_sum:,} tokens, ${phase.cost_usd:.4f})"
+            f"({phase.summary}, {tok_sum:,} tokens, {phase_cost})"
         )
 
     lines.append("")
@@ -2287,7 +2381,7 @@ def project_trajectory_features(
                 prompt_tokens=0,
                 completion_tokens=0,
                 cached_tokens=0,
-                cost_usd=0.0,
+                cost_usd=None,
                 primary_reward=None,
                 exception_class=None,
                 duration_seconds=None,

@@ -20,7 +20,11 @@ from evallab.gepa_optimizer.evaluator import (
     ProviderCeilings,
 )
 from evallab.gepa_optimizer.intake import replay_spec_for_candidate, validate_drift
-from evallab.gepa_optimizer.proposer import JournaledReflectionLM, ProposalUnavailable
+from evallab.gepa_optimizer.proposer import (
+    JournaledReflectionLM,
+    ProposalUnavailable,
+    direct_proposer_blocker,
+)
 from evallab.gepa_optimizer.workflow import QualificationProposer, _EvaluationHalt, load_campaign
 from evallab.registry import compute_task_digests, task_directory_digest
 from evallab.schemas import ExperimentSpec
@@ -622,7 +626,7 @@ def test_unqualified_coding_plan_proposer_never_issues_or_reserves_request(tmp_p
         max_proposer_cost_usd=0.1,
     )
     proposer = JournaledReflectionLM(
-        model="zai/glm-5.3-flash",
+        model="zai-coding-plan/glm-5.3-flash",
         directory=tmp_path / "proposer",
         max_requests=1,
         budgets=(budget,),
@@ -633,6 +637,60 @@ def test_unqualified_coding_plan_proposer_never_issues_or_reserves_request(tmp_p
     assert budget.summary()["proposer"]["reserved"] == 0
 
 
+def test_zai_standard_api_proposer_binds_its_own_key_and_journals_without_it(tmp_path, monkeypatch):
+    """The ``zai/`` proposer uses the pay-as-you-go key, never the Coding Plan's ZAI_API_KEY."""
+    pytest.importorskip("gepa", reason="Install the isolated harness-gepa requirements")
+    import gepa.lm
+
+    from evallab.gepa_optimizer.budget import AggregateBudget
+
+    budget = AggregateBudget(
+        tmp_path / "budget",
+        max_target_attempts=1,
+        max_proposer_requests=2,
+        max_proposer_cost_usd=0.5,
+    )
+    monkeypatch.delenv("ZAI_OPENAPI_API_KEY", raising=False)
+    monkeypatch.setenv("ZAI_API_KEY", "coding-plan-key-must-not-be-used")
+    missing = JournaledReflectionLM(
+        model="zai/glm-5.3", directory=tmp_path / "missing", max_requests=1, budgets=(budget,)
+    )
+    with pytest.raises(ProposalUnavailable, match="ZAI_OPENAPI_API_KEY"):
+        missing("Revise the instruction.")
+    assert budget.summary()["proposer"]["reserved"] == 0
+
+    seen: dict[str, Any] = {}
+
+    class FakeLM:
+        total_cost = 0.0
+
+        def __init__(self, model, **kwargs):
+            seen.update(kwargs, model=model)
+
+        def __call__(self, prompt):
+            self.total_cost += 0.01
+            return "Improved instruction."
+
+    monkeypatch.setattr(gepa.lm, "LM", FakeLM)
+    monkeypatch.setenv("ZAI_OPENAPI_API_KEY", "standard-api-key")
+    proposer = JournaledReflectionLM(
+        model="zai/glm-5.3", directory=tmp_path / "proposer", max_requests=1, budgets=(budget,)
+    )
+    assert proposer("Revise the instruction.") == "Improved instruction."
+    assert seen["model"] == "zai/glm-5.3"
+    assert seen["api_key"] == "standard-api-key"
+    receipts = list((tmp_path / "proposer").glob("*.json"))
+    assert len(receipts) == 1
+    assert "standard-api-key" not in receipts[0].read_text()
+    assert json.loads(receipts[0].read_text())["status"] == "completed"
+
+
+def test_unlisted_zai_model_is_not_a_proposer_route():
+    assert direct_proposer_blocker("zai/glm-4") is not None
+    assert direct_proposer_blocker("zai-coding-plan/glm-5.3") is not None
+    assert direct_proposer_blocker("zai/glm-5.3") is None
+
+
 @pytest.mark.parametrize("gate", ["unsupported_provider", "unresolved_budget"])
 def test_unqualified_proposer_stops_campaign_before_baseline(tmp_path, monkeypatch, gate):
     task = _write_task(tmp_path)
@@ -640,7 +698,7 @@ def test_unqualified_proposer_stops_campaign_before_baseline(tmp_path, monkeypat
     config_path = _write_campaign(tmp_path, task, agent="oracle", model=None, ceilings="omit")
     config = json.loads(config_path.read_text())
     if gate == "unsupported_provider":
-        config["proposer_model"] = "zai/glm-5.3-flash"
+        config["proposer_model"] = "zai-coding-plan/glm-5.3-flash"
     else:
         from evallab.gepa_optimizer.budget import AggregateBudget
 

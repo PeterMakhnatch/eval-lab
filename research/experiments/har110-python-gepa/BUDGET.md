@@ -17,7 +17,7 @@ proxy request/token ceilings (120 requests / 2.5M input / 131072 output).
 ```
 total_target_trials  <= max_target_attempts                            (= 22, enforced by AggregateBudget)
                      = 6 baseline (seed x 6 dev) + 10 upstream search + 6 selection re-evals
-total_proposer_calls <= max_proposer_requests                           (= 4 option A, 1 request each)
+total_proposer_calls <= max_proposer_requests                           (= 4, 1 request each, no retries)
 total_heldout        = heldout_tasks x arms x attempts                  (= 4 x 2 x 1 = 8)
 
 C_STUDENT_TRIAL = mimo_selfhosted_trial_cost_usd(trial_hours, c, sandbox_usd)
@@ -49,8 +49,8 @@ math below uses wall ~12.5 min (0.208 h) as the expected case and the full
 | Attempts per trial | 1 (Terminus-2 binds exactly one trial) | execution_contracts.py terminus-2 validation |
 | Engine concurrency | max_concurrency=1 in-engine; server sharing comes from ticking parked specs together | workflow.py make_config; search-round flow |
 | Server sharing (c) | 2 (assumed: baseline ticks its 6 parked specs together; sharing only lowers the server share) | operator discipline, see Waves |
-| Reflection calls (option A default) | <= 4, each exactly 1 physical request | proposer-options.json A; opencode transport enforces max_requests=1 |
-| Proposer token input per call | in <= 22,000, out <= 4,096, total <= 26,096 | proposer_ceilings (har59 precedent) |
+| Reflection calls | <= 4 (`max_proposer_requests`), LiteLLM `num_retries=0` | campaign-train.json; proposer.py direct route |
+| Proposer tokens per call | out <= 8,192; measured 25,428 in / 5,406 out on the first real 85 KB prompt | proposer.py `_direct_lm_options`; 2026-09-30 precheck |
 | Held-out eval trials | 8 (4 scorable code tasks x seed/gepa arms x 1) | make_paired_specs.py |
 | Server rate | $2.8149/h (A100-80GB $2.4984 + 4 cores $0.1886 + 16 GiB $0.1279) | modal.com/pricing 2026-09-28; `MIMO_SELFHOSTED_SERVER_USD_PER_HOUR` |
 | Warm period | ~$0.40 (208 s cold start + 300 s idle tail) x $2.8149/h | HAR-90 smoke + follow-up spend |
@@ -77,9 +77,10 @@ math below uses wall ~12.5 min (0.208 h) as the expected case and the full
   $3.00 per-job ceiling. The $1.85 estimate is honest ONLY if live waves share
   the Modal server across >= 2 concurrent trials. Never tick a lone trial and
   call it covered: either tick >= 2 together or re-estimate first (see Waves).
-- `C_PROPOSER_CALL`: one OpenCode Flash reflection call (per-call ceiling
-  $0.05, max_proposer_cost_usd $0.20 for 4 calls). Coding-plan quota, not API
-  billing; sums to $0.20 <= $1.00.
+- `C_PROPOSER_CALL`: one direct GLM-5.3 call on the Z.ai standard API at
+  LiteLLM's $1.40/M in + $4.40/M out; the measured first prompt cost
+  **$0.059**. `max_proposer_cost_usd` $0.20 is checked before each call, so
+  the fourth call can overshoot it: worst case ~4 x $0.08 = $0.32 <= $1.00.
 - Search Modal/server: ~16 new trials (6 baseline + 10 upstream; selection
   re-evals mostly hit retained receipts) x $0.29 = **~$4.7 expected** (fits
   ~$5); hard-cap exposure 22 x $0.29 = $6.4 expected-profile, 22 x $1.41 =

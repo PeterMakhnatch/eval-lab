@@ -108,24 +108,28 @@ approvals (see §7).
   (12.5 min wall at $2.8149/h shared c=2) = **~$4.7 Modal** + ~$0.9-1.3
   Daytona sandbox, both reported separately. Worst-case catalog 22 x $1.85 =
   $40.70 > $20/day: dispatch in waves, stop the Modal app between phases.
-- Proposer: opencode Flash, <= 4 calls x $0.05 = **$0.20 cap** (<= $1.00).
+- Proposer: GLM-5.3 on the Z.ai standard API, <= 4 calls, **$0.20 cap** (<= $1.00); one real reflection prompt measured $0.059.
 - Held-out: 8 trials, ~$2.3 server + ~$0.5 sandbox expected.
 - Qualification (§6): 6 nop trials, ~$0.06 expected sandbox; cap $0.20.
 
-## 5. Proposer route finding (why Flash, not full GLM-5.3)
+## 5. Proposer route: GLM-5.3 on the Z.ai standard API (changed 2026-09-30)
 
-The card prefers GLM-5.3, but the loader admits only two proposer routes and
-neither fits full GLM-5.3 today: direct-transport `zai/*` models are refused
-by `direct_proposer_blocker` (the Coding Plan credential is not a general API
-grant -- a separately approved API route would be needed), and the opencode
-transport pins MODEL `zai-coding-plan/glm-5.3-flash` exactly (workflow.py
-validates it). So the staged campaign uses opencode + Flash (option A,
-`proposer-options.json`; every option sums to <= $1.00). Restaging on full
-GLM-5.3 needs its own route qualification first -- no provider substitution.
-Proposer GLM-5.3-Flash via opencode is the accepted (qualified) route for
-this campaign: `campaign-train.json` pins `proposer_model:
-zai-coding-plan/glm-5.3-flash` + `proposer_transport: opencode`, and the
-proposer spend sums to <= $1.00 (option A: <= 4 calls x $0.05 = $0.20 cap).
+Staging chose GLM-5.3-Flash through opencode on the Z.ai Coding Plan, because
+`direct_proposer_blocker` refused every `zai/*` model on the assumption that
+the lab's Z.ai credential was the tool-restricted Coding Plan. Live, the Coding
+Plan returned HTTP 429 code 1309 ("package has expired"). The first opencode
+proposal also stalled before any request: an 85 KB reflection prompt plus
+opencode's ~10k-token system prompt exceeds the 22k input ceiling.
+
+The lab also holds the pay-as-you-go standard-API key `ZAI_OPENAPI_API_KEY`, the
+`zai/` route that Terminus and mini-swe-agent targets already use. The blocker
+now refuses only `zai-coding-plan/*` and unlisted `zai/*` models. A direct `zai/`
+proposer binds `ZAI_OPENAPI_API_KEY` explicitly (never LiteLLM's default
+`ZAI_API_KEY`), with 8192 output tokens and a 300 s timeout because GLM-5.3
+reasons first. The campaign pins `proposer_model: zai/glm-5.3` and
+`proposer_transport: direct`, which is the card's GLM-5.3. A precheck on the
+real 85 KB prompt took 113 s: 25,428 in / 5,406 out (4,922 reasoning), $0.059.
+Run the campaign under `keys run --` so the key is present.
 
 ## 6. Nop qualification evidence (~$0.005 sandbox, $0.00 model, 2026-09-30)
 
@@ -204,7 +208,7 @@ for s in 002407 000226 002259 000383 002256 002391; do cp -r <har104-runs-worktr
 #    (refuses unless every development task has exactly one finished trial):
 uv run --no-sync python $EXP/fill_refs.py --trials $EXP/prior-trials
 # 3. recompute the proposer binding (must equal proposer-approval.template.json
-#    `88a1cc6f…` when run on the as-committed campaign + staged prior-trials;
+#    `aab2639a…` when run on the as-committed campaign + staged prior-trials;
 #    any other value means something changed -- stop and diff before signing):
 uv run --no-sync python -c "
 import json, hashlib
@@ -228,8 +232,9 @@ json.dump(t, open('research/experiments/har110-python-gepa/proposer-approval.sig
 print('wrote signed ref')
 EOF
 # 4. live search (parks baseline specs first; approve each, TICK THE 6 TOGETHER
-#    so the server is shared c>=2 per BUDGET.md Waves; rerun until completed):
-uv run --no-sync python -m evallab.gepa_optimizer run $EXP/campaign-train.json \
+#    so the server is shared c>=2 per BUDGET.md Waves; rerun until completed).
+#    `keys run --` supplies ZAI_OPENAPI_API_KEY to the direct GLM-5.3 proposer:
+keys run -- uv run --no-sync python -m evallab.gepa_optimizer run $EXP/campaign-train.json \
   --proposer-approval-ref $EXP/proposer-approval.signed.json
 uv run --no-sync python -m evallab.gepa_optimizer status $EXP/campaign-train.json
 # for id in <parked spec ids>; do uv run evallab approve "$id" --actor peter; done
@@ -262,16 +267,16 @@ uv run --no-sync python $EXP/make_paired_specs.py \
   qualification on Daytona).
 - `candidates/seed-addendum-v1.txt` (byte-identical HAR-85 seed,
   sha256:399ec113…).
-- `campaign-train.json` (STAGED search: 6 development examples WITH prior
+- `campaign-train.json` (live search: 6 development examples WITH prior
   refs, target -> student base, `score_rules: [upstream_fetch_zero]`,
-  opencode Flash proposer option A; validated by `load_campaign`, never run).
+  direct GLM-5.3 proposer on the Z.ai standard API, §5).
 - `qualification-campaign.json` (RAN §6 on the stratified development set;
   outputs under `runs/gepa-har110-python-nop-qualification/`, runtime state,
   uncommitted).
-- `proposer-options.json` (A/B/C: 4/8/2 reflection calls; all <= $1.00) and
-  `proposer-approval.template.json` (STAGED binding `88a1cc6f…` for the
-  as-committed campaign with priors + score rule; recompute per §7 step 3
-  and compare before signing).
+- `proposer-options.json` (staging-time A/B/C opencode Flash options,
+  superseded by §5) and `proposer-approval.template.json` (binding
+  `aab2639a…` for the as-committed campaign with priors + score rule;
+  recompute per §7 step 3 and compare before signing).
 - `make_paired_specs.py` (final 8 held-out specs generator: route,
   environment, harness tree and limits copied from the student base spec
   incl. override_storage_mb; refuses on split drift/missing bytes) +
@@ -283,14 +288,9 @@ uv run --no-sync python $EXP/make_paired_specs.py \
 
 ## Limits
 
-- No paid call of any kind was made; all trial evidence is nop controls plus
-  staged (unapproved, unsigned) artifacts. The staged per-trial nominal model
-  ceiling ($0.01) and worst-case estimate ($1.85 at c=2) are genuine
-  caps/estimates, not measurements.
-- No GEPA-search trial has run on this route yet. The first live wave (the 6
-  baseline specs ticked together) is the smoke: inspect it with
-  `uv run evallab report run <run>` before ticking search rounds.
-- The as-committed campaign-train.json is live-ready as filed (priors
-  attached, binding `88a1cc6f…`) once the parent reproduces the gitignored
-  `tasks/` + `prior-trials/` staging per §7 steps 0/2 and confirms the
-  binding recomputation matches.
+- Live spend and per-run results are recorded on the HAR-110 Linear card, not
+  here. The per-trial nominal model ceiling ($0.01) and worst-case estimate
+  ($1.85 at c=2) are caps/estimates, not measurements.
+- The as-committed campaign-train.json is live-ready (priors attached,
+  binding `aab2639a…`) once the gitignored `tasks/` + `prior-trials/` are
+  staged per §7 steps 0/2 and the binding recomputation matches.

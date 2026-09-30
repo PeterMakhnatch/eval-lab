@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The tests only verify the batched-lookup fix the issue explicitly requests: one list_namespaced_pod call scoped to airflow-worker pods, in-memory label matching, and skipping the API when nothing is queued; all follow directly from the issue and existing label conventions.",
+  "usage": {
+    "completion_tokens": 483,
+    "completion_tokens_details": {
+      "reasoning_tokens": 315
+    },
+    "prompt_tokens": 4649,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 5132
+  }
+}

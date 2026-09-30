@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "All hidden-test assertions either preserve existing behavior (session init/teardown, production URL) or are direct consequences of the reported bug: the working example implies the async context manager must be usable and __aenter__ returning self is the minimal fix.",
+  "usage": {
+    "completion_tokens": 175,
+    "completion_tokens_details": {
+      "reasoning_tokens": 70
+    },
+    "prompt_tokens": 2053,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 2228
+  }
+}

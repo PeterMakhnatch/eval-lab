@@ -1,0 +1,38 @@
+{
+  "items": [
+    {
+      "what": "Exact expected output for pad=4, indent=4, leading_comma=True is 'SELECT\\n      a\\n    , b\\n    , c\\nFROM my_table' (first column at 6 spaces), while the instruction's example shows 8 spaces ('        a'); the tests encode a different convention than the issue text",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "SELECT\\n      a\\n    , b\\n    , c\\nFROM my_table"
+      ],
+      "test_ref": "tests/test_transpile.py:test_leading_comma_pad_indent_consistency_pad4_indent4",
+      "quote": "\"SELECT\\n      a\\n    , b\\n    , c\\nFROM my_table\", pretty=True, pad=4, indent=4, leading_comma=True",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact expected default (no pad/indent) output with leading_comma=True is 'SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table'; the instruction never states what the default settings must produce",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table"
+      ],
+      "test_ref": "tests/test_transpile.py:test_leading_comma_default_pad_indent",
+      "quote": "result = parse_one(\"select a, b, c from my_table\").sql(pretty=True, leading_comma=True) ... assertEqual(result, \"SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table\")",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The instruction only demonstrates the bug; the hidden tests assert specific fixed outputs (6-space first column at pad4/indent4, and a specific default-settings output) that are conventions not derivable from the issue text \u2014 the issue's own example even shows a different indentation than the test expects.",
+  "usage": {
+    "completion_tokens": 1458,
+    "completion_tokens_details": {
+      "reasoning_tokens": 970
+    },
+    "prompt_tokens": 1947,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3405
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "items": [
+    {
+      "what": "Ufunc must also honor a dtype keyword (np.positive(df, dtype=np.float32)) returning a DataFrame whose columns are cast to that dtype \u2014 no dtype kwarg behavior is mentioned in the issue.",
+      "kind": "extra_behavior",
+      "names": [
+        "positive",
+        "dtype"
+      ],
+      "strings": [],
+      "test_ref": "test_np_unary_ufunc_dataframe_dtype_kwarg",
+      "quote": "result = np.positive(df, dtype=np.float32)\n    assert all(d == np.float32 for d in result.dtypes)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Unary ufuncs np.exp and np.negative must write results into an out array \u2014 not named in the instruction (which only shows np.add), though same-family siblings fixed by the identical change.",
+      "kind": "extra_behavior",
+      "names": [
+        "exp",
+        "negative"
+      ],
+      "strings": [],
+      "test_ref": "test_np_unary_ufunc_dataframe_with_out / test_np_negative_dataframe_with_out",
+      "quote": "np.exp(df, out=bar)",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The core out= fix for DataFrame ufuncs is covered and the unary siblings (exp/negative) fall out of the same change, but the test that a dtype kwarg is honored and cast into the resulting DataFrame's dtypes describes behavior nowhere stated in the instruction.",
+  "usage": {
+    "completion_tokens": 597,
+    "completion_tokens_details": {
+      "reasoning_tokens": 234
+    },
+    "prompt_tokens": 3059,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3656
+  }
+}

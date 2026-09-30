@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-001689",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "Every hidden test assertion is a direct, checkable consequence of the requested fix: convert_to_tensor must handle meta-device torch tensors, preserving shape/dtype, without breaking normal tensors. No new names, strings, or extra behaviors are required (meta tensors have no data, so value checks are impossible and not performed)."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 227,
+      "completion_tokens_details": {
+        "reasoning_tokens": 84
+      },
+      "prompt_tokens": 1924,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2151
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

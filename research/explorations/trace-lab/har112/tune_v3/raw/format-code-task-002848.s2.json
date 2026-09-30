@@ -1,0 +1,100 @@
+{
+  "items": [
+    {
+      "what": "The class must live in module src.DownloadModels (tests import and monkeypatch it there).",
+      "kind": "new_name",
+      "names": [
+        "src.DownloadModels"
+      ],
+      "strings": [],
+      "test_ref": "usercase-test-coderl/test_download_model.py:61",
+      "quote": "module = importlib.import_module(\"src.DownloadModels\")",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "downloadModel() must consult a module-level networkCheck function (monkeypatched on the module) to decide network availability.",
+      "kind": "new_name",
+      "names": [
+        "networkCheck"
+      ],
+      "strings": [],
+      "test_ref": "test_constructor_remembers_targets_and_creates_model_directory",
+      "quote": "monkeypatch.setattr(download_module, \"networkCheck\", lambda: True)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Extraction must go through a module-level extractTarGZ(path) function called with the downloaded file path as a str.",
+      "kind": "new_name",
+      "names": [
+        "extractTarGZ"
+      ],
+      "strings": [],
+      "test_ref": "test_missing_tar_model_downloads_with_progress_then_extracts",
+      "quote": "monkeypatch.setattr(download_module, \"extractTarGZ\", lambda path: extract_calls.append(path)) ... assert extract_calls == [str(model_dir / \"rife-v4.6.tar.gz\")]",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Download must be performed via src.ui.QTcustom.DownloadProgressPopup constructed with link, downloadLocation, and title (positional or keyword), not by direct requests download.",
+      "kind": "new_name",
+      "names": [
+        "DownloadProgressPopup",
+        "link",
+        "downloadLocation",
+        "title"
+      ],
+      "strings": [
+        "link",
+        "downloadLocation",
+        "title"
+      ],
+      "test_ref": "assert_progress_dialog_call",
+      "quote": "for name, value in zip((\"link\", \"downloadLocation\", \"title\"), args): call[name] = value",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Default model path constant MODELS_PATH must be importable into the module (tests clear src.constants before import).",
+      "kind": "new_name",
+      "names": [
+        "MODELS_PATH",
+        "src.constants"
+      ],
+      "strings": [],
+      "test_ref": "download_module fixture",
+      "quote": "sys.modules.pop(\"src.constants\", None)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Module must import src.Util (and src.ui.QTcustom) at import time; tests stub these modules.",
+      "kind": "new_name",
+      "names": [
+        "src.Util",
+        "src.ui.QTcustom"
+      ],
+      "strings": [],
+      "test_ref": "download_module fixture",
+      "quote": "sys.modules.pop(\"src.Util\", None) ... monkeypatch.setitem(sys.modules, \"src.ui.QTcustom\", qtcustom)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Existing-file check and download path handling must accept str paths (tests pass str(tmp_path/...), extract called with str not Path).",
+      "kind": "other",
+      "names": [],
+      "strings": [],
+      "test_ref": "test_constructor_remembers_targets_and_creates_model_directory",
+      "quote": "download_module.DownloadModel(\"target.bin\", \"asset.pkl\", str(model_dir))",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction describes behavior but never names the module path, the networkCheck/extractTarGZ helpers, the DownloadProgressPopup class, or its link/downloadLocation/title parameters that the tests require and monkeypatch; only path/str handling is mechanically inferable.",
+  "usage": {
+    "completion_tokens": 1424,
+    "completion_tokens_details": {
+      "reasoning_tokens": 544
+    },
+    "prompt_tokens": 4058,
+    "prompt_tokens_details": {
+      "cached_tokens": 4032
+    },
+    "total_tokens": 5482
+  }
+}

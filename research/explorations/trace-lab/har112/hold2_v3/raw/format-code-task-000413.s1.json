@@ -1,0 +1,66 @@
+{
+  "items": [
+    {
+      "what": "The batch call must use a label_selector containing only airflow-worker={job_id} \u2014 dropping the per-TI dag_id=, task_id=, run_id= selectors used by the existing per-TI check. This is a new filtering criterion, not stated in the instruction (which just says 'one/few batch calls').",
+      "kind": "extra_behavior",
+      "names": [
+        "label_selector",
+        "airflow-worker"
+      ],
+      "strings": [
+        "airflow-worker=1"
+      ],
+      "test_ref": "test_clear_not_launched_queued_tasks_batch_uses_airflow_worker_selector",
+      "quote": "assert \"airflow-worker=1\" in selector ... assert \"dag_id=\" not in selector ... assert \"task_id=\" not in selector ... assert \"run_id=\" not in selector",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exactly one list_namespaced_pod call total, independent of the number of queued TIs ('one/few' in the instruction admits multi-call designs; the test demands exactly 1).",
+      "kind": "extra_behavior",
+      "names": [
+        "list_namespaced_pod",
+        "call_count"
+      ],
+      "strings": [],
+      "test_ref": "test_clear_not_launched_queued_tasks_batched_single_api_call",
+      "quote": "assert mock_kube_client.list_namespaced_pod.call_count == 1",
+      "severity": "guessable"
+    },
+    {
+      "what": "Matching queued TIs against pod labels in memory, keyed on the (dag_id, task_id, run_id, map_index) label set built from each pod's metadata.labels, including mapped-task map_index matching.",
+      "kind": "extra_behavior",
+      "names": [
+        "dag_id",
+        "task_id",
+        "run_id",
+        "map_index",
+        "airflow-worker"
+      ],
+      "strings": [],
+      "test_ref": "test_clear_not_launched_queued_tasks_batch_mapped_task_match",
+      "quote": "labels={\"dag_id\": \"test_clear_mapped\", \"task_id\": \"bash\", \"airflow-worker\": \"1\", \"map_index\": \"0\", \"run_id\": \"test\"}",
+      "severity": "guessable"
+    },
+    {
+      "what": "No kube API call at all when no queued TIs exist for this scheduler's job_id \u2014 an early-return/lifecycle contract not requested.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "test_clear_not_launched_queued_tasks_batch_no_queued_tis_skips_api",
+      "quote": "assert mock_kube_client.list_namespaced_pod.call_count == 0",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction asks for batching but the tests pin down one specific design: a single list_namespaced_pod call with an airflow-worker={job_id}-only selector and local in-memory label matching (including map_index), plus an API-skip guard; the airflow-worker-only selector is a new filtering criterion not derivable from the instruction.",
+  "usage": {
+    "completion_tokens": 1425,
+    "completion_tokens_details": {
+      "reasoning_tokens": 764
+    },
+    "prompt_tokens": 4649,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 6074
+  }
+}

@@ -1,0 +1,150 @@
+{
+  "task_id": "format-code-task-000923",
+  "label": "broken",
+  "label_without_repo": "broken",
+  "sample_labels": [
+    "broken",
+    "broken",
+    "sound"
+  ],
+  "repo_used": true,
+  "unstated": [
+    {
+      "what": "Tests import a class named `Transformer` from hydra.core.override_parser.overrides; the instruction only mentions 'a small Transformer helper ... but the exact naming is up to you', so the exact name Transformer is not guaranteed by the instruction.",
+      "kind": "new_name",
+      "names": [
+        "Transformer"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_overrides_parser.py:28 (import block)",
+      "quote": "    Transformer,\n    ValueType,\n)",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "Transformer": null
+      }
+    },
+    {
+      "what": "`Override.sweep_iterator()` must exist as a method and accept keyword parameter `transformer`.",
+      "kind": "new_name",
+      "names": [
+        "sweep_iterator",
+        "transformer"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_overrides_parser.py:1936-1938",
+      "quote": "actual_sweep_encoded_list = [\n    x for x in ret.sweep_iterator(transformer=Transformer.encode)\n]",
+      "severity": "guessable",
+      "repo_evidence": {
+        "sweep_iterator": null,
+        "transformer": null
+      }
+    },
+    {
+      "what": "`Transformer.encode` must be a callable/member implementing the hybrid policy: primitives as native values (bool/int/float pass through; quoted strings stay strings), lists/dicts flattened to their comma-joined string form like \"[1,1.1,'2','a']\". The exact policy for lists/quoted strings (e.g. \"['a','b']\" stays a string) is not fully specified in the instruction.",
+      "kind": "extra_behavior",
+      "names": [
+        "Transformer.encode"
+      ],
+      "strings": [
+        "[1,2,3]",
+        "['a','b']",
+        "[1,1.1,'2','a']",
+        "[True,False]"
+      ],
+      "test_ref": "tests/test_overrides_parser.py:test_sweep_iterators",
+      "quote": "(\"x=choice([1, 1.1, '2', 'a'], [True, False])\", [\"[1,1.1,'2','a']\", \"[True,False]\"], ...)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Parsing of `x=choice('1', '2', '3')` must yield string sweep elements whose encode leaves them as strings '1','2','3' (quoted strings remain strings, not converted to int) \u2014 an exact encode semantic not spelled out in the instruction.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        "1",
+        "2",
+        "3"
+      ],
+      "test_ref": "tests/test_overrides_parser.py:test_sweep_iterators",
+      "quote": "(\"x=choice('1', '2', '3')\", [\"1\", \"2\", \"3\"], [\"1\", \"2\", \"3\"]),",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "A Transformer class must exist and be importable from the overrides parser module, with an `encode` member implementing the hybrid policy (primitives as-is, complex values flattened to string).",
+      "kind": "new_name",
+      "names": [
+        "Transformer",
+        "Transformer.encode"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_overrides_parser.py:test_sweep_iterators",
+      "quote": "from hydra.core.override_parser... import Transformer  /  ret.sweep_iterator(transformer=Transformer.encode)",
+      "severity": "guessable"
+    },
+    {
+      "what": "`Override` must gain a `sweep_iterator(transformer=...)` method taking a keyword parameter named `transformer`.",
+      "kind": "new_name",
+      "names": [
+        "sweep_iterator",
+        "transformer"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_overrides_parser.py:test_sweep_iterators",
+      "quote": "actual_sweep_encoded_list = [x for x in ret.sweep_iterator(transformer=Transformer.encode)]",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact encoding semantics for `encode`: quoted strings stay strings ('1' -> \"1\", 'True' -> \"True\"), unquoted values parse to native types (1 -> 1, True -> True, 1.1 -> 1.1), and lists/dicts flatten to their string form like choice([1,2,3]) -> \"[1,2,3]\" including inner quoting like \"[1,1.1,'2','a']\".",
+      "kind": "extra_behavior",
+      "names": [
+        "Transformer.encode"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_overrides_parser.py:test_sweep_iterators",
+      "quote": "[True, \"True\", False, \"False\", \"a\", 1, 1.1, 2.0, 3, \"1.5\", \"4\"]",
+      "severity": "not_inferable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction proposes a sweep_iterator/Transformer design but explicitly leaves naming open, while the hidden tests require the exact names Transformer, sweep_iterator, transformer, and Transformer.encode, plus a precisely specified hybrid encode policy (quoted strings vs primitives vs list flattening) that is only implied, not stated.",
+    "The instruction names sweep_iterator and Transformer.encode as suggestions, so those names are guessable; however the exact encoding semantics of Transformer.encode (which values stay strings, how lists are rendered) are only defined by the hidden test expectations and admit multiple reasonable implementations.",
+    "The instruction explicitly names sweep_iterator, a caller-provided transformer parameter, a Transformer helper with an encode policy for the hybrid case, and the three presentation policies; the test's expected encode outputs (complex values flattened like sweep_string_iterator, primitives native) match the described hybrid semantics, so the minimal fix passes."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 782,
+      "completion_tokens_details": {
+        "reasoning_tokens": 77
+      },
+      "prompt_tokens": 2513,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 3295
+    },
+    {
+      "completion_tokens": 561,
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "prompt_tokens": 2513,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 3074
+    },
+    {
+      "completion_tokens": 302,
+      "completion_tokens_details": {
+        "reasoning_tokens": 178
+      },
+      "prompt_tokens": 2513,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 2815
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

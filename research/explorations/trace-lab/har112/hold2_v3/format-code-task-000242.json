@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-000242",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "The hidden tests only exercise the existing public API (ccrs.PlateCarree().project_geometry) with the polygon from the issue; all assertions (area, count, bounds) are direct behavioral consequences of fixing the reported dateline projection bug, with no new names, strings, or extra contracts."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 220,
+      "completion_tokens_details": {
+        "reasoning_tokens": 107
+      },
+      "prompt_tokens": 2495,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2715
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

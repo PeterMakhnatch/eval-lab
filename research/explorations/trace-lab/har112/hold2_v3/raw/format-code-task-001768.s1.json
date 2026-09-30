@@ -1,0 +1,27 @@
+{
+  "items": [
+    {
+      "what": "The group label column/index name the tests rely on is spelled 'algo', not 'Algorithm' as in the instruction's reproducer; the fix must preserve that existing grouping column through the missing-user fill so groupby('algo') sees 100 rows per algo.",
+      "kind": "new_name",
+      "names": [
+        "algo"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_topn_analysis.py:256 (test_adv_fill_users)",
+      "quote": "ucounts = scores.reset_index().groupby('algo')['user'].agg(['count', 'nunique'])",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The hidden test's only new assertions check counts per algorithm after groupby('algo'); 'algo' is the pre-existing column name in that test file (repo-existing, so likely dropped automatically), and the fill behaviour itself is exactly what the instruction requests.",
+  "usage": {
+    "completion_tokens": 567,
+    "completion_tokens_details": {
+      "reasoning_tokens": 332
+    },
+    "prompt_tokens": 2007,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2574
+  }
+}

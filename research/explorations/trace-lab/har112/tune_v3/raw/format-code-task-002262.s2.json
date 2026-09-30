@@ -1,0 +1,84 @@
+{
+  "items": [
+    {
+      "what": "Storage module must live at vdirsyncer/storage/singlefile.py (tests import this exact path)",
+      "kind": "new_name",
+      "names": [
+        "vdirsyncer/storage/singlefile.py"
+      ],
+      "strings": [],
+      "test_ref": "test_singlefile_storage_acceptance.py:12",
+      "quote": "from vdirsyncer.storage.singlefile import SingleFileStorage",
+      "severity": "guessable"
+    },
+    {
+      "what": "Constructor must raise CollectionNotFound when the path does not exist (not just any error)",
+      "kind": "extra_behavior",
+      "names": [
+        "CollectionNotFound"
+      ],
+      "strings": [],
+      "test_ref": "test_constructor_create_and_discover_contract",
+      "quote": "with pytest.raises(exceptions.CollectionNotFound):\n        SingleFileStorage(str(tmp_path / \"missing.ics\"))",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Constructor must raise OSError when the path is a directory",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "test_constructor_create_and_discover_contract",
+      "quote": "with pytest.raises(OSError):\n        SingleFileStorage(str(directory))",
+      "severity": "guessable"
+    },
+    {
+      "what": "instance_name attribute must be composed as 'instance_name/collection' ('local/work')",
+      "kind": "exact_string",
+      "names": [
+        "instance_name"
+      ],
+      "strings": [
+        "local/work"
+      ],
+      "test_ref": "test_constructor_create_and_discover_contract",
+      "quote": "assert s.instance_name == \"local/work\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Instance attributes path, encoding, collection must be exposed with those names",
+      "kind": "new_name",
+      "names": [
+        "path",
+        "encoding",
+        "collection"
+      ],
+      "strings": [],
+      "test_ref": "test_constructor_create_and_discover_contract",
+      "quote": "assert s.path == str(existing)\n    assert s.encoding == \"utf-8\"\n    assert s.collection == \"work\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "AlreadyExistingError must carry existing_href set to the duplicate href",
+      "kind": "new_name",
+      "names": [
+        "existing_href"
+      ],
+      "strings": [],
+      "test_ref": "test_item_session_crud_errors_and_case_sensitive_hrefs",
+      "quote": "assert duplicate.value.existing_href == \"alice\"",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction covers nearly all behavior; the only unstated specifics are the exact module path (standard vdirsyncer convention, guessable), the composite instance_name format and exposed attribute names (mechanical), the OSError-on-directory case (natural), and CollectionNotFound as the specific missing-file exception, which is a specific error-type choice the instruction never names.",
+  "usage": {
+    "completion_tokens": 942,
+    "completion_tokens_details": {
+      "reasoning_tokens": 283
+    },
+    "prompt_tokens": 5417,
+    "prompt_tokens_details": {
+      "cached_tokens": 5376
+    },
+    "total_tokens": 6359
+  }
+}

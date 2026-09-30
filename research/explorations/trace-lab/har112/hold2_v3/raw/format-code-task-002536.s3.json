@@ -1,0 +1,45 @@
+{
+  "items": [
+    {
+      "what": "Exact notes strings that serializing Kraken events with a custom asset must produce (e.g. 'Swap 1 Gold Bar in Kraken', 'Gain 1 Gold Bar from Kraken staking', etc.) are not stated in the instruction; they must match the existing Kraken serialization templates with the custom asset's name substituted.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Swap 1 Gold Bar in Kraken",
+        "Receive 1 Gold Bar as a result of a Kraken swap",
+        "Spend 1 Gold Bar as Kraken trading fee",
+        "Gain 1 Gold Bar from Kraken staking",
+        "Spend 1 Gold Bar as Kraken staking fee",
+        "Withdraw 1 Gold Bar from Kraken",
+        "Spend 1 Gold Bar as Kraken withdrawal fee",
+        "Deposit 1 Gold Bar to Kraken"
+      ],
+      "test_ref": "rotkehlchen/tests/exchanges/test_kraken.py::test_kraken_event_serialization_with_custom_asset",
+      "quote": "(HistoryEventType.TRADE, HistoryEventSubType.SPEND, 'Swap 1 Gold Bar in Kraken')",
+      "severity": "guessable"
+    },
+    {
+      "what": "The fix must live in Kraken event serialization (HistoryEvent.serialize / Kraken notes rendering) so that the custom asset's name is used instead of the identifier, covering all Kraken event type/subtype combinations including staking, withdrawal and deposit variants.",
+      "kind": "extra_behavior",
+      "names": [
+        "serialize"
+      ],
+      "strings": [],
+      "test_ref": "rotkehlchen/tests/exchanges/test_kraken.py:1123-1143",
+      "quote": "event = HistoryEvent(... location=Location.KRAKEN ... asset=custom_asset ...); assert event.serialize()['notes'] == expected_notes",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction only describes the bug; the hidden test pins exact note templates for serializing Kraken events with a custom asset. These are siblings of existing Kraken serialization templates, so a correct fix (substituting the custom asset's name in the existing note formatting) yields them \u2014 guessable, though the exact wording is only recoverable from the repo's existing templates.",
+  "usage": {
+    "completion_tokens": 741,
+    "completion_tokens_details": {
+      "reasoning_tokens": 240
+    },
+    "prompt_tokens": 2300,
+    "prompt_tokens_details": {
+      "cached_tokens": 2240
+    },
+    "total_tokens": 3041
+  }
+}

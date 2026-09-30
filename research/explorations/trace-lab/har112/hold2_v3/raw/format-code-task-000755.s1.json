@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The hidden tests only swap assert_array_eq/assert_list_eq calls for assert_eq, which is exactly the requested consolidation; no new names, strings, or extra behavior beyond the stated unification are required.",
+  "usage": {
+    "completion_tokens": 223,
+    "completion_tokens_details": {
+      "reasoning_tokens": 103
+    },
+    "prompt_tokens": 3153,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3376
+  }
+}

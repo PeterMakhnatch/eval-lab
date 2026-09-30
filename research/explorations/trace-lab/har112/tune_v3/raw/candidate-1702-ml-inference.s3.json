@@ -1,0 +1,68 @@
+{
+  "items": [
+    {
+      "what": "Shared resolution function must be named `resolve_max_length` and importable from lm_eval.models.utils (instruction says keep logic there but gives no name).",
+      "kind": "new_name",
+      "names": [
+        "resolve_max_length",
+        "lm_eval.models.utils"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_outputs.py:82",
+      "quote": "from lm_eval.models.utils import resolve_max_length",
+      "severity": "guessable"
+    },
+    {
+      "what": "Each result entry must contain a `via_property` field equal to the HFLM.max_length property value (auto path), distinct from `resolved`.",
+      "kind": "new_name",
+      "names": [
+        "via_property",
+        "resolved"
+      ],
+      "strings": [
+        "via_property"
+      ],
+      "test_ref": "tests/test_outputs.py:133",
+      "quote": "item['resolved'] == item['via_property']",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Output JSON must expose the schema string under the top-level key `schema_version` (instruction only gives the literal value, not the key).",
+      "kind": "new_name",
+      "names": [
+        "schema_version"
+      ],
+      "strings": [
+        "schema_version",
+        "lm-eval-context-repair.v1"
+      ],
+      "test_ref": "tests/test_outputs.py:111",
+      "quote": "assert data['schema_version'] == 'lm-eval-context-repair.v1'",
+      "severity": "guessable"
+    },
+    {
+      "what": "Explicit override behavior: HFLM.max_length must return cached `_max_length` (1234) even when set via object.__new__ without constructor, i.e. read the `_max_length` attribute as explicit override in the property.",
+      "kind": "extra_behavior",
+      "names": [
+        "_max_length",
+        "max_length"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_outputs.py:158-159",
+      "quote": "model._max_length = case.get('explicit_max_length') ... assert model.max_length == (case.get('explicit_max_length') or expected(case))",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction specifies the precedence rules and artifact but omits the shared function's exact name and the per-result `via_property` field; the function name likely exists in the repo (auto-droppable), while `via_property` is an invented output field a minimal fix would not add.",
+  "usage": {
+    "completion_tokens": 771,
+    "completion_tokens_details": {
+      "reasoning_tokens": 203
+    },
+    "prompt_tokens": 3268,
+    "prompt_tokens_details": {
+      "cached_tokens": 3264
+    },
+    "total_tokens": 4039
+  }
+}

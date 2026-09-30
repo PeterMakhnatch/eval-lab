@@ -1,0 +1,11 @@
+{
+  "task_id": "format-code-task-002425",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "TCP_NODELAY must actually be applied to asyncio TCP sockets on Linux, including the nonblocking sockets asyncio hands the caller",
+    "the existing _set_nodelay helper is the repo's implementation of that behavior"
+  ],
+  "notes": "Repo Lib/asyncio/selector_events.py:_set_nodelay requires sock.type == SOCK_STREAM, but Modules/socketmodule.c ORs SOCK_NONBLOCK into sock_type on setblocking(False). The added TestSelectorUtils calls the existing helper on a blocking and a nonblocking AF_INET/SOCK_STREAM/IPPROTO_TCP socket and checks TCP_NODELAY. On this Darwin host the base helper already sets it (before=0, after=4); the failing case is the Linux flag the instruction describes. The patch also deletes the SOCK_NONBLOCK _ipaddr_info assertion, so that change is not required to pass. The grading command rebuilds CPython and runs the two existing asyncio test modules.",
+  "read_minutes": 22
+}

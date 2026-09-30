@@ -1,0 +1,84 @@
+{
+  "items": [
+    {
+      "what": "input_output_response must also preserve labels (instruction only names forced_response)",
+      "kind": "extra_behavior",
+      "names": [
+        "input_output_response"
+      ],
+      "strings": [],
+      "test_ref": "test_input_output_response_labels_preserved",
+      "quote": "res = ct.input_output_response(sys, T, U=[Va, Tl], X0=[0, 0])\n    assert list(res.output_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "step_response must also preserve labels",
+      "kind": "extra_behavior",
+      "names": [
+        "step_response"
+      ],
+      "strings": [],
+      "test_ref": "test_step_response_labels_preserved",
+      "quote": "res = ct.step_response(sys)\n    assert list(res.output_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "impulse_response must also preserve labels",
+      "kind": "extra_behavior",
+      "names": [
+        "impulse_response"
+      ],
+      "strings": [],
+      "test_ref": "test_impulse_response_labels_preserved",
+      "quote": "res = ct.impulse_response(sys)\n    assert list(res.output_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "initial_response must also preserve labels, including state_labels for an input-less response",
+      "kind": "extra_behavior",
+      "names": [
+        "initial_response"
+      ],
+      "strings": [],
+      "test_ref": "test_initial_response_labels_preserved",
+      "quote": "res = ct.initial_response(sys, X0=[1, 0])\n    assert list(res.output_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "input/output selection (input=0, output=1) must subset the labels to the selected channels \u2014 index subsetting semantics not stated anywhere",
+      "kind": "extra_behavior",
+      "names": [
+        "step_response",
+        "impulse_response",
+        "initial_response"
+      ],
+      "strings": [],
+      "test_ref": "test_step_response_input_selection_labels",
+      "quote": "res = ct.step_response(sys, input=0)\n    assert list(res.input_labels) == [\"Va\"]",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "state_labels must be non-None with correct length in step/impulse/initial responses (instruction only shows they were None)",
+      "kind": "extra_behavior",
+      "names": [
+        "state_labels"
+      ],
+      "strings": [],
+      "test_ref": "test_step_response_labels_preserved",
+      "quote": "assert res.state_labels is not None\n    assert len(res.state_labels) == 2",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction only mentions forced_response; the fix naturally propagates to sibling response functions (guessable), but the hidden tests additionally require label subsetting under input/output selection, which involves index-subsetting semantics the instruction never states.",
+  "usage": {
+    "completion_tokens": 888,
+    "completion_tokens_details": {
+      "reasoning_tokens": 238
+    },
+    "prompt_tokens": 2739,
+    "prompt_tokens_details": {
+      "cached_tokens": 2688
+    },
+    "total_tokens": 3627
+  }
+}

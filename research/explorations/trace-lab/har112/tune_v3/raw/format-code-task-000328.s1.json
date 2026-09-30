@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The instruction fully specifies the connector: all stream names, paths, base URL, auth header format, envelope/pagination shape, and check_connection semantics. Remaining test specifics (url_base, read_records, SyncMode, requests_mock) are CDK/test-helper APIs or direct consequences of the stated requirements.",
+  "usage": {
+    "completion_tokens": 223,
+    "completion_tokens_details": {
+      "reasoning_tokens": 92
+    },
+    "prompt_tokens": 3175,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 3398
+  }
+}

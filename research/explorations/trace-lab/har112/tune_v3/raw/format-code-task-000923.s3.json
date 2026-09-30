@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The instruction explicitly names sweep_iterator, a caller-provided transformer parameter, a Transformer helper with an encode policy for the hybrid case, and the three presentation policies; the test's expected encode outputs (complex values flattened like sweep_string_iterator, primitives native) match the described hybrid semantics, so the minimal fix passes.",
+  "usage": {
+    "completion_tokens": 302,
+    "completion_tokens_details": {
+      "reasoning_tokens": 178
+    },
+    "prompt_tokens": 2513,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2815
+  }
+}

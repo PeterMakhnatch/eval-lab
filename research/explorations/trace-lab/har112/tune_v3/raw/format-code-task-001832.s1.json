@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "Every test assertion maps to behavior explicitly stated in the instruction; helper attributes like last_select, group_by, grouper, and inner_columns are existing LazyTbl/pandas internals used only to inspect results, not new names the fix must provide.",
+  "usage": {
+    "completion_tokens": 345,
+    "completion_tokens_details": {
+      "reasoning_tokens": 156
+    },
+    "prompt_tokens": 3943,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 4288
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "items": [
+    {
+      "what": "Exact source line 'def atomic(self, transaction_type=None, **kwargs):' must appear verbatim in /app/vendor/peewee/peewee.py \u2014 the instruction only names lock_type, and the required parameter name is transaction_type with **kwargs",
+      "kind": "exact_string",
+      "names": [
+        "atomic",
+        "transaction_type"
+      ],
+      "strings": [
+        "def atomic(self, transaction_type=None, **kwargs):"
+      ],
+      "test_ref": "tests/test_outputs.py:90",
+      "quote": "assert \"def atomic(self, transaction_type=None, **kwargs):\" in peewee_source",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "output. checks must have exactly the keys atomic_immediate, transaction_deferred, nested_savepoint, contention, all \u2014 the instruction never names them",
+      "kind": "exact_string",
+      "names": [
+        "atomic_immediate",
+        "transaction_deferred",
+        "nested_savepoint",
+        "contention",
+        "all"
+      ],
+      "strings": [
+        "atomic_immediate",
+        "transaction_deferred",
+        "nested_savepoint",
+        "contention",
+        "all"
+      ],
+      "test_ref": "tests/test_outputs.py:22-26",
+      "quote": "assert set(data[\"checks\"]) == {\"atomic_immediate\", \"transaction_deferred\", \"nested_savepoint\", \"contention\", \"all\"}",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "APSW adapter's transaction method must itself have a lock_type parameter in its args and contain a call to transaction(...) \u2014 the instruction only says 'retain compatible lock-mode forwarding'",
+      "kind": "extra_behavior",
+      "names": [
+        "transaction",
+        "lock_type"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_outputs.py:92-95",
+      "quote": "assert any(any(arg.arg == \"lock_type\" for arg in method.args.args) and any(isinstance(node, ast.Call) and getattr(node.func, \"id\", \"\") == \"transaction\" ...",
+      "severity": "guessable"
+    },
+    {
+      "what": "Contention behavior: a second connection with lock_type='IMMEDIATE' must raise an exception whose class name is exactly 'OperationalError' while the first holds the lock",
+      "kind": "extra_behavior",
+      "names": [
+        "OperationalError"
+      ],
+      "strings": [
+        "OperationalError"
+      ],
+      "test_ref": "tests/test_outputs.py:57-61",
+      "quote": "blocked = error.__class__.__name__ == \"OperationalError\"",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction never names the required transaction_type parameter (test demands a verbatim source line using it alongside lock_type), nor the exact five keys of the output. checks object; both are not_inferable. The APSW lock_type signature and OperationalError contention behavior are reasonable inferences from 'retain compatible lock-mode forwarding' and the lock-mode requirement.",
+  "usage": {
+    "completion_tokens": 845,
+    "completion_tokens_details": {
+      "reasoning_tokens": 167
+    },
+    "prompt_tokens": 2182,
+    "prompt_tokens_details": {
+      "cached_tokens": 768
+    },
+    "total_tokens": 3027
+  }
+}

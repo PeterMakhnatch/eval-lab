@@ -1,0 +1,25 @@
+{
+  "task_id": "format-code-task-002734",
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Non-string values without --convert must be explained on stdout, and every failure case (missing file, bad extension, missing name/value, non-string value) must leave stderr empty. Shell.run prints unexpected exceptions as 'ERROR: ...' on stdout and returns non-zero, but argparse failures and logging go to stderr. The convert explanation must contain ('non-string' or 'not a string') plus 'convert', 'string', and 'file'.",
+      "test_ref": "usercase-test-coderl/usecase.sh F7-F11",
+      "quote": "[ ! -s err ] || fail; text must include non-string/not a string, convert, string, and file",
+      "severity": "guessable",
+      "rules": ["R5"],
+      "names": ["stdout", "stderr"]
+    }
+  ],
+  "instruction_covers": [
+    "st2 key load FILE with optional -c/--convert before the path",
+    "One object or a list; required name and value; optional scope, user, encrypted, secret, ttl",
+    "Table columns name, value, secret, scope, user, ttl unless JSON or YAML output is requested",
+    "String values stored as-is; --convert JSON-encodes non-strings; without it, non-zero exit explaining conversion or string form",
+    "Empty YAML exits 0 with the standard empty-result output and no key updates",
+    "Missing files, unsupported extensions, missing required fields, and non-string values without --convert exit non-zero",
+    "Concrete kv_name and first/second examples"
+  ],
+  "notes": "Repo already has KeyValuePairSetCommand, manager.update PUT /keys/{name} via get_plural_name().lower(), load_meta_file ALLOWED_EXTS json/yaml/yml, print_output empty string 'No matching items found', and --json/--yaml on ResourceCommand. Those are R1, not items. Table headers come from display_attributes passed to MultiColumnTable. F3/F5 subset-match JSON/YAML stdout if the engineer uses the existing formatters. Empty-file 'no'/'none'/'empty' is the existing print_output string. Guessable only because a fix that reports failures through argparse/stderr would fail the empty-stderr checks even though the instruction only says exit non-zero and explain.",
+  "read_minutes": 30
+}

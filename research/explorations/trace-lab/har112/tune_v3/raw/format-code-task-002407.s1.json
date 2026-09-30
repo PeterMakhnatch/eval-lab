@@ -1,0 +1,75 @@
+{
+  "items": [
+    {
+      "what": "step_response must preserve system labels",
+      "kind": "extra_behavior",
+      "names": [
+        "step_response"
+      ],
+      "strings": [],
+      "test_ref": "test_step_response_labels_preserved",
+      "quote": "res = ct.step_response(sys)\n    assert list(res.output_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "impulse_response must preserve system labels",
+      "kind": "extra_behavior",
+      "names": [
+        "impulse_response"
+      ],
+      "strings": [],
+      "test_ref": "test_impulse_response_labels_preserved",
+      "quote": "res = ct.impulse_response(sys)\n    assert list(res.output_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "initial_response must preserve output/state labels",
+      "kind": "extra_behavior",
+      "names": [
+        "initial_response"
+      ],
+      "strings": [],
+      "test_ref": "test_initial_response_labels_preserved",
+      "quote": "res = ct.initial_response(sys, X0=[1, 0])\n    assert list(res.output_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "input_output_response must preserve system labels",
+      "kind": "extra_behavior",
+      "names": [
+        "input_output_response"
+      ],
+      "strings": [],
+      "test_ref": "test_input_output_response_labels_preserved",
+      "quote": "res = ct.input_output_response(sys, T, U=[Va, Tl], X0=[0, 0])\n    assert list(res.output_labels) == [\"Ia\", \"Wm\"]",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "input/output selection (index subsetting) must subset labels accordingly, e.g. step_response(sys, input=0) yields input_labels [\"Va\"]",
+      "kind": "extra_behavior",
+      "names": [
+        "step_response",
+        "impulse_response",
+        "initial_response",
+        "input",
+        "output"
+      ],
+      "strings": [],
+      "test_ref": "test_step_response_input_selection_labels / test_impulse_response_selection_labels / test_initial_response_output_selection_labels",
+      "quote": "res = ct.step_response(sys, input=0)\n    assert list(res.input_labels) == [\"Va\"]",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The instruction only mentions forced_response label propagation; the hidden tests additionally require step_response, impulse_response, initial_response and input_output_response to carry labels, plus label subsetting under input/output selection (index subsetting), none of which are stated or directly implied.",
+  "usage": {
+    "completion_tokens": 687,
+    "completion_tokens_details": {
+      "reasoning_tokens": 101
+    },
+    "prompt_tokens": 2739,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3426
+  }
+}

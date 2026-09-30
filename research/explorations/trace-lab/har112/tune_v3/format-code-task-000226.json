@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-000226",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "All attributes tested (path, query, fragment, proxy_scheme, proxy_netloc, command, version, parse_header, HTTPRequestParser, Adjustments) already exist in waitress and the expected values are direct consequences of not treating '//' as netloc; the fix implied by the issue makes all tests pass."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 197,
+      "completion_tokens_details": {
+        "reasoning_tokens": 59
+      },
+      "prompt_tokens": 1931,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 2128
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

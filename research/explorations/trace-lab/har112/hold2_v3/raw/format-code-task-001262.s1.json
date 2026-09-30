@@ -1,0 +1,39 @@
+{
+  "items": [
+    {
+      "what": "Error code for the mismatch must be exactly InvalidParameterCombination; instruction only says 'Error should be raised'.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "InvalidParameterCombination"
+      ],
+      "test_ref": "test_create_db_instance_mismatch_engine_aurora_postgresql_raises",
+      "quote": "assert err[\"Code\"] == \"InvalidParameterCombination\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Error message must contain both the instance engine and the cluster engine as substrings (e.g. 'mysql' and 'aurora-postgresql'); message wording/format is not specified in the instruction.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "mysql",
+        "aurora-postgresql"
+      ],
+      "test_ref": "test_create_db_instance_mismatch_engine_aurora_postgresql_raises",
+      "quote": "assert \"mysql\" in err[\"Message\"]\nassert \"aurora-postgresql\" in err[\"Message\"]",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction only requires that an error be raised on engine mismatch; the exact AWS error code InvalidParameterCombination and the requirement that the message embed both engine names are unstated, though both are plausible conventions for a minimal AWS-faithful fix, so they are graded guessable.",
+  "usage": {
+    "completion_tokens": 629,
+    "completion_tokens_details": {
+      "reasoning_tokens": 295
+    },
+    "prompt_tokens": 2326,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2955
+  }
+}

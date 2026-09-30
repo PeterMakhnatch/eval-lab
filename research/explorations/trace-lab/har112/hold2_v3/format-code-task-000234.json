@@ -1,0 +1,230 @@
+{
+  "task_id": "format-code-task-000234",
+  "label": "broken",
+  "label_without_repo": "broken",
+  "sample_labels": [
+    "broken",
+    "broken",
+    "suspect"
+  ],
+  "repo_used": true,
+  "unstated": [
+    {
+      "what": "Branch method named get_chain_id (instruction describes 'report the chain id' but never names the method)",
+      "kind": "new_name",
+      "names": [
+        "get_chain_id"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:13",
+      "quote": "self.assertEqual(b.get_chain_id(), 0)",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "get_chain_id": null
+      }
+    },
+    {
+      "what": "Branch method named get_full_shard_id returning the value itself",
+      "kind": "new_name",
+      "names": [
+        "get_full_shard_id"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:16",
+      "quote": "self.assertEqual(b.get_full_shard_id(), 8 | 6)",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "get_full_shard_id": null
+      }
+    },
+    {
+      "what": "Branch membership method named is_in_branch",
+      "kind": "new_name",
+      "names": [
+        "is_in_branch"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:49",
+      "quote": "self.assertTrue(self.branch.is_in_branch(key))",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "is_in_branch": null
+      }
+    },
+    {
+      "what": "Address method named get_full_shard_id taking a shard_size argument",
+      "kind": "new_name",
+      "names": [
+        "get_full_shard_id"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:65",
+      "quote": "self.assertEqual(addr.get_full_shard_id(4), make_full_shard_id(5, 4, 3))",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "get_full_shard_id": null
+      }
+    },
+    {
+      "what": "Branch method name get_chain_id",
+      "kind": "new_name",
+      "names": [
+        "get_chain_id"
+      ],
+      "strings": [],
+      "test_ref": "test_zero_chain_id_backward_compatible",
+      "quote": "self.assertEqual(b.get_chain_id(), 0)",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "get_chain_id": null
+      }
+    },
+    {
+      "what": "Branch method name get_full_shard_id",
+      "kind": "new_name",
+      "names": [
+        "get_full_shard_id"
+      ],
+      "strings": [],
+      "test_ref": "test_zero_chain_id_backward_compatible",
+      "quote": "self.assertEqual(b.get_full_shard_id(), 8 | 6)",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "get_full_shard_id": null
+      }
+    },
+    {
+      "what": "Address method get_full_shard_id taking a shard_size parameter and raising RuntimeError on non-power-of-two",
+      "kind": "new_name",
+      "names": [
+        "get_full_shard_id"
+      ],
+      "strings": [],
+      "test_ref": "TestAddressFullShardId.test_computes_full_shard_id",
+      "quote": "self.assertEqual(addr.get_full_shard_id(4), make_full_shard_id(5, 4, 3))",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "get_full_shard_id": null
+      }
+    },
+    {
+      "what": "Branch method name for reporting the chain id (instruction describes the value but not the accessor name)",
+      "kind": "new_name",
+      "names": [
+        "get_chain_id"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:13",
+      "quote": "self.assertEqual(b.get_chain_id(), 0)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Address method computing full shard id from a shard size (instruction describes the computation but not the method name; mirrors Branch.get_full_shard_id)",
+      "kind": "new_name",
+      "names": [
+        "Address.get_full_shard_id"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:75",
+      "quote": "self.assertEqual(addr.get_full_shard_id(4), make_full_shard_id(5, 4, 3))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Address re-homing method name (instruction describes 'producing the address \"in\" a branch' but not the name; mirrors existing address_in_branch convention)",
+      "kind": "new_name",
+      "names": [
+        "address_in_branch"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:95",
+      "quote": "new_addr = addr.address_in_branch(branch)",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [
+    {
+      "what": "Branch method named get_shard_size",
+      "kind": "new_name",
+      "names": [
+        "get_shard_size"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:14",
+      "quote": "self.assertEqual(b.get_shard_size(), 8)",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "get_shard_size": "quarkchain/core.py:451"
+      }
+    },
+    {
+      "what": "Branch method named get_shard_id",
+      "kind": "new_name",
+      "names": [
+        "get_shard_id"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:15",
+      "quote": "self.assertEqual(b.get_shard_id(), 6)",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "get_shard_id": "quarkchain/core.py:377"
+      }
+    },
+    {
+      "what": "Address re-homing method named address_in_branch",
+      "kind": "new_name",
+      "names": [
+        "address_in_branch"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:95",
+      "quote": "new_addr = addr.address_in_branch(branch)",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "address_in_branch": "quarkchain/core.py:385"
+      }
+    }
+  ],
+  "reasons": [
+    "The instruction fully specifies the encoding and semantics, but never names the methods the hidden tests call (get_chain_id, get_shard_size, get_shard_id, get_full_shard_id, is_in_branch, address_in_branch); those exact identifiers are required, so each is listed as a new_name item (dropped if the repo already defines them, e.g. get_shard_size/get_shard_id likely exist on Branch).",
+    "The instruction specifies all behavior and semantics precisely but never names the required methods; the tests call get_chain_id, get_full_shard_id (on both Branch and Address), which may or may not exist in the repo and cannot be inferred from the instruction text.",
+    "All semantics (bit layout, RuntimeError, re-homing rules) are fully specified in the instruction; the only unstated items are accessor/method names, which follow the existing Branch getter convention and the existing repo's address_in_branch name, so a minimal fix passes."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 933,
+      "completion_tokens_details": {
+        "reasoning_tokens": 158
+      },
+      "prompt_tokens": 3287,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 4220
+    },
+    {
+      "completion_tokens": 572,
+      "completion_tokens_details": {
+        "reasoning_tokens": 195
+      },
+      "prompt_tokens": 3287,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 3859
+    },
+    {
+      "completion_tokens": 655,
+      "completion_tokens_details": {
+        "reasoning_tokens": 213
+      },
+      "prompt_tokens": 3287,
+      "prompt_tokens_details": {
+        "cached_tokens": 3264
+      },
+      "total_tokens": 3942
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

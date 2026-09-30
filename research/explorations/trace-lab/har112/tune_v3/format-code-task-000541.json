@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-000541",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction explicitly names all four handlers, their semantics, no-op defaults, and state-change triggers; the only unstated detail (_raw attribute on the handler wrapper) follows the existing on_close convention and standard toga handler machinery."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 283,
+      "completion_tokens_details": {
+        "reasoning_tokens": 137
+      },
+      "prompt_tokens": 3050,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 3333
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

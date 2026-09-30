@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "All attributes tested (path, query, fragment, proxy_scheme, proxy_netloc, command, version, parse_header, HTTPRequestParser, Adjustments) already exist in waitress and the expected values are direct consequences of not treating '//' as netloc; the fix implied by the issue makes all tests pass.",
+  "usage": {
+    "completion_tokens": 197,
+    "completion_tokens_details": {
+      "reasoning_tokens": 59
+    },
+    "prompt_tokens": 1931,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2128
+  }
+}

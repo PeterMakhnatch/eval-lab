@@ -1,0 +1,85 @@
+{
+  "items": [
+    {
+      "what": "On a missing/unreadable default CSV, the command must fail with a diagnostic on stderr containing the path 'styles/fixtures/default_names.csv'",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "styles/fixtures/default_names.csv"
+      ],
+      "test_ref": "usecase.sh case2",
+      "quote": "grep -q \"styles/fixtures/default_names.csv\" err || fail \"F2 stderr: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "On a missing translation CSV, the command must fail with stderr mentioning 'styles/locale/cs/names.csv' (path built from settings.LANGUAGES entry)",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "styles/locale/cs/names.csv"
+      ],
+      "test_ref": "usecase.sh case3",
+      "quote": "grep -q \"styles/locale/cs/names.csv\" err || fail \"F3 stderr: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "A default CSV lacking the 'slug' column must fail with stderr containing 'slug'",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "slug"
+      ],
+      "test_ref": "usecase.sh case4",
+      "quote": "grep -q \"slug\" err || fail \"F4 stderr: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "A translation CSV lacking the language-specific column ('name_cs' for cs) must fail with stderr containing 'name_cs'",
+      "kind": "exact_string",
+      "names": [
+        "name_cs"
+      ],
+      "strings": [
+        "name_cs"
+      ],
+      "test_ref": "usecase.sh case5",
+      "quote": "grep -q \"name_cs\" err || fail \"F5 stderr: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "The unknown-slug warning must be emitted on stderr and contain the literal slug 'unknown-slug' (logging warning reaching stderr even with LOGGING_CONFIG=None)",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "unknown-slug"
+      ],
+      "test_ref": "usecase.sh case1",
+      "quote": "grep -q 'unknown-slug' err || fail \"F1 missing unknown-slug warning: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "The command must import LegendItemName from styles.models such that the fixture's fake model module (sys.modules['styles.models']) is used",
+      "kind": "new_name",
+      "names": [
+        "styles.models",
+        "LegendItemName"
+      ],
+      "strings": [],
+      "test_ref": "fixtures/sitecustomize.py",
+      "quote": "sys.modules[\"styles.models\"] = models; models.LegendItemName = LegendItemName",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The hidden tests exercise only behaviors described in the instruction; the stderr substrings required (file paths, column names, unknown slug) are all spelled out in the instruction text, and the LegendItemName/styles.models import target is named there too, so all items are guessable rather than not_inferable.",
+  "usage": {
+    "completion_tokens": 1151,
+    "completion_tokens_details": {
+      "reasoning_tokens": 416
+    },
+    "prompt_tokens": 4855,
+    "prompt_tokens_details": {
+      "cached_tokens": 768
+    },
+    "total_tokens": 6006
+  }
+}

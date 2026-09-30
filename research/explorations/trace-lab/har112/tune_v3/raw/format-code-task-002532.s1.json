@@ -1,0 +1,70 @@
+{
+  "items": [
+    {
+      "what": "Words data files are parsed as TSV lines of the form 'word\\tfrequency\\tPOS' (custom fixture uses this exact format); the instruction never specifies the file format.",
+      "kind": "other",
+      "names": [
+        "custom_words.dat"
+      ],
+      "strings": [],
+      "test_ref": "test_custom_files_provide_custom_words_and_verbs / fixtures/custom_words.dat",
+      "quote": "+\u062e\u0627\u0646\u0647\t100\tN\n+\u062f\u0648\u062e\u062a\t10\tV",
+      "severity": "guessable"
+    },
+    {
+      "what": "Joined verb lookup must handle the future-marker prefix '\u062e\u0648\u0627\u0647\u062f_' (\u062e\u0648\u0627\u0647\u062f_\u062f\u0648\u062e\u062a -> \u062f\u0648\u062e\u062a#\u062f\u0648\u0632), beyond plain joined perfect forms.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        "\u062e\u0648\u0627\u0647\u062f_\u062f\u0648\u062e\u062a"
+      ],
+      "test_ref": "test_custom_joined_verb_parts_are_in_lookup_when_enabled",
+      "quote": "assert lemmatizer.lemmatize(\"\u062e\u0648\u0627\u0647\u062f_\u062f\u0648\u062e\u062a\") == \"\u062f\u0648\u062e\u062a#\u062f\u0648\u0632\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Joined verb lookup must handle negative prefix '\u0646' with joined '\u0646\u062f\u0648\u062e\u062a\u0647_\u0627\u0633\u062a' -> \u062f\u0648\u062e\u062a#\u062f\u0648\u0632.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        "\u0646\u062f\u0648\u062e\u062a\u0647_\u0627\u0633\u062a"
+      ],
+      "test_ref": "test_custom_joined_verb_parts_are_in_lookup_when_enabled",
+      "quote": "assert lemmatizer.lemmatize(\"\u0646\u062f\u0648\u062e\u062a\u0647_\u0627\u0633\u062a\") == \"\u062f\u0648\u062e\u062a#\u062f\u0648\u0632\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Missing words_file must raise an exception at initialization (test accepts any Exception).",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "test_constructor_raises_specific_error_for_missing_words_file",
+      "quote": "with pytest.raises(Exception):",
+      "severity": "guessable"
+    },
+    {
+      "what": "default_words and default_verbs must be importable from the 'hazm' package (module-level names the tests import); instruction uses them but never states they are exported names of the package.",
+      "kind": "new_name",
+      "names": [
+        "default_words",
+        "default_verbs"
+      ],
+      "strings": [],
+      "test_ref": "test_lemmatizer_acceptance.py:13-15",
+      "quote": "from hazm import Lemmatizer\nfrom hazm import default_verbs\nfrom hazm import default_words",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction covers nearly all tested behavior; residual gaps are the TSV data-file format, the \u062e\u0648\u0627\u0647\u062f/\u0646 joined-form prefixes, the missing-file error, and the exported default_words/default_verbs names \u2014 all of which a natural hazm-style implementation would satisfy, so they are graded guessable.",
+  "usage": {
+    "completion_tokens": 1213,
+    "completion_tokens_details": {
+      "reasoning_tokens": 479
+    },
+    "prompt_tokens": 3837,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 5050
+  }
+}

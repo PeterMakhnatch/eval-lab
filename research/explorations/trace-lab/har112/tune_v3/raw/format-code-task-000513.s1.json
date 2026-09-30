@@ -1,0 +1,47 @@
+{
+  "items": [
+    {
+      "what": "Numeric strings must be parsed by float level so \"0.90\" matches the stored key \"0.1\"-style keys even though the instruction only shows \"0.1\", \"p50\", and float inputs",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "0.90"
+      ],
+      "test_ref": "test_equivalent_numeric_string_for_stored_right_decile_returns_array",
+      "quote": "actual = base_forecast().quantile(\"0.90\")\n... assert_array_equal_with_nan(actual, np.array([100.0, 200.0]))",
+      "severity": "guessable"
+    },
+    {
+      "what": "A stored \"mean\" array must be excluded from the quantile arrays used for interpolation (instruction only mentions mean in the degenerate all-NaN case)",
+      "kind": "extra_behavior",
+      "names": [
+        "mean"
+      ],
+      "strings": [],
+      "test_ref": "test_mean_key_is_ignored_when_interpolating_quantiles",
+      "quote": "forecast_keys=[\"mean\", \"0.25\", \"0.75\"] ... actual = forecast.quantile(0.5) ... np.array([5.5, 11.0, 16.5])",
+      "severity": "guessable"
+    },
+    {
+      "what": "The exact exponential tail approximation is unspecified; tests only require finite, correctly-ordered values that differ from linear extrapolation, so any reasonable exponential tail formula passes \u2014 but the instruction gives no formula",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "test_missing_quantile_in_effective_left_tail_extrapolates",
+      "quote": "assert np.all(np.isfinite(actual)) ... assert not np.allclose(actual, linear_tail, rtol=1e-12, atol=1e-12)",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction names the method, input forms, interpolation, degenerate NaN behavior, and purity, but omits float-string normalization like \"0.90\", that \"mean\" keys must be ignored when interpolating, and any concrete tail-approximation formula (tests are loose enough that any exponential variant passes).",
+  "usage": {
+    "completion_tokens": 1133,
+    "completion_tokens_details": {
+      "reasoning_tokens": 598
+    },
+    "prompt_tokens": 3729,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 4862
+  }
+}

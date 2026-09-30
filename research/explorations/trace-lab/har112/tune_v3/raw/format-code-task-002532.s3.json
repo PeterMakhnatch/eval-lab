@@ -1,0 +1,39 @@
+{
+  "items": [
+    {
+      "what": "Exact POS hint strings 'NOUN', 'PRON', 'ADJ' beyond 'VERB' \u2014 instruction says 'adjective POS hint', 'pronouns', 'known words' but never gives the literal tag values the tests pass",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "NOUN",
+        "PRON",
+        "ADJ",
+        "VERB"
+      ],
+      "test_ref": "test_known_word_with_pos_hint_remains_unchanged / test_pronoun_pos_hint_remains_unchanged / test_adjective_pos_hint_preserves_y_ending_word",
+      "quote": "lemmatizer.lemmatize(\"\u0645\u0631\u062f\u0645\", pos=\"NOUN\") / lemmatizer.lemmatize(\"\u0645\u0646\", pos=\"PRON\") / lemmatizer.lemmatize(\"\u0627\u062c\u062a\u0645\u0627\u0639\u06cc\", pos=\"ADJ\")",
+      "severity": "guessable"
+    },
+    {
+      "what": "Future-tense joined form '\u062e\u0648\u0627\u0647\u062f_\u062f\u0648\u062e\u062a' must resolve via the verb lookup \u2014 the stated examples cover only passive-perfect and negative-perfect joined forms; handling the '\u062e\u0648\u0627\u0647\u062f_' prefix is additional conjugation semantics",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "test_custom_joined_verb_parts_are_in_lookup_when_enabled",
+      "quote": "assert lemmatizer.lemmatize(\"\u062e\u0648\u0627\u0647\u062f_\u062f\u0648\u062e\u062a\") == \"\u062f\u0648\u062e\u062a#\u062f\u0648\u0632\"",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction plus its examples cover nearly all behavior; the only unstated bits are the literal UD-style POS strings (standard convention, guessable) and the future-prefix joined verb form, which follows from the same generic conjugation-matching mechanism the instruction requires.",
+  "usage": {
+    "completion_tokens": 1380,
+    "completion_tokens_details": {
+      "reasoning_tokens": 843
+    },
+    "prompt_tokens": 3837,
+    "prompt_tokens_details": {
+      "cached_tokens": 768
+    },
+    "total_tokens": 5217
+  }
+}

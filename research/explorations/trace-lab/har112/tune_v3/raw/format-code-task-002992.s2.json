@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "Every hidden-test behavior (exact dict shapes, glob filtering of '-skip.xml', inclusive bbox math, purity checks, mapping non-mutation) follows directly from the instruction's stated contract; a minimal implementation of exactly what is described passes all tests.",
+  "usage": {
+    "completion_tokens": 463,
+    "completion_tokens_details": {
+      "reasoning_tokens": 272
+    },
+    "prompt_tokens": 5067,
+    "prompt_tokens_details": {
+      "cached_tokens": 768
+    },
+    "total_tokens": 5530
+  }
+}

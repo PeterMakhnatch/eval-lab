@@ -1,0 +1,38 @@
+{
+  "items": [
+    {
+      "what": "Siblings of 'Y': aliases 'YS', 'BY', 'BYS' must also be accepted by to_offset",
+      "kind": "extra_behavior",
+      "names": [
+        "to_offset"
+      ],
+      "strings": [],
+      "test_ref": "test_to_offset_YS_alias etc.",
+      "quote": "result = frequencies.to_offset('YS'); expected = frequencies.to_offset('AS')",
+      "severity": "guessable"
+    },
+    {
+      "what": "Aliases 'Y-DEC', 'Y-JAN', 'Y-MAY' must be accepted by _period_str_to_code",
+      "kind": "extra_behavior",
+      "names": [
+        "_period_str_to_code"
+      ],
+      "strings": [],
+      "test_ref": "test_period_str_to_code_Y_month",
+      "quote": "assert (frequencies._period_str_to_code('Y-DEC') == frequencies._period_str_to_code('A-DEC'))",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction only mentions 'Y'; the tests additionally require the YS/BY/BYS sibling aliases and _period_str_to_code support, but all are fixed by the identical alias-mapping change, so they are guessable.",
+  "usage": {
+    "completion_tokens": 539,
+    "completion_tokens_details": {
+      "reasoning_tokens": 261
+    },
+    "prompt_tokens": 2058,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 2597
+  }
+}

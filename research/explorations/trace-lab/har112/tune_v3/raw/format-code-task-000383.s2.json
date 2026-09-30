@@ -1,0 +1,87 @@
+{
+  "items": [
+    {
+      "what": "Client class and module names: tests import from module 'fixapp' the names Tier1FXAuto, DataStream, FixDecoder, OrderStore",
+      "kind": "new_name",
+      "names": [
+        "fixapp",
+        "Tier1FXAuto",
+        "DataStream",
+        "FixDecoder",
+        "OrderStore"
+      ],
+      "strings": [],
+      "test_ref": "test_market_data_requests.py:38",
+      "quote": "from fixapp import DataStream, FixDecoder, OrderStore, Tier1FXAuto  # noqa: E402",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Tier1FXAuto constructor signature: Tier1FXAuto(DataStream(), FixDecoder(), OrderStore(), settings)",
+      "kind": "new_name",
+      "names": [
+        "Tier1FXAuto"
+      ],
+      "strings": [],
+      "test_ref": "test_market_data_requests.py:_configured_client",
+      "quote": "client = Tier1FXAuto(DataStream(), FixDecoder(), OrderStore(), settings)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Messages must be sent via class-level quickfix Session.sendToTarget (tests monkeypatch fix.Session.sendToTarget), so the fix must route through that exact call",
+      "kind": "extra_behavior",
+      "names": [
+        "Session.sendToTarget"
+      ],
+      "strings": [],
+      "test_ref": "test_market_data_requests.py:_capture_send",
+      "quote": "monkeypatch.setattr(fix.Session, \"sendToTarget\", capture)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Sent object must be a quickfix Message with header TargetCompID (tag 56) = quote target FIXUAT3-QUOTE.FORTEX.COM when no session_id is passed",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "FIXUAT3-QUOTE.FORTEX.COM"
+      ],
+      "test_ref": "test_market_data_requests.py:_assert_sent_to_quote_session",
+      "quote": "assert message.getHeader().getField(56) == QUOTE_TARGET",
+      "severity": "guessable"
+    },
+    {
+      "what": "NoRelatedSym count (146='1') must be set on the message itself, and entries as Group(267,269) with 269 in {'0','1'} and symbol Group(146,55), compatible with fix.Group/getGroup reads",
+      "kind": "extra_behavior",
+      "names": [
+        "getGroup"
+      ],
+      "strings": [],
+      "test_ref": "test_market_data_requests.py:_field_snapshot",
+      "quote": "entry_group = fix.Group(267, 269); message.getGroup(index, entry_group); ... symbol_group = fix.Group(146, 55)",
+      "severity": "guessable"
+    },
+    {
+      "what": "onCreate must register each session id on the client so a 'configured' instance knows the quote session",
+      "kind": "extra_behavior",
+      "names": [
+        "onCreate",
+        "getSessions"
+      ],
+      "strings": [],
+      "test_ref": "test_market_data_requests.py:_configured_client",
+      "quote": "for session_id in settings.getSessions(): client.onCreate(session_id)",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The FIX message content is covered, but the tests pin repository-specific names (fixapp module, Tier1FXAuto and its collaborators and constructor order), the exact sendToTarget routing mechanism, and the quickfix group/field layout, none of which the instruction states.",
+  "usage": {
+    "completion_tokens": 1259,
+    "completion_tokens_details": {
+      "reasoning_tokens": 441
+    },
+    "prompt_tokens": 4489,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 5748
+  }
+}

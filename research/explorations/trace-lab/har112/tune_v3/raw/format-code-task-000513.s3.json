@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "Every hidden test assertion traces back to behavior the instruction explicitly states (levels, interpolation values, NaN fallback, tail extrapolation via exponential approximation, purity). Tail tests only require finite, ordered, non-linear results, which the stated exponential tail approach satisfies; string parsing and mean-key exclusion are direct consequences of a quantile-backed forecast.",
+  "usage": {
+    "completion_tokens": 550,
+    "completion_tokens_details": {
+      "reasoning_tokens": 294
+    },
+    "prompt_tokens": 3729,
+    "prompt_tokens_details": {
+      "cached_tokens": 768
+    },
+    "total_tokens": 4279
+  }
+}

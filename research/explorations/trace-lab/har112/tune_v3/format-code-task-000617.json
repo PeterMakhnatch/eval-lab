@@ -1,0 +1,41 @@
+{
+  "task_id": "format-code-task-000617",
+  "label": "suspect",
+  "label_without_repo": "suspect",
+  "sample_labels": [
+    "suspect"
+  ],
+  "repo_used": false,
+  "unstated": [
+    {
+      "what": "The failure message from the underlying build tool must be routed to stderr, and must include the exact tool text 'can not parse package.yaml: missing required fields' (the instruction never says which channel or that this specific snappy message must pass through verbatim).",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "can not parse package.yaml: missing required fields"
+      ],
+      "test_ref": "snapcraft/tests/test_cmds.py:111",
+      "quote": "self.assertTrue('can not parse package.yaml: missing required fields'\n                        in output_stderr)",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction only requires surfacing the build tool's message; the test additionally pins that this output lands on stderr and contains snappy's exact wording. Since the substring is produced by the tool the instruction names and the stderr channel is at most guessable, these are borderline but derivable from a faithful 'surface the tool output' fix."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 521,
+      "completion_tokens_details": {
+        "reasoning_tokens": 267
+      },
+      "prompt_tokens": 1767,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2288
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

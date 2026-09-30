@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The instruction explicitly names every identifier, string ('celery.chunks', 'celery.starmap'-style signatures), and behavior the hidden tests check, including routing by task name, options preservation, from_dict round-trip, the builtin task, the top-level export, and shell locals; remaining test details (Mock, Path, fixtures) are library calls/scaffolding.",
+  "usage": {
+    "completion_tokens": 520,
+    "completion_tokens_details": {
+      "reasoning_tokens": 286
+    },
+    "prompt_tokens": 3856,
+    "prompt_tokens_details": {
+      "cached_tokens": 768
+    },
+    "total_tokens": 4376
+  }
+}

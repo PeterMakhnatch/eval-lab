@@ -1,0 +1,93 @@
+{
+  "items": [
+    {
+      "what": "Branch method named get_chain_id (instruction describes 'report the chain id' but never names the method)",
+      "kind": "new_name",
+      "names": [
+        "get_chain_id"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:13",
+      "quote": "self.assertEqual(b.get_chain_id(), 0)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Branch method named get_shard_size",
+      "kind": "new_name",
+      "names": [
+        "get_shard_size"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:14",
+      "quote": "self.assertEqual(b.get_shard_size(), 8)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Branch method named get_shard_id",
+      "kind": "new_name",
+      "names": [
+        "get_shard_id"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:15",
+      "quote": "self.assertEqual(b.get_shard_id(), 6)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Branch method named get_full_shard_id returning the value itself",
+      "kind": "new_name",
+      "names": [
+        "get_full_shard_id"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:16",
+      "quote": "self.assertEqual(b.get_full_shard_id(), 8 | 6)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Branch membership method named is_in_branch",
+      "kind": "new_name",
+      "names": [
+        "is_in_branch"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:49",
+      "quote": "self.assertTrue(self.branch.is_in_branch(key))",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Address method named get_full_shard_id taking a shard_size argument",
+      "kind": "new_name",
+      "names": [
+        "get_full_shard_id"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:65",
+      "quote": "self.assertEqual(addr.get_full_shard_id(4), make_full_shard_id(5, 4, 3))",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Address re-homing method named address_in_branch",
+      "kind": "new_name",
+      "names": [
+        "address_in_branch"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:95",
+      "quote": "new_addr = addr.address_in_branch(branch)",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The instruction fully specifies the encoding and semantics, but never names the methods the hidden tests call (get_chain_id, get_shard_size, get_shard_id, get_full_shard_id, is_in_branch, address_in_branch); those exact identifiers are required, so each is listed as a new_name item (dropped if the repo already defines them, e.g. get_shard_size/get_shard_id likely exist on Branch).",
+  "usage": {
+    "completion_tokens": 933,
+    "completion_tokens_details": {
+      "reasoning_tokens": 158
+    },
+    "prompt_tokens": 3287,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 4220
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "items": [
+    {
+      "what": "New per-dataset config field `shuffle` on DatasetParams enabling pre-sampling shuffle",
+      "kind": "new_name",
+      "names": [
+        "DatasetParams",
+        "shuffle"
+      ],
+      "strings": [],
+      "test_ref": "tests/builders/test_data.py test_data_multiple_datasets_shuffle_different_seeds",
+      "quote": "sample_count=5,\n                shuffle=True,\n                seed=1,",
+      "severity": "guessable"
+    },
+    {
+      "what": "New per-dataset config field `seed` on DatasetParams pinning the shuffle randomness",
+      "kind": "new_name",
+      "names": [
+        "DatasetParams",
+        "seed"
+      ],
+      "strings": [],
+      "test_ref": "tests/builders/test_data.py test_data_multiple_datasets_shuffle_different_seeds",
+      "quote": "shuffle=True,\n                seed=2,",
+      "severity": "guessable"
+    },
+    {
+      "what": "New split-level config field `seed` on the split params (set via config.data.get_split(...).seed) forwarded to interleave_datasets",
+      "kind": "new_name",
+      "names": [
+        "seed"
+      ],
+      "strings": [],
+      "test_ref": "tests/builders/test_data.py test_data_multiple_datasets_local_mixed",
+      "quote": "config.data.get_split(DatasetSplit.TRAIN).seed = 1",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "build_dataset must now read the seed from config (tests no longer pass the seed kwarg); the call signature drop of seed=1 implies seed sourcing from DataParams/split",
+      "kind": "extra_behavior",
+      "names": [
+        "build_dataset"
+      ],
+      "strings": [],
+      "test_ref": "tests/builders/test_data.py test_data_single_dataset",
+      "quote": "dataset = build_dataset(config, tokenizer, DatasetSplit.TRAIN)",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction describes the features only in prose ('a way to...'), never naming the config fields; the tests require exact attribute names `shuffle` on DatasetParams, `seed` on both DatasetParams and the split params object, and that build_dataset reads the mixture seed from config instead of its `seed` argument. The field names shuffle/seed on DatasetParams are guessable from the prose, but the split-level attribute path (get_split(...).seed on the split params class) is an unnamed sibling location and its exact name is not inferable.",
+  "usage": {
+    "completion_tokens": 605,
+    "completion_tokens_details": {
+      "reasoning_tokens": 62
+    },
+    "prompt_tokens": 3020,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3625
+  }
+}

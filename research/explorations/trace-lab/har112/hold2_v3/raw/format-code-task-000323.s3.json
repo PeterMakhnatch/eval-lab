@@ -1,0 +1,15 @@
+{
+  "items": null,
+  "parse_error": "\n{\"unstated\": [{\"what\": \"Exact exception message format 'Received message {type}:... is not WSMsgType.{EXPECTED}' required via pytest.raises match\", \"kind\": \"exact_string\", \"names\": [], \"strings\": [\"Received message {WSMsgType.CLOSE}:.+ is not WSMsgType.BINARY\", \"Received message {WSMsgType.CLOSE}:.",
+  "usage": {
+    "completion_tokens": 631,
+    "completion_tokens_details": {
+      "reasoning_tokens": 138
+    },
+    "prompt_tokens": 2673,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3304
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "items": [
+    {
+      "what": "The storage must live at module path vdirsyncer/storage/singlefile.py (imported as `from vdirsyncer.storage.singlefile import SingleFileStorage`); the instruction never names the module/file.",
+      "kind": "new_name",
+      "names": [
+        "vdirsyncer/storage/singlefile.py"
+      ],
+      "strings": [],
+      "test_ref": "test_singlefile_storage_acceptance.py:12",
+      "quote": "from vdirsyncer.storage.singlefile import SingleFileStorage",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Constructing with a path that does not exist must raise exceptions.CollectionNotFound; the instruction only says the path must point to a regular file without naming the exception.",
+      "kind": "extra_behavior",
+      "names": [
+        "CollectionNotFound"
+      ],
+      "strings": [],
+      "test_ref": "test_constructor_create_and_discover_contract",
+      "quote": "with pytest.raises(exceptions.CollectionNotFound):\n        SingleFileStorage(str(tmp_path / \"missing.ics\"))",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Constructing with a path pointing to a directory must raise OSError specifically (not, e.g., CollectionNotFound or ValueError).",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "test_constructor_create_and_discover_contract",
+      "quote": "directory.mkdir()\n    with pytest.raises(OSError):\n        SingleFileStorage(str(directory))",
+      "severity": "guessable"
+    },
+    {
+      "what": "When instance_name is supplied together with a collection, the instance_name attribute must be composed as '<instance_name>/<collection>' (e.g. 'local/work'); the instruction never states this composition.",
+      "kind": "exact_string",
+      "names": [
+        "instance_name"
+      ],
+      "strings": [
+        "local/work"
+      ],
+      "test_ref": "test_constructor_create_and_discover_contract",
+      "quote": "assert s.instance_name == \"local/work\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "AlreadyExistingError from upload must carry the conflicting href as existing_href attribute.",
+      "kind": "extra_behavior",
+      "names": [
+        "existing_href"
+      ],
+      "strings": [],
+      "test_ref": "test_item_session_crud_errors_and_case_sensitive_hrefs",
+      "quote": "assert duplicate.value.existing_href == \"alice\"",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction details the API and error types but never names the module file path, the CollectionNotFound exception for a missing file, or the instance_name/collection composition format 'local/work'; the OSError-for-directory and existing_href attribute are standard vdirsyncer conventions and inferable.",
+  "usage": {
+    "completion_tokens": 1297,
+    "completion_tokens_details": {
+      "reasoning_tokens": 652
+    },
+    "prompt_tokens": 5417,
+    "prompt_tokens_details": {
+      "cached_tokens": 5376
+    },
+    "total_tokens": 6714
+  }
+}

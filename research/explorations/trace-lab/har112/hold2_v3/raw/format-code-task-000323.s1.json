@@ -1,0 +1,44 @@
+{
+  "items": [
+    {
+      "what": "Exact exception message format 'Received message {msg.type}:{msg.data} is not WSMsgType.{expected}' used in pytest.raises match",
+      "kind": "exact_string",
+      "names": [
+        "WSMessageTypeError"
+      ],
+      "strings": [
+        "Received message WSMsgType.CLOSED:.+ is not WSMsgType.TEXT",
+        "Received message WSMsgType.CLOSED:.+ is not WSMsgType.BINARY",
+        "Received message WSMsgType.CLOSE:.+ is not WSMsgType.BINARY",
+        "Received message WSMsgType.CLOSE:.+ is not WSMsgType.TEXT"
+      ],
+      "test_ref": "tests/test_web_websocket.py:266-273, tests/test_client_ws_functional.py:84-90",
+      "quote": "match=f\"Received message {WSMsgType.CLOSED}:.+ is not WSMsgType.TEXT\"",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "receive_str and receive_bytes must raise the new error on closed/closing messages (instruction names receive_ and generic 'receive_*', but these siblings require the identical change \u2014 mechanical propagation)",
+      "kind": "extra_behavior",
+      "names": [
+        "receive_str",
+        "receive_bytes"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_web_websocket.py:263,290",
+      "quote": "with pytest.raises(WSMessageTypeError, match=f\"Received message {WSMsgType.CLOSED}:.+ is not WSMsgType.BINARY\")",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction specifies the exception class and export but never states the exact message format the tests match against, which admits many reasonable wordings; the receive_str/receive_bytes behavior is a mechanical propagation of the same fix and thus guessable.",
+  "usage": {
+    "completion_tokens": 517,
+    "completion_tokens_details": {
+      "reasoning_tokens": 107
+    },
+    "prompt_tokens": 2673,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 3190
+  }
+}

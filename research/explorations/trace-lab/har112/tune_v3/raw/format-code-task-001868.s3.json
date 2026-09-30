@@ -1,0 +1,71 @@
+{
+  "items": [
+    {
+      "what": "The failure message for an unreadable default CSV must contain the literal path 'styles/fixtures/default_names.csv' on stderr",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "styles/fixtures/default_names.csv"
+      ],
+      "test_ref": "usecase.sh case2",
+      "quote": "grep -q \"styles/fixtures/default_names.csv\" err || fail \"F2 stderr: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "The failure message for a missing translation CSV must contain the literal path 'styles/locale/cs/names.csv' on stderr",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "styles/locale/cs/names.csv"
+      ],
+      "test_ref": "usecase.sh case3",
+      "quote": "grep -q \"styles/locale/cs/names.csv\" err || fail \"F3 stderr: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "The failure message for a missing 'slug' column must contain the literal column name 'slug' on stderr",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "slug"
+      ],
+      "test_ref": "usecase.sh case4",
+      "quote": "grep -q \"slug\" err || fail \"F4 stderr: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "The failure message for a missing language column must contain the literal 'name_cs' (the concrete name_<lang_code> expansion) on stderr",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "name_cs"
+      ],
+      "test_ref": "usecase.sh case5",
+      "quote": "grep -q \"name_cs\" err || fail \"F5 stderr: $(cat err)\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "The warning for an unknown translation slug must mention the offending slug value (e.g. 'unknown-slug') in stderr output",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "unknown-slug"
+      ],
+      "test_ref": "usecase.sh case1",
+      "quote": "grep -q 'unknown-slug' err || fail \"F1 missing unknown-slug warning: $(cat err)\"",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction requires failure and warning logging but never states what the messages must contain; the hidden tests grep stderr for the exact file paths, the column names 'slug'/'name_cs', and the offending slug value. All of those substrings are either stated verbatim in the instruction or mechanical expansions, so a natural error/warning message that names the file, column, or slug passes.",
+  "usage": {
+    "completion_tokens": 1378,
+    "completion_tokens_details": {
+      "reasoning_tokens": 715
+    },
+    "prompt_tokens": 4855,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 6233
+  }
+}

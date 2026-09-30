@@ -1,0 +1,168 @@
+{
+  "task_id": "format-code-task-002861",
+  "label": "broken",
+  "label_without_repo": "broken",
+  "sample_labels": [
+    "broken",
+    "broken",
+    "broken"
+  ],
+  "repo_used": true,
+  "unstated": [
+    {
+      "what": "Exact expected output for pad=4, indent=4, leading_comma=True is 'SELECT\\n      a\\n    , b\\n    , c\\nFROM my_table' (first column at 6 spaces), while the instruction's example shows 8 spaces ('        a'); the tests encode a different convention than the issue text",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "SELECT\\n      a\\n    , b\\n    , c\\nFROM my_table"
+      ],
+      "test_ref": "tests/test_transpile.py:test_leading_comma_pad_indent_consistency_pad4_indent4",
+      "quote": "\"SELECT\\n      a\\n    , b\\n    , c\\nFROM my_table\", pretty=True, pad=4, indent=4, leading_comma=True",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "SELECT\\n      a\\n    , b\\n    , c\\nFROM my_table": null
+      }
+    },
+    {
+      "what": "Exact expected default (no pad/indent) output with leading_comma=True is 'SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table'; the instruction never states what the default settings must produce",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table"
+      ],
+      "test_ref": "tests/test_transpile.py:test_leading_comma_default_pad_indent",
+      "quote": "result = parse_one(\"select a, b, c from my_table\").sql(pretty=True, leading_comma=True) ... assertEqual(result, \"SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table\")",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table": null
+      }
+    },
+    {
+      "what": "Exact expected output for pad=4, indent=4 with leading_comma=True: first line indented 6 spaces ('      a'), commas at 4 spaces \u2014 a specific indentation scheme not stated or implied by the issue text (which suggests 4-space-consistent output)",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "SELECT\n      a\n    , b\n    , c\nFROM my_table"
+      ],
+      "test_ref": "tests/test_transpile.py:test_leading_comma_pad_indent_consistency_pad4_indent4",
+      "quote": "\"SELECT\\n      a\\n    , b\\n    , c\\nFROM my_table\", pretty=True, pad=4, indent=4",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "SELECT\n      a\n    , b\n    , c\nFROM my_table": null
+      }
+    },
+    {
+      "what": "Default (unspecified pad/indent) with leading_comma=True must produce pad=2-style output ('    a\\n  , b'), i.e. the fix changes default formatting semantics not described in the instruction",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "SELECT\n    a\n  , b\n  , c\nFROM my_table"
+      ],
+      "test_ref": "tests/test_transpile.py:test_leading_comma_default_pad_indent",
+      "quote": "result, \"SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table\",",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "SELECT\n    a\n  , b\n  , c\nFROM my_table": null
+      }
+    },
+    {
+      "what": "pad=2/indent=4 must yield '    a\\n  , b\\n  , c' (first column at 4 spaces, commas at 2) \u2014 matches the issue example but codified as an exact string; guessable from the issue text",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "SELECT\n    a\n  , b\n  , c\nFROM my_table"
+      ],
+      "test_ref": "tests/test_transpile.py:test_leading_comma_pad_indent_consistency_pad2_indent4",
+      "quote": "\"SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table\", pretty=True, pad=2, indent=4",
+      "severity": "guessable",
+      "repo_evidence": {
+        "SELECT\n    a\n  , b\n  , c\nFROM my_table": null
+      }
+    },
+    {
+      "what": "Exact expected output for pad=4, indent=4, leading_comma=True (first column at 6 spaces, commas at 4)",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "SELECT\\n      a\\n    , b\\n    , c\\nFROM my_table"
+      ],
+      "test_ref": "tests/test_transpile.py:test_leading_comma_pad_indent_consistency_pad4_indent4",
+      "quote": "\"SELECT\\n      a\\n    , b\\n    , c\\nFROM my_table\"",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "SELECT\\n      a\\n    , b\\n    , c\\nFROM my_table": null
+      }
+    },
+    {
+      "what": "Exact expected output for pad=2, indent=4, leading_comma=True (first column at 4 spaces, commas at 2)",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table"
+      ],
+      "test_ref": "tests/test_transpile.py:test_leading_comma_pad_indent_consistency_pad2_indent4",
+      "quote": "\"SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table\"",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table": null
+      }
+    },
+    {
+      "what": "Exact expected default output with leading_comma=True and no pad/indent given (commas at 2 spaces)",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table"
+      ],
+      "test_ref": "tests/test_transpile.py:test_leading_comma_default_pad_indent",
+      "quote": "result,\n            \"SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table\"",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table": null
+      }
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction only demonstrates the bug; the hidden tests assert specific fixed outputs (6-space first column at pad4/indent4, and a specific default-settings output) that are conventions not derivable from the issue text \u2014 the issue's own example even shows a different indentation than the test expects.",
+    "The tests pin exact output strings that differ from the issue's implied 'consistent 4-space' fix (6-space first line at pad4/indent4, and changed default formatting), which cannot be derived from the instruction; the pad2/indent4 case matches the issue example and is guessable.",
+    "The instruction only reports the inconsistency and never states what the corrected output should look like; the hidden tests pin exact expected strings (e.g. first column at indent+2, commas at pad) that a reasonable fix could implement many ways."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 1458,
+      "completion_tokens_details": {
+        "reasoning_tokens": 970
+      },
+      "prompt_tokens": 1947,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 3405
+    },
+    {
+      "completion_tokens": 660,
+      "completion_tokens_details": {
+        "reasoning_tokens": 102
+      },
+      "prompt_tokens": 1947,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 2607
+    },
+    {
+      "completion_tokens": 678,
+      "completion_tokens_details": {
+        "reasoning_tokens": 204
+      },
+      "prompt_tokens": 1947,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2625
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

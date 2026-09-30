@@ -1,0 +1,14 @@
+{
+  "task_id": "format-code-task-002734",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "st2 key load FILE with -c/--convert before the path, one object or a list, required name/value and optional scope/user/encrypted/secret/ttl",
+    "string values stored as-is; non-strings JSON-encoded only with --convert, otherwise non-zero exit and an explanation using the instruction's own words",
+    "table columns name, value, secret, scope, user, ttl unless JSON or YAML output is requested",
+    "empty YAML exits 0 with the standard empty-result output; missing files, bad extensions, and missing fields exit non-zero",
+    "updates go through the normal key API"
+  ],
+  "notes": "KeyValuePairBranch does not register load, but st2client/tests/unit/test_keyvalue.py and test_shell.py already specify the command, and ApiKeyLoadCommand is the load-from-file sibling (wrap a single object in a list, print MultiColumnTable, JSON/YAML is a list). load_meta_file accepts .json/.yaml/.yml and raises on missing files and other extensions. Shell.run prints exceptions with print(), so stderr stays empty. print_output([]) emits 'No matching items found', which satisfies the empty-result check. Hidden usecase.sh checks payload subsets, not exact JSON key order.",
+  "read_minutes": 28
+}

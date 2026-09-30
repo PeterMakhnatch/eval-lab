@@ -1,0 +1,36 @@
+{
+  "items": [
+    {
+      "what": "Directory loading must only pick up files ending in .conf, ignoring other files (e.g. file2.conf.disabled)",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        ".conf"
+      ],
+      "test_ref": "tests/config/test_config.py::test_load_directory_only_conf_files",
+      "quote": "def test_load_directory_only_conf_files(self):\n        directory = path_to_data_dir('conf2.d')\n        expected = {'foo': {'bar': 'baz'}}",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Files inside the directory must be read in a deterministic order (glob/sorted) so 'later overrides earlier' precedence works within a directory",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "tests/config/test_config.py::test_load_directory",
+      "quote": "result = config._load([directory], [], [])\n        self.assertEqual(expected, result)",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction covers directory support and precedence, but the tests additionally require filtering to only *.conf files inside a directory, a new filtering criterion the instruction never states (a minimal 'load all files in the directory' fix would fail test_load_directory_only_conf_files). File ordering within the directory is mechanical and guessable.",
+  "usage": {
+    "completion_tokens": 481,
+    "completion_tokens_details": {
+      "reasoning_tokens": 163
+    },
+    "prompt_tokens": 2228,
+    "prompt_tokens_details": {
+      "cached_tokens": 2176
+    },
+    "total_tokens": 2709
+  }
+}

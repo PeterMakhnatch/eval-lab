@@ -1,0 +1,28 @@
+{
+  "items": [
+    {
+      "what": "Exact prompt message strings with no trailing question mark: 'Do you want to write a description for fct_orders' and 'Do you want to change the model description of fct_orders'. The instruction quotes 'Do you want to write a description for fct_orders?' including a '?', but tests require the message without it; exact strings beyond the instruction's literal text.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Do you want to write a description for fct_orders",
+        "Do you want to change the model description of fct_orders"
+      ],
+      "test_ref": "tests/doc_task_test.py::test_prompt_for_new_model_when_no_schema_exists",
+      "quote": "== \"Do you want to write a description for fct_orders\"",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction only states the new 'write a description' prompt; the tests also require exact message strings without the trailing '?' and confirm the 'change' wording remains for existing models, which is the minimal fix's mechanical propagation, so it is guessable.",
+  "usage": {
+    "completion_tokens": 262,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 2382,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 2644
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "task_id": "format-code-task-002599",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Importer() defaults csv, gdocs, epicollect, s3, localCSV, iiif; register_* adds flickr, dropbox, twitter, youtube on that instance",
+    "get_all_importer_names and get_autoimporter_names excluding dropbox and s3; instances keep independent registries",
+    "count_tasks_to_import merges registered credentials and returns the source count without saving",
+    "create_tasks copies every yielded key onto the task, dedups via task_repo.get_task_by(project_id, info), and returns the three exact ImportReport messages, totals, and metadata",
+    "ImportReport(message, metadata, total) exposes those properties"
+  ],
+  "notes": "The importer module is missing at base (pybossa/importers/__init__.py imports .importer, which is absent), so this is a new API fully specified by the instruction. Tests patch pybossa.importers.importer.BulkTaskFlickrImport and assert state/n_answers/priority_0/quorum, which is the stated 'copy each yielded key'. Exact report strings are quoted. No extra contract.",
+  "read_minutes": 16,
+  "rules": []
+}

@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The hidden tests only verify the fix described in the issue: the middleware must capture the request size once (via Content-Length rather than reading body) and get_request_data_from_django must use the stashed value. All names involved (RequestMiddleware, process_request, requestSize, get_request_data_from_django) already exist in the repo per the stack trace and test imports.",
+  "usage": {
+    "completion_tokens": 370,
+    "completion_tokens_details": {
+      "reasoning_tokens": 196
+    },
+    "prompt_tokens": 2437,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 2807
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "items": [
+    {
+      "what": "Support for bare WITH/WITHOUT WRAPPER variants (no ARRAY keyword) \u2014 the instruction only shows 'WITH ARRAY WRAPPER' and 'WITHOUT ARRAY WRAPPER', but hidden tests require parsing and round-tripping 'WITH WRAPPER' and 'WITHOUT WRAPPER', which need additional grammar options beyond the reported examples.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        "WITH WRAPPER",
+        "WITHOUT WRAPPER"
+      ],
+      "test_ref": "tests/dialects/test_trino.py:test__query_with_wrapper / test__query_without_wrapper",
+      "quote": "\"JSON_QUERY(description, 'strict $.comment' WITH WRAPPER)\" ... \"JSON_QUERY(description, 'strict $.comment' WITHOUT WRAPPER)\"",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact output strings 'WITH ARRAY WRAPPER' and 'WITHOUT ARRAY WRAPPER' must appear verbatim in generated SQL (round-trip formatting of wrapper options, not just parseability).",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "WITH ARRAY WRAPPER",
+        "WITHOUT ARRAY WRAPPER"
+      ],
+      "test_ref": "tests/dialects/test_trino.py:test__query_issue_full_statement",
+      "quote": "self.assertIn(\"WITH ARRAY WRAPPER\", out); self.assertIn(\"WITHOUT ARRAY WRAPPER\", out)",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction's examples only cover WITH/WITHOUT ARRAY WRAPPER, but the hidden tests also require bare WITH/WITHOUT WRAPPER variants that the instruction never mentions, which is an extra grammar variant not inferable from the issue text. The exact round-trip strings for the array-wrapper forms follow mechanically from the reported examples, so those are guessable.",
+  "usage": {
+    "completion_tokens": 593,
+    "completion_tokens_details": {
+      "reasoning_tokens": 193
+    },
+    "prompt_tokens": 1929,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 2522
+  }
+}

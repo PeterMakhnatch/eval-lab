@@ -1,0 +1,49 @@
+{
+  "items": [
+    {
+      "what": "Exact expected output for pad=4, indent=4, leading_comma=True (first column at 6 spaces, commas at 4)",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "SELECT\\n      a\\n    , b\\n    , c\\nFROM my_table"
+      ],
+      "test_ref": "tests/test_transpile.py:test_leading_comma_pad_indent_consistency_pad4_indent4",
+      "quote": "\"SELECT\\n      a\\n    , b\\n    , c\\nFROM my_table\"",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact expected output for pad=2, indent=4, leading_comma=True (first column at 4 spaces, commas at 2)",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table"
+      ],
+      "test_ref": "tests/test_transpile.py:test_leading_comma_pad_indent_consistency_pad2_indent4",
+      "quote": "\"SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table\"",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact expected default output with leading_comma=True and no pad/indent given (commas at 2 spaces)",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table"
+      ],
+      "test_ref": "tests/test_transpile.py:test_leading_comma_default_pad_indent",
+      "quote": "result,\n            \"SELECT\\n    a\\n  , b\\n  , c\\nFROM my_table\"",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The instruction only reports the inconsistency and never states what the corrected output should look like; the hidden tests pin exact expected strings (e.g. first column at indent+2, commas at pad) that a reasonable fix could implement many ways.",
+  "usage": {
+    "completion_tokens": 678,
+    "completion_tokens_details": {
+      "reasoning_tokens": 204
+    },
+    "prompt_tokens": 1947,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 2625
+  }
+}

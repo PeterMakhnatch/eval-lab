@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The instruction fully specifies the API, constructor signature, POS hint semantics, output format, joined verb parts behavior, and custom file loading; the tests' fixture data formats and POS tags ('NOUN','PRON','ADJ','VERB') follow directly from the described semantics, and the missing-file test only requires any Exception.",
+  "usage": {
+    "completion_tokens": 459,
+    "completion_tokens_details": {
+      "reasoning_tokens": 288
+    },
+    "prompt_tokens": 3837,
+    "prompt_tokens_details": {
+      "cached_tokens": 768
+    },
+    "total_tokens": 4296
+  }
+}

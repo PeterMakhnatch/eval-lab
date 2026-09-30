@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-001940",
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "A .pth file must be parsed line by line: every existing directory line is added, lines starting with '#' are skipped, lines starting with 'import' are skipped, and nonexistent directories are not added. The instruction only shows that the whole pywin32.pth text is passed to Path.exists() and asks that griffe still run. _handle_pth_file splits on ';' and returns one path or raises UnhandledPthFileError, which _extend_from_pth_files already suppresses.",
+      "test_ref": "tests/test_finder.py:test_pth_file_multiple_valid_directories_all_added",
+      "quote": "pth_file.write_text(f\"{dir1}\\n{dir2}\\n\"); assert dir1 in finder.search_paths; assert dir2 in finder.search_paths",
+      "severity": "not_inferable",
+      "rules": ["R2"],
+      "names": ["_handle_pth_file", "search_paths"]
+    },
+    {
+      "what": "Comment lines and import lines must be ignored as .pth syntax, not just prevented from crashing. Tests require a valid directory after a '#' line or an 'import ...' line to be added, and require that comment text and 'import some_bootstrap_module' never appear in search_paths.",
+      "test_ref": "tests/test_finder.py:test_pth_file_import_lines_skipped",
+      "quote": "pth_file.write_text(f\"import some_bootstrap_module\\n{valid_dir}\\n\"); assert valid_dir in finder.search_paths",
+      "severity": "not_inferable",
+      "rules": ["R4"],
+      "names": ["import", "#"]
+    }
+  ],
+  "instruction_covers": [
+    "pywin32.pth content is comments, directory lines, and an import statement, and the whole blob must not be treated as one filename",
+    "Griffe should finish successfully whether or not pywin32 is installed",
+    "A single valid directory .pth file should still add that directory"
+  ],
+  "notes": "A minimal fix that catches OSError/UnhandledPthFileError, or that skips a path whose name contains a newline, passes the pywin32-like crash test and the single-directory preservation test, and still fails the multi-line, comment, and import tests. The instruction never quotes the site.py .pth rules. Those rules are not in the repo (no docs mention, and the function comment only says 'pointing to a directory').",
+  "read_minutes": 15
+}

@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "Every behavior exercised by the hidden tests \u2014 buffer-protocol acceptance, InferenceServerException on malformed/unaligned/non-buffer inputs, C-order byte framing, and the return dtypes/shapes \u2014 is explicitly stated in the instruction; the only imports are existing public names the instruction itself references.",
+  "usage": {
+    "completion_tokens": 222,
+    "completion_tokens_details": {
+      "reasoning_tokens": 68
+    },
+    "prompt_tokens": 2211,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2433
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "items": [
+    {
+      "what": "Directories passed to _load must be expanded to only files ending in the .conf extension, ignoring others (conf2.d/file2.conf.disabled is not loaded).",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        ".conf"
+      ],
+      "test_ref": "tests/config/test_config.py::ConfigLoaderTest::test_load_directory_only_conf_files",
+      "quote": "def test_load_directory_only_conf_files(self):\n    directory = path_to_data_dir('conf2.d')\n    expected = {'foo': {'bar': 'baz'}}",
+      "severity": "guessable"
+    },
+    {
+      "what": "Files inside a config directory are loaded in sorted (deterministic) order so later overrides earlier applies predictably.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "tests/config/test_config.py::ConfigLoaderTest::test_load_directory",
+      "quote": "result = config._load([directory], [], [])\nself.assertEqual(expected, result)",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction implies directories are accepted and snippets loaded, but the exact filtering rule (only *.conf, ignoring e.g. *.conf.disabled) and deterministic sort order are conventions the tests encode; both are guessable from the conf.d convention the instruction itself showcases, and no new API names are required.",
+  "usage": {
+    "completion_tokens": 497,
+    "completion_tokens_details": {
+      "reasoning_tokens": 163
+    },
+    "prompt_tokens": 2228,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 2725
+  }
+}

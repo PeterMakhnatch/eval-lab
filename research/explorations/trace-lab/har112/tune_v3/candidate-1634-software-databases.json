@@ -1,0 +1,248 @@
+{
+  "task_id": "candidate-1634-software-databases",
+  "label": "broken",
+  "label_without_repo": "broken",
+  "sample_labels": [
+    "broken",
+    "broken",
+    "broken"
+  ],
+  "repo_used": true,
+  "unstated": [
+    {
+      "what": "peewee.py must contain the exact signature line 'def atomic(self, transaction_type=None, **kwargs):' \u2014 the parameter name transaction_type and **kwargs are not stated in the instruction (which says lock_type=...)",
+      "kind": "exact_string",
+      "names": [
+        "atomic",
+        "transaction_type"
+      ],
+      "strings": [
+        "def atomic(self, transaction_type=None, **kwargs):"
+      ],
+      "test_ref": "tests/test_outputs.py:90",
+      "quote": "assert \"def atomic(self, transaction_type=None, **kwargs):\" in peewee_source",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "atomic": "vendor/peewee/peewee.py:3800",
+        "transaction_type": "vendor/peewee/peewee.py:3777",
+        "def atomic(self, transaction_type=None, **kwargs):": null
+      }
+    },
+    {
+      "what": "output. checks values must exactly equal the checker's stdout JSON (data['checks'] == expected), requiring output to match a hidden checker verbatim",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [],
+      "test_ref": "tests/test_outputs.py:26",
+      "quote": "assert data[\"checks\"] == expected",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "peewee.py must contain the exact source line 'def atomic(self, transaction_type=None, **kwargs):' \u2014 the instruction never states this signature (tests use lock_type keyword, source check requires transaction_type positional name plus **kwargs)",
+      "kind": "exact_string",
+      "names": [
+        "atomic",
+        "transaction_type",
+        "kwargs"
+      ],
+      "strings": [
+        "def atomic(self, transaction_type=None, **kwargs):"
+      ],
+      "test_ref": "tests/test_outputs.py:90",
+      "quote": "assert \"def atomic(self, transaction_type=None, **kwargs):\" in peewee_source",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "atomic": "vendor/peewee/peewee.py:3800",
+        "transaction_type": "vendor/peewee/peewee.py:3777",
+        "kwargs": "vendor/peewee/peewee.py:388",
+        "def atomic(self, transaction_type=None, **kwargs):": null
+      }
+    },
+    {
+      "what": "Exact source line 'def atomic(self, transaction_type=None, **kwargs):' must appear verbatim in /app/vendor/peewee/peewee.py \u2014 the instruction only names lock_type, and the required parameter name is transaction_type with **kwargs",
+      "kind": "exact_string",
+      "names": [
+        "atomic",
+        "transaction_type"
+      ],
+      "strings": [
+        "def atomic(self, transaction_type=None, **kwargs):"
+      ],
+      "test_ref": "tests/test_outputs.py:90",
+      "quote": "assert \"def atomic(self, transaction_type=None, **kwargs):\" in peewee_source",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "atomic": "vendor/peewee/peewee.py:3800",
+        "transaction_type": "vendor/peewee/peewee.py:3777",
+        "def atomic(self, transaction_type=None, **kwargs):": null
+      }
+    },
+    {
+      "what": "APSW adapter's transaction method must itself have a lock_type parameter in its args and contain a call to transaction(...) \u2014 the instruction only says 'retain compatible lock-mode forwarding'",
+      "kind": "extra_behavior",
+      "names": [
+        "transaction",
+        "lock_type"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_outputs.py:92-95",
+      "quote": "assert any(any(arg.arg == \"lock_type\" for arg in method.args.args) and any(isinstance(node, ast.Call) and getattr(node.func, \"id\", \"\") == \"transaction\" ...",
+      "severity": "guessable"
+    },
+    {
+      "what": "Contention behavior: a second connection with lock_type='IMMEDIATE' must raise an exception whose class name is exactly 'OperationalError' while the first holds the lock",
+      "kind": "extra_behavior",
+      "names": [
+        "OperationalError"
+      ],
+      "strings": [
+        "OperationalError"
+      ],
+      "test_ref": "tests/test_outputs.py:57-61",
+      "quote": "blocked = error.__class__.__name__ == \"OperationalError\"",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [
+    {
+      "what": "APSW adapter's transaction method must have a parameter named lock_type and contain a call to transaction(...) \u2014 the parameter name and internal forwarding call are not stated",
+      "kind": "new_name",
+      "names": [
+        "lock_type",
+        "transaction"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_outputs.py:93-95",
+      "quote": "any(arg.arg == \"lock_type\" for arg in method.args.args) ... ast.Call and getattr(node.func, \"id\", \"\") == \"transaction\"",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "lock_type": "integration_check.py:21",
+        "transaction": "vendor/peewee/peewee.py:3768"
+      }
+    },
+    {
+      "what": "output. checks object must have exactly the keys atomic_immediate, transaction_deferred, nested_savepoint, contention, all \u2014 key names not given in the instruction",
+      "kind": "new_name",
+      "names": [
+        "atomic_immediate",
+        "transaction_deferred",
+        "nested_savepoint",
+        "contention",
+        "all"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_outputs.py:22-25",
+      "quote": "assert set(data[\"checks\"]) == {\"atomic_immediate\", \"transaction_deferred\", \"nested_savepoint\", \"contention\", \"all\"}",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "atomic_immediate": "integration_check.py:23",
+        "transaction_deferred": "integration_check.py:26",
+        "nested_savepoint": "integration_check.py:30",
+        "contention": "integration_check.py:45",
+        "all": "integration_check.py:46"
+      }
+    },
+    {
+      "what": "Contention test requires second connection to raise an exception whose class name is exactly 'OperationalError' when an IMMEDIATE lock is held",
+      "kind": "exact_string",
+      "names": [
+        "OperationalError"
+      ],
+      "strings": [
+        "OperationalError"
+      ],
+      "test_ref": "tests/test_outputs.py:59",
+      "quote": "blocked = error.__class__.__name__ == \"OperationalError\"",
+      "severity": "guessable",
+      "repo_evidence": {
+        "OperationalError": "vendor/peewee/peewee.py:80"
+      }
+    },
+    {
+      "what": "playhouse/apsw_ext.py transaction method must expose a parameter named exactly lock_type and internally call a function named transaction (call whose func.id == 'transaction')",
+      "kind": "new_name",
+      "names": [
+        "lock_type",
+        "transaction"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_outputs.py:93-94",
+      "quote": "any(arg.arg == \"lock_type\" for arg in method.args.args) and any(isinstance(node, ast.Call) and getattr(node.func, \"id\", \"\") == \"transaction\"",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "lock_type": "integration_check.py:21",
+        "transaction": "vendor/peewee/peewee.py:3768"
+      }
+    },
+    {
+      "what": "output. checks must have exactly the keys atomic_immediate, transaction_deferred, nested_savepoint, contention, all \u2014 the instruction never names them",
+      "kind": "exact_string",
+      "names": [
+        "atomic_immediate",
+        "transaction_deferred",
+        "nested_savepoint",
+        "contention",
+        "all"
+      ],
+      "strings": [
+        "atomic_immediate",
+        "transaction_deferred",
+        "nested_savepoint",
+        "contention",
+        "all"
+      ],
+      "test_ref": "tests/test_outputs.py:22-26",
+      "quote": "assert set(data[\"checks\"]) == {\"atomic_immediate\", \"transaction_deferred\", \"nested_savepoint\", \"contention\", \"all\"}",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "atomic_immediate": "integration_check.py:23",
+        "transaction_deferred": "integration_check.py:26",
+        "nested_savepoint": "integration_check.py:30",
+        "contention": "integration_check.py:45",
+        "all": "integration_check.py:46"
+      }
+    }
+  ],
+  "reasons": [
+    "The instruction covers the behavioral requirements but the hidden tests additionally demand an exact source signature line, a specific APSW parameter/call shape, exact checks key names, verbatim equality with a hidden checker's output, and an OperationalError class name \u2014 none of which are inferable from the instruction.",
+    "The instruction describes lock-mode forwarding generically but never gives the exact atomic() source signature (transaction_type positional + **kwargs) that the AST/string test requires, nor the exact lock_type parameter name and internal transaction() call in apsw_ext. The output. check key names are produced by the integration checker itself, so copying its output covers them.",
+    "The instruction never names the required transaction_type parameter (test demands a verbatim source line using it alongside lock_type), nor the exact five keys of the output. checks object; both are not_inferable. The APSW lock_type signature and OperationalError contention behavior are reasonable inferences from 'retain compatible lock-mode forwarding' and the lock-mode requirement."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 792,
+      "completion_tokens_details": {
+        "reasoning_tokens": 77
+      },
+      "prompt_tokens": 2182,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 2974
+    },
+    {
+      "completion_tokens": 585,
+      "completion_tokens_details": {
+        "reasoning_tokens": 183
+      },
+      "prompt_tokens": 2182,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 2767
+    },
+    {
+      "completion_tokens": 845,
+      "completion_tokens_details": {
+        "reasoning_tokens": 167
+      },
+      "prompt_tokens": 2182,
+      "prompt_tokens_details": {
+        "cached_tokens": 768
+      },
+      "total_tokens": 3027
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

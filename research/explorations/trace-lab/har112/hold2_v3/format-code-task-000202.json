@@ -1,0 +1,199 @@
+{
+  "task_id": "format-code-task-000202",
+  "label": "broken",
+  "label_without_repo": "broken",
+  "sample_labels": [
+    "broken",
+    "suspect",
+    "broken"
+  ],
+  "repo_used": false,
+  "unstated": [
+    {
+      "what": "Tensor must support addition with scalar 0 on both sides (T + 0 and 0 + T). The instruction only proposes an Observable.__add__ change; Tensor is a separate class needing its own __add__/__radd__ handling with zero.",
+      "kind": "extra_behavior",
+      "names": [
+        "__add__",
+        "__radd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py:TestTensorAddZero",
+      "quote": "T = qml.PauliX(0) @ qml.PauliZ(1)\n        result = T + 0 ... result = 0 + T",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Hamiltonian must support addition with 0 on both sides, including __radd__ (0 + H) and the sum-of-Hamiltonians case which starts from int 0.",
+      "kind": "extra_behavior",
+      "names": [
+        "__add__",
+        "__radd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py:TestHamiltonianAddZero.test_zero_plus_hamiltonian / test_sum_of_hamiltonians",
+      "quote": "result = 0 + H ... H = sum(terms)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Hamiltonian must keep working under augmented assignment with zero (H += 0), implying __iadd__ or in-place semantics consistent with the zero case.",
+      "kind": "extra_behavior",
+      "names": [
+        "__iadd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py:TestHamiltonianAddZero.test_hamiltonian_iadd_zero",
+      "quote": "H += 0\n        assert H.compare(expected)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Observable needs a reflected addition path (__radd__) so that `0 + obs` works, since int.__add__ returns NotImplemented; the instruction only shows __add__.",
+      "kind": "new_name",
+      "names": [
+        "__radd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py:TestObservableAddZero.test_zero_plus_observable_returns_self",
+      "quote": "result = 0 + obs\n        assert isinstance(result, type(obs)) or result.compare(obs)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Reflected addition __radd__ on Observable so that 0 + observable returns the observable (sum starts with int 0 whose __add__ returns NotImplemented); instruction only provides Observable.__add__",
+      "kind": "new_name",
+      "names": [
+        "__radd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py::TestObservableAddZero::test_zero_plus_observable_returns_self",
+      "quote": "result = 0 + obs\n        assert isinstance(result, type(obs)) or result.compare(obs)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Tensor.__add__/__radd__ must accept scalar 0 and return the tensor; instruction only gives Observable.__add__",
+      "kind": "extra_behavior",
+      "names": [
+        "Tensor",
+        "__add__",
+        "__radd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py::TestTensorAddZero",
+      "quote": "T = qml.PauliX(0) @ qml.PauliZ(1)\n        result = T + 0\n        assert result.compare(T)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Hamiltonian.__add__/__radd__ must accept scalar 0 and return self/itself; instruction only gives Observable.__add__",
+      "kind": "extra_behavior",
+      "names": [
+        "Hamiltonian",
+        "__add__",
+        "__radd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py::TestHamiltonianAddZero::test_hamiltonian_plus_zero",
+      "quote": "result = H + 0\n        assert result.compare(H)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Hamiltonian.__iadd__ with 0 must work in place (H += 0)",
+      "kind": "extra_behavior",
+      "names": [
+        "Hamiltonian",
+        "__iadd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py::TestHamiltonianAddZero::test_hamiltonian_iadd_zero",
+      "quote": "H += 0\n        assert H.compare(expected)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Reflected addition __radd__ on Observable so that `0 + obs` returns the observable (int.__add__ fails first); instruction only shows an __add__ patch",
+      "kind": "new_name",
+      "names": [
+        "__radd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py:26 test_zero_plus_observable_returns_self",
+      "quote": "result = 0 + obs\n        assert isinstance(result, type(obs)) or result.compare(obs)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Tensor class must also accept scalar 0 in both __add__ and __radd__ and return itself; instruction's patch targets Observable only",
+      "kind": "extra_behavior",
+      "names": [
+        "Tensor",
+        "__add__",
+        "__radd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py TestTensorAddZero",
+      "quote": "T = qml.PauliX(0) @ qml.PauliZ(1)\n        result = T + 0\n        assert result.compare(T)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Hamiltonian must support `0 + H` via __radd__ returning an equivalent Hamiltonian; zero-adding Hamiltonians is not mentioned in the instruction",
+      "kind": "extra_behavior",
+      "names": [
+        "Hamiltonian",
+        "__radd__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py:72 test_zero_plus_hamiltonian",
+      "quote": "result = 0 + H\n        assert result.compare(H)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Hamiltonian + nonzero scalar must raise ValueError/TypeError, contradicting PennyLane's existing scalar-addition semantics for Hamiltonian (H + number adds a scalar term)",
+      "kind": "contradiction",
+      "names": [
+        "Hamiltonian",
+        "__add__"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_add_zero.py:87 test_hamiltonian_plus_nonzero_raises",
+      "quote": "with pytest.raises((ValueError, TypeError)):\n            _ = H + 5",
+      "severity": "not_inferable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction's proposed patch only touches Observable.__add__, but hidden tests also require zero-handling on Tensor and Hamiltonian (both sides, plus iadd and reflected sum from int 0), which are sibling classes not named in the instruction and require separate code changes; __radd__ on Observable is the direct mechanical consequence of making sum() work, hence guessable.",
+    "The instruction only shows Observable.__add__, but the hidden tests also exercise the reflected and sibling paths (0 + Observable/Tensor/Hamiltonian, Hamiltonian += 0) needed to make sum() work. These are mechanical propagation of the same zero-element change to same-family methods, so guessable; the named repo API (compare, PauliX/Y/Z, Hamiltonian) already exists.",
+    "The instruction only provides an Observable.__add__ patch; the hidden tests additionally exercise reflected addition (__radd__) for Observable/Tensor/Hamiltonian and Tensor/Hamiltonian zero handling, which are mechanical propagation of the same zero-identity rule (guessable), but the requirement that Hamiltonian + 5 raise contradicts PennyLane's documented scalar-addition behavior and is not inferable."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 1294,
+      "completion_tokens_details": {
+        "reasoning_tokens": 645
+      },
+      "prompt_tokens": 2424,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 3718
+    },
+    {
+      "completion_tokens": 763,
+      "completion_tokens_details": {
+        "reasoning_tokens": 196
+      },
+      "prompt_tokens": 2424,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 3187
+    },
+    {
+      "completion_tokens": 1438,
+      "completion_tokens_details": {
+        "reasoning_tokens": 768
+      },
+      "prompt_tokens": 2424,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 3862
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

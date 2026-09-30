@@ -1,0 +1,38 @@
+{
+  "items": [
+    {
+      "what": "Exact success-preview comment string 'Sysctl option {name} would be changed to {value}' used when the config file exists but lacks the key (empty show output)",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Sysctl option {0} would be changed to {1}"
+      ],
+      "test_ref": "tests/unit/states/test_sysctl.py:comment_empty",
+      "quote": "comment_empty = ('Sysctl option {0} would be changed to {1}' ''.format(name, value))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Behavior distinction between sysctl.show returning None (missing/unreadable file -> keep generic 'might be changed' comment, result None) vs returning [] (empty file -> 'would be changed to' comment)",
+      "kind": "extra_behavior",
+      "names": [
+        "sysctl.show"
+      ],
+      "strings": [],
+      "test_ref": "tests/unit/states/test_sysctl.py:test_present",
+      "quote": "mock = MagicMock(return_value=None) ... self.assertDictEqual(sysctl.present(name, value), ret) ... mock = MagicMock(return_value=[])",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction implies test=True with a missing file should yield a preview like the existing-file case; the exact 'would be changed to' wording is quoted in the issue, and the None-vs-empty show distinction follows from keeping the existing default comment for unreadable files while fixing the missing case.",
+  "usage": {
+    "completion_tokens": 515,
+    "completion_tokens_details": {
+      "reasoning_tokens": 168
+    },
+    "prompt_tokens": 1915,
+    "prompt_tokens_details": {
+      "cached_tokens": 1856
+    },
+    "total_tokens": 2430
+  }
+}

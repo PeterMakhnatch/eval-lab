@@ -1,0 +1,34 @@
+{
+  "items": [
+    {
+      "what": "Exact event note templates produced when serializing Kraken events with a custom asset (e.g. 'Swap 1 Gold Bar in Kraken') \u2014 the instruction never names the required strings, but they match the repo's existing Kraken note templates with the custom asset's name substituted, which the minimal fix (using the asset name in serialization) would produce.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Swap 1 Gold Bar in Kraken",
+        "Receive 1 Gold Bar as a result of a Kraken swap",
+        "Spend 1 Gold Bar as Kraken trading fee",
+        "Gain 1 Gold Bar from Kraken staking",
+        "Spend 1 Gold Bar as Kraken staking fee",
+        "Withdraw 1 Gold Bar from Kraken",
+        "Spend 1 Gold Bar as Kraken withdrawal fee",
+        "Deposit 1 Gold Bar to Kraken"
+      ],
+      "test_ref": "rotkehlchen/tests/exchanges/test_kraken.py::test_kraken_event_serialization_with_custom_asset",
+      "quote": "(HistoryEventType.TRADE, HistoryEventSubType.SPEND, 'Swap 1 Gold Bar in Kraken'),",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The only unstated requirement is the exact note text for each event type/subtype, but these are the repo's existing Kraken note templates with the asset name (custom asset's name) interpolated, so the minimal fix of using the asset's name during serialization yields them mechanically. Imports like CustomAsset/DBCustomAssets are test scaffolding.",
+  "usage": {
+    "completion_tokens": 559,
+    "completion_tokens_details": {
+      "reasoning_tokens": 206
+    },
+    "prompt_tokens": 2300,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 2859
+  }
+}

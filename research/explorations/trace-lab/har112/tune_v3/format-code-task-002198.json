@@ -1,0 +1,95 @@
+{
+  "task_id": "format-code-task-002198",
+  "label": "suspect",
+  "label_without_repo": "suspect",
+  "sample_labels": [
+    "suspect"
+  ],
+  "repo_used": false,
+  "unstated": [
+    {
+      "what": "Alias 'YS' mapping to YearBegin (alias family beyond the plain 'Y' the instruction names)",
+      "kind": "exact_string",
+      "names": [
+        "YS"
+      ],
+      "strings": [
+        "YS"
+      ],
+      "test_ref": "test_to_offset_YS_alias",
+      "quote": "result = frequencies.to_offset('YS')\n    expected = frequencies.to_offset('AS')\n    assert result == expected\n    assert isinstance(result, offsets.YearBegin)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Alias 'BY' mapping to BYearEnd",
+      "kind": "exact_string",
+      "names": [
+        "BY"
+      ],
+      "strings": [
+        "BY"
+      ],
+      "test_ref": "test_to_offset_BY_alias",
+      "quote": "result = frequencies.to_offset('BY')\n    expected = frequencies.to_offset('BA')",
+      "severity": "guessable"
+    },
+    {
+      "what": "Alias 'BYS' mapping to BYearBegin",
+      "kind": "exact_string",
+      "names": [
+        "BYS"
+      ],
+      "strings": [
+        "BYS"
+      ],
+      "test_ref": "test_to_offset_BYS_alias",
+      "quote": "result = frequencies.to_offset('BYS')\n    expected = frequencies.to_offset('BAS')",
+      "severity": "guessable"
+    },
+    {
+      "what": "Month-anchored yearly aliases like 'Y-DEC' must map like 'A-DEC' in _period_str_to_code",
+      "kind": "extra_behavior",
+      "names": [
+        "_period_str_to_code"
+      ],
+      "strings": [
+        "Y-DEC",
+        "Y-JAN",
+        "Y-MAY"
+      ],
+      "test_ref": "test_period_str_to_code_Y_month",
+      "quote": "assert (frequencies._period_str_to_code('Y-DEC') ==\n            frequencies._period_str_to_code('A-DEC'))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Internal helper _period_str_to_code must accept 'Y' and return code 1000 (function name not given in instruction; mechanical propagation of the same alias change)",
+      "kind": "new_name",
+      "names": [
+        "_period_str_to_code"
+      ],
+      "strings": [],
+      "test_ref": "test_period_str_to_code_Y",
+      "quote": "assert frequencies._period_str_to_code('Y') == 1000",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction only names 'Y', but the tests require the full alias family (YS, BY, BYS, Y-DEC style) and the internal _period_str_to_code; these are mechanical sibling propagations of the same alias-substitution change, so they are guessable rather than not_inferable."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 877,
+      "completion_tokens_details": {
+        "reasoning_tokens": 292
+      },
+      "prompt_tokens": 2058,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2935
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-001940",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "All hidden test expectations follow from the minimal correct fix: only append a .pth line to search_paths if it exists as a directory. That single rule satisfies every assertion (comments, imports, joined bogus content, and nonexistent dirs are all filtered; valid dirs are added)."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 325,
+      "completion_tokens_details": {
+        "reasoning_tokens": 207
+      },
+      "prompt_tokens": 2661,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 2986
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

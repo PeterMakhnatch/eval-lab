@@ -1,0 +1,45 @@
+{
+  "items": [
+    {
+      "what": "Exact notes strings produced when serializing Kraken events with a custom asset (trade swap/receive/fee, staking reward/fee, withdrawal/fee, deposit templates with the asset name substituted)",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Swap 1 Gold Bar in Kraken",
+        "Receive 1 Gold Bar as a result of a Kraken swap",
+        "Spend 1 Gold Bar as Kraken trading fee",
+        "Gain 1 Gold Bar from Kraken staking",
+        "Spend 1 Gold Bar as Kraken staking fee",
+        "Withdraw 1 Gold Bar from Kraken",
+        "Spend 1 Gold Bar as Kraken withdrawal fee",
+        "Deposit 1 Gold Bar to Kraken"
+      ],
+      "test_ref": "rotkehlchen/tests/exchanges/test_kraken.py::test_kraken_event_serialization_with_custom_asset",
+      "quote": "(HistoryEventType.TRADE, HistoryEventSubType.SPEND, 'Swap 1 Gold Bar in Kraken'), ... assert event.serialize()['notes'] == expected_notes",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Fix must be in HistoryEvent serialization (event.serialize()) so custom assets render by name instead of failing \u2014 instruction only says 'fetch/display the events', not that the bug is in the notes-template serialization path of HistoryEvent.serialize",
+      "kind": "other",
+      "names": [
+        "serialize"
+      ],
+      "strings": [],
+      "test_ref": "rotkehlchen/tests/exchanges/test_kraken.py::test_kraken_event_serialization_with_custom_asset",
+      "quote": "assert event.serialize()['notes'] == expected_notes",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The instruction describes the bug only symptomatically; the hidden test pins eight exact notes-template strings for Kraken event serialization with a custom asset, none of which appear in or are derivable from the instruction text.",
+  "usage": {
+    "completion_tokens": 548,
+    "completion_tokens_details": {
+      "reasoning_tokens": 107
+    },
+    "prompt_tokens": 2300,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 2848
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "task_id": "format-code-task-001651",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Fresh SceneManager.plot_data is None instead of a placeholder array",
+    "An explicit teardown method named eliminate() that releases owned resources",
+    "FFTSceneManager and SignalSceneManager participate, including subclass-owned resources",
+    "A torn-down manager stays safe for cleanup calls during view shutdown",
+    "Tests check final object state, not a specific call chain"
+  ],
+  "notes": "Repo verified: SceneManager.__init__ sets plot_data = np.array([0]*100) and owns scene/line_item/text_item (src/urh/SceneManager.py:16-19); FFTSceneManager owns peak/peak_item and defines clear_peak (FFTSceneManager.py:14,22,58); SignalSceneManager owns signal (SignalSceneManager.py:15). No eliminate() exists at base. Every assertion maps to a stated requirement: plot_data is None; eliminate() releases base resources (scene, plot_data, line_item, text_item) and subclass resources (peak, peak_item, signal) — those attribute names are repo-given (R1); clear_peak() after teardown must not crash (stated 'safe for cleanup-related calls', and clear_peak is the cleanup method the repo exposes). The test accepts either nulling attributes or clearing the scene, matching the instruction's 'exact cleanup sequence is up to the implementation'. Constructors used (FFTSceneManager(parent), SignalSceneManager(signal, parent)) match the repo signatures.",
+  "read_minutes": 15,
+  "repo_complete_at_label": false
+}

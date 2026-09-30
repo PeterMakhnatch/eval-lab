@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The hidden tests' behaviors (nested 'later' image after h1, exact favicon rel strings, 'any'/\u00d7sizes handling, to_dict keys, None fallbacks) are all stated or directly implied by the instruction text.",
+  "usage": {
+    "completion_tokens": 373,
+    "completion_tokens_details": {
+      "reasoning_tokens": 153
+    },
+    "prompt_tokens": 4137,
+    "prompt_tokens_details": {
+      "cached_tokens": 768
+    },
+    "total_tokens": 4510
+  }
+}

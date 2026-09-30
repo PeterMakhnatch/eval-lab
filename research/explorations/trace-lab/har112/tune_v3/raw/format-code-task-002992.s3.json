@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The instruction fully specifies the function name, signature, module path, file matching/order, ID and category semantics, bbox inclusivity, mapping behavior, error type, and purity requirements; every hidden test is a direct consequence of these stated requirements.",
+  "usage": {
+    "completion_tokens": 248,
+    "completion_tokens_details": {
+      "reasoning_tokens": 74
+    },
+    "prompt_tokens": 5067,
+    "prompt_tokens_details": {
+      "cached_tokens": 768
+    },
+    "total_tokens": 5315
+  }
+}

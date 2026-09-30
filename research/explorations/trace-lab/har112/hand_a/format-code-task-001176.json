@@ -1,0 +1,15 @@
+{
+  "task_id": "format-code-task-001176",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "Lint every named scenario and every inline execution scenario, descending requests plus if then/else, once, and do lists of loop/while/foreach/transaction, but not payload keys such as body",
+    "include-scenario must be a non-empty string (invalid-include-scenario) and must name a key in top-level scenarios regardless of truthiness (undefined-include-scenario), with the missing alias in the message",
+    "Warning paths are the existing dotted Path strings from the configuration root",
+    "Cycle edges, including a self-include, each produce one recursive-include-scenario; repeated execution of the same scenario does not duplicate findings; acyclic reuse is clean",
+    "The three new ids honor ignored-warnings; lint() replaces findings; possible-typo and undefined-scenario stay",
+    "Importing and using ConfigurationLinter must work when lxml cannot be imported"
+  ],
+  "notes": "ConfigWarning.ERROR is already the string Error. Path.__str__ already joins components with dots, so the exact paths in the tests follow from the stated walk plus the repo Path type. bzt/six/__init__.py imports lxml and then falls through to cElementTree and elementtree, which are absent on Python 3, so the stated minimal-install requirement needs an import fix; the test does not pin which file is changed. Existing possible-typo and undefined-scenario checks already emit the identifiers and paths the preservation test asserts.",
+  "read_minutes": 20
+}

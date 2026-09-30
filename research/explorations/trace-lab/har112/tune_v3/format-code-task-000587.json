@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-000587",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "The hidden tests use exactly the name `redlock` the instruction specifies, pass only knobs the instruction says to support (key, masters), and test only the transparent acquire/release serialization the feature request describes."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 215,
+      "completion_tokens_details": {
+        "reasoning_tokens": 110
+      },
+      "prompt_tokens": 1870,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 2085
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

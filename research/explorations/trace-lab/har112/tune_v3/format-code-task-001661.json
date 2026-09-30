@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-001661",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "Every hidden-test requirement (the four manager methods, the module-level friend_set_for, and the delete-time invitation cleanup with status \"8\" limited to the same from_user/to_user direction) is stated in the instruction; the remaining test lines are scaffolding (settings, schema creation, fixtures, select_related compat shim) which is excluded."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 334,
+      "completion_tokens_details": {
+        "reasoning_tokens": 168
+      },
+      "prompt_tokens": 4099,
+      "prompt_tokens_details": {
+        "cached_tokens": 768
+      },
+      "total_tokens": 4433
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

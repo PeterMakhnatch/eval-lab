@@ -1,0 +1,21 @@
+{
+  "task_id": "format-code-task-000832",
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "async with validator as v must bind the validator: AppStoreValidator.__aenter__ must return self",
+      "test_ref": "tests/asyncio/test_asyncio_appstore.py:test_appstore_aenter_returns_self_for_async_with_as",
+      "quote": "async with appstore_validator as v: assert v is appstore_validator",
+      "severity": "guessable",
+      "names": ["AppStoreValidator.__aenter__"],
+      "rules": ["R5"]
+    }
+  ],
+  "instruction_covers": [
+    "async validate fails because _session is created only in __aenter__",
+    "working example is async with validator: await validator.validate(...)"
+  ],
+  "notes": "Repo __aenter__ creates ClientSession and returns None; __aexit__ already closes and clears _session (R3 preservation tests pass without a code change). The reported example does not use 'as v', so returning self is not required to fix the stated AttributeError. Returning self is the normal context-manager convention, so guessable rather than not_inferable: a minimal fix that only documents or keeps the no-as form still fails the new tests.",
+  "read_minutes": 9,
+  "rules": ["R5"]
+}

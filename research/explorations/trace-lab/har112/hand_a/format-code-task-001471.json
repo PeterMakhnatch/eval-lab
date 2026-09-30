@@ -1,0 +1,23 @@
+{
+  "task_id": "format-code-task-001471",
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "The extracted #### number must include a leading minus and a decimal point, not only the comma-grouped positive integers in the instruction examples. Hidden fixtures require #### -3 -> answer -3, #### 0 -> 0, #### 3.5 -> 3.5, and #### 6,912 -> 6912, with the same token inside $\\boxed{...}$.",
+      "test_ref": "usercase-test-coderl/usecase.sh F2 success_numbers",
+      "quote": "answer: \"Combine integers #### -3\" -> answer \"-3\"; \"Use decimals. #### 3.5\" -> \"3.5\"",
+      "severity": "guessable",
+      "rules": ["R4"],
+      "names": ["-3", "3.5"]
+    }
+  ],
+  "instruction_covers": [
+    "python scripts/gsm8k_to_math.py <data_folder> writes data/gsm8k_splits/train.jsonl and test.jsonl",
+    "Output objects have exactly problem, solution, and answer",
+    "Strip commas; drop the #### marker; add a period if the solution does not end with one; append ' The answer is $\\boxed{N}$.'",
+    "Exit 0 and do not print converted records on stdout",
+    "Missing marker fails with ValueError whose message includes 'Cannot extract answer in No final marker here.'"
+  ],
+  "notes": "The boxed sentence and the ValueError text are quoted in the instruction. Python traceback on stderr is the normal result of raising ValueError, and the grep is for that stated message. Repo data/gsm8k_splits already uses problem/solution/answer and 'The answer is $\\boxed{N}$.', which confirms the format but the instruction already states it. A digits-and-commas regex matches every example the instruction writes and fails the hidden negatives and decimals, so this is not sound; 'numeric' / '<number>' still makes a general number parse the natural guess.",
+  "read_minutes": 14
+}

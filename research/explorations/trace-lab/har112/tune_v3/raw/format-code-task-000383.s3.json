@@ -1,0 +1,64 @@
+{
+  "items": [
+    {
+      "what": "The FIX client class is named Tier1FXAuto and is importable from a module named fixapp, with constructor signature Tier1FXAuto(DataStream(), FixDecoder(), OrderStore(), settings).",
+      "kind": "new_name",
+      "names": [
+        "fixapp",
+        "Tier1FXAuto",
+        "DataStream",
+        "FixDecoder",
+        "OrderStore"
+      ],
+      "strings": [],
+      "test_ref": "test_market_data_requests.py:38-44",
+      "quote": "from fixapp import DataStream, FixDecoder, OrderStore, Tier1FXAuto ... client = Tier1FXAuto(DataStream(), FixDecoder(), OrderStore(), settings)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Routing to the quote session: the message must either be sent with a SessionID whose toString() equals the quote session id from the two-session config, or carry header tag 56 = FIXUAT3-QUOTE.FORTEX.COM.",
+      "kind": "extra_behavior",
+      "names": [
+        "QUOTE_SESSION",
+        "QUOTE_TARGET"
+      ],
+      "strings": [
+        "FIX.4.4:*******->FIXUAT3-QUOTE.FORTEX.COM:******",
+        "FIXUAT3-QUOTE.FORTEX.COM"
+      ],
+      "test_ref": "test_market_data_requests.py:_assert_sent_to_quote_session",
+      "quote": "assert session_id.toString() == QUOTE_SESSION ... assert message.getHeader().getField(56) == QUOTE_TARGET",
+      "severity": "guessable"
+    },
+    {
+      "what": "Field 265 and 267 values are echoed as strings exactly as passed (e.g. 265 passed as int 1 must appear as '1'; 264/267 validated as integers even when passed as strings like '0'/'2' which are valid).",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "test_market_data_requests.py:test_subscribe_reflects_market_data_option_overrides",
+      "quote": "client.subscribe_to_data(**{\"55\": \"GBP/USD\", \"264\": \"0\", \"267\": \"2\", \"265\": 1}) ... update_type=\"1\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Generated 262 request IDs must be unique across messages from the same client and across separately constructed clients (no collisions), i.e. per-instance (or process-wide) unique generation.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "test_market_data_requests.py:test_same_client_advances_generated_market_data_request_ids",
+      "quote": "assert len(set(generated_ids)) == len(generated_ids)",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction describes the message behavior fully, but never names the client class (Tier1FXAuto), its module (fixapp), or its constructor signature, which the tests require; session routing and uniqueness details are largely inferable from 'quote session' and 'generated ID' wording.",
+  "usage": {
+    "completion_tokens": 883,
+    "completion_tokens_details": {
+      "reasoning_tokens": 136
+    },
+    "prompt_tokens": 4489,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 5372
+  }
+}

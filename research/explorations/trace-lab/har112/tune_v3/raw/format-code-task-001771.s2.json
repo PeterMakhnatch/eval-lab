@@ -1,0 +1,72 @@
+{
+  "items": [
+    {
+      "what": "Status line query method isEnabled returning a bool (query-style call not named in the instruction)",
+      "kind": "new_name",
+      "names": [
+        "isEnabled"
+      ],
+      "strings": [],
+      "test_ref": "test_gui.py::test_qt_status_line_is_enabled_returns_stable_boolean",
+      "quote": "self.assertIsInstance(status_line.isEnabled(), bool)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Status line setFocus no-op (sibling of named enable/disable compatibility ops)",
+      "kind": "new_name",
+      "names": [
+        "setFocus"
+      ],
+      "strings": [],
+      "test_ref": "test_gui.py::test_qt_status_line_enable_disable_focus_are_safe_noops",
+      "quote": "status_line.setFocus()",
+      "severity": "guessable"
+    },
+    {
+      "what": "QHeadlineWrapper getYScrollPosition (sibling of named getXScrollPosition)",
+      "kind": "new_name",
+      "names": [
+        "getYScrollPosition"
+      ],
+      "strings": [],
+      "test_ref": "test_gui.py::test_qheadline_wrapper_scroll_methods_are_compatible_noops",
+      "quote": "first_y = wrapper.getYScrollPosition()",
+      "severity": "guessable"
+    },
+    {
+      "what": "QHeadlineWrapper setYScrollPosition (sibling of named setXScrollPosition)",
+      "kind": "new_name",
+      "names": [
+        "setYScrollPosition"
+      ],
+      "strings": [],
+      "test_ref": "test_gui.py::test_qheadline_wrapper_scroll_methods_are_compatible_noops",
+      "quote": "wrapper.setYScrollPosition(4)",
+      "severity": "guessable"
+    },
+    {
+      "what": "enable/disable must accept arbitrary optional arguments (called with no args, None, and color strings)",
+      "kind": "other",
+      "names": [
+        "enable",
+        "disable"
+      ],
+      "strings": [],
+      "test_ref": "test_gui.py::test_qt_status_line_enable_disable_focus_are_safe_noops",
+      "quote": "status_line.disable(\"gray\")\n        status_line.enable(\"blue\")\n        status_line.enable(None)",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction names the headline scroll/flash and enable/disable ops and tells the implementer to derive the complete set from existing repo conventions; the only unstated items (isEnabled, setFocus, the Y-axis scroll siblings, and tolerant signatures) are mechanical siblings of named methods that the same fix provides, so all are guessable.",
+  "usage": {
+    "completion_tokens": 778,
+    "completion_tokens_details": {
+      "reasoning_tokens": 226
+    },
+    "prompt_tokens": 2252,
+    "prompt_tokens_details": {
+      "cached_tokens": 2240
+    },
+    "total_tokens": 3030
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "items": [
+    {
+      "what": "Public exception class must be named exactly WSMessageTypeError and importable from top-level aiohttp package",
+      "kind": "new_name",
+      "names": [
+        "WSMessageTypeError"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_client_ws_functional.py:from aiohttp import ... WSMessageTypeError",
+      "quote": "from aiohttp import (\n    ClientConnectionResetError,\n    ServerTimeoutError,\n    WSMessageTypeError,",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exception message must match 'Received message {WSMsgType.CLOSE}:... is not WSMsgType.BINARY' / '...WSMsgType.TEXT' format exactly",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Received message {msg.type}:{msg.data} is not WSMsgType.BINARY",
+        "Received message {msg.type}:{msg.data} is not WSMsgType.TEXT"
+      ],
+      "test_ref": "test_recv_bytes_after_close / test_recv_text_after_close / test_recv_str_closed / test_recv_bytes_closed",
+      "quote": "match=f\"Received message {WSMsgType.CLOSE}:.+ is not WSMsgType.BINARY\"",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Server-side web.WebSocketResponse receive_str/receive_bytes must also raise WSMessageTypeError on CLOSED (instruction discusses websocket.receive_* generically; same family fix, guessable)",
+      "kind": "extra_behavior",
+      "names": [
+        "receive_str",
+        "receive_bytes"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_web_websocket.py:test_recv_str_closed",
+      "quote": "with pytest.raises(\n        WSMessageTypeError,\n        match=f\"Received message {WSMsgType.CLOSED}:.+ is not WSMsgType.TEXT\",\n    ):\n        await ws.receive_str()",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction names the exception ('something like WSMessageTypeError'), which matches the test import, and applying it to both client and server receive_* is the same mechanical fix. The exact exception message format is nowhere stated and admits many reasonable wordings, so the regex match is not inferable.",
+  "usage": {
+    "completion_tokens": 623,
+    "completion_tokens_details": {
+      "reasoning_tokens": 132
+    },
+    "prompt_tokens": 2673,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3296
+  }
+}

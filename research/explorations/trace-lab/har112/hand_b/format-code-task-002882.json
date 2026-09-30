@@ -1,0 +1,13 @@
+{
+  "task_id": "format-code-task-002882",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "deserialize_bytes_tensor accepts bytes/bytearray/memoryview, returns a 1-d np.object_ array, preserves NULs and empty elements, and returns an empty object array for an empty payload",
+    "incomplete prefixes, overlong lengths, trailing incomplete elements, and non-buffer inputs raise InferenceServerException",
+    "deserialize_bf16_tensor accepts the same buffers, decodes 2-byte little-endian bf16 to the existing 1-d float32 result, and rejects odd lengths and non-buffers with InferenceServerException",
+    "serialize_byte_tensor frames bytes, bytearray, memoryview, and np.bytes_ scalars from their raw contents in C order, keeping NULs and empty elements and the existing return convention"
+  ],
+  "notes": "Existing helpers in src/python/library/tritonclient/utils/__init__.py already define the wire format (uint32 length prefix; bf16 as the high two little-endian bytes of float32) and the 0-d object-array return whose .item() is the payload. The hidden tests check only the behaviors the instruction names.",
+  "read_minutes": 18
+}

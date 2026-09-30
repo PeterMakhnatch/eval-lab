@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "All names, keys, mappings (JS_COURSE_REGEX\u2192course_regexp etc.), formats and behaviors the hidden tests assert are explicitly stated in the instruction; the test file only uses documented setting names and template-context variables.",
+  "usage": {
+    "completion_tokens": 218,
+    "completion_tokens_details": {
+      "reasoning_tokens": 82
+    },
+    "prompt_tokens": 3319,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3537
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "items": [
+    {
+      "what": "Exact exponential tail approximation formula is not specified; tests only require finite values beyond the tail, in the correct direction, and not equal to the linear extrapolation",
+      "kind": "other",
+      "names": [],
+      "strings": [],
+      "test_ref": "test_missing_quantile_in_effective_left_tail_extrapolates",
+      "quote": "assert np.all(actual < np.array([1.0, 2.0]))... assert not np.allclose(actual, linear_tail, ...)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Which request levels count as 'effective tails' (e.g. 0.05 with min stored 0.1, 0.95 with max 0.9) is not defined numerically",
+      "kind": "other",
+      "names": [],
+      "strings": [],
+      "test_ref": "test_missing_quantile_in_effective_left_tail_extrapolates",
+      "quote": "actual = base_forecast().quantile(0.05)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Numeric strings with trailing zeros like \"0.90\" must normalize to the stored 0.9 level",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "0.90"
+      ],
+      "test_ref": "test_equivalent_numeric_string_for_stored_right_decile_returns_array",
+      "quote": "actual = base_forecast().quantile(\"0.90\")",
+      "severity": "guessable"
+    },
+    {
+      "what": "A stored \"mean\" key must be excluded from the quantile levels used for interpolation, not just in the fewer-than-two case",
+      "kind": "extra_behavior",
+      "names": [
+        "mean"
+      ],
+      "strings": [],
+      "test_ref": "test_mean_key_is_ignored_when_interpolating_quantiles",
+      "quote": "forecast_keys=[\"mean\", \"0.25\", \"0.75\"] ... quantile(0.5) == [5.5, 11.0, 16.5]",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction covers nearly all behavior; the only unstated specifics (exact exponential formula, tail thresholds, \"0.90\" parsing, excluding \"mean\" from interpolation) are all satisfied by any standard implementation of the described fix.",
+  "usage": {
+    "completion_tokens": 864,
+    "completion_tokens_details": {
+      "reasoning_tokens": 288
+    },
+    "prompt_tokens": 3729,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 4593
+  }
+}

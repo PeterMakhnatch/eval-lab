@@ -1,0 +1,14 @@
+{
+  "task_id": "format-code-task-002445",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "UIWidget.with_background must accept RGBA tuple-style color input and use it like other color objects; None still means no background",
+    "UIBoxLayout must not crash when available size on an axis is zero or negative; children degrade to minimum size",
+    "The zero-or-negative-size fallback emits exactly: Container size is 0, cannot calculate sizes for children.",
+    "The color picker example must not attach palette buttons to multiple containers; each button appears once in the palette area"
+  ],
+  "notes": "Repo verified: with_background stores the raw color (widgets/__init__.py:463-464) and do_render_base accesses color.a, so a tuple fails; Color.from_iterable builds a Color from 3/4 channels (types/color.py:206). _box_axis_algorithm divides by container_size (layout.py:905), so zero/negative available space raises; the fix (fall back to child minimums plus the stated warning) is exactly the stated behaviour, and the required message string is stated verbatim in the instruction (R5 satisfied). The color picker adds every button to both self.root and self.grid (5_uicolor_picker.py:147,154); adding only to the grid is the stated single-attachment fix. The tests check renderability (not exact pixels), minimum sizes, the exact stated message, and single attachment — all stated. No extra behaviour is pinned.",
+  "read_minutes": 18,
+  "repo_complete_at_label": true
+}

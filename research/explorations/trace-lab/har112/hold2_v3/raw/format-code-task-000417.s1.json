@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The hidden test changes merely set dag_directory to a dummy value ('directory') and expect stale-dag scanning to work by comparing filelocs against the manager's actual file paths \u2014 this is the direct, minimal fix of exactly the described bug. No new names, strings, or extra behaviors are required beyond what the instruction implies.",
+  "usage": {
+    "completion_tokens": 349,
+    "completion_tokens_details": {
+      "reasoning_tokens": 203
+    },
+    "prompt_tokens": 2833,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 3182
+  }
+}

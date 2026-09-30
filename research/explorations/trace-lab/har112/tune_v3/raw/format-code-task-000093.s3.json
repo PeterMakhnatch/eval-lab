@@ -1,0 +1,39 @@
+{
+  "items": [
+    {
+      "what": "A module-level helper named `_get_gdal_version` must exist in module `pygmt._show_versions` and be patchable there; the instruction never names this function or module.",
+      "kind": "new_name",
+      "names": [
+        "_get_gdal_version",
+        "pygmt._show_versions"
+      ],
+      "strings": [],
+      "test_ref": "pygmt/tests/test_show_versions.py:9",
+      "quote": "from pygmt._show_versions import _get_gdal_version ... with patch(\"pygmt._show_versions._get_gdal_version\", return_value=None):",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "`_get_gdal_version()` must return a clean version string like '3.10.3' (matching ^\\d+\\.\\d+), not a verbose string like 'GDAL 3.10.3, released ...' \u2014 the instruction leaves the output format of the chosen fix open.",
+      "kind": "exact_string",
+      "names": [
+        "_get_gdal_version"
+      ],
+      "strings": [],
+      "test_ref": "test_get_gdal_version_returns_clean_version_string",
+      "quote": "assert re.match(r\"^\\d+\\.\\d+\", gdal_version), f\"_get_gdal_version() returned non-version-like string: {gdal_version!r}\"",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction discusses fix options but never names the required private helper `_get_gdal_version` or its module `pygmt._show_versions`, which the tests import and patch; the clean-version-string format is a guessable consequence of fixing the reported verbose-output concern.",
+  "usage": {
+    "completion_tokens": 522,
+    "completion_tokens_details": {
+      "reasoning_tokens": 102
+    },
+    "prompt_tokens": 2449,
+    "prompt_tokens_details": {
+      "cached_tokens": 2432
+    },
+    "total_tokens": 2971
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "task_id": "format-code-task-001024",
+  "label": "suspect",
+  "label_without_repo": "suspect",
+  "sample_labels": [
+    "suspect"
+  ],
+  "repo_used": false,
+  "unstated": [
+    {
+      "what": "Invalid buffer_overflow/event_retries configuration must raise ValueError specifically (instruction says only 'configuration error')",
+      "kind": "other",
+      "names": [
+        "ValueError"
+      ],
+      "strings": [],
+      "test_ref": "test_config_rejects_unknown_overflow_policy / test_config_rejects_invalid_retry_values",
+      "quote": "with pytest.raises(ValueError) as excinfo:\n    parse_listener_config('buffer_overflow=%s\\n' % value)",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction covers all behavioral requirements; the only unstated detail is the concrete exception type ValueError for config errors, which is the established convention in supervisor's options parsing and is the natural minimal fix."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 1637,
+      "completion_tokens_details": {
+        "reasoning_tokens": 1217
+      },
+      "prompt_tokens": 4409,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 6046
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

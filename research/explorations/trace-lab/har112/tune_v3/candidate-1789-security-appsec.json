@@ -1,0 +1,29 @@
+{
+  "task_id": "candidate-1789-security-appsec",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "The hidden tests check only behaviors, identifiers, and report fields that the instruction already names or that the supplied runner/fixtures produce (cases., report shape). No extra names, strings, or semantics are demanded beyond the stated repair."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 382,
+      "completion_tokens_details": {
+        "reasoning_tokens": 168
+      },
+      "prompt_tokens": 3102,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 3484
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

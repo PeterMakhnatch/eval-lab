@@ -1,0 +1,74 @@
+{
+  "task_id": "format-code-task-002003",
+  "label": "suspect",
+  "label_without_repo": "broken",
+  "sample_labels": [
+    "suspect"
+  ],
+  "repo_used": true,
+  "unstated": [
+    {
+      "what": "ranked results must be returned as a list ordered by relevance (title/term match and score) rather than only filtered/scored in place",
+      "kind": "extra_behavior",
+      "names": [
+        "order_results"
+      ],
+      "strings": [],
+      "test_ref": "test/test_rank.py:15-16",
+      "quote": "ordered_results[0].title == 'Bananas and apples'",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [
+    {
+      "what": "order_results must accept a third positional boolean argument (semantics unstated, e.g. an 'is wiki/Wikidata' flag affecting ranking)",
+      "kind": "new_name",
+      "names": [
+        "order_results"
+      ],
+      "strings": [],
+      "test_ref": "test/test_rank.py:13",
+      "quote": "ordered_results = order_results([\"bananas\"], documents, True)",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "order_results": "mwmbl/tinysearchengine/ltr_rank.py:16"
+      }
+    },
+    {
+      "what": "order_results must be a new/renamed function in mwmbl.tinysearchengine.rank (tests import it by this exact name; base repo may name its ranking function differently, e.g. score/order via a different API)",
+      "kind": "new_name",
+      "names": [
+        "order_results",
+        "rank",
+        "tinysearchengine"
+      ],
+      "strings": [],
+      "test_ref": "test/test_rank.py:2",
+      "quote": "from mwmbl.tinysearchengine.rank import order_results",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "order_results": "mwmbl/tinysearchengine/ltr_rank.py:16",
+        "rank": "mwmbl/search_setup.py:10",
+        "tinysearchengine": "mwmbl/urls.py:22"
+      }
+    }
+  ],
+  "reasons": [
+    "The instruction only shows a crash screenshot; hidden tests require an exact module path and function name order_results with a third boolean parameter whose meaning is never stated, plus a reordering contract."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 596,
+      "completion_tokens_details": {
+        "reasoning_tokens": 216
+      },
+      "prompt_tokens": 1556,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2152
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

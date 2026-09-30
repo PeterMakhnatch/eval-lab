@@ -1,0 +1,28 @@
+{
+  "items": [
+    {
+      "what": "set_crs must also set the CRS on the spatial_partitions GeoSeries (so it becomes non-None and matches the new CRS), not just preserve it",
+      "kind": "extra_behavior",
+      "names": [
+        "spatial_partitions",
+        "crs"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_core.py::test_set_crs_updates_spatial_partitions_crs",
+      "quote": "assert new.spatial_partitions.crs is not None\nassert CRS.from_user_input(new.spatial_partitions.crs) == CRS.from_user_input(new_crs)",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The instruction only asks to preserve spatial_partitions on set_crs; the hidden tests additionally require the spatial_partitions' own crs attribute to be updated to the new CRS, which the instruction never states (it only shows preservation of geometry values).",
+  "usage": {
+    "completion_tokens": 230,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 2035,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 2265
+  }
+}

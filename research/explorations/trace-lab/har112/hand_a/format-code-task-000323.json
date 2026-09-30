@@ -1,0 +1,21 @@
+{
+  "task_id": "format-code-task-000323",
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "receive_str/receive_bytes type mismatches must raise WSMessageTypeError whose message matches 'Received message {WSMsgType.CLOSE}:.+ is not WSMsgType.BINARY' or 'Received message {WSMsgType.CLOSE}:.+ is not WSMsgType.TEXT' on the client, and the same pattern with WSMsgType.CLOSED on web.WebSocketResponse. Client code today says 'is not str' / 'is not bytes'; only the server receive_str already says 'is not WSMsgType.TEXT'. The instruction allows RuntimeError 'or so' and only suggests a name like WSMessageTypeError; it never gives this sentence.",
+      "test_ref": "tests/test_client_ws_functional.py:test_recv_bytes_after_close",
+      "quote": "match=f\"Received message {WSMsgType.CLOSE}:.+ is not WSMsgType.BINARY\"",
+      "severity": "not_inferable",
+      "rules": ["R5"],
+      "names": ["WSMessageTypeError", "WSMsgType.BINARY", "WSMsgType.TEXT"]
+    }
+  ],
+  "instruction_covers": [
+    "receive_* including receive_json should not die with TypeError when the frame is CLOSE/CLOSING/CLOSED or otherwise not the requested type",
+    "A public exception such as WSMessageTypeError exported from aiohttp is the suggested type",
+    "The iterator already raises StopAsyncIteration for those close types"
+  ],
+  "notes": "WSMessageTypeError is not in aiohttp/__init__.py today; exporting that suggested name is implied. Server receive_bytes uses 'is not bytes' while receive_str uses 'is not WSMsgType.TEXT', so copying either existing string fails the other side's regex. A minimal WSMessageTypeError('cannot receive binary') fails the match. Hidden patch also changes existing TypeError assertions to WSMessageTypeError and one send_bytes('answer') to send_str; those follow from raising the new type on a type mismatch. CLOSE vs CLOSED is which message the close path actually delivers, visible in the repo, but the exact template is not.",
+  "read_minutes": 18
+}

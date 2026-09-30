@@ -1,0 +1,76 @@
+{
+  "items": [
+    {
+      "what": "Module-level logger object jm_logger imported from jmcomic (fixture manipulates its handlers/level)",
+      "kind": "new_name",
+      "names": [
+        "jm_logger"
+      ],
+      "strings": [],
+      "test_ref": "usercase-test-coderl/test_option_factories.py:15",
+      "quote": "    jm_logger,\n...original_handlers = list(jm_logger.handlers)",
+      "severity": "guessable"
+    },
+    {
+      "what": "JmModuleConfig class and its option_default_dict/FLAG_ENABLE_JM_LOG/EXECUTOR_LOG/DEFAULT_PROXIES members that the fix must interact with (log flag toggling)",
+      "kind": "new_name",
+      "names": [
+        "JmModuleConfig",
+        "option_default_dict",
+        "FLAG_ENABLE_JM_LOG",
+        "EXECUTOR_LOG",
+        "DEFAULT_PROXIES"
+      ],
+      "strings": [],
+      "test_ref": "test_option_factories.py:265",
+      "quote": "    assert JmModuleConfig.FLAG_ENABLE_JM_LOG is False",
+      "severity": "guessable"
+    },
+    {
+      "what": "PrettyFormatter class importable from jmcomic, attached as a formatter on jm_logger handlers when log='pretty'",
+      "kind": "new_name",
+      "names": [
+        "PrettyFormatter"
+      ],
+      "strings": [],
+      "test_ref": "test_option_factories.py:276",
+      "quote": "assert any(isinstance(handler.formatter, PrettyFormatter) for handler in jm_logger.handlers)",
+      "severity": "guessable"
+    },
+    {
+      "what": "JmOption.deconstruct() method returning dict with keys version/log/dir_rule/download/client/plugins and nested postman meta_data",
+      "kind": "new_name",
+      "names": [
+        "deconstruct"
+      ],
+      "strings": [],
+      "test_ref": "test_option_factories.py:35",
+      "quote": "    data = option.deconstruct()\n    metadata = data[\"client\"][\"postman\"][\"meta_data\"]",
+      "severity": "guessable"
+    },
+    {
+      "what": "option.plugins.src_dict attribute exposing raw plugin lists after migration",
+      "kind": "new_name",
+      "names": [
+        "plugins",
+        "src_dict"
+      ],
+      "strings": [],
+      "test_ref": "test_option_factories.py:302",
+      "quote": "    after_album = option.plugins.src_dict[\"after_album\"]",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction names all public APIs and behaviors exercised by the tests; remaining items are jmcomic-internal names (jm_logger, JmModuleConfig members, PrettyFormatter, deconstruct, src_dict) that almost certainly already exist in the repository and any correct fix of the log/pretty/migration requirements keeps working.",
+  "usage": {
+    "completion_tokens": 1126,
+    "completion_tokens_details": {
+      "reasoning_tokens": 452
+    },
+    "prompt_tokens": 6322,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 7448
+  }
+}

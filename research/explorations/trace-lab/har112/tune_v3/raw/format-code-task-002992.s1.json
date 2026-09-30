@@ -1,0 +1,27 @@
+{
+  "items": [
+    {
+      "what": "The function must not mutate the caller-supplied category_mapping dict (instruction only says 'without writing files or changing global state').",
+      "kind": "extra_behavior",
+      "names": [
+        "category_mapping"
+      ],
+      "strings": [],
+      "test_ref": "test_does_not_mutate_caller_mapping",
+      "quote": "def test_does_not_mutate_caller_mapping ... mapping = {\"Ryegrass\": 7, \"Turnip\": 9} ... assert mapping == before",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "All test expectations follow directly from the instruction's detailed spec; the only unstated detail is that the caller's category_mapping dict must not be mutated, which a minimal non-mutating fix satisfies naturally.",
+  "usage": {
+    "completion_tokens": 506,
+    "completion_tokens_details": {
+      "reasoning_tokens": 187
+    },
+    "prompt_tokens": 5067,
+    "prompt_tokens_details": {
+      "cached_tokens": 768
+    },
+    "total_tokens": 5573
+  }
+}

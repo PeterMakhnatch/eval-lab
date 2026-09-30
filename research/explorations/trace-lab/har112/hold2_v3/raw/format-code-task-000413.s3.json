@@ -1,0 +1,47 @@
+{
+  "items": [
+    {
+      "what": "The single batch list_namespaced_pod call must use a label_selector containing \"airflow-worker=1\" (job_id) only, and must NOT include per-TI labels like dag_id=, task_id=, run_id= \u2014 the test explicitly forbids scoping the API call by TI labels.",
+      "kind": "exact_string",
+      "names": [
+        "list_namespaced_pod",
+        "label_selector"
+      ],
+      "strings": [
+        "airflow-worker=1"
+      ],
+      "test_ref": "test_clear_not_launched_queued_tasks_batch_uses_airflow_worker_selector",
+      "quote": "assert \"airflow-worker=1\" in selector ... assert \"dag_id=\" not in selector ... assert \"task_id=\" not in selector ... assert \"run_id=\" not in selector",
+      "severity": "guessable"
+    },
+    {
+      "what": "Matching of TIs to pods must be done locally in memory by reconstructing the label string (dag_id, task_id, airflow-worker, run_id, map_index) from each returned pod's metadata.labels, rather than any further API calls.",
+      "kind": "extra_behavior",
+      "names": [
+        "metadata",
+        "labels",
+        "dag_id",
+        "task_id",
+        "run_id",
+        "map_index",
+        "airflow-worker"
+      ],
+      "strings": [],
+      "test_ref": "test_clear_not_launched_queued_tasks_batch_pod_match_keeps_queued / _batch_mixed_pod_match / _batch_mapped_task_match",
+      "quote": "Reference matches by reconstructing the (dag_id, task_id, airflow-worker, run_id) label string from each pod's metadata.labels and putting it in a set.",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction asks for batching but not the exact mechanism; the tests pin one API call scoped only by the airflow-worker label with purely local label-string matching (including map_index). This is the natural reading of 'get all the airflow worker pods in one batch call' and is a mechanical reuse of the existing label construction, so guessable; the no-queued-TIs case (zero API calls) preserves base behavior and is skipped.",
+  "usage": {
+    "completion_tokens": 1109,
+    "completion_tokens_details": {
+      "reasoning_tokens": 616
+    },
+    "prompt_tokens": 4649,
+    "prompt_tokens_details": {
+      "cached_tokens": 4608
+    },
+    "total_tokens": 5758
+  }
+}

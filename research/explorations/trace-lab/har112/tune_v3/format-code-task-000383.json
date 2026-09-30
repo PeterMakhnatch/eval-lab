@@ -1,0 +1,246 @@
+{
+  "task_id": "format-code-task-000383",
+  "label": "broken",
+  "label_without_repo": "broken",
+  "sample_labels": [
+    "broken",
+    "broken",
+    "suspect"
+  ],
+  "repo_used": true,
+  "unstated": [
+    {
+      "what": "Routing to the quote session: the sent message must either carry a session_id whose toString() equals the exact quote session string or have tag 56 equal to the quote target; how the client distinguishes the quote session from the trade session is not specified.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "FIX.4.4:*******->FIXUAT3-QUOTE.FORTEX.COM:******",
+        "FIXUAT3-QUOTE.FORTEX.COM"
+      ],
+      "test_ref": "test_market_data_requests.py:70-76 (_assert_sent_to_quote_session)",
+      "quote": "assert session_id.toString() == QUOTE_SESSION ... assert message.getHeader().getField(56) == QUOTE_TARGET",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "FIX.4.4:*******->FIXUAT3-QUOTE.FORTEX.COM:******": null,
+        "FIXUAT3-QUOTE.FORTEX.COM": "string in README.md"
+      }
+    },
+    {
+      "what": "Messages must be sent via class-level quickfix Session.sendToTarget (tests monkeypatch fix.Session.sendToTarget), so the fix must route through that exact call",
+      "kind": "extra_behavior",
+      "names": [
+        "Session.sendToTarget"
+      ],
+      "strings": [],
+      "test_ref": "test_market_data_requests.py:_capture_send",
+      "quote": "monkeypatch.setattr(fix.Session, \"sendToTarget\", capture)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "NoRelatedSym count (146='1') must be set on the message itself, and entries as Group(267,269) with 269 in {'0','1'} and symbol Group(146,55), compatible with fix.Group/getGroup reads",
+      "kind": "extra_behavior",
+      "names": [
+        "getGroup"
+      ],
+      "strings": [],
+      "test_ref": "test_market_data_requests.py:_field_snapshot",
+      "quote": "entry_group = fix.Group(267, 269); message.getGroup(index, entry_group); ... symbol_group = fix.Group(146, 55)",
+      "severity": "guessable"
+    },
+    {
+      "what": "onCreate must register each session id on the client so a 'configured' instance knows the quote session",
+      "kind": "extra_behavior",
+      "names": [
+        "onCreate",
+        "getSessions"
+      ],
+      "strings": [],
+      "test_ref": "test_market_data_requests.py:_configured_client",
+      "quote": "for session_id in settings.getSessions(): client.onCreate(session_id)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Routing to the quote session: the message must either be sent with a SessionID whose toString() equals the quote session id from the two-session config, or carry header tag 56 = FIXUAT3-QUOTE.FORTEX.COM.",
+      "kind": "extra_behavior",
+      "names": [
+        "QUOTE_SESSION",
+        "QUOTE_TARGET"
+      ],
+      "strings": [
+        "FIX.4.4:*******->FIXUAT3-QUOTE.FORTEX.COM:******",
+        "FIXUAT3-QUOTE.FORTEX.COM"
+      ],
+      "test_ref": "test_market_data_requests.py:_assert_sent_to_quote_session",
+      "quote": "assert session_id.toString() == QUOTE_SESSION ... assert message.getHeader().getField(56) == QUOTE_TARGET",
+      "severity": "guessable"
+    },
+    {
+      "what": "Field 265 and 267 values are echoed as strings exactly as passed (e.g. 265 passed as int 1 must appear as '1'; 264/267 validated as integers even when passed as strings like '0'/'2' which are valid).",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "test_market_data_requests.py:test_subscribe_reflects_market_data_option_overrides",
+      "quote": "client.subscribe_to_data(**{\"55\": \"GBP/USD\", \"264\": \"0\", \"267\": \"2\", \"265\": 1}) ... update_type=\"1\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "Generated 262 request IDs must be unique across messages from the same client and across separately constructed clients (no collisions), i.e. per-instance (or process-wide) unique generation.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "test_market_data_requests.py:test_same_client_advances_generated_market_data_request_ids",
+      "quote": "assert len(set(generated_ids)) == len(generated_ids)",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [
+    {
+      "what": "The FIX client class the methods must be added to is named Tier1FXAuto and imported from module fixapp; the instruction only says 'a configured FIX client instance' without naming the class or module.",
+      "kind": "new_name",
+      "names": [
+        "Tier1FXAuto",
+        "fixapp"
+      ],
+      "strings": [],
+      "test_ref": "test_market_data_requests.py:38",
+      "quote": "from fixapp import DataStream, FixDecoder, OrderStore, Tier1FXAuto",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "Tier1FXAuto": "fixapp/clients/child_clients.py:4",
+        "fixapp": "main.py:1"
+      }
+    },
+    {
+      "what": "Constructor signature Tier1FXAuto(DataStream(), FixDecoder(), OrderStore(), settings) must already exist and accept a SessionSettings with two sessions.",
+      "kind": "new_name",
+      "names": [
+        "DataStream",
+        "FixDecoder",
+        "OrderStore"
+      ],
+      "strings": [],
+      "test_ref": "test_market_data_requests.py:47",
+      "quote": "client = Tier1FXAuto(DataStream(), FixDecoder(), OrderStore(), settings)",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "DataStream": "fixapp/session_object.py:2",
+        "FixDecoder": "fixapp/session_object.py:2",
+        "OrderStore": "fixapp/session_object.py:2"
+      }
+    },
+    {
+      "what": "Client class and module names: tests import from module 'fixapp' the names Tier1FXAuto, DataStream, FixDecoder, OrderStore",
+      "kind": "new_name",
+      "names": [
+        "fixapp",
+        "Tier1FXAuto",
+        "DataStream",
+        "FixDecoder",
+        "OrderStore"
+      ],
+      "strings": [],
+      "test_ref": "test_market_data_requests.py:38",
+      "quote": "from fixapp import DataStream, FixDecoder, OrderStore, Tier1FXAuto  # noqa: E402",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "fixapp": "main.py:1",
+        "Tier1FXAuto": "fixapp/clients/child_clients.py:4",
+        "DataStream": "fixapp/session_object.py:2",
+        "FixDecoder": "fixapp/session_object.py:2",
+        "OrderStore": "fixapp/session_object.py:2"
+      }
+    },
+    {
+      "what": "Tier1FXAuto constructor signature: Tier1FXAuto(DataStream(), FixDecoder(), OrderStore(), settings)",
+      "kind": "new_name",
+      "names": [
+        "Tier1FXAuto"
+      ],
+      "strings": [],
+      "test_ref": "test_market_data_requests.py:_configured_client",
+      "quote": "client = Tier1FXAuto(DataStream(), FixDecoder(), OrderStore(), settings)",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "Tier1FXAuto": "fixapp/clients/child_clients.py:4"
+      }
+    },
+    {
+      "what": "Sent object must be a quickfix Message with header TargetCompID (tag 56) = quote target FIXUAT3-QUOTE.FORTEX.COM when no session_id is passed",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "FIXUAT3-QUOTE.FORTEX.COM"
+      ],
+      "test_ref": "test_market_data_requests.py:_assert_sent_to_quote_session",
+      "quote": "assert message.getHeader().getField(56) == QUOTE_TARGET",
+      "severity": "guessable",
+      "repo_evidence": {
+        "FIXUAT3-QUOTE.FORTEX.COM": "string in README.md"
+      }
+    },
+    {
+      "what": "The FIX client class is named Tier1FXAuto and is importable from a module named fixapp, with constructor signature Tier1FXAuto(DataStream(), FixDecoder(), OrderStore(), settings).",
+      "kind": "new_name",
+      "names": [
+        "fixapp",
+        "Tier1FXAuto",
+        "DataStream",
+        "FixDecoder",
+        "OrderStore"
+      ],
+      "strings": [],
+      "test_ref": "test_market_data_requests.py:38-44",
+      "quote": "from fixapp import DataStream, FixDecoder, OrderStore, Tier1FXAuto ... client = Tier1FXAuto(DataStream(), FixDecoder(), OrderStore(), settings)",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "fixapp": "main.py:1",
+        "Tier1FXAuto": "fixapp/clients/child_clients.py:4",
+        "DataStream": "fixapp/session_object.py:2",
+        "FixDecoder": "fixapp/session_object.py:2",
+        "OrderStore": "fixapp/session_object.py:2"
+      }
+    }
+  ],
+  "reasons": [
+    "The behavior in the instruction matches the tests, but the tests also depend on repo-specific identifiers (module fixapp, class Tier1FXAuto and its collaborators) and on quote-session routing/identifier strings that the instruction never states.",
+    "The FIX message content is covered, but the tests pin repository-specific names (fixapp module, Tier1FXAuto and its collaborators and constructor order), the exact sendToTarget routing mechanism, and the quickfix group/field layout, none of which the instruction states.",
+    "The instruction describes the message behavior fully, but never names the client class (Tier1FXAuto), its module (fixapp), or its constructor signature, which the tests require; session routing and uniqueness details are largely inferable from 'quote session' and 'generated ID' wording."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 776,
+      "completion_tokens_details": {
+        "reasoning_tokens": 237
+      },
+      "prompt_tokens": 4489,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 5265
+    },
+    {
+      "completion_tokens": 1259,
+      "completion_tokens_details": {
+        "reasoning_tokens": 441
+      },
+      "prompt_tokens": 4489,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 5748
+    },
+    {
+      "completion_tokens": 883,
+      "completion_tokens_details": {
+        "reasoning_tokens": 136
+      },
+      "prompt_tokens": 4489,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 5372
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

@@ -1,0 +1,47 @@
+{
+  "items": [
+    {
+      "what": "On failure the error must go to stderr, not stdout (and stdout must still contain 'Snapping' and not the snap filename).",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "snapcraft/tests/test_cmds.py:106-113",
+      "quote": "output_stderr = mock_stderr.getvalue()\n        self.assertTrue('can not parse package.yaml: missing required fields'\n                        in output_stderr)",
+      "severity": "guessable"
+    },
+    {
+      "what": "The exact error text relayed on failure must be the underlying tool's message 'can not parse package.yaml: missing required fields'.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "can not parse package.yaml: missing required fields"
+      ],
+      "test_ref": "snapcraft/tests/test_cmds.py:110-111",
+      "quote": "self.assertTrue('can not parse package.yaml: missing required fields'\n                        in output_stderr)",
+      "severity": "guessable"
+    },
+    {
+      "what": "On success stderr must remain completely empty.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        "There should be no stderr"
+      ],
+      "test_ref": "snapcraft/tests/test_cmds.py:81",
+      "quote": "self.assertEqual(output_stderr, '', 'There should be no stderr')",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction already says to surface the underlying build tool's message, so relaying it (to stderr, the conventional error channel) satisfies the tests; the exact string and channel are the main unstated specifics, both plausible consequences of a correct fix.",
+  "usage": {
+    "completion_tokens": 656,
+    "completion_tokens_details": {
+      "reasoning_tokens": 280
+    },
+    "prompt_tokens": 1767,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "total_tokens": 2423
+  }
+}

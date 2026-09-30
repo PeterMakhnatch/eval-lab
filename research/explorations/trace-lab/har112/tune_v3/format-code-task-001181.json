@@ -1,0 +1,52 @@
+{
+  "task_id": "format-code-task-001181",
+  "label": "suspect",
+  "label_without_repo": "suspect",
+  "sample_labels": [
+    "suspect"
+  ],
+  "repo_used": false,
+  "unstated": [
+    {
+      "what": "Task exposes a finished_speed field that update() sets at completion and freezes afterwards; the instruction only says 'capture the speed at that moment' without naming the field.",
+      "kind": "new_name",
+      "names": [
+        "finished_speed"
+      ],
+      "strings": [],
+      "test_ref": "test_completion_via_update_records_and_freezes_finished_speed",
+      "quote": "assert task.finished_speed == 5.0",
+      "severity": "guessable"
+    },
+    {
+      "what": "Task.speed and time_remaining must be None when no estimate is possible (right after reset); instruction mentions retaining existing None behavior, which implies the attribute names, but speed=None after reset is an explicit check.",
+      "kind": "extra_behavior",
+      "names": [
+        "speed"
+      ],
+      "strings": [],
+      "test_ref": "test_reset_clears_old_speed_samples",
+      "quote": "assert progress.tasks[task_id].speed is None",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction describes the semantics but never names the finished_speed field; it is, however, the standard rich Task attribute implied by 'capture the speed at that moment', so it is guessable. The speed-is-None-after-reset assertion matches the instruction's existing None behavior."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 570,
+      "completion_tokens_details": {
+        "reasoning_tokens": 228
+      },
+      "prompt_tokens": 2409,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2979
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

@@ -1,0 +1,42 @@
+{
+  "task_id": "format-code-task-002599",
+  "label": "suspect",
+  "label_without_repo": "suspect",
+  "sample_labels": [
+    "suspect"
+  ],
+  "repo_used": false,
+  "unstated": [
+    {
+      "what": "The Flickr importer class must live at (or be importable/monkeypatchable as) 'pybossa.importers.importer.BulkTaskFlickrImport'; the instruction never names the internal class or its module path.",
+      "kind": "new_name",
+      "names": [
+        "pybossa.importers.importer",
+        "BulkTaskFlickrImport"
+      ],
+      "strings": [],
+      "test_ref": "usercase-test-coderl/test_importers.py:75",
+      "quote": "monkeypatch.setattr(\"pybossa.importers.importer.BulkTaskFlickrImport\", FakeFlickrImporter)",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction fully specifies the stateful Importer, name lists, credential merging, task key copying, and ImportReport semantics; the only unstated detail is the internal module path/class name pybossa.importers.importer.BulkTaskFlickrImport, which is presumably the existing repo name the fix reuses."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 674,
+      "completion_tokens_details": {
+        "reasoning_tokens": 336
+      },
+      "prompt_tokens": 4004,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 4678
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

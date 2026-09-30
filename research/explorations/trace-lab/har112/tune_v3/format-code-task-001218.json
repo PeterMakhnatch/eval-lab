@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-001218",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "All hidden tests exercise exactly the reported bug via mkdir/touch/ls with plain and leading-slash paths; store and pseudo_dirs are pre-existing MemoryFileSystem attributes used in a reset helper, not new requirements."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 211,
+      "completion_tokens_details": {
+        "reasoning_tokens": 86
+      },
+      "prompt_tokens": 1906,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2117
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

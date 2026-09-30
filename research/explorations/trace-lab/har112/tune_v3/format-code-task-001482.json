@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-001482",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "The hidden test change directly matches the requested fix: a named-directory include whose file loads to None must produce the key with value None; no extra names, strings, or behaviors are required beyond what the instruction implies."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 222,
+      "completion_tokens_details": {
+        "reasoning_tokens": 118
+      },
+      "prompt_tokens": 1415,
+      "prompt_tokens_details": {
+        "cached_tokens": 768
+      },
+      "total_tokens": 1637
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

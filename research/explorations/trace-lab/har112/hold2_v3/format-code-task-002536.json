@@ -1,0 +1,142 @@
+{
+  "task_id": "format-code-task-002536",
+  "label": "suspect",
+  "label_without_repo": "suspect",
+  "sample_labels": [
+    "broken",
+    "suspect",
+    "suspect"
+  ],
+  "repo_used": true,
+  "unstated": [
+    {
+      "what": "Exact notes strings produced when serializing Kraken events with a custom asset (trade swap/receive/fee, staking reward/fee, withdrawal/fee, deposit templates with the asset name substituted)",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Swap 1 Gold Bar in Kraken",
+        "Receive 1 Gold Bar as a result of a Kraken swap",
+        "Spend 1 Gold Bar as Kraken trading fee",
+        "Gain 1 Gold Bar from Kraken staking",
+        "Spend 1 Gold Bar as Kraken staking fee",
+        "Withdraw 1 Gold Bar from Kraken",
+        "Spend 1 Gold Bar as Kraken withdrawal fee",
+        "Deposit 1 Gold Bar to Kraken"
+      ],
+      "test_ref": "rotkehlchen/tests/exchanges/test_kraken.py::test_kraken_event_serialization_with_custom_asset",
+      "quote": "(HistoryEventType.TRADE, HistoryEventSubType.SPEND, 'Swap 1 Gold Bar in Kraken'), ... assert event.serialize()['notes'] == expected_notes",
+      "severity": "not_inferable",
+      "repo_evidence": {
+        "Swap 1 Gold Bar in Kraken": null,
+        "Receive 1 Gold Bar as a result of a Kraken swap": null,
+        "Spend 1 Gold Bar as Kraken trading fee": null,
+        "Gain 1 Gold Bar from Kraken staking": null,
+        "Spend 1 Gold Bar as Kraken staking fee": null,
+        "Withdraw 1 Gold Bar from Kraken": null,
+        "Spend 1 Gold Bar as Kraken withdrawal fee": null,
+        "Deposit 1 Gold Bar to Kraken": null
+      }
+    },
+    {
+      "what": "Fix must be in HistoryEvent serialization (event.serialize()) so custom assets render by name instead of failing \u2014 instruction only says 'fetch/display the events', not that the bug is in the notes-template serialization path of HistoryEvent.serialize",
+      "kind": "other",
+      "names": [
+        "serialize"
+      ],
+      "strings": [],
+      "test_ref": "rotkehlchen/tests/exchanges/test_kraken.py::test_kraken_event_serialization_with_custom_asset",
+      "quote": "assert event.serialize()['notes'] == expected_notes",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact event note templates produced when serializing Kraken events with a custom asset (e.g. 'Swap 1 Gold Bar in Kraken') \u2014 the instruction never names the required strings, but they match the repo's existing Kraken note templates with the custom asset's name substituted, which the minimal fix (using the asset name in serialization) would produce.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Swap 1 Gold Bar in Kraken",
+        "Receive 1 Gold Bar as a result of a Kraken swap",
+        "Spend 1 Gold Bar as Kraken trading fee",
+        "Gain 1 Gold Bar from Kraken staking",
+        "Spend 1 Gold Bar as Kraken staking fee",
+        "Withdraw 1 Gold Bar from Kraken",
+        "Spend 1 Gold Bar as Kraken withdrawal fee",
+        "Deposit 1 Gold Bar to Kraken"
+      ],
+      "test_ref": "rotkehlchen/tests/exchanges/test_kraken.py::test_kraken_event_serialization_with_custom_asset",
+      "quote": "(HistoryEventType.TRADE, HistoryEventSubType.SPEND, 'Swap 1 Gold Bar in Kraken'),",
+      "severity": "guessable"
+    },
+    {
+      "what": "Exact notes strings that serializing Kraken events with a custom asset must produce (e.g. 'Swap 1 Gold Bar in Kraken', 'Gain 1 Gold Bar from Kraken staking', etc.) are not stated in the instruction; they must match the existing Kraken serialization templates with the custom asset's name substituted.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "Swap 1 Gold Bar in Kraken",
+        "Receive 1 Gold Bar as a result of a Kraken swap",
+        "Spend 1 Gold Bar as Kraken trading fee",
+        "Gain 1 Gold Bar from Kraken staking",
+        "Spend 1 Gold Bar as Kraken staking fee",
+        "Withdraw 1 Gold Bar from Kraken",
+        "Spend 1 Gold Bar as Kraken withdrawal fee",
+        "Deposit 1 Gold Bar to Kraken"
+      ],
+      "test_ref": "rotkehlchen/tests/exchanges/test_kraken.py::test_kraken_event_serialization_with_custom_asset",
+      "quote": "(HistoryEventType.TRADE, HistoryEventSubType.SPEND, 'Swap 1 Gold Bar in Kraken')",
+      "severity": "guessable"
+    },
+    {
+      "what": "The fix must live in Kraken event serialization (HistoryEvent.serialize / Kraken notes rendering) so that the custom asset's name is used instead of the identifier, covering all Kraken event type/subtype combinations including staking, withdrawal and deposit variants.",
+      "kind": "extra_behavior",
+      "names": [
+        "serialize"
+      ],
+      "strings": [],
+      "test_ref": "rotkehlchen/tests/exchanges/test_kraken.py:1123-1143",
+      "quote": "event = HistoryEvent(... location=Location.KRAKEN ... asset=custom_asset ...); assert event.serialize()['notes'] == expected_notes",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction describes the bug only symptomatically; the hidden test pins eight exact notes-template strings for Kraken event serialization with a custom asset, none of which appear in or are derivable from the instruction text.",
+    "The only unstated requirement is the exact note text for each event type/subtype, but these are the repo's existing Kraken note templates with the asset name (custom asset's name) interpolated, so the minimal fix of using the asset's name during serialization yields them mechanically. Imports like CustomAsset/DBCustomAssets are test scaffolding.",
+    "The instruction only describes the bug; the hidden test pins exact note templates for serializing Kraken events with a custom asset. These are siblings of existing Kraken serialization templates, so a correct fix (substituting the custom asset's name in the existing note formatting) yields them \u2014 guessable, though the exact wording is only recoverable from the repo's existing templates."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 548,
+      "completion_tokens_details": {
+        "reasoning_tokens": 107
+      },
+      "prompt_tokens": 2300,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2848
+    },
+    {
+      "completion_tokens": 559,
+      "completion_tokens_details": {
+        "reasoning_tokens": 206
+      },
+      "prompt_tokens": 2300,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2859
+    },
+    {
+      "completion_tokens": 741,
+      "completion_tokens_details": {
+        "reasoning_tokens": 240
+      },
+      "prompt_tokens": 2300,
+      "prompt_tokens_details": {
+        "cached_tokens": 2240
+      },
+      "total_tokens": 3041
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

@@ -1,0 +1,12 @@
+{
+  "task_id": "format-code-task-000755",
+  "label": "sound",
+  "unstated": [],
+  "instruction_covers": [
+    "assert_eq must handle the numpy-array comparisons that assert_array_eq covers today",
+    "assert_eq must handle the list comparisons that assert_list_eq covers today",
+    "existing DataFrame/Series/Index comparisons through assert_eq stay intact"
+  ],
+  "notes": "The hidden patch only retargets existing call sites (to_numpy, to_records, asi8, .at array cells, DataFrame.axes, Series.axes) from assert_array_eq, assert_list_eq, or np.testing.assert_array_equal onto assert_eq, then runs those test modules. assert_array_eq is (left == right).all() and assert_list_eq zips into assert_eq; both live in databricks/koalas/testing/utils.py. No other call sites remain in the repo, and the instruction asks for exactly this unification. The grading command excludes unrelated tests (inplace, clipboard, delete, union, hist, monotonic, series iloc setitem).",
+  "read_minutes": 12
+}

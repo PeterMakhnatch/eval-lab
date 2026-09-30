@@ -1,0 +1,49 @@
+{
+  "items": [
+    {
+      "what": "Branch method name for reporting the chain id (instruction describes the value but not the accessor name)",
+      "kind": "new_name",
+      "names": [
+        "get_chain_id"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:13",
+      "quote": "self.assertEqual(b.get_chain_id(), 0)",
+      "severity": "guessable"
+    },
+    {
+      "what": "Address method computing full shard id from a shard size (instruction describes the computation but not the method name; mirrors Branch.get_full_shard_id)",
+      "kind": "new_name",
+      "names": [
+        "Address.get_full_shard_id"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:75",
+      "quote": "self.assertEqual(addr.get_full_shard_id(4), make_full_shard_id(5, 4, 3))",
+      "severity": "guessable"
+    },
+    {
+      "what": "Address re-homing method name (instruction describes 'producing the address \"in\" a branch' but not the name; mirrors existing address_in_branch convention)",
+      "kind": "new_name",
+      "names": [
+        "address_in_branch"
+      ],
+      "strings": [],
+      "test_ref": "quarkchain/tests/test_full_shard_id.py:95",
+      "quote": "new_addr = addr.address_in_branch(branch)",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "All semantics (bit layout, RuntimeError, re-homing rules) are fully specified in the instruction; the only unstated items are accessor/method names, which follow the existing Branch getter convention and the existing repo's address_in_branch name, so a minimal fix passes.",
+  "usage": {
+    "completion_tokens": 655,
+    "completion_tokens_details": {
+      "reasoning_tokens": 213
+    },
+    "prompt_tokens": 3287,
+    "prompt_tokens_details": {
+      "cached_tokens": 3264
+    },
+    "total_tokens": 3942
+  }
+}

@@ -1,0 +1,107 @@
+{
+  "items": [
+    {
+      "what": "MHDModel constructor keyword spellings for the initializers (vx, vy, vz, bx, by, bz, p in addition to density)",
+      "kind": "new_name",
+      "names": [
+        "MHDModel",
+        "vx",
+        "vy",
+        "vz",
+        "bx",
+        "by",
+        "bz",
+        "p"
+      ],
+      "strings": [],
+      "test_ref": "register_mhd_model / test_populate_dict_registers_mhd_algorithm_state_and_2d_initializers",
+      "quote": "vx=lambda x, y: 20.0 + x, vy=..., bz=..., p=lambda x, y: 80.0 + x - y",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Simulation field max_mhd_level and its dictionary path simulation/AMR/max_mhd_level",
+      "kind": "new_name",
+      "names": [
+        "max_mhd_level"
+      ],
+      "strings": [
+        "simulation/AMR/max_mhd_level"
+      ],
+      "test_ref": "test_populate_dict_registers_mhd_algorithm_state_and_2d_initializers",
+      "quote": "\"simulation/AMR/max_mhd_level\": (\"int\", 1)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact dictionary paths for the MHD algorithm block: simulation/algo/fv_method/{resistivity,hyper_resistivity,heat_capacity_ratio,hyper_mode}, simulation/algo/to_primitive/heat_capacity_ratio, simulation/algo/to_conservative/heat_capacity_ratio, simulation/algo/constrained_transport/{resistivity,hyper_resistivity,hyper_mode}",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "simulation/algo/fv_method/resistivity",
+        "simulation/algo/fv_method/hyper_resistivity",
+        "simulation/algo/fv_method/heat_capacity_ratio",
+        "simulation/algo/fv_method/hyper_mode",
+        "simulation/algo/to_primitive/heat_capacity_ratio",
+        "simulation/algo/to_conservative/heat_capacity_ratio",
+        "simulation/algo/constrained_transport/resistivity",
+        "simulation/algo/constrained_transport/hyper_resistivity",
+        "simulation/algo/constrained_transport/hyper_mode"
+      ],
+      "test_ref": "REQUIRED_MHD_ENTRIES_2D",
+      "quote": "\"simulation/algo/fv_method/resistivity\": (\"double\", 0.1), \"simulation/algo/constrained_transport/hyper_mode\": (\"string\", \"constant\")",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact mhd_state subpaths: simulation/mhd_state/{name,to_conservative_init/heat_capacity_ratio,density/initializer,velocity/initializer/x_component,...,magnetic/initializer/*,pressure/initializer}",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "simulation/mhd_state/name",
+        "simulation/mhd_state/to_conservative_init/heat_capacity_ratio",
+        "simulation/mhd_state/density/initializer",
+        "simulation/mhd_state/velocity/initializer/x_component",
+        "simulation/mhd_state/velocity/initializer/y_component",
+        "simulation/mhd_state/velocity/initializer/z_component",
+        "simulation/mhd_state/magnetic/initializer/x_component",
+        "simulation/mhd_state/magnetic/initializer/y_component",
+        "simulation/mhd_state/magnetic/initializer/z_component",
+        "simulation/mhd_state/pressure/initializer"
+      ],
+      "test_ref": "REQUIRED_MHD_ENTRIES_2D",
+      "quote": "\"simulation/mhd_state/velocity/initializer/x_component\": (\"init2D\", 22.0)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact paths simulation/models (vector_string of model names) and simulation/AMR/refinement/tagging/mhd_method",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "simulation/models",
+        "simulation/AMR/refinement/tagging/mhd_method"
+      ],
+      "test_ref": "REQUIRED_MHD_ENTRIES_2D",
+      "quote": "\"simulation/models\": (\"vector_string\", [\"MHDModel\"]), \"simulation/AMR/refinement/tagging/mhd_method\": (\"string\", \"default\")",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "eta populates resistivity and nu populates hyper_resistivity in the MHD entries",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "REQUIRED_MHD_ENTRIES_2D",
+      "quote": "\"simulation/algo/fv_method/resistivity\": (\"double\", 0.1), \"simulation/algo/fv_method/hyper_resistivity\": (\"double\", 0.01)",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The instruction describes the feature qualitatively but the hidden tests pin dozens of exact dictionary paths, the MHDModel keyword spellings (vx...p), the max_mhd_level Simulation field, and the eta/nu -> resistivity/hyper_resistivity mappings, none of which are stated or uniquely derivable from the instruction text.",
+  "usage": {
+    "completion_tokens": 1735,
+    "completion_tokens_details": {
+      "reasoning_tokens": 578
+    },
+    "prompt_tokens": 6126,
+    "prompt_tokens_details": {
+      "cached_tokens": 6080
+    },
+    "total_tokens": 7861
+  }
+}

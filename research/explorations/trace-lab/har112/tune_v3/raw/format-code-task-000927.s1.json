@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The instruction includes the full spec, and the tests only exercise behaviors directly stated or mechanically implied by it (including the conventional trailing-space code point escape format and the module-level escape function named in the issue title).",
+  "usage": {
+    "completion_tokens": 257,
+    "completion_tokens_details": {
+      "reasoning_tokens": 112
+    },
+    "prompt_tokens": 2352,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2609
+  }
+}

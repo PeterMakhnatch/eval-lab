@@ -1,0 +1,28 @@
+{
+  "task_id": "format-code-task-001248",
+  "label": "broken",
+  "unstated": [
+    {
+      "what": "set_crs must assign the new CRS onto spatial_partitions (not merely copy the partitions, which copy() does and which leaves their CRS as None)",
+      "test_ref": "test_set_crs_updates_spatial_partitions_crs",
+      "quote": "assert CRS.from_user_input(new.spatial_partitions.crs) == CRS.from_user_input(new_crs)",
+      "severity": "not_inferable",
+      "names": ["spatial_partitions.crs"],
+      "rules": ["tie-break"]
+    },
+    {
+      "what": "GeoSeries.set_crs must preserve spatial partitions and set their CRS too; the instruction names only GeoDataFrame.set_crs",
+      "test_ref": "test_set_crs_geoseries_preserves_spatial_partitions",
+      "quote": "assert CRS.from_user_input(new.spatial_partitions.crs) == CRS.from_user_input(\"EPSG:4326\")",
+      "severity": "not_inferable",
+      "names": ["GeoSeries.set_crs"],
+      "rules": ["R2", "tie-break"]
+    }
+  ],
+  "instruction_covers": [
+    "GeoDataFrame.set_crs must keep an existing spatial_partitions geometry instead of dropping it to None",
+    "when spatial_partitions is None it stays None, and set_crs still sets the frame CRS"
+  ],
+  "notes": "set_crs lives on _Frame and currently returns map_partitions without propagating partitions. copy() only does spatial_partitions.copy(), which does not set a CRS. calculate_spatial_partitions builds a GeoSeries whose CRS is None. The minimal fix matching the instruction and the cited copy() behavior keeps geometries and fails both CRS assertions. Inheriting the method onto GeoSeries is R2-guessable, but the CRS assignment is new semantics.",
+  "read_minutes": 16
+}

@@ -1,0 +1,54 @@
+{
+  "task_id": "format-code-task-002734",
+  "label": "suspect",
+  "label_without_repo": "suspect",
+  "sample_labels": [
+    "suspect"
+  ],
+  "repo_used": false,
+  "unstated": [
+    {
+      "what": "All error messages (missing file, bad extension, missing fields, non-string without --convert) must be printed to stdout, with stderr left completely empty, even though the command exits non-zero.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "usercase-test-coderl/usecase.sh F7-F11",
+      "quote": "[ ! -s err ] || fail \"F7 unexpected stderr\" ... python3 - out ... \"non-string\" ... \"convert\" ... \"string\" ... \"file\"",
+      "severity": "guessable"
+    },
+    {
+      "what": "The F11 failure explanation must appear on stdout (not stderr) and contain the lowercase-substring families 'non-string'/'not a string', 'convert', 'string', and 'file'.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "non-string",
+        "not a string",
+        "convert",
+        "string",
+        "file"
+      ],
+      "test_ref": "usercase-test-coderl/usecase.sh F11 check",
+      "quote": "if (\"non-string\" not in text and \"not a string\" not in text) or \"convert\" not in text or \"string\" not in text or \"file\" not in text:",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The functional behavior is fully specified; the only unstated requirement is that all error output goes to stdout with stderr kept empty (including the F11 explanation's required substring families), which the instruction's 'explain' and 'exit non-zero' wording never states, though the channel convention alone makes it guessable."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 1177,
+      "completion_tokens_details": {
+        "reasoning_tokens": 718
+      },
+      "prompt_tokens": 6472,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 7649
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The instruction fully specifies the binding identity, snapshot-on-success, deduplication, replay ordering, failure-safe removal, and robust=False exclusion; everything else in the tests is scaffolding or existing API.",
+  "usage": {
+    "completion_tokens": 196,
+    "completion_tokens_details": {
+      "reasoning_tokens": 60
+    },
+    "prompt_tokens": 3423,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 3619
+  }
+}

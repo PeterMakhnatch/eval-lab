@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The instruction explicitly specifies the warning identifiers, severities, dotted path format, traversal structure, cycle semantics, ignore-filter behavior, lint() re-run semantics, lxml-free import, and preservation of existing diagnostics. All names exercised by the hidden tests are either stated in the instruction or already exist in the repository's public linter API.",
+  "usage": {
+    "completion_tokens": 443,
+    "completion_tokens_details": {
+      "reasoning_tokens": 156
+    },
+    "prompt_tokens": 4159,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 4602
+  }
+}

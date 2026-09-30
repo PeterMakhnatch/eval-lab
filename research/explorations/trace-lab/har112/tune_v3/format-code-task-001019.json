@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-001019",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction states all error substrings, metadata semantics, precedence rules, and interpolation scoping the hidden tests assert; get_config, CKANConfigLoader and CkanConfigurationException are pre-existing repository APIs, and config keys like leaf_marker come from the test fixtures themselves."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 251,
+      "completion_tokens_details": {
+        "reasoning_tokens": 83
+      },
+      "prompt_tokens": 3617,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 3868
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

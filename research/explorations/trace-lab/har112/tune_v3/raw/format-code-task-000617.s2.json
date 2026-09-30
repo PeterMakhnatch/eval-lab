@@ -1,0 +1,38 @@
+{
+  "items": [
+    {
+      "what": "On failure, the underlying snappy build error text must appear on stderr, including the exact substring 'can not parse package.yaml: missing required fields'. The instruction says to surface the tool's message but never names the channel or this string; it is plausibly just the tool's own output, so guessable.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "can not parse package.yaml: missing required fields"
+      ],
+      "test_ref": "snapcraft/tests/test_cmds.py:111",
+      "quote": "self.assertTrue('can not parse package.yaml: missing required fields'\n                        in output_stderr)",
+      "severity": "guessable"
+    },
+    {
+      "what": "On success, stderr must be completely empty ('There should be no stderr') and all output including 'Snapping' and 'test-package_1_all.snap' must go to stdout. The instruction only asks for surfacing failure info; the success-channel contract is not stated, though it is largely a guard on existing correct behavior plus the choice to route errors to stderr.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [
+        "There should be no stderr"
+      ],
+      "test_ref": "snapcraft/tests/test_cmds.py:81",
+      "quote": "self.assertEqual(output_stderr, '', 'There should be no stderr')",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The tests additionally pin the exact error substring and the stdout/stderr channel split, which the instruction does not state; both are largely derivable from the named tool's own output, so they are graded guessable rather than not_inferable.",
+  "usage": {
+    "completion_tokens": 546,
+    "completion_tokens_details": {
+      "reasoning_tokens": 177
+    },
+    "prompt_tokens": 1767,
+    "prompt_tokens_details": {
+      "cached_tokens": 1728
+    },
+    "total_tokens": 2313
+  }
+}

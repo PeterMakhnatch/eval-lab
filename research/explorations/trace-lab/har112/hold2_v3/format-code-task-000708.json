@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-000708",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "The hidden tests only exercise the two expected outcomes the instruction states: deduplication of same-name records in the solver's final state and an actionable duplicate-insertion assertion message containing the package name. Keeping the first/real record for a duplicated name is the mechanical minimal fix and passes the name-uniqueness and keep-mkl/zlib assertions; no new names, strings, or extra behaviors are required beyond the instruction."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 770,
+      "completion_tokens_details": {
+        "reasoning_tokens": 577
+      },
+      "prompt_tokens": 2545,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 3315
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

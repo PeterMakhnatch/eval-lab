@@ -1,0 +1,21 @@
+{
+  "task_id": "format-code-task-000708",
+  "label": "suspect",
+  "unstated": [
+    {
+      "what": "Duplicate package names must be removed inside solve_final_state's orphan add-back, not merely rejected at PrefixData.insert. The hidden test mocks _run_sat, sets add_back_map to a one-element list [MatchSpec('mkl')] (the real field is a name-to-(record, spec) dict), appends synthetic mkl and zlib records onto the pre-SAT solution_precs, and requires the returned final state to keep both names exactly once. A message-only insert fix, or a dedup that drops every orphan when add_back_map is truthy, fails; keeping zlib while dropping only the name that the SAT solution already has is new filtering on that internal path.",
+      "test_ref": "tests/core/test_duplicate_prefix_records_hidden.py:test_solve_final_state_drops_orphan_records_that_duplicate_selected_names",
+      "quote": "state_returned_from_sat.add_back_map = [MatchSpec(\"mkl\")]; ... assert \"mkl\" in names and \"zlib\" in names",
+      "severity": "guessable",
+      "rules": ["R2"],
+      "names": ["solve_final_state", "add_back_map", "mkl", "zlib"]
+    }
+  ],
+  "instruction_covers": [
+    "Final environment package records must not contain two records with the same package name",
+    "A duplicate PrefixData.insert must raise AssertionError whose message identifies the conflicting package name",
+    "Existing solver and prefix write-out semantics otherwise stay the same"
+  ],
+  "notes": "Insert message checks only require a non-empty AssertionError containing that record's name and not an unrelated name; the instruction states that. The solve test is the gap: conda/core/solve.py:273 adds orphans whenever add_back_map is truthy, and the test's list-shaped add_back_map plus synthetic mkl/zlib is a harness for that branch. A careful engineer grepping solve_final_state/add_back_map can find it and filter by name; the which-record-to-keep rule is not written down. Base tests/core/test_solve.py is also re-run and must still pass.",
+  "read_minutes": 25
+}

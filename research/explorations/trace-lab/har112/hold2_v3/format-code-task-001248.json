@@ -1,0 +1,115 @@
+{
+  "task_id": "format-code-task-001248",
+  "label": "broken",
+  "label_without_repo": "broken",
+  "sample_labels": [
+    "broken",
+    "broken",
+    "suspect"
+  ],
+  "repo_used": false,
+  "unstated": [
+    {
+      "what": "set_crs must also set the CRS on the spatial_partitions GeoSeries (so it becomes non-None and matches the new CRS), not just preserve it",
+      "kind": "extra_behavior",
+      "names": [
+        "spatial_partitions",
+        "crs"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_core.py::test_set_crs_updates_spatial_partitions_crs",
+      "quote": "assert new.spatial_partitions.crs is not None\nassert CRS.from_user_input(new.spatial_partitions.crs) == CRS.from_user_input(new_crs)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "set_crs must not only preserve the spatial partitions but also update their CRS to the newly set CRS (spatial_partitions is a GeoSeries whose .crs must be set).",
+      "kind": "extra_behavior",
+      "names": [
+        "spatial_partitions"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_core.py::test_set_crs_updates_spatial_partitions_crs",
+      "quote": "assert new.spatial_partitions.crs is not None\nassert CRS.from_user_input(new.spatial_partitions.crs) == CRS.from_user_input(new_crs)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "GeoSeries.set_crs (not just GeoDataFrame.set_crs) must preserve spatial partitions and set their CRS.",
+      "kind": "extra_behavior",
+      "names": [
+        "set_crs"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_core.py::test_set_crs_geoseries_preserves_spatial_partitions",
+      "quote": "dask_obj = dask_geopandas.from_geopandas(geoseries_points, npartitions=2)\n...\nassert CRS.from_user_input(new.spatial_partitions.crs) == CRS.from_user_input(\"EPSG:4326\")",
+      "severity": "guessable"
+    },
+    {
+      "what": "set_crs must also update the crs attribute of the spatial_partitions GeoSeries (not just keep the geometries)",
+      "kind": "extra_behavior",
+      "names": [
+        "spatial_partitions",
+        "crs"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_core.py::test_set_crs_updates_spatial_partitions_crs",
+      "quote": "assert new.spatial_partitions.crs is not None\nassert CRS.from_user_input(new.spatial_partitions.crs) == CRS.from_user_input(new_crs)",
+      "severity": "guessable"
+    },
+    {
+      "what": "set_crs must also work on dask GeoSeries objects, preserving spatial partitions there too",
+      "kind": "extra_behavior",
+      "names": [
+        "from_geopandas",
+        "calculate_spatial_partitions",
+        "set_crs"
+      ],
+      "strings": [],
+      "test_ref": "tests/test_core.py::test_set_crs_geoseries_preserves_spatial_partitions",
+      "quote": "dask_obj = dask_geopandas.from_geopandas(geoseries_points, npartitions=2) ... new = dask_obj.set_crs(\"EPSG:4326\")\nassert new.spatial_partitions is not None",
+      "severity": "guessable"
+    }
+  ],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction only asks to preserve spatial_partitions on set_crs; the hidden tests additionally require the spatial_partitions' own crs attribute to be updated to the new CRS, which the instruction never states (it only shows preservation of geometry values).",
+    "The instruction only asks to preserve spatial_partitions; the tests additionally require their CRS attribute to be updated to the new CRS, which is extra semantics (only preserving values would leave crs None and fail). The GeoSeries variant is a mechanical sibling of the same fix, so it is guessable.",
+    "The instruction only shows preservation of spatial_partitions on a GeoDataFrame; the tests additionally require the spatial_partitions' own crs attribute to be updated and the fix to apply to GeoSeries \u2014 both are mechanical propagation of the same change to siblings, so guessable."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 230,
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "prompt_tokens": 2035,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2265
+    },
+    {
+      "completion_tokens": 547,
+      "completion_tokens_details": {
+        "reasoning_tokens": 171
+      },
+      "prompt_tokens": 2035,
+      "prompt_tokens_details": {
+        "cached_tokens": 64
+      },
+      "total_tokens": 2582
+    },
+    {
+      "completion_tokens": 565,
+      "completion_tokens_details": {
+        "reasoning_tokens": 194
+      },
+      "prompt_tokens": 2035,
+      "prompt_tokens_details": {
+        "cached_tokens": 1984
+      },
+      "total_tokens": 2600
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

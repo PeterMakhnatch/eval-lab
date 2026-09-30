@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-001119",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "The instruction explicitly specifies every behavior the hidden tests exercise: precedence rules, build metadata handling, constraint reduction, versions_compatible, find_possible_versions sorting, and resolver behavior. All identifiers used (VersionSpecifier, from_version_string, reduce_versions, versions_compatible, find_possible_versions, resolve_to_specific_version) are existing public APIs the instruction names, and all string literals are test inputs covered by the specified semantics."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 209,
+      "completion_tokens_details": {
+        "reasoning_tokens": 35
+      },
+      "prompt_tokens": 2246,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2455
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

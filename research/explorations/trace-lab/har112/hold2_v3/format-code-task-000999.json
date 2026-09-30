@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-000999",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "Every hidden-test behavior maps to a phrase in the instruction (in-place identity, attribute survival, recursive sync, kind-change replacement, immutable/incompatible root return, scalar preservation vs exact scalar updates); the remaining test identifiers are scaffolding or data literals."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 264,
+      "completion_tokens_details": {
+        "reasoning_tokens": 93
+      },
+      "prompt_tokens": 2369,
+      "prompt_tokens_details": {
+        "cached_tokens": 704
+      },
+      "total_tokens": 2633
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

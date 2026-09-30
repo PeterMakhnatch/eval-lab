@@ -1,0 +1,29 @@
+{
+  "task_id": "format-code-task-001833",
+  "label": "sound",
+  "label_without_repo": "sound",
+  "sample_labels": [
+    "sound"
+  ],
+  "repo_used": false,
+  "unstated": [],
+  "dropped_existing": [],
+  "reasons": [
+    "The hidden test patches Article.delete and asserts call_count == 1 when cascading from a parent after one child was already soft-deleted; this is exactly the behavior the instruction requests, and all names used (Article, article_set, SOFT_DELETE, patch target) already exist in the repo or are test scaffolding."
+  ],
+  "usage": [
+    {
+      "completion_tokens": 220,
+      "completion_tokens_details": {
+        "reasoning_tokens": 109
+      },
+      "prompt_tokens": 1853,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "total_tokens": 2073
+    }
+  ],
+  "model": "glm-5.3-flash",
+  "prompt_version": "v3"
+}

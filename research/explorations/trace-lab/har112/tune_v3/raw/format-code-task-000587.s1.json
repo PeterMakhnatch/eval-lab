@@ -1,0 +1,15 @@
+{
+  "items": [],
+  "reason": "The hidden tests use exactly the name `redlock` the instruction specifies, pass only knobs the instruction says to support (key, masters), and test only the transparent acquire/release serialization the feature request describes.",
+  "usage": {
+    "completion_tokens": 215,
+    "completion_tokens_details": {
+      "reasoning_tokens": 110
+    },
+    "prompt_tokens": 1870,
+    "prompt_tokens_details": {
+      "cached_tokens": 64
+    },
+    "total_tokens": 2085
+  }
+}

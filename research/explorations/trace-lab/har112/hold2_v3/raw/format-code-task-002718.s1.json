@@ -1,0 +1,25 @@
+{
+  "items": [
+    {
+      "what": "The Oracle dialect must successfully parse explicit table alias syntax 'tbl AS a' with no PRS (parse) violation \u2014 i.e. the Oracle grammar must accept 'AS' for table aliases even though real Oracle does not; the instruction only asks that implicit aliases not be flagged.",
+      "kind": "extra_behavior",
+      "names": [],
+      "strings": [],
+      "test_ref": "test/rules/std_AL01_test.py::test_oracle_table_alias_with_as_no_violation_default_config",
+      "quote": "codes = _lint(\"SELECT a.b FROM tbl AS a\", dialect=\"oracle\", rules=\"AL01\")\nassert \"AL01\" not in codes\nassert \"PRS\" not in codes",
+      "severity": "not_inferable"
+    }
+  ],
+  "reason": "The instruction only covers suppressing AL01 for implicit table aliases in Oracle. The hidden tests additionally require that explicit 'AS' table aliases parse cleanly in Oracle (no PRS error) and that the implicit-aliasing config override works \u2014 the parse acceptance of AS in Oracle is a dialect grammar behavior not stated or implied by the issue text.",
+  "usage": {
+    "completion_tokens": 639,
+    "completion_tokens_details": {
+      "reasoning_tokens": 382
+    },
+    "prompt_tokens": 2317,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 2956
+  }
+}

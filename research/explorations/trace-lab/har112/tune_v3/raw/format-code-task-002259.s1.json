@@ -1,0 +1,107 @@
+{
+  "items": [
+    {
+      "what": "Exact dictionary key paths for the MHD algorithm entries (finite-volume method, to_primitive/to_conservative, constrained_transport) are never spelled out in the instruction; only descriptive phrases are given.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "simulation/algo/fv_method/resistivity",
+        "simulation/algo/fv_method/hyper_resistivity",
+        "simulation/algo/fv_method/heat_capacity_ratio",
+        "simulation/algo/fv_method/hyper_mode",
+        "simulation/algo/to_primitive/heat_capacity_ratio",
+        "simulation/algo/to_conservative/heat_capacity_ratio",
+        "simulation/algo/constrained_transport/resistivity",
+        "simulation/algo/constrained_transport/hyper_resistivity",
+        "simulation/algo/constrained_transport/hyper_mode"
+      ],
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:132-146",
+      "quote": "\"simulation/algo/fv_method/resistivity\": (\"double\", 0.1), ... \"simulation/algo/constrained_transport/hyper_mode\": (\"string\", \"constant\")",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact keyword names of the MHDModel initializer callables (vx, vy, vz, bx, by, bz, p) are not given; instruction only says 'density, velocity, magnetic field, and pressure initializer callables'.",
+      "kind": "new_name",
+      "names": [
+        "MHDModel",
+        "vx",
+        "vy",
+        "vz",
+        "bx",
+        "by",
+        "bz",
+        "p"
+      ],
+      "strings": [],
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:119-127",
+      "quote": "ph.MHDModel(density=lambda x, y: 10.0 + x, vx=lambda x, y: 20.0 + x, ..., p=lambda x, y: 80.0 + x - y)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Simulation parameter max_mhd_level and its populated dictionary entry are not mentioned anywhere in the instruction.",
+      "kind": "new_name",
+      "names": [
+        "max_mhd_level",
+        "simulation/AMR/max_mhd_level"
+      ],
+      "strings": [
+        "simulation/AMR/max_mhd_level"
+      ],
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:141,177",
+      "quote": "\"max_mhd_level\": 1 ... \"simulation/AMR/max_mhd_level\": (\"int\", 1)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "The exact path of the MHD conservative-initializer heat-capacity-ratio entry ('to_conservative_init') is not stated or derivable.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "simulation/mhd_state/to_conservative_init/heat_capacity_ratio"
+      ],
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:147-150",
+      "quote": "\"simulation/mhd_state/to_conservative_init/heat_capacity_ratio\": (\"double\", 2.0)",
+      "severity": "not_inferable"
+    },
+    {
+      "what": "Exact sub-paths of the mhd_state initializer registrations (density/initializer, velocity/initializer/x_component, magnetic/..., pressure/initializer) are not stated; only described semantically. Structure follows the hybrid layout so plausibly guessable, but the exact spelling is required.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "simulation/mhd_state/density/initializer",
+        "simulation/mhd_state/velocity/initializer/x_component",
+        "simulation/mhd_state/velocity/initializer/y_component",
+        "simulation/mhd_state/velocity/initializer/z_component",
+        "simulation/mhd_state/magnetic/initializer/x_component",
+        "simulation/mhd_state/magnetic/initializer/y_component",
+        "simulation/mhd_state/magnetic/initializer/z_component",
+        "simulation/mhd_state/pressure/initializer"
+      ],
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:151-163",
+      "quote": "\"simulation/mhd_state/density/initializer\": (\"init2D\", 12.0), \"simulation/mhd_state/velocity/initializer/x_component\": (\"init2D\", 22.0)",
+      "severity": "guessable"
+    },
+    {
+      "what": "The MHD tagging method key path 'simulation/AMR/refinement/tagging/mhd_method' with value 'default' \u2014 value and concept are stated but the exact key spelling is not.",
+      "kind": "exact_string",
+      "names": [],
+      "strings": [
+        "simulation/AMR/refinement/tagging/mhd_method"
+      ],
+      "test_ref": "usercase-test-coderl/test_mhd_population.py:133",
+      "quote": "\"simulation/AMR/refinement/tagging/mhd_method\": (\"string\", \"default\")",
+      "severity": "guessable"
+    }
+  ],
+  "reason": "The instruction describes the MHD population semantically but never gives the exact dictionary key spellings, the MHDModel keyword argument names (vx/vy/vz/bx/by/bz/p), or the max_mhd_level simulation parameter and its entry; these are required verbatim by the hidden tests and cannot be recovered from the instruction text alone.",
+  "usage": {
+    "completion_tokens": 1957,
+    "completion_tokens_details": {
+      "reasoning_tokens": 791
+    },
+    "prompt_tokens": 6126,
+    "prompt_tokens_details": {
+      "cached_tokens": 704
+    },
+    "total_tokens": 8083
+  }
+}

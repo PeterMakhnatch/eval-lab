@@ -646,6 +646,26 @@ def test_completion_verdict_confirmed_and_never_claimed(tmp_path: Path) -> None:
     assert "never claimed" in unclaimed["outcome"]["completion"]
 
 
+def test_completion_confirmation_follows_the_terminus_two_turn_handshake(tmp_path: Path) -> None:
+    # HAR-104 000383: claims alternate with echo turns, the final turn claims, and the budget
+    # stops the run. Terminus resets the pending claim on every non-claim turn, so nothing
+    # was confirmed. HAR-104 001896: two claims in a row are the confirmation.
+    budget = _result(
+        agent_result={"metadata": {"stop_reason": "trial_budget_exhausted"}},
+        exception_info={"exception_type": "TrialBudgetExhaustedError", "exception_message": "budget"},
+    )
+    alternating = [
+        _layered(i, i, _claim_layer() if i % 2 == 0 else _calls_layer("echo done")) for i in range(1, 9)
+    ]
+    report = build_run_report(_trial(tmp_path, alternating, result=budget))
+    assert "never confirmed" in report["outcome"]["completion"]
+
+    back_to_back = [_layered(i, i, _calls_layer(f"echo {i}")) for i in range(1, 5)]
+    back_to_back += [_layered(5, 5, _claim_layer()), _layered(6, 6, _claim_layer())]
+    report = build_run_report(_trial(tmp_path / "runs", back_to_back, name="trial"))
+    assert "claimed at step 6, confirmed at step 7" in report["outcome"]["completion"]
+
+
 def test_default_timeline_keeps_the_completion_claim_and_the_step_after(tmp_path: Path) -> None:
     steps = [_layered(i, i, _calls_layer(f"echo step-{i}")) for i in range(1, 41)]
     steps[20] = _layered(21, 21, _claim_layer(), content="Are you sure? task_complete:true")

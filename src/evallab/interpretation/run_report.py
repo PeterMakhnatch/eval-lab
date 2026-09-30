@@ -1777,6 +1777,9 @@ _COMPLETION_TOOL = "mark_task_complete"
 _COMPLETION_ECHO_RE = re.compile(r"""['"]?echo\s+['"]?task_complete['"]?['"]?""")
 
 
+_COMPLETION_STOPS = frozenset({"task_complete", "prose_completion"})
+
+
 def _completion_claim_steps(
     positioned: Sequence[tuple[int, Any]],
     layers: Sequence[dict[str, Any] | None],
@@ -1803,17 +1806,24 @@ def _completion_verdict(
     claim_steps: Sequence[int],
     steps: Sequence[_Step],
     last_task_complete: bool | None,
+    stop_reason: str | None,
 ) -> str | None:
-    """One-line completion verdict: first claim, confirmation, and final turn."""
+    """One-line completion verdict: first claim, confirmation, and final turn.
+
+    Terminus confirms a claim only when the very next turn claims again; any other turn in
+    between resets it. A final-turn claim counts as confirmed only when the run actually
+    stopped on it, and not on a budget, timeout or error that happened to follow it.
+    """
     if not steps:
         return None
     last = steps[-1]
     if last.actions:
-        targets = [a.target for a in last.actions if a.target]
+        targets = [a.target for a in last.actions if a.target and a.target.strip() not in {"{}", "[]"}]
         if targets:
             detail = targets[0] if len(targets) == 1 else "; ".join(targets)
         else:
-            detail = _action_preview(last.actions) or "no tool call"
+            # A bare mark_task_complete carries no arguments; name the tool, not "{}".
+            detail = ", ".join(dict.fromkeys(a.tool for a in last.actions)) or "no tool call"
         detail = _clip(detail, 120) or "no tool call"
     elif last.message.strip():
         detail = _clip(last.message, 120) or "no tool call"
@@ -1822,8 +1832,15 @@ def _completion_verdict(
     if not claim_steps:
         return f"Completion: never claimed; the run ended on step {last.step} ({detail})."
     first = claim_steps[0]
-    if last_task_complete is True:
+    claimed = set(claim_steps)
+    order = [s.step for s in steps]
+    confirmed = next(
+        (cur for prev, cur in zip(order, order[1:], strict=False) if prev in claimed and cur in claimed),
+        None,
+    )
+    if confirmed is None and last_task_complete is True and stop_reason in _COMPLETION_STOPS:
         confirmed = claim_steps[-1]
+    if confirmed is not None:
         if confirmed == first:
             return (
                 f"Completion: claimed at step {first} on the final turn (confirmed); "
@@ -2206,6 +2223,7 @@ def build_run_report(
         claim_steps=_completion_claim_steps(positioned, layers, actions),
         steps=steps,
         last_task_complete=last_task_complete,
+        stop_reason=stop_reason,
     )
     root_doc = segments[0][1] if segments else {}
     terminal_doc = segments[-1][1] if segments else {}

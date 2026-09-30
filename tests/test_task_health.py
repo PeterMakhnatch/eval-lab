@@ -6,8 +6,11 @@ import json
 from pathlib import Path
 
 from evallab.task_health import (
+    blocklist_facts,
     build_health_rows,
+    hosts_bypassable,
     label_task,
+    leak_assessment,
     nop_evidence,
     project_key_for,
     read_task_health_parquet,
@@ -381,3 +384,147 @@ def test_build_uses_the_latest_nop_and_labels_the_rest_unknown(tmp_path: Path) -
     assert by_id["t-2"]["project_key"] == "t-2"
     assert by_id["t-2"]["project_key_source"] == "task_id"
     assert trial.is_dir() and task.is_dir()
+
+
+_GIT_BLOCK = """\
+# mimo answer-leak blocklist
+0.0.0.0 github.com
+0.0.0.0 codeload.github.com
+0.0.0.0 raw.githubusercontent.com
+0.0.0.0 gitlab.com
+0.0.0.0 bitbucket.org
+"""
+
+
+def _blocklist(task: Path, text: str) -> None:
+    path = task / "environment" / "setup" / "files" / "blocklist"
+    path.parent.mkdir(parents=True)
+    path.write_text(text)
+
+
+def test_blocklist_parsing_and_leak_channel_precedence(tmp_path: Path) -> None:
+    blocked = tmp_path / "blocked"
+    _blocklist(blocked, _GIT_BLOCK)
+    assert blocklist_facts(blocked) == {"leak_git_blocked": True, "leak_pypi_blocked": False}
+
+    open_git = tmp_path / "open"
+    _blocklist(open_git, "0.0.0.0 github.com\n0.0.0.0 gitlab.com\n")
+    assert blocklist_facts(open_git)["leak_git_blocked"] is False
+    assert blocklist_facts(open_git)["leak_pypi_blocked"] is False
+
+    pypi_blocked = tmp_path / "pypi"
+    _blocklist(pypi_blocked, _GIT_BLOCK + "0.0.0.0 files.pythonhosted.org\n")
+    assert blocklist_facts(pypi_blocked)["leak_pypi_blocked"] is True
+    assert blocklist_facts(tmp_path / "missing")["leak_git_blocked"] is None
+
+    issue = {
+        "number": 260,
+        "is_pr": False,
+        "state": "closed",
+        "closed_at": "2019-08-27T00:00:00Z",
+        "url": "https://github.com/Pylons/waitress/issues/260",
+    }
+    released = {
+        "pypi_project": "waitress",
+        "match": "repo_url",
+        "latest_version": "2.1.2",
+        "last_upload": "2023-01-01T00:00:00Z",
+        "releases": 12,
+        "repo_url": "https://github.com/Pylons/waitress",
+        "repo_source": "split_group",
+        "issue": issue,
+        "released_after_close": True,
+        "first_release_after_close": "1.4.0",
+    }
+    fix = leak_assessment(True, False, released, True)
+    assert fix["leak_channel"] == "pypi_fix_released"
+    assert fix["leak_issue_url"].endswith("/260")
+    assert fix["leak_issue_closed_at"] == "2019-08-27T00:00:00Z"
+    assert fix["leak_first_release_after_close"] == "1.4.0"
+    # a dated release beats an open git host and a plain package match
+    assert leak_assessment(False, False, released, True)["leak_channel"] == "pypi_fix_released"
+
+    package = {
+        **released,
+        "issue": None,
+        "released_after_close": None,
+        "first_release_after_close": None,
+    }
+    assert leak_assessment(True, False, package, True)["leak_channel"] == "pypi_package"
+    # PyPI blocked, so the dated release is not a download; the repo remains
+    held = leak_assessment(True, True, released, True)
+    assert held["leak_channel"] == "git_only"
+    assert "rewrite /etc/hosts and bypass the answer-leak blocklist" in held["leak_note"]
+
+    git_only = {
+        "pypi_project": None,
+        "match": None,
+        "releases": 0,
+        "repo_url": "https://github.com/Pylons/waitress",
+        "repo_source": "split_group",
+        "issue": issue,
+        "released_after_close": False,
+        "first_release_after_close": None,
+    }
+    noted = leak_assessment(True, False, git_only, True)
+    assert noted["leak_channel"] == "git_only"
+    assert "no release after issue close" in noted["leak_note"]
+    sealed = leak_assessment(True, False, git_only, False)
+    assert sealed["leak_channel"] == "git_only"
+    assert "agent user is not root" in sealed["leak_note"]
+
+    assert leak_assessment(True, False, None, True)["leak_channel"] == "unknown"
+    assert leak_assessment(None, None, released, True)["leak_channel"] == "unknown"
+    assert (
+        leak_assessment(
+            True, False, {"releases": 0, "issue": None, "released_after_close": None}, True
+        )["leak_channel"]
+        == "none_found"
+    )
+
+    for name, text, expected in (
+        ("unset", "[agent]\ntimeout_sec = 1\n", True),
+        ("root", '[agent]\nuser = "root"\n', True),
+        ("other", '[agent]\nuser = "agent"\n', False),
+    ):
+        task = tmp_path / name
+        task.mkdir()
+        (task / "task.toml").write_text(text)
+        assert hosts_bypassable(task) is expected
+
+    summary = summarize_health(
+        [
+            {
+                "label": "sound",
+                "leak_channel": "pypi_fix_released",
+                "leak_pypi_match": "repo_url",
+                "reasons": [],
+                "nop_cost_usd": 0,
+                "split": "train",
+                "project_key": "a",
+            },
+            {
+                "label": "unknown",
+                "leak_channel": "pypi_fix_released",
+                "leak_pypi_match": "name",
+                "reasons": [],
+                "nop_cost_usd": 0,
+                "split": "train",
+                "project_key": "b",
+            },
+            {
+                "label": "sound",
+                "leak_channel": "git_only",
+                "leak_pypi_match": None,
+                "reasons": [],
+                "nop_cost_usd": 0,
+                "split": "heldout",
+                "project_key": "c",
+            },
+        ]
+    )
+    assert "| pypi_fix_released | 2 |" in summary
+    assert "| git_only | 1 |" in summary
+    assert "| none_found | 0 |" in summary
+    assert "| pypi_fix_released | 1 | 0 | 0 | 1 |" in summary
+    assert "| git_only | 1 | 0 | 0 | 0 |" in summary

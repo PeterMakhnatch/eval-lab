@@ -3035,6 +3035,7 @@ def _tasks_health_collect_command(
         build_health_rows,
         catalog_qualification_rows,
         load_pool,
+        load_pypi_index,
         summarize_health,
         write_task_health_parquet,
     )
@@ -3046,11 +3047,18 @@ def _tasks_health_collect_command(
     missing = [str(jobs_root) for jobs_root in job_roots if not jobs_root.is_dir()]
     if missing:
         raise ValueError(f"job roots are missing: {', '.join(missing)}")
+    pypi_tasks = {}
+    if args.pypi is not None:
+        pypi_path = _resolve(root, args.pypi)
+        if not pypi_path.is_file():
+            raise ValueError(f"pypi file is missing: {pypi_path}")
+        pypi_tasks = load_pypi_index(pypi_path)
     rows = build_health_rows(
         load_pool(pool_path),
         catalog_qualification_rows(root),
         job_roots,
         shared_checkout_root(root),
+        pypi_tasks,
     )
     output = (
         _resolve(root, args.output)
@@ -5286,6 +5294,11 @@ def parser() -> argparse.ArgumentParser:
         help="Directory of Harbor job directories (repeatable)",
     )
     tasks_health_collect.add_argument("--output", type=Path, help="Parquet output path")
+    tasks_health_collect.add_argument(
+        "--pypi",
+        type=Path,
+        help="pypi.json produced by the census script (the module does not fetch it)",
+    )
     tasks_health_collect.add_argument("--summary", type=Path, help="Markdown summary path")
     tasks_health_collect.set_defaults(func=_tasks_health_collect_command)
 

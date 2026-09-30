@@ -248,8 +248,9 @@ Columns: `task_id`, `task_version_digest`, `split`, `split_group`, `category`,
 `format-code-task-` singleton; else `test_import`, the most common top-level
 module the hidden tests import, excluding the stdlib and pytest/mock/hypothesis/
 numpy/pandas/requests/yaml/six/attr/attrs/pydantic/sqlalchemy/django/flask/
-typing_extensions/tests/test/conftest; else `test_path`, the first directory of
-the first patched `.py` file; else `task_id`), `label`, `reasons`, `evidence`
+typing_extensions/tests/test/conftest; else `test_path`, the top directory of
+a patched `.py` file unless it is a generic layout directory such as `tests/`
+or `src/`; else `task_id`, an unresolved singleton), `label`, `reasons`, `evidence`
 (the log line or `file:line` justifying the label), `patch_files`,
 `patch_well_formed` (false only when a diff section fails to parse; an empty
 new file, a binary file, a mode-only change and a content-free rename parse),
@@ -264,12 +265,31 @@ is generated output, not project source), then asserts a substring of that text 
 `instruction_chars`, `nop_job_name`, `nop_trial_name`, `nop_reward`,
 `nop_finished_at`, `nop_cost_usd`, `nop_tests_applied`, `nop_tests_ran`,
 `nop_setup_error`, `nop_setup_error_excused`, `nop_exception_type` (null when
-there is no nop trial), `produced_at`.
+there is no nop trial), `leak_git_blocked`, `leak_pypi_blocked` (null when
+`environment/setup/files/blocklist` is absent; git is blocked only when
+github.com, codeload.github.com, raw.githubusercontent.com, gitlab.com and
+bitbucket.org are all listed; PyPI is blocked when pypi.org or
+files.pythonhosted.org is listed), `leak_hosts_bypassable` (true when
+`task.toml` sets no `[agent]` user or sets it to root: a root agent can
+rewrite `/etc/hosts` and bypass the answer-leak blocklist),
+`leak_pypi_project`, `leak_pypi_match`, `leak_pypi_latest`,
+`leak_pypi_last_upload`, `leak_issue_url`, `leak_issue_closed_at`,
+`leak_first_release_after_close` (from `--pypi` / `leak_check.py`, never
+fetched here), `leak_channel`, `leak_note`, `produced_at`.
+
+`leak_channel`, first match, does not change `label`: `pypi_fix_released`
+when the pypi.json issue matched and a release was uploaded after it closed
+and PyPI is not blocked; `pypi_package` when a project matched with at least
+one release and PyPI is open but no dated upstream fix was found; `git_only`
+when a repo is known and no release followed the fix (the note says whether
+git hosts are blocked, and that a root agent can rewrite `/etc/hosts`);
+`none_found`; `unknown` when the blocklist or the pypi.json entry is missing.
 
 The markdown summary names the table path and row count. Every count in it is
 a group-by of the table: labels, split × label, the top 25 `project_key`s by
 task count plus the number of singleton projects, projects with 2 or more
-`broken_environment` tasks, exploded reasons, and the sum of `nop_cost_usd`.
+`broken_environment` tasks, exploded reasons, `leak_channel`, `leak_channel` ×
+label, `leak_pypi_match`, and the sum of `nop_cost_usd`.
 
 Labels, first match wins:
 

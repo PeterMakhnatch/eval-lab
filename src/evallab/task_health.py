@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+import tomllib
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
@@ -107,6 +108,19 @@ _CANNOT_IMPORT_NAME = re.compile(r"cannot import name '(?P<name>[^']+)'")
 _NO_MODULE = re.compile(r"No module named '(?P<module>[^']+)'")
 
 _EVIDENCE_LIMIT = 200
+
+#: Hosts the harness blocklist must name before git cannot be fetched.
+_GIT_LEAK_HOSTS = (
+    "github.com",
+    "codeload.github.com",
+    "raw.githubusercontent.com",
+    "gitlab.com",
+    "bitbucket.org",
+)
+#: Either host is enough: both serve the released package.
+_PYPI_LEAK_HOSTS = ("pypi.org", "files.pythonhosted.org")
+LEAK_CHANNELS = ("pypi_fix_released", "pypi_package", "git_only", "none_found", "unknown")
+_HOST_LINE = re.compile(r"^\S+\s+(?P<host>\S+)\s*$")
 
 
 def utc_now_iso() -> str:
@@ -568,6 +582,155 @@ def _undisclosed_names(sections: Sequence[tuple[str, str]], instruction: str) ->
     return names
 
 
+def blocklist_hosts(text: str) -> set[str]:
+    """Hostnames from ``0.0.0.0 host`` lines. Comments and blanks are ignored."""
+    hosts: set[str] = set()
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        match = _HOST_LINE.match(stripped)
+        if match:
+            hosts.add(match.group("host").lower().rstrip("."))
+    return hosts
+
+
+def blocklist_facts(task_dir: Path) -> dict[str, bool | None]:
+    """Whether the task's hosts file blocks git and PyPI.
+
+    Null when ``environment/setup/files/blocklist`` is absent. Git is blocked
+    only when every leak host is listed. PyPI is blocked when either package
+    host is listed.
+    """
+    path = task_dir / "environment" / "setup" / "files" / "blocklist"
+    if not path.is_file():
+        return {"leak_git_blocked": None, "leak_pypi_blocked": None}
+    try:
+        hosts = blocklist_hosts(path.read_text(encoding="utf-8", errors="replace"))
+    except OSError:
+        return {"leak_git_blocked": None, "leak_pypi_blocked": None}
+    return {
+        "leak_git_blocked": all(host in hosts for host in _GIT_LEAK_HOSTS),
+        "leak_pypi_blocked": any(host in hosts for host in _PYPI_LEAK_HOSTS),
+    }
+
+
+def hosts_bypassable(task_dir: Path) -> bool:
+    """True when the agent can rewrite ``/etc/hosts``.
+
+    ``task.toml`` with no ``[agent]`` user, or ``user = "root"``, runs the
+    agent as root (the same default ``task_lint`` uses). A root agent can
+    rewrite ``/etc/hosts`` and bypass the answer-leak blocklist.
+    """
+    try:
+        payload = tomllib.loads((task_dir / "task.toml").read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return True
+    agent = payload.get("agent")
+    user = agent.get("user") if isinstance(agent, Mapping) else None
+    return not isinstance(user, str) or not user.strip() or user.strip() == "root"
+
+
+def _pypi_text(entry: Mapping[str, Any] | None, key: str) -> str | None:
+    if not isinstance(entry, Mapping):
+        return None
+    value = entry.get(key)
+    return value if isinstance(value, str) and value else None
+
+
+def leak_assessment(
+    git_blocked: bool | None,
+    pypi_blocked: bool | None,
+    pypi_entry: Mapping[str, Any] | None,
+    hosts_bypassable: bool | None = None,
+) -> dict[str, Any]:
+    """Download channel for the fix. Does not affect the health label.
+
+    Precedence: ``pypi_fix_released`` (a matched issue closed, a release was
+    uploaded after that, and PyPI is not blocked), then ``pypi_package`` (a
+    project matched with a release and PyPI is open, but no dated upstream
+    fix was found), then ``git_only`` (a repo is known and no release followed
+    the fix; the note says whether git hosts are blocked and, if the agent is
+    root, that it can rewrite ``/etc/hosts``), then ``none_found``. ``unknown``
+    is a missing blocklist or a missing pypi.json entry.
+    """
+    issue = pypi_entry.get("issue") if isinstance(pypi_entry, Mapping) else None
+    issue = issue if isinstance(issue, Mapping) else None
+    released_after = (
+        pypi_entry.get("released_after_close") if isinstance(pypi_entry, Mapping) else None
+    )
+    project = _pypi_text(pypi_entry, "pypi_project")
+    match = _pypi_text(pypi_entry, "match")
+    releases = pypi_entry.get("releases") if isinstance(pypi_entry, Mapping) else None
+    n_releases = releases if isinstance(releases, int) and not isinstance(releases, bool) else 0
+    matched = bool(project) and match in ("repo_url", "name")
+    dated_fix = issue is not None and bool(_pypi_text(issue, "closed_at"))
+    repo_known = bool(_pypi_text(pypi_entry, "repo_url")) or _pypi_text(
+        pypi_entry, "repo_source"
+    ) in ("split_group", "pypi_urls")
+    columns = {
+        "leak_git_blocked": git_blocked,
+        "leak_pypi_blocked": pypi_blocked,
+        "leak_pypi_project": project,
+        "leak_pypi_match": match,
+        "leak_pypi_latest": _pypi_text(pypi_entry, "latest_version"),
+        "leak_pypi_last_upload": _pypi_text(pypi_entry, "last_upload"),
+        "leak_issue_url": _pypi_text(issue, "url"),
+        "leak_issue_closed_at": _pypi_text(issue, "closed_at"),
+        "leak_first_release_after_close": _pypi_text(pypi_entry, "first_release_after_close"),
+        "leak_hosts_bypassable": hosts_bypassable,
+    }
+    if git_blocked is None or pypi_entry is None:
+        note = "no blocklist file" if git_blocked is None else "no pypi.json entry"
+        return {**columns, "leak_channel": "unknown", "leak_note": note}
+    pypi_open = pypi_blocked is not True
+    if released_after is True and pypi_open and issue is not None:
+        channel = "pypi_fix_released"
+    elif matched and n_releases >= 1 and pypi_open and not dated_fix:
+        channel = "pypi_package"
+    elif repo_known:
+        channel = "git_only"
+    else:
+        channel = "none_found"
+    if matched:
+        latest = columns["leak_pypi_latest"] or "?"
+        uploaded = columns["leak_pypi_last_upload"] or "?"
+        detail = f"pypi {project} ({match} match), latest {latest}, {uploaded}"
+    else:
+        detail = "no pypi project matched"
+    repo = _pypi_text(pypi_entry, "repo_url")
+    if repo:
+        detail += f"; repo {repo}"
+    if channel == "pypi_fix_released":
+        detail += (
+            f"; release {columns['leak_first_release_after_close'] or '?'} "
+            f"after issue close {columns['leak_issue_closed_at'] or '?'}"
+        )
+    elif dated_fix:
+        detail += "; no release after issue close"
+    if git_blocked:
+        detail += "; git hosts blocked"
+        if channel == "git_only":
+            if hosts_bypassable:
+                detail += (
+                    "; a root agent can rewrite /etc/hosts and bypass the answer-leak blocklist"
+                )
+            else:
+                detail += "; agent user is not root, so the hosts blocklist holds"
+    else:
+        detail += "; git hosts open"
+    return {**columns, "leak_channel": channel, "leak_note": detail}
+
+
+def load_pypi_index(path: Path) -> dict[str, dict[str, Any]]:
+    """Task-id keyed PyPI metadata. The module does not fetch it."""
+    payload = json.loads(path.read_text())
+    tasks = payload.get("tasks") if isinstance(payload, dict) else None
+    if not isinstance(tasks, dict):
+        raise ValueError(f"{path} has no tasks map")
+    return {str(key): value for key, value in tasks.items() if isinstance(value, dict)}
+
+
 def static_checks(task_dir: Path) -> dict[str, Any]:
     """Static health facts read from one task directory.
 
@@ -607,6 +770,8 @@ def static_checks(task_dir: Path) -> dict[str, Any]:
         "imported_modules": _imported_modules(sections),
         "undisclosed_names": _undisclosed_names(sections, instruction),
         "instruction_chars": len(instruction),
+        **blocklist_facts(task_dir),
+        "leak_hosts_bypassable": hosts_bypassable(task_dir),
     }
 
 
@@ -785,6 +950,18 @@ def task_health_schema() -> Any:
             ("nop_setup_error", pa.string()),
             ("nop_setup_error_excused", pa.bool_()),
             ("nop_exception_type", pa.string()),
+            ("leak_git_blocked", pa.bool_()),
+            ("leak_pypi_blocked", pa.bool_()),
+            ("leak_pypi_project", pa.string()),
+            ("leak_pypi_match", pa.string()),
+            ("leak_pypi_latest", pa.string()),
+            ("leak_pypi_last_upload", pa.string()),
+            ("leak_issue_url", pa.string()),
+            ("leak_issue_closed_at", pa.string()),
+            ("leak_first_release_after_close", pa.string()),
+            ("leak_hosts_bypassable", pa.bool_()),
+            ("leak_channel", pa.string()),
+            ("leak_note", pa.string()),
             ("produced_at", pa.string()),
         ]
     )
@@ -849,15 +1026,19 @@ def build_health_rows(
     qualification_rows: Sequence[Mapping[str, Any]],
     job_roots: Sequence[Path],
     task_root: Path,
+    pypi_tasks: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """One health row per pool entry, using the latest nop per digest.
 
     ``task_root`` resolves each entry's checkout-relative ``task`` directory.
     A pool entry whose nop trial directory is absent from every job root is
     labeled ``unknown``: the qualification row alone carries no verifier log,
-    and a broken label must cite one.
+    and a broken label must cite one. ``pypi_tasks`` is the ``tasks`` map from
+    ``pypi.json``; a missing entry leaves the leak channel unknown. The leak
+    columns do not change ``label``.
     """
     nops = _nop_rows_by_digest(qualification_rows)
+    indexed = pypi_tasks or {}
     produced_at = utc_now_iso()
     rows: list[dict[str, Any]] = []
     for entry in pool_entries:
@@ -917,6 +1098,14 @@ def build_health_rows(
                 if nop is not None
                 else None,
                 "nop_exception_type": nop.get("exception_type") if nop is not None else None,
+                **leak_assessment(
+                    static.get("leak_git_blocked"),
+                    static.get("leak_pypi_blocked"),
+                    indexed.get(str(entry.get("task_id") or ""))
+                    if str(entry.get("task_id") or "") in indexed
+                    else None,
+                    static.get("leak_hosts_bypassable"),
+                ),
                 "produced_at": produced_at,
             }
         )
@@ -1039,6 +1228,50 @@ def summarize_health(
         lines.append(f"| {reason} | {count} |")
     if not reasons:
         lines.append("| (none) | 0 |")
+    by_channel = Counter(str(row.get("leak_channel") or "(none)") for row in rows)
+    by_match = Counter(
+        str(row.get("leak_pypi_match")) if row.get("leak_pypi_match") else "(none)" for row in rows
+    )
+    by_channel_label: dict[str, Counter[str]] = {}
+    for row in rows:
+        channel = str(row.get("leak_channel") or "(none)")
+        label = str(row.get("label") or "unknown")
+        by_channel_label.setdefault(channel, Counter())[label] += 1
+    channel_order = (*LEAK_CHANNELS, *(sorted(set(by_channel) - set(LEAK_CHANNELS))))
+    lines.extend(
+        ["", "## Leak", "", "Group by leak_channel.", "", "| leak_channel | tasks |", "|---|---:|"]
+    )
+    for channel in channel_order:
+        lines.append(f"| {channel} | {by_channel.get(channel, 0)} |")
+    lines.extend(
+        [
+            "",
+            "Cross-tab of leak_channel and label.",
+            "",
+            "| leak_channel | " + " | ".join(LABELS) + " |",
+            "|---|" + "---:|" * len(LABELS),
+        ]
+    )
+    for channel in channel_order:
+        counts = by_channel_label.get(channel, Counter())
+        lines.append(
+            "| "
+            + channel
+            + " | "
+            + " | ".join(str(counts.get(label, 0)) for label in LABELS)
+            + " |"
+        )
+    lines.extend(
+        [
+            "",
+            "Group by leak_pypi_match. Null is (none).",
+            "",
+            "| leak_pypi_match | tasks |",
+            "|---|---:|",
+        ]
+    )
+    for match in sorted(by_match, key=lambda key: (key == "(none)", key)):
+        lines.append(f"| {match} | {by_match[match]} |")
     lines.extend(
         [
             "",

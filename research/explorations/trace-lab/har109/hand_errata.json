@@ -1,0 +1,11 @@
+[
+  {
+    "trial_id": "har104-d-001896__MDkTErY",
+    "field": "completion_confirmed",
+    "frozen_value": false,
+    "corrected_value": true,
+    "found_at": "2026-09-30T04:46Z, after the freeze, while checking a tool disagreement",
+    "evidence": "Agent steps 41 and 42 are both mark_task_complete. Terminus-2 (harbor terminus_2.py:1405-1417, 1531-1534) ends the run when a claim follows a pending claim, and the run ended at step 42 with no exception. The hand reader counted 5 claims, but missed that the last two were back to back.",
+    "effect": "Eval Lab and Scout were right on this field, and the hand label was wrong. The frozen file is unchanged; score.py applies this erratum and reports it."
+  }
+]

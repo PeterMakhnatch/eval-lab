@@ -1,0 +1,545 @@
+{
+  "hand": {
+    "har104-d-000226__JCDfZFi": {
+      "reward": 1.0,
+      "stop_reason": "call_ceiling",
+      "completion_claimed": true,
+      "completion_confirmed": false,
+      "loop_present": true,
+      "loop_span": [
+        25,
+        121
+      ],
+      "first_failure_step": 4,
+      "attribution": "environment",
+      "task_problem": false,
+      "pass_suspect": true,
+      "upstream_fetch": true
+    },
+    "har104-d-000383__PmZMZ6z": {
+      "reward": 0.0,
+      "stop_reason": "token_ceiling",
+      "completion_claimed": true,
+      "completion_confirmed": false,
+      "loop_present": true,
+      "loop_span": [
+        30,
+        68
+      ],
+      "first_failure_step": 17,
+      "attribution": "model",
+      "task_problem": false,
+      "pass_suspect": false,
+      "upstream_fetch": false
+    },
+    "har104-d-000927__23aAzui": {
+      "reward": 1.0,
+      "stop_reason": "model_finished",
+      "completion_claimed": true,
+      "completion_confirmed": true,
+      "loop_present": false,
+      "loop_span": null,
+      "first_failure_step": 11,
+      "attribution": "environment",
+      "task_problem": false,
+      "pass_suspect": true,
+      "upstream_fetch": true
+    },
+    "har104-d-001832__d7Hop8E": {
+      "reward": 0.0,
+      "stop_reason": "token_ceiling",
+      "completion_claimed": false,
+      "completion_confirmed": false,
+      "loop_present": true,
+      "loop_span": [
+        57,
+        66
+      ],
+      "first_failure_step": 19,
+      "attribution": "model",
+      "task_problem": false,
+      "pass_suspect": false,
+      "upstream_fetch": false
+    },
+    "har104-d-001896__MDkTErY": {
+      "reward": 0.0,
+      "stop_reason": "model_finished",
+      "completion_claimed": true,
+      "completion_confirmed": true,
+      "loop_present": true,
+      "loop_span": [
+        34,
+        36
+      ],
+      "first_failure_step": 6,
+      "attribution": "model",
+      "task_problem": false,
+      "pass_suspect": false,
+      "upstream_fetch": false
+    },
+    "har104-d-002256__RDffvXQ": {
+      "reward": 0.0,
+      "stop_reason": "call_ceiling",
+      "completion_claimed": false,
+      "completion_confirmed": false,
+      "loop_present": true,
+      "loop_span": [
+        30,
+        121
+      ],
+      "first_failure_step": 3,
+      "attribution": "model",
+      "task_problem": false,
+      "pass_suspect": false,
+      "upstream_fetch": false
+    },
+    "har104-d-002259__cptLF6h": {
+      "reward": 0.0,
+      "stop_reason": "token_ceiling",
+      "completion_claimed": false,
+      "completion_confirmed": false,
+      "loop_present": false,
+      "loop_span": null,
+      "first_failure_step": 7,
+      "attribution": "model",
+      "task_problem": true,
+      "pass_suspect": false,
+      "upstream_fetch": false
+    },
+    "har104-d-002391__WxBjcjX": {
+      "reward": 1.0,
+      "stop_reason": "token_ceiling",
+      "completion_claimed": true,
+      "completion_confirmed": false,
+      "loop_present": true,
+      "loop_span": [
+        43,
+        103
+      ],
+      "first_failure_step": 7,
+      "attribution": "none",
+      "task_problem": false,
+      "pass_suspect": false,
+      "upstream_fetch": false
+    },
+    "har104-d-002407__LRiiKmy": {
+      "reward": 0.0,
+      "stop_reason": "token_ceiling",
+      "completion_claimed": false,
+      "completion_confirmed": false,
+      "loop_present": true,
+      "loop_span": [
+        58,
+        63
+      ],
+      "first_failure_step": 24,
+      "attribution": "model",
+      "task_problem": true,
+      "pass_suspect": false,
+      "upstream_fetch": true
+    },
+    "har104-d-002864__B7cJ4cG": {
+      "reward": 1.0,
+      "stop_reason": "token_ceiling",
+      "completion_claimed": true,
+      "completion_confirmed": false,
+      "loop_present": true,
+      "loop_span": [
+        24,
+        102
+      ],
+      "first_failure_step": 28,
+      "attribution": "none",
+      "task_problem": false,
+      "pass_suspect": false,
+      "upstream_fetch": false
+    }
+  },
+  "errata": [
+    {
+      "trial_id": "har104-d-001896__MDkTErY",
+      "field": "completion_confirmed",
+      "frozen_value": false,
+      "corrected_value": true,
+      "found_at": "2026-09-30T04:46Z, after the freeze, while checking a tool disagreement",
+      "evidence": "Agent steps 41 and 42 are both mark_task_complete. Terminus-2 (harbor terminus_2.py:1405-1417, 1531-1534) ends the run when a claim follows a pending claim, and the run ended at step 42 with no exception. The hand reader counted 5 claims, but missed that the last two were back to back.",
+      "effect": "Eval Lab and Scout were right on this field, and the hand label was wrong. The frozen file is unchanged; score.py applies this erratum and reports it."
+    }
+  ],
+  "tools": {
+    "docent": {
+      "stop_reason": {
+        "right": 0,
+        "wrong": [],
+        "not_expressed": 10,
+        "n": 10
+      },
+      "completion_claimed": {
+        "right": 0,
+        "wrong": [],
+        "not_expressed": 10,
+        "n": 10
+      },
+      "completion_confirmed": {
+        "right": 0,
+        "wrong": [],
+        "not_expressed": 10,
+        "n": 10
+      },
+      "loop": {
+        "found": [],
+        "missed": [
+          "har104-d-000226__JCDfZFi",
+          "har104-d-000383__PmZMZ6z",
+          "har104-d-001832__d7Hop8E",
+          "har104-d-001896__MDkTErY",
+          "har104-d-002256__RDffvXQ",
+          "har104-d-002391__WxBjcjX",
+          "har104-d-002407__LRiiKmy",
+          "har104-d-002864__B7cJ4cG"
+        ],
+        "false_alarm": [],
+        "not_expressed": 10,
+        "n": 10,
+        "both_found": 0,
+        "span_overlaps": 0
+      },
+      "first_failure_step": {
+        "within_tolerance": 7,
+        "off": [
+          "har104-d-000927__23aAzui: 27-29 (hand 11)",
+          "har104-d-001832__d7Hop8E: 37-40 (hand 19)",
+          "har104-d-002864__B7cJ4cG: 10-14 (hand 28)"
+        ],
+        "not_expressed": 0,
+        "n": 10
+      },
+      "attribution": {
+        "right": 6,
+        "wrong": [
+          "har104-d-000226__JCDfZFi: model (hand environment)",
+          "har104-d-000927__23aAzui: model (hand environment)",
+          "har104-d-002391__WxBjcjX: model (hand none)",
+          "har104-d-002864__B7cJ4cG: model (hand none)"
+        ],
+        "not_expressed": 0,
+        "n": 10
+      },
+      "task_problem": {
+        "found": [],
+        "missed": [
+          "har104-d-002259__cptLF6h",
+          "har104-d-002407__LRiiKmy"
+        ],
+        "false_alarm": [],
+        "not_expressed": 0,
+        "n": 10
+      },
+      "pass_suspect": {
+        "found": [],
+        "missed": [
+          "har104-d-000226__JCDfZFi",
+          "har104-d-000927__23aAzui"
+        ],
+        "false_alarm": [],
+        "not_expressed": 0,
+        "n": 4
+      },
+      "upstream_fetch": {
+        "found": [
+          "har104-d-000226__JCDfZFi",
+          "har104-d-000927__23aAzui",
+          "har104-d-002407__LRiiKmy"
+        ],
+        "missed": [],
+        "false_alarm": [],
+        "not_expressed": 7,
+        "n": 10
+      },
+      "cost_usd": 0.0,
+      "tool_minutes": 10.0
+    },
+    "evallab": {
+      "stop_reason": {
+        "right": 10,
+        "wrong": [],
+        "not_expressed": 0,
+        "n": 10
+      },
+      "completion_claimed": {
+        "right": 10,
+        "wrong": [],
+        "not_expressed": 0,
+        "n": 10
+      },
+      "completion_confirmed": {
+        "right": 9,
+        "wrong": [
+          "har104-d-000383__PmZMZ6z: True (hand False)"
+        ],
+        "not_expressed": 0,
+        "n": 10
+      },
+      "loop": {
+        "found": [
+          "har104-d-000226__JCDfZFi",
+          "har104-d-000383__PmZMZ6z",
+          "har104-d-001832__d7Hop8E",
+          "har104-d-001896__MDkTErY",
+          "har104-d-002256__RDffvXQ",
+          "har104-d-002391__WxBjcjX"
+        ],
+        "missed": [
+          "har104-d-002407__LRiiKmy",
+          "har104-d-002864__B7cJ4cG"
+        ],
+        "false_alarm": [],
+        "not_expressed": 0,
+        "n": 10,
+        "both_found": 6,
+        "span_overlaps": 4
+      },
+      "first_failure_step": {
+        "within_tolerance": 3,
+        "off": [
+          "har104-d-000383__PmZMZ6z: 5 (hand 17)",
+          "har104-d-001832__d7Hop8E: 10 (hand 19)",
+          "har104-d-002259__cptLF6h: 50 (hand 7)",
+          "har104-d-002391__WxBjcjX: 11 (hand 7)",
+          "har104-d-002407__LRiiKmy: 21 (hand 24)",
+          "har104-d-002864__B7cJ4cG: 6 (hand 28)"
+        ],
+        "not_expressed": 1,
+        "n": 10
+      },
+      "attribution": {
+        "right": 0,
+        "wrong": [],
+        "not_expressed": 10,
+        "n": 10
+      },
+      "task_problem": {
+        "found": [],
+        "missed": [
+          "har104-d-002259__cptLF6h",
+          "har104-d-002407__LRiiKmy"
+        ],
+        "false_alarm": [],
+        "not_expressed": 10,
+        "n": 10
+      },
+      "pass_suspect": {
+        "found": [],
+        "missed": [
+          "har104-d-000226__JCDfZFi",
+          "har104-d-000927__23aAzui"
+        ],
+        "false_alarm": [],
+        "not_expressed": 4,
+        "n": 4
+      },
+      "upstream_fetch": {
+        "found": [],
+        "missed": [
+          "har104-d-000226__JCDfZFi",
+          "har104-d-000927__23aAzui",
+          "har104-d-002407__LRiiKmy"
+        ],
+        "false_alarm": [],
+        "not_expressed": 10,
+        "n": 10
+      },
+      "cost_usd": 0.0,
+      "tool_minutes": 0.1
+    },
+    "evallab_pr552": {
+      "stop_reason": {
+        "right": 10,
+        "wrong": [],
+        "not_expressed": 0,
+        "n": 10
+      },
+      "completion_claimed": {
+        "right": 10,
+        "wrong": [],
+        "not_expressed": 0,
+        "n": 10
+      },
+      "completion_confirmed": {
+        "right": 10,
+        "wrong": [],
+        "not_expressed": 0,
+        "n": 10
+      },
+      "loop": {
+        "found": [
+          "har104-d-000226__JCDfZFi",
+          "har104-d-000383__PmZMZ6z",
+          "har104-d-001832__d7Hop8E",
+          "har104-d-001896__MDkTErY",
+          "har104-d-002256__RDffvXQ",
+          "har104-d-002391__WxBjcjX",
+          "har104-d-002864__B7cJ4cG"
+        ],
+        "missed": [
+          "har104-d-002407__LRiiKmy"
+        ],
+        "false_alarm": [],
+        "not_expressed": 0,
+        "n": 10,
+        "both_found": 7,
+        "span_overlaps": 5
+      },
+      "first_failure_step": {
+        "within_tolerance": 3,
+        "off": [
+          "har104-d-000383__PmZMZ6z: 5 (hand 17)",
+          "har104-d-001832__d7Hop8E: 10 (hand 19)",
+          "har104-d-002259__cptLF6h: 50 (hand 7)",
+          "har104-d-002391__WxBjcjX: 11 (hand 7)",
+          "har104-d-002407__LRiiKmy: 21 (hand 24)",
+          "har104-d-002864__B7cJ4cG: 6 (hand 28)"
+        ],
+        "not_expressed": 1,
+        "n": 10
+      },
+      "attribution": {
+        "right": 0,
+        "wrong": [],
+        "not_expressed": 10,
+        "n": 10
+      },
+      "task_problem": {
+        "found": [],
+        "missed": [
+          "har104-d-002259__cptLF6h",
+          "har104-d-002407__LRiiKmy"
+        ],
+        "false_alarm": [],
+        "not_expressed": 10,
+        "n": 10
+      },
+      "pass_suspect": {
+        "found": [
+          "har104-d-000226__JCDfZFi",
+          "har104-d-000927__23aAzui"
+        ],
+        "missed": [],
+        "false_alarm": [],
+        "not_expressed": 0,
+        "n": 4
+      },
+      "upstream_fetch": {
+        "found": [
+          "har104-d-000226__JCDfZFi",
+          "har104-d-000927__23aAzui",
+          "har104-d-002407__LRiiKmy"
+        ],
+        "missed": [],
+        "false_alarm": [],
+        "not_expressed": 0,
+        "n": 10
+      },
+      "cost_usd": 0.0,
+      "tool_minutes": 0.1
+    },
+    "scout": {
+      "stop_reason": {
+        "right": 10,
+        "wrong": [],
+        "not_expressed": 0,
+        "n": 10
+      },
+      "completion_claimed": {
+        "right": 10,
+        "wrong": [],
+        "not_expressed": 0,
+        "n": 10
+      },
+      "completion_confirmed": {
+        "right": 10,
+        "wrong": [],
+        "not_expressed": 0,
+        "n": 10
+      },
+      "loop": {
+        "found": [
+          "har104-d-000226__JCDfZFi",
+          "har104-d-000383__PmZMZ6z",
+          "har104-d-001832__d7Hop8E",
+          "har104-d-001896__MDkTErY",
+          "har104-d-002256__RDffvXQ",
+          "har104-d-002391__WxBjcjX",
+          "har104-d-002407__LRiiKmy",
+          "har104-d-002864__B7cJ4cG"
+        ],
+        "missed": [],
+        "false_alarm": [
+          "har104-d-000927__23aAzui",
+          "har104-d-002259__cptLF6h"
+        ],
+        "not_expressed": 0,
+        "n": 10,
+        "both_found": 8,
+        "span_overlaps": 7
+      },
+      "first_failure_step": {
+        "within_tolerance": 2,
+        "off": [
+          "har104-d-000226__JCDfZFi: 25 (hand 4)",
+          "har104-d-000383__PmZMZ6z: 35 (hand 17)",
+          "har104-d-000927__23aAzui: 2 (hand 11)",
+          "har104-d-001832__d7Hop8E: 57 (hand 19)",
+          "har104-d-001896__MDkTErY: 30 (hand 6)",
+          "har104-d-002256__RDffvXQ: 24 (hand 3)",
+          "har104-d-002259__cptLF6h: 2 (hand 7)",
+          "har104-d-002391__WxBjcjX: 44 (hand 7)"
+        ],
+        "not_expressed": 0,
+        "n": 10
+      },
+      "attribution": {
+        "right": 8,
+        "wrong": [
+          "har104-d-000226__JCDfZFi: none (hand environment)",
+          "har104-d-000927__23aAzui: none (hand environment)"
+        ],
+        "not_expressed": 0,
+        "n": 10
+      },
+      "task_problem": {
+        "found": [],
+        "missed": [
+          "har104-d-002259__cptLF6h",
+          "har104-d-002407__LRiiKmy"
+        ],
+        "false_alarm": [],
+        "not_expressed": 10,
+        "n": 10
+      },
+      "pass_suspect": {
+        "found": [],
+        "missed": [
+          "har104-d-000226__JCDfZFi",
+          "har104-d-000927__23aAzui"
+        ],
+        "false_alarm": [],
+        "not_expressed": 4,
+        "n": 4
+      },
+      "upstream_fetch": {
+        "found": [],
+        "missed": [
+          "har104-d-000226__JCDfZFi",
+          "har104-d-000927__23aAzui",
+          "har104-d-002407__LRiiKmy"
+        ],
+        "false_alarm": [],
+        "not_expressed": 10,
+        "n": 10
+      },
+      "cost_usd": 0.0,
+      "tool_minutes": 28.3
+    }
+  }
+}

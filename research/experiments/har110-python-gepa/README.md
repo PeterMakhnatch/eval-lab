@@ -125,8 +125,11 @@ The lab also holds the pay-as-you-go standard-API key `ZAI_OPENAPI_API_KEY`, the
 `zai/` route that Terminus and mini-swe-agent targets already use. The blocker
 now refuses only `zai-coding-plan/*` and unlisted `zai/*` models. A direct `zai/`
 proposer binds `ZAI_OPENAPI_API_KEY` explicitly (never LiteLLM's default
-`ZAI_API_KEY`), with 8192 output tokens and a 300 s timeout because GLM-5.3
-reasons first. The campaign pins `proposer_model: zai/glm-5.3` and
+`ZAI_API_KEY`), with 32,768 output tokens and a 900 s timeout because GLM-5.3
+reasons first. A reply cut at that ceiling is recorded as `truncated` (billed,
+retained for inspection) and stops the campaign instead of becoming a
+candidate: the first live call, under an 8,192 ceiling, returned a proposal
+cut off mid-sentence. The campaign pins `proposer_model: zai/glm-5.3` and
 `proposer_transport: direct`, which is the card's GLM-5.3. A precheck on the
 real 85 KB prompt took 113 s: 25,428 in / 5,406 out (4,922 reasoning), $0.059.
 Run the campaign under `keys run --` so the key is present.

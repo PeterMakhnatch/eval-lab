@@ -47,8 +47,8 @@ def _direct_lm_options(model: str) -> dict[str, Any]:
     """LiteLLM options for a direct proposer; Z.ai binds the standard-API key explicitly.
 
     LiteLLM's ``zai`` provider would otherwise read ``ZAI_API_KEY``, which is not the
-    lab's pay-as-you-go grant. GLM-5.3 reasons before answering, so it gets a larger
-    output ceiling and a longer timeout than the generic route.
+    lab's pay-as-you-go grant. GLM-5.3 spends 5-8k reasoning tokens before answering
+    (~48 tokens/s), so it gets a 32k output ceiling and a 900 s timeout.
     """
     if not model.startswith("zai/"):
         return {"max_tokens": 4096, "timeout": 60}
@@ -57,7 +57,21 @@ def _direct_lm_options(model: str) -> dict[str, Any]:
         raise ProposalUnavailable(
             f"Z.ai standard-API proposer needs {ZAI_OPENAPI_KEY_ENV}; no request was sent"
         )
-    return {"max_tokens": 8192, "timeout": 300, "api_key": key}
+    return {"max_tokens": 32768, "timeout": 900, "api_key": key}
+
+
+def _truncation_aware_lm(model: str, **options: Any) -> Any:
+    """The pinned GEPA LM only logs ``finish_reason='length'``; record it instead."""
+    from gepa.lm import LM  # ty: ignore[unresolved-import]
+
+    class TruncationAwareLM(LM):
+        truncated = False
+
+        def _check_truncation(self, choices: list[Any]) -> None:
+            self.truncated = any(getattr(c, "finish_reason", None) == "length" for c in choices)
+            super()._check_truncation(choices)
+
+    return TruncationAwareLM(model, **options)
 
 
 class _FeedbackOnlyServer:
@@ -158,24 +172,24 @@ class JournaledReflectionLM:
                 raise ValueError("Proposer receipt identity mismatch")
             if receipt["status"] != "completed":
                 raise ProposalUnavailable(
-                    "Previous proposer request has unknown outcome; no automatic retry"
+                    f"Previous proposer request ended {receipt['status']}; no automatic retry"
                 )
             self._settle_budget(path, receipt)
             self.replayed += 1
             return receipt["response"]
         receipts = self._receipts()
         if any(row.get("status") != "completed" for row in receipts):
-            raise ProposalUnavailable("Previous proposer outcome is unknown; no new request")
+            raise ProposalUnavailable("Previous proposer outcome is not usable; no new request")
         if len(receipts) >= self.max_requests:
             raise ProposalUnavailable("Campaign proposer request ceiling reached")
         if self.transport is None:
             blocker = direct_proposer_blocker(self.model)
             if blocker:
                 raise ProposalUnavailable(blocker)
-            from gepa.lm import LM  # ty: ignore[unresolved-import]
-
             if self._lm is None:
-                self._lm = LM(self.model, num_retries=0, **_direct_lm_options(self.model))
+                self._lm = _truncation_aware_lm(
+                    self.model, num_retries=0, **_direct_lm_options(self.model)
+                )
         receipt = {
             "identity": identity,
             "status": "sent_remote_outcome_unknown",
@@ -220,6 +234,15 @@ class JournaledReflectionLM:
                 response=response,
                 upstream_estimated_cost_usd=self._lm.total_cost - before,
             )
+            if getattr(self._lm, "truncated", False):
+                # The request completed and was billed, but a cut-off proposal must
+                # never become a candidate. Keep it for inspection and stop.
+                receipt["status"] = "truncated"
+                path.write_text(json.dumps(receipt, indent=2) + "\n")
+                self._settle_budget(path, receipt)
+                raise ProposalUnavailable(
+                    "Proposer response hit max_tokens; the truncated text is retained, not proposed"
+                )
         path.write_text(json.dumps(receipt, indent=2) + "\n")
         self._settle_budget(path, receipt)
         return response

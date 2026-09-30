@@ -302,10 +302,20 @@ def build_provenance(
             live = capture_repository(repo_root)
             for key in ("remote", "worktree", "branch"):
                 repository[key] = live.get(key)
-            repository["unknown_reason"] = (
-                "diff and commit were not saved when the job ran; "
-                "remote, branch and worktree are the checkout's state at publish"
-            )
+            if repository["commit"] is None:
+                repository["commit"] = live.get("commit")
+                repository["dirty"] = live.get("dirty")
+                repository["capture"] = "publish-time"
+                repository["unknown_reason"] = (
+                    "no commit was saved when the job ran; "
+                    "commit, remote, branch and worktree are the checkout's state at publish"
+                )
+            else:
+                repository["capture"] = "run-time-partial"
+                repository["unknown_reason"] = (
+                    "commit and dirty were saved when the job ran; the diff was not, "
+                    "so remote, branch and worktree are the checkout's state at publish"
+                )
             unknown.append(repository["unknown_reason"])
         else:
             unknown.append("run-time repository snapshot missing")

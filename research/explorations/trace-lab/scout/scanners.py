@@ -19,16 +19,17 @@ No scanner here calls a model. The file holds two families:
     ``bash_command`` / ``mark_task_complete`` calls, so it reads positive.
     The raw-vs-normalized gap on this scanner IS the tool-call
     visibility comparison.
-- Probe-03 label scanners (deterministic lookup, no model): each
-  transcript's trial is looked up in ``probe03_lookup.json`` (built by
-  ``build_probe03.py`` from the read-only probe-03 ``capabilities.jsonl``
-  files) and the stored labels are re-emitted as results with message
-  cites:
-  - ``probe03_outcome``: outcome tag/attribution/rule + stop reason.
-  - ``probe03_first_failure``: first-failure rule (``none`` when null).
-  - ``probe03_wedge``: boolean stuck-terminal (True when probe-03
-    records wedge stretches); validated against the blind
-    ``har99-wedge`` hand key (see ``validation/wedge_stuck.json``).
+- Rule scanners (computed, no model, no precomputed labels): each
+  transcript's Eval Lab trial directory (``metadata["trial_dir"]``, written by
+  ``import_evallab.py``) is analyzed by ``rules.analyze_trial_rules``, which
+  calls probe-03's ``capabilities.py`` rule functions on the trial's step
+  records, and the evidence step refs are cited as message references:
+  - ``rule_outcome``: outcome tag/attribution/rule + stop reason.
+  - ``rule_first_failure``: first-failure rule (``none`` when null).
+  - ``rule_handshake``: completion handshake (``confirmed``/``unconfirmed``/``none``).
+  - ``rule_loops``: identical loop spans + token cost (longest run length).
+  - ``rule_stop``: stop reason + ceiling + task_complete refs.
+  - ``rule_wedge``: boolean stuck-terminal (True when wedge stretches exist).
 
 Message cites (``[M1]``, ``[M2]``, ...) are 1-based positions over the
 full loaded message list, the same convention as Scout's grep scanner,
@@ -61,9 +62,6 @@ from inspect_scout import Result, Scanner, Transcript, grep_scanner, scanner
 from inspect_scout._scanner.result import Reference
 
 _WS = re.compile(r"\s+")
-_HERE = Path(__file__).resolve().parent
-_LOOKUP_PATH = _HERE / "probe03_lookup.json"
-_LOOKUP: dict | None = None
 _REFMAP_CACHE: dict[str, dict[str, int]] = {}
 
 
@@ -203,25 +201,47 @@ def restored_tool_calls() -> Scanner[Transcript]:
     )
 
 
-def _lookup() -> dict:
-    """Probe-03 labels by trial dir name (loaded once per worker)."""
-    global _LOOKUP
-    if _LOOKUP is None:
-        _LOOKUP = json.loads(_LOOKUP_PATH.read_text())
-    return _LOOKUP
+"""Rule family (computed, no model calls, no precomputed labels).
+
+Each ``rule_*`` scanner resolves the transcript's Eval Lab trial directory
+from ``transcript.metadata["trial_dir"]`` (written by ``import_evallab.py``),
+computes the rule dimensions with ``rules.analyze_trial_rules`` (which calls
+probe-03's ``capabilities.py`` functions on the trial's Eval Lab step
+records), and cites the evidence step refs as Scout message references.
+Results are cached per trial directory by ``rules`` itself, so the six
+scanners share one analysis per transcript.
+"""
+import rules as _rules  # noqa: E402  (computed rules; see rules.py)
 
 
 def _trial_of(transcript: Transcript) -> str | None:
-    """Trial dir name from the source trajectory path.
+    """Trial dir name from metadata or the source trajectory path.
 
-    Both DBs keep the Harbor layout ``.../<job>/<trial>/agent/<file>``,
-    so the trial is the parent of the ``agent`` dir.
+    New DBs (``import_evallab.py``) carry ``metadata["trial"]`` plus
+    ``metadata["trial_dir"]``. Legacy DBs keep the Harbor layout
+    ``.../<job>/<trial>/agent/<file>``, so the trial is the parent of the
+    ``agent`` dir.
     """
+    meta = transcript.metadata or {}
+    if isinstance(meta, dict) and meta.get("trial"):
+        return str(meta["trial"])
     uri = transcript.source_uri or ""
     parts = Path(uri).parts
     if "agent" in parts:
         return parts[parts.index("agent") - 1]
     return None
+
+
+def _rules_for(transcript: Transcript) -> tuple[dict | None, str | None]:
+    """(rules result, trial_dir) or (None, reason when unresolvable)."""
+    meta = transcript.metadata or {}
+    trial_dir = meta.get("trial_dir") if isinstance(meta, dict) else None
+    if not trial_dir:
+        return None, f"no trial_dir metadata for trial {_trial_of(transcript)!r}"
+    try:
+        return _rules.analyze_trial_rules(str(trial_dir)), str(trial_dir)
+    except Exception as exc:  # noqa: BLE001 -- one bad trial must not fail a scan
+        return None, f"rule analysis failed for {trial_dir}: {exc}"
 
 
 def _ref_index_map(traj_path: str) -> dict[str, int]:
@@ -310,20 +330,20 @@ def _cite_text(
 
 
 @scanner(messages="all")
-def probe03_outcome() -> Scanner[Transcript]:
-    """Probe-03 outcome-relevant failure + stop reason for this trial."""
+def rule_outcome() -> Scanner[Transcript]:
+    """Outcome-relevant failure (R-* rule) computed from Eval Lab records."""
 
     async def scan(transcript: Transcript) -> Result:
         trial = _trial_of(transcript)
-        row = _lookup().get(trial) if trial else None
+        row, reason = _rules_for(transcript)
         if row is None:
             return Result(
                 value="unknown",
-                explanation=f"no probe-03 row for trial {trial!r}",
+                explanation=f"rule analysis unavailable: {reason}",
                 references=[],
                 metadata={"trial": trial},
             )
-        outcome = row["outcome"] or {}
+        outcome = row.get("outcome") or {}
         stop = row.get("stop") or {}
         refs = list(outcome.get("evidence_step_refs") or [])
         if outcome.get("step_ref") and outcome["step_ref"] not in refs:
@@ -340,7 +360,7 @@ def probe03_outcome() -> Scanner[Transcript]:
         return Result(
             value=value,
             explanation=(
-                f"probe-03 {outcome.get('rule_id')}: {outcome.get('note')} "
+                f"computed {outcome.get('rule_id')}: {outcome.get('note')} "
                 f"Evidence: {cite_text}. "
                 f"Stop: {stop.get('reason')} "
                 f"({stop.get('exception_type') or 'no exception'})."
@@ -362,16 +382,16 @@ def probe03_outcome() -> Scanner[Transcript]:
 
 
 @scanner(messages="all")
-def probe03_first_failure() -> Scanner[Transcript]:
-    """Probe-03 first-failure rule for this trial (``none`` when null)."""
+def rule_first_failure() -> Scanner[Transcript]:
+    """First-failure rule (``none`` when null) computed from Eval Lab records."""
 
     async def scan(transcript: Transcript) -> Result:
         trial = _trial_of(transcript)
-        row = _lookup().get(trial) if trial else None
+        row, reason = _rules_for(transcript)
         if row is None:
             return Result(
                 value="unknown",
-                explanation=f"no probe-03 row for trial {trial!r}",
+                explanation=f"rule analysis unavailable: {reason}",
                 references=[],
                 metadata={"trial": trial},
             )
@@ -380,7 +400,7 @@ def probe03_first_failure() -> Scanner[Transcript]:
             return Result(
                 value="none",
                 explanation=(
-                    "probe-03 first_failure is null: the execution is "
+                    "computed first_failure is null: the execution is "
                     "mechanically clean and the outcome explains the trial."
                 ),
                 references=[],
@@ -398,7 +418,7 @@ def probe03_first_failure() -> Scanner[Transcript]:
         return Result(
             value=str(first.get("rule_id") or "none"),
             explanation=(
-                f"probe-03 first failure {first.get('rule_id')} "
+                f"computed first failure {first.get('rule_id')} "
                 f"({first.get('tag')}/{first.get('attribution')}) "
                 f"at {first.get('step_ref')}: {first.get('note')} "
                 f"Evidence: {cite_text}. "
@@ -419,21 +439,205 @@ def probe03_first_failure() -> Scanner[Transcript]:
 
 
 @scanner(messages="all")
-def probe03_wedge() -> Scanner[Transcript]:
-    """Probe-03 wedge (stuck-terminal) flag for this trial.
+def rule_handshake() -> Scanner[Transcript]:
+    """Completion handshake computed from Eval Lab records.
 
-    Boolean True when probe-03 records wedge stretches. Validated against
-    the blind har99-wedge hand key at the trial level; note the in-sample
-    caveat (probe-03 scored its wedge measurement against that key).
+    Value is ``confirmed`` when the run ended on a confirmed ``task_complete``,
+    ``unconfirmed`` when the harness asked "Are you sure ...?" but the run
+    never confirmed, and ``none`` when the prompt never appears.
     """
 
     async def scan(transcript: Transcript) -> Result:
         trial = _trial_of(transcript)
-        row = _lookup().get(trial) if trial else None
+        row, reason = _rules_for(transcript)
         if row is None:
             return Result(
                 value="unknown",
-                explanation=f"no probe-03 row for trial {trial!r}",
+                explanation=f"rule analysis unavailable: {reason}",
+                references=[],
+                metadata={"trial": trial},
+            )
+        handshake = row.get("handshake")
+        if not handshake:
+            return Result(
+                value="none",
+                explanation="no completion handshake: the harness never asked "
+                "for task-complete confirmation.",
+                references=[],
+                metadata={"trial": trial},
+            )
+        uri = transcript.source_uri or ""
+        try:
+            ref_map = _ref_index_map(uri)
+        except (OSError, ValueError):
+            ref_map = {}
+        cite_text, references, unmapped = _cite_text(
+            transcript, ref_map, [handshake.get("first_prompt_ref")]
+        )
+        value = "confirmed" if handshake.get("confirmed") else "unconfirmed"
+        return Result(
+            value=value,
+            explanation=(
+                f"completion handshake {value}: first prompt "
+                f"{cite_text}, {handshake.get('prompts')} prompt(s), "
+                f"{handshake.get('turns_after_first_prompt')} turn(s) after, "
+                f"{handshake.get('echo_task_complete_turns')} echo "
+                f"task_complete turn(s)."
+            ),
+            references=references,
+            metadata={
+                "trial": trial,
+                "confirmed": handshake.get("confirmed"),
+                "first_prompt_ref": handshake.get("first_prompt_ref"),
+                "prompts": handshake.get("prompts"),
+                "turns_after_first_prompt": handshake.get(
+                    "turns_after_first_prompt"
+                ),
+                "echo_task_complete_turns": handshake.get(
+                    "echo_task_complete_turns"
+                ),
+                "unmapped_refs": unmapped,
+            },
+        )
+
+    return scan
+
+
+@scanner(messages="all")
+def rule_loops() -> Scanner[Transcript]:
+    """Identical loop spans + token cost computed from Eval Lab records.
+
+    Value is the longest identical-run length (0 when no run of >= 10
+    byte-identical consecutive agent messages exists).
+    """
+
+    async def scan(transcript: Transcript) -> Result:
+        trial = _trial_of(transcript)
+        row, reason = _rules_for(transcript)
+        if row is None:
+            return Result(
+                value="unknown",
+                explanation=f"rule analysis unavailable: {reason}",
+                references=[],
+                metadata={"trial": trial},
+            )
+        loops = row.get("loops") or {}
+        spans = loops.get("spans") or []
+        if not spans:
+            return Result(
+                value=0,
+                explanation="no identical loop span (>= 10 byte-identical "
+                "consecutive agent messages).",
+                references=[],
+                metadata={"trial": trial, "n_spans": 0},
+            )
+        refs: list[str | None] = []
+        for span in spans:
+            refs.extend(span.get("span") or [])
+        uri = transcript.source_uri or ""
+        try:
+            ref_map = _ref_index_map(uri)
+        except (OSError, ValueError):
+            ref_map = {}
+        cite_text, references, unmapped = _cite_text(transcript, ref_map, refs)
+        longest = max((s.get("length") or 0) for s in spans)
+        summary = "; ".join(
+            f"{s.get('kind')} {s.get('span', [None, None])[0]}->"
+            f"{s.get('span', [None, None])[1]} ({s.get('length')} turns)"
+            for s in spans
+        )
+        identical = loops.get("identical") or {}
+        return Result(
+            value=longest,
+            explanation=(
+                f"computed loop span(s): {summary}. "
+                f"Loop prompt tokens: {identical.get('prompt')}; "
+                f"share of model prompt: {loops.get('loop_prompt_share')}. "
+                f"Cites: {cite_text}."
+            ),
+            references=references,
+            metadata={
+                "trial": trial,
+                "n_spans": len(spans),
+                "longest": longest,
+                "spans": spans,
+                "loop_prompt_share": loops.get("loop_prompt_share"),
+                "unmapped_refs": unmapped,
+            },
+        )
+
+    return scan
+
+
+@scanner(messages="all")
+def rule_stop() -> Scanner[Transcript]:
+    """Stop reason + ceiling computed from Eval Lab records.
+
+    Value is the probe-03 stop reason (``ceiling:<dim>``,
+    ``task_complete_confirmed``, ``agent_timeout``, ...).
+    """
+
+    async def scan(transcript: Transcript) -> Result:
+        trial = _trial_of(transcript)
+        row, reason = _rules_for(transcript)
+        if row is None:
+            return Result(
+                value="unknown",
+                explanation=f"rule analysis unavailable: {reason}",
+                references=[],
+                metadata={"trial": trial},
+            )
+        stop = row.get("stop") or {}
+        refs = list(stop.get("task_complete_refs") or [])
+        uri = transcript.source_uri or ""
+        try:
+            ref_map = _ref_index_map(uri)
+        except (OSError, ValueError):
+            ref_map = {}
+        cite_text, references, unmapped = _cite_text(transcript, ref_map, refs)
+        detail = stop.get("exception_message") or ""
+        return Result(
+            value=str(stop.get("reason") or "unknown"),
+            explanation=(
+                f"computed stop: {stop.get('reason')} "
+                f"({stop.get('exception_type') or 'no exception'}"
+                f"{(': ' + str(detail)[:160]) if detail else ''}). "
+                f"Natural completion: {stop.get('natural_completion')}. "
+                + (
+                    f"task_complete refs: {cite_text}."
+                    if refs
+                    else "No recorded task_complete."
+                )
+            ),
+            references=references,
+            metadata={
+                "trial": trial,
+                "reason": stop.get("reason"),
+                "exception_type": stop.get("exception_type"),
+                "natural_completion": stop.get("natural_completion"),
+                "task_complete_refs": refs,
+                "unmapped_refs": unmapped,
+            },
+        )
+
+    return scan
+
+
+@scanner(messages="all")
+def rule_wedge() -> Scanner[Transcript]:
+    """Wedge (stuck-terminal) flag computed from Eval Lab records.
+
+    Boolean True when the wedge measurement finds stretches of >= 3 executed
+    turns whose keystrokes landed while the shell was not at a prompt.
+    """
+
+    async def scan(transcript: Transcript) -> Result:
+        trial = _trial_of(transcript)
+        row, reason = _rules_for(transcript)
+        if row is None:
+            return Result(
+                value="unknown",
+                explanation=f"rule analysis unavailable: {reason}",
                 references=[],
                 metadata={"trial": trial},
             )
@@ -456,7 +660,7 @@ def probe03_wedge() -> Scanner[Transcript]:
         if not stretches:
             return Result(
                 value=False,
-                explanation="probe-03 records no wedge (stuck-terminal) stretch.",
+                explanation="computed wedge: no stuck-terminal stretch.",
                 references=[],
                 metadata={"trial": trial, "n_stretches": 0},
             )
@@ -469,7 +673,7 @@ def probe03_wedge() -> Scanner[Transcript]:
         return Result(
             value=True,
             explanation=(
-                f"probe-03 wedge stretch(es): {summary}. "
+                f"computed wedge stretch(es): {summary}. "
                 f"Cites: {cite_text}."
             ),
             references=references,

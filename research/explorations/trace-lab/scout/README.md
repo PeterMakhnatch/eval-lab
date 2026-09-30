@@ -22,13 +22,15 @@ UV="uv run --no-project --python 3.12 --with inspect-scout==0.5.3 --with harbor=
 - `data/transcripts_norm/` — 54 normalized transcripts (one per trial).
 - `data/transcripts_raw/` — 71 raw transcripts across the same 54 trials
   (39 trials x 1 file, 14 x 2, 1 x 4).
-- `scans/` — two current scans (see Scan). `scans_archive/` holds the two
+- `scans/` — three current scans (see Scan; the new Eval Lab one is `scan_id=VmraS55u4jRnFCaexTwfBQ`). `scans_archive/` holds the two
   superseded HAR-90-only scans from the prior setup
   (`scan_id=WHnhfogjpsQQjZ9zQUA5s3`: 16 transcripts x 3 scanners = 48 rows;
   plus `scan_id=WeuebA7h4i7aMnq6d525mH`).
-- `scanners.py` — 7 deterministic scanners (no model calls).
-- `probe03_lookup.json` — probe-03 labels by trial (built by
-  `build_probe03.py` from the read-only probe-03 `capabilities.jsonl`).
+- `scanners.py` — 4 text scanners plus 6 computed rule scanners (no model calls, no label lookup).
+- `rules.py` — rule module shared with Engineering (`RULES_HANDOFF.md`); calls probe-03's `capabilities.py` on Eval Lab step records.
+- `import_evallab.py` — reusable Eval Lab importer: trial/job/runs-root inputs, `--db` transcripts dir, Eval Lab metadata + tool calls.
+- `tests/` — 22 deterministic tests (golden trial, rule-family spots, full 44/44 frozen-row match, importer metadata/calls).
+- `probe03_lookup.json` — superseded label map (kept for reference; no scanner reads it anymore).
 - `validation/wedge_stuck.json` — 54 trial-level stuck-terminal cases from
   the blind har99-wedge hand key (built by `build_wedge_validation.py`
   after the normalized import; ids are that DB's transcript ids).
@@ -100,7 +102,72 @@ How the ATIF import maps (source-read in
   `head` aliasing `trajectory.json`) on raw fragments. Raw refs from other
   fragments land in `metadata.unmapped_refs` (20 of 71 raw outcome rows).
 
-## Scan (zero model calls — no `--model` flag anywhere)
+## HAR-109: Eval Lab import + computed rules
+
+Transcripts now come from Eval Lab records with real metadata, and the
+probe-03 rules run as computed Scout scanners (no label lookup, no model
+calls). New files: `rules.py` (rule module shared with Engineering;
+handoff: `RULES_HANDOFF.md`), `import_evallab.py` (reusable importer),
+`tests/` (22 deterministic tests). All commands from the Eval Lab worktree
+root with `UV="uv run --with inspect-scout==0.5.3 --with harbor==0.21.0"`
+(project env, so `evallab` imports resolve).
+
+Import (one reusable script; trial dirs, job dirs, or runs roots):
+
+```sh
+$UV python research/explorations/trace-lab/scout/import_evallab.py \
+  ~/Developer/eval-lab/.worktrees/har81-dispatch-528/runs \
+  ~/Developer/eval-lab/.worktrees/har81-dispatch-531/runs \
+  --db ~/Developer/eval-lab/derived/trace-lab/scout/data/transcripts_evallab \
+  --staging ~/Developer/eval-lab/derived/trace-lab/scout/staged_evallab
+# resolved 44 trial dirs; inserted 44 transcripts (44 staged files carry tool_calls)
+```
+
+Per trial the script stitches head + cont-N (`capabilities.assemble_trial`),
+restores tool calls via Eval Lab's `effective_tool_calls` (native wins;
+recorded `step_layers` synthesized otherwise), and writes metadata from
+Eval Lab's `build_run_report` (the `evallab report run --json` code):
+`task_id` = task name, `score` = reward, `success` = reward >= 1.0,
+`error` = exception type, `limit` = binding ceiling / timeout, plus
+`trial/trial_id/job/verdict/stop_reason/stop_detail/tokens/llm_steps` in
+`metadata`. Executed: 44 staged files, 3,597 steps, 3,809 tool calls
+(3,759 `bash_command` + 50 `mark_task_complete`); 44/44 transcripts carry
+task, trial id and score; verdicts 36 failed / 8 passed; report stops 33
+`trial_budget_exhausted` / 4 `task_complete` / 4 `agent_timeout` / 3
+`prose_completion`. Also tested: the golden-run trial (raw_content, 117
+calls restored over 118 steps) and a synthetic stock-shaped trial
+(HAR-104 shape, native calls pass through with task/score/success intact).
+
+Scan (4 text + 6 computed rule scanners, `rule_outcome`,
+`rule_first_failure`, `rule_handshake`, `rule_loops`, `rule_stop`,
+`rule_wedge`; each cites evidence step refs as `[Mn]` message links):
+
+```sh
+$UV scout scan research/explorations/trace-lab/scout/scanners.py \
+  -T ~/Developer/eval-lab/derived/trace-lab/scout/data/transcripts_evallab \
+  --scans ~/Developer/eval-lab/derived/trace-lab/scout/scans --display plain
+# scans/scan_id=VmraS55u4jRnFCaexTwfBQ: 44 transcripts x 10 scanners = 440 inputs, 660 rows, 0 errors
+```
+
+Agreement with probe-03 `har81/capabilities.jsonl` on the 44 runs: **44/44
+on all six dimensions** (outcome rule, first-failure rule, stop reason,
+handshake value, longest loop, wedge flag), including evidence refs and
+notes, with 0 unmapped refs. Expected: the scanners call the same
+`capabilities.py` functions with the same HAR-81 normalizer and nop
+controls (see `rules.py`), so this checks the Scout plumbing end to end,
+not an independent reimplementation. Distributions match the frozen file:
+outcome R-COMP-03 14 / R-COMP-02 9 / R-NONE-01 8 / R-PLAN-01 7 / R-ENV-02 5 /
+R-UNC-01 1; first-failure none 27 / R-TOOL-02 7 / R-ENV-02 5 / R-TOOL-01U 3 /
+R-COMP-01 2; handshake 22 none / 15 unconfirmed / 7 confirmed; loops on 27
+trials; wedge True on 9. The one known wedge-vs-hand-key difference
+(`p-d-format-code-001520`, two 3-turn pager episodes) is probe-03's
+documented definition call, unchanged.
+
+View: a throwaway `scout view` on port 7581 over the new DB + scans
+returned 200 with task/reward/stop columns populated (server stopped
+afterwards; the existing port-7576 service is untouched). Tests:
+`research/explorations/trace-lab/scout/tests/` — 22 passed, $0 spent.
+
 
 ```sh
 $UV scout scan scanners.py -V probe03_wedge:validation/wedge_stuck.json --display plain

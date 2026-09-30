@@ -47,6 +47,7 @@ from evallab.interpretation.claude_sessions import (
 )
 from evallab.interpretation.codex_rollouts import read_codex_rollouts
 from evallab.interpretation.domains import domain_section, render_domain_markdown
+from evallab.interpretation.outside_fetch import outside_fetch_section, render_outside_fetch_line
 from evallab.interpretation.price_table import estimate_cost_usd, lookup_price
 from evallab.interpretation.run_report_scale import (
     MIN_STEPS_FOR_WINDOWS,
@@ -2238,19 +2239,21 @@ def build_run_report(
         and chain_complete
         else None
     )
+    outcome = _outcome(
+        result,
+        steps,
+        trial,
+        layer_summary=layer_summary,
+        stop=(stop_reason, stop_detail),
+        problems=problems,
+        completion=completion,
+    )
+    outside_fetches, copied_pass = outside_fetch_section(actions, outcome["reward"])
     report: dict[str, Any] = {
         "schema": RUN_REPORT_SCHEMA,
         "identity": _identity(result, trial, root_doc),
         "availability": availability,
-        "outcome": _outcome(
-            result,
-            steps,
-            trial,
-            layer_summary=layer_summary,
-            stop=(stop_reason, stop_detail),
-            problems=problems,
-            completion=completion,
-        ),
+        "outcome": outcome,
         "timing": timing,
         "tokens": tokens,
         "cost": cost,
@@ -2260,6 +2263,8 @@ def build_run_report(
         "context": context,
         "errors": errors,
         "domain": domain,
+        "outside_fetches": outside_fetches,
+        "pass_may_be_copied": copied_pass,
         "timeline": _timeline(steps, actions, subagents, context, origin, timeline_limit, compactions),
         "data_quality": quality,
         "sources": [
@@ -2517,6 +2522,14 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
     )
     if outcome["final_agent_message"]:
         lines.append(f"- Final agent message: {outcome['final_agent_message']}")
+    lines.append(render_outside_fetch_line(report.get("outside_fetches") or {"items": []}))
+    copied = report.get("pass_may_be_copied")
+    if copied:
+        evidence = ", ".join(
+            f"fetched at step {item['fetch_step']}, read back at step {item['read_back_step']}"
+            for item in copied.get("evidence_steps") or []
+        )
+        lines.append(f"- Flag: pass_may_be_copied ({evidence or 'no step detail'})")
     lines += ["", "## Time"]
     phases = timing["phases"]
     lines += _table(

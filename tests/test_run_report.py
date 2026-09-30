@@ -49,7 +49,9 @@ def _result(**overrides: Any) -> dict[str, Any]:
     return result
 
 
-def _bash(step_id: int, second: int, command: str, output: str, code: int = 0, **metrics: Any) -> dict[str, Any]:
+def _bash(
+    step_id: int, second: int, command: str, output: str, code: int = 0, **metrics: Any
+) -> dict[str, Any]:
     call_id = f"call-{step_id}"
     return {
         "step_id": step_id,
@@ -91,7 +93,12 @@ def _trial(
         "session_id": "s",
         "agent": {"name": "mini-swe-agent", "version": "2.4.6", "model_name": "zai/glm"},
         "steps": [
-            {"step_id": 0, "source": "user", "message": "Fix the bug", "timestamp": "2026-09-01T00:02:00Z"},
+            {
+                "step_id": 0,
+                "source": "user",
+                "message": "Fix the bug",
+                "timestamp": "2026-09-01T00:02:00Z",
+            },
             *steps,
         ],
     }
@@ -138,13 +145,21 @@ def test_terminal_polls_are_not_revisits(tmp_path: Path) -> None:
             "source": "agent",
             "message": "",
             "tool_calls": [
-                {"tool_call_id": f"c{step_id}", "function_name": "bash_command",
-                 "arguments": {"keystrokes": keys, "duration": 5}}
+                {
+                    "tool_call_id": f"c{step_id}",
+                    "function_name": "bash_command",
+                    "arguments": {"keystrokes": keys, "duration": 5},
+                }
             ],
             "observation": {"results": [{"content": "root@box:/app# still running..."}]},
         }
 
-    steps = [keystrokes(1, 1, "make\n"), keystrokes(2, 7, ""), keystrokes(3, 13, ""), keystrokes(4, 19, "")]
+    steps = [
+        keystrokes(1, 1, "make\n"),
+        keystrokes(2, 7, ""),
+        keystrokes(3, 13, ""),
+        keystrokes(4, 19, ""),
+    ]
     report = build_run_report(_trial(tmp_path, steps))
 
     assert report["tools"]["polls"] == 3
@@ -157,7 +172,10 @@ def test_codex_code_mode_is_unwrapped_and_script_status_drives_errors(tmp_path: 
         source = f"const r = await tools.exec_command({json.dumps({'cmd': cmd})});\ntext(r.output);"
         content = str(
             [
-                {"type": "input_text", "text": f"Script {status}\nWall time 0.2 seconds\nOutput:\n"},
+                {
+                    "type": "input_text",
+                    "text": f"Script {status}\nWall time 0.2 seconds\nOutput:\n",
+                },
                 {"type": "input_text", "text": body},
             ]
         )
@@ -166,7 +184,13 @@ def test_codex_code_mode_is_unwrapped_and_script_status_drives_errors(tmp_path: 
             "timestamp": f"2026-09-01T00:02:{step_id:02d}Z",
             "source": "agent",
             "message": "",
-            "tool_calls": [{"tool_call_id": f"c{step_id}", "function_name": "exec", "arguments": {"input": source}}],
+            "tool_calls": [
+                {
+                    "tool_call_id": f"c{step_id}",
+                    "function_name": "exec",
+                    "arguments": {"input": source},
+                }
+            ],
             "observation": {"results": [{"source_call_id": f"c{step_id}", "content": content}]},
         }
 
@@ -195,7 +219,9 @@ def test_trailing_harness_notice_keeps_every_call_and_is_surfaced(tmp_path: Path
     step["observation"]["results"] = [
         {"content": json.dumps({"returncode": 0, "output": "a b c"})},
         {"content": json.dumps({"returncode": 2, "output": "pwd: bad option"})},
-        {"content": "Your previous response reached the output token limit (finish_reason=length)."},
+        {
+            "content": "Your previous response reached the output token limit (finish_reason=length)."
+        },
     ]
     report = build_run_report(_trial(tmp_path, [step]))
 
@@ -211,9 +237,16 @@ def test_payload_status_wrapping_an_error_value_is_an_error(tmp_path: Path) -> N
             "timestamp": f"2026-09-01T00:02:{step_id:02d}Z",
             "source": "agent",
             "message": "",
-            "tool_calls": [{"tool_call_id": f"m{step_id}", "function_name": "memory_get",
-                            "arguments": {"chunk_id": f"c{step_id}"}}],
-            "observation": {"results": [{"source_call_id": f"m{step_id}", "content": json.dumps(payload)}]},
+            "tool_calls": [
+                {
+                    "tool_call_id": f"m{step_id}",
+                    "function_name": "memory_get",
+                    "arguments": {"chunk_id": f"c{step_id}"},
+                }
+            ],
+            "observation": {
+                "results": [{"source_call_id": f"m{step_id}", "content": json.dumps(payload)}]
+            },
         }
 
     steps = [
@@ -235,7 +268,9 @@ def test_expected_probe_miss_is_ok_but_counted(tmp_path: Path) -> None:
 
 def test_usage_not_attributed_to_steps_is_flagged(tmp_path: Path) -> None:
     # result.json declares 300 output tokens; the two steps only carry 200.
-    report = build_run_report(_trial(tmp_path, [_bash(1, 5, "ls", "x"), _bash(2, 9, "pwd", "/app")]))
+    report = build_run_report(
+        _trial(tmp_path, [_bash(1, 5, "ls", "x"), _bash(2, 9, "pwd", "/app")])
+    )
 
     assert any("100 output tokens" in q for q in report["data_quality"])
 
@@ -290,7 +325,12 @@ def test_token_disagreement_between_sources_is_reported(tmp_path: Path) -> None:
 def test_phase_timing_and_gaps_between_agent_steps(tmp_path: Path) -> None:
     steps = [
         _bash(1, 5, "ls", "x"),
-        {"step_id": 2, "source": "user", "message": "keep going", "timestamp": "2026-09-01T00:02:40Z"},
+        {
+            "step_id": 2,
+            "source": "user",
+            "message": "keep going",
+            "timestamp": "2026-09-01T00:02:40Z",
+        },
         _bash(3, 50, "pwd", "/app"),
         _bash(4, 55, "id", "root"),
     ]
@@ -371,7 +411,10 @@ def test_control_agent_without_trajectory_is_accounted_not_zeroed(tmp_path: Path
 
 
 def test_long_runs_keep_notable_steps_and_mark_omissions(tmp_path: Path) -> None:
-    steps = [_bash(i, i % 60, f"echo step-{i}", f"step {i} output text long enough") for i in range(1, 121)]
+    steps = [
+        _bash(i, i % 60, f"echo step-{i}", f"step {i} output text long enough")
+        for i in range(1, 121)
+    ]
     steps[69] = _bash(70, 10, "false", "boom", code=1)
     timeline = build_run_report(_trial(tmp_path, steps), timeline_limit=30)["timeline"]
 
@@ -441,13 +484,17 @@ def test_subagent_reference_outside_the_trial_is_not_read(tmp_path: Path) -> Non
 
 
 def test_status_channels_beyond_exit_codes(tmp_path: Path) -> None:
-    def raw(step_id: int, name: str, args: dict[str, Any], content: str, **call: Any) -> dict[str, Any]:
+    def raw(
+        step_id: int, name: str, args: dict[str, Any], content: str, **call: Any
+    ) -> dict[str, Any]:
         return {
             "step_id": step_id,
             "timestamp": f"2026-09-01T00:02:{step_id:02d}Z",
             "source": "agent",
             "message": "",
-            "tool_calls": [{"tool_call_id": f"c{step_id}", "function_name": name, "arguments": args, **call}],
+            "tool_calls": [
+                {"tool_call_id": f"c{step_id}", "function_name": name, "arguments": args, **call}
+            ],
             "observation": {"results": [{"source_call_id": f"c{step_id}", "content": content}]},
         }
 
@@ -495,10 +542,13 @@ def test_missing_layers_report_unknown_with_reconciled_ledger_false(
 
     monkeypatch.setattr(run_report, "_replay_parser", lambda: None)
     trial = _trial(tmp_path, [_terminus_step("look around")])
-    _write_lab_metadata(tmp_path, {
-        "calls": [{"state": "reconciled", "status": 200}],
-        "unresolved_requests": 0,
-    })
+    _write_lab_metadata(
+        tmp_path,
+        {
+            "calls": [{"state": "reconciled", "status": 200}],
+            "unresolved_requests": 0,
+        },
+    )
     report = build_run_report(trial)
     layers = report["step_layers"]
     assert layers["agent_steps"] == 1 and layers["missing"] == 1
@@ -514,9 +564,7 @@ def test_missing_layers_report_unknown_with_reconciled_ledger_false(
     assert problems["coverage"] == "unknown: parse_errors, prose_completions"
 
 
-def test_missing_layers_and_ledger_markdown_unknown(
-    tmp_path: Path, monkeypatch: Any
-) -> None:
+def test_missing_layers_and_ledger_markdown_unknown(tmp_path: Path, monkeypatch: Any) -> None:
     import evallab.interpretation.run_report as run_report
     from evallab.interpretation.run_report import render_run_report_markdown
 
@@ -528,6 +576,7 @@ def test_missing_layers_and_ledger_markdown_unknown(
     markdown = render_run_report_markdown(report)
     assert "- Execution problems: unknown (unknown:" in markdown
     assert "none recorded" not in markdown.split("## Time")[0]
+
 
 def _layered(
     step_id: int, second: int, accepted: dict[str, Any], content: str = "ok"
@@ -623,14 +672,18 @@ def test_budget_exhausted_stop_detail_names_the_binding_ceiling(tmp_path: Path) 
     runs = tmp_path / "runs"
     trial = _trial(runs, [_layered(1, 5, _calls_layer("ls"))], result=result)
     (runs / "lab-metadata.json").write_text(
-        json.dumps({
-            "provider_usage": {"limits": {
-                "max_input_tokens": 100_000,
-                "max_output_tokens": 50_000,
-                "max_requests": 200,
-                "max_total_tokens": 150_000,
-            }}
-        }),
+        json.dumps(
+            {
+                "provider_usage": {
+                    "limits": {
+                        "max_input_tokens": 100_000,
+                        "max_output_tokens": 50_000,
+                        "max_requests": 200,
+                        "max_total_tokens": 150_000,
+                    }
+                }
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -674,3 +727,129 @@ def test_first_error_is_labelled_a_tool_error_with_its_evidence_channel(tmp_path
     }
     markdown = render_run_report_markdown(report)
     assert "- First tool error: step 2 (inferred from output text)." in markdown
+
+
+def test_outside_fetch_flags_downloads_pins_clones_and_code_host_fetches(tmp_path: Path) -> None:
+    steps = [
+        _bash(1, 5, "pip download waitress==2.0.0 --no-deps -d /tmp/wtr", "saved"),
+        _bash(2, 10, "pip install 'requests>=2.28' --upgrade", "installed"),
+        _bash(3, 15, "git clone https://github.com/org/repo /tmp/src", "cloned"),
+        _bash(
+            4,
+            20,
+            "curl -fsSL https://raw.githubusercontent.com/org/repo/main/fix.py -o /tmp/fix.py",
+            "ok",
+        ),
+        _bash(
+            5,
+            25,
+            "python -c \"import urllib.request; urllib.request.urlretrieve('https://pypi.org/pypi/pkg/json','/tmp/j')\"",
+            "ok",
+        ),
+    ]
+    section = build_run_report(_trial(tmp_path, steps))["outside_fetches"]
+
+    assert section["count"] == 5
+    assert [(item["kind"], item["target"]) for item in section["items"]] == [
+        ("pip_download", "waitress==2.0.0"),
+        ("pip_install_pinned", "requests>=2.28"),
+        ("git_clone", "https://github.com/org/repo"),
+        ("curl", "https://raw.githubusercontent.com/org/repo/main/fix.py"),
+        ("python_urllib", "https://pypi.org/pypi/pkg/json"),
+    ]
+
+
+def test_outside_fetch_ignores_local_installs_and_local_reads(tmp_path: Path) -> None:
+    steps = [
+        _bash(1, 5, "pip install -e .", "installed"),
+        _bash(2, 10, "pip install pytest", "installed"),
+        _bash(3, 15, "cat src/app.py", "print('local')"),
+        _bash(4, 20, "curl -fsSL https://example.com/data.json", "{}"),
+    ]
+    section = build_run_report(_trial(tmp_path, steps))["outside_fetches"]
+
+    assert section == {"count": 0, "items": []}
+
+
+def test_read_back_of_a_fetch_before_the_edit_flags_a_copied_pass(tmp_path: Path) -> None:
+    steps = [
+        _bash(1, 5, "pip download waitress==2.0.0 --no-deps -d /tmp/wtr", "saved"),
+        _bash(
+            2,
+            10,
+            "unzip -p /tmp/wtr/waitress-2.0.0-py3-none-any.whl waitress/parser.py",
+            "def split_uri",
+        ),
+        _bash(3, 15, "python -c \"open('waitress/parser.py','w').write('fixed')\"", "done"),
+    ]
+    from evallab.interpretation.run_report import render_run_report_markdown
+
+    report = build_run_report(_trial(tmp_path, steps))
+
+    assert report["outside_fetches"]["items"][0]["read_back_step"] == 3
+    flag = report["pass_may_be_copied"]
+    assert flag["flag"] == "pass_may_be_copied"
+    assert flag["evidence_steps"] == [{"fetch_step": 2, "read_back_step": 3}]
+    markdown = render_run_report_markdown(report)
+    assert (
+        "- Outside code fetched: step 2 pip download waitress==2.0.0 (read back at step 3)"
+        in markdown
+    )
+    assert "- Flag: pass_may_be_copied (fetched at step 2, read back at step 3)" in markdown
+
+
+def test_a_failing_run_with_no_fetch_says_none_and_carries_no_flag(tmp_path: Path) -> None:
+    from evallab.interpretation.run_report import render_run_report_markdown
+
+    report = build_run_report(
+        _trial(
+            tmp_path,
+            [_bash(1, 5, "cat app.py", "x")],
+            result=_result(verifier_result={"rewards": {"reward": 0.0}}),
+        )
+    )
+
+    assert report["outside_fetches"]["count"] == 0
+    assert report["pass_may_be_copied"] is None
+    assert "- Outside code fetched: none" in render_run_report_markdown(report)
+
+
+def test_joined_step_takes_kind_from_the_call_that_holds_the_url(tmp_path: Path) -> None:
+    # Two calls, one observation: the report joins them into one action. The
+    # Python call has no URL; the curl call does. The kind must come from the
+    # curl segment, not from the earlier python3 -c.
+    step = {
+        "step_id": 1,
+        "timestamp": "2026-09-01T00:02:05Z",
+        "source": "agent",
+        "message": "",
+        "tool_calls": [
+            {
+                "tool_call_id": "c1",
+                "function_name": "bash_command",
+                "arguments": {
+                    "command": 'python3 -c "import soupsieve; print(soupsieve.__file__)"'
+                },
+            },
+            {
+                "tool_call_id": "c2",
+                "function_name": "bash_command",
+                "arguments": {
+                    "command": (
+                        "timeout 10 curl -sL "
+                        "https://raw.githubusercontent.com/org/repo/master/util.py "
+                        "-o /tmp/upstream.py"
+                    )
+                },
+            },
+        ],
+        "observation": {"results": [{"content": "fetched"}]},
+        "metrics": {"prompt_tokens": 1000, "completion_tokens": 100},
+    }
+    section = build_run_report(_trial(tmp_path, [step]))["outside_fetches"]
+
+    assert section["count"] == 1
+    assert section["items"][0]["kind"] == "curl"
+    assert (
+        section["items"][0]["target"] == "https://raw.githubusercontent.com/org/repo/master/util.py"
+    )

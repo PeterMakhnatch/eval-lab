@@ -1,0 +1,15 @@
+{
+  "task": "research/experiments/har110-python-gepa/tasks/format-code-task-002407",
+  "task_package_digest": "sha256:37e0fa09f7da072b8671168795b1695b01a7ed659578be06000833d1fd0d798c",
+  "agent": "nop",
+  "environment": "daytona",
+  "name": "har110-python-nop-base",
+  "jobs_dir": "runs",
+  "attempts": 1,
+  "concurrency": 1,
+  "timeout_seconds": 5400,
+  "purpose": "calibration",
+  "hypothesis": "HAR-110 nop qualification template: the MiMo Python code task starts, passes its healthcheck and grades on Daytona with the nop control (reward 0). Retained base for the GEPA nop qualification campaign (engine gepa + agent nop + deterministic proposer); control trials inherit environment/timeout/attempts/concurrency from here, so the qualification runs on Daytona with zero model calls. Timeout 5400 follows the HAR-88 code-task precedent (build + healthcheck + verifier x repeats + margin); override_storage_mb 10240 likewise (tasks declare no storage).",
+  "submitted_by": "re-eval-lab HAR-110",
+  "override_storage_mb": 10240
+}

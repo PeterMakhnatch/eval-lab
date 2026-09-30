@@ -1,0 +1,46 @@
+{
+  "default": "A",
+  "note": "Swap option by copying its five fields into campaign-train.json (proposer_model, proposer_transport, proposer_ceilings, max_proposer_requests, max_proposer_cost_usd), then recompute the binding and write a fresh --proposer-approval-ref (see README). Only the opencode Flash route is staged: direct-transport zai routes are blocked by direct_proposer_blocker (the Coding Plan credential is not a general API grant), and the opencode transport pins MODEL zai-coding-plan/glm-5.3-flash (workflow.py validates it exactly). The full GLM-5.3 model therefore has no qualified GEPA proposer route today; restaging on it needs its own route qualification first. Every option sums to <= $1.00 (requests x $0.05 per-call ceiling).",
+  "options": {
+    "A": {
+      "proposer_model": "zai-coding-plan/glm-5.3-flash",
+      "proposer_transport": "opencode",
+      "proposer_ceilings": {
+        "max_requests": 1,
+        "max_input_tokens": 22000,
+        "max_output_tokens": 4096,
+        "max_total_tokens": 26096,
+        "cost_limit_usd": 0.05
+      },
+      "max_proposer_requests": 4,
+      "max_proposer_cost_usd": 0.2
+    },
+    "B": {
+      "proposer_model": "zai-coding-plan/glm-5.3-flash",
+      "proposer_transport": "opencode",
+      "proposer_ceilings": {
+        "max_requests": 1,
+        "max_input_tokens": 22000,
+        "max_output_tokens": 4096,
+        "max_total_tokens": 26096,
+        "cost_limit_usd": 0.05
+      },
+      "max_proposer_requests": 8,
+      "max_proposer_cost_usd": 0.4
+    },
+    "C": {
+      "proposer_model": "zai-coding-plan/glm-5.3-flash",
+      "proposer_transport": "opencode",
+      "proposer_ceilings": {
+        "max_requests": 1,
+        "max_input_tokens": 22000,
+        "max_output_tokens": 4096,
+        "max_total_tokens": 26096,
+        "cost_limit_usd": 0.05
+      },
+      "max_proposer_requests": 2,
+      "max_proposer_cost_usd": 0.1
+    }
+  },
+  "transport_model_qualified": "opencode transport, MODEL zai-coding-plan/glm-5.3-flash (src/evallab/gepa_optimizer/opencode_transport.py); each proposal is limited to one physical request (max_requests=1 per call)"
+}

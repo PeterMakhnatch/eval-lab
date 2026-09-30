@@ -43,6 +43,7 @@ TOP_LEVEL_COMMANDS = (
     "analyze",
     "data",
     "db",
+    "modal",
     "lineage",
     "analyst",
     "card",

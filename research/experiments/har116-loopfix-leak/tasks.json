@@ -1,0 +1,178 @@
+{
+  "base_spec": "research/experiments/har110-python-gepa/base-specs/student-terminus2-selfhosted-python.json",
+  "experiment": "har116-loopfix-leak",
+  "part_a": [
+    {
+      "package_digest": "sha256:da5de5025dc1e2446c236bfd7d89337a7e478cc41d8645e8ae79c0d331941303",
+      "parent_digest": "sha256:da5de5025dc1e2446c236bfd7d89337a7e478cc41d8645e8ae79c0d331941303",
+      "staged_dir": "tasks/format-code-task-000383",
+      "task": "format-code-task-000383",
+      "uses": "original",
+      "variant_status": null,
+      "verifier_digest": "sha256:0dad71151c14d2b12b62d4fd76753c0d2b0943dbfe783da2830e11c49ced0aa5"
+    },
+    {
+      "package_digest": "sha256:8f0e6de1d93bab6855dfa793ea3844e4b8da03afbed5991d6b7651a6aac925f0",
+      "parent_digest": "sha256:062cfbc341847e89226d394b293e79f2e57f4be467dc4ecb5f0ee52f9f5e629a",
+      "staged_dir": "tasks/format-code-task-002256",
+      "task": "format-code-task-002256",
+      "uses": "variant",
+      "variant_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002256/8f0e6de1d93b.json",
+      "variant_status": "validated",
+      "verifier_digest": "sha256:82168f278d77be06f9c5ec9193926e301bdff2e4dfd9604d68acea6818f825a9"
+    },
+    {
+      "package_digest": "sha256:d0a399b8633cdf47a6c3d00198b50c889ed5c282c016bb4b29bbdaf2f9d75fa1",
+      "parent_digest": "sha256:d0a399b8633cdf47a6c3d00198b50c889ed5c282c016bb4b29bbdaf2f9d75fa1",
+      "staged_dir": "tasks/format-code-task-002391",
+      "task": "format-code-task-002391",
+      "uses": "original",
+      "variant_status": null,
+      "verifier_digest": "sha256:a29239bb02aa32bcb4984c8e25481dd8c47c64eae617f61fefde79ee6e20849e"
+    },
+    {
+      "package_digest": "sha256:7a03868fea89dc4b079d9c3be7f0fe3d3e2ad988d95cab521cc1f7a92d832a1b",
+      "parent_digest": "sha256:7a03868fea89dc4b079d9c3be7f0fe3d3e2ad988d95cab521cc1f7a92d832a1b",
+      "staged_dir": "tasks/format-code-task-001832",
+      "task": "format-code-task-001832",
+      "uses": "original",
+      "variant_status": null,
+      "verifier_digest": "sha256:ef5eb1206934bf8e5a701ef8607b0f9b0816133b11347e211a341cf5ef7345b9"
+    },
+    {
+      "package_digest": "sha256:a616c127c86f09f23232eff4810c00fbcee7a739a54b9c05c685f3c0d5a4778d",
+      "parent_digest": "sha256:a616c127c86f09f23232eff4810c00fbcee7a739a54b9c05c685f3c0d5a4778d",
+      "staged_dir": "tasks/format-code-task-001896",
+      "task": "format-code-task-001896",
+      "uses": "original",
+      "variant_status": null,
+      "verifier_digest": "sha256:b80b55f3779c0cee8e8e5e72922879473250ce7c7d87323de62053ccc7cd6688"
+    },
+    {
+      "package_digest": "sha256:25b94c8b4e4ea29e695aef58e6a0db3f78dbdb16240f98f09d85600e1a778599",
+      "parent_digest": "sha256:46cd97ec4f8cbb0f0bf565901b626d58062f0cbcbc4280dd6f16ab5366691754",
+      "staged_dir": "tasks/format-code-task-002864",
+      "task": "format-code-task-002864",
+      "uses": "variant",
+      "variant_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002864/25b94c8b4e4e.json",
+      "variant_status": "validated",
+      "verifier_digest": "sha256:b7066b5b4e3a07632a2ab39385e6179d9cb868434521cee9c1aae409ba947ab8"
+    },
+    {
+      "package_digest": "sha256:52b8743e5c18b86fccc6864e842c483c5369b2c83bd60e2dc6c21c1fd1896025",
+      "parent_digest": "sha256:52b8743e5c18b86fccc6864e842c483c5369b2c83bd60e2dc6c21c1fd1896025",
+      "staged_dir": "tasks/format-code-task-001161",
+      "task": "format-code-task-001161",
+      "uses": "original",
+      "variant_status": null,
+      "verifier_digest": "sha256:1963b1cd277b7aae39c5f8ba49090080f69d770a49d8ab220e5e39b516585be9"
+    },
+    {
+      "package_digest": "sha256:0cddeb65615ad49de6860cba94a0f984ec18fa046dc54a941cb879e74fd71210",
+      "parent_digest": "sha256:0cddeb65615ad49de6860cba94a0f984ec18fa046dc54a941cb879e74fd71210",
+      "staged_dir": "tasks/format-code-task-000495",
+      "task": "format-code-task-000495",
+      "uses": "original",
+      "variant_status": null,
+      "verifier_digest": "sha256:357bbde5435f18c2b25c3c2e92cfb30e5083473a1999bc484a09642c52db557c"
+    },
+    {
+      "package_digest": "sha256:a680b2bdae21a72de651b06f58968c7e881628efb2b3b6abc93ce9f8895bac3d",
+      "parent_digest": "sha256:a680b2bdae21a72de651b06f58968c7e881628efb2b3b6abc93ce9f8895bac3d",
+      "staged_dir": "tasks/format-code-task-001181",
+      "task": "format-code-task-001181",
+      "uses": "original",
+      "variant_status": null,
+      "verifier_digest": "sha256:262ebb6efbe3c423bd02b426546e12b654b6739ace4096241aece667c953250c"
+    },
+    {
+      "package_digest": "sha256:41e76938cfdae0b5e09f54693dd28e99a8c475fa73947b79e5e1e476707b7315",
+      "parent_digest": "sha256:41e76938cfdae0b5e09f54693dd28e99a8c475fa73947b79e5e1e476707b7315",
+      "staged_dir": "tasks/format-code-task-000587",
+      "task": "format-code-task-000587",
+      "uses": "original",
+      "variant_status": null,
+      "verifier_digest": "sha256:ad8e0c6500036ad2fb2ebb352ab03a7698b0db74eae693116a1bda52a1e0fa11"
+    }
+  ],
+  "part_a_note": "HAR-113 leak-closed variant where one exists, else the original. Only 002256 and 002864 of the 10 have leak variants (leak_variants.json has no entry for the other 8: they are not pypi_fix_released).",
+  "part_b": {
+    "eligible_pool": 183,
+    "forced": [
+      "format-code-task-000226",
+      "format-code-task-000927"
+    ],
+    "pool_definition": "merged task_health.parquet rows with label sound AND leak_channel pypi_fix_released, minus the 10 Part A tasks and minus the 2 forced tasks (187 - 2 - 2 = 183)",
+    "rule": "rank the eligible pool by sha256('<salt>:<task_id>') ascending, take the first 3",
+    "salt": "har116-leak-v1",
+    "selected": [
+      "format-code-task-000146",
+      "format-code-task-002308",
+      "format-code-task-002402"
+    ],
+    "tasks": [
+      {
+        "original_digest": "sha256:54bfbfa4a4b0360834bd84b620fdc4e2fae070d6f672c442f631d33dfe58db58",
+        "original_dir": "tasks/format-code-task-000226",
+        "original_verifier": "sha256:f338bf648960dbbefd2538dea4cec4a5cb07f220a0d2db3eb3bcf2e0470f4929",
+        "task": "format-code-task-000226",
+        "variant_digest": "sha256:9666803bf54883a0c0a7bc2741a448be0d77fc8faa159af0bde02ab9633d7b4b",
+        "variant_dir": "tasks/format-code-task-000226-leakclosed",
+        "variant_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000226/9666803bf548.json",
+        "variant_status": "validated",
+        "variant_verifier": "sha256:f338bf648960dbbefd2538dea4cec4a5cb07f220a0d2db3eb3bcf2e0470f4929"
+      },
+      {
+        "original_digest": "sha256:5dd33cce83218e4c7c8d5b10ccb6955db23420634a6be9d4819fa0715ddaa69a",
+        "original_dir": "tasks/format-code-task-000927",
+        "original_verifier": "sha256:6356e9f0f4c6ec79b419830e7354a0a8cb3b641fd47a679c9584bdc6831ee092",
+        "task": "format-code-task-000927",
+        "variant_digest": "sha256:0b8d70b58210c0c295155d9b1823e753111be67d4ee79c0da2b01077788f4ad2",
+        "variant_dir": "tasks/format-code-task-000927-leakclosed",
+        "variant_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000927/0b8d70b58210.json",
+        "variant_status": "validated",
+        "variant_verifier": "sha256:6356e9f0f4c6ec79b419830e7354a0a8cb3b641fd47a679c9584bdc6831ee092"
+      },
+      {
+        "original_digest": "sha256:c1b579f7198428206936c3baea88b15350b0e0d874cf6892d67757e365b36345",
+        "original_dir": "tasks/format-code-task-000146",
+        "original_verifier": "sha256:acc3bb9505a4ca687ba029a255c015d20b83237cb3fcef1dd64bf09f9367b18b",
+        "task": "format-code-task-000146",
+        "variant_digest": "sha256:3415583f08d45afa011bc4230848a083058ca14c9dca2166e849056727da7a71",
+        "variant_dir": "tasks/format-code-task-000146-leakclosed",
+        "variant_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000146/3415583f08d4.json",
+        "variant_status": "candidate",
+        "variant_verifier": "sha256:acc3bb9505a4ca687ba029a255c015d20b83237cb3fcef1dd64bf09f9367b18b"
+      },
+      {
+        "original_digest": "sha256:8911bbfa1a57bea4a85192dc3e8ae6de5c125ba3919668e95c72807ef04906ea",
+        "original_dir": "tasks/format-code-task-002308",
+        "original_verifier": "sha256:945effcbe066dd8b2bd2bd86f737e162a0cd058d2bda5785d71f9f44e2d85c11",
+        "task": "format-code-task-002308",
+        "variant_digest": "sha256:2d2501dcc8c2e9eceb8ff4ddb41987779891d4f5655ec5b48650148def7b2414",
+        "variant_dir": "tasks/format-code-task-002308-leakclosed",
+        "variant_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002308/2d2501dcc8c2.json",
+        "variant_status": "validated",
+        "variant_verifier": "sha256:945effcbe066dd8b2bd2bd86f737e162a0cd058d2bda5785d71f9f44e2d85c11"
+      },
+      {
+        "original_digest": "sha256:5ca085f112ab78d544200a56cd1fb3f6f08dfad1f0b59345d044e816c008db1f",
+        "original_dir": "tasks/format-code-task-002402",
+        "original_verifier": "sha256:aa3e88aca32d6fae5170aeb02dbeefa3bc9e529bb5aed81b455080fdb0703330",
+        "task": "format-code-task-002402",
+        "variant_digest": "sha256:c91c394831cfa24d2155eda1936256c06629285d472545985f54a061c6862522",
+        "variant_dir": "tasks/format-code-task-002402-leakclosed",
+        "variant_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002402/c91c394831cf.json",
+        "variant_status": "candidate",
+        "variant_verifier": "sha256:aa3e88aca32d6fae5170aeb02dbeefa3bc9e529bb5aed81b455080fdb0703330"
+      }
+    ]
+  },
+  "question_ref": "har116-loopfix-leak",
+  "sources": {
+    "census": "research/experiments/har108-python-census/task_health.parquet (merged main revision: HAR-108 census plus HAR-113 unknown-wave relabels; 187 sound+leak rows vs 97 in the pre-HAR-113 worktree copy)",
+    "census_note_000927": "000927 reads sound in task_health (HAR-108 nop evidence); one HAR-111 hand rater labels it broken, the other sound. The card orders it in, and the census nop plus the validated leak variant agree it runs.",
+    "leak_variants": "research/experiments/har113-variants/leak_variants.json (247 leak-close-pypi@1 variants; all Part B tasks have one)",
+    "task_snapshot": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6 (revision 5746e2f0c5c61af12d7c5bf15d7efdd77d1f0785)"
+  }
+}

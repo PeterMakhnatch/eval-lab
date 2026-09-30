@@ -10,7 +10,7 @@ The "fetch" column is reported separately from reward, as Research-Harbor asked.
 
 - **plain**: the Terminus-2 prompt with no addendum. Dev rows are HAR-104's retained runs on the same route and harness tree, re-scored at $0. Held-out rows are fresh (HAR-110 round v2-r2).
 - **seed**: the HAR-85 addendum, `sha256:399ec113…`.
-- **candidate**: `sha256:cfe31418…`, GEPA's first reflection on the v2 dev seed runs (GLM-5.3 proposer, $0.074). Research-Harbor approved it at 2026-09-30T08:20Z.
+- **candidate**: `sha256:cfe31418…`, committed byte-for-byte as `candidates/gepa-cfe31418.txt`. It is GEPA's first reflection on the v2 dev seed runs (GLM-5.3 proposer, $0.074). Research-Harbor approved it at 2026-09-30T08:20Z.
   - Dev 001896 ran through GEPA's own parked spec.
   - The other dev tasks used identical-route specs built outside GEPA, because GEPA parks one evaluation per Modal deploy.
 

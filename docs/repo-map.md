@@ -201,7 +201,7 @@ inputs:
   - path: src/evallab/interpretation/producers/memory_continuity.py
     digest: sha256:8c336083f4397f444c637bd1753258b8a289891e666335c74aad5eafa08d9523
   - path: src/evallab/interpretation/run_report.py
-    digest: sha256:b6abc40a7c2c90f23fc5b0202b9765075253d6f82f8ea7247fcb5b9f423659e6
+    digest: sha256:64ab6e48a29e5182027db14948d9837c67fa215442d576e26c64f343c446ef2d
   - path: src/evallab/interpretation/run_report_scale.py
     digest: sha256:a74f2e35d1091c108aa938e6fcfa189510f6a296d20886521adf2312dcacdaa5
   - path: src/evallab/interpretation/trace_readiness.py

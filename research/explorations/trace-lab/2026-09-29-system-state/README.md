@@ -179,14 +179,16 @@ The SFT ladder first written here (held-out baseline, data collection, fine-tune
 
 | Step | Work | Card | Cost |
 |---|---|---|---|
-| 1 | Exploration setup: Harbor's default trajectory settings (one file per run, real tool calls), MiMo-V2.6-Flash by API instead of the self-hosted distill, 500K-token / 60-call limits, cost written per run | HAR-104 (Engineering) | $0 + one proof run |
+| 1 | Exploration setup: Harbor's default trajectory settings (one file per run, real tool calls), the self-hosted XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B on Modal with 120-call / 2.5M-input-token limits, cost written per run (corrected 2026-09-30: the MiMo-Flash switch was Research-Harbor's, not Peter's; Peter kept the distill) | HAR-104 (Engineering) | $0 + one proof run |
 | 2 | One run understood end to end: every view agrees on `arvo-18737`, with a short walkthrough; check the lower ceiling loses no past pass | HAR-106 (Traces) | $0 |
-| 3 | About 10 tasks across all six domains, nop-checked | HAR-105 (Data) | cents |
+| 3 | About 10 Python code tasks (FineEnvs code set), nop-checked | HAR-105 (Data) | cents |
 | 4 | One run per task on the new setup | HAR-104 | under $1 expected, $3 cap |
 | 5 | Analyse the batch: Eval Lab first, then Scout and Docent compared against hand reads; fix Eval Lab gaps | HAR-106 | ≤ $2 for tool model calls |
 | 6 | Task-fix loop: fix 1634 / 1789 / 1702 and the cyber submit instruction in local copies, nop before and after, then 1–2 model runs to check they are fixed and still useful | HAR-105 | cents |
 
-**Why the model changed.** Overnight Modal cost $13.68 for 58 runs, about 4.9 A100-hours. Runs read about 2.8M input tokens each (the median failing run hit the 2.5M ceiling) and wrote about 14K. The same tokens would cost about $3 on MiMo-V2.6-Flash or DeepSeek V4.1 Flash off-peak with 90% prefix-cache hits **[INFERENCE: hit rate assumed]**, and about $16.6 on Qwen3.5-9B via OpenRouter, which lists no cache discount. The bigger saving is the lower ceiling: 10 runs at 500K tokens is about 5M tokens.
+**Why a model change was proposed (withdrawn).** The proposal to move to MiMo-V2.6-Flash was Research-Harbor's, not Peter's, and was withdrawn on 2026-09-30 ~03:40Z at Peter's instruction; the exploration model remains the distill on Modal. The cost facts that motivated the proposal: overnight Modal cost $13.68 for 58 runs, about 4.9 A100-hours. Runs read about 2.8M input tokens each (the median failing run hit the 2.5M ceiling) and wrote about 14K. The same tokens would cost about $3 on MiMo-V2.6-Flash or DeepSeek V4.1 Flash off-peak with 90% prefix-cache hits **[INFERENCE: hit rate assumed]**, and about $16.6 on Qwen3.5-9B via OpenRouter, which lists no cache discount. The bigger saving would have been the lower ceiling: 10 runs at 500K tokens is about 5M tokens.
+
+Outcome: HAR-104 ran 10 Python tasks on the distill: 4/10 reward, 2 earned (002391, 002864), 2 copied the fix from PyPI (000226, 000927).
 
 ### 5f. Where professional tools fit
 

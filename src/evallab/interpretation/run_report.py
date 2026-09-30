@@ -47,6 +47,7 @@ from evallab.interpretation.claude_sessions import (
 )
 from evallab.interpretation.codex_rollouts import read_codex_rollouts
 from evallab.interpretation.domains import domain_section, render_domain_markdown
+from evallab.interpretation.outside_fetch import outside_fetch_section, render_outside_fetch_line
 from evallab.interpretation.price_table import estimate_cost_usd, lookup_price
 from evallab.interpretation.run_report_scale import (
     MIN_STEPS_FOR_WINDOWS,
@@ -408,7 +409,11 @@ def _call_from_raw(raw_call: dict[str, Any]) -> _Call:
         return unwrapped
     target = _target_of(args)
     return _Call(
-        tool=name, wrapper=None, target=target, key=target, inner_tools=(),
+        tool=name,
+        wrapper=None,
+        target=target,
+        key=target,
+        inner_tools=(),
         shell=isinstance(args, dict) and _is_shell_args(args),
     )
 
@@ -521,7 +526,9 @@ def _merge_outputs(outputs: Sequence[_Output], call_extras: Sequence[dict[str, A
         (o for o in outputs if o.failed is False), None
     )
     flagged = any(
-        extra.get(key) is True for extra in call_extras for key in ("tool_result_is_error", "is_error")
+        extra.get(key) is True
+        for extra in call_extras
+        for key in ("tool_result_is_error", "is_error")
     )
     return _Output(
         text="\n".join(o.text for o in outputs),
@@ -529,9 +536,9 @@ def _merge_outputs(outputs: Sequence[_Output], call_extras: Sequence[dict[str, A
         failed=True if flagged else (decisive.failed if decisive else None),
         result_type=decisive.result_type if decisive else None,
         result_status=decisive.result_status if decisive else None,
-        signal="error_flag" if flagged and not (decisive and decisive.failed) else (
-            decisive.signal if decisive else None
-        ),
+        signal="error_flag"
+        if flagged and not (decisive and decisive.failed)
+        else (decisive.signal if decisive else None),
     )
 
 
@@ -619,6 +626,7 @@ def _observation_results(raw_step: dict[str, Any]) -> list[dict[str, Any]]:
         results.extend(r for r in raw_step["observation_results"] if isinstance(r, dict))
     return results
 
+
 def _replay_parser() -> Any:
     """Stock Terminus parser for offline layer reconstruction, or None.
 
@@ -698,6 +706,7 @@ def _final_turn_flags(
         )
     return None, None
 
+
 def _step_actions(
     raw_step: dict[str, Any],
     step: int,
@@ -732,12 +741,14 @@ def _step_actions(
         # Fewer observations than calls (terminal harnesses send several keystroke
         # batches and read one screen): the step is the action.
         merged = (
-            _merge_outputs([_decode_result(r, {}) for r in results], call_extras) if results else None
+            _merge_outputs([_decode_result(r, {}) for r in results], call_extras)
+            if results
+            else None
         )
         joined = _Call(
-            tool=calls[0].tool if len({c.tool for c in calls}) == 1 else "+".join(
-                dict.fromkeys(c.tool for c in calls)
-            ),
+            tool=calls[0].tool
+            if len({c.tool for c in calls}) == 1
+            else "+".join(dict.fromkeys(c.tool for c in calls)),
             wrapper=calls[0].wrapper,
             target=" ; ".join(c.target for c in calls if c.target),
             key="\n".join(c.key for c in calls),
@@ -765,7 +776,6 @@ def _cache_write(metrics: dict[str, Any]) -> int | None:
         if value is not None:
             return value
     return None
-
 
 
 def _build_steps(
@@ -877,7 +887,9 @@ def _action_preview(actions: Sequence[_Action]) -> str | None:
     return f"{first.tool}: {target}{more}"
 
 
-def _timing(result: dict[str, Any], steps: Sequence[_Step]) -> tuple[dict[str, Any], datetime | None]:
+def _timing(
+    result: dict[str, Any], steps: Sequence[_Step]
+) -> tuple[dict[str, Any], datetime | None]:
     section, trial_start = _phase_timing(result)
     agent_start = _parse_ts(_dict(result.get("agent_execution")).get("started_at"))
     stamped = [s for s in steps if s.timestamp is not None]
@@ -892,8 +904,10 @@ def _timing(result: dict[str, Any], steps: Sequence[_Step]) -> tuple[dict[str, A
     section["first_agent_step_offset_seconds"] = (
         _seconds(origin, agent_steps[0].timestamp) if agent_steps else None
     )
-    section["offset_origin"] = "agent_execution.started_at" if agent_start else (
-        "first_step_timestamp" if stamped else "trial.started_at"
+    section["offset_origin"] = (
+        "agent_execution.started_at"
+        if agent_start
+        else ("first_step_timestamp" if stamped else "trial.started_at")
     )
     section["steps_with_timestamps"] = len(stamped)
     section["agent_span_seconds"] = (
@@ -941,7 +955,9 @@ def _tokens_and_cost(
     final = _dict(terminal.get("final_metrics"))
     final_extra = _dict(final.get("extra"))
     llm_steps = [s for s in steps if s.source == "agent"]
-    metered = [s for s in llm_steps if s.prompt_tokens is not None or s.completion_tokens is not None]
+    metered = [
+        s for s in llm_steps if s.prompt_tokens is not None or s.completion_tokens is not None
+    ]
     step_sums = {
         "input": _sum(s.prompt_tokens for s in steps),
         "cached_input": _sum(s.cached_tokens for s in steps),
@@ -979,11 +995,13 @@ def _tokens_and_cost(
     for field in ("input", "cached_input", "output"):
         chosen[field], sources[field] = pick(field)
     reasoning_total = _first(
-        _int(final_extra.get("total_reasoning_tokens")), _int(final_extra.get("reasoning_output_tokens"))
+        _int(final_extra.get("total_reasoning_tokens")),
+        _int(final_extra.get("reasoning_output_tokens")),
     )
     chosen["reasoning"] = reasoning_total if reasoning_total is not None else step_sums["reasoning"]
     sources["reasoning"] = (
-        "trajectory_final_metrics" if reasoning_total is not None
+        "trajectory_final_metrics"
+        if reasoning_total is not None
         else ("step_sum" if step_sums["reasoning"] is not None else None)
     )
     chosen["cache_write"] = step_sums["cache_write"]
@@ -1008,7 +1026,11 @@ def _tokens_and_cost(
     peak = max(prompts, key=lambda item: item[1]) if prompts else None
     by_step = sorted(
         (s for s in steps if s.prompt_tokens is not None or s.completion_tokens is not None),
-        key=lambda s: (-(s.cost_usd or 0.0), -((s.prompt_tokens or 0) + (s.completion_tokens or 0)), s.step),
+        key=lambda s: (
+            -(s.cost_usd or 0.0),
+            -((s.prompt_tokens or 0) + (s.completion_tokens or 0)),
+            s.step,
+        ),
     )
     tokens = {
         "input": chosen["input"],
@@ -1034,15 +1056,14 @@ def _tokens_and_cost(
                 "input": s.prompt_tokens,
                 "output": s.completion_tokens,
                 "cost_usd": s.cost_usd,
-                "action": _action_preview(s.actions) or (_clip(s.message, 100) if s.message.strip() else None),
+                "action": _action_preview(s.actions)
+                or (_clip(s.message, 100) if s.message.strip() else None),
             }
             for s in by_step[:TOP_N]
         ],
     }
     if metered and len(metered) < len(llm_steps):
-        warnings.append(
-            f"token usage recorded on {len(metered)} of {len(llm_steps)} agent steps"
-        )
+        warnings.append(f"token usage recorded on {len(metered)} of {len(llm_steps)} agent steps")
     for field in ("input", "output"):
         total_value, step_value = chosen[field], step_sums[field]
         if total_value and step_value is not None and sources[field] != "step_sum":
@@ -1194,6 +1215,74 @@ def _tools(actions: Sequence[_Action]) -> dict[str, Any]:
     }
 
 
+# A command cycle is a block of 2-3 distinct normalized commands repeated
+# back-to-back at least 3 full times. Signatures reuse the identical-run
+# normalization (tool plus whitespace-collapsed command). Only shell actions
+# with substantive text count: completion claims such as
+# ``mark_task_complete: {}`` interleave with real commands but are not
+# commands cycling.
+_CYCLE_PERIODS = (2, 3)
+_CYCLE_MIN_REPEATS = 3
+_CYCLE_MIN_COMMAND_CHARS = 6
+
+
+def _is_cycle_command(action: _Action) -> bool:
+    return action.shell and len((action.target or "").strip()) >= _CYCLE_MIN_COMMAND_CHARS
+
+
+def _longest_cycle(counted: Sequence[_Action]) -> dict[str, Any] | None:
+    """Longest back-to-back command cycle, or None when no block repeats 3 times."""
+    best: dict[str, Any] | None = None
+    total_actions = len(counted)
+    for period in _CYCLE_PERIODS:
+        if total_actions < period * _CYCLE_MIN_REPEATS:
+            continue
+        for start in range(total_actions - period * _CYCLE_MIN_REPEATS + 1):
+            block = counted[start : start + period]
+            if not all(_is_cycle_command(action) for action in block):
+                continue
+            signatures = [action.signature for action in block]
+            if len(set(signatures)) != period:
+                continue
+            repeats = 1
+            while (
+                start + (repeats + 1) * period <= total_actions
+                and [
+                    counted[start + repeats * period + offset].signature for offset in range(period)
+                ]
+                == signatures
+                and all(
+                    _is_cycle_command(counted[start + repeats * period + offset])
+                    for offset in range(period)
+                )
+            ):
+                repeats += 1
+            if repeats < _CYCLE_MIN_REPEATS:
+                continue
+            total = period * repeats
+            if best is None or total > best["period"] * best["repeats"]:
+                best = {
+                    "period": period,
+                    "repeats": repeats,
+                    "start_step": counted[start].step,
+                    "end_step": counted[start + total - 1].step,
+                    "commands": [_clip(action.target) for action in block],
+                }
+    return best
+
+
+def _identical_run_loop_delta(length: int) -> float:
+    """Score an identical run of ``length`` would add to an empty baseline.
+
+    Mirrors the repeated-command part of the shared loop-suspicion scorer, so
+    a command cycle raises suspicion exactly as an identical run of the same
+    total length would.
+    """
+    delta = 0.35 + min(0.35, 0.15)
+    if length > 3:
+        delta += min(0.30, 0.10 * math.log10(length / 3))
+    return delta
+
 
 def _repeated_outputs(group: Sequence[_Action]) -> int:
     """Occurrences whose result equals an earlier occurrence's result (exact revisits)."""
@@ -1273,6 +1362,25 @@ def _revisits(
         key=lambda g: (-len(g), g[0].step),
     )
     loop = _analyze_loop_suspicion(loop_steps) if loop_steps is not None else None
+    cycle = _longest_cycle(counted)
+    if loop is not None:
+        loop_section: dict[str, Any] | None = {
+            "detected": loop.detected,
+            "score": loop.score,
+            "reasons": list(loop.reasons),
+        }
+        if cycle is not None:
+            cycle_length = cycle["period"] * cycle["repeats"]
+            loop_section["reasons"].append(
+                f"repeating_command_cycle: period={cycle['period']} "
+                f"({cycle['repeats']}\u00d7, steps {cycle['start_step']}\u2013{cycle['end_step']})"
+            )
+            loop_section["score"] = min(
+                1.0, round(loop_section["score"] + _identical_run_loop_delta(cycle_length), 4)
+            )
+            loop_section["detected"] = loop_section["score"] >= 0.50
+    else:
+        loop_section = None
     section: dict[str, Any] = {
         "actions_considered": len(counted),
         "distinct_actions": len(groups),
@@ -1286,7 +1394,10 @@ def _revisits(
         "longest_identical_run": {
             "length": len(longest),
             "steps": list(dict.fromkeys(longest))[:20],
+            "start_step": longest[0] if longest else None,
+            "end_step": longest[-1] if longest else None,
         },
+        "longest_cycle": cycle,
         "most_repeated": [
             {
                 "tool": g[0].tool,
@@ -1297,21 +1408,13 @@ def _revisits(
             }
             for g in repeated_groups[:TOP_N]
         ],
-        "loop_suspicion": {
-            "detected": loop.detected,
-            "score": loop.score,
-            "reasons": list(loop.reasons),
-        }
-        if loop is not None
-        else None,
+        "loop_suspicion": loop_section,
     }
     if windowed:
         section["repeats_by_window"] = window_repeats
         onset = repeat_onset(window_counted, window_repeats)
         if onset["status"] == "onset":
-            onset["steps"] = list(
-                run_report_scale.window_bounds(onset["window"], total_steps)
-            )
+            onset["steps"] = list(run_report_scale.window_bounds(onset["window"], total_steps))
         section["revisits_started"] = onset
     return section
 
@@ -1330,7 +1433,8 @@ def _load_child(
         return None, "unresolved"
     candidate = Path(path_value)
     candidate = (
-        trial_root / candidate.as_posix().lstrip("/") if candidate.is_absolute()
+        trial_root / candidate.as_posix().lstrip("/")
+        if candidate.is_absolute()
         else segment_dir / candidate
     )
     resolved = candidate.resolve()
@@ -1364,7 +1468,8 @@ def _child_summary(doc: dict[str, Any]) -> dict[str, Any]:
             len(s["tool_calls"]) for s in raw_steps if isinstance(s.get("tool_calls"), list)
         ),
         "input_tokens": _first(
-            _int(final.get("total_prompt_tokens")), _sum(_int(m.get("prompt_tokens")) for m in metrics)
+            _int(final.get("total_prompt_tokens")),
+            _sum(_int(m.get("prompt_tokens")) for m in metrics),
         ),
         "output_tokens": _first(
             _int(final.get("total_completion_tokens")),
@@ -1468,6 +1573,7 @@ def _subagents(
     # joined key. The session tables build lazily — most harnesses have no
     # anonymous sidechain steps at all. (HAR-76 harness gaps.)
     session_tables: tuple[dict[str, str], dict[datetime, set[str]]] | None = None
+
     def _joined_agent(step: _Step) -> str | None:
         nonlocal session_tables
         if step.agent_id:
@@ -1585,7 +1691,9 @@ def _subagents(
                     "agent_nickname": child.agent_nickname,
                 }
             )
-    items.sort(key=lambda i: (i["spawned_at_step"] is None, i["spawned_at_step"] or 0, str(i["id"])))
+    items.sort(
+        key=lambda i: (i["spawned_at_step"] is None, i["spawned_at_step"] or 0, str(i["id"]))
+    )
     if items:
         observability = "captured"
     elif delegations:
@@ -1621,9 +1729,13 @@ def _context(
             name = segments[step.segment][0].name
             events.append({"step": step.step, "kind": "continuation_segment", "detail": name})
         if step.context_event:
-            events.append({"step": step.step, "kind": "context_management", "detail": step.context_event})
+            events.append(
+                {"step": step.step, "kind": "context_management", "detail": step.context_event}
+            )
         for notice in step.notices:
-            events.append({"step": step.step, "kind": "harness_notice", "detail": _clip(notice, 160)})
+            events.append(
+                {"step": step.step, "kind": "harness_notice", "detail": _clip(notice, 160)}
+            )
         previous_segment = step.segment
     events.extend(
         {
@@ -1641,7 +1753,10 @@ def _context(
     )
     root = trial_dir.resolve()
     return {
-        "segments": [str(path.resolve().relative_to(root)) if root in path.resolve().parents else path.name for path, _, _ in segments],
+        "segments": [
+            str(path.resolve().relative_to(root)) if root in path.resolve().parents else path.name
+            for path, _, _ in segments
+        ],
         "copied_context_steps_excluded": copied,
         "events": sorted(events, key=lambda e: (e["step"], e["kind"])),
     }
@@ -1713,9 +1828,18 @@ def _binding_ceiling(trial_dir: Path, result: dict[str, Any]) -> str | None:
 
     def _collect(node: Any) -> None:
         if isinstance(node, dict):
-            for key in ("max_input_tokens", "max_output_tokens", "max_requests", "max_total_tokens"):
+            for key in (
+                "max_input_tokens",
+                "max_output_tokens",
+                "max_requests",
+                "max_total_tokens",
+            ):
                 value = node.get(key)
-                if caps[key] is None and isinstance(value, (int, float)) and not isinstance(value, bool):
+                if (
+                    caps[key] is None
+                    and isinstance(value, (int, float))
+                    and not isinstance(value, bool)
+                ):
                     caps[key] = value
             if caps["cost_limit_usd"] is None:
                 for key in ("cost_limit_usd", "max_cost_usd"):
@@ -1724,7 +1848,11 @@ def _binding_ceiling(trial_dir: Path, result: dict[str, Any]) -> str | None:
                         caps["cost_limit_usd"] = float(value)
                         break
                 micros = node.get("max_cost_micros")
-                if caps["cost_limit_usd"] is None and isinstance(micros, (int, float)) and not isinstance(micros, bool):
+                if (
+                    caps["cost_limit_usd"] is None
+                    and isinstance(micros, (int, float))
+                    and not isinstance(micros, bool)
+                ):
                     caps["cost_limit_usd"] = float(micros) / 1_000_000
             for value in node.values():
                 _collect(value)
@@ -1776,6 +1904,9 @@ _COMPLETION_TOOL = "mark_task_complete"
 _COMPLETION_ECHO_RE = re.compile(r"""['"]?echo\s+['"]?task_complete['"]?['"]?""")
 
 
+_COMPLETION_STOPS = frozenset({"task_complete", "prose_completion"})
+
+
 def _completion_claim_steps(
     positioned: Sequence[tuple[int, Any]],
     layers: Sequence[dict[str, Any] | None],
@@ -1802,17 +1933,26 @@ def _completion_verdict(
     claim_steps: Sequence[int],
     steps: Sequence[_Step],
     last_task_complete: bool | None,
+    stop_reason: str | None,
 ) -> str | None:
-    """One-line completion verdict: first claim, confirmation, and final turn."""
+    """One-line completion verdict: first claim, confirmation, and final turn.
+
+    Terminus confirms a claim only when the very next turn claims again; any other turn in
+    between resets it. A final-turn claim counts as confirmed only when the run actually
+    stopped on it, and not on a budget, timeout or error that happened to follow it.
+    """
     if not steps:
         return None
     last = steps[-1]
     if last.actions:
-        targets = [a.target for a in last.actions if a.target]
+        targets = [
+            a.target for a in last.actions if a.target and a.target.strip() not in {"{}", "[]"}
+        ]
         if targets:
             detail = targets[0] if len(targets) == 1 else "; ".join(targets)
         else:
-            detail = _action_preview(last.actions) or "no tool call"
+            # A bare mark_task_complete carries no arguments; name the tool, not "{}".
+            detail = ", ".join(dict.fromkeys(a.tool for a in last.actions)) or "no tool call"
         detail = _clip(detail, 120) or "no tool call"
     elif last.message.strip():
         detail = _clip(last.message, 120) or "no tool call"
@@ -1821,8 +1961,19 @@ def _completion_verdict(
     if not claim_steps:
         return f"Completion: never claimed; the run ended on step {last.step} ({detail})."
     first = claim_steps[0]
-    if last_task_complete is True:
+    claimed = set(claim_steps)
+    order = [s.step for s in steps]
+    confirmed = next(
+        (
+            cur
+            for prev, cur in zip(order, order[1:], strict=False)
+            if prev in claimed and cur in claimed
+        ),
+        None,
+    )
+    if confirmed is None and last_task_complete is True and stop_reason in _COMPLETION_STOPS:
         confirmed = claim_steps[-1]
+    if confirmed is not None:
         if confirmed == first:
             return (
                 f"Completion: claimed at step {first} on the final turn (confirmed); "
@@ -1854,8 +2005,10 @@ def _outcome(
     }
     # The primary reward is `reward` (or the only metric). Several metrics without a
     # primary still score the trial: all at 1 passes, all at 0 fails, anything else is partial.
-    reward = rewards.get("reward") if "reward" in rewards else (
-        next(iter(rewards.values())) if len(rewards) == 1 else None
+    reward = (
+        rewards.get("reward")
+        if "reward" in rewards
+        else (next(iter(rewards.values())) if len(rewards) == 1 else None)
     )
     judged = [reward] if reward is not None else list(rewards.values())
     exception = _dict(result.get("exception_info"))
@@ -1894,8 +2047,12 @@ def _outcome(
 
 
 def _step_flags(
-    step: _Step, revisit_steps: set[int], error_steps: set[int], spawn_steps: set[int],
-    event_steps: set[int], completion_steps: frozenset[int] | set[int] = frozenset(),
+    step: _Step,
+    revisit_steps: set[int],
+    error_steps: set[int],
+    spawn_steps: set[int],
+    event_steps: set[int],
+    completion_steps: frozenset[int] | set[int] = frozenset(),
 ) -> list[str]:
     flags: list[str] = []
     if step.step in error_steps:
@@ -1943,8 +2100,12 @@ def _timeline(
     # The step after a completion claim carries the harness's answer to it
     # (for example the "are you sure" confirm prompt), so it stays visible too.
     notable = (
-        revisit_steps | error_steps | spawn_steps | event_steps
-        | completion_steps | {step + 1 for step in completion_steps}
+        revisit_steps
+        | error_steps
+        | spawn_steps
+        | event_steps
+        | completion_steps
+        | {step + 1 for step in completion_steps}
     )
 
     def entry(step: _Step) -> dict[str, Any]:
@@ -1954,16 +2115,18 @@ def _timeline(
             "offset_seconds": _seconds(origin, step.timestamp),
             "source": step.source,
             "action": _action_preview(step.actions),
-            "status": "error" if "error" in statuses else (
-                "ok" if statuses == {"ok"} else ("unknown" if statuses else None)
-            ),
+            "status": "error"
+            if "error" in statuses
+            else ("ok" if statuses == {"ok"} else ("unknown" if statuses else None)),
             "input_tokens": step.prompt_tokens,
             "output_tokens": step.completion_tokens,
             "cost_usd": step.cost_usd,
             "message": _clip(step.message, 140 if step.source == "agent" else 80)
             if step.message.strip()
             else None,
-            "flags": _step_flags(step, revisit_steps, error_steps, spawn_steps, event_steps, completion_steps),
+            "flags": _step_flags(
+                step, revisit_steps, error_steps, spawn_steps, event_steps, completion_steps
+            ),
         }
 
     if limit is None or len(steps) <= limit:
@@ -2012,11 +2175,7 @@ def _identity(
     agent_cfg = _dict(config.get("agent"))
     model_info = _dict(agent_info.get("model_info"))
     agent_doc = _dict(root_doc.get("agent"))
-    model = (
-        model_info.get("name")
-        or agent_cfg.get("model_name")
-        or agent_doc.get("model_name")
-    )
+    model = model_info.get("name") or agent_cfg.get("model_name") or agent_doc.get("model_name")
     if model and model_info.get("provider") and "/" not in str(model):
         model = f"{model_info['provider']}/{model}"
     return {
@@ -2090,7 +2249,9 @@ def build_run_report(
     trial = Path(trial_dir).resolve()
     result_path = trial / "result.json"
     try:
-        loaded = json.loads(result_path.read_text(encoding="utf-8")) if result_path.is_file() else {}
+        loaded = (
+            json.loads(result_path.read_text(encoding="utf-8")) if result_path.is_file() else {}
+        )
     except (OSError, ValueError):
         loaded = {}
     result = _dict(loaded)
@@ -2101,7 +2262,6 @@ def build_run_report(
     # Loop suspicion is computed from the same single parse that builds the
     # steps below; the trajectory document is no longer read a second time.
     try:
-
         _, traj_path, _ = resolve_trial_target(trial, repo_root=trial, explicit_runs_root=trial)
     except (TrajectoryError, ValueError, OSError):
         traj_path = None
@@ -2150,9 +2310,7 @@ def build_run_report(
     steps, loop_steps = _build_steps(positioned, layers)
     if len(steps) < len(positioned):
         quality.append(f"{len(positioned) - len(steps)} malformed (non-object) steps skipped")
-    if parse is None and not any(
-        isinstance(layer, Mapping) for layer in layers
-    ):
+    if parse is None and not any(isinstance(layer, Mapping) for layer in layers):
         quality.append(
             "step layers unavailable: no recorded layers and no parser to reconstruct them"
         )
@@ -2166,12 +2324,8 @@ def build_run_report(
     coverage = coverage_record(
         discover_trajectory_parts(agent_dir),
         stitch_stats,
-        summarization_count=summarization_count
-        if isinstance(summarization_count, int)
-        else None,
-        step_lists={path.name: doc.get("steps") for path, doc, _ in segments}
-        if segments
-        else None,
+        summarization_count=summarization_count if isinstance(summarization_count, int) else None,
+        step_lists={path.name: doc.get("steps") for path, doc, _ in segments} if segments else None,
     )
     layer_summary = summarize_layers(
         [raw for _, raw in positioned],
@@ -2205,6 +2359,7 @@ def build_run_report(
         claim_steps=_completion_claim_steps(positioned, layers, actions),
         steps=steps,
         last_task_complete=last_task_complete,
+        stop_reason=stop_reason,
     )
     root_doc = segments[0][1] if segments else {}
     terminal_doc = segments[-1][1] if segments else {}
@@ -2238,19 +2393,21 @@ def build_run_report(
         and chain_complete
         else None
     )
+    outcome = _outcome(
+        result,
+        steps,
+        trial,
+        layer_summary=layer_summary,
+        stop=(stop_reason, stop_detail),
+        problems=problems,
+        completion=completion,
+    )
+    outside_fetches, copied_pass = outside_fetch_section(actions, outcome["reward"])
     report: dict[str, Any] = {
         "schema": RUN_REPORT_SCHEMA,
         "identity": _identity(result, trial, root_doc),
         "availability": availability,
-        "outcome": _outcome(
-            result,
-            steps,
-            trial,
-            layer_summary=layer_summary,
-            stop=(stop_reason, stop_detail),
-            problems=problems,
-            completion=completion,
-        ),
+        "outcome": outcome,
         "timing": timing,
         "tokens": tokens,
         "cost": cost,
@@ -2260,11 +2417,19 @@ def build_run_report(
         "context": context,
         "errors": errors,
         "domain": domain,
-        "timeline": _timeline(steps, actions, subagents, context, origin, timeline_limit, compactions),
+        "outside_fetches": outside_fetches,
+        "pass_may_be_copied": copied_pass,
+        "timeline": _timeline(
+            steps, actions, subagents, context, origin, timeline_limit, compactions
+        ),
         "data_quality": quality,
         "sources": [
-            {"path": str(path.relative_to(trial)) if trial in path.parents else str(path), "sha256": _sha256_file(path)}
-            for path in ([result_path] if result_path.is_file() else []) + [p for p, _, _ in segments]
+            {
+                "path": str(path.relative_to(trial)) if trial in path.parents else str(path),
+                "sha256": _sha256_file(path),
+            }
+            for path in ([result_path] if result_path.is_file() else [])
+            + [p for p, _, _ in segments]
         ],
         # Independent capture is additive and optional: None means no linked
         # capture exists, never a lookup failure worth failing the report over.
@@ -2364,6 +2529,25 @@ def build_job_report(
         "rows": rows,
     }
     return job_report, reports
+
+
+def _fmt_identical_run(run: dict[str, Any]) -> str:
+    """Longest identical run with its bounds, so a cut step list stays locatable."""
+    start, end = run.get("start_step"), run.get("end_step")
+    if start is None or end is None:
+        return f"{run['length']} (no steps)"
+    return f"{run['length']} (steps {start}\u2013{end})"
+
+
+def _fmt_cycle(cycle: dict[str, Any] | None) -> str:
+    """Longest command cycle, or ``none`` when no block repeats 3 times."""
+    if cycle is None:
+        return "none"
+    commands = ", ".join(f"`{command}`" for command in cycle["commands"])
+    return (
+        f"period {cycle['period']} \u00d7 {cycle['repeats']} repeats "
+        f"(steps {cycle['start_step']}\u2013{cycle['end_step']}): {commands}"
+    )
 
 
 def _fmt_revisit_onset(onset: dict[str, Any] | None) -> str:
@@ -2467,7 +2651,10 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
                 ["Agent", f"{identity['agent']} {identity['agent_version'] or ''}".strip()],
                 ["Model", identity["model"]],
                 ["Job", identity["job"]],
-                ["Trajectory", f"{report['availability']['trajectory']} ({identity['atif_schema'] or 'no schema'})"],
+                [
+                    "Trajectory",
+                    f"{report['availability']['trajectory']} ({identity['atif_schema'] or 'no schema'})",
+                ],
                 ["Trial dir", f"`{identity['trial_dir']}`"],
             ],
         ),
@@ -2517,13 +2704,24 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
     )
     if outcome["final_agent_message"]:
         lines.append(f"- Final agent message: {outcome['final_agent_message']}")
+    lines.append(render_outside_fetch_line(report.get("outside_fetches") or {"items": []}))
+    copied = report.get("pass_may_be_copied")
+    if copied:
+        evidence = ", ".join(
+            f"fetched at step {item['fetch_step']}, read back at step {item['read_back_step']}"
+            for item in copied.get("evidence_steps") or []
+        )
+        lines.append(f"- Flag: pass_may_be_copied ({evidence or 'no step detail'})")
     lines += ["", "## Time"]
     phases = timing["phases"]
     lines += _table(
         ["Phase", "Duration", "Starts at"],
         [
-            [name.replace("_", " "), _fmt_seconds(phases[name]["seconds"]),
-             _fmt_seconds(phases[name]["starts_at_offset_seconds"])]
+            [
+                name.replace("_", " "),
+                _fmt_seconds(phases[name]["seconds"]),
+                _fmt_seconds(phases[name]["starts_at_offset_seconds"]),
+            ]
             for name in _HARBOR_PHASES
         ]
         + [["**total wall**", _fmt_seconds(timing["total_seconds"]), "0.0s"]],
@@ -2594,7 +2792,13 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
         lines += _table(
             ["Step", "Input", "Output", "Cost", "Action"],
             [
-                [s["step"], _fmt_tokens(s["input"]), _fmt_tokens(s["output"]), _fmt_usd(s["cost_usd"]), s["action"]]
+                [
+                    s["step"],
+                    _fmt_tokens(s["input"]),
+                    _fmt_tokens(s["output"]),
+                    _fmt_usd(s["cost_usd"]),
+                    s["action"],
+                ]
                 for s in tokens["top_steps"]
             ],
         )
@@ -2617,11 +2821,27 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
             + "."
         )
         lines += _table(
-            ["Tool", "Calls", "OK", "Errors", "Unknown", "Errors / judged", "Output chars", "Steps"],
             [
-                [r["tool"], r["calls"], r["ok"], r["errors"], r["unknown"],
-                 f"{_fmt_pct(r['error_rate'])} of {r['judged']}" if r["judged"] else "n/a",
-                 f"{r['output_chars']:,}", f"{r['first_step']}–{r['last_step']}"]
+                "Tool",
+                "Calls",
+                "OK",
+                "Errors",
+                "Unknown",
+                "Errors / judged",
+                "Output chars",
+                "Steps",
+            ],
+            [
+                [
+                    r["tool"],
+                    r["calls"],
+                    r["ok"],
+                    r["errors"],
+                    r["unknown"],
+                    f"{_fmt_pct(r['error_rate'])} of {r['judged']}" if r["judged"] else "n/a",
+                    f"{r['output_chars']:,}",
+                    f"{r['first_step']}–{r['last_step']}",
+                ]
                 for r in tools["by_tool"]
             ],
         )
@@ -2691,13 +2911,20 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
             [
                 ["Actions considered (polls excluded)", revisits["actions_considered"]],
                 ["Distinct actions", revisits["distinct_actions"]],
-                ["Repeated actions", f"{revisits['repeated_actions']} ({_fmt_pct(revisits['repeat_rate'])} of actions)"],
+                [
+                    "Repeated actions",
+                    f"{revisits['repeated_actions']} ({_fmt_pct(revisits['repeat_rate'])} of actions)",
+                ],
                 ["  returned to an earlier action", revisits["returns_to_earlier_action"]],
                 ["  immediate repeats", revisits["consecutive_repeats"]],
                 ["**Exact revisits** (same action, same result)", revisits["exact_revisits"]],
-                ["Same result from a different action", revisits["same_result_from_different_action"]],
+                [
+                    "Same result from a different action",
+                    revisits["same_result_from_different_action"],
+                ],
                 ["Repeated identical errors", revisits["repeated_errors"]],
-                ["Longest identical run", f"{revisits['longest_identical_run']['length']} (steps {revisits['longest_identical_run']['steps']})"],
+                ["Longest identical run", _fmt_identical_run(revisits["longest_identical_run"])],
+                ["Longest command cycle", _fmt_cycle(revisits.get("longest_cycle"))],
             ]
             + (
                 [["Revisit onset", _fmt_revisit_onset(revisits.get("revisits_started"))]]
@@ -2705,8 +2932,13 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
                 else []
             )
             + (
-                [["Loop suspicion", f"{'detected' if revisits['loop_suspicion']['detected'] else 'not detected'} "
-                  f"(score {revisits['loop_suspicion']['score']:.2f}; {', '.join(revisits['loop_suspicion']['reasons']) or 'no reasons'})"]]
+                [
+                    [
+                        "Loop suspicion",
+                        f"{'detected' if revisits['loop_suspicion']['detected'] else 'not detected'} "
+                        f"(score {revisits['loop_suspicion']['score']:.2f}; {', '.join(revisits['loop_suspicion']['reasons']) or 'no reasons'})",
+                    ]
+                ]
                 if revisits["loop_suspicion"]
                 else []
             ),
@@ -2723,7 +2955,8 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
         onset = revisits.get("revisits_started") or {}
         if onset.get("repeat_rate_by_window") is not None:
             rates = ", ".join(
-                _fmt_pct(rate) if rate is not None else "—" for rate in onset["repeat_rate_by_window"]
+                _fmt_pct(rate) if rate is not None else "—"
+                for rate in onset["repeat_rate_by_window"]
             )
             lines += [
                 "",
@@ -2738,7 +2971,9 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
         "none_observed": "No subagents or delegation calls observed. (Harbor's codex converter drops subagent threads; claude-code records them as sidechain steps; terminus-2 records summarization subagents.)",
     }
     if subagents["observability"] == "unavailable":
-        lines.append(f"Subagent activity unavailable: {subagents.get('reason') or 'native rollouts could not be read'}.")
+        lines.append(
+            f"Subagent activity unavailable: {subagents.get('reason') or 'native rollouts could not be read'}."
+        )
     else:
         lines.append(observability_texts[subagents["observability"]])
     rollouts = subagents.get("codex_rollouts")
@@ -2758,14 +2993,28 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
             lines.append(f"Other native threads (not delegated spend): {summaries}.")
     if subagents["items"]:
         lines += _table(
-            ["Id", "Kind", "Spawned (step / offset)", "Duration", "Steps", "Tool calls", "Tokens in/out", "Cost", "Evidence"],
+            [
+                "Id",
+                "Kind",
+                "Spawned (step / offset)",
+                "Duration",
+                "Steps",
+                "Tool calls",
+                "Tokens in/out",
+                "Cost",
+                "Evidence",
+            ],
             [
                 [
-                    i["id"], i["kind"],
+                    i["id"],
+                    i["kind"],
                     f"{_fmt(i['spawned_at_step'])} / {_fmt_seconds(i['spawned_at_offset_seconds'])}",
-                    _fmt_seconds(i.get("duration_seconds")), _fmt(i.get("steps")), _fmt(i.get("tool_calls")),
+                    _fmt_seconds(i.get("duration_seconds")),
+                    _fmt(i.get("steps")),
+                    _fmt(i.get("tool_calls")),
                     f"{_fmt_tokens(i.get('input_tokens'))}/{_fmt_tokens(i.get('output_tokens'))}",
-                    _fmt_usd(i.get("cost_usd")), i["evidence"],
+                    _fmt_usd(i.get("cost_usd")),
+                    i["evidence"],
                 ]
                 for i in subagents["items"]
             ],
@@ -2817,7 +3066,9 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
             how = f"signalled by the harness ({channel})"
         lines.append(f"- First tool error: step {first_error['step']} ({how}).")
     if errors["by_category"]:
-        lines.append("By category: " + ", ".join(f"{k}×{v}" for k, v in errors["by_category"].items()))
+        lines.append(
+            "By category: " + ", ".join(f"{k}×{v}" for k, v in errors["by_category"].items())
+        )
     lines += [
         f"- step {e['step']} `{e['tool']}` {e['target']} [{e['category']}]: {e['excerpt'] or ''}"
         for e in errors["examples"]
@@ -2851,9 +3102,17 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
         lines += _table(
             ["Steps", "Calls", "Err", "Revisits", "Out tok", "Peak in", "Comp", "Cost", "Span"],
             [
-                [f"{w['steps'][0]}–{w['steps'][1]}", w["tool_calls"], w["errors"], w["revisits"],
-                 _fmt_tokens(w["output_tokens"]), _fmt_tokens(w.get("peak_prompt_tokens")),
-                 w.get("compactions"), _fmt_usd(w["cost_usd"]), _fmt_seconds(w["seconds"])]
+                [
+                    f"{w['steps'][0]}–{w['steps'][1]}",
+                    w["tool_calls"],
+                    w["errors"],
+                    w["revisits"],
+                    _fmt_tokens(w["output_tokens"]),
+                    _fmt_tokens(w.get("peak_prompt_tokens")),
+                    w.get("compactions"),
+                    _fmt_usd(w["cost_usd"]),
+                    _fmt_seconds(w["seconds"]),
+                ]
                 for w in timeline["windows"]
             ],
         )
@@ -2875,8 +3134,12 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
                 [
                     f"+{_fmt_seconds(w['starts_at_offset_seconds'])}–"
                     f"{_fmt_seconds(w['ends_at_offset_seconds'])}",
-                    f"{w['steps'][0]}–{w['steps'][1]}", w["tool_calls"], w["errors"], w["revisits"],
-                    _fmt_tokens(w["output_tokens"]), _fmt_tokens(w.get("peak_prompt_tokens")),
+                    f"{w['steps'][0]}–{w['steps'][1]}",
+                    w["tool_calls"],
+                    w["errors"],
+                    w["revisits"],
+                    _fmt_tokens(w["output_tokens"]),
+                    _fmt_tokens(w.get("peak_prompt_tokens")),
                     w.get("compactions"),
                 ]
                 for w in time_section["windows"]
@@ -2890,18 +3153,26 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
     rows = []
     for e in timeline["entries"]:
         if "omitted_steps" in e:
-            rows.append([f"… {e['omitted_steps'][0]}–{e['omitted_steps'][1]}", "", "", "", "", "", ""])
+            rows.append(
+                [f"… {e['omitted_steps'][0]}–{e['omitted_steps'][1]}", "", "", "", "", "", ""]
+            )
             continue
         rows.append(
             [
-                e["step"], _fmt_seconds(e["offset_seconds"]), e["source"],
-                e["action"] or e["message"] or "", e["status"] or "",
-                "—" if e["input_tokens"] is None and e["output_tokens"] is None
+                e["step"],
+                _fmt_seconds(e["offset_seconds"]),
+                e["source"],
+                e["action"] or e["message"] or "",
+                e["status"] or "",
+                "—"
+                if e["input_tokens"] is None and e["output_tokens"] is None
                 else f"{_fmt_tokens(e['input_tokens'])}/{_fmt_tokens(e['output_tokens'])}",
                 ", ".join(e["flags"]),
             ]
         )
-    lines += _table(["Step", "At", "Source", "Action / message", "Status", "Tokens in/out", "Flags"], rows)
+    lines += _table(
+        ["Step", "At", "Source", "Action / message", "Status", "Tokens in/out", "Flags"], rows
+    )
     lines += ["", "## Data quality"]
     lines += [f"- {q}" for q in report["data_quality"]] or ["- No gaps detected."]
     lines += ["", "## Sources"]
@@ -2917,7 +3188,11 @@ def render_job_report_markdown(job_report: dict[str, Any]) -> str:
         f"Trials: {job_report['trials']}; scored: {job_report['scored']}; passed: {job_report['passed']} "
         f"(pass rate {_fmt_pct(job_report['pass_rate'])}, mean reward {_fmt(job_report['mean_reward'])}). "
         f"Total cost {_fmt_usd(job_report['total_cost_usd'])}"
-        + (f" ({job_report['trials_without_cost']} trials without cost)" if job_report["trials_without_cost"] else "")
+        + (
+            f" ({job_report['trials_without_cost']} trials without cost)"
+            if job_report["trials_without_cost"]
+            else ""
+        )
         + f"; cost per pass {_fmt_usd(job_report['cost_per_pass_usd'])}. "
         + (
             f"Price-table estimates {_fmt_usd(job_report['estimated_cost_usd'])} "
@@ -2932,15 +3207,35 @@ def render_job_report_markdown(job_report: dict[str, Any]) -> str:
         "",
     ]
     lines += _table(
-        ["Trial", "Verdict", "Reward", "Wall", "Agent", "Steps", "Tools", "Errors", "Tokens", "Cost", "Repeats (exact)", "Subagents"],
+        [
+            "Trial",
+            "Verdict",
+            "Reward",
+            "Wall",
+            "Agent",
+            "Steps",
+            "Tools",
+            "Errors",
+            "Tokens",
+            "Cost",
+            "Repeats (exact)",
+            "Subagents",
+        ],
         [
             [
-                r["trial"], r["verdict"], r["reward"], _fmt_seconds(r["wall_seconds"]),
-                _fmt_seconds(r["agent_seconds"]), r["steps"], r["tool_calls"], r["tool_errors"],
+                r["trial"],
+                r["verdict"],
+                r["reward"],
+                _fmt_seconds(r["wall_seconds"]),
+                _fmt_seconds(r["agent_seconds"]),
+                r["steps"],
+                r["tool_calls"],
+                r["tool_errors"],
                 _fmt_tokens(r["tokens"]),
                 _fmt_usd(r["cost_usd"])
                 + (" (est)" if r.get("cost_source") == "price_table_estimate" else ""),
-                f"{r['repeated_actions']} ({r['exact_revisits']})", r["subagents"],
+                f"{r['repeated_actions']} ({r['exact_revisits']})",
+                r["subagents"],
             ]
             for r in job_report["rows"]
         ],

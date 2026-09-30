@@ -92,7 +92,13 @@ from pathlib import Path
 from typing import Any, Literal
 
 from evallab.labels import propose_heuristic_label
-from evallab.step_layers import STEP_LAYERS_KEY, classify_stop_reason, executed_output, stitch_steps
+from evallab.step_layers import (
+    STEP_LAYERS_KEY,
+    classify_stop_reason,
+    discover_trajectory_parts,
+    executed_output,
+    stitch_steps,
+)
 from evallab.tracing import TraceError, is_job_dir, is_trial_dir
 from evallab.traj import (
     EDIT_COMMAND_PATTERNS,
@@ -454,38 +460,29 @@ def _output_text(content: Any) -> str:
 def _raw_steps(trial_dir: Path) -> tuple[list[dict[str, Any]], tuple[str, ...]]:
     """Unique non-copied steps across the head and continuations, plus notices.
 
-    Reads every readable ``trajectory.json`` / ``trajectory.cont-N.json`` part
-    beside the resolved trajectory and dedupes steps shared across parts (a
-    re-dumped head, a cumulative continuation restating history) by step
-    identity, so detectors never count the same turn twice. Whole-duplicate
-    parts use the SFT exporter's ``duplicate_of:`` vocabulary
-    (see :mod:`evallab.step_layers`).
+    Part discovery comes from the shared stitching library
+    (:func:`evallab.step_layers.discover_trajectory_parts`); steps are merged
+    by :func:`evallab.step_layers.stitch_steps`, so detectors never count the
+    same turn twice. Whole-duplicate parts use the SFT exporter's
+    ``duplicate_of:`` vocabulary (see :mod:`evallab.step_layers`).
     """
     try:
         _, traj_path, _ = resolve_trial_target(trial_dir, explicit_runs_root=trial_dir)
     except (TrajectoryError, ValueError, OSError):
         return [], ()
-    if traj_path is None or not traj_path.is_file():
+    if traj_path is None:
         return [], ()
     names: list[str] = []
     docs: list[dict[str, Any]] = []
-    seen: set[Path] = set()
-    for path in [traj_path, *sorted(traj_path.parent.glob("trajectory.cont-*.json"))]:
-        if not path.is_file():
+    for part in discover_trajectory_parts(traj_path.parent):
+        if not part.readable:
             continue
         try:
-            resolved = path.resolve()
-        except OSError:
-            continue
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError, ValueError):
+            data = json.loads(part.path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
             continue
         if isinstance(data, dict):
-            names.append(path.name)
+            names.append(part.name)
             docs.append(data)
     if not docs:
         return [], ()

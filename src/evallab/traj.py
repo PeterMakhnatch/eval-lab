@@ -467,6 +467,7 @@ _resolve_candidate_roots = resolve_runs_roots
 def _safe_str(val: Any, default: str = "") -> str:
     return str(val) if val is not None else default
 
+
 def _authoritative_int(value: Any) -> int | None:
     """Return a declared aggregate token count, or None when absent/invalid."""
     if isinstance(value, bool):
@@ -601,39 +602,17 @@ def _resolve_chain_segments(
     )
 
 
-def _chain_action_steps(segments: Sequence[ChainSegment]) -> list[tuple[int, Any]]:
-    """Non-copied raw steps across a continuation chain, canonical order.
-
-    Returns ``(segment_position, raw_step)`` pairs so views can cite each action
-    against its native document while numbering the merged view ordinally.
-    Copied context repeats history already present in an earlier segment, so it
-    is excluded from action-oriented views (counts, phases, loop/error analysis)
-    while every segment stays cited and every document stays projected. Non-dict
-    entries pass through untouched so malformed shapes still fail closed in the
-    strict consumers instead of being silently dropped here.
-    """
-    stitched: list[tuple[int, Any]] = []
-    for position, (_, data, _) in enumerate(segments):
-        raw_steps = data.get("steps")
-        if not isinstance(raw_steps, list):
-            continue
-        for raw_step in raw_steps:
-            if isinstance(raw_step, dict) and raw_step.get("is_copied_context"):
-                continue
-            stitched.append((position, raw_step))
-    return stitched
-
-
 def stitched_chain_action_steps(
     segments: Sequence[ChainSegment],
 ) -> tuple[list[tuple[int, Any]], StitchStats]:
     """Unique non-copied raw steps across continuation parts, canonical order.
 
-    Same ``(segment_position, raw_step)`` shape as :func:`_chain_action_steps`,
-    plus dedupe across parts: a sealed head re-dumped as a continuation, or a
-    head prefix restated by a cumulative continuation, is counted once (later
-    parts supersede). Kept steps retain their original segment position for
-    citations. See :func:`evallab.step_layers.stitch_steps`.
+    Drops copied-context repeats and dedupes steps shared across parts: a
+    sealed head re-dumped as a continuation, or a head prefix restated by a
+    cumulative continuation, is counted once (later parts supersede). Kept
+    steps retain their original segment position for citations. The one
+    shared stitching implementation lives in
+    :func:`evallab.step_layers.stitch_steps`.
     """
     position_by_id: dict[int, int] = {}
     docs: list[Any] = []
@@ -767,7 +746,7 @@ def _analyze_loop_suspicion(steps: Sequence[LoopStepView]) -> LoopSuspicion:
     failed_cmds: Counter[str] = Counter()
     for step in steps:
         if step.is_error and step.tool_command:
-            norm = f"{step.tool_name}:{step.tool_command[:60]}:{step.exit_code}"
+            norm = f"{step.tool_name}:{step.tool_command[:60]}:{step.exit_code if step.exit_code is not None else 'unknown'}"
             failed_cmds[norm] += 1
     for failed_cmd, count in failed_cmds.items():
         if count >= 3:
@@ -866,9 +845,7 @@ def extract_loop_step(raw_step: dict[str, Any]) -> tuple[LoopStep, str | None, E
         }:
             error_msg = error_msg or content[:120].strip() or "tool result reported an error"
     # Deterministic error taxonomy and expected negative probe classification.
-    _, primary_text = split_envelope(
-        results[0].get("content") if results else None
-    )
+    _, primary_text = split_envelope(results[0].get("content") if results else None)
     primary_content = primary_text or error_msg
     error_classification = classify_step_error(
         tool_name=primary_tool_name,
@@ -1688,9 +1665,7 @@ def outline_trajectory(
     agent_section_value = traj_data.get("agent")
     agent_section = agent_section_value if isinstance(agent_section_value, dict) else {}
     if not agent_name or agent_name == "unknown":
-        agent_name = _safe_str(
-            root_section.get("name") or agent_section.get("name") or "unknown"
-        )
+        agent_name = _safe_str(root_section.get("name") or agent_section.get("name") or "unknown")
     if not model_name or model_name == "unknown":
         model_name = _safe_str(
             root_section.get("model_name") or agent_section.get("model_name") or "unknown"
@@ -1990,15 +1965,11 @@ def outline_trajectory(
     declared_completion = _authoritative_int(declared_metrics.get("total_completion_tokens"))
     declared_cached = _authoritative_int(declared_metrics.get("total_cached_tokens"))
     declared_cost = _authoritative_float(declared_metrics.get("total_cost_usd"))
-    outline_prompt_tokens = (
-        declared_prompt if declared_prompt is not None else total_prompt_tokens
-    )
+    outline_prompt_tokens = declared_prompt if declared_prompt is not None else total_prompt_tokens
     outline_completion_tokens = (
         declared_completion if declared_completion is not None else total_completion_tokens
     )
-    outline_cached_tokens = (
-        declared_cached if declared_cached is not None else total_cached_tokens
-    )
+    outline_cached_tokens = declared_cached if declared_cached is not None else total_cached_tokens
     outline_cost_usd: float | None
     if declared_cost is not None:
         outline_cost_usd = declared_cost
@@ -2010,7 +1981,9 @@ def outline_trajectory(
         outline_cost_usd = None
     state_metrics = _extract_state_journal_metrics(trial_dir, steps_out, citations)
     ref_metrics = _extract_reference_and_citation_metrics(trial_dir, steps_out, citations)
-    edit_call_count = sum(1 for step in steps_out if _is_edit_action(step.tool_name, step.tool_command))
+    edit_call_count = sum(
+        1 for step in steps_out if _is_edit_action(step.tool_name, step.tool_command)
+    )
     return TrajectoryOutline(
         trial_id=trial_id,
         job_id=job_id,

@@ -77,7 +77,7 @@ def completed(argv: list[str], *, returncode: int = 0, stdout: str = "", stderr:
 def drain_runner() -> FakeRunner:
     return FakeRunner(
         {
-            ("app", "stop", MODAL_APP_NAME): completed(["app", "stop", MODAL_APP_NAME]),
+            ("app", "stop", "--yes", MODAL_APP_NAME): completed(["app", "stop", "--yes", MODAL_APP_NAME]),
             ("app", "list", "--json"): completed(
                 ["app", "list", "--json"],
                 stdout=json.dumps(
@@ -167,9 +167,9 @@ def test_teardown_stops_and_records_evidence(tmp_path: Path, sandbox: None) -> N
     assert record["container_count"] == 0
     assert record["daytona_sandboxes"] == {"count": 7, "reason": None}
     assert record["completed_spec_ids"] == [spec.spec_id]
-    assert runner.calls[0] == ["app", "stop", MODAL_APP_NAME]
+    assert runner.calls[0] == ["app", "stop", "--yes", MODAL_APP_NAME]
     assert {tuple(call) for call in runner.calls} == {
-        ("app", "stop", MODAL_APP_NAME),
+        ("app", "stop", "--yes", MODAL_APP_NAME),
         ("app", "list", "--json"),
         ("container", "list", "--json"),
     }
@@ -232,8 +232,8 @@ def test_teardown_records_stop_failure_without_raising(tmp_path: Path, sandbox: 
     job_dir.mkdir(parents=True)
     runner = FakeRunner(
         {
-            ("app", "stop", MODAL_APP_NAME): completed(
-                ["app", "stop", MODAL_APP_NAME], returncode=1, stderr="boom"
+            ("app", "stop", "--yes", MODAL_APP_NAME): completed(
+                ["app", "stop", "--yes", MODAL_APP_NAME], returncode=1, stderr="boom"
             ),
             ("app", "list", "--json"): completed(
                 ["app", "list", "--json"],
@@ -256,6 +256,72 @@ def test_teardown_records_stop_failure_without_raising(tmp_path: Path, sandbox: 
     assert "boom" in record["stop_stderr_tail"]
     assert record["app_state"] == "deployed"
     assert record["container_count"] is None
+    events = [event for event in load_events(queue.events_path) if event.event == TEARDOWN_EVENT]
+    assert [event.reason_code for event in events] == ["modal_stop_failed"]
+
+
+def test_teardown_confirms_without_a_terminal(tmp_path: Path, sandbox: None) -> None:
+    """Modal 1.5.5 aborts `app stop` without --yes when stdin is not a TTY."""
+    queue = DirectoryQueue(tmp_path / "queue")
+    spec = make_spec("drained-job", SELFHOSTED, "01AAAAAAAAAAAAAAAAAAAAAAAA")
+    place(queue, "done", spec)
+    (tmp_path / "runs" / spec.name).mkdir(parents=True)
+
+    def reject_unconfirmed(argv: list[str]) -> subprocess.CompletedProcess[str]:
+        if argv[:2] == ["app", "stop"] and "--yes" not in argv:
+            return completed(
+                argv,
+                returncode=1,
+                stderr="Aborted: no interactive terminal detected. Rerun with --yes (-y).",
+            )
+        if argv == ["app", "list", "--json"]:
+            return completed(
+                argv,
+                stdout=json.dumps([{"description": MODAL_APP_NAME, "state": "stopped"}]),
+            )
+        return completed(argv, stdout="[]")
+
+    record = stop_selfhosted_app_if_drained(
+        queue, tmp_path, [spec], runner=reject_unconfirmed, now=MOMENT
+    )
+
+    assert record is not None
+    assert record["stopped"] is True
+    assert record["reason"] is None
+    assert record["app_state"] == "stopped"
+
+
+def test_teardown_fails_when_app_stays_deployed(tmp_path: Path, sandbox: None) -> None:
+    """A zero exit is not success when the app never reaches a stopped state."""
+    queue = DirectoryQueue(tmp_path / "queue")
+    spec = make_spec("drained-job", SELFHOSTED, "01AAAAAAAAAAAAAAAAAAAAAAAA")
+    place(queue, "done", spec)
+    job_dir = tmp_path / "runs" / spec.name
+    job_dir.mkdir(parents=True)
+    runner = FakeRunner(
+        {
+            ("app", "stop", "--yes", MODAL_APP_NAME): completed(
+                ["app", "stop", "--yes", MODAL_APP_NAME]
+            ),
+            ("app", "list", "--json"): completed(
+                ["app", "list", "--json"],
+                stdout=json.dumps([{"description": MODAL_APP_NAME, "state": "deployed"}]),
+            ),
+            ("container", "list", "--json"): completed(
+                ["container", "list", "--json"], stdout="[]"
+            ),
+        }
+    )
+
+    record = stop_selfhosted_app_if_drained(
+        queue, tmp_path, [spec], runner=runner, now=MOMENT
+    )
+
+    assert record is not None
+    assert record["stopped"] is False
+    assert record["reason"] == "modal-app-not-stopped: state=deployed"
+    stored = json.loads((job_dir / TEARDOWN_FILENAME).read_text())
+    assert stored["stopped"] is False
     events = [event for event in load_events(queue.events_path) if event.event == TEARDOWN_EVENT]
     assert [event.reason_code for event in events] == ["modal_stop_failed"]
 

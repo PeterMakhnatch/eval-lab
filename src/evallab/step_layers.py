@@ -59,6 +59,15 @@ parser itself is untouched; reconstruction replays the same
 :func:`evallab.mimo_tool_calls.normalize_mimo_tool_calls` plus the stock
 Terminus parser through an injected ``parse`` callback, so this module stays
 Harbor-free and tests can inject a fake parser.
+
+This module is also the one shared stitching library for Terminus
+continuation files: ``discover_trajectory_parts`` + ``stitch_steps`` (+
+``coverage_record``, ``segment_fingerprint`` / ``duplicate_segments``) are
+the only allowed way to merge ``trajectory.json`` with its
+``trajectory.cont-N.json`` parts. Consumers: ``traj`` (chain stitching),
+``trial_diagnosis``, ``trial_treatment`` (capture token sums), ``explorer``,
+``interpretation/trajectory_ir``, ``interpretation/trace_readiness``,
+``sft_terminus`` (whole-segment identity), ``process_job``.
 """
 
 from __future__ import annotations

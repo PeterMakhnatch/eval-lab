@@ -53,9 +53,9 @@ from evallab.schemas import ANALYSIS_SIDECAR_FILENAME, TrialAnalysisSidecar
 from evallab.traj import (
     ChainResolution,
     TrajectoryOutline,
-    _chain_action_steps,
     _resolve_chain_segments,
     outline_trajectory,
+    stitched_chain_action_steps,
 )
 
 Provenance = Literal["observed", "derived", "draft", "withheld", "unavailable"]
@@ -490,7 +490,7 @@ def _trajectory_view(trial_dir: Path) -> TrajectoryView | Labeled:
     # scoped by source document, never by bare call id.
     live = [
         (position, step)
-        for position, step in _chain_action_steps(resolution.segments)
+        for position, step in stitched_chain_action_steps(resolution.segments)[0]
         if isinstance(step, dict)
     ]
 

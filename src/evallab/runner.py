@@ -2491,6 +2491,19 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                     (job_dir / "evidence-archive-error.txt").write_text(
                         f"{type(exc).__name__}: {exc}\n"
                     )
+        if os.environ.get("EVALLAB_NO_PROCESS_JOB") != "1":
+            # Automatic post-finalize processing (HAR-107): ingest, detectors,
+            # run/job reports under <job>/processed/. Best-effort: a processing
+            # failure is recorded beside the job and never fails the run.
+            try:
+                from evallab.process_job import process_job
+
+                process_job(job_dir, root=repo_root)
+            except Exception as exc:  # noqa: BLE001
+                with suppress(Exception):
+                    (job_dir / "process-job-error.txt").write_text(
+                        f"{type(exc).__name__}: {exc}\n"
+                    )
         return job_dir
     finally:
         _cleanup_stage(staging_dir)

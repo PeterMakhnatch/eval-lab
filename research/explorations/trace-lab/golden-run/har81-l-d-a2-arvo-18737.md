@@ -75,3 +75,7 @@ If you point `harbor view` at the **raw** run instead, it shows 0 tool calls. Th
 Not changed, on purpose:
 - The raw-viewer tool-call count (D1): this is a Harbor viewer limitation for old `raw_content` runs.
 - Quality Status `unknown`: this trial has no quality ledger.
+
+## 6. Next: the same workflow on 10 Python runs (HAR-109)
+
+The same approach applied to the 10 HAR-104 Python runs: a blind hand read of each run, then Eval Lab, Scout and Docent, each scored against the hand read. It shows what each tool is good for: [`../har109/SUMMARY.md`](../har109/SUMMARY.md).

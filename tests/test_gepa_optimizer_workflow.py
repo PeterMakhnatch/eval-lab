@@ -685,6 +685,54 @@ def test_zai_standard_api_proposer_binds_its_own_key_and_journals_without_it(tmp
     assert json.loads(receipts[0].read_text())["status"] == "completed"
 
 
+def test_truncated_proposal_is_billed_retained_and_never_proposed(tmp_path, monkeypatch):
+    """A reply cut at max_tokens (GLM reasoning ate the budget) must not become a candidate."""
+    pytest.importorskip("gepa", reason="Install the isolated harness-gepa requirements")
+    from types import SimpleNamespace
+
+    import litellm
+
+    from evallab.gepa_optimizer.budget import AggregateBudget
+
+    calls = []
+
+    def completion(**kwargs):
+        calls.append(kwargs)
+        choice = SimpleNamespace(
+            finish_reason="length", message=SimpleNamespace(content="- Fix the class of")
+        )
+        return SimpleNamespace(choices=[choice], usage=None)
+
+    monkeypatch.setattr(litellm, "completion", completion)
+    monkeypatch.setattr(litellm, "completion_cost", lambda **kwargs: 0.07)
+    monkeypatch.setenv("ZAI_OPENAPI_API_KEY", "standard-api-key")
+    budget = AggregateBudget(
+        tmp_path / "budget",
+        max_target_attempts=1,
+        max_proposer_requests=2,
+        max_proposer_cost_usd=0.5,
+    )
+    directory = tmp_path / "proposer"
+    proposer = JournaledReflectionLM(
+        model="zai/glm-5.3", directory=directory, max_requests=2, budgets=(budget,)
+    )
+    with pytest.raises(ProposalUnavailable, match="max_tokens"):
+        proposer("Revise the instruction.")
+    (receipt,) = [json.loads(path.read_text()) for path in directory.glob("*.json")]
+    assert receipt["status"] == "truncated"
+    assert receipt["response"] == "- Fix the class of"
+    assert budget.summary()["proposer"]["known_estimated_cost_usd"] == 0.07
+
+    resumed = JournaledReflectionLM(
+        model="zai/glm-5.3", directory=directory, max_requests=2, budgets=(budget,)
+    )
+    with pytest.raises(ProposalUnavailable, match="truncated"):
+        resumed("Revise the instruction.")
+    with pytest.raises(ProposalUnavailable):
+        resumed("Different feedback must not bypass the retained truncation.")
+    assert len(calls) == 1
+
+
 def test_unlisted_zai_model_is_not_a_proposer_route():
     assert direct_proposer_blocker("zai/glm-4") is not None
     assert direct_proposer_blocker("zai-coding-plan/glm-5.3") is not None

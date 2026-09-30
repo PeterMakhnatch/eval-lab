@@ -50,7 +50,7 @@ math below uses wall ~12.5 min (0.208 h) as the expected case and the full
 | Engine concurrency | max_concurrency=1 in-engine; server sharing comes from ticking parked specs together | workflow.py make_config; search-round flow |
 | Server sharing (c) | 2 (assumed: baseline ticks its 6 parked specs together; sharing only lowers the server share) | operator discipline, see Waves |
 | Reflection calls | <= 4 (`max_proposer_requests`), LiteLLM `num_retries=0` | campaign-train.json; proposer.py direct route |
-| Proposer tokens per call | out <= 8,192; measured 25,428 in / 5,406 out on the first real 85 KB prompt | proposer.py `_direct_lm_options`; 2026-09-30 precheck |
+| Proposer tokens per call | out <= 32,768 (a reply cut at the ceiling is billed but never proposed); measured 25,428 in / 5,406 out on the first real 85 KB prompt, and one live call exceeded 8,192 | proposer.py `_direct_lm_options`; 2026-09-30 precheck + GEPA run |
 | Held-out eval trials | 8 (4 scorable code tasks x seed/gepa arms x 1) | make_paired_specs.py |
 | Server rate | $2.8149/h (A100-80GB $2.4984 + 4 cores $0.1886 + 16 GiB $0.1279) | modal.com/pricing 2026-09-28; `MIMO_SELFHOSTED_SERVER_USD_PER_HOUR` |
 | Warm period | ~$0.40 (208 s cold start + 300 s idle tail) x $2.8149/h | HAR-90 smoke + follow-up spend |
@@ -79,8 +79,10 @@ math below uses wall ~12.5 min (0.208 h) as the expected case and the full
   call it covered: either tick >= 2 together or re-estimate first (see Waves).
 - `C_PROPOSER_CALL`: one direct GLM-5.3 call on the Z.ai standard API at
   LiteLLM's $1.40/M in + $4.40/M out; the measured first prompt cost
-  **$0.059**. `max_proposer_cost_usd` $0.20 is checked before each call, so
-  the fourth call can overshoot it: worst case ~4 x $0.08 = $0.32 <= $1.00.
+  **$0.059**; the first live call hit the old 8,192-token ceiling at $0.072.
+  `max_proposer_cost_usd` $0.20 is checked before each call, so the last call
+  can overshoot it: worst case 4 x (~30k in + 32,768 out) ≈ 4 x $0.19 = $0.76
+  <= $1.00.
 - Search Modal/server: ~16 new trials (6 baseline + 10 upstream; selection
   re-evals mostly hit retained receipts) x $0.29 = **~$4.7 expected** (fits
   ~$5); hard-cap exposure 22 x $0.29 = $6.4 expected-profile, 22 x $1.41 =

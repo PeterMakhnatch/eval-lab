@@ -22,7 +22,7 @@ from evallab.gepa_optimizer.evaluator import (
 from evallab.gepa_optimizer.intake import replay_spec_for_candidate, validate_drift
 from evallab.gepa_optimizer.proposer import JournaledReflectionLM, ProposalUnavailable
 from evallab.gepa_optimizer.workflow import QualificationProposer, _EvaluationHalt, load_campaign
-from evallab.registry import task_directory_digest
+from evallab.registry import compute_task_digests, task_directory_digest
 from evallab.schemas import ExperimentSpec
 
 
@@ -871,6 +871,61 @@ def test_evaluator_replay_submits_spec_matching_base_model_and_ceilings(tmp_path
     assert spec.max_output_tokens == base.max_output_tokens
     assert spec.max_total_tokens == base.max_total_tokens
     assert spec.cost_limit_usd == base.cost_limit_usd
+
+
+def test_evaluator_replay_rebinds_verifier_digest_to_each_example_task(tmp_path: Path) -> None:
+    """A spec frozen for task A must carry task B's verifier digest when replayed on B.
+
+    The queue refuses a run whose frozen verifier digest differs from the task's, so a
+    stale base-spec digest turns every non-base development task into a tamper failure.
+    """
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task_a = _write_task(repo_root, "tasks/task_a")
+    (repo_root / "tasks/task_a/tests").mkdir()
+    (repo_root / "tasks/task_a/tests/test.sh").write_text("exit 0\n", encoding="utf-8")
+    task_a["task_package_digest"] = task_directory_digest(repo_root / "tasks/task_a")
+    task_b = _write_task(repo_root, "tasks/task_b")
+    (repo_root / "tasks/task_b/tests").mkdir()
+    (repo_root / "tasks/task_b/tests/test.sh").write_text("exit 1\n", encoding="utf-8")
+    task_b["task_package_digest"] = task_directory_digest(repo_root / "tasks/task_b")
+    digests_a = compute_task_digests(repo_root / "tasks/task_a")
+    digests_b = compute_task_digests(repo_root / "tasks/task_b")
+    assert digests_a.verifier != digests_b.verifier
+    base = _retained_spec(
+        task=task_a["task_path"],
+        task_path=task_a["task_path"],
+        task_id=task_a["task_id"],
+        task_package_digest=task_a["task_package_digest"],
+        verifier_digest=digests_a.verifier,
+    )
+    stub = _StubExecutor(repo_root)
+    evaluator = LabEvaluator(
+        repo_root=repo_root,
+        output_dir=repo_root / "out" / "lab",
+        examples=[task_a, task_b],
+        agent=DEEPSEEK_TARGET_AGENT,
+        model=DEEPSEEK_MODEL_SELECTOR,
+        timeout_seconds=600,
+        estimated_cost_usd=1.5,
+        ceilings=ProviderCeilings(**CEILINGS),
+        executor=stub,
+        approved_candidate_ids=None,
+        base_spec=base,
+    )
+    for task in (task_a, task_b):
+        with pytest.raises(EvaluationPending):
+            evaluator("Study the requirements before acting.\n", task)
+    spec_a, spec_b = stub.submitted_specs
+    assert (spec_a.task_package_digest, spec_a.verifier_digest) == (
+        digests_a.package,
+        digests_a.verifier,
+    )
+    assert (spec_b.task_path, spec_b.task_package_digest, spec_b.verifier_digest) == (
+        "tasks/task_b",
+        digests_b.package,
+        digests_b.verifier,
+    )
 
 
 def test_replay_drift_validation_raises_on_digest_mismatch() -> None:

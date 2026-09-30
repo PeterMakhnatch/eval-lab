@@ -1,0 +1,862 @@
+{
+ "tasks": {
+  "format-code-task-000080": {
+   "repair": "keep-build-outputs",
+   "cause": "config.vars from ./configure",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "config.vars from ./configure",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000080/70cf87693117.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:70cf87693117bc03fb81711598958caf84316d28346337b6068f8426de3a38b9",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000080/70cf87693117.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000080/70cf87693117",
+   "nop_job": "har113-rnop-000080-70cf87693117"
+  },
+  "format-code-task-000225": {
+   "repair": "keep-build-outputs",
+   "cause": "linopy/version.py",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "linopy/version.py",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000225/cbecf3e09a70.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:cbecf3e09a7057e3bbee11772676e93405a4382b3872c4f0e2215b02e048e9cb",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000225/cbecf3e09a70.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000225/cbecf3e09a70",
+   "nop_job": "har113-rnop-000225-cbecf3e09a70"
+  },
+  "format-code-task-000377": {
+   "repair": "keep-build-outputs",
+   "cause": "wordcloud/_version.py",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "wordcloud/_version.py",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000377/d287a33499bc.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:d287a33499bca48c1f7241633923f0cad0e10777dd1432921cedd68769618541",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000377/d287a33499bc.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000377/d287a33499bc",
+   "nop_job": "har113-rnop-000377-d287a33499bc"
+  },
+  "format-code-task-000437": {
+   "repair": "keep-build-outputs + login-path",
+   "cause": "coremltools libmilstoragepython; extensions built for the login shell's pyenv 3.10",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "coremltools libmilstoragepython",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000437/afb488483536.json"
+    },
+    {
+     "repair": "login-path",
+     "cause": "extensions built for the login shell's pyenv 3.10",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000437/d98eb7de428f.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:d98eb7de428fb022965120ec1af87e213e48f2835241e990d97f075dfd51c6df",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000437/d98eb7de428f.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000437/d98eb7de428f",
+   "nop_job": "har113-rnop-000437-d98eb7de428f"
+  },
+  "format-code-task-000527": {
+   "repair": "login-path",
+   "cause": "pytest in /testbed/.venv",
+   "steps": [
+    {
+     "repair": "login-path",
+     "cause": "pytest in /testbed/.venv",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000527/2416eb70254e.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:2416eb70254ecff22c9b4ce035a31c032859d2b52038c429177c23158098a059",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000527/2416eb70254e.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000527/2416eb70254e",
+   "nop_job": "har113-rnop-000527-2416eb70254e"
+  },
+  "format-code-task-000651": {
+   "repair": "keep-build-outputs",
+   "cause": "chainer.egg-info",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "chainer.egg-info",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000651/0763948829e0.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:0763948829e0abb21323857d1930ecb4c1e5781bb803dd333cb3cfbb1a0b0eed",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000651/0763948829e0.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000651/0763948829e0",
+   "nop_job": "har113-rnop-000651-0763948829e0"
+  },
+  "format-code-task-000652": {
+   "repair": "keep-build-outputs",
+   "cause": "chainer.egg-info",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "chainer.egg-info",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000652/11343f2dd28f.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:11343f2dd28f210eb7f3df450f4fa238f47f52b8847dc33543471b30914505b3",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000652/11343f2dd28f.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000652/11343f2dd28f",
+   "nop_job": "har113-rnop-000652-11343f2dd28f"
+  },
+  "format-code-task-000655": {
+   "repair": "pin",
+   "cause": "setuptools 59.8.0 dist-info over a newer release's files (more_itertools import)",
+   "steps": [
+    {
+     "repair": "pin",
+     "cause": "setuptools 59.8.0 dist-info over a newer release's files (more_itertools import)",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000655/e39d00fb1e4f.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:e39d00fb1e4f8648a3bbea38348e0e8dfc778ec9401fd8ca935fb470abd534b3",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000655/e39d00fb1e4f.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000655/e39d00fb1e4f",
+   "nop_job": "har113-rnop-000655-e39d00fb1e4f"
+  },
+  "format-code-task-000817": {
+   "repair": "keep-build-outputs",
+   "cause": "DGL build/libdgl.so",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "DGL build/libdgl.so",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000817/e7490f8dcfc6.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:e7490f8dcfc6d01da5293a61c06d183b547c6d7bdf97e583870fed68acc48d58",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000817/e7490f8dcfc6.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000817/e7490f8dcfc6",
+   "nop_job": "har113-rnop-000817-e7490f8dcfc6"
+  },
+  "format-code-task-000960": {
+   "repair": "login-path",
+   "cause": "pytest in /opt/torax-venv",
+   "steps": [
+    {
+     "repair": "login-path",
+     "cause": "pytest in /opt/torax-venv",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000960/fdcf7e3f176e.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:fdcf7e3f176e8ffebfc260dc052dfe36323d7f5df9b09d4b2a14ed5e9229d7fb",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000960/fdcf7e3f176e.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000960/fdcf7e3f176e",
+   "nop_job": "har113-rnop-000960-fdcf7e3f176e"
+  },
+  "format-code-task-000972": {
+   "repair": "login-path",
+   "cause": "django in a pyenv version",
+   "steps": [
+    {
+     "repair": "login-path",
+     "cause": "django in a pyenv version",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000972/84adb64365eb.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:84adb64365ebfe9b6e6ff6148e63ee41947e35007b39a670e7c3bef3170bee91",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000972/84adb64365eb.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000972/84adb64365eb",
+   "nop_job": "har113-rnop-000972-84adb64365eb"
+  },
+  "format-code-task-000973": {
+   "repair": "login-path",
+   "cause": "pulp in a pyenv version",
+   "steps": [
+    {
+     "repair": "login-path",
+     "cause": "pulp in a pyenv version",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000973/a120ded537d3.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:a120ded537d37300d26a4075211b663f3029f9aba67f11348b97109ca3059aa1",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000973/a120ded537d3.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000973/a120ded537d3",
+   "nop_job": "har113-rnop-000973-a120ded537d3"
+  },
+  "format-code-task-000984": {
+   "repair": "login-path-pyenv",
+   "cause": "pytest in the pyenv-virtualenv socorro-env, which only the login shell activates",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "pytest in the pyenv-virtualenv socorro-env, which only the login shell activates",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000984/3fd2405b548f.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:3fd2405b548f3511f10f0667e7d2fb040d975d3dfb774f49bc5e33e9e5778ac5",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000984/3fd2405b548f.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000984/3fd2405b548f",
+   "nop_job": "har113-rnop-000984-3fd2405b548f"
+  },
+  "format-code-task-001018": {
+   "repair": "login-path",
+   "cause": "pyenv 3.7 has the base code's asyncio.coroutine",
+   "steps": [
+    {
+     "repair": "login-path",
+     "cause": "pyenv 3.7 has the base code's asyncio.coroutine",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001018/bd1445e23457.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:bd1445e234575a97257a08ee3f8859025a8ec5920a010d6b4ed4bc6da29d022f",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001018/bd1445e23457.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001018/bd1445e23457",
+   "nop_job": "har113-rnop-001018-bd1445e23457"
+  },
+  "format-code-task-001019": {
+   "repair": "login-path",
+   "cause": "pyenv 3.9 has the base code's collections.MutableMapping",
+   "steps": [
+    {
+     "repair": "login-path",
+     "cause": "pyenv 3.9 has the base code's collections.MutableMapping",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001019/21853f4b8a2f.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:21853f4b8a2f2641c18e75c7c5151d37559470ed57924c08fda6fbd31356438d",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001019/21853f4b8a2f.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001019/21853f4b8a2f",
+   "nop_job": "har113-rnop-001019-21853f4b8a2f"
+  },
+  "format-code-task-001020": {
+   "repair": "login-path",
+   "cause": "pytest in /testbed/.venv",
+   "steps": [
+    {
+     "repair": "login-path",
+     "cause": "pytest in /testbed/.venv",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001020/cbfbab48351b.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:cbfbab48351b1db6434bce974e50056eecda12fe163ec8ed3bd980a7284baf86",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001020/cbfbab48351b.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001020/cbfbab48351b",
+   "nop_job": "har113-rnop-001020-cbfbab48351b"
+  },
+  "format-code-task-001064": {
+   "repair": "keep-build-outputs",
+   "cause": "tox/version.py",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "tox/version.py",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001064/6d92670436eb.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:6d92670436eb58c3c0c8543ee1076fe7329bde63d35f3d0df27e76867ee25072",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001064/6d92670436eb.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001064/6d92670436eb",
+   "nop_job": "har113-rnop-001064-6d92670436eb"
+  },
+  "format-code-task-001072": {
+   "repair": "login-path",
+   "cause": "pytest in /testbed/.venv",
+   "steps": [
+    {
+     "repair": "login-path",
+     "cause": "pytest in /testbed/.venv",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001072/4058abd010c4.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:4058abd010c4d9db6d58493c759400d171dbd333b9485354adca761261d12087",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001072/4058abd010c4.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001072/4058abd010c4",
+   "nop_job": "har113-rnop-001072-4058abd010c4"
+  },
+  "format-code-task-001087": {
+   "repair": "keep-build-outputs",
+   "cause": "deepchecks package metadata",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "deepchecks package metadata",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001087/8149fa52561c.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:8149fa52561cccee507751b88e89aa816af9e663ccfef055b5f5bf46c4271cde",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001087/8149fa52561c.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001087/8149fa52561c",
+   "nop_job": "har113-rnop-001087-8149fa52561c"
+  },
+  "format-code-task-001103": {
+   "repair": "login-path",
+   "cause": "pytest in a pyenv version",
+   "steps": [
+    {
+     "repair": "login-path",
+     "cause": "pytest in a pyenv version",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001103/7eaecbd8e2b1.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:7eaecbd8e2b1d9df686e70a0be68d07642722c8b711754e9e7b8d43f2fecb5a7",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001103/7eaecbd8e2b1.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001103/7eaecbd8e2b1",
+   "nop_job": "har113-rnop-001103-7eaecbd8e2b1"
+  },
+  "format-code-task-001139": {
+   "repair": "login-path",
+   "cause": "pytest in /testbed/.venv",
+   "steps": [
+    {
+     "repair": "login-path",
+     "cause": "pytest in /testbed/.venv",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001139/865a28902e41.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:865a28902e41951a489c2b99ad2979d5f3b88a6f9d4bf4ce8c0b3602b05d3221",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001139/865a28902e41.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001139/865a28902e41",
+   "nop_job": "har113-rnop-001139-865a28902e41"
+  },
+  "format-code-task-001179": {
+   "repair": "login-path",
+   "cause": "pytest in /testbed/.venv",
+   "steps": [
+    {
+     "repair": "login-path",
+     "cause": "pytest in /testbed/.venv",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001179/27f6937f3371.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:27f6937f33716aa1c4633c0da7937881140b0e94c7d869d98efef7e077192a82",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001179/27f6937f3371.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001179/27f6937f3371",
+   "nop_job": "har113-rnop-001179-27f6937f3371"
+  },
+  "format-code-task-001246": {
+   "repair": "keep-files",
+   "cause": "burnman's data files, git-ignored by /burnman/data/*, are not in git",
+   "steps": [
+    {
+     "repair": "keep-files",
+     "cause": "burnman's data files, git-ignored by /burnman/data/*, are not in git",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001246/91dae7160069.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:91dae7160069d5c5c5695afa20bc436a85177413bdf394ece327048061a3f77a",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001246/91dae7160069.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001246/91dae7160069",
+   "nop_job": "har113-rnop-001246-91dae7160069"
+  },
+  "format-code-task-001422": {
+   "repair": "keep-build-outputs",
+   "cause": "h5py extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "h5py extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001422/03762dc0058a.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:03762dc0058a8fc6f14d16c14b823dfad10fa1560e91e76c8e9ca2d16a86ed4c",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001422/03762dc0058a.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001422/03762dc0058a",
+   "nop_job": "har113-rnop-001422-03762dc0058a"
+  },
+  "format-code-task-001561": {
+   "repair": "pin",
+   "cause": "/root/.venv was built for a later indico (webargs 7.0.0b1, no bleach); install the base commit's pinned requirements (celery 5.0.2's metadata needs pip<24.1)",
+   "steps": [
+    {
+     "repair": "pin",
+     "cause": "/root/.venv was built for a later indico (webargs 7.0.0b1, no bleach); install the base commit's pinned requirements (celery 5.0.2's metadata needs pip<24.1)",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001561/faaa18c27d98.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:faaa18c27d9892d64c916b9f64d456cc8c631caf4bdbebd469e94b1cce53a6cd",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001561/faaa18c27d98.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001561/faaa18c27d98",
+   "nop_job": "har113-rnop-001561-faaa18c27d98"
+  },
+  "format-code-task-001590": {
+   "repair": "keep-build-outputs",
+   "cause": "isso.egg-info",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "isso.egg-info",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001590/18d62f5b781c.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:18d62f5b781c88daeb67d1e01f9a6a6b9e8f946d0f07915f3984491e42b16000",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001590/18d62f5b781c.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001590/18d62f5b781c",
+   "nop_job": "har113-rnop-001590-18d62f5b781c"
+  },
+  "format-code-task-001813": {
+   "repair": "keep-build-outputs",
+   "cause": "locust/_version.py",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "locust/_version.py",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001813/743653a7c327.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:743653a7c3278cd2e3dc50ccbe4f58eca12422d231848a1ec8fca3f3aed7e3da",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001813/743653a7c327.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001813/743653a7c327",
+   "nop_job": "har113-rnop-001813-743653a7c327"
+  },
+  "format-code-task-001927": {
+   "repair": "keep-build-outputs",
+   "cause": "doctr/version.py",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "doctr/version.py",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001927/fc586d627959.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:fc586d6279599c8b70a40d8476342877d974fc36f61ba4377d5434b3e6db9de0",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001927/fc586d627959.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001927/fc586d627959",
+   "nop_job": "har113-rnop-001927-fc586d627959"
+  },
+  "format-code-task-002032": {
+   "repair": "login-path",
+   "cause": "pytest in pyenv 3.8",
+   "steps": [
+    {
+     "repair": "login-path",
+     "cause": "pytest in pyenv 3.8",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002032/0d162b2989fb.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:0d162b2989fb7677e34efe574b1c1c62b8faf29521a1aaed6e3834b5451427ca",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002032/0d162b2989fb.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002032/0d162b2989fb",
+   "nop_job": "har113-rnop-002032-0d162b2989fb"
+  },
+  "format-code-task-002078": {
+   "repair": "pin",
+   "cause": "/opt/numpy-venv Cython 3.2.5 fails numpy's test_cython build; pin Cython 3.0",
+   "steps": [
+    {
+     "repair": "pin",
+     "cause": "/opt/numpy-venv Cython 3.2.5 fails numpy's test_cython build; pin Cython 3.0",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002078/425d3bc13b84.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:425d3bc13b8404c73571c213f66637b2360f5c692ab1e2bb767fe43a3d959cff",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002078/425d3bc13b84.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002078/425d3bc13b84",
+   "nop_job": "har113-rnop-002078-425d3bc13b84"
+  },
+  "format-code-task-002172": {
+   "repair": "keep-build-outputs",
+   "cause": "drgn internal version module",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "drgn internal version module",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002172/2fc06276b8e7.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:2fc06276b8e7cf8d7768a2ed8a79faaf001c4696494bd70c42f6b9e1040658db",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002172/2fc06276b8e7.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002172/2fc06276b8e7",
+   "nop_job": "har113-rnop-002172-2fc06276b8e7"
+  },
+  "format-code-task-002195": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002195/ec31b6235430.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:ec31b62354305fe0497d1bd6b141c179d95105470d786c0c06197a2ad4084891",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002195/ec31b6235430.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002195/ec31b6235430",
+   "nop_job": "har113-rnop-002195-ec31b6235430"
+  },
+  "format-code-task-002198": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002198/d2b32392c830.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:d2b32392c83000eecc02975ec5e6a3719039a22680abb65aefb9632b2282117b",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002198/d2b32392c830.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002198/d2b32392c830",
+   "nop_job": "har113-rnop-002198-d2b32392c830"
+  },
+  "format-code-task-002201": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002201/f516830bb470.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:f516830bb470e3616295695e0cefbbc55778987100146a6080da07ec15e008ef",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002201/f516830bb470.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002201/f516830bb470",
+   "nop_job": "har113-rnop-002201-f516830bb470"
+  },
+  "format-code-task-002204": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002204/4556e13cde6d.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:4556e13cde6ddcd7c83e776d65849a088003e724e1f2960e66a2f2e11cdf1f17",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002204/4556e13cde6d.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002204/4556e13cde6d",
+   "nop_job": "har113-rnop-002204-4556e13cde6d"
+  },
+  "format-code-task-002205": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002205/e61a7fd5c4e6.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:e61a7fd5c4e6d51ed8a45fa106633f9469e8260efda1a4cf0c00b01518b263c7",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002205/e61a7fd5c4e6.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002205/e61a7fd5c4e6",
+   "nop_job": "har113-rnop-002205-e61a7fd5c4e6"
+  },
+  "format-code-task-002209": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002209/33aebc8c1059.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:33aebc8c10590292b39f79f2cf595c4937f94518dd5c7981f88332569f148ea8",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002209/33aebc8c1059.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002209/33aebc8c1059",
+   "nop_job": "har113-rnop-002209-33aebc8c1059"
+  },
+  "format-code-task-002210": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002210/362f105e4b2e.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:362f105e4b2e15e4ad73d39461c04dedf26edcaa2146d27d7ea5cbec02742c3b",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002210/362f105e4b2e.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002210/362f105e4b2e",
+   "nop_job": "har113-rnop-002210-362f105e4b2e"
+  },
+  "format-code-task-002218": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002218/8efe1f83348c.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:8efe1f83348c36ec48a764248fbdecf7ccd55f3e1815cac48c134d66806cd3ad",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002218/8efe1f83348c.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002218/8efe1f83348c",
+   "nop_job": "har113-rnop-002218-8efe1f83348c"
+  },
+  "format-code-task-002219": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002219/20a023bee773.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:20a023bee77316772c2a1cf1e2b4b6de0c9865e21812d2918df60577506e4438",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002219/20a023bee773.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002219/20a023bee773",
+   "nop_job": "har113-rnop-002219-20a023bee773"
+  },
+  "format-code-task-002222": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002222/ee7fbb400ead.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:ee7fbb400ead484cdf259da63df853e70e0fa1f6f724161e35cbbfd1ec0b87ca",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002222/ee7fbb400ead.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002222/ee7fbb400ead",
+   "nop_job": "har113-rnop-002222-ee7fbb400ead"
+  },
+  "format-code-task-002223": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002223/60857d336231.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:60857d336231638e6cbc4d5849f0a7068d50d5d27dcf8f1864af9f9e8d5e80a1",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002223/60857d336231.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002223/60857d336231",
+   "nop_job": "har113-rnop-002223-60857d336231"
+  },
+  "format-code-task-002226": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002226/a5981d6b8553.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:a5981d6b8553b20abcae74ef6d0318d1c8f24fd87fae507f4e4b9aeb6c3935a4",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002226/a5981d6b8553.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002226/a5981d6b8553",
+   "nop_job": "har113-rnop-002226-a5981d6b8553"
+  },
+  "format-code-task-002228": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002228/1a1ce521fa3b.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:1a1ce521fa3b63211e772242b9939b961f8417f09559da8883ba9ea2066fdcc5",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002228/1a1ce521fa3b.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002228/1a1ce521fa3b",
+   "nop_job": "har113-rnop-002228-1a1ce521fa3b"
+  },
+  "format-code-task-002233": {
+   "repair": "keep-build-outputs",
+   "cause": "pandas._libs extensions",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pandas._libs extensions",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002233/f5d31583f98a.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:f5d31583f98aef1e52c343dc911b2ab12c2168203d94c46161ab45a68ccf1c50",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002233/f5d31583f98a.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002233/f5d31583f98a",
+   "nop_job": "har113-rnop-002233-f5d31583f98a"
+  },
+  "format-code-task-002248": {
+   "repair": "keep-build-outputs",
+   "cause": "fastTSNE._tsne",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "fastTSNE._tsne",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002248/cd99435b755a.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:cd99435b755a428cfdd725bdd4c09623b0803794937bb6981f99ec80a1f414f6",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002248/cd99435b755a.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002248/cd99435b755a",
+   "nop_job": "har113-rnop-002248-cd99435b755a"
+  },
+  "format-code-task-002354": {
+   "repair": "keep-build-outputs",
+   "cause": "_black_version.py",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "_black_version.py",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002354/66c415a09f96.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:66c415a09f9621601de37501f5c993bdb7826127abe19ed6411a22fb169de166",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002354/66c415a09f96.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002354/66c415a09f96",
+   "nop_job": "har113-rnop-002354-66c415a09f96"
+  },
+  "format-code-task-002401": {
+   "repair": "keep-build-outputs",
+   "cause": "pyproj._context",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "pyproj._context",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002401/3311b8e2c62e.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:3311b8e2c62e5330b7c81ef98fe44a4b57d1900c016bf751516a2122a24f7d76",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002401/3311b8e2c62e.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002401/3311b8e2c62e",
+   "nop_job": "har113-rnop-002401-3311b8e2c62e"
+  },
+  "format-code-task-002496": {
+   "repair": "pin",
+   "cause": "setuptools 57.5.0 dist-info over a newer release's files (FileError import)",
+   "steps": [
+    {
+     "repair": "pin",
+     "cause": "setuptools 57.5.0 dist-info over a newer release's files (FileError import)",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002496/1e53514f3dbe.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:1e53514f3dbec334021a2557ec24684250e4f137befd471ad756f2ac39275de5",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002496/1e53514f3dbe.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002496/1e53514f3dbe",
+   "nop_job": "har113-rnop-002496-1e53514f3dbe"
+  },
+  "format-code-task-002601": {
+   "repair": "keep-build-outputs",
+   "cause": "skbio.metadata._intersection",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "skbio.metadata._intersection",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002601/a8f0fe0b67f8.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:a8f0fe0b67f88d1beba56f360995a4f0bff98dd92576d942571c056d04ca6e58",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002601/a8f0fe0b67f8.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002601/a8f0fe0b67f8",
+   "nop_job": "har113-rnop-002601-a8f0fe0b67f8"
+  },
+  "format-code-task-002696": {
+   "repair": "keep-build-outputs + keep-files",
+   "cause": "sourmash._lowlevel; sourmash's milksnake modules beside _lowlevel__lib.so",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "sourmash._lowlevel",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002696/5578cb237819.json"
+    },
+    {
+     "repair": "keep-files",
+     "cause": "sourmash's milksnake modules beside _lowlevel__lib.so",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002696/cb5be55d4c36.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:cb5be55d4c36c5b1243a17b6211a939cf595401d496305613acb2afd38a227f3",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002696/cb5be55d4c36.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002696/cb5be55d4c36",
+   "nop_job": "har113-rnop-002696-cb5be55d4c36"
+  },
+  "format-code-task-002872": {
+   "repair": "keep-build-outputs",
+   "cause": "tox/version.py",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "tox/version.py",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002872/2a0f904494b0.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:2a0f904494b06c761759be5b8b3d4b05c8a1b4c8c2c05b16393a1e145bfb2edf",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002872/2a0f904494b0.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002872/2a0f904494b0",
+   "nop_job": "har113-rnop-002872-2a0f904494b0"
+  },
+  "format-code-task-002893": {
+   "repair": "pin",
+   "cause": "twisted 16.3.0 runs from source with no distribution metadata, which pytest's unittest plugin reads; its C test extension does not build on Python 3.11, so write only the metadata",
+   "steps": [
+    {
+     "repair": "pin",
+     "cause": "twisted 16.3.0 runs from source with no distribution metadata, which pytest's unittest plugin reads; its C test extension does not build on Python 3.11, so write only the metadata",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002893/d12955c21a17.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:d12955c21a1734ed7e5f2b276f5c1f2cec79a17e4fa45eb17c861be940f237f0",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002893/d12955c21a17.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002893/d12955c21a17",
+   "nop_job": "har113-rnop-002893-d12955c21a17"
+  }
+ }
+}

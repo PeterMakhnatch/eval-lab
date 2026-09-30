@@ -337,6 +337,31 @@ An environment defect the instruction happens to mention (`CuPy is
 not correctly installed`, pandas `build_ext`) names no missing symbol, so it
 is never excused.
 
+### Leak and environment variants (HAR-113)
+
+Fixes to census tasks are task variants (`docs/task-variants.md`), never edits
+to the snapshot; `research/experiments/har113-variants/README.md` has the
+per-task table and nop evidence.
+
+- `leak-close-pypi@1` (every `pypi_fix_released` task): adds pypi.org,
+  files.pythonhosted.org and pypi.python.org to the task blocklist. The
+  blocklist reaches `/etc/hosts` only when the agent harness applies it
+  (`harbor_terminus.apply_mimo_blocklist`), after setup, so setup keeps its
+  network and the nop agent never sees it; a Harbor oracle probe that applies
+  it the same way shows `pip download <project>==<fixed release>` succeeding
+  on the original and refused on the variant. A root agent can still rewrite
+  `/etc/hosts` (`leak_hosts_bypassable`).
+- `env-keep-build-outputs@1`: setup's `git clean -fdx` deletes git-ignored
+  build outputs the image left in the repo (compiled extensions such as
+  pandas `_libs`, `*.egg-info`, generated `version.py`, `./configure`
+  output); the variant excludes them from the clean.
+- `env-login-path@1`: the grader runs the test command in a non-login shell,
+  but many images put the project interpreter (a `.venv`, pyenv, an
+  `/opt/*-venv`) only on the login shell's PATH; setup writes
+  `/usr/local/bin` exec wrappers for what the login shell resolves.
+- `env-keep-files@1`, `env-pin-dependency@1`: one-task keeps and pins
+  (sourmash's generated modules; webargs, setuptools, Cython, twisted).
+
 ## Current numbers
 
 Full six-domain build (2026-09-28): `task_sources` 6 rows,

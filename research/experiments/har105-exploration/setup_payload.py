@@ -9,8 +9,11 @@ base64 tar.gz; the healthcheck unpacks it into ``/var/lib/mimo`` and runs
 
 The encoding matches the adapter byte for byte: every file is a tar member
 with mode 0700, mtime 0 and empty owner names, and the gzip header has
-mtime 0. ``--check`` proves this by re-encoding a task and comparing with
-the payload already in its ``task.toml``.
+mtime 0, no file name and OS byte 255. ``gzip.GzipFile`` writes that header on
+every platform; ``gzip.compress`` delegates to zlib, which stamps the build
+platform's OS code (19 on macOS), so it cannot reproduce a payload. ``--check``
+proves the match by re-encoding a task and comparing with the payload
+already in its ``task.toml``.
 
     setup_payload.py --check TASK_DIR [TASK_DIR ...]
     setup_payload.py TASK_DIR OUT_TOML   # task.toml with TASK_DIR's setup/ embedded
@@ -38,7 +41,10 @@ def encode(setup: Path) -> str:
             info = tarfile.TarInfo(path.relative_to(setup).as_posix())
             info.size, info.mode, info.mtime = len(data), 0o700, 0
             tar.addfile(info, io.BytesIO(data))
-    return base64.b64encode(gzip.compress(raw.getvalue(), mtime=0)).decode()
+    packed = io.BytesIO()
+    with gzip.GzipFile(fileobj=packed, mode="wb", mtime=0, filename="") as stream:
+        stream.write(raw.getvalue())
+    return base64.b64encode(packed.getvalue()).decode()
 
 
 def embedded(task: Path) -> str:

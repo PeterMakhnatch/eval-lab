@@ -73,6 +73,17 @@ store directory is recoverable from Git plus the parent package alone.
   and moves `candidate → validated|rejected`. Identity fields are immutable
   and verdicts are final; a reversed decision requires a new variant derived
   from the same parent, so scores stay attributable to one exact package.
+- **Read-only parents.** Pinned snapshots under `derived/task-store/hf` are
+  read-only; the copy a variant starts from is made owner-writable, and the
+  parent is never touched.
+
+MiMo code tasks run `environment/setup/setup.sh` from a gzip+base64 tar
+embedded in `task.toml`'s `[environment.healthcheck]` command, not from the
+files on disk, so a setup change must re-embed that payload in the same
+variant. `research/experiments/har105-exploration/setup_payload.py` encodes
+it byte for byte as the adapter does (`gzip.GzipFile` with `mtime=0` and an
+empty filename; `gzip.compress` stamps a different OS byte on macOS) and
+checks that the on-disk setup reproduces the embedded one before a change.
 
 ## Commands
 

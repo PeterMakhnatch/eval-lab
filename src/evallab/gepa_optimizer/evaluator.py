@@ -835,9 +835,7 @@ class LabEvaluator:
         prior_ref = example.get("prior_run_reference")
         if prior_ref is not None:
             prior_trial_paths = (
-                validate_prior_run_reference(
-                    self.repo_root, Path(example["task_path"]), prior_ref
-                ),
+                validate_prior_run_reference(self.repo_root, Path(example["task_path"]), prior_ref),
             )
         feedback = (
             build_feedback(
@@ -1232,9 +1230,7 @@ class LabEvaluator:
                 "jobs_dir": relative_jobs,
             }
             if self.candidate_kind == "python_toolbox":
-                spec_kwargs.update(
-                    toolbox_path=rel_candidate_path, toolbox_sha256=candidate_sha256
-                )
+                spec_kwargs.update(toolbox_path=rel_candidate_path, toolbox_sha256=candidate_sha256)
             else:
                 spec_kwargs.update(
                     extra_instruction_path=rel_candidate_path,

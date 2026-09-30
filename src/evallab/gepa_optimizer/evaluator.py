@@ -71,6 +71,13 @@ from evallab.results import JobRecord, load_job
 from evallab.runner import CONTROL_AGENTS, RunRequest, profile_for_request, resolve_harbor_model
 from evallab.schemas import CohortComparisonSpec, CohortSelector, ExperimentSpec, RunProvenance
 from evallab.toolbox import compute_skill_digest, validate_toolbox_code
+from evallab.upstream_fetch import (
+    KNOWN_SCORE_RULES,
+    UPSTREAM_FETCH_ZERO,
+    commands_from_trial,
+    detect_upstream_fetch,
+    format_fetch_notice,
+)
 
 from .budget import AggregateBudget
 from .feedback import build_feedback, validate_oracle_reference, validate_prior_run_reference
@@ -509,6 +516,7 @@ class LabEvaluator:
         budgets: tuple[AggregateBudget, ...] = (),
         candidate_kind: str = "instructions",
         base_spec: ExperimentSpec | None = None,
+        score_rules: tuple[str, ...] = (),
     ) -> None:
         self.repo_root = Path(repo_root).resolve()
         self.output_dir = _validate_in_repo_dir(self.repo_root, Path(output_dir), "output_dir")
@@ -535,6 +543,14 @@ class LabEvaluator:
             raise ValueError("Unsupported candidate_kind")
         self.candidate_kind = candidate_kind
         self.base_spec = base_spec
+        if any(not isinstance(rule, str) for rule in score_rules):
+            raise ValueError("score_rules must be rule-id strings")
+        unknown_rules = [rule for rule in score_rules if rule not in KNOWN_SCORE_RULES]
+        if unknown_rules:
+            raise ValueError(
+                f"Unknown score_rules {unknown_rules}; known: {sorted(KNOWN_SCORE_RULES)}"
+            )
+        self.score_rules = tuple(score_rules)
         if ceilings is not None and self.agent not in {DEEPSEEK_TARGET_AGENT, "zai-opencode"}:
             raise ValueError(f"the {self.agent} target does not accept provider ceilings")
 
@@ -835,6 +851,33 @@ class LabEvaluator:
             if trial is not None
             else {"feedback": "No trial evidence available."}
         )
+        # Upstream-fetch leak rule: the recorded verifier reward stands, but a
+        # trial that fetched remote content scores 0 for GEPA's objective, with
+        # the rule and its findings in the evaluation evidence.
+        if trial is not None and UPSTREAM_FETCH_ZERO in self.score_rules:
+            fetch_findings = detect_upstream_fetch(commands_from_trial(trial.path))
+            if fetch_findings:
+                score = 0.0
+                usage["score_rules"] = {
+                    UPSTREAM_FETCH_ZERO: {
+                        "applied": True,
+                        "finding_count": len(fetch_findings),
+                        "findings": [
+                            {
+                                "step_index": finding.step_index,
+                                "kind": finding.kind,
+                                "excerpt": finding.excerpt,
+                                "names_task_repo": finding.names_task_repo,
+                            }
+                            for finding in fetch_findings
+                        ],
+                    }
+                }
+                notice = format_fetch_notice(fetch_findings)
+                feedback = {
+                    **feedback,
+                    "feedback": f"{feedback.get('feedback', '')}\n\n{notice}",
+                }
         self._record_evaluation(
             candidate_sha256=candidate_sha256,
             local_candidate_file=local_candidate_file,

@@ -37,7 +37,7 @@ BASE_SPEC = EXP / "base-specs/student-terminus2-selfhosted-python.json"
 SPLIT_PATH = EXP / "split.json"
 
 PINNED_SPLIT_DIGEST = (
-    "sha256:4e9861fd34b58675929c6bcc36b85a95571864f7821411e9ec13be18ef29f2ed"
+    "sha256:a7cf5d581ca7f43257daca9eabad7ae1eed50f99558d12a9f363510983c32719"
 )
 
 sys.path.insert(0, str(REPO / "src"))

@@ -7,42 +7,73 @@
   "seed_candidate_path": "research/experiments/har110-python-gepa/candidates/seed-addendum-v1.txt",
   "candidate_kind": "instructions",
   "candidate_evaluation": "review",
+  "score_rules": ["upstream_fetch_zero"],
   "examples": [
     {
       "task_id": "format-code-task-002407",
       "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-002407",
       "task_package_digest": "sha256:37e0fa09f7da072b8671168795b1695b01a7ed659578be06000833d1fd0d798c",
-      "split": "development"
+      "split": "development",
+      "prior_run_reference": {
+        "trial_path": "research/experiments/har110-python-gepa/prior-trials/har104-d-002407/har104-d-002407__LRiiKmy",
+        "result_sha256": "sha256:0837ddca6a21691674692c63a30c50187fca3f4765279c27cd8b1d0e64cdd8d9",
+        "task_package_digest": "sha256:37e0fa09f7da072b8671168795b1695b01a7ed659578be06000833d1fd0d798c"
+      }
     },
     {
       "task_id": "format-code-task-000226",
       "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-000226",
       "task_package_digest": "sha256:54bfbfa4a4b0360834bd84b620fdc4e2fae070d6f672c442f631d33dfe58db58",
-      "split": "development"
+      "split": "development",
+      "prior_run_reference": {
+        "trial_path": "research/experiments/har110-python-gepa/prior-trials/har104-d-000226/har104-d-000226__JCDfZFi",
+        "result_sha256": "sha256:b68dfefe37c2ba287d95be4dd0f9151b78e81cf10e00fab28ae96c5c5f51b4f8",
+        "task_package_digest": "sha256:54bfbfa4a4b0360834bd84b620fdc4e2fae070d6f672c442f631d33dfe58db58"
+      }
     },
     {
       "task_id": "format-code-task-002259",
       "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-002259",
       "task_package_digest": "sha256:a90ba7fca34b2019dff5a6f9226c28130d5919e4820c0faf2e3661df9d779033",
-      "split": "development"
+      "split": "development",
+      "prior_run_reference": {
+        "trial_path": "research/experiments/har110-python-gepa/prior-trials/har104-d-002259/har104-d-002259__cptLF6h",
+        "result_sha256": "sha256:14450f6b71847fb3025204ca74421f1e9d059cbd4b2d45537adabcb11be3f9db",
+        "task_package_digest": "sha256:a90ba7fca34b2019dff5a6f9226c28130d5919e4820c0faf2e3661df9d779033"
+      }
     },
     {
       "task_id": "format-code-task-000383",
       "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-000383",
       "task_package_digest": "sha256:da5de5025dc1e2446c236bfd7d89337a7e478cc41d8645e8ae79c0d331941303",
-      "split": "development"
+      "split": "development",
+      "prior_run_reference": {
+        "trial_path": "research/experiments/har110-python-gepa/prior-trials/har104-d-000383/har104-d-000383__PmZMZ6z",
+        "result_sha256": "sha256:5fca68d63355457e2db6fe17ab9f98cd980ed438d04b85512db733f4c5f4b44b",
+        "task_package_digest": "sha256:da5de5025dc1e2446c236bfd7d89337a7e478cc41d8645e8ae79c0d331941303"
+      }
     },
     {
       "task_id": "format-code-task-002256",
       "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-002256",
       "task_package_digest": "sha256:062cfbc341847e89226d394b293e79f2e57f4be467dc4ecb5f0ee52f9f5e629a",
-      "split": "development"
+      "split": "development",
+      "prior_run_reference": {
+        "trial_path": "research/experiments/har110-python-gepa/prior-trials/har104-d-002256/har104-d-002256__RDffvXQ",
+        "result_sha256": "sha256:78661f307b26397556cfb20c941975296dab159596499d06b4c85eb9a5a6d2c0",
+        "task_package_digest": "sha256:062cfbc341847e89226d394b293e79f2e57f4be467dc4ecb5f0ee52f9f5e629a"
+      }
     },
     {
-      "task_id": "format-code-task-001896",
-      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-001896",
-      "task_package_digest": "sha256:a616c127c86f09f23232eff4810c00fbcee7a739a54b9c05c685f3c0d5a4778d",
-      "split": "development"
+      "task_id": "format-code-task-002391",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-002391",
+      "task_package_digest": "sha256:d0a399b8633cdf47a6c3d00198b50c889ed5c282c016bb4b29bbdaf2f9d75fa1",
+      "split": "development",
+      "prior_run_reference": {
+        "trial_path": "research/experiments/har110-python-gepa/prior-trials/har104-d-002391/har104-d-002391__WxBjcjX",
+        "result_sha256": "sha256:a93476c58aab4fb5f4bafc2d5aae150eeffe4ca99cb52e17879d103de5ae9ed2",
+        "task_package_digest": "sha256:d0a399b8633cdf47a6c3d00198b50c889ed5c282c016bb4b29bbdaf2f9d75fa1"
+      }
     }
   ],
   "max_evals": 10,

@@ -165,6 +165,7 @@ def main() -> int:
             model=None,
             timeout_seconds=config.get("timeout_seconds", 1200),
             candidate_kind=config.get("candidate_kind", "instructions"),
+            score_rules=tuple(config.get("score_rules", [])),
         )
         report = qualify_meta_harness(
             evaluator=evaluator,

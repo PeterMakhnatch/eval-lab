@@ -6,5 +6,11 @@
 # README recipe; digests match the HAR-104 prepared specs one for one.
 # The 6/4 development/held-out assignment lives in split.json (committed).
 /tasks/
+# Staged HAR-104 trial copies for prior_run_reference (reproducible from the
+# read-only har104-runs worktree, never committed). The committed
+# campaign-train.json points at these repo-relative paths; materialize with
+# the README recipe (copy the 6 development job dirs' finished trial
+# subdirs, ignoring _aborted-* entries) and re-run fill_refs.py --trials.
+/prior-trials/
 # Signed proposer authorization refs are runtime approvals, never committed.
 /proposer-approval.signed.json

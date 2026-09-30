@@ -4,9 +4,9 @@ Question: can GEPA, searching ONLY on 6 development Python code tasks, find a
 general agent-side instruction addendum that beats the seed addendum on 4
 HELD-OUT Python code tasks under a fixed student route?
 
-Status: staged + nop qualification proven on Daytona (~$0.01 sandbox, $0.00
-model). No paid trial exists, no spec approved, no proposer authorization
-written. Blocked at paid stages pending HAR-104 trial completion and Peter's
+Status: staged + nop qualification proven on Daytona on the stratified split
+(~$0.01 sandbox, $0.00 model). No paid trial exists, no spec approved, no
+proposer authorization written. Blocked at paid stages pending Peter's
 approvals (see §7).
 
 ## 1. Route (fixed student)
@@ -47,23 +47,49 @@ approvals (see §7).
 ## 2. Split (fixed before any live result)
 
 - `split.json`, digest
-  `sha256:4e9861fd34b58675929c6bcc36b85a95571864f7821411e9ec13be18ef29f2ed`,
+  `sha256:a7cf5d581ca7f43257daca9eabad7ae1eed50f99558d12a9f363510983c32719`,
   salt `har110-py-v1`: seeded hash over the 10 task ids from HAR-105 part 3
-  (`../har105-exploration/python_selection.json`, entries with `in_set`).
-- Development (6): 002407, 000226, 002259, 000383, 002256, 001896.
-  Held-out (4): 001832, 000927, 002391, 002864.
+  (`../har105-exploration/python_selection.json`, entries with `in_set`),
+  stratified by the leak-adjusted HAR-104 rewards in `har104-rewards.json`
+  (rewards file digest
+  `sha256:a0b7ce61bf62e80164f38b7a78d8dc6b58311eb65148eea32812b7c108321878`).
+- Development (6): 002407, 000226, 002259, 000383, 002256, 002391.
+  Held-out (4): 001896, 001832, 000927, 002864. Each side holds one clean
+  HAR-104 pass (002391 / 002864); the two tainted passes (000226, 000927)
+  score 0 under the leak rule (§2a) wherever they run.
 - `make_split.py` reproduces it (`--check` verifies; fuzzed over 200 random
   reward maps for the stratified path). With `--rewards <task-id->reward.json>`
-  (HAR-104 rewards, supplied later) it stratifies so passes spread over both
-  sides, same salt for within-stratum order -- fully determined by its inputs.
-  `fill_refs.py` and `make_paired_specs.py` both read split.json as the single
-  source of truth (the latter pins the digest and refuses on drift).
+  it stratifies so passes spread over both sides, same salt for within-stratum
+  order -- fully determined by its inputs. `fill_refs.py` and
+  `make_paired_specs.py` both read split.json as the single source of truth
+  (the latter pins the digest and refuses on drift).
 - Rule: the split is fixed before the optimiser sees any live result. HAR-104
   baseline rewards are prior data, not optimiser results, so adopting the
-  stratified split on their arrival is allowed -- but ONLY before the live
-  search starts, and if the development set changes, the nop qualification
-  (§6) must be re-run on the new set first (one command, ~$0.05). Held-out
+  stratified split on their arrival was allowed -- but ONLY before the live
+  search starts, and because the development set changed (001896 out, 002391
+  in), the nop qualification (§6) was re-run on the new set first. Held-out
   tasks never enter search.
+
+## 2a. Leak rule (upstream-fetch guard)
+
+- Raw HAR-104 verifier rewards: 000226 1.0, 000927 1.0, 002391 1.0, 002864
+  1.0, the other six 0.0. The detector (`src/evallab/upstream_fetch.py`,
+  `detect_upstream_fetch` + `commands_from_trial` over the trial ATIF
+  trajectories) flags 000226 (step 4: `pip download waitress==2.0.0`,
+  names the task repo), 000927 (step 10: curl of the upstream soupsieve file;
+  steps 11/17: `pip download soupsieve==1.9.1`, all naming the task repo),
+  and 002407 (steps 24/25: `pip download control==0.9.3`, already reward 0).
+  The 002391/002864 passes and the other five trials are clean (a bare
+  `urllib` mention inside a quoted URL with no fetch call is NOT a finding --
+  the python rule requires a fetch call site).
+- `har104-rewards.json` is therefore the raw rewards with the two tainted
+  passes forced to 0 (000226: 0, 000927: 0; 002391: 1, 002864: 1; rest 0).
+  The committed `campaign-train.json` carries
+  `score_rules: ["upstream_fetch_zero"]`: wherever
+  `evallab.gepa_optimizer` turns a trial into a GEPA score, a trial with any
+  detector finding scores 0 (the verifier reward stands; the rule, findings,
+  and excerpts land in the evaluation evidence and feedback). Clean-trial
+  scoring is untouched. Behaviour tests: `tests/test_upstream_fetch.py`.
 
 ## 3. Seed
 
@@ -96,18 +122,24 @@ transport pins MODEL `zai-coding-plan/glm-5.3-flash` exactly (workflow.py
 validates it). So the staged campaign uses opencode + Flash (option A,
 `proposer-options.json`; every option sums to <= $1.00). Restaging on full
 GLM-5.3 needs its own route qualification first -- no provider substitution.
+Proposer GLM-5.3-Flash via opencode is the accepted (qualified) route for
+this campaign: `campaign-train.json` pins `proposer_model:
+zai-coding-plan/glm-5.3-flash` + `proposer_transport: opencode`, and the
+proposer spend sums to <= $1.00 (option A: <= 4 calls x $0.05 = $0.20 cap).
 
-## 6. Nop qualification evidence ($0.01 sandbox, $0.00 model, 2026-09-30)
+## 6. Nop qualification evidence (~$0.005 sandbox, $0.00 model, 2026-09-30)
 
 `qualification-campaign.json` (engine gepa, target -> retained nop base spec
-`base-specs/nop-daytona-python.json`, 6 development tasks, deterministic
-QualificationProposer) RAN END TO END. The nop base carries
-`environment: daytona` (plus timeout 5400 / attempts 1 / concurrency 1 from
-the HAR-88 code-task precedent); control trials inherit it from the base spec
-(`evaluator.py` control path), which is why this qualification runs on
-Daytona with zero model calls.
+`base-specs/nop-daytona-python.json`, the 6 stratified-split development
+tasks, deterministic QualificationProposer) RAN END TO END after the §2a
+re-split (an earlier qualification ran on the pre-stratification set; the
+development change 001896 -> 002391 required this re-run). The nop base
+carries `environment: daytona` (plus timeout 5400 / attempts 1 / concurrency
+1 from the HAR-88 code-task precedent); control trials inherit it from the
+base spec (`evaluator.py` control path), which is why this qualification runs
+on Daytona with zero model calls.
 
-- Report: `runs/gepa-har110-python-nop-qualification/attempt-4e2daf6d561048a3ad21bfd91a2f6471/result.json`
+- Report: `runs/gepa-har110-python-nop-qualification/attempt-8be86ea7462f44b793e3e56e195cd6a1/result.json`
   status `candidate_review_required`, evidence_level
   `real_gepa_with_local_controls_and_deterministic_proposer`, proposer 1 call
   $0.00 (`deterministic_interface_fixture`, `fixture_no_model`),
@@ -126,15 +158,15 @@ Daytona with zero model calls.
 
 | Job dir (`runs/…`) | Task | Reward | Wall | Verifier |
 |---|---|---|---|---|
-| `gepa-nop-format-code-task-002-70de49ff856e2c7fde29cc1c` | 002407 (python-control) | 0 | ~10 s | `_DaytonaDirect`, prebuilt image, healthcheck passed, real pytest graded 0 (nop did nothing), no exception |
-| `gepa-nop-format-code-task-000-50fb375f93ef3c5d86172d0e` | 000383 (quickfix) | 0 | ~29 s | same Daytona shape, reward 0, no exception |
-| `gepa-nop-format-code-task-002-89bd67733a7271e2dd34df11` | 002259 (PHARE) | 0 | ~40 s | same Daytona shape, reward 0, no exception |
-| `gepa-nop-format-code-task-000-e2c573e839768e76f230c53a` | 000226 (waitress) | 0 | ~7 s | same Daytona shape, reward 0, no exception |
-| `gepa-nop-format-code-task-002-b66f936286c2b38ad40e08df` | 002256 (persist-queue) | 0 | ~7 s | same Daytona shape, reward 0, no exception |
-| `gepa-nop-format-code-task-001-8020ecff9375e5dc0926cc84` | 001896 (linkpreview) | 0 | ~10 s | same Daytona shape, reward 0, no exception |
+| `gepa-nop-format-code-task-002-70de49ff856e2c7fde29cc1c` | 002407 (python-control) | 0 | ~9 s | `_DaytonaDirect`, prebuilt image, healthcheck passed, real pytest graded 0 (nop did nothing), no exception |
+| `gepa-nop-format-code-task-000-e2c573e839768e76f230c53a` | 000226 (waitress) | 0 | ~31 s | same Daytona shape, reward 0, no exception |
+| `gepa-nop-format-code-task-002-89bd67733a7271e2dd34df11` | 002259 (PHARE) | 0 | ~7 s | same Daytona shape, reward 0, no exception |
+| `gepa-nop-format-code-task-000-50fb375f93ef3c5d86172d0e` | 000383 (quickfix) | 0 | ~10 s | same Daytona shape, reward 0, no exception |
+| `gepa-nop-format-code-task-002-b66f936286c2b38ad40e08df` | 002256 (persist-queue) | 0 | ~9 s | same Daytona shape, reward 0, no exception |
+| `gepa-nop-format-code-task-002-447291d10963b07d1d8ae3a9` | 002391 (pip-audit) | 0 | ~9 s | same Daytona shape, reward 0, no exception |
 
-Campaign wall ~121 s total. Spend: model $0.00 (null usage ledgers on every
-trial); sandbox by rate card ~$0.01 (100 trial-seconds x $0.23094/h) --
+Campaign wall ~94 s total. Spend: model $0.00 (null usage ledgers on every
+trial); sandbox by rate card ~$0.005 (77 trial-seconds x $0.23094/h) --
 exact sandbox figure lives on the Daytona org billing, two orders of
 magnitude inside the $0.20 cap. No infra failures; all rewards the expected
 nop 0. Trial configs record
@@ -157,18 +189,23 @@ SRC=/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiM
 # 0. materialize the 10 task bytes (gitignored; pins in split.json via fill_refs digests,
 #    cross-checked one-for-one against HAR-104 derived/prepared/har104-d-*.json digests):
 for t in $(uv run --no-sync python -c "import json;s=json.load(open('$EXP/split.json'));print(' '.join(s['development']+s['heldout']))"); do cp -r $SRC/$t $EXP/tasks/$t; done
-# 1. split with HAR-104 rewards (BEFORE any live GEPA result; preview first):
-uv run --no-sync python $EXP/make_split.py --rewards <task-id-to-reward.json> --check
-#    if the sets match the committed split: proceed. If they differ: adopting the
-#    stratified split is allowed ONLY now -- overwrite, then re-run fill (§2) and
-#    the §6 qualification on the new development set before touching the live campaign:
-uv run --no-sync python $EXP/make_split.py --rewards <task-id-to-rewards.json>
-# 2. fill campaign examples + prior_run_reference slots from finished HAR-104 trials
-#    (refuses unless every development task has a finished result.json):
-uv run --no-sync python $EXP/fill_refs.py --trials <har104-runs-worktree>/runs
+# 1. split with HAR-104 rewards (BEFORE any live GEPA result; preview first).
+#    The committed split is already stratified on har104-rewards.json -- this
+#    should print matching sets (split_digest a7cf5d581…); proceed only then:
+uv run --no-sync python $EXP/make_split.py --rewards $EXP/har104-rewards.json --check
+#    If the sets ever differ: adopting a new stratified split is allowed ONLY
+#    now -- overwrite, then re-run fill (§2) and the §6 qualification on the
+#    new development set before touching the live campaign.
+# 2. fill campaign examples + prior_run_reference slots from finished HAR-104 trials.
+#    Trial refs are jailed to the repo, so stage the 6 development job dirs'
+#    finished trial subdirs under $EXP/prior-trials first (gitignored; layout
+#    mirrors the HAR-104 runs root; _aborted-* entries are ignored by the fill):
+for s in 002407 000226 002259 000383 002256 002391; do cp -r <har104-runs-worktree>/runs/har104-d-$s $EXP/prior-trials/har104-d-$s; done
+#    (refuses unless every development task has exactly one finished trial):
+uv run --no-sync python $EXP/fill_refs.py --trials $EXP/prior-trials
 # 3. recompute the proposer binding (must equal proposer-approval.template.json
-#    ONLY if nothing changed since staging -- the --trials fill changes examples,
-#    so expect a NEW binding and record it in a fresh template):
+#    `88a1cc6f…` when run on the as-committed campaign + staged prior-trials;
+#    any other value means something changed -- stop and diff before signing):
 uv run --no-sync python -c "
 import json, hashlib
 from pathlib import Path
@@ -209,34 +246,40 @@ uv run --no-sync python $EXP/make_paired_specs.py \
 
 ## 8. Files
 
-- `split.json` (fixed 6/4 split, digest-pinned) + `make_split.py` (seeded
-  hash; `--rewards` stratification; `--check` verify-only).
+- `split.json` (fixed 6/4 split, digest-pinned, stratified on
+  `har104-rewards.json`) + `make_split.py` (seeded hash; `--rewards`
+  stratification; `--check` verify-only).
+- `har104-rewards.json` (leak-adjusted HAR-104 rewards: the two tainted
+  passes 000226/000927 forced to 0; see §2a).
 - `fill_refs.py` (regenerates examples in both campaigns from split.json;
   attaches `prior_run_reference` {trial_path, result_sha256 of the HAR-104
-  trial result.json, current task package digest} with `--trials`).
+  *trial-level* result.json, current task package digest} with `--trials`,
+  discovering the single finished `har104-d-<suffix>__<trial>` subdir per
+  job and ignoring `_aborted-*`).
 - `base-specs/student-terminus2-selfhosted-python.json` (retained student
   route; committed source, NEVER submitted/approved here) and
   `base-specs/nop-daytona-python.json` (retained nop template that puts the
   qualification on Daytona).
 - `candidates/seed-addendum-v1.txt` (byte-identical HAR-85 seed,
   sha256:399ec113…).
-- `campaign-train.json` (STAGED search: 6 development examples, target ->
-  student base, opencode Flash proposer option A; validated by
-  `load_campaign`, never run; prior refs attached by the parent via
-  fill_refs before live).
-- `qualification-campaign.json` (RAN §6; outputs under
-  `runs/gepa-har110-python-nop-qualification/`, runtime state, uncommitted).
+- `campaign-train.json` (STAGED search: 6 development examples WITH prior
+  refs, target -> student base, `score_rules: [upstream_fetch_zero]`,
+  opencode Flash proposer option A; validated by `load_campaign`, never run).
+- `qualification-campaign.json` (RAN §6 on the stratified development set;
+  outputs under `runs/gepa-har110-python-nop-qualification/`, runtime state,
+  uncommitted).
 - `proposer-options.json` (A/B/C: 4/8/2 reflection calls; all <= $1.00) and
-  `proposer-approval.template.json` (STAGED binding `5f2b37f4…` for the
-  as-committed campaign; the `--trials` fill changes examples, so the parent
-  recomputes per §7 step 3).
+  `proposer-approval.template.json` (STAGED binding `88a1cc6f…` for the
+  as-committed campaign with priors + score rule; recompute per §7 step 3
+  and compare before signing).
 - `make_paired_specs.py` (final 8 held-out specs generator: route,
   environment, harness tree and limits copied from the student base spec
   incl. override_storage_mb; refuses on split drift/missing bytes) +
   `paired-specs/` (empty until the winner exists).
 - `BUDGET.md` (time-based formula with per-trial estimates and the c>=2
   sharing discipline).
-- `tasks/` (worktree-local, gitignored task materialization).
+- `tasks/` + `prior-trials/` (worktree-local, gitignored materializations:
+  task bytes and staged HAR-104 trial copies; see §7 steps 0/2).
 
 ## Limits
 
@@ -247,7 +290,7 @@ uv run --no-sync python $EXP/make_paired_specs.py \
 - No GEPA-search trial has run on this route yet. The first live wave (the 6
   baseline specs ticked together) is the smoke: inspect it with
   `uv run evallab report run <run>` before ticking search rounds.
-- The as-committed campaign-train.json carries no `prior_run_reference`
-  (HAR-104 trials unfinished); it loads but is not live-ready until the §7
-  step 2 fill. Its staged binding (`5f2b37f4…`) covers the unfilled form;
-  the parent recomputes after filling.
+- The as-committed campaign-train.json is live-ready as filed (priors
+  attached, binding `88a1cc6f…`) once the parent reproduces the gitignored
+  `tasks/` + `prior-trials/` staging per §7 steps 0/2 and confirms the
+  binding recomputation matches.

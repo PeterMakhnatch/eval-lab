@@ -9,12 +9,16 @@ byte, so the staged proposer binding is unaffected.
 
 Without ``--trials`` the examples carry no ``prior_run_reference`` (valid for
 ``load_campaign``; the live search still needs them). With ``--trials <dir>``
-each development task maps to ``<dir>/har104-d-<suffix>/result.json`` (the
-HAR-104 naming from its prepare.py); the script records
-``{trial_path, result_sha256, task_package_digest}`` after asserting the
-result is finished and the task bytes match the current digest. Trial paths
-are stored repo-relative when they live under this repository, verbatim
-otherwise (load-time ``validate_prior_run_reference`` judges them).
+each development task maps to the single finished trial subdir of
+``<dir>/har104-d-<suffix>/har104-d-<suffix>__<trial>`` (HAR-104 job layout;
+entries starting ``_aborted-`` are ignored, and zero or several finished
+trials refuse). The script records ``{trial_path, result_sha256,
+task_package_digest}`` over the *trial-level* result.json after asserting the
+trial finished and the task bytes match the current digest. Trial paths are
+stored repo-relative when they live under this repository, verbatim
+otherwise (load-time ``validate_prior_run_reference`` judges them: refs
+outside the repo do not load, so stage the trials under ``prior-trials/``
+per the README recipe before filling).
 
 Usage:
   uv run python research/experiments/har110-python-gepa/fill_refs.py
@@ -55,16 +59,33 @@ def _example(task_id: str) -> dict:
 
 def _prior_ref(task_id: str, trials_root: Path, package_digest: str) -> dict:
     suffix = task_id.removeprefix("format-code-task-")
-    trial_dir = trials_root / f"har104-d-{suffix}"
-    result = trial_dir / "result.json"
-    if not result.is_file():
+    job_dir = trials_root / f"har104-d-{suffix}"
+    if not job_dir.is_dir():
         raise SystemExit(
-            f"refusing: no HAR-104 result for {task_id} at {result} "
+            f"refusing: no HAR-104 job for {task_id} at {job_dir} "
             "(run fill_refs again once the HAR-104 batch has finished)"
         )
-    payload = json.loads(result.read_text())
-    if not payload.get("finished_at"):
-        raise SystemExit(f"refusing: HAR-104 trial unfinished for {task_id} ({result})")
+    finished: list[Path] = []
+    for trial_dir in sorted(job_dir.iterdir()):
+        if not trial_dir.is_dir() or trial_dir.is_symlink():
+            continue
+        if not trial_dir.name.startswith(job_dir.name + "__"):
+            continue
+        if trial_dir.name.startswith("_aborted-"):
+            continue
+        result = trial_dir / "result.json"
+        if not result.is_file():
+            continue
+        payload = json.loads(result.read_text())
+        if payload.get("finished_at"):
+            finished.append(trial_dir)
+    if not finished:
+        raise SystemExit(f"refusing: no finished HAR-104 trial for {task_id} under {job_dir}")
+    if len(finished) > 1:
+        names = ", ".join(t.name for t in finished)
+        raise SystemExit(f"refusing: ambiguous finished HAR-104 trials for {task_id}: {names}")
+    trial_dir = finished[0]
+    result = trial_dir / "result.json"
     res_bytes = result.read_bytes()
     try:
         rel = trial_dir.resolve().relative_to(REPO.resolve()).as_posix()

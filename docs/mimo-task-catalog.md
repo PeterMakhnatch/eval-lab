@@ -50,6 +50,8 @@ uv run evallab tasks exploit-collect --cohort research/experiments/mimo-hack-pro
 # After any nop/control run: per-trial backend health -> task_qualification.parquet
 uv run evallab tasks qualify-collect runs/<job>... [--backend-rate-card daytona]
 uv run evallab tasks catalog export-broken --backend daytona --out broken-daytona.json
+# Census a pool: one health label per task -> task_health.parquet
+uv run evallab tasks health-collect --pool research/experiments/har108-python-census/pool.json --jobs-root runs/
 ```
 
 `pull-hf` verifies every task directory against the adapter's
@@ -94,6 +96,8 @@ findings, not crashes.
 - `task_qualification`: one row per Harbor trial with backend health
   (see "Backend qualification" below). Written by `qualify-collect`,
   never by `catalog build`.
+- `task_health`: one row per pool task with a health label (see "Task health
+  census" below). Written by `health-collect`, never by `catalog build`.
 
 `grader_kind`/`grader_cost` are derived from task files, never the domain
 name: a `*JUDGE*` verifier env or judge-graded `tests/grade.py` means a
@@ -168,7 +172,9 @@ split is `unassigned`.
 
 `evallab tasks qualify-collect <job_dir>...` writes one
 `task_qualification.parquet` row per trial: task digests (attributed by the
-package digest the queue staged, as `exploit-collect` does), backend and
+package digest the queue staged, as `exploit-collect` does; when the executor
+died before writing `lab-metadata.json`, by the trial `lock.json` task digest,
+but only if it equals exactly one catalog `task_versions.harbor_digest`), backend and
 environment import path, job/trial/agent names, started/finished times,
 setup/agent/verifier/trial seconds, `setup_ok`, `verifier_completed`,
 reward, `repeat_rewards` (from `verifier/stability.json` when RepeatVerifier
@@ -193,7 +199,7 @@ Reasons (a nop trial with reward exactly 0 and a completed verifier is `ok`):
 | `reward_missing` | no exception explains the trial, yet no usable reward exists |
 | `nop_passes` | a nop/oracle control scored above 0 — the grader accepts no work |
 | `unstable_verifier` | `repeat_rewards` disagree |
-| `grader_broken` | a nop/oracle control's verifier stdout (`<trial>/verifier/test-stdout.txt`, plus any `RepeatVerifier` per-repeat stdout under `<trial>/verifier/repeat/*/`) shows pytest collection failing on a broken test module (`ImportError while importing test module` / `ModuleNotFoundError` / `SyntaxError`), so every run scores 0 whatever the agent does. The row's `grader_error` carries the root-cause line (e.g. `ModuleNotFoundError: No module named 'stevedore'`). Nop guard: when the missing module's top-level name appears as a word in the task's `instruction.md`, the import is expected under nop (the agent is supposed to create it) and does not flag. Workspace guard: an `ImportError` with no missing-module or syntax root cause whose innermost traceback frame is in the task workspace (a rootdir-relative path or `/app/...`, e.g. vendored sources the task asks the agent to repair) does not flag either. For queue runs, whose staged task copy is deleted after the run, `task.toml` and `instruction.md` are read from the job's `experiment-spec.json` source task path |
+| `grader_broken` | a nop/oracle control's verifier stdout (`<trial>/verifier/test-stdout.txt`, plus any `RepeatVerifier` per-repeat stdout under `<trial>/verifier/repeat/*/`) shows pytest collection failing on a broken test module (`ImportError while importing test module` / `ModuleNotFoundError` / `SyntaxError`), so every run scores 0 whatever the agent does. The row's `grader_error` carries the root-cause line (e.g. `ModuleNotFoundError: No module named 'stevedore'`). Interpreter start-up noise (`No module named '_distutils_hack'`, printed by a stale `distutils-precedence.pth` before any test runs) is dropped first. Nop guard (`missing_module_is_task_work`): the missing module is expected under nop, and does not flag, when `instruction.md` names its top-level package or its leaf as a word, or when it is a submodule of a project package the hidden tests import or live in (`hidden_patch.project_modules`: 000625's `apprise.plugins.NotifyPagerTree`). A build artifact always flags, whatever the instruction says: any `_`-prefixed component (pandas' `pandas._libs.interval`, `wordcloud._version`) or a `version`/`lib*` leaf (`linopy.version`). Workspace guard: an `ImportError` with no missing-module or syntax root cause whose innermost traceback frame is in the task workspace (a rootdir-relative path or `/app/...`, e.g. vendored sources the task asks the agent to repair) does not flag either. For queue runs, whose staged task copy is deleted after the run, `task.toml` and `instruction.md` are read from the job's `experiment-spec.json` source task path |
 
 Status is `ok` (no reasons), `broken` (any task-blaming reason), or
 `inconclusive`: a trial whose *only* reason is `backend_quota` failed on
@@ -227,6 +233,109 @@ live in `task_qualification.DAYTONA_RATE_CARD`). Cost is computed only for
 the rate-card backend (`--backend-rate-card`, default `daytona`); other
 backends get null. When `storage_mb` is unset no disk size is invented: it
 counts as 0 billable GiB (likewise missing cpus/memory count as 0).
+
+
+## Task health census
+
+`evallab tasks health-collect --pool <pool.json> --jobs-root <dir>` (repeatable)
+writes one `task_health.parquet` row per pool task, next to
+`task_qualification.parquet`. It reads the catalog's qualification rows for the
+latest nop per `task_version_digest` and that trial's verifier log under the
+given job roots; it runs nothing. `--output` and `--summary` override the
+default catalog path and print a markdown summary.
+
+Columns: `task_id`, `task_version_digest`, `split`, `split_group`, `category`,
+`image_mib` (from the pool entry), `project_key`, `project_key_source`
+(`split_group` when `split_group` minus `code:` names a repo rather than a
+`format-code-task-` singleton; else `test_import`, the most common top-level
+module the hidden tests import, excluding the stdlib and pytest/mock/hypothesis/
+numpy/pandas/requests/yaml/six/attr/attrs/pydantic/sqlalchemy/django/flask/
+typing_extensions/tests/test/conftest; else `test_path`, the top directory of
+a patched `.py` file unless it is a generic layout directory such as `tests/`
+or `src/`; else `task_id`, an unresolved singleton), `label`, `reasons`, `evidence`
+(the log line or `file:line` justifying the label), `patch_files`,
+`patch_well_formed` (false only when a diff section fails to parse; an empty
+new file, a binary file, a mode-only change and a content-free rename parse),
+`test_runner` (`pytest`/`unittest`/`bundled`/`django`/`other`/`none`;
+`bundled` unpacks `mimo_build_env.tar.gz.b64` and runs
+`.build_env/test_command.sh`, `django` is `manage.py test`),
+`test_targets_in_patch`, `literal_source_asserts` (a hidden test obtains
+project source with `inspect.getsource` or `open`/`Path.read_text` of a literal
+`.py` path it does not itself write (a path join such as `Path(tmp) / 'out.py'`
+is generated output, not project source), then asserts a substring of that text — not a
+`def`/`class` literal in generated output), `undisclosed_names`,
+`instruction_chars`, `nop_job_name`, `nop_trial_name`, `nop_reward`,
+`nop_finished_at`, `nop_cost_usd`, `nop_tests_applied`, `nop_tests_ran`,
+`nop_setup_error`, `nop_setup_error_excused`, `nop_exception_type` (null when
+there is no nop trial), `leak_git_blocked`, `leak_pypi_blocked` (null when
+`environment/setup/files/blocklist` is absent; git is blocked only when
+github.com, codeload.github.com, raw.githubusercontent.com, gitlab.com and
+bitbucket.org are all listed; PyPI is blocked when pypi.org or
+files.pythonhosted.org is listed), `leak_hosts_bypassable` (true when
+`task.toml` sets no `[agent]` user or sets it to root: a root agent can
+rewrite `/etc/hosts` and bypass the answer-leak blocklist),
+`leak_pypi_project`, `leak_pypi_match`, `leak_pypi_latest`,
+`leak_pypi_last_upload`, `leak_issue_url`, `leak_issue_closed_at`,
+`leak_first_release_after_close` (from `--pypi` / `leak_check.py`, never
+fetched here), `leak_channel`, `leak_note`, `produced_at`.
+
+`leak_channel`, first match, does not change `label`: `pypi_fix_released`
+when the pypi.json issue matched and a release was uploaded after it closed
+and PyPI is not blocked; `pypi_package` when a project matched with at least
+one release and PyPI is open but no dated upstream fix was found; `git_only`
+when a repo is known and no release followed the fix (the note says whether
+git hosts are blocked, and that a root agent can rewrite `/etc/hosts`);
+`none_found`; `unknown` when the blocklist or the pypi.json entry is missing.
+`leak_check.py` knows a task's repo from the split group, from the matched
+PyPI project's GitHub URL, or, when neither names one, from a GitHub-wide
+search for the task title that finds an exactly matching issue or PR title in
+exactly one repo (`repo_source` `issue_title`); that repo then gets the same
+PyPI lookup by repo URL, so a format-style singleton whose upstream is on
+PyPI is not left at `none_found`.
+
+The markdown summary names the table path and row count. Every count in it is
+a group-by of the table: labels, split × label, the top 25 `project_key`s by
+task count plus the number of singleton projects, projects with 2 or more
+`broken_environment` tasks, exploded reasons, `leak_channel`, `leak_channel` ×
+label, `leak_pypi_match`, and the sum of `nop_cost_usd`.
+
+Labels, first match wins:
+
+| Label | When |
+|---|---|
+| `unknown` | no nop trial for the task version, or its trial directory is absent from every job root |
+| `broken_environment` | the trial exception is an environment-setup failure, the hidden tests were not applied, no reward exists, or the verifier log matches `SETUP_ERROR` (`ModuleNotFoundError`, `PackageNotFoundError`, `ERROR collecting`, `ERROR at setup`, `command not found`, `ImportError while loading conftest`, `is not correctly installed`, `build_ext`, `No module named pytest`, `must run ./configure`, a `cannot import name` from a file under site-/dist-packages; `DistributionNotFound` only when no test result was reported, since plugin loaders log it and carry on) and the match is not excused. Evidence is always a log excerpt |
+| `grader_suspect` | the nop scores 1 (hidden tests pass with no change), the tests never ran and no setup error explains it, or `literal_source_asserts` is non-empty |
+| `sound` | everything else: the nop graded and the environment held |
+
+The log is read with ANSI colour codes stripped and interpreter start-up
+noise (`STARTUP_NOISE`) dropped. "Tests ran" depends on the runner: for
+`pytest`, `unittest` and `django` a result count must be reported (a count
+wins over a collection error pytest prints alongside it, and `collected 0`
+is not a run); `bundled` and `other` runners state no parseable count, so any
+output line other than the harness's own (`test command exited N`, the
+not-applied notice) counts, and a silent run is `grader_suspect` with evidence
+`no test output`.
+
+A `SETUP_ERROR` match is excused (`nop_setup_error_excused`, label `sound`)
+only when it names the agent's missing work, by the rules the qualification
+nop guard uses: `detect_grader_collection_failure` returns nothing, and every
+root cause read from a raised-error line (a warning that mentions a missing
+optional module names no cause) passes. A `No module named` module passes
+`missing_module_is_task_work` (named by the instruction, or a submodule of a
+project package, and never a build artifact). A `cannot import name` symbol,
+`module has no attribute` name or a test helper's `KeyError` lookup (ivy's
+`_import_fn`, 001601) passes `missing_name_is_task_work`: the instruction
+names it as a word, or it is missing from a project module whose file is not
+installed under site-/dist-packages (000700's `delta_E_HyAB` from
+`/testbed/colour/difference`). Project packages
+(`hidden_patch.project_modules`) are the non-stdlib modules the hidden test
+files' added lines import, plus the package directory the patched test files
+live in (`colour/difference/tests/…` names `colour`, `src/<pkg>/…` names
+`<pkg>`), which covers a name added inside an existing parenthesised import.
+An environment defect the instruction happens to mention (`CuPy is
+not correctly installed`, pandas `build_ext`) names no missing symbol, so it
+is never excused.
 
 ## Current numbers
 

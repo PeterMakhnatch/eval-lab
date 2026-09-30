@@ -18,13 +18,14 @@ import json
 import re
 import tomllib
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from evallab.evidence.facts import exception_phase_for, trial_environment_type
+from evallab.hidden_patch import project_modules as hidden_project_modules
 from evallab.results import duration_seconds, load_job
 from evallab.task_stability import iter_trial_dirs, parse_stability_file
 
@@ -135,6 +136,19 @@ _GRADER_ERROR_RES = (
 )
 _WORD_RE_CACHE: dict[str, re.Pattern[str]] = {}
 
+#: Interpreter start-up noise, not a grader error: Debian's
+#: ``distutils-precedence.pth`` names a setuptools shim some images lack, so
+#: every Python start prints this traceback before the tests run normally.
+STARTUP_NOISE = re.compile(r"No module named '_distutils_hack'")
+
+#: Module leaves a build or install step writes, never the agent:
+#: setuptools-scm version files and native libraries (``lib*``). Any private
+#: component (``_libs``, ``_version``, ``_lowlevel``) marks one too: compiled
+#: extensions live there (pandas' ``pandas._libs.interval``).
+_BUILD_ARTIFACT_LEAF = re.compile(r"^(version|lib\w+)$")
+#: A traceback path under an installed package tree, not the task workspace.
+_INSTALLED_PATH = re.compile(r"(?:site|dist)-packages/|/usr/lib/python")
+
 
 def _mentioned_as_word(text: str, word: str) -> bool:
     """True when ``word`` appears as a whole word in ``text`` (nop-guard check)."""
@@ -145,8 +159,54 @@ def _mentioned_as_word(text: str, word: str) -> bool:
     return pattern.search(text) is not None
 
 
+def missing_module_is_task_work(
+    module: str, instruction: str | None, projects: Collection[str]
+) -> bool:
+    """A ``No module named`` module a nop is expected to lack.
+
+    Never a build artifact (a private component, or a leaf matching
+    :data:`_BUILD_ARTIFACT_LEAF`). Otherwise
+    expected when the instruction names its top-level package or its leaf as
+    a whole word, or when it is a submodule of a project package the hidden
+    tests import (``projects``): 000625's ``apprise.plugins.NotifyPagerTree``
+    is the plugin the instruction asks for.
+    """
+    parts = module.split(".")
+    if any(part.startswith("_") for part in parts) or _BUILD_ARTIFACT_LEAF.match(parts[-1]):
+        return False
+    if instruction and (
+        _mentioned_as_word(instruction, parts[0]) or _mentioned_as_word(instruction, parts[-1])
+    ):
+        return True
+    return len(parts) > 1 and parts[0] in projects
+
+
+def missing_name_is_task_work(
+    name: str,
+    module: str | None,
+    path: str | None,
+    instruction: str | None,
+    projects: Collection[str],
+) -> bool:
+    """A ``cannot import name`` / ``has no attribute`` name a nop is expected to lack.
+
+    Expected when the instruction names it as a whole word, or when it is
+    missing from a project module (``projects``) whose file is not installed
+    under site-/dist-packages: 000700's ``cannot import name 'delta_E_HyAB'
+    from 'colour.difference' (/testbed/…)``.
+    """
+    if instruction and _mentioned_as_word(instruction, name):
+        return True
+    if module is None or module.split(".")[0] not in projects:
+        return False
+    return not (path and _INSTALLED_PATH.search(path))
+
+
 def detect_grader_collection_failure(
-    stdout_texts: Sequence[str], *, instruction_text: str | None
+    stdout_texts: Sequence[str],
+    *,
+    instruction_text: str | None,
+    project_modules: Collection[str] = frozenset(),
 ) -> str | None:
     """Error line when grader pytest collection is broken, else null.
 
@@ -154,21 +214,27 @@ def detect_grader_collection_failure(
     ``error during collection``) whose cause is an ``ImportError`` /
     ``ModuleNotFoundError`` / ``SyntaxError`` inside a test module, and
     returns the most specific matched error line (e.g.
-    ``ModuleNotFoundError: No module named 'stevedore'``).
+    ``ModuleNotFoundError: No module named 'stevedore'``). Interpreter
+    start-up noise (:data:`STARTUP_NOISE`) is dropped first.
 
     Nop false-positive guard: some graders import a module the agent is
-    supposed to create (e.g. ``solution``). When the missing module's
-    top-level name appears as a word in the task's ``instruction.md``, the
-    import failure is expected under nop — not a grader defect — and that
-    match is skipped. A missing instruction (unreadable task dir) never
-    guards: without the task text there is no evidence the import is
-    expected.
+    supposed to create (e.g. ``solution``). A missing module that
+    :func:`missing_module_is_task_work` expects under nop — named by the
+    task's ``instruction.md``, or a submodule of a project package the hidden
+    tests import (``project_modules``) — is not a grader defect, and that
+    match is skipped. Build artifacts (compiled extensions, version files)
+    are never skipped, and a missing instruction never guards by name.
     """
-    combined = "\n".join(stdout_texts)
-    if not any(marker in combined.lower() for marker in _COLLECTION_MARKERS):
+    lines = [
+        line
+        for text in stdout_texts
+        for line in text.splitlines()
+        if not STARTUP_NOISE.search(line)
+    ]
+    if not any(marker in line.lower() for line in lines for marker in _COLLECTION_MARKERS):
         return None
     candidates: list[tuple[int, int, str, str | None]] = []
-    for lineno, line in enumerate(combined.splitlines()):
+    for lineno, line in enumerate(lines):
         for specificity, pattern in _GRADER_ERROR_RES:
             match = pattern.match(line)
             if match is None:
@@ -184,16 +250,14 @@ def detect_grader_collection_failure(
         # error carries no module name of its own, so when every root cause
         # is expected under nop the header must not flag on its own.
         for _, _, error, module in specific:
-            if (
-                module is not None
-                and instruction_text is not None
-                and _mentioned_as_word(instruction_text, module.split(".")[0])
+            if module is not None and missing_module_is_task_work(
+                module, instruction_text, project_modules
             ):
                 continue  # expected under nop; keep scanning for real defects
             return error
         return None
     for _, lineno, error, _module in candidates:
-        if _import_fails_in_agent_code(combined.splitlines(), lineno):
+        if _import_fails_in_agent_code(lines, lineno):
             continue
         return error
     return None
@@ -449,8 +513,13 @@ def collect_trial(
     *,
     rate_backend: str = "daytona",
     produced_at: str | None = None,
+    version_by_harbor: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Build one ``task_qualification.parquet`` row from a finished trial."""
+    """Build one ``task_qualification.parquet`` row from a finished trial.
+
+    ``version_by_harbor`` (catalog ``harbor_digest`` -> ``task_version_digest``)
+    attributes a trial whose job lacks executor metadata; see below.
+    """
     trial_name = trial_dir.name
     result = _read_json(trial_dir / "result.json")
     config = _read_json(trial_dir / "config.json")
@@ -517,9 +586,11 @@ def collect_trial(
     )
     grader_error: str | None = None
     if agent_name in CONTROL_AGENTS:
+        task_dir = task_dir_for_trial(trial_dir)
         grader_error = detect_grader_collection_failure(
             grader_stdout_texts(trial_dir),
             instruction_text=read_task_instruction(trial_dir),
+            project_modules=hidden_project_modules(task_dir) if task_dir is not None else (),
         )
         if grader_error is not None and "grader_broken" not in reasons:
             reasons.append("grader_broken")
@@ -559,11 +630,20 @@ def collect_trial(
     task_version_digest = staging.get("source_package_digest") or manifest.get(
         "task_version_digest"
     )
-    harbor_digest = staging.get("source_harbor_digest") or manifest.get("harbor_digest")
     lock_task = lock.get("task")
     lock_task_name = (
         lock_task.get("name") if isinstance(lock_task, dict) else None
     )
+    harbor_digest = staging.get("source_harbor_digest") or manifest.get("harbor_digest")
+    # A killed executor never writes lab-metadata.json, but Harbor's own lock
+    # records the digest of the task directory it ran. When that digest is a
+    # catalog task version's Harbor digest, the trial ran that exact version
+    # (a network-adapted staging would differ and so resolve to nothing).
+    lock_digest = lock_task.get("digest") if isinstance(lock_task, dict) else None
+    if task_version_digest is None and harbor_digest is None and isinstance(lock_digest, str):
+        resolved = (version_by_harbor or {}).get(lock_digest)
+        if resolved is not None:
+            task_version_digest, harbor_digest = resolved, lock_digest
     result_task_name = result.get("task_name")
     task_id = (
         meta_map.get("source_id")
@@ -656,6 +736,7 @@ def collect_jobs(
     *,
     rate_backend: str = "daytona",
     produced_at: str | None = None,
+    version_by_harbor: Mapping[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """Collect every trial of the given Harbor job directories into table rows."""
     rows: list[dict[str, Any]] = []
@@ -665,7 +746,11 @@ def collect_jobs(
         for trial_dir in iter_trial_dirs(job_dir):
             rows.append(
                 collect_trial(
-                    job_dir, trial_dir, rate_backend=rate_backend, produced_at=produced_at
+                    job_dir,
+                    trial_dir,
+                    rate_backend=rate_backend,
+                    produced_at=produced_at,
+                    version_by_harbor=version_by_harbor,
                 )
             )
     rows.sort(key=lambda row: (str(row["job_name"]), str(row["trial_name"])))

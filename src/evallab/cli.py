@@ -3003,12 +3003,13 @@ def _tasks_qualify_collect_command(
     missing = [str(job) for job in jobs if not job.is_dir()]
     if missing:
         raise ValueError(f"job directories are missing: {', '.join(missing)}")
-    rows = collect_jobs(jobs, rate_backend=args.backend_rate_card)
-    output = (
-        _resolve(root, args.output)
-        if args.output is not None
-        else derived_root_from_environment(root) / "external/task_catalog" / TABLE_FILENAME
+    catalog = derived_root_from_environment(root) / "external/task_catalog"
+    rows = collect_jobs(
+        jobs,
+        rate_backend=args.backend_rate_card,
+        version_by_harbor=_catalog_version_by_harbor(catalog),
     )
+    output = _resolve(root, args.output) if args.output is not None else catalog / TABLE_FILENAME
     write_task_qualification_parquet(rows, output)
     if args.json:
         print(json.dumps(
@@ -3022,6 +3023,84 @@ def _tasks_qualify_collect_command(
             relative = output
         print(f"wrote {len(rows)} rows to {relative}")
         print(summarize_qualification(rows), end="")
+    return 0
+
+
+def _catalog_version_by_harbor(catalog: Path) -> dict[str, str]:
+    """Catalog ``harbor_digest`` -> ``task_version_digest`` (empty without a
+    built catalog). A digest shared by several versions maps to none of them."""
+    import pyarrow.parquet as pq
+
+    path = catalog / "task_versions.parquet"
+    if not path.exists():
+        return {}
+    table = pq.read_table(path, columns=["harbor_digest", "task_version_digest"])
+    mapping: dict[str, str] = {}
+    ambiguous: set[str] = set()
+    for harbor, version in zip(
+        table.column("harbor_digest").to_pylist(),
+        table.column("task_version_digest").to_pylist(),
+        strict=True,
+    ):
+        if not harbor or not version:
+            continue
+        if mapping.setdefault(harbor, version) != version:
+            ambiguous.add(harbor)
+    return {harbor: version for harbor, version in mapping.items() if harbor not in ambiguous}
+
+
+def _tasks_health_collect_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.storage.paths import derived_root_from_environment, shared_checkout_root
+    from evallab.task_health import (
+        TABLE_FILENAME,
+        build_health_rows,
+        catalog_qualification_rows,
+        load_pool,
+        load_pypi_index,
+        summarize_health,
+        write_task_health_parquet,
+    )
+
+    pool_path = _resolve(root, args.pool)
+    if not pool_path.is_file():
+        raise ValueError(f"pool file is missing: {pool_path}")
+    job_roots = [_resolve(root, jobs_root) for jobs_root in args.jobs_root]
+    missing = [str(jobs_root) for jobs_root in job_roots if not jobs_root.is_dir()]
+    if missing:
+        raise ValueError(f"job roots are missing: {', '.join(missing)}")
+    pypi_tasks = {}
+    if args.pypi is not None:
+        pypi_path = _resolve(root, args.pypi)
+        if not pypi_path.is_file():
+            raise ValueError(f"pypi file is missing: {pypi_path}")
+        pypi_tasks = load_pypi_index(pypi_path)
+    rows = build_health_rows(
+        load_pool(pool_path),
+        catalog_qualification_rows(root),
+        job_roots,
+        shared_checkout_root(root),
+        pypi_tasks,
+    )
+    output = (
+        _resolve(root, args.output)
+        if args.output is not None
+        else derived_root_from_environment(root) / "external/task_catalog" / TABLE_FILENAME
+    )
+    write_task_health_parquet(rows, output)
+    summary = summarize_health(rows, table_path=output)
+    if args.summary is not None:
+        summary_path = _resolve(root, args.summary)
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(summary)
+    try:
+        relative = output.relative_to(root.resolve())
+    except ValueError:
+        relative = output
+    print(f"wrote {len(rows)} rows to {relative}")
+    print(summary, end="")
     return 0
 
 
@@ -5224,6 +5303,28 @@ def parser() -> argparse.ArgumentParser:
     tasks_qualify_collect.add_argument("--output", type=Path, help="Parquet output path")
     tasks_qualify_collect.add_argument("--json", action="store_true")
     tasks_qualify_collect.set_defaults(func=_tasks_qualify_collect_command)
+
+    tasks_health_collect = tasks_commands.add_parser(
+        "health-collect",
+        help="Census a task pool into task_health.parquet (HAR-108)",
+    )
+    tasks_health_collect.add_argument("--pool", type=Path, required=True, help="pool.json")
+    tasks_health_collect.add_argument(
+        "--jobs-root",
+        type=Path,
+        action="append",
+        required=True,
+        dest="jobs_root",
+        help="Directory of Harbor job directories (repeatable)",
+    )
+    tasks_health_collect.add_argument("--output", type=Path, help="Parquet output path")
+    tasks_health_collect.add_argument(
+        "--pypi",
+        type=Path,
+        help="pypi.json produced by the census script (the module does not fetch it)",
+    )
+    tasks_health_collect.add_argument("--summary", type=Path, help="Markdown summary path")
+    tasks_health_collect.set_defaults(func=_tasks_health_collect_command)
 
     tasks_treatment_collect = tasks_commands.add_parser(
         "treatment-collect",

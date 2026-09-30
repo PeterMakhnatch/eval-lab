@@ -420,6 +420,7 @@ def generate(
         for arm, task_rel, package_digest, verifier_digest in sides:
             harness_rel, harness_digest = trees["baseline"]
             name = f"har116-b-{short}-{arm}"
+            this = "original (PyPI open)" if arm == "original" else "leak-closed variant"
             other = "leak-closed variant" if arm == "original" else "original (PyPI open)"
             _write(
                 out_dir,
@@ -427,8 +428,8 @@ def generate(
                 _spec(
                     name,
                     f"HAR-116 Part B leak-study trial, task={entry['task']}, arm={arm}: "
-                    f"plain terminus-2 student on the baseline harness tree with {other} "
-                    f"paired against {other}; arms differ only in the task bytes",
+                    f"plain terminus-2 student on the baseline harness tree with the {this} "
+                    f"task bytes, paired against the {other}; arms differ only in the task bytes",
                     entry["task"],
                     task_rel,
                     package_digest,

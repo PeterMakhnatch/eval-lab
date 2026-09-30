@@ -4,10 +4,11 @@ Question: can GEPA, searching ONLY on 6 development Python code tasks, find a
 general agent-side instruction addendum that beats the seed addendum on 4
 HELD-OUT Python code tasks under a fixed student route?
 
-Status: staged + nop qualification proven on Daytona on the stratified split
-(~$0.01 sandbox, $0.00 model). No paid trial exists, no spec approved, no
-proposer authorization written. Blocked at paid stages pending Peter's
-approvals (see §7).
+Status: split v2 staged (sound tasks only, §2b) + nop qualification proven on
+Daytona on the v1 stratified split (~$0.01 sandbox, $0.00 model; §6 must be
+re-run on the v2 development set before the live campaign). No paid trial
+exists on v2, no spec approved, no proposer authorization written. Blocked at
+paid stages pending Peter's approvals (see §7).
 
 ## 1. Route (fixed student)
 
@@ -44,31 +45,54 @@ approvals (see §7).
   and task instructions untouched.
 - Graders are hidden tests (deterministic pytest, no judge).
 
-## 2. Split (fixed before any live result)
+## 2. Split v2 (fixed before any live v2 result; supersedes the v1 split below)
 
 - `split.json`, digest
-  `sha256:a7cf5d581ca7f43257daca9eabad7ae1eed50f99558d12a9f363510983c32719`,
-  salt `har110-py-v1`: seeded hash over the 10 task ids from HAR-105 part 3
-  (`../har105-exploration/python_selection.json`, entries with `in_set`),
-  stratified by the leak-adjusted HAR-104 rewards in `har104-rewards.json`
-  (rewards file digest
-  `sha256:a0b7ce61bf62e80164f38b7a78d8dc6b58311eb65148eea32812b7c108321878`).
-- Development (6): 002407, 000226, 002259, 000383, 002256, 002391.
-  Held-out (4): 001896, 001832, 000927, 002864. Each side holds one clean
-  HAR-104 pass (002391 / 002864); the two tainted passes (000226, 000927)
-  score 0 under the leak rule (§2a) wherever they run.
-- `make_split.py` reproduces it (`--check` verifies; fuzzed over 200 random
-  reward maps for the stratified path). With `--rewards <task-id->reward.json>`
-  it stratifies so passes spread over both sides, same salt for within-stratum
-  order -- fully determined by its inputs. `fill_refs.py` and
-  `make_paired_specs.py` both read split.json as the single source of truth
-  (the latter pins the digest and refuses on drift).
-- Rule: the split is fixed before the optimiser sees any live result. HAR-104
-  baseline rewards are prior data, not optimiser results, so adopting the
-  stratified split on their arrival was allowed -- but ONLY before the live
-  search starts, and because the development set changed (001896 out, 002391
-  in), the nop qualification (§6) was re-run on the new set first. Held-out
-  tasks never enter search.
+  `sha256:8bf591e4d08e4630395a906ff341290e63e4068007aff9d307ffdb7168617c4b`,
+  salt `har110-py-v2`, decision source `HAR-110 Research-Harbor
+  2026-09-30T07:00Z`: the seed ran on 3 unusable tasks -- 002259 broken by
+  both census raters, 002407 suspect by one rater and broken by the other,
+  000226 leaking via HAR-108 `pypi_fix_released` -- so the card re-split to
+  sound tasks only and scores the plain Terminus prompt (no HAR-85 addendum)
+  on the new dev split as a second seed/baseline (`--plain-dev` specs, §7
+  step 6).
+- Development (6, fixed by the decision): 000383, 002256, 002391, 001832,
+  001896, 002864. Held-out (4): 001161, 000495, 001181, 000587 -- the first
+  4, ordered by sha256("har110-py-v2:"+task_id), from the ELIGIBLE pool of 9
+  (000328, 000495, 000587, 001161, 001181, 001373, 001689, 002532, 002961):
+  tasks in `research/explorations/trace-lab/har111/census_labels.jsonl`
+  (sha256:ac896955…) with in_python_pool true and BOTH hand labels 'sound',
+  minus development, minus HAR-108 `pypi_fix_released` (000226; the HAR-108
+  `task_health.parquet` leak_channel source is not on main, so the exclusion
+  is hardcoded in `make_split.py` with the path cited).
+- 002256 and 002864 are themselves HAR-108 `pypi_fix_released` but are in
+  development by the decision's explicit choice: the committed
+  `campaign-train.json` carries `score_rules: ["upstream_fetch_zero"]`, so a
+  trial that fetches upstream code scores 0 wherever it runs (§2a).
+- `make_split.py` derives the census part from `census_labels.jsonl` on every
+  run (asserting census-minus-development equals the eligible 9 plus the 000226
+  exclusion -- three dev tasks, 001832/001896/002391, are themselves sound x
+  both raters) and records the salt, eligible pool, census sha256, decision
+  source, and split_digest in `split.json`. `--check` verifies without
+  writing. `fill_refs.py` and `make_paired_specs.py` both read split.json as
+  the single source of truth (the latter pins the digest and refuses on
+  drift).
+- Rule: the split is fixed before the optimiser sees any live result on it.
+  The v1 seed baseline ($1.52) and aborted round ($0.66) ran on the v1 split,
+  not v2, so v2 starts clean; the v2 campaign keeps the v1 output dir
+  `runs/gepa-har110-python-train-search` (same name) so the 3 retained seed
+  trials on 000383/002256/002391 are reused at $0. Held-out tasks never enter
+  search.
+
+## 2v1. Split v1 (superseded; history only)
+
+- Salt `har110-py-v1`, digest `sha256:a7cf5d58…`: seeded hash over the 10
+  task ids from HAR-105 part 3, stratified by the leak-adjusted HAR-104
+  rewards in `har104-rewards.json` (kept as history; `make_split.py` no
+  longer reads it). Development: 002407, 000226, 002259, 000383, 002256,
+  002391. Held-out: 001896, 001832, 000927, 002864. The §6 nop qualification
+  ran on this set and must be re-run on the v2 development set now that it
+  changed.
 
 ## 2a. Leak rule (upstream-fetch guard)
 
@@ -193,26 +217,32 @@ stopped).
 ```bash
 EXP=research/experiments/har110-python-gepa
 SRC=/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks
-# 0. materialize the 10 task bytes (gitignored; pins in split.json via fill_refs digests,
-#    cross-checked one-for-one against HAR-104 derived/prepared/har104-d-*.json digests):
-for t in $(uv run --no-sync python -c "import json;s=json.load(open('$EXP/split.json'));print(' '.join(s['development']+s['heldout']))"); do cp -r $SRC/$t $EXP/tasks/$t; done
-# 1. split with HAR-104 rewards (BEFORE any live GEPA result; preview first).
-#    The committed split is already stratified on har104-rewards.json -- this
-#    should print matching sets (split_digest a7cf5d581…); proceed only then:
-uv run --no-sync python $EXP/make_split.py --rewards $EXP/har104-rewards.json --check
-#    If the sets ever differ: adopting a new stratified split is allowed ONLY
-#    now -- overwrite, then re-run fill (§2) and the §6 qualification on the
-#    new development set before touching the live campaign.
+# 0. materialize the 10 split task bytes (gitignored; pins in split.json via fill_refs digests,
+#    cross-checked one-for-one against HAR-104 derived/prepared/har104-d-*.json digests),
+#    PLUS the retained base spec's replay-template task 002407 (load_campaign
+#    validates the base spec's own task digest, so its bytes must be present):
+for t in $(uv run --no-sync python -c "import json;s=json.load(open('$EXP/split.json'));print(' '.join(s['development']+s['heldout']))") format-code-task-002407; do cp -r $SRC/$t $EXP/tasks/$t; done
+# 1. split v2 (BEFORE any live GEPA result on it). The committed split is
+#    already fixed by the §2 decision -- this should print matching sets
+#    (split_digest 8bf591e4…); proceed only then:
+uv run --no-sync python $EXP/make_split.py --check
+#    If it ever differs: adopting a new split is allowed ONLY now -- overwrite,
+#    then re-run fill (§2) and the §6 qualification on the new development set
+#    before touching the live campaign.
 # 2. fill campaign examples + prior_run_reference slots from finished HAR-104 trials.
 #    Trial refs are jailed to the repo, so stage the 6 development job dirs'
 #    finished trial subdirs under $EXP/prior-trials first (gitignored; layout
 #    mirrors the HAR-104 runs root; _aborted-* entries are ignored by the fill):
-for s in 002407 000226 002259 000383 002256 002391; do cp -r <har104-runs-worktree>/runs/har104-d-$s $EXP/prior-trials/har104-d-$s; done
+for s in 000383 002256 002391 001832 001896 002864; do cp -r <har104-runs-worktree>/runs/har104-d-$s $EXP/prior-trials/har104-d-$s; done
 #    (refuses unless every development task has exactly one finished trial):
 uv run --no-sync python $EXP/fill_refs.py --trials $EXP/prior-trials
 # 3. recompute the proposer binding (must equal proposer-approval.template.json
-#    `aab2639a…` when run on the as-committed campaign + staged prior-trials;
-#    any other value means something changed -- stop and diff before signing):
+#    `3d5f0cce…` when run on the as-committed campaign + staged prior-trials;
+#    any other value means something changed -- stop and diff before signing).
+#    The v2 campaign keeps the v1 name/output_dir
+#    (`har110-python-train-search` / `runs/gepa-har110-python-train-search`):
+#    job names derive from the output dir, so the 3 retained seed trials on
+#    000383/002256/002391 are reused at $0:
 uv run --no-sync python -c "
 import json, hashlib
 from pathlib import Path
@@ -245,45 +275,66 @@ uv run --no-sync python -m evallab.gepa_optimizer status $EXP/campaign-train.jso
 # 5. review gate:
 uv run --no-sync python -m evallab.gepa_optimizer approve-candidate \
   $EXP/campaign-train.json --candidate <FULL_SHA256>
-# 6. held-out comparison (one-shot, after a reviewed winner exists):
+# 6. held-out comparison (after a reviewed winner exists). The arms are
+#    separable so the seed arm can run early: `--arm seed` writes only the 4
+#    held-out seed specs (no winner needed); `--arm winner --winner <path>
+#    --winner-sha256 sha256:<64hex>` writes only the 4 candidate specs. The
+#    default writes all 8 paired specs (needs the winner args). Specs are
+#    byte-identical however generated, so an early seed arm still pairs with
+#    a later winner arm:
+uv run --no-sync python $EXP/make_paired_specs.py --arm seed
 uv run --no-sync python $EXP/make_paired_specs.py \
   --winner <reviewed-winner-path> --winner-sha256 sha256:<64hex>
-# submit paired-specs/ (parks 8 specs), record the 8 queue IDs in paired-specs/ids.txt,
-# approve x8, tick together, then compare seed-vs-gepa arms on the 4 held-out tasks.
+# submit paired-specs/ (parks 8 specs once both arms are written), record the
+# 8 queue IDs in paired-specs/ids.txt, approve x8, tick together, then compare
+# seed-vs-gepa arms on the 4 held-out tasks.
+# 7. plain-dev baseline (second seed/baseline on the new dev split, §2): 6
+#    specs for the PLAIN Terminus prompt (no addendum), same route
+#    fields/limits from the base spec plus the per-task package digest:
+uv run --no-sync python $EXP/make_paired_specs.py --plain-dev
+# submit plain-dev-specs/ (parks 6 specs), record the 6 queue IDs in
+# plain-dev-specs/ids.txt, approve x6, tick together.
 ```
 
 ## 8. Files
 
-- `split.json` (fixed 6/4 split, digest-pinned, stratified on
-  `har104-rewards.json`) + `make_split.py` (seeded hash; `--rewards`
-  stratification; `--check` verify-only).
-- `har104-rewards.json` (leak-adjusted HAR-104 rewards: the two tainted
-  passes 000226/000927 forced to 0; see §2a).
+- `split.json` (fixed v2 6/4 split, digest-pinned, §2) + `make_split.py`
+  (fixed development set + census-derived eligible pool with drift asserts;
+  `--check` verify-only).
+- `har104-rewards.json` (v1 history only: leak-adjusted HAR-104 rewards, the
+  two tainted passes 000226/000927 forced to 0; see §2a; no longer read by
+  `make_split.py`).
 - `fill_refs.py` (regenerates examples in both campaigns from split.json;
   attaches `prior_run_reference` {trial_path, result_sha256 of the HAR-104
   *trial-level* result.json, current task package digest} with `--trials`,
   discovering the single finished `har104-d-<suffix>__<trial>` subdir per
   job and ignoring `_aborted-*`).
 - `base-specs/student-terminus2-selfhosted-python.json` (retained student
-  route; committed source, NEVER submitted/approved here) and
+  route; committed source, NEVER submitted/approved here; its replay-template
+  task 002407 must be staged alongside the split bytes per §7 step 0) and
   `base-specs/nop-daytona-python.json` (retained nop template that puts the
   qualification on Daytona).
 - `candidates/seed-addendum-v1.txt` (byte-identical HAR-85 seed,
   sha256:399ec113…).
-- `campaign-train.json` (live search: 6 development examples WITH prior
+- `campaign-train.json` (live search: 6 v2 development examples WITH prior
   refs, target -> student base, `score_rules: [upstream_fetch_zero]`,
-  direct GLM-5.3 proposer on the Z.ai standard API, §5).
-- `qualification-campaign.json` (RAN §6 on the stratified development set;
-  outputs under `runs/gepa-har110-python-nop-qualification/`, runtime state,
-  uncommitted).
+  direct GLM-5.3 proposer on the Z.ai standard API, §5; keeps the v1
+  name/output_dir so the 3 retained seed trials are reused at $0, §2).
+- `qualification-campaign.json` (regenerated for the v2 development set by
+  fill_refs; MUST be re-run per §6 before the live campaign -- the §6
+  evidence below is on the v1 set; outputs under
+  `runs/gepa-har110-python-nop-qualification/`, runtime state, uncommitted).
 - `proposer-options.json` (staging-time A/B/C opencode Flash options,
   superseded by §5) and `proposer-approval.template.json` (binding
-  `aab2639a…` for the as-committed campaign with priors + score rule;
+  `3d5f0cce…` for the as-committed campaign with priors + score rule;
   recompute per §7 step 3 and compare before signing).
-- `make_paired_specs.py` (final 8 held-out specs generator: route,
-  environment, harness tree and limits copied from the student base spec
-  incl. override_storage_mb; refuses on split drift/missing bytes) +
-  `paired-specs/` (empty until the winner exists).
+- `make_paired_specs.py` (held-out comparison + plain-dev baseline generator:
+  route, environment, harness tree and limits copied from the student base
+  spec incl. override_storage_mb; refuses on split drift/missing bytes;
+  `--arm seed|winner|both` for separable held-out arms, `--plain-dev` for
+  the 6 plain-prompt development specs with no addendum) + `paired-specs/`
+  (worktree-local until the winner exists) + `plain-dev-specs/` (.gitkeep
+  committed; generated JSON gitignored).
 - `BUDGET.md` (time-based formula with per-trial estimates and the c>=2
   sharing discipline).
 - `tasks/` + `prior-trials/` (worktree-local, gitignored materializations:
@@ -295,5 +346,5 @@ uv run --no-sync python $EXP/make_paired_specs.py \
   here. The per-trial nominal model ceiling ($0.01) and worst-case estimate
   ($1.85 at c=2) are caps/estimates, not measurements.
 - The as-committed campaign-train.json is live-ready (priors attached,
-  binding `aab2639a…`) once the gitignored `tasks/` + `prior-trials/` are
+  binding `3d5f0cce…`) once the gitignored `tasks/` + `prior-trials/` are
   staged per §7 steps 0/2 and the binding recomputation matches.

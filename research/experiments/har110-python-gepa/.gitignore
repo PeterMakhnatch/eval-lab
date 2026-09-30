@@ -14,3 +14,7 @@
 /prior-trials/
 # Signed proposer authorization refs are runtime approvals, never committed.
 /proposer-approval.signed.json
+# Plain-dev baseline specs are generated from the retained base spec +
+# split.json (see README); only the .gitkeep is committed.
+/plain-dev-specs/*
+!/plain-dev-specs/.gitkeep

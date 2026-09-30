@@ -2030,7 +2030,11 @@ def _modal_billing_reconcile_command(
     else:
         today = date.today()
         try:
-            start = date.fromisoformat(args.start) if args.start else date.fromordinal(today.toordinal() - 2)
+            start = (
+                date.fromisoformat(args.start)
+                if args.start
+                else date.fromordinal(today.toordinal() - 2)
+            )
             end = date.fromisoformat(args.end) if args.end else today
         except ValueError:
             print("invalid --start/--end (expected YYYY-MM-DD)", file=sys.stderr)
@@ -2567,12 +2571,17 @@ def _tasks_replay_command(
     relative_spec = spec_path.relative_to(root.resolve()).as_posix()
     next_command = f"uv run evallab submit {shlex.quote(relative_spec)}"
     if args.json:
-        print(json.dumps({
-            "spec_path": relative_spec,
-            "spec": spec.model_dump(mode="json"),
-            "next_command": next_command,
-            "submitted": False,
-        }, indent=2))
+        print(
+            json.dumps(
+                {
+                    "spec_path": relative_spec,
+                    "spec": spec.model_dump(mode="json"),
+                    "next_command": next_command,
+                    "submitted": False,
+                },
+                indent=2,
+            )
+        )
     else:
         print(f"prepared replay: {relative_spec}")
         print(f"task package: {spec.task_package_digest}")
@@ -2633,9 +2642,7 @@ def _tasks_catalog_build_command(
 ) -> int:
     from evallab.task_catalog import build_catalog, render_build_report
 
-    report = build_catalog(
-        repo_root=root, derived_root=getattr(args, "derived_root", None)
-    )
+    report = build_catalog(repo_root=root, derived_root=getattr(args, "derived_root", None))
     print(render_build_report(report), end="")
     return 0
 
@@ -2716,6 +2723,7 @@ def _tasks_import_command(
         )
     return 1 if report.failed else 0
 
+
 def _parse_key_value(assignments: Sequence[str], *, label: str) -> dict[str, str]:
     parsed: dict[str, str] = {}
     for assignment in assignments:
@@ -2771,11 +2779,7 @@ def _tasks_derive_command(
         return 1
     from evallab.task_variants import default_variants_root
 
-    variants_store = (
-        Path(args.variants_root)
-        if args.variants_root
-        else default_variants_root(root)
-    )
+    variants_store = Path(args.variants_root) if args.variants_root else default_variants_root(root)
     package_dir = variants_store / record.task_slug / record.digest12
     record_path = (root / args.records_dir / record.task_slug / f"{record.digest12}.json").resolve()
     record_display = (
@@ -2902,15 +2906,25 @@ def _tasks_stability_run_command(
         dry_run=args.dry_run,
     )
     if args.json:
-        print(json.dumps({"jobs_dir": str(jobs_dir), "outcomes": [
-            {**outcome, "argv": list(outcome["argv"])} for outcome in outcomes
-        ]}, indent=2))
+        print(
+            json.dumps(
+                {
+                    "jobs_dir": str(jobs_dir),
+                    "outcomes": [
+                        {**outcome, "argv": list(outcome["argv"])} for outcome in outcomes
+                    ],
+                },
+                indent=2,
+            )
+        )
     else:
         for outcome in outcomes:
             print(f"{outcome['job_name']}: returncode={outcome['returncode']}")
             for trial in outcome["trials"]:
-                print(f"  {trial['trial']}: stability={trial['has_stability']} "
-                      f"rewards={trial['rewards']} verdict={trial['verdict']}")
+                print(
+                    f"  {trial['trial']}: stability={trial['has_stability']} "
+                    f"rewards={trial['rewards']} verdict={trial['verdict']}"
+                )
     return 1 if any(outcome["returncode"] not in (0, None) for outcome in outcomes) else 0
 
 
@@ -2943,8 +2957,11 @@ def _tasks_stability_collect_command(
     )
     write_task_stability_parquet(rows, output)
     if args.json:
-        print(json.dumps({"output": str(output), "rows": read_task_stability_parquet(output)},
-                         indent=2))
+        print(
+            json.dumps(
+                {"output": str(output), "rows": read_task_stability_parquet(output)}, indent=2
+            )
+        )
     else:
         try:
             relative = output.relative_to(root.resolve())
@@ -2952,8 +2969,10 @@ def _tasks_stability_collect_command(
             relative = output
         print(f"wrote {len(rows)} rows to {relative}")
         for row in rows:
-            print(f"{row['trial_name']}: {row['method']} n={row['n_runs']} "
-                  f"rewards={row['rewards']} verdict={row['verdict']}")
+            print(
+                f"{row['trial_name']}: {row['method']} n={row['n_runs']} "
+                f"rewards={row['rewards']} verdict={row['verdict']}"
+            )
     return 0
 
 
@@ -3012,10 +3031,12 @@ def _tasks_qualify_collect_command(
     output = _resolve(root, args.output) if args.output is not None else catalog / TABLE_FILENAME
     write_task_qualification_parquet(rows, output)
     if args.json:
-        print(json.dumps(
-            {"output": str(output), "rows": read_task_qualification_parquet(output)},
-            indent=2,
-        ))
+        print(
+            json.dumps(
+                {"output": str(output), "rows": read_task_qualification_parquet(output)},
+                indent=2,
+            )
+        )
     else:
         try:
             relative = output.relative_to(root.resolve())
@@ -3163,7 +3184,6 @@ def _tasks_pool_check_command(
     else:
         print(check.render())
     return 0 if check.ok else 1
-
 
 
 def _tasks_catalog_export_broken_command(
@@ -3763,6 +3783,25 @@ def _traj_outline_command(
     return 0 if outline.status == "featured" else 1
 
 
+def _results_backfill_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor, root
+    from evallab.results_home import backfill
+
+    report = backfill(home=args.home)
+    print(
+        f"results backfill: published {report['published']}, "
+        f"skipped {len(report['skipped'])}, collisions {len(report['collisions'])}"
+    )
+    for card, count in sorted(report["by_card"].items()):
+        print(f"  {card}: {count}")
+    for item in report["skipped"]:
+        print(f"  skipped {item['job']}: {item['reason']}")
+    print(f"index: {report['index']}")
+    return 0
+
+
 def _process_job_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -3775,6 +3814,7 @@ def _process_job_command(
             root=root,
             database_url=args.database_url,
             ingest=not args.no_ingest,
+            publish=not args.no_publish,
             nop_runs_dir=args.nop_runs_dir,
         )
     except (OSError, ValueError) as exc:
@@ -4598,7 +4638,9 @@ def parser() -> argparse.ArgumentParser:
         "serve", help="Run the recording reverse proxy in front of a model endpoint"
     )
     capture_serve.add_argument("--upstream", required=True, help="Upstream base URL to forward to")
-    capture_serve.add_argument("--out", required=True, type=Path, help="Capture directory to append to")
+    capture_serve.add_argument(
+        "--out", required=True, type=Path, help="Capture directory to append to"
+    )
     capture_serve.add_argument("--port", type=int, default=8471, help="Loopback port to bind")
     capture_serve.add_argument("--bind", default="127.0.0.1", help="Interface to bind")
     capture_serve.add_argument(
@@ -5038,7 +5080,8 @@ def parser() -> argparse.ArgumentParser:
         "--max-total-tokens", type=int, help="Defaults to input plus output token ceilings"
     )
     tasks_prepare.add_argument(
-        "--harness-tree", type=Path,
+        "--harness-tree",
+        type=Path,
         help="Pin the directory containing terminus/ and terminus-commands/",
     )
     tasks_prepare.add_argument(
@@ -5099,7 +5142,6 @@ def parser() -> argparse.ArgumentParser:
     tasks_lint.add_argument("--json", action="store_true")
     tasks_lint.set_defaults(func=_tasks_lint_command)
 
-
     tasks_derive = tasks_commands.add_parser(
         "derive", help="Derive a task variant with a git-tracked lineage record"
     )
@@ -5133,8 +5175,8 @@ def parser() -> argparse.ArgumentParser:
     tasks_derive.add_argument(
         "--parent-source",
         help=(
-            'Parent provenance as JSON, e.g. '
-            "'{\"kind\":\"hf\",\"repo\":\"...\",\"revision\":\"<40-hex>\",\"path\":\"tasks/x\"}'"
+            "Parent provenance as JSON, e.g. "
+            '\'{"kind":"hf","repo":"...","revision":"<40-hex>","path":"tasks/x"}\''
         ),
     )
     tasks_derive.add_argument(
@@ -5248,7 +5290,11 @@ def parser() -> argparse.ArgumentParser:
         help="Run $0 nop/oracle controls with k-fold repeat verification (HAR-83)",
     )
     tasks_stability_run.add_argument(
-        "--tasks", nargs="+", type=Path, required=True, help="Local Harbor task directories",
+        "--tasks",
+        nargs="+",
+        type=Path,
+        required=True,
+        help="Local Harbor task directories",
     )
     tasks_stability_run.add_argument("--job-prefix", required=True, help="Job name prefix")
     tasks_stability_run.add_argument("--jobs-dir", type=Path, help="Harbor jobs dir")
@@ -5264,12 +5310,16 @@ def parser() -> argparse.ArgumentParser:
         help="Collect job trials into task_stability.parquet (HAR-83)",
     )
     tasks_stability_collect.add_argument(
-        "--job-name", nargs="+", required=True, help="Harbor job names under --jobs-dir",
+        "--job-name",
+        nargs="+",
+        required=True,
+        help="Harbor job names under --jobs-dir",
     )
     tasks_stability_collect.add_argument("--jobs-dir", type=Path, help="Harbor jobs dir")
     tasks_stability_collect.add_argument("--backend", default="docker")
     tasks_stability_collect.add_argument(
-        "--method", choices=["repeat_verifier", "nop_repeat", "diff_replay"],
+        "--method",
+        choices=["repeat_verifier", "nop_repeat", "diff_replay"],
         help="Override the collected method for every trial",
     )
     tasks_stability_collect.add_argument("--output", type=Path, help="Parquet output path")
@@ -5282,7 +5332,10 @@ def parser() -> argparse.ArgumentParser:
     )
     tasks_exploit_collect.add_argument("jobs", nargs="+", type=Path, help="Probe job directories")
     tasks_exploit_collect.add_argument(
-        "--cohort", type=Path, required=True, help="Probe cohort.json (unprobed rows stay not_probed)"
+        "--cohort",
+        type=Path,
+        required=True,
+        help="Probe cohort.json (unprobed rows stay not_probed)",
     )
     tasks_exploit_collect.add_argument("--probe-config", default="redteam-v1")
     tasks_exploit_collect.add_argument("--output", type=Path, help="Parquet output path")
@@ -5292,9 +5345,7 @@ def parser() -> argparse.ArgumentParser:
         "qualify-collect",
         help="Collect job trials into task_qualification.parquet (HAR-88)",
     )
-    tasks_qualify_collect.add_argument(
-        "jobs", nargs="+", type=Path, help="Harbor job directories"
-    )
+    tasks_qualify_collect.add_argument("jobs", nargs="+", type=Path, help="Harbor job directories")
     tasks_qualify_collect.add_argument(
         "--backend-rate-card",
         default="daytona",
@@ -5330,7 +5381,9 @@ def parser() -> argparse.ArgumentParser:
         "treatment-collect",
         help="Record per-trial treatment keys and capture records (trial_treatment/trial_capture.parquet)",
     )
-    tasks_treatment_collect.add_argument("jobs", nargs="+", type=Path, help="Harbor job directories")
+    tasks_treatment_collect.add_argument(
+        "jobs", nargs="+", type=Path, help="Harbor job directories"
+    )
     tasks_treatment_collect.add_argument(
         "--catalog-dir", type=Path, help="Table directory (default: the task-catalog directory)"
     )
@@ -5900,6 +5953,19 @@ def parser() -> argparse.ArgumentParser:
     )
     process_job_parser.add_argument("--json", action="store_true", help="Emit report as JSON")
     process_job_parser.set_defaults(func=_process_job_command)
+    process_job_parser.add_argument(
+        "--no-publish",
+        action="store_true",
+        help="Skip publishing the job to the results home",
+    )
+    results = commands.add_parser("results", help="Publish finished jobs to the results home")
+    results_commands = results.add_subparsers(dest="results_command", required=True)
+    results_backfill = results_commands.add_parser(
+        "backfill",
+        help="Publish every HAR-81+ job under worktrees and the wt-archive",
+    )
+    results_backfill.add_argument("--home", type=Path, default=None)
+    results_backfill.set_defaults(func=_results_backfill_command)
     return root
 
 

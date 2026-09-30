@@ -62,6 +62,7 @@ TOP_LEVEL_COMMANDS = (
     "traj",
     "regrade",
     "process-job",
+    "results",
 )
 
 

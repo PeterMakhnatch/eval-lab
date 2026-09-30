@@ -258,6 +258,7 @@ TRIAL_VERIFIER_DIR = Path("verifier")
 JOB_METADATA_PATH = Path("lab-metadata.json")
 JOB_RESULT_PATH = Path("result.json")
 
+
 def _run_text_command(
     command: list[str],
     **kwargs: Any,
@@ -406,32 +407,18 @@ def tool_version(command: str) -> str | None:
 
 
 def git_state(root: Path) -> dict[str, Any]:
-    if not (root / ".git").exists():
-        return {"commit": None, "dirty": None}
-    try:
-        commit = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=root,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=SUPPORT_COMMAND_TIMEOUT_SECONDS,
-            env=subscription_environment(),
-        )
-        status = subprocess.run(
-            ["git", "status", "--porcelain"],
-            cwd=root,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=SUPPORT_COMMAND_TIMEOUT_SECONDS,
-            env=subscription_environment(),
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return {"commit": None, "dirty": None}
+    from evallab.results_home import capture_repository
+
+    captured = capture_repository(root)
+    captured.pop("_diff", None)
     return {
-        "commit": commit.stdout.strip() if commit.returncode == 0 else None,
-        "dirty": bool(status.stdout.strip()) if status.returncode == 0 else None,
+        "remote": captured["remote"],
+        "worktree": captured["worktree"],
+        "branch": captured["branch"],
+        "commit": captured["commit"],
+        "dirty": captured["dirty"],
+        "untracked": captured["untracked"],
+        "uncommitted_diff_sha256": captured["uncommitted_diff_sha256"],
     }
 
 
@@ -685,12 +672,8 @@ def _read_proxy_usage(
             for name in ("requests", "input_tokens", "output_tokens", "cost_micros")
         }
         if (
-            {name: integer(totals.get(name), name) for name in expected_totals}
-            != expected_totals
-            or {
-                name: integer(attempted.get(name), name)
-                for name in expected_attempted
-            }
+            {name: integer(totals.get(name), name) for name in expected_totals} != expected_totals
+            or {name: integer(attempted.get(name), name) for name in expected_attempted}
             != expected_attempted
             or integer(payload.get("unresolved_requests"), "unresolved_requests")
             != recomputed["unresolved_requests"]
@@ -757,6 +740,7 @@ def _read_proxy_usage(
             f"{provider_label} proxy totals do not reconcile with provider calls",
         )
     return payload
+
 
 # ---------------------------------------------------------------------------
 # Terminus2 host-loopback proxy supervision.
@@ -841,9 +825,7 @@ def _terminus_proxy_env(
         env["EVALLAB_TINKER_MAX_OUTPUT_TOKENS"] = str(limits.max_output_tokens)
         env["EVALLAB_TINKER_MAX_TOTAL_TOKENS"] = str(limits.max_total_tokens)
         env["EVALLAB_TINKER_MAX_COST_MICROS"] = str(limits.max_cost_micros)
-        env[TINKER_CAPABILITY_EXPIRES_AT_ENV] = str(
-            time.time() + float(timeout_seconds) + 60.0
-        )
+        env[TINKER_CAPABILITY_EXPIRES_AT_ENV] = str(time.time() + float(timeout_seconds) + 60.0)
         return env
     if provider == OPENROUTER_PROXY_PROVIDER:
         if openrouter_spec is None:
@@ -861,9 +843,7 @@ def _terminus_proxy_env(
         env["EVALLAB_OPENROUTER_MAX_OUTPUT_TOKENS"] = str(limits.max_output_tokens)
         env["EVALLAB_OPENROUTER_MAX_TOTAL_TOKENS"] = str(limits.max_total_tokens)
         env["EVALLAB_OPENROUTER_MAX_COST_MICROS"] = str(limits.max_cost_micros)
-        env[OPENROUTER_CAPABILITY_EXPIRES_AT_ENV] = str(
-            time.time() + float(timeout_seconds) + 60.0
-        )
+        env[OPENROUTER_CAPABILITY_EXPIRES_AT_ENV] = str(time.time() + float(timeout_seconds) + 60.0)
         return env
     env[ZAI_OPENAPI_SECRET_PATH_ENV] = str(secret_path)
     upstream = os.environ.get(ZAI_OPENAPI_UPSTREAM_ENV)
@@ -888,12 +868,8 @@ def _terminus_proxy_env(
         "EVALLAB_ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION",
         str(ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION),
     )
-    env[ZAI_OPENAPI_CAPABILITY_EXPIRES_AT_ENV] = str(
-        time.time() + float(timeout_seconds) + 60.0
-    )
+    env[ZAI_OPENAPI_CAPABILITY_EXPIRES_AT_ENV] = str(time.time() + float(timeout_seconds) + 60.0)
     return env
-
-
 
 
 def _terminus_proxy_stderr_tail(stderr_path: Path) -> str:
@@ -1066,23 +1042,24 @@ def run_harbor_process(
     local_terminus = terminus_client and TERMINUS_LOCAL_MODEL_SELECTOR in command
     terminus_lane = terminus_client and not local_terminus
     zai_openapi_lane = (
-        zai_miniswe_adapter in command
-        or any(
-            arg.startswith("zai/")
-            for arg in command
-            if not arg.startswith("zai-coding-plan/")
+        (
+            zai_miniswe_adapter in command
+            or any(
+                arg.startswith("zai/") for arg in command if not arg.startswith("zai-coding-plan/")
+            )
         )
-    ) and not zai_lane and not terminus_client
+        and not zai_lane
+        and not terminus_client
+    )
     rlm_adapter = HARBOR_AGENT_IMPORT_PATHS[RLM_AGENT]
     rlm_lane = rlm_adapter in command
-    environment_selector = (
-        command[command.index("--env") + 1] if "--env" in command else None
-    )
+    environment_selector = command[command.index("--env") + 1] if "--env" in command else None
     runtime_environment = subscription_environment(
         include_deepseek_credentials=deepseek_lane,
         include_zai_credentials=zai_lane,
         include_zai_openapi_credentials=zai_openapi_lane,
-        include_daytona_credentials=environment_selector in {
+        include_daytona_credentials=environment_selector
+        in {
             "daytona",
             "evallab.harbor_daytona:SecretSafeDaytonaEnvironment",
             BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH,
@@ -1296,9 +1273,9 @@ def run_harbor_process(
             runtime_environment[ZAI_OPENAPI_CAPABILITY_EXPIRES_AT_ENV] = str(
                 time.time() + float(timeout_seconds) + 60.0
             )
-            existing_secret = runtime_environment.get(ZAI_OPENAPI_SECRET_FILE_ENV) or os.environ.get(
+            existing_secret = runtime_environment.get(
                 ZAI_OPENAPI_SECRET_FILE_ENV
-            )
+            ) or os.environ.get(ZAI_OPENAPI_SECRET_FILE_ENV)
             log_root = log_path.resolve()
             if existing_secret:
                 try:
@@ -1426,11 +1403,7 @@ def run_harbor_process(
                 else (
                     OPENROUTER_SECRET_FILE_ENV
                     if openrouter_client
-                    else (
-                        TINKER_SECRET_FILE_ENV
-                        if tinker_client
-                        else ZAI_OPENAPI_SECRET_FILE_ENV
-                    )
+                    else (TINKER_SECRET_FILE_ENV if tinker_client else ZAI_OPENAPI_SECRET_FILE_ENV)
                 )
             )
             existing_secret = runtime_environment.get(secret_file_env) or os.environ.get(
@@ -1560,14 +1533,12 @@ def run_harbor_process(
                     limits=proxy_limits,
                     provider_label="Mimo self-hosted"
                     if any(
-                        isinstance(arg, str) and arg.startswith("selfhosted/")
-                        for arg in command
+                        isinstance(arg, str) and arg.startswith("selfhosted/") for arg in command
                     )
                     else (
                         "Tinker"
                         if any(
-                            isinstance(arg, str) and arg.startswith("tinker/")
-                            for arg in command
+                            isinstance(arg, str) and arg.startswith("tinker/") for arg in command
                         )
                         else (
                             "Z.ai OpenAPI"
@@ -1868,7 +1839,6 @@ def _write_run_metadata(
             "docker": tool_version("docker"),
             "uv": tool_version("uv"),
         },
-        "repository": git_state(repo_root),
     }
     if request.provenance is not None:
         metadata["experiment"] = request.provenance.model_dump(mode="json")
@@ -1916,11 +1886,7 @@ def _write_run_metadata(
     # agent_result estimate for proxy-metered trials at catalog ingest; the
     # gate spends used + attempted as a conservative ceiling.
     metadata["cost"] = build_cost_block(process.proxy_usage)
-    calls = (
-        process.proxy_usage.get("calls")
-        if isinstance(process.proxy_usage, dict)
-        else None
-    )
+    calls = process.proxy_usage.get("calls") if isinstance(process.proxy_usage, dict) else None
     if isinstance(calls, list) and calls and request.model:
         returned_models: list[str] = [
             str(call["returned_model"])
@@ -1932,7 +1898,9 @@ def _write_run_metadata(
             mismatch = any(m not in accepted for m in returned_models)
             metadata["model_identity"] = {
                 "requested": request.model,
-                "returned": returned_models[0] if len(set(returned_models)) == 1 else returned_models,
+                "returned": returned_models[0]
+                if len(set(returned_models)) == 1
+                else returned_models,
                 "matched": not mismatch,
                 "mismatch": mismatch,
             }
@@ -1946,6 +1914,13 @@ def _write_run_metadata(
         metadata["toolbox"] = toolbox
     if harness_tree is not None:
         metadata["harness_tree"] = harness_tree
+    from evallab.results_home import capture_repository, write_run_provenance
+
+    repository = capture_repository(repo_root)
+    metadata["repository"] = {
+        key: value for key, value in repository.items() if not key.startswith("_")
+    }
+    write_run_provenance(job_dir, repository)
     if local_ollama is not None:
         metadata["local_ollama"] = local_ollama
     persist_private_bytes(
@@ -2121,18 +2096,40 @@ def _harness_execution_settings(
         settings = request.experiment_spec.model_dump(
             mode="json",
             exclude={
-                "spec_id", "name", "hypothesis", "question_ref", "submitted_at",
-                "submitted_by", "policy_rule", "harness_tree_path", "harness_tree_sha256",
-                "campaign_ledger", "campaign_cell_id", "campaign_attempt_id",
-                "campaign_attempt_index", "campaign_manifest_digest", "campaign_spec_digest",
+                "spec_id",
+                "name",
+                "hypothesis",
+                "question_ref",
+                "submitted_at",
+                "submitted_by",
+                "policy_rule",
+                "harness_tree_path",
+                "harness_tree_sha256",
+                "campaign_ledger",
+                "campaign_cell_id",
+                "campaign_attempt_id",
+                "campaign_attempt_index",
+                "campaign_manifest_digest",
+                "campaign_spec_digest",
                 "campaign_evidence_store",
             },
         )
     else:
         fields = (
-            "agent", "model", "environment", "attempts", "concurrency", "timeout_seconds",
-            "max_requests", "max_input_tokens", "max_output_tokens", "max_total_tokens",
-            "cost_limit_usd", "harness_policy", "verifier_repeat_n", "override_storage_mb",
+            "agent",
+            "model",
+            "environment",
+            "attempts",
+            "concurrency",
+            "timeout_seconds",
+            "max_requests",
+            "max_input_tokens",
+            "max_output_tokens",
+            "max_total_tokens",
+            "cost_limit_usd",
+            "harness_policy",
+            "verifier_repeat_n",
+            "override_storage_mb",
         )
         settings = {name: getattr(request, name) for name in fields}
     settings["inference_settings"] = (
@@ -2233,7 +2230,8 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 rendered_agent_kwargs=terminus_agent_kwargs(staged_request),
                 rendered_rule_paths=(
                     [(staged_root / harness_meta["rules_path"]).as_posix()]
-                    if harness_meta["rules_path"] else []
+                    if harness_meta["rules_path"]
+                    else []
                 ),
                 rendered_skill_paths=[
                     (staged_root / relative).as_posix() for relative in harness_meta["skill_roots"]
@@ -2501,9 +2499,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 process_job(job_dir, root=repo_root)
             except Exception as exc:  # noqa: BLE001
                 with suppress(Exception):
-                    (job_dir / "process-job-error.txt").write_text(
-                        f"{type(exc).__name__}: {exc}\n"
-                    )
+                    (job_dir / "process-job-error.txt").write_text(f"{type(exc).__name__}: {exc}\n")
         return job_dir
     finally:
         _cleanup_stage(staging_dir)

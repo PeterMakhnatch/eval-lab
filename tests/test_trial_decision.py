@@ -102,6 +102,7 @@ def test_page_names_the_grader_gap_and_the_fetch(tmp_path: Path) -> None:
     assert "## Decision" in page
     assert "Does the grader test that?** no" in page
     assert "Fetched the fix: yes" in page
+    assert "not this shape" in page
     assert FETCH in page
 
 

@@ -128,7 +128,7 @@ def render_decision_markdown(decision: dict[str, Any] | None) -> list[str]:
         + (asked.get("grader_gap") or "No named grader gap."),
         "",
         "**What the model did.** "
-        + (did.get("secondary") or did.get("note") or "No outcome note.")
+        + _ended(did.get("secondary") or did.get("note") or "No outcome note.")
         + _step_sentence(did)
         + _edit_sentence(did),
         "",
@@ -138,7 +138,7 @@ def render_decision_markdown(decision: dict[str, Any] | None) -> list[str]:
         + _fetch_sentence(fetch),
         "",
         "**Nop crash the same way?** "
-        + f"{nop.get('answer')}. {nop.get('reason')}",
+        + f"{_answer_words(nop.get('answer'))}. {nop.get('reason')}",
         "",
     ]
     return lines
@@ -214,6 +214,20 @@ def _grader_gap(
         )
     return "verifier passage has no test count and no named gap", "unknown"
 
+
+def _ended(text: Any) -> str:
+    sentence = str(text).strip()
+    if not sentence:
+        return "No outcome note."
+    if sentence[-1] not in ".!?":
+        sentence += "."
+    return sentence
+
+
+def _answer_words(answer: Any) -> str:
+    return str(answer or "unknown").replace("_", " ")
+
+
 def _step_sentence(did: dict[str, Any]) -> str:
     step = did.get("step")
     refs = [ref for ref in (did.get("evidence_steps") or []) if ref]
@@ -242,8 +256,12 @@ def _reward_why(reward: float | None, scored: bool, note: Any) -> str:
         base = "Scored, but the reward value is missing."
     else:
         base = f"Reward `{reward}`."
-    if isinstance(note, str) and note:
-        return f"{base} {note}"
+    if isinstance(note, str) and note.strip():
+        detail = note.strip()
+        detail = detail[0].upper() + detail[1:]
+        if detail[-1] not in ".!?":
+            detail += "."
+        return f"{base} {detail}"
     return base
 
 

@@ -293,7 +293,7 @@ inputs:
   - path: src/evallab/probe03.py
     digest: sha256:939de53574bb4c9c6002d968331d1341662d23f859badf8cb29c9d328b96fd1c
   - path: src/evallab/process_job.py
-    digest: sha256:67fc0089bef85dc9ae0da9875516ba648ee6726c5b4185bd6d7c6fc2711d9bfa
+    digest: sha256:e9fac94914d97d2ee347eb8855b38cf559e580d8d9f52c90be46b0a4106c56bb
   - path: src/evallab/profiles.py
     digest: sha256:2a85f3a9d512135b9b90c86124eb92a1c1ed24c8c244274c6932438d8868e173
   - path: src/evallab/provenance.py

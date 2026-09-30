@@ -1,0 +1,51 @@
+{
+  "name": "har110-python-nop-qualification",
+  "engine": "gepa",
+  "target": {
+    "base_spec_path": "research/experiments/har110-python-gepa/base-specs/nop-daytona-python.json"
+  },
+  "seed_candidate_path": "research/experiments/har110-python-gepa/candidates/seed-addendum-v1.txt",
+  "candidate_kind": "instructions",
+  "candidate_evaluation": "review",
+  "examples": [
+    {
+      "task_id": "format-code-task-002407",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-002407",
+      "task_package_digest": "sha256:37e0fa09f7da072b8671168795b1695b01a7ed659578be06000833d1fd0d798c",
+      "split": "development"
+    },
+    {
+      "task_id": "format-code-task-000226",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-000226",
+      "task_package_digest": "sha256:54bfbfa4a4b0360834bd84b620fdc4e2fae070d6f672c442f631d33dfe58db58",
+      "split": "development"
+    },
+    {
+      "task_id": "format-code-task-002259",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-002259",
+      "task_package_digest": "sha256:a90ba7fca34b2019dff5a6f9226c28130d5919e4820c0faf2e3661df9d779033",
+      "split": "development"
+    },
+    {
+      "task_id": "format-code-task-000383",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-000383",
+      "task_package_digest": "sha256:da5de5025dc1e2446c236bfd7d89337a7e478cc41d8645e8ae79c0d331941303",
+      "split": "development"
+    },
+    {
+      "task_id": "format-code-task-002256",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-002256",
+      "task_package_digest": "sha256:062cfbc341847e89226d394b293e79f2e57f4be467dc4ecb5f0ee52f9f5e629a",
+      "split": "development"
+    },
+    {
+      "task_id": "format-code-task-001896",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-001896",
+      "task_package_digest": "sha256:a616c127c86f09f23232eff4810c00fbcee7a739a54b9c05c685f3c0d5a4778d",
+      "split": "development"
+    }
+  ],
+  "max_evals": 12,
+  "output_dir": "runs/gepa-har110-python-nop-qualification",
+  "objective": "QUALIFICATION ONLY (not live optimization): prove the HAR-110 Python task-package adapter loop end to end with the deterministic proposer and real nop control trials on Daytona on the 6 development tasks. Zero model calls. The seed is a hand-authored general-guidance addendum, not a GEPA proposal. Control trials inherit environment daytona (plus timeout/attempts/concurrency) from the retained nop base spec."
+}

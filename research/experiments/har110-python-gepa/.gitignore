@@ -1,0 +1,10 @@
+# HAR-110 worktree-local Python task bytes (reproducible, never committed).
+#
+# tasks/<task_id>/ are byte-identical copies of the pinned read-only source
+# derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6
+# (upstream MiMo bytes must not enter the merged tree). Regenerate with the
+# README recipe; digests match the HAR-104 prepared specs one for one.
+# The 6/4 development/held-out assignment lives in split.json (committed).
+/tasks/
+# Signed proposer authorization refs are runtime approvals, never committed.
+/proposer-approval.signed.json

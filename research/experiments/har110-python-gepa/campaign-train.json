@@ -1,0 +1,65 @@
+{
+  "name": "har110-python-train-search",
+  "engine": "gepa",
+  "target": {
+    "base_spec_path": "research/experiments/har110-python-gepa/base-specs/student-terminus2-selfhosted-python.json"
+  },
+  "seed_candidate_path": "research/experiments/har110-python-gepa/candidates/seed-addendum-v1.txt",
+  "candidate_kind": "instructions",
+  "candidate_evaluation": "review",
+  "examples": [
+    {
+      "task_id": "format-code-task-002407",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-002407",
+      "task_package_digest": "sha256:37e0fa09f7da072b8671168795b1695b01a7ed659578be06000833d1fd0d798c",
+      "split": "development"
+    },
+    {
+      "task_id": "format-code-task-000226",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-000226",
+      "task_package_digest": "sha256:54bfbfa4a4b0360834bd84b620fdc4e2fae070d6f672c442f631d33dfe58db58",
+      "split": "development"
+    },
+    {
+      "task_id": "format-code-task-002259",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-002259",
+      "task_package_digest": "sha256:a90ba7fca34b2019dff5a6f9226c28130d5919e4820c0faf2e3661df9d779033",
+      "split": "development"
+    },
+    {
+      "task_id": "format-code-task-000383",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-000383",
+      "task_package_digest": "sha256:da5de5025dc1e2446c236bfd7d89337a7e478cc41d8645e8ae79c0d331941303",
+      "split": "development"
+    },
+    {
+      "task_id": "format-code-task-002256",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-002256",
+      "task_package_digest": "sha256:062cfbc341847e89226d394b293e79f2e57f4be467dc4ecb5f0ee52f9f5e629a",
+      "split": "development"
+    },
+    {
+      "task_id": "format-code-task-001896",
+      "task_path": "research/experiments/har110-python-gepa/tasks/format-code-task-001896",
+      "task_package_digest": "sha256:a616c127c86f09f23232eff4810c00fbcee7a739a54b9c05c685f3c0d5a4778d",
+      "split": "development"
+    }
+  ],
+  "max_evals": 10,
+  "max_target_attempts": 22,
+  "max_iterations": 2,
+  "max_candidates_per_iter": 1,
+  "proposer_model": "zai-coding-plan/glm-5.3-flash",
+  "proposer_transport": "opencode",
+  "proposer_ceilings": {
+    "max_requests": 1,
+    "max_input_tokens": 22000,
+    "max_output_tokens": 4096,
+    "max_total_tokens": 26096,
+    "cost_limit_usd": 0.05
+  },
+  "max_proposer_requests": 4,
+  "max_proposer_cost_usd": 0.2,
+  "output_dir": "runs/gepa-har110-python-train-search",
+  "objective": "STAGED (not run): GEPA search for a general Python-code-task instruction addendum on 6 HAR-110 development tasks with the self-hosted MiMo-V2.6-Distill-Qwen-9B Terminus-2 student (HAR-104 harness/ tree, Daytona). Held-out never enters search. Requires prior_run_reference fill from finished HAR-104 trials, a proposer authorization ref, and per-spec approvals before any paid trial."
+}

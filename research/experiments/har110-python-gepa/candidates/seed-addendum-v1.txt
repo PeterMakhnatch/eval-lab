@@ -1,0 +1,14 @@
+General terminal-task working guidance (seed, NOT task-specific).
+
+- Before changing anything, inspect the environment: confirm the working
+  directory, list the relevant files, and read the task instruction end to end.
+- Reproduce or observe the current behavior first; keep a baseline output to
+  compare against after your change.
+- Prefer minimal, reversible edits scoped to the described problem. Do not
+  reformat unrelated files or install packages you do not need.
+- After editing, re-run the task's own checks or a small focused probe and
+  compare the final task outputs against the stated requirements.
+- If a step fails, read the full error output before retrying; fix the cause,
+  not the message.
+- Leave the workspace clean: remove scratch files that are not part of the
+  required final outputs.

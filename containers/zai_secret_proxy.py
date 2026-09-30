@@ -321,6 +321,24 @@ _ALLOWED_MEDIA_TYPES: frozenset[str] = frozenset(
 _ALLOWED_CHARSETS: frozenset[str] = frozenset({"utf-8", "us-ascii", "iso-8859-1"})
 
 
+def _upstream_error_body(status: int) -> bytes:
+    """Fixed error body for upstream failures with no trustworthy payload.
+
+    Upstream error pages are never forwarded: the caller gets the real
+    status with a fixed JSON body, so clients still map 4xx/5xx to their
+    retryable/non-retryable classes.
+    """
+    return json.dumps(
+        {
+            "object": "error",
+            "message": "upstream provider error",
+            "type": "upstream_error",
+            "code": status,
+        },
+        separators=(",", ":"),
+    ).encode("ascii")
+
+
 def _classify_response_encoding(
     headers: http.client.HTTPMessage,
     *,
@@ -578,6 +596,7 @@ class TrialBudget:
         status: int,
         returned_model: Any = None,
         returned_model_reason: str | None = "response_not_observed",
+        error: str | None = None,
     ) -> None:
         if min(used_input, used_output, used_cost) < 0:
             raise ValueError("negative provider usage")
@@ -600,6 +619,7 @@ class TrialBudget:
                     "input_tokens": used_input,
                     "output_tokens": used_output,
                     "cost_micros": used_cost,
+                    **({"error": error} if error is not None else {}),
                 }
             )
             self._sequence += 1
@@ -761,6 +781,16 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(message)
 
+    def _reject_json(self, status: int, body: bytes) -> None:
+        self._cancel_inbound_timer()
+        with contextlib.suppress(OSError):
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(body)
+
     def do_GET(self) -> None:  # noqa: N802
         self._cancel_inbound_timer()
         path = self.path.partition("?")[0]
@@ -866,6 +896,72 @@ class Handler(BaseHTTPRequestHandler):
         server = self.server
         assert isinstance(server, ProxyServer)
         return server.budget
+
+    def _settle_upstream_error(
+        self,
+        *,
+        call_id: int,
+        status: int,
+        is_stream: bool,
+        key: str,
+        response: Any,
+    ) -> None:
+        """Settle an upstream error status with explicit zero usage.
+
+        HAR-114: an error status is itself the signal that no model output
+        was produced, so a readable error body settles the call with zero
+        usage instead of leaving it unresolved and failing the run's
+        reconciliation. The provider's own JSON error (redacted) is
+        forwarded when it parses, otherwise a fixed body — never upstream
+        bytes. An unreadable or truncated error body stays unresolved, with
+        the classified encoding facts retained for diagnosis.
+        """
+        upstream_body = self._read_upstream_body(response)
+        if upstream_body is None or b"\x00" in upstream_body:
+            encoding_reason, response_facts = _classify_response_encoding(
+                response.headers, stream=is_stream, status=status
+            )
+            self._budget().mark_unresolved(
+                call_id=call_id,
+                reason=encoding_reason or f"upstream_error_{status}_body_unknown",
+                status=status,
+                response_facts=response_facts,
+            )
+            self._reject(502, b"provider unavailable\n")
+            return
+        sanitized_body: bytes | None = None
+        returned_model = None
+        returned_model_reason = "response_not_observed"
+        try:
+            if is_stream:
+                sanitized_body, _usage, returned_model = _canonicalize_sse_and_usage(
+                    upstream_body, key
+                )
+                returned_model_reason = "model_absent_or_null" if returned_model is None else None
+            else:
+                sanitized_body = _canonicalize_and_redact_json(upstream_body, key)
+                upstream_payload = json.loads(sanitized_body.decode("ascii"))
+                if not isinstance(upstream_payload, dict):
+                    raise ValueError("upstream payload is not an object")
+                returned_model = upstream_payload.get("model")
+                returned_model_reason = "model_absent_or_null" if returned_model is None else None
+                if "<redacted>" in json.dumps(returned_model):
+                    returned_model = None
+                    returned_model_reason = "model_redacted"
+        except (KeyError, TypeError, ValueError):
+            sanitized_body = None
+        reply = _upstream_error_body(status) if sanitized_body is None else sanitized_body
+        self._budget().reconcile(
+            call_id=call_id,
+            used_input=0,
+            used_output=0,
+            used_cost=0,
+            status=status,
+            returned_model=returned_model,
+            returned_model_reason=returned_model_reason,
+            error=f"upstream_error_{status}",
+        )
+        self._reject_json(status, reply)
 
     def _proxy(self, body: bytes) -> None:
         try:
@@ -1028,6 +1124,18 @@ class Handler(BaseHTTPRequestHandler):
 
             content_type = response.headers.get("Content-Type") or ""
             is_stream = "text/event-stream" in content_type.casefold()
+            if status >= 400:
+                # The status itself proves no model output was produced, so
+                # error responses settle without trusting the body.
+                self._settle_upstream_error(
+                    call_id=call_id,
+                    status=status,
+                    is_stream=is_stream,
+                    key=key,
+                    response=response,
+                )
+                return
+
             encoding_reason, response_facts = _classify_response_encoding(
                 response.headers, stream=is_stream, status=status
             )
@@ -1095,18 +1203,6 @@ class Handler(BaseHTTPRequestHandler):
                     response_facts=response_facts,
                 )
                 self._reject(502, b"unsupported upstream body\n")
-                return
-
-            if status >= 400 and not isinstance(usage, dict):
-                self._budget().mark_unresolved(
-                    call_id=call_id,
-                    reason=f"provider_http_{status}_usage_unknown",
-                    returned_model=returned_model,
-                    returned_model_reason=returned_model_reason,
-                    status=status,
-                    response_facts=response_facts,
-                )
-                self._reject(status, sanitized_body)
                 return
 
             if not isinstance(usage, dict) or not all(

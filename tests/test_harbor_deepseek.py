@@ -119,15 +119,12 @@ def wrapper_module(monkeypatch: pytest.MonkeyPatch) -> Iterator[ModuleType]:
         sys.modules.pop("evallab.harbor_deepseek", None)
 
 
-
 def _trial_proxy_env(monkeypatch: pytest.MonkeyPatch, **overrides: str) -> str:
     capability = overrides.pop("capability", DEEPSEEK_PROXY_TOKEN)
     values = {
         "EVALLAB_DEEPSEEK_PROXY_CAPABILITY": capability,
         "EVALLAB_DEEPSEEK_ATTEMPT_ID": "attempt-test-capability",
-        "EVALLAB_DEEPSEEK_USAGE_FILE": str(
-            Path(tempfile.mkdtemp()) / "deepseek-proxy-usage.json"
-        ),
+        "EVALLAB_DEEPSEEK_USAGE_FILE": str(Path(tempfile.mkdtemp()) / "deepseek-proxy-usage.json"),
         "EVALLAB_DEEPSEEK_ALLOWED_MODEL": "deepseek-flash",
         "EVALLAB_DEEPSEEK_MAX_REQUESTS": "8",
         "EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS": "32768",
@@ -195,9 +192,7 @@ def test_exec_refuses_provider_key_in_tool_env(wrapper_module: ModuleType) -> No
         _Connection(provider="deepseek", api_key=SECRET_SENTINEL)
     )
     with pytest.raises(ValueError, match="cannot enter the task exec environment"):
-        asyncio.run(
-            agent.exec_as_agent(object(), "env", env={"DEEPSEEK_API_KEY": SECRET_SENTINEL})
-        )
+        asyncio.run(agent.exec_as_agent(object(), "env", env={"DEEPSEEK_API_KEY": SECRET_SENTINEL}))
 
 
 def test_wrapper_rejects_real_secret_in_exec_environment(
@@ -467,6 +462,7 @@ def test_runner_issues_a_unique_capability_per_trial(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from evallab import runner as runner_module
+
     monkeypatch.setenv("DEEPSEEK_API_KEY", SECRET_SENTINEL)
 
     capabilities = iter(("first-private-capability", "second-private-capability"))
@@ -658,7 +654,7 @@ def test_proxy_rejects_attacks_without_upstream_spend(
         EVALLAB_DEEPSEEK_MAX_REQUESTS="1",
         EVALLAB_DEEPSEEK_MAX_OUTPUT_TOKENS="16",
         EVALLAB_DEEPSEEK_MAX_INPUT_TOKENS="256",
-            EVALLAB_DEEPSEEK_MAX_COST_MICROS="1000000",
+        EVALLAB_DEEPSEEK_MAX_COST_MICROS="1000000",
     )
     usage_path = Path(os.environ["EVALLAB_DEEPSEEK_USAGE_FILE"])
     proxy_module = _load_proxy_module()
@@ -695,11 +691,18 @@ def test_proxy_rejects_attacks_without_upstream_spend(
         assert (
             post(
                 "/v1/chat/completions",
-                b'{"model":"deepseek-flash","max_tokens":1,"messages":[{"role":"user","content":"' + (b"x" * 200) + b'"}]}',
+                b'{"model":"deepseek-flash","max_tokens":1,"messages":[{"role":"user","content":"'
+                + (b"x" * 200)
+                + b'"}]}',
             )
             == 429
         )
-        assert post("/v1/chat/completions", b"{}", headers={"Authorization": "Bearer wrong-token-value"}) == 401
+        assert (
+            post(
+                "/v1/chat/completions", b"{}", headers={"Authorization": "Bearer wrong-token-value"}
+            )
+            == 401
+        )
         _trial_proxy_env(
             monkeypatch,
             EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT=str(time.time() - 1),
@@ -724,7 +727,9 @@ def test_proxy_rejects_attacks_without_upstream_spend(
             EVALLAB_DEEPSEEK_MAX_COST_MICROS="1000000",
             EVALLAB_DEEPSEEK_CAPABILITY_EXPIRES_AT=str(time.time() + 60),
         )
-        ok_body = b'{"model":"deepseek-flash","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}'
+        ok_body = (
+            b'{"model":"deepseek-flash","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}'
+        )
         first = post("/v1/chat/completions", ok_body, headers={"X-Evallab-Proxy-Nonce": "n1"})
         replay = post("/v1/chat/completions", ok_body, headers={"X-Evallab-Proxy-Nonce": "n1"})
         second = post("/v1/chat/completions", ok_body)
@@ -749,6 +754,7 @@ def test_proxy_rejects_attacks_without_upstream_spend(
         proxy.shutdown()
         upstream.shutdown()
 
+
 def test_persist_private_bytes_refuses_symlink(tmp_path: Path) -> None:
     target = tmp_path / "target"
     target.write_text("ok")
@@ -770,7 +776,9 @@ def test_read_owner_secret_file_refuses_symlink(tmp_path: Path) -> None:
         read_owner_secret_file(link)
 
 
-def _proxy_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, handler: type[BaseHTTPRequestHandler]):
+def _proxy_client(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, handler: type[BaseHTTPRequestHandler]
+):
     tmp_path.mkdir(parents=True, exist_ok=True)
     secret_file = tmp_path / "key"
     secret_file.write_text(SECRET_SENTINEL + "\n")
@@ -812,7 +820,9 @@ def test_proxy_rejects_redirect_gzip_binary_and_key_reflection(
             length = int(self.headers.get("Content-Length", "0"))
             self.rfile.read(length)
             payload = gzip.compress(
-                json.dumps({"key": SECRET_SENTINEL, "authorization": "Bearer " + SECRET_SENTINEL}).encode()
+                json.dumps(
+                    {"key": SECRET_SENTINEL, "authorization": "Bearer " + SECRET_SENTINEL}
+                ).encode()
             )
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -854,7 +864,9 @@ def test_proxy_rejects_redirect_gzip_binary_and_key_reflection(
             self.end_headers()
             self.wfile.write(payload)
 
-    ok_body = b'{"model":"deepseek-flash","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}'
+    ok_body = (
+        b'{"model":"deepseek-flash","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}'
+    )
 
     def post(base: str, capability: str) -> tuple[int, bytes, dict[str, str]]:
         request = urllib.request.Request(
@@ -910,6 +922,83 @@ def test_proxy_rejects_redirect_gzip_binary_and_key_reflection(
         assert b"<redacted>" in body
         assert "set-cookie" not in headers
         assert SECRET_SENTINEL not in headers.get("content-type", "")
+    finally:
+        proxy.shutdown()
+        upstream.shutdown()
+
+
+def test_proxy_settles_non_json_upstream_error_with_zero_usage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """HAR-114: a non-JSON upstream error settles with zero usage and
+    forwards its status with a fixed body instead of failing reconciliation.
+    """
+
+    class GatewayError(BaseHTTPRequestHandler):
+        mode = "error"
+
+        def log_message(self, format: str, *args: object) -> None:
+            del format, args
+
+        def do_POST(self) -> None:  # noqa: N802
+            length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(length)
+            if type(self).mode == "error":
+                body = b"Bad Gateway\n"
+                self.send_response(502)
+                self.send_header("Content-Type", "text/plain")
+            else:
+                body = json.dumps(
+                    {
+                        "model": "deepseek-flash",
+                        "choices": [{"message": {"role": "assistant", "content": "ok"}}],
+                        "usage": {"prompt_tokens": 7, "completion_tokens": 3},
+                    }
+                ).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    GatewayError.mode = "error"
+    proxy, upstream, capability = _proxy_client(tmp_path, monkeypatch, GatewayError)
+    try:
+        base = f"http://127.0.0.1:{proxy.server_address[1]}"
+
+        def post() -> tuple[int, bytes]:
+            request = urllib.request.Request(
+                f"{base}/v1/chat/completions",
+                data=b'{"model":"deepseek-flash","messages":[{"role":"user","content":"hi"}]}',
+                headers={
+                    "Authorization": f"Bearer {capability}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=5) as response:
+                    return int(response.status), response.read()
+            except urllib.error.HTTPError as exc:
+                return int(exc.code), exc.read()
+
+        status, body = post()
+        assert status == 502
+        assert b"Bad Gateway" not in body
+        assert json.loads(body)["code"] == 502
+        assert SECRET_SENTINEL.encode() not in body
+
+        GatewayError.mode = "ok"
+        status, _ = post()
+        assert status == 200
+
+        usage = json.loads(Path(os.environ["EVALLAB_DEEPSEEK_USAGE_FILE"]).read_text())
+        assert [call["state"] for call in usage["calls"]] == ["reconciled", "reconciled"]
+        assert usage["calls"][0]["error"] == "upstream_error_502"
+        assert usage["calls"][0]["status"] == 502
+        assert usage["calls"][0]["input_tokens"] == 0
+        assert usage["unresolved_requests"] == 0
+        assert SECRET_SENTINEL not in json.dumps(usage)
     finally:
         proxy.shutdown()
         upstream.shutdown()
@@ -1011,7 +1100,9 @@ def test_proxy_forwards_clamped_max_tokens_not_original_body(
     try:
         omitted = b'{"model":"deepseek-flash","messages":[{"role":"user","content":"hi"}],"stream":true,"n":8}'
         huge = b'{"model":"deepseek-flash","max_tokens":999999,"n":8,"messages":[{"role":"user","content":"hi"}]}'
-        zero = b'{"model":"deepseek-flash","max_tokens":0,"messages":[{"role":"user","content":"hi"}]}'
+        zero = (
+            b'{"model":"deepseek-flash","max_tokens":0,"messages":[{"role":"user","content":"hi"}]}'
+        )
         assert post(huge) == 200
         assert post(omitted) == 200
         assert post(zero) == 200
@@ -1111,7 +1202,9 @@ def test_proxy_redacts_json_escaped_and_base64_key_reflection(
             self.end_headers()
             self.wfile.write(payload)
 
-    ok_body = b'{"model":"deepseek-flash","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}'
+    ok_body = (
+        b'{"model":"deepseek-flash","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}'
+    )
 
     def post(base: str, capability: str) -> tuple[int, bytes]:
         request = urllib.request.Request(
@@ -1181,7 +1274,10 @@ def test_proxy_pinned_upstream_url_enforces_whitelist(monkeypatch: pytest.Monkey
     monkeypatch.setenv("EVALLAB_DEEPSEEK_UPSTREAM", "https://api.deepseek.com")
     assert proxy_module._pinned_upstream_url() == "https://api.deepseek.com:443/v1/chat/completions"
     monkeypatch.setenv("EVALLAB_DEEPSEEK_UPSTREAM", "http://evallab-smoke-upstream:8099")
-    assert proxy_module._pinned_upstream_url() == "http://evallab-smoke-upstream:8099/v1/chat/completions"
+    assert (
+        proxy_module._pinned_upstream_url()
+        == "http://evallab-smoke-upstream:8099/v1/chat/completions"
+    )
     monkeypatch.setenv("EVALLAB_DEEPSEEK_UPSTREAM", "http://127.0.0.1:9000")
     assert proxy_module._pinned_upstream_url() == "http://127.0.0.1:9000/v1/chat/completions"
     monkeypatch.setenv("EVALLAB_DEEPSEEK_UPSTREAM", "http://untrusted-remote.com:8080")
@@ -1233,8 +1329,11 @@ def test_proxy_records_requested_effort_and_returned_identity(
     ],
 )
 def test_proxy_rejects_retired_names_and_invalid_effort_before_spend(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-    fields: dict[str, Any], status: int, message: bytes,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fields: dict[str, Any],
+    status: int,
+    message: bytes,
 ) -> None:
     monkeypatch.setattr(_FakeDeepSeek, "seen", [])
     proxy, upstream, capability = _proxy_client(tmp_path, monkeypatch, _FakeDeepSeek)
@@ -1249,9 +1348,12 @@ def test_proxy_rejects_retired_names_and_invalid_effort_before_spend(
         assert denied.value.code == status
         assert message in denied.value.read()
         assert _FakeDeepSeek.seen == []
-        assert json.loads(
-            Path(os.environ["EVALLAB_DEEPSEEK_USAGE_FILE"]).read_text()
-        )["totals"]["requests"] == 0
+        assert (
+            json.loads(Path(os.environ["EVALLAB_DEEPSEEK_USAGE_FILE"]).read_text())["totals"][
+                "requests"
+            ]
+            == 0
+        )
     finally:
         proxy.shutdown()
         upstream.shutdown()
@@ -1266,8 +1368,12 @@ def test_proxy_rejects_retired_names_and_invalid_effort_before_spend(
     ],
 )
 def test_proxy_does_not_infer_identity_or_effort(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fields: dict[str, Any],
-    expected_identity: str | None, reason: str | None, status: int,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fields: dict[str, Any],
+    expected_identity: str | None,
+    reason: str | None,
+    status: int,
 ) -> None:
     monkeypatch.setattr(_FakeDeepSeek, "response_fields", fields)
     proxy, upstream, capability = _proxy_client(tmp_path, monkeypatch, _FakeDeepSeek)

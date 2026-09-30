@@ -55,6 +55,7 @@ def _allowed_inbound_paths() -> frozenset[str]:
         {"/chat/completions", "/v1/chat/completions", str(_profile()["upstream_path"])}
     )
 
+
 HEALTHZ_PATH = "/healthz"
 MAX_REQUEST_BYTES = 4 * 1024 * 1024
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
@@ -285,6 +286,7 @@ def _provider_name() -> str:
 def _profile() -> dict[str, Any]:
     return PROVIDERS[_provider_name()]
 
+
 HOP_BY_HOP = frozenset(
     {
         "connection",
@@ -340,9 +342,7 @@ def upstream_base() -> str:
 #: ``modal.run.evil.com``, ``x.evil.modal.direct`` (not a routing region),
 #: ``modal.direct.evil.com`` and multi-label ``a.b.us-east.modal.direct``
 #: never match.
-_MIMO_SELFHOSTED_MODAL_RUN_RE = re.compile(
-    r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.modal\.run$"
-)
+_MIMO_SELFHOSTED_MODAL_RUN_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.modal\.run$")
 _MIMO_SELFHOSTED_MODAL_DIRECT_RE = re.compile(
     r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.(?:us-east|us-west|ca-central|eu-west|ap-south|ap-southeast-2)\.modal\.direct$"
 )
@@ -456,6 +456,7 @@ def _pinned_upstream_url() -> str:
             raise RuntimeError("upstream path is not pinned")
         return f"http://{host}:{port}{upstream_path}"
     raise RuntimeError("upstream scheme is not pinned")
+
 
 def _key_needles(key: str) -> tuple[bytes, ...]:
     utf8 = key.encode("utf-8")
@@ -601,6 +602,24 @@ def _canonicalize_sse_and_usage(
     return _redact_key(body, key), usage, next(iter(returned_models), None)
 
 
+def _upstream_error_body(status: int) -> bytes:
+    """Fixed error body for upstream failures with no trustworthy payload.
+
+    Upstream error pages (gateway HTML, plain-text mesh errors) are never
+    forwarded: the caller gets the real status with a fixed JSON body, so
+    LiteLLM still maps 4xx/5xx to its retryable/non-retryable classes.
+    """
+    return json.dumps(
+        {
+            "object": "error",
+            "message": "upstream provider error",
+            "type": "upstream_error",
+            "code": status,
+        },
+        separators=(",", ":"),
+    ).encode("ascii")
+
+
 def _response_encoding_ok(headers: http.client.HTTPMessage, *, stream: bool = False) -> bool:
     encoding = (headers.get("Content-Encoding") or "identity").strip().casefold()
     transfer = (headers.get("Transfer-Encoding") or "identity").strip().casefold()
@@ -670,9 +689,7 @@ def _estimate_tokens(payload: dict[str, Any]) -> int:
     return max(1, len(encoded))
 
 
-def _cost_micros(
-    input_tokens: int, output_tokens: int, rates: tuple[int, int]
-) -> int:
+def _cost_micros(input_tokens: int, output_tokens: int, rates: tuple[int, int]) -> int:
     numerator = input_tokens * rates[0] + output_tokens * rates[1]
     return (numerator + 999_999) // 1_000_000
 
@@ -699,9 +716,7 @@ def _allowed_native_models() -> frozenset[str]:
     if allowed_env is not None:
         raw = os.environ.get(allowed_env, "")
         if raw:
-            return frozenset(
-                model.strip() for model in raw.split(",") if model.strip()
-            )
+            return frozenset(model.strip() for model in raw.split(",") if model.strip())
     return profile["default_allowed_models"]
 
 
@@ -1129,6 +1144,16 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(message)
 
+    def _reject_json(self, status: int, body: bytes) -> None:
+        self._cancel_inbound_timer()
+        with contextlib.suppress(OSError):
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(body)
+
     def do_GET(self) -> None:  # noqa: N802
         self._cancel_inbound_timer()
         path = self.path.partition("?")[0]
@@ -1228,6 +1253,75 @@ class Handler(BaseHTTPRequestHandler):
         assert isinstance(server, ProxyServer)
         return server.budget
 
+    def _settle_upstream_error(
+        self, *, call_id: int, status: int, is_stream: bool, key: str, response: Any
+    ) -> None:
+        """Settle an upstream error status with explicit zero usage.
+
+        HAR-114: SGLang-behind-Modal answers failures outside the JSON API
+        contract (gateway text/plain or text/html pages when the container is
+        restarting, overloaded, or rejecting an over-large body). Those used
+        to die at the encoding gate as ``unsupported_upstream_encoding`` and
+        stay unresolved, failing the whole run's reconciliation even though
+        an error response bills nothing. An error status is itself the signal
+        that no model output was produced, so a readable error body settles
+        the call with zero usage: the provider's own JSON error (redacted)
+        is forwarded when it parses, otherwise a fixed body — never upstream
+        bytes. An unreadable or truncated error body stays unresolved:
+        without the body the outcome is genuinely ambiguous.
+        """
+        upstream_body = self._read_upstream_body(response)
+        if upstream_body is None or b"\x00" in upstream_body:
+            self._budget().mark_unresolved(
+                call_id=call_id,
+                reason=f"upstream_error_{status}_body_unknown",
+            )
+            self._reject(502, b"provider unavailable\n")
+            return
+        sanitized_body: bytes | None = None
+        returned_model = None
+        returned_model_reason = "response_not_observed"
+        try:
+            if is_stream:
+                sanitized_body, _usage, returned_model = _canonicalize_sse_and_usage(
+                    upstream_body, key
+                )
+                returned_model_reason = "model_absent_or_null" if returned_model is None else None
+            else:
+                sanitized_body = _canonicalize_and_redact_json(upstream_body, key)
+                upstream_payload = json.loads(sanitized_body.decode("ascii"))
+                if not isinstance(upstream_payload, dict):
+                    raise ValueError("upstream payload is not an object")
+                returned_model = upstream_payload.get("model")
+                returned_model_reason = "model_absent_or_null" if returned_model is None else None
+                if "<redacted>" in json.dumps(returned_model):
+                    returned_model = None
+                    returned_model_reason = "model_redacted"
+        except (KeyError, TypeError, ValueError):
+            sanitized_body = None
+        if sanitized_body is None:
+            error = f"upstream_error_{status}"
+            reply = _upstream_error_body(status)
+        elif status == 400:
+            # Historical ledger string for SGLang's usage-less context
+            # overflow (HAR-90 trial 0758-b).
+            error = "provider_http_400_no_usage"
+            reply = sanitized_body
+        else:
+            error = f"upstream_error_{status}"
+            reply = sanitized_body
+        self._budget().reconcile(
+            call_id=call_id,
+            used_input=0,
+            used_output=0,
+            used_cost=0,
+            status=status,
+            returned_model=returned_model,
+            returned_model_reason=returned_model_reason,
+            error=error,
+        )
+        self._reject_json(status, reply)
+
     def _proxy(self, body: bytes) -> None:
         try:
             payload = json.loads(body.decode("utf-8"))
@@ -1308,9 +1402,7 @@ class Handler(BaseHTTPRequestHandler):
         }
 
         forwarded = {
-            name: payload[name]
-            for name in _profile()["forwarded_fields"]
-            if name in payload
+            name: payload[name] for name in _profile()["forwarded_fields"] if name in payload
         }
         forwarded["model"] = model
         if "max_tokens" in payload and payload["max_tokens"] is not None:
@@ -1423,6 +1515,19 @@ class Handler(BaseHTTPRequestHandler):
 
             content_type = response.headers.get("Content-Type") or ""
             is_stream = "text/event-stream" in content_type.casefold()
+            if status >= 400:
+                # The status itself proves no model output was produced, so
+                # error responses settle without trusting the body: a JSON
+                # error keeps the provider's message, anything else gets a
+                # fixed body, and neither is left unresolved.
+                self._settle_upstream_error(
+                    call_id=call_id,
+                    status=status,
+                    is_stream=is_stream,
+                    key=key,
+                    response=response,
+                )
+                return
             if not _response_encoding_ok(response.headers, stream=is_stream):
                 self._budget().mark_unresolved(
                     call_id=call_id,
@@ -1479,35 +1584,6 @@ class Handler(BaseHTTPRequestHandler):
                     returned_model_reason=returned_model_reason,
                 )
                 self._reject(502, b"unsupported upstream body\n")
-                return
-
-            if status == 400 and not isinstance(usage, dict):
-                # The provider rejected the request before generating
-                # anything (SGLang's context overflow is a usage-less 400), so
-                # it used no tokens. Settle it as a zero-usage error call that
-                # releases its reservation, instead of leaving it unresolved
-                # and failing a trial the verifier already scored.
-                self._budget().reconcile(
-                    call_id=call_id,
-                    used_input=0,
-                    used_output=0,
-                    used_cost=0,
-                    status=status,
-                    returned_model=returned_model,
-                    returned_model_reason=returned_model_reason,
-                    error="provider_http_400_no_usage",
-                )
-                self._reject(status, sanitized_body)
-                return
-
-            if status >= 400 and not isinstance(usage, dict):
-                self._budget().mark_unresolved(
-                    call_id=call_id,
-                    reason=f"provider_http_{status}_usage_unknown",
-                    returned_model=returned_model,
-                    returned_model_reason=returned_model_reason,
-                )
-                self._reject(status, sanitized_body)
                 return
 
             if not isinstance(usage, dict) or not all(
@@ -1578,14 +1654,10 @@ def _write_ready_file(path: Path, host: str, port: int) -> None:
     plus rename (the same durable pattern as the budget ledger) so a
     supervisor polling on existence never observes empty or partial JSON.
     """
-    payload = (json.dumps({"host": host, "port": port}, sort_keys=True) + "\n").encode(
-        "ascii"
-    )
+    payload = (json.dumps({"host": host, "port": port}, sort_keys=True) + "\n").encode("ascii")
     target = Path(path)
     temporary = target.with_name(f".{target.name}.{os.getpid()}.tmp")
-    descriptor = os.open(
-        temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC, 0o600
-    )
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC, 0o600)
     try:
         with open(descriptor, "wb", closefd=True) as destination:
             destination.write(payload)

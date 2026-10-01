@@ -53,8 +53,8 @@ def main() -> int:
     out = [json.dumps(rows[t]) for t in order]
     (PRED / "docent_opus.jsonl").write_text("\n".join(out) + "\n")
     print(f"wrote {len(out)} rows to predictions_har116/docent_opus.jsonl")
-    kinds = [json.loads(l)["loop_kind"] for l in out]
-    stops = [json.loads(l)["stop_reason"] for l in out]
+    kinds = [json.loads(row)["loop_kind"] for row in out]
+    stops = [json.loads(row)["stop_reason"] for row in out]
     print("loop_kind:", {k: kinds.count(k) for k in sorted(set(kinds))})
     print("stop_reason:", {k: stops.count(k) for k in sorted(set(stops))})
     return 0

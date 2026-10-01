@@ -194,6 +194,29 @@ uv run python research/explorations/trace-lab/failure-atlas/build.py \
 from the executing code checkout. Use an explicit `--derived-root` to read an
 approved shared Parquet tree from an isolated worktree.
 
+For the frozen overnight three-arm evaluation, add
+`--g5-cohort <frozen-g5-specs>/cohort.json`. The consumer binds the admitted
+cohort and all 60 sibling spec files using the filename-ordered manifest. It
+matches native source identities, recorded task/package/arm and frozen spec
+fields; a results-home card prefix is not an experiment identity, and the
+shared base model does not distinguish stock from GEPA. Retained published
+spec bytes remain usable after the original worktree is retired.
+
+G5 gets a separate expected-cell table for stock, tuned and GEPA. Missing or
+unbound cells retain null outcomes, never counted failures. Available category
+frequencies keep their own evidence denominators and raw-verified exemplars.
+G5 identities never enter the historical pattern denominator, even without the
+cohort argument. The four HAR-116/G2 calibration receipts remain separate,
+hash-bound studies; their accuracy is not transferred to G5.
+
+The [actual consumer proof](../research/experiments/har117-results-home/har131-g5-atlas-consumer-proof.json)
+records a 249-trial live query: 152 eligible non-G5 trials and 13 bound G5
+trials (seven stock, six GEPA, no tuned native outcome). All 13 match the
+independent raw-fact audit. This is an explicitly partial observation, not the
+final G5 atlas or a paired treatment comparison. The CLI emitted no reflection
+payload. The existing committed atlas/README/verification bundle remains its
+earlier pinned historical snapshot until the final run-data refresh.
+
 The full atlas may contain held-out evidence and must not be sent to a prompt
 proposer. Reflection export requires explicit authorized task/package bindings
 and canonical usable-training, countability and frozen-eval exclusions. Only

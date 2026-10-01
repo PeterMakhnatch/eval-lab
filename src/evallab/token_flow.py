@@ -19,7 +19,7 @@ Definitions (with limits):
 * Last useful edit: the last agent step that writes a file: an edit tool
   name, an explicit write signal (``.write(``/``write_text``/``open(...,
   "w")``/``os.replace``/``shutil``), a shell ``>``/``>>``/``tee``
-  redirection, or the shared :data:`evallab.traj.EDIT_COMMAND_PATTERNS`
+  redirection, or the shared :data:`evallab.edit_signals.EDIT_COMMAND_PATTERNS`
   (the same patterns the traj outline uses for ``step_to_first_edit``,
   plus a bare-redirect supplement the shared ``\b(...)\b`` wrapper misses).
   Read-only probes (``open(path).read()`` without a write signal) and
@@ -63,6 +63,8 @@ import math
 import re
 from pathlib import Path
 from typing import Any
+
+from evallab.edit_signals import EDIT_COMMAND_PATTERNS, EDIT_TOOL_NAMES
 
 TOKEN_FLOW_SCHEMA = "token_flow/v1"
 
@@ -213,9 +215,7 @@ def _is_ephemeral_only(paths: list[str]) -> bool:
 
 
 def _is_edit(step: dict[str, Any]) -> tuple[bool, str]:
-    """Whether a step looks like a file edit, reusing the traj detectors."""
-    from evallab.traj import EDIT_COMMAND_PATTERNS, EDIT_TOOL_NAMES
-
+    """Whether a step looks like a file edit, reusing the shared detectors."""
     for name, keys in _step_calls(step):
         if name is not None and name.lower() in EDIT_TOOL_NAMES:
             return True, f"tool:{name}"

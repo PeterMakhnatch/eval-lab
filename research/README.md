@@ -8,6 +8,7 @@ queries, and reviewed, immutable evidence bundles.
 ## What lives here / entry points
 - `research/experiments/`: Experiment matrices, campaign manifests, and execution configurations (e.g. `research/experiments/local-controls.json`).
 - [Reef continuous-improvement program](experiments/reef/README.md): current studies, results, and scoped contributions to Eval Lab and Reef.
+- [Card → folder → result index](CARD-INDEX.md): which HAR card lives in which `explorations/`/`experiments/` folder and where its principal result is.
 - `research/evidence/runs/`: Reviewed, immutable promoted control and trial bundles (e.g. `research/evidence/runs/event-summary-oracle-evidence/result.json`).
 - `research/calibration/`: Judge ground truth, test rubrics, calibration corpora, and evaluator answer keys.
 - `research/analysis/`: Reusable analysis scripts, rubric definitions, and queries.

@@ -1241,3 +1241,238 @@ def test_pending_retry_reuses_parked_spec_without_resubmitting(tmp_path: Path) -
     with pytest.raises(EvaluationPending):
         evaluator(candidate, task)
     assert len(evaluator.executor.submitted_specs) == 1
+
+
+# --- HAR-135 counted_verdict campaign wiring + zero-byte stock seed ---
+
+
+def _write_counted_campaign(
+    repo_root: Path, task: dict[str, Any], score_rules: list[str], **overrides: Any
+) -> Path:
+    (repo_root / "seed.txt").write_text(
+        overrides.pop("seed_text", "Study the requirements before acting.\n"),
+        encoding="utf-8",
+    )
+    raw: dict[str, Any] = {
+        "name": "counted-campaign",
+        "engine": "gepa",
+        "agent": "oracle",
+        "seed_candidate_path": "seed.txt",
+        "output_dir": "out/campaign",
+        "examples": [task],
+        "max_evals": 2,
+        "score_rules": score_rules,
+    }
+    raw.update(overrides)
+    path = repo_root / "campaign.json"
+    path.write_text(json.dumps(raw), encoding="utf-8")
+    return path
+
+
+def test_campaign_accepts_counted_verdict_and_rejects_combination(tmp_path: Path) -> None:
+    """counted_verdict loads alone; combining it with fetch-zero is refused."""
+    from evallab.gepa_optimizer.evaluator import COUNTED_VERDICT
+    from evallab.upstream_fetch import UPSTREAM_FETCH_ZERO
+
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = _write_task(repo_root)
+    config = load_campaign(_write_counted_campaign(repo_root, task, [COUNTED_VERDICT]), repo_root)
+    assert config["score_rules"] == [COUNTED_VERDICT]
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        load_campaign(
+            _write_counted_campaign(repo_root, task, [COUNTED_VERDICT, UPSTREAM_FETCH_ZERO]),
+            repo_root,
+        )
+
+
+def test_zero_byte_stock_seed_allowed_for_instructions(tmp_path: Path, monkeypatch: Any) -> None:
+    """An exact zero-byte seed file loads and runs the oracle baseline without dispatch tricks."""
+    pytest.importorskip("gepa")
+    from evallab.gepa_optimizer import workflow as _workflow
+    from evallab.gepa_optimizer.evaluator import EMPTY_CANDIDATE_SHA256
+    from evallab.gepa_optimizer.evaluator import LabEvaluator as _RealEvaluator
+
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = _write_task(repo_root)
+    (repo_root / "seed.txt").write_text("", encoding="utf-8")
+    raw: dict[str, Any] = {
+        "name": "stock-seed",
+        "engine": "gepa",
+        "agent": "oracle",
+        "seed_candidate_path": "seed.txt",
+        "output_dir": "out/campaign",
+        "examples": [task],
+        "max_evals": 10,
+        "max_proposer_requests": 1,
+        "candidate_evaluation": "automatic",
+    }
+    config_path = repo_root / "campaign.json"
+    config_path.write_text(json.dumps(raw), encoding="utf-8")
+    pin = {"commit": "test", "version": "test", "python_source_tree_sha256": "test"}
+    monkeypatch.setattr(_workflow, "verify_release", lambda: pin)
+
+    created: list[Any] = []
+
+    class _RecordingExecutor:
+        def __init__(self, repo_root: Path) -> None:
+            self.repo_root = repo_root
+            self.direct_requests: list[Any] = []
+
+        def execute_direct(self, request: Any, *, ingest: bool = True) -> Path:
+            from uuid import NAMESPACE_URL as _NS
+            from uuid import uuid5 as _uuid5
+
+            from evallab.registry import task_directory_digest as _digest
+
+            self.direct_requests.append(request)
+            job_dir = request.jobs_dir / request.name
+            trial_name = f"{request.task.name}__trial01"
+            trial_dir = job_dir / trial_name
+            trial_dir.mkdir(parents=True, exist_ok=True)
+            cand_hash = (
+                f"sha256:{hashlib.sha256(request.extra_instruction_path.read_bytes()).hexdigest()}"
+                if request.extra_instruction_path
+                else "sha256:none"
+            )
+            pkg_digest = (
+                request.provenance.package_digest
+                if request.provenance and request.provenance.package_digest
+                else _digest(request.task)
+            )
+            agent_config = {"name": "oracle", "import_path": None, "model_name": None}
+            trial_lock = {
+                "schema_version": 2,
+                "agent": agent_config,
+                "extra_instructions": [{"digest": cand_hash}],
+            }
+            (job_dir / "config.json").write_text(
+                json.dumps({"job_name": request.name, "agents": [agent_config]}), encoding="utf-8"
+            )
+            (job_dir / "lock.json").write_text(
+                json.dumps({"harbor": {"version": "0.21.0"}, "trials": [trial_lock]}),
+                encoding="utf-8",
+            )
+            (job_dir / "result.json").write_text(
+                json.dumps(
+                    {
+                        "id": str(_uuid5(_NS, request.name)),
+                        "started_at": "2026-09-08T10:00:00Z",
+                        "finished_at": "2026-09-08T10:01:00Z",
+                        "n_total_trials": 1,
+                        "stats": {"n_completed_trials": 1, "n_errored_trials": 0},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (job_dir / "lab-metadata.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "command": ["harbor", "run"],
+                        "started_at": "2026-09-08T10:00:00Z",
+                        "finished_at": "2026-09-08T10:01:00Z",
+                        "exit_code": 0,
+                        "timed_out": False,
+                        "timed_out_trial": None,
+                        "experiment": {
+                            "spec_id": "spec",
+                            "task": str(request.task.relative_to(self.repo_root)),
+                            "task_path": str(request.task.relative_to(self.repo_root)),
+                            "task_id": request.task.name,
+                            "package_digest": pkg_digest,
+                            "preamble_sha256": cand_hash,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (trial_dir / "config.json").write_text(
+                json.dumps({"agent": agent_config}), encoding="utf-8"
+            )
+            (trial_dir / "lock.json").write_text(json.dumps(trial_lock), encoding="utf-8")
+            (trial_dir / "result.json").write_text(
+                json.dumps(
+                    {
+                        "id": str(_uuid5(_NS, request.name + "/" + trial_name)),
+                        "trial_name": trial_name,
+                        "task_name": request.task.name,
+                        "started_at": "2026-09-08T10:00:01Z",
+                        "finished_at": "2026-09-08T10:00:55Z",
+                        "agent_info": {"name": "oracle", "model_name": None},
+                        "agent_result": {},
+                        "duration_seconds": 54.0,
+                        "verifier_result": {"rewards": {"reward": 1.0}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            return job_dir
+
+    recording = _RecordingExecutor(repo_root)
+
+    def _factory(**kwargs: Any) -> Any:
+        evaluator = _RealEvaluator(**kwargs, executor=recording)
+        created.append(evaluator)
+        return evaluator
+
+    monkeypatch.setattr(_workflow, "LabEvaluator", _factory)
+    report = _workflow.run_campaign(config_path, repo_root=repo_root, qualification=True)
+    assert created, "evaluator must be constructed for the empty stock seed"
+    assert created[0].records, "oracle baseline must evaluate the empty seed"
+    assert created[0].records[0].candidate_id == EMPTY_CANDIDATE_SHA256
+    assert report["status"] in {"completed", "incomplete_evaluation", "pending_evaluation"}
+
+
+def test_whitespace_seed_rejected_for_instructions(tmp_path: Path, monkeypatch: Any) -> None:
+    """Whitespace-only text is not stock: it is rejected, never treated as empty."""
+    from evallab.gepa_optimizer import workflow as _workflow
+
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = _write_task(repo_root)
+    (repo_root / "seed.txt").write_text("   \n", encoding="utf-8")
+    raw: dict[str, Any] = {
+        "name": "whitespace-seed",
+        "engine": "gepa",
+        "agent": "oracle",
+        "seed_candidate_path": "seed.txt",
+        "output_dir": "out/campaign",
+        "examples": [task],
+        "max_evals": 2,
+    }
+    config_path = repo_root / "campaign.json"
+    config_path.write_text(json.dumps(raw), encoding="utf-8")
+    monkeypatch.setattr(
+        _workflow, "verify_release", lambda: {"commit": "t", "version": "t", "python_source_tree_sha256": "t"}
+    )
+    with pytest.raises(ValueError, match="nonempty seed"):
+        _workflow.run_campaign(config_path, repo_root=repo_root, qualification=True)
+
+
+def test_empty_seed_rejected_for_python_toolbox(tmp_path: Path, monkeypatch: Any) -> None:
+    """Python toolbox artifacts still require a nonempty seed module."""
+    from evallab.gepa_optimizer import workflow as _workflow
+
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = _write_task(repo_root)
+    (repo_root / "seed.py").write_text("", encoding="utf-8")
+    raw: dict[str, Any] = {
+        "name": "toolbox-seed",
+        "engine": "gepa",
+        "agent": "oracle",
+        "candidate_kind": "python_toolbox",
+        "seed_candidate_path": "seed.py",
+        "output_dir": "out/campaign",
+        "examples": [task],
+        "max_evals": 2,
+    }
+    config_path = repo_root / "campaign.json"
+    config_path.write_text(json.dumps(raw), encoding="utf-8")
+    monkeypatch.setattr(
+        _workflow, "verify_release", lambda: {"commit": "t", "version": "t", "python_source_tree_sha256": "t"}
+    )
+    with pytest.raises(ValueError, match="nonempty seed"):
+        _workflow.run_campaign(config_path, repo_root=repo_root, qualification=True)

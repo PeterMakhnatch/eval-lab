@@ -1,6 +1,6 @@
 # Eval Lab
 
-This private repository is the durable home for Peter Makhnatch's agent-evaluation
+This repository is the durable home for Peter Makhnatch's agent-evaluation
 research in real environments. Harbor is the execution engine; this lab owns the
 evaluation definitions, infrastructure, analysis code, and small curated evidence.
 Treat generated runs as immutable once promoted to `research/evidence/runs/`.

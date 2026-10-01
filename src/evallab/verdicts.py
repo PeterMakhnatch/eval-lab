@@ -20,6 +20,7 @@ import psycopg
 
 from evallab.runner import database_url_from_environment
 from evallab.schemas import Verdict
+from evallab.storage.attach import postgres_identity
 
 SQL_VERDICTS_PATH = Path("sql/verdicts.sql")
 DEFAULT_DISCOVERIES_PATH = Path("digests/DISCOVERIES.md")
@@ -174,19 +175,6 @@ def execute_verdicts_views(
     conn.execute(target_sql.read_text(encoding="utf-8"))
 
 
-def _postgres_identity(dsn: str) -> str:
-    try:
-        from psycopg.conninfo import conninfo_to_dict
-
-        info = conninfo_to_dict(dsn)
-        host = str(info.get("host") or "localhost")
-        port = str(info.get("port") or "5432")
-        dbname = str(info.get("dbname") or "")
-        return f"{host}:{port}/{dbname}" if dbname else f"{host}:{port}"
-    except Exception:
-        return "unparsable"
-
-
 def write_verdict_to_catalog(
     verdict: Verdict,
     database_url: str | None = None,
@@ -270,7 +258,7 @@ def list_current_verdicts_from_catalog(
 ) -> list[Verdict]:
     """Query current (latest by timestamp) verdicts from PostgreSQL catalog."""
     url = database_url_from_environment(database_url)
-    target_name = _postgres_identity(url)
+    target_name = postgres_identity(url)
     try:
         with psycopg.connect(url, connect_timeout=2) as connection:
             query = """
@@ -323,7 +311,7 @@ def get_verdict_history_from_catalog(
 ) -> list[Verdict]:
     """Query full verdict history for one discovery from PostgreSQL catalog, oldest first."""
     url = database_url_from_environment(database_url)
-    target_name = _postgres_identity(url)
+    target_name = postgres_identity(url)
     try:
         with psycopg.connect(url, connect_timeout=2) as connection:
             query = """

@@ -1,0 +1,26 @@
+{
+  "variants": {
+    "leak": 247,
+    "repair": 53
+  },
+  "findings": [],
+  "nop_clean_fail": 52,
+  "nop_unchecked": 248,
+  "census_rows": 1180,
+  "census_labels": {
+    "sound": 1040,
+    "broken_environment": 135,
+    "grader_suspect": 5
+  },
+  "census_nop_rewards": {
+    "0.0": 1175,
+    "none": 5
+  },
+  "card_before_har113": {
+    "rows": 1180,
+    "sound": 493,
+    "broken_environment": 59,
+    "grader_suspect": 2,
+    "unknown": 626
+  }
+}

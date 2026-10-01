@@ -20,6 +20,9 @@ rule; this module does not change GEPA.
 
 from __future__ import annotations
 
+import csv
+import hashlib
+import io
 import json
 from functools import lru_cache
 from pathlib import Path
@@ -33,6 +36,8 @@ ACCURACY_NOTE = "display only; HAR-119 pending; never decides"
 HAND_NOT_USABLE = frozenset({"broken", "suspect", "discarded", "review", "unchecked"})
 CENSUS_NOT_USABLE = frozenset({"broken_environment", "grader_suspect", "unknown"})
 _CENSUS_RELATIVE = Path("research/experiments/har108-python-census/task_health.parquet")
+_LEDGER_RELATIVE = Path("research/experiments/python-task-ledger/ledger.csv")
+_LEDGER_STATUSES = frozenset({"usable", "review", "discarded", "unchecked"})
 _HAND_GLOB = "research/explorations/trace-lab/**/hand/*.json"
 _VARIANT_GLOB = "library/task-variants/*/*.json"
 
@@ -144,6 +149,7 @@ def attach_counts(
     *,
     label_root: Path | None,
     package_digest: str | None = None,
+    task_id: str | None = None,
 ) -> dict[str, Any]:
     """Build ``counts`` from a process-job record and its ``result.json``.
 
@@ -152,16 +158,17 @@ def attach_counts(
     task's census exclusion.
     """
     result = result if isinstance(result, dict) else {}
-    task_name = record.get("task_name") or result.get("task_name")
+    task_name = task_id or record.get("task_name") or result.get("task_name")
     trial_name = record.get("trial_name") or result.get("trial_name")
     exception = result.get("exception_info")
     exception = exception if isinstance(exception, dict) else None
-    return classify_counts(
+    index = task_index_for(label_root)
+    counts = classify_counts(
         reward=record.get("reward"),
         scored=bool(record.get("scored")),
         taint=record.get("taint") if isinstance(record.get("taint"), list) else [],
         usability=usability(
-            task_index_for(label_root),
+            index,
             trial_name=trial_name,
             task_name=task_name,
             package_digest=package_digest,
@@ -171,12 +178,14 @@ def attach_counts(
         outcome_failure=record.get("outcome_failure") if isinstance(record.get("outcome_failure"), dict) else None,
         flags=record.get("flags") if isinstance(record.get("flags"), list) else [],
     )
+    counts["task_status"] = index.status_for(task_name, package_digest)
+    return counts
 
 
 def find_label_root(start: Path) -> Path | None:
-    """Walk parents for the committed census and hand labels."""
+    """Walk parents for the committed task ledger or legacy census."""
     for parent in (start, *start.parents):
-        if (parent / _CENSUS_RELATIVE).is_file():
+        if (parent / _LEDGER_RELATIVE).is_file() or (parent / _CENSUS_RELATIVE).is_file():
             return parent
     return None
 
@@ -188,10 +197,18 @@ def usability(
     task_name: str | None,
     package_digest: str | None = None,
 ) -> dict[str, Any] | None:
-    """Positive not-usable label, or None. Absence is not a label."""
+    """Keep hand exclusions; bind ledger/validated-variant rules to the package."""
     hand = index.hand_for(trial_name, task_name)
     if hand is not None and hand["status"] in HAND_NOT_USABLE:
         return hand
+    ledger = index.ledger.get(_task_id(task_name) or "")
+    if (
+        ledger
+        and package_digest
+        and ledger["run_digest"] == package_digest
+        and ledger["status"] != "usable"
+    ):
+        return ledger
     census = index.census_for(task_name)
     if census is not None and census["status"] in CENSUS_NOT_USABLE:
         if index.validated_variant(task_name, package_digest):
@@ -201,18 +218,52 @@ def usability(
 
 
 class TaskIndex:
-    """Hand labels win over a sound census row. A missing row excludes nothing."""
+    """Version-bound canonical task ledger with legacy hand/census fallback."""
 
     def __init__(
         self,
         hands: dict[str, dict[str, Any]],
         census: dict[str, dict[str, Any]],
-        validated: dict[str, str] | None = None,
+        validated: dict[str, str],
+        ledger: dict[str, dict[str, Any]],
     ) -> None:
         self.hands = hands
         self.census = census
-        #: validated variant digest -> its task id.
-        self.validated = validated or {}
+        self.ledger = ledger
+        self.validated = validated
+
+    def status_for(
+        self, task_name: str | None, task_package_digest: str | None
+    ) -> dict[str, Any]:
+        """Display the exact ledger binding, not a guessed usable status."""
+        task_id = _task_id(task_name)
+        row = self.ledger.get(task_id or "")
+        matched = (
+            row["run_digest"] == task_package_digest
+            if row is not None and task_package_digest
+            else None
+        )
+        if row is None:
+            reason = "No canonical task ledger row; verdict uses legacy labels when present."
+        elif matched is None:
+            reason = "Trial task-package digest is absent; ledger status is not applied."
+        elif not matched:
+            reason = "Ledger describes a different task package; verdict uses legacy labels."
+        else:
+            reason = row["excerpt"]
+        return {
+            "status": row["status"] if row is not None and matched else None,
+            "ledger_status": row["status"] if row is not None else None,
+            "source": "python_task_ledger" if row is not None else None,
+            "path": row["path"] if row is not None else None,
+            "source_sha256": row["source_sha256"] if row is not None else None,
+            "task_id": task_id,
+            "run_digest": row["run_digest"] if row is not None else None,
+            "trial_digest": task_package_digest,
+            "digest_match": matched,
+            "reason": reason,
+            "evidence": row["evidence"] if row is not None else [],
+        }
 
     def hand_for(self, trial_name: str | None, task_name: str | None) -> dict[str, Any] | None:
         if trial_name and trial_name in self.hands:
@@ -238,7 +289,7 @@ class TaskIndex:
 
 def task_index_for(root: Path | None) -> TaskIndex:
     if root is None:
-        return TaskIndex({}, {})
+        return TaskIndex({}, {}, {}, {})
     return _load_task_index(str(root.resolve()))
 
 
@@ -296,7 +347,29 @@ def _load_task_index(root: str) -> TaskIndex:
         task_id = _task_id(variant.get("task_name"))
         if isinstance(digest, str) and task_id:
             validated[digest] = task_id
-    return TaskIndex(hands, census, validated)
+    ledger: dict[str, dict[str, Any]] = {}
+    ledger_path = base / _LEDGER_RELATIVE
+    if ledger_path.is_file():
+        raw = ledger_path.read_bytes()
+        digest = hashlib.sha256(raw).hexdigest()
+        reader = csv.DictReader(io.StringIO(raw.decode("utf-8")))
+        required = {"task_id", "status", "run_digest", "reason", "evidence"}
+        if not required <= set(reader.fieldnames or []):
+            raise ValueError(f"Task ledger missing columns: {ledger_path}")
+        for row in reader:
+            task_id = _task_id(row["task_id"])
+            if not task_id or task_id in ledger or row["status"] not in _LEDGER_STATUSES:
+                raise ValueError(f"Invalid or duplicate task ledger row: {row['task_id']}")
+            ledger[task_id] = {
+                "status": row["status"],
+                "detector": "python_task_ledger",
+                "path": f"{_LEDGER_RELATIVE}#{task_id}",
+                "source_sha256": digest,
+                "run_digest": row["run_digest"],
+                "excerpt": f"status={row['status']}; {row['reason']}",
+                "evidence": row["evidence"].split(),
+            }
+    return TaskIndex(hands, census, validated, ledger)
 
 
 def _passed(reward: float | None, scored: bool) -> bool:

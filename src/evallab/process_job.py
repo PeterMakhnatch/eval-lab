@@ -160,6 +160,7 @@ def _taint_flags(
     attempts (including failed/unknown ones) remain visible without deciding.
     """
     from evallab import probe03
+    from evallab.copy_check import copy_check
     from evallab.upstream_fetch import assess_upstream_fetch
 
     flags: list[dict[str, Any]] = []
@@ -181,6 +182,9 @@ def _taint_flags(
             }
         )
     flags.extend(assess_upstream_fetch(agent_seq, info, trial_dir=trial_dir))
+    copied = copy_check(trial_dir)
+    if copied is not None:
+        flags.append(copied)
     return flags
 
 
@@ -463,7 +467,11 @@ def _process_trial(
     if taint:
         from evallab.upstream_fetch import confirmed_fetch
 
-        decisive = [flag for flag in taint if confirmed_fetch(flag) or flag["kind"] == "guard_reject"]
+        decisive = [
+            flag
+            for flag in taint
+            if confirmed_fetch(flag) or flag["kind"] in {"guard_reject", "copied_code"}
+        ]
         if decisive:
             kinds = sorted({flag["kind"] for flag in decisive})
             flags.append(f"taint_candidate:{'+'.join(kinds)}")

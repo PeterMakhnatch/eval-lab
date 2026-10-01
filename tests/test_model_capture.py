@@ -942,7 +942,12 @@ class _RecordingStub(BaseHTTPRequestHandler):
             content_type = "application/json"
         with type(self).lock:
             type(self).received.append(
-                {"path": self.path, "auth": self.headers.get("Authorization"), "raw": raw}
+                {
+                    "path": self.path,
+                    "auth": self.headers.get("Authorization"),
+                    "host": self.headers.get("Host"),
+                    "raw": raw,
+                }
             )
         self.send_response(200)
         self.send_header("Content-Type", content_type)
@@ -1034,10 +1039,15 @@ def test_capture_passthrough_byte_identical_under_parallel_tokens(
     )
     assert all(entry["raw"] in (control_seen, stream_raw) for entry in _RecordingStub.received)
     # Stripped paths upstream; the provider key still reaches the upstream.
+    # The capture drops the inbound Host, so the client sets it from the
+    # upstream URL (Modal's edge routes on Host; 127.0.0.1:<capture-port>
+    # must never leak through).
+    stub_host = f"127.0.0.1:{stub.server_address[1]}"
     assert _RecordingStub.received[0]["path"] == "/v1/chat/completions"
     for entry in _RecordingStub.received[1:]:
         assert entry["path"] == "/v1/chat/completions"
         assert entry["auth"] == "Bearer job-key"
+        assert entry["host"] == stub_host
     records = [
         json.loads(line)
         for line in (tmp_path / "cap" / "calls.jsonl").read_text().splitlines()
@@ -1265,3 +1275,216 @@ def test_runner_sets_capture_token_only_for_loopback_upstream(
     monkeypatch.delenv("EVALLAB_MIMO_SELFHOSTED_UPSTREAM", raising=False)
     env = runner_module._terminus_proxy_env(**kwargs)
     assert "EVALLAB_CAPTURE_ROUTE_TOKEN" not in env
+
+
+def _load_secret_proxy(monkeypatch: pytest.MonkeyPatch, name: str) -> Any:
+    """Import the standalone secret-proxy container script under ``name``."""
+    import importlib.util
+    import sys
+
+    source = Path(__file__).resolve().parents[1] / "containers" / "zai_openapi_secret_proxy.py"
+    spec = importlib.util.spec_from_file_location(name, source)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, spec.name, module)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _mimo_proxy_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, upstream_url: str) -> str:
+    """Point a mimo_selfhosted secret proxy at ``upstream_url``; return the capability."""
+    secret_file = tmp_path / "mimo-key"
+    secret_file.write_text("mimo-provider-key-sentinel-135792468\n")
+    secret_file.chmod(0o600)
+    capability = "mimo-chain-capability"
+    monkeypatch.setenv("EVALLAB_PROXY_PROVIDER", "mimo_selfhosted")
+    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_SECRET_PATH", str(secret_file))
+    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_UPSTREAM", upstream_url)
+    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_PROXY_CAPABILITY", capability)
+    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_ATTEMPT_ID", "attempt-7")
+    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_USAGE_FILE", str(tmp_path / "usage.json"))
+    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_MAX_REQUESTS", "10")
+    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_MAX_INPUT_TOKENS", "20000")
+    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_MAX_OUTPUT_TOKENS", "20000")
+    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_MAX_TOTAL_TOKENS", "40000")
+    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_MAX_COST_MICROS", "1000000")
+    return capability
+
+
+def test_full_chain_proxy_capture_upstream_strips_token_and_host(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """End to end: real secret proxy -> capture -> fake upstream.
+
+    The fake sees the canonical path, the upstream authority as Host (never
+    the capture's loopback Host), and the shaped body; the client gets the
+    same payload as a direct call; the record carries the route token.
+    """
+    _RecordingStub.received = []
+    stub = ThreadingHTTPServer(("127.0.0.1", 0), _RecordingStub)
+    threading.Thread(target=stub.serve_forever, daemon=True).start()
+    capture, recorder, _manifest = serve_capture(
+        upstream=f"http://127.0.0.1:{stub.server_address[1]}",
+        out_dir=tmp_path / "cap",
+        bind="127.0.0.1",
+        port=0,
+    )
+    threading.Thread(target=capture.serve_forever, daemon=True).start()
+    module = _load_secret_proxy(monkeypatch, "full_chain_proxy")
+    capability = _mimo_proxy_env(
+        monkeypatch, tmp_path, f"http://127.0.0.1:{capture.server_address[1]}"
+    )
+    monkeypatch.setenv("EVALLAB_CAPTURE_ROUTE_TOKEN", "01CHAINJOB")
+    proxy = module.serve(host="127.0.0.1", port=0)
+    threading.Thread(target=proxy.serve_forever, daemon=True).start()
+    try:
+        body = json.dumps(
+            {
+                "model": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+                "messages": [{"role": "user", "content": "hi"}],
+            }
+        ).encode()
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {capability}"}
+        via_chain = _raw_post(proxy.server_address[1], "/v1/chat/completions", body, headers)
+        direct = _raw_post(stub.server_address[1], "/v1/chat/completions", body, headers)
+        # Same payload: the secret proxy re-serializes upstream JSON with
+        # canonical separators, so whitespace differs by design; the capture
+        # hop itself is byte-exact (proven by the passthrough test).
+        assert json.loads(via_chain) == json.loads(direct)
+        assert json.loads(via_chain)["choices"][0]["message"]["content"] == "done"
+    finally:
+        proxy.shutdown()
+        capture.shutdown()
+        stub.shutdown()
+        recorder.close()
+    assert len(_RecordingStub.received) == 2
+    (seen,) = [entry for entry in _RecordingStub.received if b'"temperature"' in entry["raw"]]
+    assert seen["path"] == "/v1/chat/completions"
+    assert seen["host"] == f"127.0.0.1:{stub.server_address[1]}"
+    shaped = json.loads(seen["raw"].decode())
+    assert shaped["model"] == "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
+    assert shaped["temperature"] == 0.6
+    assert shaped["chat_template_kwargs"] == {"enable_thinking": True}
+    records = [
+        json.loads(line)
+        for line in (tmp_path / "cap" / "calls.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+    assert len(records) == 1
+    assert records[0]["route_token"] == "01CHAINJOB"
+    assert records[0]["request_body"]["model"] == "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
+
+
+def test_link_leaves_foreign_token_calls_unassigned(tmp_path: Path) -> None:
+    """Two same-task jobs sharing one capture: no cross-job chaining.
+
+    Job B links the shared capture; the call stamped with job A's attempt
+    id stays unassigned even though the task text matches job B's trial.
+    Job A links the same capture and claims it via route_token.
+    """
+    instruction = "do the shared thing " * 8
+    window = ("2026-01-01T00:00:00Z", "2026-01-01T01:00:00Z")
+    trajectory = {
+        "session_id": "sess-x",
+        "steps": [
+            {"source": "user", "message": instruction},
+            {"source": "agent", "message": "all done"},
+        ],
+    }
+    job_a = _job_dir(
+        tmp_path, "job-a", [{"trial_name": "trial-a", "window": window, "trajectory": trajectory}]
+    )
+    (job_a / "lab-metadata.json").write_text(
+        json.dumps({"provider_usage": {"attempt_id": "01JOBAAAA"}})
+    )
+    job_b = _job_dir(
+        tmp_path, "job-b", [{"trial_name": "trial-b", "window": window, "trajectory": trajectory}]
+    )
+    (job_b / "lab-metadata.json").write_text(
+        json.dumps({"provider_usage": {"attempt_id": "01JOBBBBB"}})
+    )
+    capture = tmp_path / "cap"
+    _write_calls(
+        capture,
+        [
+            {
+                "started_at": "2026-01-01T00:10:00Z",
+                "ended_at": "2026-01-01T00:10:02Z",
+                "method": "POST",
+                "path": "/v1/chat/completions",
+                "route_token": "01JOBAAAA",
+                "session_id": None,
+                "request_body": {"messages": [{"role": "user", "content": instruction}]},
+                "response_status": 200,
+                "response_sse": False,
+                "assistant_texts": ["all done"],
+                "usage": {"prompt_tokens": 11, "completion_tokens": 7},
+            }
+        ],
+    )
+    receipt_b = link_capture(capture, job_b, derived_root=tmp_path / "derived-b")
+    assert receipt_b["calls_total"] == 1
+    assert receipt_b["calls_assigned"] == 0
+    assert receipt_b["calls_unassigned"] == [1]
+    (judgment_b,) = receipt_b["trials"]
+    assert judgment_b["captured_calls"] == 0
+    receipt_a = link_capture(capture, job_a, derived_root=tmp_path / "derived-a")
+    assert receipt_a["calls_assigned"] == 1
+    (judgment_a,) = receipt_a["trials"]
+    assert judgment_a["trial_name"] == "trial-a"
+    assert judgment_a["verdict"] == "complete"
+
+
+def test_capture_smoke_against_fake_upstream(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The operator smoke runs the real chain and reports shas, never secrets."""
+    from evallab.model_capture import _forwarded_host, run_capture_smoke
+
+    _RecordingStub.received = []
+    stub = ThreadingHTTPServer(("127.0.0.1", 0), _RecordingStub)
+    threading.Thread(target=stub.serve_forever, daemon=True).start()
+    try:
+        monkeypatch.setenv("MIMO_SELFHOSTED_API_KEY", "smoke-fake-key-001")
+        summary = run_capture_smoke(
+            upstream=f"http://127.0.0.1:{stub.server_address[1]}",
+            out_dir=tmp_path / "smoke",
+        )
+    finally:
+        stub.shutdown()
+    assert summary["status"] == 200
+    assert summary["model"] == "stub"
+    assert summary["calls"] == 1
+    assert summary["forwarded_host"] == f"127.0.0.1:{stub.server_address[1]}"
+    assert _forwarded_host("https://example.us-east.modal.direct") == "example.us-east.modal.direct"
+    assert (
+        _forwarded_host("https://example.us-east.modal.direct:443")
+        == "example.us-east.modal.direct"
+    )
+    assert _forwarded_host("http://127.0.0.1:8471") == "127.0.0.1:8471"
+    (seen,) = _RecordingStub.received
+    assert seen["host"] == summary["forwarded_host"]
+    assert seen["path"] == "/v1/chat/completions"
+    assert seen["auth"] == "Bearer smoke-fake-key-001"
+    assert summary["route_token"].startswith("smoke-")
+    assert len(summary["request_sha256"]) == 64
+    assert len(summary["response_sha256"]) == 64
+    assert "smoke-fake-key-001" not in json.dumps(summary)
+    record = json.loads((tmp_path / "smoke" / "calls.jsonl").read_text().splitlines()[0])
+    assert record["route_token"] == summary["route_token"]
+    assert "smoke-fake-key-001" not in json.dumps(record)
+    assert (tmp_path / "smoke" / "smoke.json").is_file()
+
+
+def test_capture_smoke_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Missing key and dead upstream both fail nonzero with no leak."""
+    import pytest as _pytest
+
+    from evallab.model_capture import SmokeError, run_capture_smoke
+
+    monkeypatch.delenv("MIMO_SELFHOSTED_API_KEY", raising=False)
+    with _pytest.raises(SmokeError, match="not set"):
+        run_capture_smoke(upstream="http://127.0.0.1:9", out_dir=tmp_path / "s1")
+    monkeypatch.setenv("MIMO_SELFHOSTED_API_KEY", "smoke-fake-key-001")
+    with _pytest.raises(SmokeError):
+        run_capture_smoke(upstream="http://127.0.0.1:9", out_dir=tmp_path / "s2")

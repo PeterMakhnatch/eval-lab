@@ -27,9 +27,12 @@ import http.client
 import json
 import os
 import re
+import secrets
 import socket
 import subprocess
+import tempfile
 import threading
+import urllib.request
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -774,11 +777,16 @@ def _request_body(handler: BaseHTTPRequestHandler) -> tuple[bytes, str | None]:
 def _forward_headers(
     handler: BaseHTTPRequestHandler, *, upstream_key: str | None
 ) -> dict[str, str]:
-    """Inbound headers safe to forward; client auth is replaced, never passed on."""
+    """Inbound headers safe to forward; client auth is replaced, never passed on.
+
+    The inbound ``Host`` (this capture server) is never forwarded: the HTTP
+    client sets ``Host`` from the upstream URL instead. Forwarding it would
+    misroute upstreams that dispatch on ``Host`` (e.g. the Modal edge).
+    """
     forwarded: dict[str, str] = {}
     for key, value in handler.headers.items():
         folded = key.lower()
-        if folded in _HOP_BY_HOP or folded == "content-length":
+        if folded in _HOP_BY_HOP or folded in {"content-length", "host"}:
             continue
         if upstream_key is not None and folded in _AUTH_HEADERS:
             continue
@@ -1323,7 +1331,10 @@ class Attribution:
 
 
 def attribute_calls(calls: list[dict[str, Any]], trials: list[TrialEvidence]) -> Attribution:
-    """Assign calls to trials: route token, then session, then conversation chaining."""
+    """Assign calls to trials: route token, then session, then conversation chaining.
+
+    A present route token foreign to this job stays unassigned (never chained).
+    """
     by_name: dict[str, list[TrialEvidence]] = {}
     for trial in trials:
         by_name.setdefault(trial.name, []).append(trial)
@@ -1351,10 +1362,16 @@ def attribute_calls(calls: list[dict[str, Any]], trials: list[TrialEvidence]) ->
                 # Runner-stamped job attempt id (secret proxy ``/t/<token>/``
                 # prefix): exact for one-trial jobs. A multi-trial job shares
                 # one attempt id, so those calls fall through to conversation
-                # chaining instead of going ambiguous here.
+                # chaining instead of going ambiguous here. A token foreign
+                # to this job (another job's calls in a shared capture)
+                # stays unassigned here: it must never be claimed by
+                # session/conversation chaining below.
                 job_candidates = [t for t in trials if t.attempt_id == token]
                 if len(job_candidates) == 1:
                     matched, how = job_candidates, "route_token"
+                elif not job_candidates:
+                    attribution.unassigned.append(seq)
+                    continue
         if matched is None and isinstance(call.get("session_id"), str) and call["session_id"]:
             candidates = by_session.get(str(call["session_id"]), [])
             if len(candidates) == 1:
@@ -1768,3 +1785,164 @@ def find_trial_capture(trial_dir: str | Path) -> dict[str, Any] | None:
         return dict(row)
     except Exception:
         return None
+
+
+# --------------------------------------------------------------------------- #
+# Operator smoke: one live call through secret proxy -> capture -> upstream
+# --------------------------------------------------------------------------- #
+
+
+class SmokeError(RuntimeError):
+    """A failed capture smoke check; the message never carries secrets or bodies."""
+
+
+SMOKE_KEY_ENV = "MIMO_SELFHOSTED_API_KEY"
+
+
+def _canonical_sha(value: Any) -> str:
+    """SHA-256 over one body in canonical JSON form."""
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def _forwarded_host(upstream: str) -> str:
+    """Host authority the capture forwards to (it drops the inbound Host)."""
+    split = urlsplit(upstream)
+    host = split.hostname or ""
+    port = split.port
+    default = {"https": 443, "http": 80}.get((split.scheme or "").casefold())
+    if port is None or port == default:
+        return host
+    return f"{host}:{port}"
+
+
+def run_capture_smoke(
+    *,
+    upstream: str,
+    out_dir: str | Path,
+    key_env: str = SMOKE_KEY_ENV,
+    max_tokens: int = 64,
+) -> dict[str, Any]:
+    """Send one Terminus-shaped chat call via secret proxy -> capture -> upstream.
+
+    The secret proxy is configured exactly as :func:`evallab.runner.run_experiment`
+    configures it for the ``mimo_selfhosted`` route (same ``_terminus_proxy_env``
+    inputs, ``EVALLAB_MODEL_CAPTURE=1``, job attempt id as route token). The
+    provider key comes from ``key_env`` and never reaches the record or the
+    returned summary. Raises :class:`SmokeError` on any failure.
+    """
+    from evallab.execution_contracts import (
+        CAPTURE_ENABLED_ENV,
+        MIMO_SELFHOSTED_MODEL_SELECTOR,
+        MIMO_SELFHOSTED_NATIVE_MODEL,
+        MIMO_SELFHOSTED_PROXY_PROVIDER,
+        MIMO_SELFHOSTED_UPSTREAM_ENV,
+        ProxyTrialLimits,
+        materialize_mimo_selfhosted_secret_file,
+    )
+    from evallab.runner import _start_terminus_proxy, _stop_terminus_proxy
+
+    key = os.environ.get(key_env)
+    if not key:
+        raise SmokeError(f"provider key env {key_env} is not set")
+    directory = Path(out_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    token = f"smoke-{secrets.token_hex(4)}"
+    capability = secrets.token_urlsafe(32)
+    server, recorder = None, None
+    capture_thread = None
+    process = None
+    saved = dict(os.environ)
+    try:
+        server, recorder, _manifest = serve_capture(
+            upstream=upstream, out_dir=directory, bind="127.0.0.1", port=0
+        )
+        capture_thread = threading.Thread(target=server.serve_forever, daemon=True)
+        capture_thread.start()
+        capture_url = f"http://127.0.0.1:{server.server_address[1]}"
+        os.environ[MIMO_SELFHOSTED_UPSTREAM_ENV] = capture_url
+        os.environ[CAPTURE_ENABLED_ENV] = "1"
+        work_dir = Path(tempfile.mkdtemp(prefix="evallab-capture-smoke."))
+        secret_path = materialize_mimo_selfhosted_secret_file(work_dir / "key")
+        process, proxy_url = _start_terminus_proxy(
+            provider=MIMO_SELFHOSTED_PROXY_PROVIDER,
+            secret_path=secret_path,
+            capability=capability,
+            attempt_id=token,
+            usage_path=work_dir / "usage.json",
+            limits=ProxyTrialLimits(
+                max_requests=4,
+                max_input_tokens=8000,
+                max_output_tokens=512,
+                max_total_tokens=8512,
+                max_cost_micros=1_000_000,
+            ),
+            timeout_seconds=300.0,
+            work_dir=work_dir,
+            mimo_native=MIMO_SELFHOSTED_NATIVE_MODEL,
+        )
+        body = {
+            "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
+            "messages": [{"role": "user", "content": "smoke ping"}],
+            "max_tokens": max_tokens,
+        }
+        request = urllib.request.Request(
+            f"{proxy_url}/v1/chat/completions",
+            data=json.dumps(body).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {capability}",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=300) as response:
+                status = response.status
+                response.read()
+        except OSError as exc:
+            raise SmokeError(f"smoke call failed in transport ({type(exc).__name__})") from exc
+        if status != 200:
+            raise SmokeError(f"smoke call returned status {status}")
+        calls_path = directory / "calls.jsonl"
+        try:
+            records = [
+                json.loads(line)
+                for line in calls_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+        except OSError as exc:
+            raise SmokeError(f"calls.jsonl unreadable ({type(exc).__name__})") from exc
+        if len(records) != 1:
+            raise SmokeError(f"expected 1 captured call, found {len(records)}")
+        record = records[0]
+        if record.get("route_token") != token:
+            raise SmokeError("captured call carries the wrong route token")
+        blob = json.dumps(record)
+        for secret in (key, capability):
+            if secret and secret in blob:
+                raise SmokeError("secret material reached the capture record")
+        summary = {
+            "status": status,
+            "model": record.get("model"),
+            "forwarded_host": _forwarded_host(upstream),
+            "route_token": token,
+            "request_sha256": _canonical_sha(record.get("request_body")),
+            "response_sha256": _canonical_sha(record.get("response_body")),
+            "calls": len(records),
+            "capture_dir": str(directory),
+        }
+        (directory / "smoke.json").write_text(
+            json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        return summary
+    finally:
+        _stop_terminus_proxy(process)
+        if server is not None:
+            with contextlib.suppress(Exception):
+                server.shutdown()
+        if recorder is not None:
+            with contextlib.suppress(Exception):
+                recorder.close()
+        os.environ.clear()
+        os.environ.update(saved)

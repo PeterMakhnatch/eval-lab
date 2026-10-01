@@ -101,7 +101,7 @@ from evallab.loopfix import (
     loop_break_record,
     loop_decision,
 )
-from evallab.mimo_tool_calls import MimoToolCallParser
+from evallab.mimo_tool_calls import MimoToolCallParser, has_native_completion
 from evallab.step_layers import (
     STEP_LAYERS_KEY,
     attach_layers,
@@ -484,6 +484,7 @@ class SecretSafeTerminus2(Terminus2):
         extra_env: dict[str, str] | None = None,
         loop_break: bool = False,
         output_cap_chars: int | None = None,
+        completion_fix: bool = False,
         **kwargs: Any,
     ) -> None:
         if len(args) > 1:
@@ -493,6 +494,8 @@ class SecretSafeTerminus2(Terminus2):
             )
         if not isinstance(loop_break, bool):
             raise ValueError("loop_break must be a boolean")
+        if not isinstance(completion_fix, bool):
+            raise ValueError("completion_fix must be a boolean")
         if output_cap_chars is not None and (
             isinstance(output_cap_chars, bool)
             or not isinstance(output_cap_chars, int)
@@ -500,6 +503,7 @@ class SecretSafeTerminus2(Terminus2):
         ):
             raise ValueError("output_cap_chars must be an integer of at least 2, or null")
         self._loop_break_enabled = loop_break
+        self._completion_fix_enabled = completion_fix
         self._output_cap_chars = output_cap_chars
         self._loop_nudged_call: int | None = None
         self._loop_detector: str | None = None
@@ -687,6 +691,19 @@ class SecretSafeTerminus2(Terminus2):
         self._flush_pending_layer("parse_error: nothing executed")
         outcome = await super()._handle_llm_interaction(*args, **kwargs)
         commands, is_task_complete, feedback, analysis, plan, llm_response = outcome
+        if (
+            self._completion_fix_enabled
+            and not is_task_complete
+            and bool(getattr(self, "_pending_completion", False))
+            and has_native_completion(getattr(llm_response, "content", None))
+        ):
+            # HAR-96: the confirm prompt is pending and the model answered
+            # with a native completion signal (a task_complete tool call, or
+            # task_complete:true inside a native call) instead of repeating
+            # the Terminus claim. Accept it as the confirmation; upstream's
+            # pending logic ends the episode from here.
+            is_task_complete = True
+            outcome = (commands, True, feedback, analysis, plan, llm_response)
         self._pending_composed_message = self._composed_message(analysis, plan, llm_response)
         parser = self._parser
         if isinstance(parser, MimoToolCallParser) and parser.last_prose_completion:

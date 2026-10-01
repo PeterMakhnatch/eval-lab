@@ -103,3 +103,142 @@ the raw pane, because that report is what the agent needs.
 
 The agent stays root, so the `/etc/hosts` bypass remains possible. Nothing
 here closes it.
+
+# HAR-116 third arm: completion-fix harness variant (prepared, NOT run)
+
+## The tree
+
+A third Terminus-2 harness tree for the self-hosted MiMo student,
+byte-identical to the baseline except for the completion fix:
+
+| field | baseline | completion fix |
+|---|---|---|
+| `harness_tree_path` | `research/experiments/har116-loopfix-leak/harness-baseline` | `research/experiments/har116-loopfix-leak/harness-completionfix` |
+| `harness_tree_sha256` | `sha256:433d5d2946e317b0213438ea4aa1852f2aaffa5c3a81a3bbdeb42d4aa028ecf3` | `sha256:7d44c9f492659913eeb58147f68f04e4ec361f152eabe82e8e5a8b5ff1e7644a` |
+
+The only byte difference is `terminus/config.json`, which gains the knob
+`completion_fix: true`. Like the loop-fix keys it rides the normal path:
+the tree's config becomes the `--agent-kwarg` value `completion_fix=true`
+and the adapter applies it. Leave it out and the agent behaves exactly as
+before.
+
+## What the fix does
+
+HAR-96's rule, literally: once the confirm prompt ("Are you sure ...")
+is pending, accept a native `task_complete` tool call — lone or beside
+other calls — or `"task_complete": true` inside a native call (JSON
+argument or `<parameter=task_complete>`), as the confirmation. Upstream's
+pending logic ends the episode from there.
+
+The rule is pending-only on purpose. A lone `<function=task_complete>`
+call already confirms live (#526), as do prose and Terminus-JSON claims,
+so those shapes are untouched. A native-shaped turn with no prompt pending
+is still a parse error, exactly as today: the fix never manufactures a
+first claim, so it cannot confirm a turn prematurely.
+
+The live check and the offline replay share one function,
+`evallab.mimo_tool_calls.has_native_completion`, so the two cannot drift.
+A shell `echo "task_complete"` is NOT a native signal (it names no tool
+call); neither is prose that merely mentions the word, nor a bare
+Terminus object with no native markup.
+
+## Replay: the literal rule changes nothing on the observed runs
+
+`replay_completionfix.py` replays the rule, read-only, over the 82
+HAR-114 runs (38 HAR-119 + 44 HAR-81), simulating upstream's pending flag
+turn by turn on the recorded raw text. Per run it reports the turn each
+rule would accept, the per-step prompt tokens after it, and whether a
+pass would be lost (accept before HAR-114's last useful edit, reward-1
+runs). A1 is the first harness-accepted completion (HAR-100's prompt
+turn); A3 is the first echo-done turn at/after the first claim-shaped
+turn. Full per-run rows: `replay_completionfix.jsonl` (`.csv` beside it).
+
+**Verdict: the literal rule recovers 0 runs and 0 tokens on all 82.**
+No post-prompt turn carries a native completion signal the live harness
+did not already accept — the observed claim loops are shell echoes
+(`echo "task_complete"`), prose re-claims, and re-verification commands.
+This matches HAR-100's HAR-81 finding and extends it to the 38 HAR-119
+runs. The prepared third arm is therefore expected to behave exactly
+like the baseline on these shapes; running it is Research-Harbor's and
+Peter's call.
+
+Because 0 is less than half of what A1 recovers (below), the comparison
+stays prominent per the ticket, but no A1/A3 tree is built here.
+
+### The 8 completion-claim loops (literal vs A1 vs A3)
+
+Steps are agent step ids; saved is per-step prompt tokens after the accept
+turn; pass compares the accept against the last useful edit.
+
+| run | reward | last edit | prompt at | literal | A1 (turn, saved, pass) | A3 |
+|---|---|---|---|---|---|---|
+| HAR-110 000226 cNYdqfo | 1.0 | 10 | 16 | — | 16, 2.29M, kept | — |
+| HAR-110 001832 CFCbfps | 1.0 | 51 | 87 | — | 87, 0.18M, kept | — |
+| HAR-110 001896 7RJJeFg | 0.0 | 30 | 37 | — | 37, 1.55M | — |
+| HAR-110 002391 8FqvKUU | 0.0 | 32 | 36 | — | 36, 1.82M | — |
+| HAR-104 000226 | 1.0 | 12 | 14 | — | 14, 1.88M, kept | — |
+| HAR-104 000383 | 0.0 | 22 | 30 | — | 30, 1.74M | — |
+| HAR-104 002391 | 1.0 | 9 | 81 | — | 81, 0.91M, kept | — |
+| HAR-104 002864 | 1.0 | 13 | 20 | — | 20, 2.25M, kept | — |
+| **claim-loop totals** | | | | **0 runs, 0 tokens** | **12.63M** | **0 runs, 0 tokens** |
+
+A3 fires nowhere on the 38: these runs echo `COMPLETE_TASK_AND_STOP` /
+`task_complete` (shell) or re-claim in prose, never HAR-100's
+`echo done`-shaped turns.
+
+### All 82 for context
+
+| group | literal recovered | literal saved | A1 saved | A3 saved | pass lost (lit/A1/A3) |
+|---|---|---|---|---|---|
+| 38 HAR-119 | 0 | 0 | 14.57M | 0 | 0/0/0 |
+| 44 HAR-81 | 0 | 0 | 21.46M | 15.65M | 0/2/0 |
+
+A1/A3 reproduce HAR-100's published pilot figures (21.46M; 15.66M) to the
+dollar. A1's two lost passes are both 1271-media-games variants (a2: first
+claim step 32 before the passing edit 36; a3: first claim 54 before edit
+63). On the 8 claim loops above, A1 keeps every pass.
+
+## Third-arm specs
+
+`make_specs.py` takes an optional `--completionfix-tree/--completionfix-digest`
+pair producing `har116-a-<task>-completionfix` specs for the same 10 Part A
+tasks on the same staged task bytes. Without the pair the existing outputs
+are byte-identical. The command (from the repo root, after staging):
+
+```bash
+uv run --no-sync python research/experiments/har116-loopfix-leak/make_specs.py \
+  --baseline-tree research/experiments/har116-loopfix-leak/harness-baseline \
+  --baseline-digest sha256:433d5d2946e317b0213438ea4aa1852f2aaffa5c3a81a3bbdeb42d4aa028ecf3 \
+  --loopfix-tree research/experiments/har116-loopfix-leak/harness-loopfix \
+  --loopfix-digest sha256:06e5712c153f41bda8dfab38736847438135fc0c5693dc147be12d8207869281 \
+  --completionfix-tree research/experiments/har116-loopfix-leak/harness-completionfix \
+  --completionfix-digest sha256:7d44c9f492659913eeb58147f68f04e4ec361f152eabe82e8e5a8b5ff1e7644a \
+  --out-dir research/experiments/har116-loopfix-leak/specs
+```
+
+Route (from the retained HAR-110 base spec): terminus-2 +
+selfhosted `XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` on Daytona, est $1.85
+per trial.
+
+## Behaviour tests
+
+- `tests/test_harbor_terminus_completionfix.py`: pending prompt plus a
+  native `task_complete` call confirms;
+  `test_pending_prompt_plus_embedded_task_complete_true_confirms`;
+  without the knob nothing changes
+  (`test_without_the_knob_a_native_completion_turn_does_not_confirm`);
+  a verification command without a signal never confirms; a native-shaped
+  turn with no pending prompt does not confirm early; a clean claim with
+  no pending prompt still reaches the prompt;
+  `test_non_boolean_completion_fix_refuses`.
+- `tests/test_mimo_tool_calls.py::test_has_native_completion_marks_only_native_signals`:
+  the shared detector (lone/mixed/embedded true; bare object, prose
+  mention, shell echo, plain call false).
+
+## Limits
+
+The replay is a counterfactual on recorded text: it assumes the model
+writes the same turns under the new rule. It credits only turns already
+written, never a nudge-changed course. Pending is simulated from recorded
+acceptances; a turn the live parser rejected clears it, exactly as
+upstream does.

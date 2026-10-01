@@ -1,0 +1,6 @@
+{
+  "temperature": 0.6,
+  "llm_call_kwargs": {"top_p": 0.95, "max_tokens": 4096},
+  "proactive_summarization_threshold": 16384,
+  "completion_fix": true
+}

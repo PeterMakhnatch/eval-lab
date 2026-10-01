@@ -15,6 +15,7 @@ from evallab.mimo_tool_calls import (
     HARBOR_FALLBACK_RESPONSE,
     MimoToolCallParser,
     executed_keystrokes,
+    has_native_completion,
     normalize_mimo_tool_calls,
     prose_completion,
 )
@@ -657,3 +658,46 @@ def test_turns_that_are_not_prose_never_complete(raw: str) -> None:
 )
 def test_prose_answer_is_the_text_after_the_reasoning(raw: str, answer: str) -> None:
     assert prose_completion(raw) == answer
+
+
+@pytest.mark.parametrize(
+    ("raw", "native"),
+    [
+        pytest.param(NATIVE_COMPLETE, True, id="lone-completion-call"),
+        pytest.param(
+            NATIVE_BASH_MULTI + NATIVE_COMPLETE, True, id="completion-beside-commands"
+        ),
+        pytest.param(
+            '<tool_call><function=exec_command>{"command": "pytest -q", '
+            '"task_complete": true}</function></tool_call>',
+            True,
+            id="json-true-inside-exec-call",
+        ),
+        pytest.param(
+            "<tool_call><function=bash><parameter=command>pytest -q</parameter>"
+            "<parameter=task_complete>true</parameter></function></tool_call>",
+            True,
+            id="xml-param-inside-bash-call",
+        ),
+        pytest.param(
+            '{"analysis": "done", "plan": "", "commands": [], "task_complete": true}',
+            False,
+            id="bare-terminus-object-is-not-native",
+        ),
+        pytest.param(
+            "The task is complete and verified.",
+            False,
+            id="prose-mention-is-not-native",
+        ),
+        pytest.param(
+            '<tool_call><function=bash><parameter=command>echo "task_complete"'
+            "</parameter></function></tool_call>",
+            False,
+            id="shell-echo-is-not-a-completion-call",
+        ),
+        pytest.param(NATIVE_SINGLE, False, id="plain-exec-call"),
+        pytest.param("", False, id="empty"),
+    ],
+)
+def test_has_native_completion_marks_only_native_signals(raw: str, native: bool) -> None:
+    assert has_native_completion(raw) is native

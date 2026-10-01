@@ -364,6 +364,7 @@ def generate(
     route: dict,
     trees: dict[str, tuple[str, str]],
     out_dir: Path,
+    completionfix: tuple[str, str] | None = None,
 ) -> list[str]:
     out_dir.mkdir(parents=True, exist_ok=True)
     names: list[str] = []
@@ -383,6 +384,28 @@ def generate(
                     f"plain terminus-2 student on the {arm} harness tree "
                     f"({entry['uses']} task bytes); arms differ only in the harness tree, "
                     f"paired against {other}",
+                    entry["task"],
+                    _repo_rel(entry["staged_dir"]),
+                    entry["package_digest"],
+                    entry["verifier_digest"],
+                    harness_rel,
+                    harness_digest,
+                    route,
+                ),
+            )
+            names.append(name)
+        if completionfix is not None:
+            harness_rel, harness_digest = completionfix
+            name = f"har116-a-{short}-completionfix"
+            _write(
+                out_dir,
+                name,
+                _spec(
+                    name,
+                    f"HAR-116 Part A completion-fix trial, task={entry['task']}, "
+                    "arm=completionfix: plain terminus-2 student on the completionfix "
+                    f"harness tree ({entry['uses']} task bytes); arms differ only in "
+                    "the harness tree, paired against baseline and loop-fix",
                     entry["task"],
                     _repo_rel(entry["staged_dir"]),
                     entry["package_digest"],
@@ -476,6 +499,15 @@ def check(out_dir: Path, manifest: dict, route: dict, trees: dict[str, tuple[str
                 "harness_rel": harness_rel,
                 "harness_digest": harness_digest,
             }
+        if "completionfix" in trees:
+            harness_rel, harness_digest = trees["completionfix"]
+            expected[f"har116-a-{short}-completionfix"] = {
+                "task_rel": _repo_rel(entry["staged_dir"]),
+                "package_digest": entry["package_digest"],
+                "verifier_digest": entry["verifier_digest"],
+                "harness_rel": harness_rel,
+                "harness_digest": harness_digest,
+            }
     for entry in manifest["part_b"]["tasks"]:
         short = entry["task"].removeprefix("format-code-task-")
         expected[f"har116-b-{short}-original"] = {
@@ -543,6 +575,10 @@ def check(out_dir: Path, manifest: dict, route: dict, trees: dict[str, tuple[str
     try:
         load_harness_tree(REPO / trees["baseline"][0], trees["baseline"][1], repo_root=REPO)
         load_harness_tree(REPO / trees["loopfix"][0], trees["loopfix"][1], repo_root=REPO)
+        if "completionfix" in trees:
+            load_harness_tree(
+                REPO / trees["completionfix"][0], trees["completionfix"][1], repo_root=REPO
+            )
     except (ValueError, FileNotFoundError) as exc:
         failures.append(f"harness tree pin refused: {exc}")
     cohort_path = out_dir / "cohort.json"
@@ -581,6 +617,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--baseline-digest", default=None)
     parser.add_argument("--loopfix-tree", type=Path, default=None)
     parser.add_argument("--loopfix-digest", default=None)
+    parser.add_argument("--completionfix-tree", type=Path, default=None)
+    parser.add_argument("--completionfix-digest", default=None)
     parser.add_argument("--base-spec", type=Path, default=BASE_SPEC)
     parser.add_argument("--manifest", type=Path, default=MANIFEST_PATH)
     parser.add_argument("--snapshot", type=Path, default=None)
@@ -604,6 +642,14 @@ def main(argv: list[str] | None = None) -> int:
             "baseline": _tree("baseline", args.baseline_tree, args.baseline_digest),
             "loopfix": _tree("loopfix", args.loopfix_tree, args.loopfix_digest),
         }
+        if (args.completionfix_tree is None) != (args.completionfix_digest is None):
+            raise SystemExit(
+                "refusing: --completionfix-tree and --completionfix-digest go together"
+            )
+        if args.completionfix_tree is not None:
+            trees["completionfix"] = _tree(
+                "completionfix", args.completionfix_tree, args.completionfix_digest
+            )
         return check(args.check, manifest, route, trees)
 
     for flag in ("baseline_tree", "baseline_digest", "loopfix_tree", "loopfix_digest"):
@@ -613,6 +659,12 @@ def main(argv: list[str] | None = None) -> int:
         "baseline": _tree("baseline", args.baseline_tree, args.baseline_digest),
         "loopfix": _tree("loopfix", args.loopfix_tree, args.loopfix_digest),
     }
+    completionfix: tuple[str, str] | None = None
+    if (args.completionfix_tree is None) != (args.completionfix_digest is None):
+        raise SystemExit("refusing: --completionfix-tree and --completionfix-digest go together")
+    if args.completionfix_tree is not None:
+        completionfix = _tree("completionfix", args.completionfix_tree, args.completionfix_digest)
+        trees["completionfix"] = completionfix
     if trees["baseline"] == trees["loopfix"]:
         print("warning: baseline and loopfix trees are identical (placeholder proof only)")
 
@@ -634,7 +686,7 @@ def main(argv: list[str] | None = None) -> int:
 
     snapshot = _snapshot_tasks(args.snapshot)
     stage_tasks(manifest, snapshot)
-    names = generate(manifest, route, trees, args.out_dir)
+    names = generate(manifest, route, trees, args.out_dir, completionfix)
     print(f"wrote {len(names)} specs + cohort.json to {args.out_dir}")
     print(
         f"route {route['agent']} + {route['model']} on {route['environment']}; "

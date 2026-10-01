@@ -1,0 +1,43 @@
+HAR-129 item 5: throughput and cost per run
+trials=20 window=2026-10-01T08:01:59.280155Z..2026-10-01T09:02:15.410875Z
+job --n-concurrent values: [1]; observed peak concurrent trials=19, time-weighted mean=4.4
+trial wall s: mean=823 median=624 max=3616
+  outcome AgentTimeoutError: n=1 wall mean=3616 median=3616 llm mean=194 mean_out_tok=11269
+  outcome LoopBreakStop: n=7 wall mean=561 median=496 llm mean=206 mean_out_tok=11095
+  outcome RuntimeError: n=1 wall mean=43 median=43 llm mean=n/a mean_out_tok=0
+  outcome TrialBudgetExhaustedError: n=7 wall mean=841 median=967 llm mean=353 mean_out_tok=19713
+  outcome none: n=4 wall mean=744 median=451 llm mean=129 mean_out_tok=6927
+LLM time s: mean=244; tool/sandbox time s: mean=589 (agent_exec minus sum(api_request_times))
+decode batches=1829 prefill=1449; gen tok/s overall mean=239; queue>0 batch share=0.0000; KV full-token-usage max=0.37
+gen tok/s by batch size (mean): bs=1: 73 (n=555), bs=2: 148 (n=243), bs=3: 210 (n=218), bs=4: 262 (n=184), bs=5: 325 (n=133), bs=6: 370 (n=152), bs=7: 409 (n=117), bs=8: 484 (n=81), bs=9: 489 (n=57), bs=10: 576 (n=34), bs=11: 591 (n=33), bs=12: 603 (n=9), bs=13: 652 (n=9), bs=14: 604 (n=2), bs=15: 230 (n=1), bs=16: 579 (n=1)
+fit G(bs)=bs/(a+b*bs) over CUDA-graph batches (bs<=16): a=0.0074s b=0.00157s -> per-request 111 tok/s at bs=1; eager batches excluded
+Modal billed=$3.7860 -> server cost/run=$0.1893 (20 runs, rate $2.814912/h)
+Daytona sandbox: storage floor (10 GiB override, 5 GiB billable @ $0.000108/GiB-h, 0.23 h wall)=$0.0001/trial; CPU/RAM unknown from telemetry [INFERENCE needed]
+  [INFERENCE] 2vCPU/4GiB sandbox ~$0.0380/trial at mean wall
+  [INFERENCE] 4vCPU/8GiB sandbox ~$0.0758/trial at mean wall
+cost-optimal concurrency model: W(C) = tool + out/r_req(C), size-biased Poisson(bs_mean(C))
+KV ceiling: usage(C) ~= (0.54+0.33*C)*20135tok/745735tok -> usage 0.9 at C~100 [INFERENCE: linear running-req(C), same mix]
+tail calibration: empirical P(bs>16|conc>=17) = 0.0000 (351 batches, 4 min); Poisson(bs_mean(19)=6.8) predicts 0.0007 [INFERENCE above C=19]
+C  bs_mean  P(bs>16)  r_req  W(s)  server$/run  kv_use  regime/binding
+1  0.9     0.0000    98       718    0.5617       0.02    -
+4  1.9     0.0000    86       736    0.1438       0.05    -
+8  3.2     0.0000    74       760    0.0742       0.09    -
+12 4.5     0.0000    65       784    0.0511       0.12    -
+16 5.8     0.0001    58       809    0.0395       0.16    -
+20 7.1     0.0011    52       834    0.0326       0.19    -
+24 8.4     0.0059    47       859    0.0280       0.23    -
+32 11.0    0.0565    40       910    0.0222       0.30    graph+eager-mix[INFERENCE]
+40 13.6    0.2132    34       961    0.0188       0.37    graph+eager-mix[INFERENCE]
+48 16.3    0.4589    30       1012   0.0165       0.44    graph+eager-mix[INFERENCE]
+grid minimum server $/run at C=48 of this grid [INFERENCE: eager-mix regime]; G2 at C=20 calibrates bs_mean and P(bs>16) directly
+recommendation (provisional): default C=24 (largest grid C with P(bs>16)<0.01: server $0.0280/run, W=859s, P(bs>16)=0.0059); cost keeps falling to C=48 but that rides the eager-mix [INFERENCE] tail with W ballooning; revisit upward once G2 confirms the regression at C=20. Raising --cuda-graph-max-bs-decode is a serving change to production's launch command, out of scope
+sanity r_req(1)=98 vs measured bs=1 per-request 73 (ratio 1.35; FAIL outside ±10%)
+sanity outcome AgentTimeoutError: W(4.4)=3538s vs wall mean 3616s (ratio 0.98; PASS within ±15%)
+sanity outcome LoopBreakStop: W(16.2)=521s vs wall mean 561s (ratio 0.93; PASS within ±15%)
+sanity outcome TrialBudgetExhaustedError: W(13.8)=772s vs wall mean 841s (ratio 0.92; PASS within ±15%)
+sanity outcome none: W(15.1)=696s vs wall mean 744s (ratio 0.94; PASS within ±15%)
+GPU comparison (Modal list $/s 2026-10-01; server total adds 4 CPU + 16 GiB; throughput scale [INFERENCE]):
+  A100-80GB: gpu $2.4984/h -> server $2.8149/h
+  A100-40GB: gpu $2.0988/h -> server $2.4153/h
+  H100: gpu $3.9492/h -> server $4.2657/h
+  L40S: gpu $1.9512/h -> server $2.2677/h

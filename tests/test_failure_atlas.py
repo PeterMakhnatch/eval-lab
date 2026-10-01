@@ -108,20 +108,141 @@ def test_unverified_exemplars_never_generalize():
     assert atlas_build.select_exemplars(matching, {}) == []
 
 
+def _ledger_entry(**kw):
+    entry = {"status": "usable", "run": "original", "run_digest": "sha256:abc",
+             "split": "train", "project": "proj-a"}
+    entry.update(kw)
+    return entry
+
+
+def _ledger(by_task):
+    return {"path": "research/experiments/python-task-ledger/ledger.csv",
+            "sha256": "sha256:ledger", "n_tasks": len(by_task), "by_task": by_task}
+
+
+def _gate(task_ids=(), repos=(), digests=()):
+    return {"path": "research/experiments/ovn-sft-v0/eval_tasks.csv",
+            "sha256": "sha256:eval", "n_tasks": len(task_ids),
+            "task_ids": set(task_ids), "repos": set(repos), "digests": set(digests)}
+
+
+def _train_trial(**kw):
+    base = {"task_name": "mimo-v2.6-rl/format-code-task-000495",
+            "task_package_digest": "sha256:abc", "counts_verdict": "counted_fail"}
+    base.update(kw)
+    return _trial(**base)
+
+
+def _bindings(*pairs):
+    return [{"task": task, "package_digest": digest} for task, digest in pairs]
+
+
 def test_gepa_gate_fail_closed():
-    assert atlas_build.reflection_status(None, [], {})["status"] == "unavailable"
-    assert atlas_build.reflection_status([], [], {})["status"] == "unavailable"
+    gate = _gate()
+    ledger = _ledger({"format-code-task-000495": _ledger_entry()})
+    assert atlas_build.reflection_status(None, [], {}, ledger, gate)["status"] == "unavailable"
+    assert atlas_build.reflection_status([], [], {}, ledger, gate)["status"] == "unavailable"
     assert atlas_build.reflection_status(
-        [{"task": "x"}], [], {})["status"] == "unavailable"
+        [{"task": "x"}], [], {}, ledger, gate)["status"] == "unavailable"
+    bound = _bindings(("format-code-task-000495", "sha256:abc"))
+    # full authorization context missing: still unavailable, never half-open
+    assert atlas_build.reflection_status(
+        bound, [_train_trial()], {}, None, None)["status"] == "unavailable"
+    assert atlas_build.reflection_status(
+        bound, [_train_trial()], {}, ledger, None)["status"] == "unavailable"
+    # bindings match nothing: unavailable, never an available-empty export
+    assert atlas_build.reflection_status(
+        _bindings(("other", "sha256:zzz")), [_train_trial()], {}, ledger, gate)["status"] == "unavailable"
+
+
+def test_gepa_gate_selects_only_gated_training():
+    ledger = _ledger({"format-code-task-000495": _ledger_entry()})
+    gate = _gate()
     ok = atlas_build.reflection_status(
-        [{"task": "format-code-task-000383", "package_digest": "sha256:abc"}],
-        [_trial()], {})
+        _bindings(("format-code-task-000495", "sha256:abc")), [_train_trial()], {}, ledger, gate)
     assert ok["status"] == "available"
-    assert ok["matched_trial_names"] == ["t1"]
-    # Held-out-shaped bindings that match nothing stay unavailable, never empty-ok.
-    assert atlas_build.reflection_status(
-        [{"task": "other", "package_digest": "sha256:zzz"}],
-        [_trial()], {})["status"] == "unavailable"
+    assert ok["payload_file"] is None  # main() writes the file on success
+    payload = ok["payload"]
+    assert payload["scope"] == "training-only"
+    assert payload["aggregates"]["n_selected"] == 1
+    (entry,) = payload["selected_trials"]
+    assert (entry["task_id"], entry["trial_id"], entry["job_id"]) == (
+        "format-code-task-000495", "trial-1", "job-1")
+    assert entry["ledger"] == {"split": "train", "status": "usable", "run": "original",
+                               "run_digest": "sha256:abc", "project": "proj-a"}
+    dump = json.dumps(payload)
+    assert "command_text" not in dump and "observation_excerpt" not in dump
+    assert "7/11" not in dump and "loop_kind_vs_agreed" not in dump
+
+
+def test_gepa_gate_exclusions_hold_even_when_allowlisted():
+    ledger = _ledger({
+        "format-code-task-001181": _ledger_entry(),
+        "format-code-task-000383": _ledger_entry(),
+        "format-code-task-000495": _ledger_entry(),
+        "format-code-task-000587": _ledger_entry(project="eval-repo"),
+        "format-code-task-001161": _ledger_entry(split="heldout"),
+        "format-code-task-001832": _ledger_entry(status="review"),
+        "format-code-task-002256": _ledger_entry(),
+    })
+    gate = _gate(repos={"eval-repo"})
+    tasks = ["format-code-task-001181", "format-code-task-000383", "format-code-task-000495",
+             "format-code-task-000587", "format-code-task-001161", "format-code-task-001832",
+             "format-code-task-002256", "format-code-task-000927"]
+    trials = [_train_trial(task_name=f"mimo-v2.6-rl/{task}") for task in tasks]
+    trials[6] = _train_trial(task_name="mimo-v2.6-rl/format-code-task-002256",
+                             counts_verdict="excluded")
+    bound = _bindings(*[(task, "sha256:abc") for task in tasks[:7]])
+    ok = atlas_build.reflection_status(bound, trials, {}, ledger, gate)
+    assert ok["status"] == "available"
+    assert ok["payload"]["aggregates"]["n_selected"] == 1
+    assert ok["payload"]["selected_trials"][0]["task_id"] == "format-code-task-000495"
+    assert ok["payload"]["gate"]["withheld_counts"] == {
+        "not_authorized": 1, "safety_excluded": 2, "eval_identity": 1,
+        "ledger_mismatch": 2, "non_counted": 1}
+
+
+def test_opinion_limits_derive_from_page_scores():
+    scores = {"predictor": "p", "cohort": "c", "in_sample": False, "frozen_at": "f",
+              "page_vs_agreed_loop_kind": {"agree": 7, "n": 11},
+              "page_vs_agreed_loop_present": {"agree": 7, "n": 11},
+              "page_vs_agreed_first_failure": {"agree": 1, "n": 9},
+              "first_failure_coverage": {"expressed": 1, "of": 12, "abstentions": 11},
+              "page_vs_agreed_blame": {"agree": 11, "n": 11, "abstained": 0},
+              "blame_abstentions": 0,
+              "rater_agreement_loop_kind": {"agree": 11, "n": 12, "not_expressed": 0},
+              "rater_agreement_loop_present": {"agree": 11, "n": 12, "not_expressed": 0},
+              "rater_agreement_first_failure": {"agree": 9, "n": 12, "not_expressed": 0},
+              "rater_agreement_blame": {"agree": 11, "n": 12, "not_expressed": 0},
+              "eligible_n": 11, "excluded_rater_disagreement": 1}
+    limits = atlas_build.derive_opinion_limits(scores)
+    assert limits["loop_kind_vs_agreed"] == "7/11"
+    assert "1/9" in limits["first_failure_vs_agreed"]
+    assert "11 abstentions" in limits["first_failure_vs_agreed"]
+    assert limits["blame_vs_agreed"].startswith("11/11")
+    assert limits["rater_agreement_first_failure"] == "9/12"
+
+
+def test_opinion_limits_missing_is_unavailable():
+    limits = atlas_build.derive_opinion_limits({})
+    assert limits["loop_kind_vs_agreed"] == "unavailable"
+    assert limits["first_failure_vs_agreed"] == "unavailable"
+    assert limits["predictor"] == "unavailable"
+    # agree without n borrows nothing
+    partial = atlas_build.derive_opinion_limits({"page_vs_agreed_loop_kind": {"agree": 7}})
+    assert partial["loop_kind_vs_agreed"] == "unavailable"
+
+
+def test_ledger_keeps_split_and_project(tmp_path):
+    root = tmp_path
+    (root / "research/experiments/python-task-ledger").mkdir(parents=True)
+    (root / "research/experiments/python-task-ledger/ledger.csv").write_text(
+        "task_id,split,project,image_mib,status,reason,run,run_digest\n"
+        "format-code-task-000495,train,proj-a,1,usable,ok,original,sha256:abc\n")
+    ledger = atlas_build.load_ledger(root)
+    assert ledger["by_task"]["format-code-task-000495"] == {
+        "status": "usable", "run": "original", "run_digest": "sha256:abc",
+        "split": "train", "project": "proj-a"}
 
 
 def _write_minimal_job(root: Path, job_name: str, trial_name: str, *,

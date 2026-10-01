@@ -61,11 +61,13 @@ trigger and dependency handling fail closed, including merge-group support.
 The ty job fails on any diagnostic. Keep the local premerge baseline and the
 GitHub `typecheck` workflow at zero; never restore a positive baseline.
 
-The test matrix caches uv download/build artifacts, keyed by OS, architecture,
-Python, uv version and lock digest—not `.venv`. Locked sync and every test shard
-still run on a cache hit. Cache-transfer segments abort after two minutes; the
-ten-minute job cap is unchanged. On cancellation, inspect setup and pytest
-durations separately before attributing the timeout to a hanging test.
+Lint, test and typecheck jobs cache uv artifacts keyed by OS, architecture,
+Python, uv version and lock digest. Typecheck also hashes its workflow to bind
+the pinned tool; its first miss can restore the matching project-package cache
+before populating that separate key. No project `.venv` is cached. Locked sync,
+all checks and every test shard still run on a cache hit. Cache-transfer segments
+abort after two minutes; existing job caps are unchanged. On cancellation,
+inspect setup and checker/test durations separately before blaming a test hang.
 
 Run focused checks or explicit premerge before pushing. Before final review and
 doc freshness checks, run explicit `make docs` to regenerate `docs/INDEX.md` and

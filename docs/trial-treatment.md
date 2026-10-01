@@ -89,6 +89,7 @@ The command exits 0 and prints `POOLABLE` only when every setup field agrees. Ot
 |---|---|
 | `task_version_digest` | `lab-metadata.json` → `task_staging.source_package_digest` (the catalog's task version) |
 | `backend` | trial `config.json`, `result.json` or `lock.json` environment (`daytona`, `docker`, …) |
+| `egress_lock` | trial `egress-lock.json` → `requested` (HAR-140; legacy v1 lock records read `true`, an absent file reads `false` — the pre-HAR-140 opt-in default was off and no run used it; a requested-but-not-applied lock reads `true` and the trial ends as `infra`) |
 | `agent` | trial `config.json` → agent import path or name |
 | `harbor_version` | `lab-metadata.json` → `tools.harbor` |
 | `model` | trial `config.json` → `agent.model_name` |

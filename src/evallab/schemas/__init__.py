@@ -349,6 +349,16 @@ class ExperimentSpec(ContractModel):
     )
     provider_exhaustion_behavior: Literal["fail", "wait"] = "fail"
     environment: str = "docker"
+    egress_lock: bool | None = Field(
+        default=None,
+        description=(
+            "explicit Daytona egress-lock request (HAR-140). True passes "
+            "egress_lock=true to BoundedDaytonaEnvironment; false opts out. "
+            "None (default) locks every MiMo run on Daytona (MiMo-family model "
+            "or MiMo-dataset task, nop/oracle census runs included) and leaves "
+            "other runs unlocked."
+        ),
+    )
     jobs_dir: str = EXPLORATION_JOBS_ROOT
     attempts: int = Field(default=1, ge=1)
     concurrency: int = Field(default=1, ge=1)

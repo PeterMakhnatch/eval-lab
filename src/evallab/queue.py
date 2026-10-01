@@ -2208,6 +2208,7 @@ class Executor:
             name=spec.name,
             jobs_dir=jobs_dir,
             environment=spec.environment,
+            egress_lock=spec.egress_lock,
             # Harbor's installed agents hard-require a model name; specs that
             # do not pin one fall back to the per-agent default.
             model=spec.model or DEFAULT_AGENT_MODELS.get(spec.agent),

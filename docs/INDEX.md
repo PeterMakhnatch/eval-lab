@@ -45,7 +45,7 @@ inputs:
   - path: docs/continuous-loop-operator.md
     digest: sha256:b4e12204ffbf46d27b7ee00e2a3c69904f2b5fd6be2572b6ff3beaa29a310e6a
   - path: docs/contracts.md
-    digest: sha256:bdf914f6d4c14bea8986517dd12fffcf4119a00a3c42f09eaace284ce9b438ff
+    digest: sha256:e2e65e84ada60fd38f0b134405e49681af819abd3e8be586f43f19341ba11d81
   - path: docs/craft.md
     digest: sha256:ee111e3a975bfb4ed3390c58bc2e86b666299e94964cf985b0a52f90edfa4424
   - path: docs/dashboard.md
@@ -59,7 +59,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:970e22e5951941125c306fb840a3b9d35419b81fcae23873312a7b4df02291e2
+    digest: sha256:76dba2416940f20956d7e7d83b72cbe5988b0bd108d5749c6f8a5e0b08da0f36
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/join-spine.md
@@ -127,7 +127,7 @@ inputs:
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
   - path: docs/trial-treatment.md
-    digest: sha256:779df80f35315d61d857f437c388d07bd675b759f79ec33cb41adc2caa71eb6a
+    digest: sha256:8ed1e28981c8003e1940a6e31a1b78bc57733a7a6e597854aa9cacf93715f41c
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md

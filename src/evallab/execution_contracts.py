@@ -510,6 +510,155 @@ def is_mimo_selfhosted_model(model: str | None) -> bool:
     return isinstance(model, str) and model.startswith(MIMO_SELFHOSTED_MODEL_PREFIX)
 
 
+def is_mimo_family_model(model: str | None) -> bool:
+    """Whether a model selector belongs to the MiMo family (HAR-140)."""
+    if is_mimo_selfhosted_model(model):
+        return True
+    return isinstance(model, str) and "mimo" in model.lower()
+
+
+def is_mimo_dataset_task(task: str | Path | None) -> bool:
+    """Whether a task reference comes from the MiMo dataset (HAR-140).
+
+    True when the task path, the spec ``task`` string, or the task's own
+    ``task.toml`` identity (``[task] name``, ``[metadata] source_dataset``)
+    names the ``mimo-v2.6`` program (for example the ``mimo-v2.6-rl__*``
+    task-store slugs or the ``FineEnvs/MiMo-V2.6-RL-harbor-code`` source).
+    """
+    if task is None:
+        return False
+    text = str(task)
+    if "mimo-v2.6" in text.lower():
+        return True
+    path = Path(text)
+    if not path.is_absolute():
+        return False
+    try:
+        document = tomllib.loads((path / "task.toml").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError):
+        return False
+    if not isinstance(document, dict):
+        return False
+    task_table = document.get("task")
+    if isinstance(task_table, dict):
+        name = task_table.get("name")
+        if isinstance(name, str) and "mimo-v2.6" in name.lower():
+            return True
+    metadata = document.get("metadata")
+    if isinstance(metadata, dict):
+        for key in ("source_dataset", "dataset", "source"):
+            value = metadata.get(key)
+            if isinstance(value, str) and "mimo" in value.lower():
+                return True
+        keywords = metadata.get("keywords")
+        if isinstance(keywords, list) and any(
+            isinstance(entry, str) and "mimo-v2.6" in entry.lower() for entry in keywords
+        ):
+            return True
+    return False
+
+
+def is_mimo_run(task: str | Path | None, model: str | None) -> bool:
+    """Whether a run is a MiMo run for the Daytona egress lock (HAR-140).
+
+    Either side counts: a MiMo-family model or a MiMo-dataset task. Control
+    agents (``nop``/``oracle``) carry no model, so their census runs count by
+    task alone.
+    """
+    return is_mimo_family_model(model) or is_mimo_dataset_task(task)
+
+
+#: Agents that may run under the Daytona egress lock (HAR-140): the host-side
+#: Terminus route (its model client never needs sandbox egress) and the
+#: model-free controls. Any other agent runs its model client inside the
+#: sandbox (an installed agent or an in-sandbox model proxy) and cannot be
+#: locked.
+EGRESS_LOCK_DAYTONA_AGENTS = frozenset({TERMINUS_AGENT, *CONTROL_AGENTS})
+
+
+def resolve_egress_lock(request: RunRequest) -> bool:
+    """Whether this run passes ``egress_lock=true`` to BoundedDaytona (HAR-140).
+
+    An explicit ``egress_lock`` override always wins; otherwise every MiMo run
+    on Daytona (MiMo-family model or MiMo-dataset task, controls included) is
+    locked by default. Anything else defaults to unlocked.
+    """
+    override = request.egress_lock
+    if override is not None:
+        if not isinstance(override, bool):
+            raise ValueError("egress_lock must be true or false")
+        if override and request.environment != "daytona":
+            raise ValueError("egress_lock=true requires environment='daytona'")
+        return override
+    if request.environment != "daytona":
+        return False
+    return is_mimo_run(request.task, request.model)
+
+
+def _task_declares_phase_network_policy(task: Path) -> bool:
+    """Whether ``task.toml`` declares a task phase network policy (HAR-140).
+
+    Harbor would restore the task's baseline after that phase, lifting the
+    egress lock, so a locked run refuses it at dispatch. The constructor of
+    :class:`evallab.harbor_daytona.BoundedDaytonaEnvironment` remains the
+    backstop for any phase policy Harbor derives beyond this spelling.
+    """
+    try:
+        document = tomllib.loads((task / "task.toml").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError):
+        return False
+    if not isinstance(document, dict):
+        return False
+    agent = document.get("agent")
+    if isinstance(agent, dict) and "network_mode" in agent:
+        return True
+    verifier = document.get("verifier")
+    return isinstance(verifier, dict) and "network_mode" in verifier
+
+
+def _validate_egress_lock(request: RunRequest) -> None:
+    """Refuse at dispatch any MiMo Daytona run that cannot be locked (HAR-140).
+
+    There is no silent unlocked fallback: each refusal names its reason.
+    """
+    override = request.egress_lock
+    if override is not None and not isinstance(override, bool):
+        raise ValueError("egress_lock must be true or false")
+    mimo = is_mimo_run(request.task, request.model)
+    if request.environment != "daytona":
+        if override:
+            raise ValueError("egress_lock=true requires environment='daytona'")
+        return
+    if mimo and override is False:
+        raise ValueError(
+            "MiMo Daytona runs require egress_lock=true: explicit egress_lock=false "
+            "is refused (no silent unlocked fallback)"
+        )
+    if not resolve_egress_lock(request):
+        return
+    if _task_has_provided_compose(request.task):
+        raise ValueError(
+            "egress_lock requires a single-container task: multi-container (compose) "
+            "tasks cannot be locked"
+        )
+    if _task_declares_phase_network_policy(request.task):
+        raise ValueError(
+            "egress_lock cannot be combined with task phase network policies: "
+            "Harbor would restore the baseline after the phase and lift the lock"
+        )
+    if request.agent == TERMINUS_AGENT and request.model == TERMINUS_LOCAL_MODEL_SELECTOR:
+        raise ValueError(
+            "egress_lock cannot be combined with the installed local model "
+            f"{TERMINUS_LOCAL_MODEL_SELECTOR!r}: it needs network from inside the sandbox"
+        )
+    if request.agent not in EGRESS_LOCK_DAYTONA_AGENTS:
+        raise ValueError(
+            f"egress_lock cannot be combined with agent {request.agent!r}: it needs "
+            "network from inside the sandbox (an installed agent or model proxy "
+            "running inside the sandbox)"
+        )
+
+
 def mimo_selfhosted_trial_cost_usd(
     trial_hours: float, concurrency: int, sandbox_usd: float
 ) -> float:
@@ -811,6 +960,7 @@ class RunRequest:
     effective_endpoint_base: str | None = None
     provider_returned_model_id: str | None = None
     inference_settings: ProfileInferenceSettings | None = None
+    egress_lock: bool | None = None
 
     @property
     def trial_watchdog_seconds(self) -> int:
@@ -1575,6 +1725,8 @@ def validate_request(request: RunRequest) -> None:
 
         load_harness_tree(request.harness_tree_path, request.harness_tree_sha256)
 
+    _validate_egress_lock(request)
+
 
 def resolve_harbor_agent(agent: str, model: str | None = None) -> str:
     """Use the lab-owned adapter where Harbor supports custom import paths."""
@@ -1671,6 +1823,12 @@ def build_command(request: RunRequest) -> list[str]:
         # Provider-side destruction still applies if the local controller dies.
         ttl_minutes = (request.trial_watchdog_seconds + 59) // 60
         command.extend(["--environment-kwarg", f"ttl_minutes={ttl_minutes}"])
+    if resolve_egress_lock(request):
+        if not (terminus_daytona or control_daytona):
+            raise ValueError(
+                "egress_lock=true is only supported for terminus-2/nop/oracle on daytona"
+            )
+        command.extend(["--environment-kwarg", "egress_lock=true"])
     command.extend(["--plugin", HARBOR_STATE_JOURNAL_PLUGIN])
     if request.verifier_repeat_n is not None:
         command.extend(

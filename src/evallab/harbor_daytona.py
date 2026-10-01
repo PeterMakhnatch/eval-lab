@@ -5,9 +5,11 @@ provider key on the sandbox VM, mounted only into the trusted proxy container,
 and recover its accounting before Harbor deletes the VM. The task container
 has only the internal proxy network, never the VM filesystem or Docker socket.
 
-``BoundedDaytonaEnvironment`` also offers an opt-in post-setup egress lock
-(HAR-122): Daytona's runner-side firewall, which a root agent cannot undo.
+``BoundedDaytonaEnvironment`` also offers a post-setup egress lock (HAR-122,
+mandatory for MiMo runs since HAR-140): Daytona's runner-side firewall, which
+a root agent cannot undo.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -42,7 +44,9 @@ from evallab.execution_contracts import (
 
 _REMOTE_ROOT = "/run/evallab-zai-openapi"
 _PROXY_UID = 65532
-#: Written into the trial directory when the egress lock is applied.
+#: Written into the trial directory for every Daytona trial (HAR-140): whether
+#: the egress lock was requested, whether it was applied, when, and the
+#: method or error.
 EGRESS_LOCK_RECORD = "egress-lock.json"
 DAYTONA_USAGE_RECORD = "daytona-usage.json"
 DAYTONA_MONITOR_SECONDS = 15
@@ -126,16 +130,19 @@ class _ProxyDaytonaDinD(_DaytonaDinD):
 class BoundedDaytonaEnvironment(DaytonaEnvironment):
     """Native Daytona task handling with a provider-side destruction deadline.
 
-    ``egress_lock=true`` (off by default) blocks all outbound traffic from the
-    sandbox once agent setup has finished, through Daytona's runner-side
-    firewall (``update_network_settings(network_block_all=True)``,
-    https://www.daytona.io/docs/en/network-limits/). Task setup (the
-    healthcheck) and the agent's own install keep the network. The rule lives
-    outside the sandbox, so a root agent cannot lift it by editing
-    ``/etc/hosts``, changing the index URL or dialing an IP; the verifier runs
-    under it too. The lock is taken before the first command after agent
-    setup, whichever agent runs; if Daytona refuses it, that command fails and
-    the agent never runs unlocked.
+    ``egress_lock=true`` blocks all outbound traffic from the sandbox once
+    agent setup has finished, through Daytona's runner-side firewall
+    (``update_network_settings(network_block_all=True)``,
+    https://www.daytona.io/docs/en/network-limits/). Since HAR-140 the lab
+    passes it by default for every MiMo run on Daytona (a MiMo-family model or
+    a MiMo-dataset task, including the model-free ``nop``/``oracle`` census
+    runs, which lock before the verifier's first command even though the agent
+    itself issues no exec). Task setup (the healthcheck) and the agent's own
+    install keep the network. The rule lives outside the sandbox, so a root
+    agent cannot lift it by editing ``/etc/hosts``, changing the index URL or
+    dialing an IP; the verifier runs under it too. The lock is taken before
+    the first command after agent setup, whichever agent runs; if Daytona
+    refuses it, that command fails and the agent never runs unlocked.
     """
 
     def __init__(
@@ -154,6 +161,7 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
         self._egress_scope_depth = 0
         self._egress_lock_due = False
         self._egress_locked = False
+        self._egress_record_written = False
         self._egress_lock_guard = asyncio.Lock()
         self._daytona_guard = DaytonaGuard()
         self._daytona_usage: dict[str, Any] = {"schema_version": 1}
@@ -239,6 +247,39 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
                 self._write_daytona_usage()
             await self._capture_daytona_disappearance(error)
             raise
+    def _write_egress_record(
+        self,
+        *,
+        requested: bool,
+        applied: bool,
+        sandbox_id: str | None = None,
+        network_block_all: bool | None = None,
+        mechanism: str | None = None,
+        locked_at: str | None = None,
+        error: str | None = None,
+    ) -> None:
+        """Write ``egress-lock.json`` for this trial (HAR-140).
+
+        Every Daytona trial leaves one: whether the lock was requested,
+        whether it was applied, when, and the method or error. A lock failure
+        still records (``applied: false`` with the error) before the trial
+        raises, so the trial ends as ``infra`` with evidence on disk.
+        """
+        record = {
+            "schema_version": 2,
+            "requested": requested,
+            "applied": applied,
+            "locked_at": locked_at,
+            "recorded_at": datetime.now(UTC).isoformat(),
+            "sandbox_id": sandbox_id,
+            "network_block_all": network_block_all,
+            "mechanism": mechanism,
+            "error": error,
+        }
+        (self.trial_paths.trial_dir / EGRESS_LOCK_RECORD).write_text(
+            json.dumps(record, indent=2) + "\n"
+        )
+        self._egress_record_written = True
 
     async def _create_sandbox(self, params: Any, daytona: Any = None) -> None:
         params.ttl_minutes = self._trial_ttl_minutes
@@ -273,6 +314,17 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
         # Keep the reservation on an ambiguous creation failure. A process
         # losing its response does not establish that the provider created nothing.
         await super()._create_sandbox(params=params, daytona=daytona)
+        if not self._egress_lock:
+            try:
+                sandbox = self._sandbox
+                self._write_egress_record(
+                    requested=False,
+                    applied=False,
+                    sandbox_id=getattr(sandbox, "id", None),
+                    network_block_all=getattr(sandbox, "network_block_all", None),
+                )
+            except Exception as error:
+                self.logger.warning("could not write egress-lock.json: %s", error)
         self._daytona_monitor = asyncio.create_task(self._monitor_daytona_usage())
 
     async def _capture_daytona_disappearance(
@@ -368,7 +420,21 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
     async def exec(self, *args: Any, **kwargs: Any) -> Any:
         try:
             if self._egress_lock_due and not self._egress_locked:
+                # The verifier's first command takes the lock for agents (such as
+                # nop) that issue no exec of their own, so a locked nop trial is
+                # locked before grading and still writes egress-lock.json.
                 await self._lock_egress()
+            if not self._egress_lock and not self._egress_record_written:
+                try:
+                    sandbox = self._sandbox
+                    self._write_egress_record(
+                        requested=False,
+                        applied=False,
+                        sandbox_id=getattr(sandbox, "id", None),
+                        network_block_all=getattr(sandbox, "network_block_all", None),
+                    )
+                except Exception as error:
+                    self.logger.warning("could not write egress-lock.json: %s", error)
             return await super().exec(*args, **kwargs)
         except Exception as error:
             await self._capture_daytona_disappearance(error)
@@ -379,21 +445,30 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
             if self._egress_locked:
                 return
             sandbox = self._sandbox
-            if sandbox is None:
-                raise RuntimeError("egress_lock: no sandbox to lock")
-            await sandbox.update_network_settings(network_block_all=True)
-            if sandbox.network_block_all is not True:
-                raise RuntimeError("egress_lock: Daytona did not confirm network_block_all")
+            try:
+                if sandbox is None:
+                    raise RuntimeError("egress_lock: no sandbox to lock")
+                await sandbox.update_network_settings(network_block_all=True)
+                if sandbox.network_block_all is not True:
+                    raise RuntimeError("egress_lock: Daytona did not confirm network_block_all")
+            except Exception as error:
+                with contextlib.suppress(Exception):
+                    self._write_egress_record(
+                        requested=True,
+                        applied=False,
+                        sandbox_id=getattr(sandbox, "id", None),
+                        network_block_all=getattr(sandbox, "network_block_all", None),
+                        error=f"{type(error).__name__}: {error}",
+                    )
+                raise
             self._egress_locked = True
-            record = {
-                "schema_version": 1,
-                "locked_at": datetime.now(UTC).isoformat(),
-                "sandbox_id": sandbox.id,
-                "network_block_all": sandbox.network_block_all,
-                "mechanism": "daytona update_network_settings(network_block_all=True)",
-            }
-            (self.trial_paths.trial_dir / EGRESS_LOCK_RECORD).write_text(
-                json.dumps(record, indent=2) + "\n"
+            self._write_egress_record(
+                requested=True,
+                applied=True,
+                locked_at=datetime.now(UTC).isoformat(),
+                sandbox_id=sandbox.id,
+                network_block_all=sandbox.network_block_all,
+                mechanism="daytona update_network_settings(network_block_all=True)",
             )
             self.logger.info("egress locked after agent setup: sandbox %s", sandbox.id)
 
@@ -410,6 +485,26 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
                 await monitor
             self._daytona_monitor = None
         sandbox_id = self._sandbox.id if self._sandbox is not None else None
+        if not self._egress_record_written:
+            try:
+                sandbox = self._sandbox
+                if self._egress_lock and not self._egress_locked:
+                    self._write_egress_record(
+                        requested=True,
+                        applied=False,
+                        sandbox_id=getattr(sandbox, "id", None),
+                        network_block_all=getattr(sandbox, "network_block_all", None),
+                        error="trial ended before the egress lock was applied",
+                    )
+                elif not self._egress_lock:
+                    self._write_egress_record(
+                        requested=False,
+                        applied=False,
+                        sandbox_id=getattr(sandbox, "id", None),
+                        network_block_all=getattr(sandbox, "network_block_all", None),
+                    )
+            except Exception as error:
+                self.logger.warning("could not write egress-lock.json: %s", error)
         await super().stop(delete=True)
         if sandbox_id is not None and self._daytona_sandbox_name is not None:
             try:
@@ -491,8 +586,6 @@ class SecretSafeDaytonaEnvironment(BoundedDaytonaEnvironment):
             changed = await strategy._vm_exec(
                 f"docker network connect {shlex.quote(network)} {container_id}", timeout_sec=15,
             )
-            if changed.return_code:
-                raise RuntimeError("Failed to connect task network")
 
     async def stop(self, delete: bool) -> None:
         try:

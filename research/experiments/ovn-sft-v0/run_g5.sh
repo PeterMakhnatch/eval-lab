@@ -5,9 +5,9 @@
 #             --modal-app-day-limit-usd USD [--round-cap-usd USD] [options]
 #
 # Order (failures abort, except a last-wave gate failure finalizes at 10;
-# nothing billable starts before 6):
-#   1. preflight: clean checkout, spec --check, free capture port, key file,
-#      `capture smoke --model` available
+#   1. preflight: clean checkout, spec --check, key file,
+#      `capture smoke --model` available (no free-port probe: each segment
+#      binds its own OS-assigned port; see step 8)
 #   2. `evallab modal billing-reconcile --for <UTC day>`
 #   3. `evallab spend check --candidate-usd USD --cap-usd CAP --since <UTC day>`
 #   4. plan position waves by spec name from cohort.json
@@ -15,9 +15,10 @@
 #   6. ONE deploy of the LoRA app (the single cold start), wait for /health
 #   7. warm smokes for BOTH model names through secret proxy -> capture -> Modal
 #      (retries, never a redeploy); abort unless both pass
-#   8. capture server (PID-checked owner of the port), telemetry sampler,
-#      watchdog stopping the app once ITS billed cost today reaches
-#      --modal-app-day-limit-usd
+#   8. capture server (own OS-assigned port, endpoint read from capture.json
+#      after the bind; explicit --port fails before any tick when taken),
+#      telemetry sampler, watchdog stopping the app once ITS billed cost
+#      today reaches --modal-app-day-limit-usd
 #   9. tick position waves serially (all first arms, then seconds, then thirds),
 #      approving each wave just before its tick, at one pinned --parallel;
 #      between waves re-check /health; a wave advances only when every spec of
@@ -31,17 +32,18 @@
 # (modal_ops.MODAL_APP_NAME), never the LoRA app, so this script stops the LoRA
 # app itself on every exit path (EXIT trap).
 #
-# Lessons built in from G2 (2026-10-01): a redeploy restarts a live container
+# Lessons built in from G2/G5 (2026-10-01): a redeploy restarts a live container
 # (no redeploy after step 6); a warm check that is not enforced lets a tick run
-# against a cold server; a capture server that outlives its round keeps the port
-# and silently swallows the next round's calls.
+# against a cold server; fixed capture ports collide across concurrent segments
+# (HAR-145: every call lands in one file), so each segment binds its own
+# OS-assigned port and reads the endpoint from capture.json after the bind.
 set -euo pipefail
 
 usage() { sed -n '2,30p' "$0"; exit 2; }
 
 SPECS_DIR="" ADAPTER="" ADAPTER_NAME="har129" CANDIDATE_USD="" CAP_USD="35"
 PARALLEL="20" LABEL="g5" ACTOR="" MODAL_APP_DAY_LIMIT_USD="" GEPA_CANDIDATE="" GEPA_SHA256=""
-PORT="8472" DRY_RUN=0 ROUND_CAP_USD="" MODAL_RATE_USD_PER_H="2.8149" RESUME_NAMES="" PRIOR_SPEND_USD="0"
+PORT="" DRY_RUN=0 ROUND_CAP_USD="" MODAL_RATE_USD_PER_H="2.8149" RESUME_NAMES="" PRIOR_SPEND_USD="0"
 while [ $# -gt 0 ]; do
   case "$1" in
     --specs-dir) SPECS_DIR=$2; shift 2 ;;
@@ -135,7 +137,6 @@ print("\n".join(failures))
 sys.exit(1 if failures else 0)
 EOF
 cat "$OUT/profile-check.txt" >>"$LOG"
-if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then die "capture port $PORT already has a listener"; fi
 SMOKE_HELP=$("$EVALLAB" capture smoke --help 2>/dev/null || true)
 case "$SMOKE_HELP" in *--model*) ;; *) die "evallab capture smoke has no --model; the adapter leg cannot be smoked" ;; esac
 
@@ -269,14 +270,30 @@ warm() {
 warm initial || die "warm smoke failed; nothing approved or ticked"
 
 # ---- 8. capture, telemetry, spend watchdog -------------------------------------------
+# Each segment binds its own OS-assigned free port by default (empty --port);
+# an explicit --port is passed through and fails here, before any tick, when
+# taken. The endpoint is read from capture.json only after the bind succeeds
+# (never a pre-bind port probe), and the runner records the capture directory
+# in each job's lab-metadata.json and auto-links the job to this file.
 [ ! -s "$CAPDIR/calls.jsonl" ] || die "capture file $CAPDIR/calls.jsonl already has records; use a fresh --label"
-"$EVALLAB" capture serve --upstream "$URL" --out "$CAPDIR" --port "$PORT" >>"$OUT/capture.log" 2>&1 &
+rm -f "$CAPDIR/capture.json" "$CAPDIR/provenance.json"
+CAPTURE_ARGS=(--upstream "$URL" --out "$CAPDIR")
+[ -n "$PORT" ] && CAPTURE_ARGS+=(--port "$PORT")
+"$EVALLAB" capture serve "${CAPTURE_ARGS[@]}" >>"$OUT/capture.log" 2>&1 &
 CAPTURE_PID=$!
+CAPTURE_ENDPOINT=""
 for _ in $(seq 1 20); do
-  [ "$(lsof -t -nP -iTCP:"$PORT" -sTCP:LISTEN 2>/dev/null)" = "$CAPTURE_PID" ] && break
+  kill -0 "$CAPTURE_PID" 2>/dev/null || die "capture server (pid $CAPTURE_PID) exited; see $OUT/capture.log"
+  if [ -s "$CAPDIR/capture.json" ]; then
+    CAPTURE_ENDPOINT=$("$PY" -c "import json,sys; print(json.load(open(sys.argv[1])).get('endpoint',''))" "$CAPDIR/capture.json" 2>/dev/null || true)
+    if [ -n "$CAPTURE_ENDPOINT" ] && [ "$(curl -s -o /dev/null -w '%{http_code}' -m 10 "$CAPTURE_ENDPOINT/healthz")" = 200 ]; then
+      break
+    fi
+    CAPTURE_ENDPOINT=""
+  fi
   sleep 1
 done
-[ "$(lsof -t -nP -iTCP:"$PORT" -sTCP:LISTEN 2>/dev/null)" = "$CAPTURE_PID" ] || die "capture server (pid $CAPTURE_PID) does not own port $PORT"
+[ -n "$CAPTURE_ENDPOINT" ] || die "capture server (pid $CAPTURE_PID) published no healthy endpoint; see $OUT/capture.log"
 "$EVALLAB" telemetry sample --out "$OUT/telemetry.jsonl" --metrics-url "$URL/metrics" --runs-dir runs \
   --queue-dir queue --modal-app "$APP" --interval 15.0 >>"$OUT/telemetry.log" 2>&1 &
 SAMPLER_PID=$!
@@ -292,7 +309,7 @@ SAMPLER_PID=$!
   done
 ) &
 WATCHDOG_PID=$!
-log "capture pid $CAPTURE_PID on :$PORT, sampler pid $SAMPLER_PID, watchdog pid $WATCHDOG_PID ($APP app-day limit \$$MODAL_APP_DAY_LIMIT_USD; billed \$$MODAL_BASELINE before deploy)"
+log "capture pid $CAPTURE_PID at $CAPTURE_ENDPOINT (out $CAPDIR), sampler pid $SAMPLER_PID, watchdog pid $WATCHDOG_PID ($APP app-day limit \$$MODAL_APP_DAY_LIMIT_USD; billed \$$MODAL_BASELINE before deploy)"
 
 # ---- 9. tick position waves serially, approving each wave just before its tick ----------
 # (the lab's drain teardown never targets the LoRA app, so nothing stops it between waves)
@@ -315,7 +332,7 @@ for wave in $WAVES; do
   started=$(date -u +%FT%TZ)
   log "$position: tick $count specs at parallel $PARALLEL"
   tick_status=0
-  EVALLAB_MIMO_SELFHOSTED_UPSTREAM="http://127.0.0.1:$PORT" EVALLAB_MODEL_CAPTURE=1 MIMO_SELFHOSTED_API_KEY="$KEY" \
+  EVALLAB_MIMO_SELFHOSTED_UPSTREAM="$CAPTURE_ENDPOINT" EVALLAB_MODEL_CAPTURE=1 EVALLAB_MODEL_CAPTURE_DIR="$CAPDIR" MIMO_SELFHOSTED_API_KEY="$KEY" \
     "$EVALLAB" tick --parallel "$PARALLEL" "${args[@]}" >>"$OUT/$position-tick.log" 2>&1 || tick_status=$?
   finished=$(date -u +%FT%TZ)
   # Advance only when every spec of this wave has a result.json written during
@@ -379,6 +396,9 @@ EOF
 done
 
 # ---- 10. link, freeze, reconcile ------------------------------------------------------
+# The runner already auto-linked each job to this file at completion (route
+# token); this per-job pass is the backstop that seals the final bytes after
+# the server stops.
 kill -TERM "$CAPTURE_PID" 2>/dev/null || true; wait "$CAPTURE_PID" 2>/dev/null || true; CAPTURE_PID=""
 kill -TERM "$SAMPLER_PID" 2>/dev/null || true; SAMPLER_PID=""
 while read -r name id; do

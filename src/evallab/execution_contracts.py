@@ -109,6 +109,7 @@ _SUBSCRIPTION_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
         "XDG_CACHE_HOME",
         "XDG_CONFIG_HOME",
         "XDG_DATA_HOME",
+        "XDG_STATE_HOME",
     }
 )
 
@@ -460,6 +461,13 @@ MIMO_SELFHOSTED_PROXY_PROVIDER = "mimo_selfhosted"
 #: ``route_token``) before forwarding to the real upstream. Mirrored as a
 #: literal in ``containers/zai_openapi_secret_proxy.py`` (standalone script).
 CAPTURE_ROUTE_TOKEN_ENV = "EVALLAB_CAPTURE_ROUTE_TOKEN"
+#: Env var carrying this job's capture directory (the ``evallab capture serve
+#: --out`` directory whose ``capture.json`` holds the bound endpoint). The
+#: round launcher sets it alongside ``EVALLAB_MODEL_CAPTURE=1`` and the
+#: loopback upstream; the runner records it in ``lab-metadata.json`` and
+#: auto-links the job to that file with ``link_capture``. Never set for
+#: direct-to-vendor rounds.
+CAPTURE_DIR_ENV = "EVALLAB_MODEL_CAPTURE_DIR"
 #: Opt-in flag (``=1``) telling the runner a recording capture proxy sits in
 #: the provider upstream path. The runner then hands each secret proxy the
 #: job attempt id as ``EVALLAB_CAPTURE_ROUTE_TOKEN`` (``/t/<token>/``), so
@@ -1789,11 +1797,9 @@ def build_command(request: RunRequest) -> list[str]:
         and request.agent == "mini-swe-agent"
         and request.model == ZAI_OPENAPI_MODEL_SELECTOR
     )
-    terminus_daytona = environment == "daytona" and request.agent == TERMINUS_AGENT
-    control_daytona = environment == "daytona" and request.agent in CONTROL_AGENTS
     if zai_daytona:
         environment = "evallab.harbor_daytona:SecretSafeDaytonaEnvironment"
-    elif terminus_daytona or control_daytona:
+    elif environment == "daytona":
         environment = BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH
     command = [
         "harbor",
@@ -1813,12 +1819,12 @@ def build_command(request: RunRequest) -> list[str]:
         "--n-attempts",
         str(request.attempts),
     ]
-    if zai_daytona or terminus_daytona or control_daytona:
+    if request.environment == "daytona":
         # Provider-side destruction still applies if the local controller dies.
         ttl_minutes = (request.trial_watchdog_seconds + 59) // 60
         command.extend(["--environment-kwarg", f"ttl_minutes={ttl_minutes}"])
     if resolve_egress_lock(request):
-        if not (terminus_daytona or control_daytona):
+        if request.environment != "daytona" or request.agent not in {"terminus-2", "nop", "oracle"}:
             raise ValueError(
                 "egress_lock=true is only supported for terminus-2/nop/oracle on daytona"
             )

@@ -45,7 +45,7 @@ CALL_RECORD_SCHEMA = "evallab.model_call/v1"
 MANIFEST_SCHEMA = "evallab.model_capture_manifest/v1"
 LINK_RECEIPT_SCHEMA = "evallab.model_capture_link/v1"
 
-DEFAULT_PORT = 8471
+DEFAULT_PORT = 0
 DEFAULT_BIND = "127.0.0.1"
 UPSTREAM_TIMEOUT_SECONDS = 600.0
 MAX_REQUEST_BYTES = 16 * 1024 * 1024
@@ -676,8 +676,21 @@ class CaptureRecorder:
             self._handle.close()
 
 
-def write_manifest(out_dir: str | Path, *, upstream: str, bind: str, port: int) -> dict[str, Any]:
-    """Write ``capture.json`` at startup; returns the manifest."""
+def capture_endpoint(bind: str, port: int) -> str:
+    """Public URL of a bound capture server (published only after a successful bind)."""
+    return f"http://{bind}:{port}"
+
+
+def write_manifest(
+    out_dir: str | Path, *, upstream: str, bind: str, port: int, endpoint: str | None = None
+) -> dict[str, Any]:
+    """Write ``capture.json`` at startup; returns the manifest.
+
+    ``port`` MUST be the bound port (``server.server_address[1]``), never the
+    requested one: with the default ``port=0`` the OS assigns a free port per
+    server, so concurrent servers get distinct endpoints. ``endpoint`` defaults
+    to :func:`capture_endpoint` for that bound port.
+    """
     manifest = {
         "schema": MANIFEST_SCHEMA,
         "proxy_version": PROXY_VERSION,
@@ -686,6 +699,7 @@ def write_manifest(out_dir: str | Path, *, upstream: str, bind: str, port: int) 
         "eval_lab_commit": eval_lab_commit(),
         "bind": bind,
         "port": port,
+        "endpoint": endpoint or capture_endpoint(bind, port),
         "pid": os.getpid(),
     }
     out = Path(out_dir) / "capture.json"
@@ -738,8 +752,9 @@ def write_provenance(out_dir: str | Path, *, upstream: str) -> dict[str, Any]:
 
 
 class CaptureProxyServer(ThreadingHTTPServer):
-    """Threading HTTP server carrying the recorder and upstream binding."""
+    """Bound HTTP server; ``serve_capture`` attaches its recorder before serving."""
 
+    recorder: CaptureRecorder
     daemon_threads = True
     allow_reuse_address = True
     # socketserver's default listen backlog is 5. One capture server fronts
@@ -750,11 +765,9 @@ class CaptureProxyServer(ThreadingHTTPServer):
     def __init__(
         self,
         address: tuple[str, int],
-        recorder: CaptureRecorder,
         upstream: str,
         upstream_key: str | None,
     ) -> None:
-        self.recorder = recorder
         self.upstream = upstream.rstrip("/")
         self.upstream_key = upstream_key
         super().__init__(address, _CaptureHandler)
@@ -1072,10 +1085,34 @@ def serve_capture(
     port: int = DEFAULT_PORT,
     upstream_key: str | None = None,
 ) -> tuple[CaptureProxyServer, CaptureRecorder, dict[str, Any]]:
-    """Start the recording proxy; the caller owns ``serve_forever``/shutdown."""
-    recorder = CaptureRecorder(out_dir)
-    server = CaptureProxyServer((bind, port), recorder, upstream, upstream_key)
-    manifest = write_manifest(out_dir, upstream=upstream, bind=bind, port=port)
+    """Bind the recording proxy; the caller owns ``serve_forever``/shutdown.
+
+    ``port=0`` (the default) asks the OS for a free port per server, so
+    concurrent servers never collide. An explicit occupied port raises
+    ``OSError`` (``EADDRINUSE``) with no ``calls.jsonl`` or ``capture.json``
+    written. The manifest carries the bound port and endpoint, published
+    only after the bind succeeds. No availability probe precedes the bind,
+    so there is no check-then-bind race.
+    """
+    server = CaptureProxyServer(
+        (bind, port),
+        upstream=upstream,
+        upstream_key=upstream_key,
+    )
+    try:
+        recorder = CaptureRecorder(out_dir)
+    except Exception:
+        server.server_close()
+        raise
+    server.recorder = recorder
+    try:
+        bound_port = int(server.server_address[1])
+        manifest = write_manifest(out_dir, upstream=upstream, bind=bind, port=bound_port)
+    except Exception:
+        with contextlib.suppress(Exception):
+            recorder.close()
+        server.server_close()
+        raise
     return server, recorder, manifest
 
 

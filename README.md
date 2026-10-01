@@ -155,7 +155,7 @@ uv run evallab report run <trial_or_job_dir>
 uv run evallab traj outline <trial_path>
 uv run evallab traj ir <trial_path>
 uv run evallab traj pack <trial_path>
-uv run evallab capture serve --upstream <base_url> --out <dir> [--port 8471]
+uv run evallab capture serve --upstream <base_url> --out <dir> [--port PORT]
 uv run evallab capture link <capture_dir> <job_dir>
 uv run evallab ladder generate --help
 uv run evallab curve build <spec.json>

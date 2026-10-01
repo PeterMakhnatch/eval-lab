@@ -235,6 +235,35 @@ class ProviderRoute(ContractModel):
     max_cost_usd: float = Field(gt=0)
 
 
+#: Explicit Linear card attribution (``HAR-126``). Free-form guesses are
+#: refused at validation: only ``HAR-NNN`` (case-insensitive, optional
+#: hyphen, leading zeros allowed) normalizes; anything else raises.
+LINEAR_CARD_RE = re.compile(r"(?i)^har-?0*(\d+)$")
+
+
+def normalize_linear_card(value: str | None) -> str | None:
+    """Normalize an explicit Linear card (``har126`` -> ``HAR-126``).
+
+    ``None`` (or blank) stays ``None`` (no explicit card). Anything
+    non-empty that is not a HAR issue identifier raises ``ValueError``
+    fail-closed: callers must never guess a card from task, model, app,
+    or other incidental names.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"linear card must be a HAR issue identifier, got {value!r}")
+    text = value.strip()
+    if not text:
+        return None
+    match = LINEAR_CARD_RE.fullmatch(text)
+    if match is None:
+        raise ValueError(
+            f"linear card must be a HAR issue identifier (e.g. HAR-126), got {value!r}"
+        )
+    return f"HAR-{int(match.group(1))}"
+
+
 class ExperimentSpec(ContractModel):
     schema_version: Literal[1] = 1
     spec_id: str | None = None
@@ -244,6 +273,13 @@ class ExperimentSpec(ContractModel):
     question_ref: str | None = Field(
         default=None,
         description="free string linking this spec to the research question it answers",
+    )
+    linear_card: str | None = Field(
+        default=None,
+        description=(
+            "explicit Linear card attribution (e.g. HAR-126) carried into "
+            "run provenance and spend ledgers; never inferred"
+        ),
     )
     elicitation: ElicitationSpec | None = Field(
         default=None,
@@ -440,6 +476,12 @@ class ExperimentSpec(ContractModel):
     @classmethod
     def jobs_dir_is_a_readable_root(cls, value: str) -> str:
         return validated_jobs_dir(value)
+
+    @field_validator("linear_card")
+    @classmethod
+    def linear_card_is_explicit(cls, value: str | None) -> str | None:
+        return normalize_linear_card(value)
+
 
     @model_validator(mode="after")
     def controls_and_campaigns_are_bounded(self) -> ExperimentSpec:
@@ -838,6 +880,18 @@ class RunProvenance(ContractModel):
         default=None,
         pattern=r"^sha256:[0-9a-f]{64}$",
     )
+    linear_card: str | None = Field(
+        default=None,
+        description=(
+            "explicit Linear card attribution (e.g. HAR-126) copied from the "
+            "submitting spec; never inferred"
+        ),
+    )
+
+    @field_validator("linear_card")
+    @classmethod
+    def linear_card_is_explicit(cls, value: str | None) -> str | None:
+        return normalize_linear_card(value)
 
 
 class CohortSelector(ContractModel):

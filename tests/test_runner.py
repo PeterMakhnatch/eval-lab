@@ -61,6 +61,56 @@ def no_network_task(tmp_path: Path) -> Path:
     return task_dir
 
 
+@pytest.mark.parametrize(("memory_mb", "memory_gib"), [(512, 1), (1024, 1), (1536, 2)])
+def test_daytona_preflight_reserves_whole_gib_without_underprovisioning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, memory_mb: int, memory_gib: int
+) -> None:
+    from evallab.daytona_guard import DaytonaGuard
+
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.delenv("DAYTONA_TARGET", raising=False)
+    task_dir = task(tmp_path)
+    (task_dir / "task.toml").write_text(
+        f"[environment]\ncpus = 1\nmemory_mb = {memory_mb}\nstorage_mb = 1536\n"
+    )
+    organization = "75ae5c7a-cc37-40e9-8f96-9bd4e8798e7b"
+
+    def fetch(_guard: DaytonaGuard, path: str) -> object:
+        if path == "/api-keys/current":
+            return {"organizationId": organization}
+        if path == f"/organizations/{organization}/usage":
+            return {"regionUsage": [{
+                "regionId": "us", "sandboxClass": "container",
+                "totalCpuQuota": 100, "totalMemoryQuota": 200, "totalDiskQuota": 300,
+                "totalGpuQuota": 0,
+                "currentCpuUsage": 0, "currentMemoryUsage": 160 - memory_gib,
+                "currentDiskUsage": 0, "currentGpuUsage": 0,
+                "maxCpuPerSandbox": None, "maxMemoryPerSandbox": None,
+                "maxDiskPerSandbox": None,
+            }]}
+        if path.startswith("/sandbox?"):
+            return {"items": [], "nextCursor": None}
+        raise AssertionError(path)
+
+    monkeypatch.setattr(DaytonaGuard, "_http_get", fetch)
+    request = RunRequest(
+        task=task_dir, agent="oracle", name="gib-boundary", jobs_dir=tmp_path / "runs",
+        environment="daytona",
+    )
+    admitted = runner_module._check_daytona_admission(request)
+    assert admitted is not None
+    assert admitted["requested"]["memory_gib"] == memory_gib
+    assert admitted["requested"]["disk_gib"] == 2
+    assert admitted["projected"]["memory_gib"] == 160
+    oversized = RunRequest(
+        task=task_dir, agent="oracle", name="gib-over-cap", jobs_dir=request.jobs_dir,
+        environment="daytona", attempts=2, concurrency=2,
+    )
+    with pytest.raises(ExecutionFailure) as error:
+        runner_module._check_daytona_admission(oversized)
+    assert error.value.reason_code == "daytona_usage_limit"
+
+
 def test_control_command_is_explicit_and_free(tmp_path: Path) -> None:
     request = RunRequest(
         task=task(tmp_path),
@@ -1758,3 +1808,101 @@ def test_absent_storage_override_keeps_legacy_argv(tmp_path: Path) -> None:
 
     assert legacy == explicit_absence
     assert "--override-storage-mb" not in legacy
+
+
+def test_capture_auto_link_uses_job_own_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """HAR-145: a no-cost local job auto-links to its own capture file.
+
+    Two jobs with distinct route tokens share nothing: each ``maybe_link``
+    receipt assigns exactly its own call from its own file.
+    """
+    from evallab.model_capture import link_capture
+    from evallab.runner import capture_dir_from_environment, maybe_link_capture
+
+    def _job(name: str, trial: str) -> Path:
+        job = tmp_path / "runs" / name
+        trial_dir = job / trial
+        trial_dir.mkdir(parents=True)
+        (trial_dir / "result.json").write_text(
+            json.dumps(
+                {
+                    "id": f"id-{trial}",
+                    "trial_name": trial,
+                    "config": {"agent": {"name": "oracle"}},
+                    "agent_execution": {
+                        "started_at": "2026-01-01T00:00:00Z",
+                        "finished_at": "2026-01-01T01:00:00Z",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (job / "result.json").write_text(
+            json.dumps({"id": f"job-{name}"}), encoding="utf-8"
+        )
+        return job
+
+    def _capture(name: str, token: str) -> Path:
+        cap = tmp_path / name
+        cap.mkdir(parents=True)
+        (cap / "calls.jsonl").write_text(
+            json.dumps(
+                {
+                    "seq": 1,
+                    "started_at": "2026-01-01T00:10:00Z",
+                    "ended_at": "2026-01-01T00:10:01Z",
+                    "method": "POST",
+                    "path": "/v1/chat/completions",
+                    "route_token": token,
+                    "session_id": None,
+                    "request_body": {"messages": [{"role": "user", "content": "hi"}]},
+                    "response_status": 200,
+                    "response_sse": False,
+                    "assistant_texts": ["hi"],
+                    "tool_calls": [],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+                    "model": "stub",
+                    "upstream_latency_s": 0.01,
+                    "error": None,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return cap
+
+    job_a = _job("job-a", "trial-a")
+    job_b = _job("job-b", "trial-b")
+    cap_a = _capture("cap-a", "trial-a")
+    cap_b = _capture("cap-b", "trial-b")
+    derived = tmp_path / "derived"
+
+    monkeypatch.setenv("EVALLAB_MODEL_CAPTURE", "1")
+    monkeypatch.setenv("EVALLAB_MODEL_CAPTURE_DIR", str(cap_a))
+    assert capture_dir_from_environment() == cap_a
+    receipt_a = maybe_link_capture(job_a)
+    assert receipt_a is not None
+    assert receipt_a["capture_dir"] == str(cap_a)
+    assert receipt_a["calls_total"] == 1
+    assert receipt_a["calls_assigned"] == 1
+    assert receipt_a["calls_unassigned"] == []
+
+    monkeypatch.setenv("EVALLAB_MODEL_CAPTURE_DIR", str(cap_b))
+    receipt_b = maybe_link_capture(job_b)
+    assert receipt_b is not None
+    assert receipt_b["capture_dir"] == str(cap_b)
+    assert receipt_b["calls_total"] == 1
+    assert receipt_b["calls_assigned"] == 1
+
+    # Cross-linking stays unassigned: job-a's token is foreign to cap-b.
+    cross = link_capture(cap_b, job_a, derived_root=derived)
+    assert cross["calls_total"] == 1
+    assert cross["calls_assigned"] == 0
+    assert cross["calls_unassigned"] == [1]
+
+    monkeypatch.delenv("EVALLAB_MODEL_CAPTURE_DIR", raising=False)
+    assert maybe_link_capture(job_a) is None
+    monkeypatch.delenv("EVALLAB_MODEL_CAPTURE", raising=False)
+    assert capture_dir_from_environment() is None

@@ -39,7 +39,7 @@ from evallab.execution_contracts import (
     validate_request,
 )
 from evallab.registry import compute_task_digests
-from evallab.schemas import EXPLORATION_JOBS_ROOT, ExperimentSpec
+from evallab.schemas import EXPLORATION_JOBS_ROOT, ExperimentSpec, normalize_linear_card
 from evallab.task_import import import_task_package
 from evallab.terminus_harness import load_harness_tree, stage_harness_tree
 
@@ -257,6 +257,7 @@ def prepare_task(
     harness_tree_sha256: str | None = None,
     output: Path | None = None,
     submitted_by: str = "operator",
+    linear_card: str | None = None,
 ) -> PreparedTask:
     """Freeze one local task directory into a validated, submittable spec.
 
@@ -271,6 +272,7 @@ def prepare_task(
         raise ValueError(f"repository root is not a directory: {repo_root}")
     if not SAFE_JOB_NAME.fullmatch(name):
         raise ValueError("job names must be 3-80 lowercase letters, numbers, or hyphens")
+    linear_card = normalize_linear_card(linear_card)
     if environment not in SUPPORTED_ENVIRONMENTS:
         raise ValueError(
             f"unsupported environment {environment!r}: "
@@ -432,6 +434,7 @@ def prepare_task(
 
     spec = ExperimentSpec(
         name=name,
+        linear_card=linear_card,
         hypothesis=(
             f"Prepared {display_name!r} version={version or 'unspecified'} for {agent}"
             f"/{model or 'control'} on {environment} from frozen snapshot {task_rel}"

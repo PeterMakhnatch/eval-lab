@@ -9,6 +9,8 @@ what the lab is permitted to execute unattended.
 - `policy/standing-approvals.yaml`: Operational bounds, daily cost ceilings, and auto-run authorizations.
 - `policy/canary-suite.yaml`: Pinned canary task specifications for drift detection.
 - `policy/continuous-loop-policy.example.yaml`: Example configuration template for continuous loops.
+- `policy/daytona-limits.yaml`: Dated provider quota/per-sandbox ceilings and a conservative shared-host admission reserve; not a spending authorization.
+- `policy/spend-attribution.yaml`: Source-backed, exact historical job/card bindings and explicit app/card bindings; unbound provider bills stay unknown.
 
 ## Invariants or rules
 - Human steering wheel: `policy/` contains Peter-owned standing approvals and canary suites placed at root for visibility (cited in `agents/STRUCTURE.md`).

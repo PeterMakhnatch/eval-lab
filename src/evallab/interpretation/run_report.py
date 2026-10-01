@@ -688,6 +688,152 @@ def _lab_metadata(trial: Path) -> dict[str, Any]:
     return {}
 
 
+_DAYTONA_USAGE_FILENAME = "daytona-usage.json"
+_DAYTONA_DIMENSIONS = ("cpu", "memory_gib", "disk_gib", "gpu", "concurrent_sandboxes")
+_DEFAULT_DAYTONA_SAFETY_FRACTION = 0.8
+
+
+def _daytona_usage(trial: Path) -> dict[str, Any] | None:
+    """Per-trial Daytona capacity evidence, or None when the monitor wrote none.
+
+    Old trials (and non-Daytona trials) predate the environment monitor: a
+    missing or unreadable file reads as unavailable, never as zero usage.
+    """
+    try:
+        data = json.loads((trial / _DAYTONA_USAGE_FILENAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _daytona_block(snapshot: Mapping[str, Any], key: str) -> Mapping[str, Any]:
+    block = snapshot.get(key)
+    return block if isinstance(block, Mapping) else {}
+
+
+def _daytona_latest_snapshot(usage: Mapping[str, Any]) -> tuple[Mapping[str, Any], str]:
+    """Latest capacity snapshot and which evidence field it came from.
+
+    Prefers the disappearance-time current usage, then the last monitor
+    sample, then the admission snapshot: the reading closest to the trial's
+    end names the pressure the trial actually ran under.
+    """
+    disappearance = usage.get("disappearance")
+    if isinstance(disappearance, Mapping):
+        current = disappearance.get("current_usage")
+        if isinstance(current, Mapping):
+            return current, "disappearance current usage"
+    last = usage.get("last_observation")
+    if isinstance(last, Mapping):
+        return last, "last monitor observation"
+    admission = usage.get("admission")
+    if isinstance(admission, Mapping):
+        return admission, "admission snapshot"
+    return {}, "unavailable (no snapshot recorded)"
+
+
+def _daytona_number(value: Any) -> str:
+    if isinstance(value, bool):
+        return "unavailable"
+    if isinstance(value, (int, float)):
+        return f"{value:g}"
+    return "unavailable"
+
+
+def _daytona_pressure_note(snapshot: Any) -> str:
+    if not isinstance(snapshot, Mapping):
+        return "pressure unknown (no snapshot recorded)"
+    pressure = snapshot.get("at_or_near_limit")
+    if isinstance(pressure, list) and pressure:
+        return "at/near limit: " + ", ".join(str(dim) for dim in pressure)
+    return "no dimension at/near limit"
+
+
+def render_daytona_usage_lines(usage: dict[str, Any] | None) -> list[str]:
+    """Human-visible Daytona capacity section, or [] when no evidence exists.
+
+    Missing evidence stays missing: dimensions without data render as
+    unavailable, never zero. A disappearance beside recent near-limit
+    pressure is capacity correlation, never a confirmed provider cause.
+    """
+    if not isinstance(usage, dict):
+        return []
+    snapshot, provenance = _daytona_latest_snapshot(usage)
+    limits = _daytona_block(snapshot, "limits")
+    used = _daytona_block(snapshot, "used")
+    pending = _daytona_block(snapshot, "pending")
+    requested = _daytona_block(snapshot, "requested")
+    safety = snapshot.get("safety_fraction")
+    if isinstance(safety, bool) or not isinstance(safety, (int, float)):
+        safety = _DEFAULT_DAYTONA_SAFETY_FRACTION
+    else:
+        safety = float(safety)
+    rows: list[list[str]] = []
+    for dim in _DAYTONA_DIMENSIONS:
+        quota = limits.get(dim)
+        cap = quota * safety if isinstance(quota, (int, float)) and not isinstance(quota, bool) else None
+        rows.append(
+            [
+                dim,
+                _daytona_number(quota),
+                _daytona_number(cap),
+                _daytona_number(used.get(dim)),
+                _daytona_number(pending.get(dim)),
+                _daytona_number(requested.get(dim)),
+            ]
+        )
+    inventory = snapshot.get("inventory")
+    live = str(len(inventory)) if isinstance(inventory, list) else "unavailable"
+    lines = [
+        "",
+        "## Environment capacity (Daytona)",
+        f"- Source: {snapshot.get('source') or 'unknown source'} at "
+        f"{snapshot.get('observed_at') or 'unknown time'} (snapshot: {provenance}; "
+        f"region {snapshot.get('region') or 'unknown'}, "
+        f"class {snapshot.get('sandbox_class') or 'unknown'}).",
+    ]
+    lines += _table(
+        ["Dimension", "Raw quota", f"Safety cap ({safety:.0%})", "Used", "Pending", "Requested"],
+        rows,
+    )
+    lines.append(f"- Live sandboxes in provider inventory: {live}.")
+    monitor_error = usage.get("monitor_error")
+    if isinstance(monitor_error, str) and monitor_error.strip():
+        lines.append(
+            f"- Monitor gap: {monitor_error}. Usage since then is unavailable, never zero."
+        )
+    disappearance = usage.get("disappearance")
+    if isinstance(disappearance, dict):
+        name = disappearance.get("sandbox_name") or disappearance.get("sandbox_id") or "unknown sandbox"
+        when = disappearance.get("observed_at") or "unknown time"
+        cause = disappearance.get("cause")
+        strength = disappearance.get("evidence_strength")
+        if cause == "usage_limit_pressure":
+            lines.append(
+                f"- Sandbox `{name}` disappeared at {when}: capacity pressure was observed "
+                f"nearby (cause `{cause}`; evidence `{strength}`). Correlation with the "
+                "disappearance, not a confirmed provider deletion cause."
+            )
+        else:
+            lines.append(
+                f"- Sandbox `{name}` disappeared at {when}: cause unknown "
+                f"(cause `{cause}`; evidence `{strength}`). No capacity evidence either way."
+            )
+        basis = disappearance.get("pressure_source")
+        lines.append(
+            "- Pressure at disappearance: current "
+            f"{_daytona_pressure_note(disappearance.get('current_usage'))}; last sample "
+            f"{_daytona_pressure_note(disappearance.get('last_observation'))}"
+            f" (pressure basis: {basis if basis in ('current_usage', 'last_observation') else 'unrecorded'})."
+        )
+        if cause != "usage_limit_pressure":
+            if disappearance.get("error_type"):
+                lines.append(f"- Disappearance probe error: `{disappearance['error_type']}`.")
+            if disappearance.get("read_error"):
+                lines.append(f"- Usage read error: {disappearance['read_error']}.")
+    return lines
+
+
 def _final_turn_flags(
     positioned: Sequence[tuple[int, Any]],
     layers: Sequence[dict[str, Any] | None],
@@ -2580,10 +2726,18 @@ def build_run_report(
             }
             for path in ([result_path] if result_path.is_file() else [])
             + [p for p, _, _ in segments]
+            + (
+                [trial / _DAYTONA_USAGE_FILENAME]
+                if (trial / _DAYTONA_USAGE_FILENAME).is_file()
+                else []
+            )
         ],
         # Independent capture is additive and optional: None means no linked
         # capture exists, never a lookup failure worth failing the report over.
         "capture": _linked_capture(trial),
+        # Environment monitor evidence is additive and optional: None means
+        # the trial predates the monitor (or ran off-Daytona), never zero use.
+        "daytona_usage": _daytona_usage(trial),
         # HAR-92: per-step model/harness/execution/observation layers,
         # continuation coverage, and the outcome/execution split.
         "step_layers": layer_summary,
@@ -3256,6 +3410,7 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
     domain_lines = render_domain_markdown(report.get("domain"))
     if domain_lines:
         lines += [""] + domain_lines
+    lines += render_daytona_usage_lines(report.get("daytona_usage"))
     lines += ["", "## Timeline"]
     if timeline["windows"]:
         lines.append("By tenth of the run:")

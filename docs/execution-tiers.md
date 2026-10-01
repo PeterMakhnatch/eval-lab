@@ -388,8 +388,9 @@ completeness verdicts; see [the capture recipe](model-capture.md):
 
 ```bash
 uv run evallab capture serve --upstream https://tinker.thinkingmachines.dev \
-  --out derived/captures/<name> --port 8471
-EVALLAB_TINKER_UPSTREAM=http://127.0.0.1:8471 uv run evallab tick ...
+  --out derived/captures/<name>
+ENDPOINT=$(python -c "import json; print(json.load(open('derived/captures/<name>/capture.json'))['endpoint'])")
+EVALLAB_TINKER_UPSTREAM="$ENDPOINT" EVALLAB_MODEL_CAPTURE=1 EVALLAB_MODEL_CAPTURE_DIR=derived/captures/<name> uv run evallab tick ...
 uv run evallab capture link derived/captures/<name> runs/<job>
 ```
 
@@ -576,6 +577,49 @@ outside its work directory does not isolate that key from same-user tool code.
 Reef may retain the resolved proxy capability in its own runtime configuration;
 keep that configuration private and terminate the proxy when the campaign ends.
 
+### Shared Daytona capacity admission (HAR-144)
+
+Every Daytona launcher uses the bounded lifecycle wrapper. Before a child
+launch, and atomically before any Harbor snapshot build or sandbox creation,
+it reads the current key's organization, live resource quotas, and the complete
+paginated inventory across all lanes. Unknown identity, incomplete inventory,
+unsupported target/class, or unavailable quota reads refuse the launch.
+Queue preflight refusals return to `waiting`, not a poisoned failed run.
+
+The verified 2026-10-01 Tier-2 `us/container` limits are **100 CPU / 200 GiB RAM /
+300 GiB disk**, with **4 CPU / 8 GiB RAM / 10 GiB disk per sandbox**.
+`policy/daytona-limits.yaml` records the dated API/dashboard sources. Admission
+uses the smaller of committed and live quotas, with a 20% reserve: **80 CPU /
+160 GiB RAM / 240 GiB disk**. A separate concurrent-sandbox cap was not exposed;
+the inventory count is reported, not tested against an invented ceiling.
+Whole-GiB provider allocations round positive MiB task requests upward;
+omitted dimensions reserve the verified per-sandbox maximum, not guessed SDK
+defaults. Resolved snapshot allocations are checked again before creation.
+
+Controllers on this host share an `fcntl`-locked pending ledger at
+`$XDG_STATE_HOME/evallab/daytona-admission` (default
+`~/.local/state/evallab/daytona-admission`). Keep that state root identical
+across lanes/worktrees. The lock spans fresh reads and reservation persistence.
+Retries hold their owned high-water allocation until matching live inventory
+replaces it; ambiguous creation failures never immediately free capacity.
+Stopped containers still consume disk. This is host-shared coordination plus
+organization-wide observation, **not a distributed lock across separate hosts**.
+
+Each trial writes private `daytona-usage.json` evidence: admission, a 15-second
+monitor sample, source/time, quotas, safety margin, pending allocations, and
+live inventory. Only a confirmed sandbox GET 404 records disappearance.
+Current or at-most-30-second-old near-limit pressure is capacity correlation,
+not a confirmed provider deletion cause; stale/unavailable reads remain
+unknown. `evallab report run` and processed trial pages show these distinctions.
+Old trials without records never acquire fabricated zero usage.
+
+The billing wallet/tier API returned 401 for this key; dated dashboard wallet
+balances are recorded as observations, not a live credit cap or permission to
+spend. Capacity admission does not replace financial approval. Peter's
+2026-10-01 dashboard evidence confirms usage-limit loss of G5 wave-3 stock
+sandboxes `001241`, `001626`, and `001765`, superseding the earlier unknown/audit
+403 diagnosis for those three; the frozen run record itself is not rewritten.
+
 ### GLM mini-SWE on Daytona
 
 Prepare an ordinary spec without a Python launcher, credentials, or cloud calls:
@@ -594,6 +638,8 @@ package/verifier digests, and writes `derived/prepared/tb4-finance-daytona.json`
 It neither admits a task to the registry nor submits or approves a run. The task
 can come from any local Harbor package; there is no TB4-only launcher.
 `--json` emits the spec, resources, warnings and next command.
+Use `--linear-card HAR-NNN` with the exact authorized Linear card to preserve
+explicit spend provenance; it does not grant spending permission.
 Repeated identical preparation reuses the snapshot/spec; source edits cannot
 mutate the snapshot, and collisions or drift refuse rather than overwrite.
 

@@ -432,6 +432,9 @@ def _process_trial(
             "diagnosis": diagnosis_error,
             "token_flow": token_flow_error,
         },
+        # Environment monitor evidence (trial/daytona-usage.json): None when
+        # the trial predates the monitor (or ran off-Daytona), never zero use.
+        "daytona_usage": _read_json(trial_dir / "daytona-usage.json"),
     }
 
     # Flags: one short string per fired detector for the summary table.
@@ -636,6 +639,11 @@ def _render_trial_markdown(record: dict[str, Any]) -> str:
         lines.append(
             "- processing gaps: " + "; ".join(f"{key}: {val}" for key, val in errors.items())
         )
+    # Same capacity renderer as `evallab report run`: one wording, no second
+    # detector. Absent evidence renders nothing (pre-monitor trials unchanged).
+    from evallab.interpretation.run_report import render_daytona_usage_lines
+
+    lines.extend(render_daytona_usage_lines(record.get("daytona_usage")))
     lines.append("")
     return "\n".join(lines)
 

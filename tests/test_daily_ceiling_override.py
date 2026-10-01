@@ -163,9 +163,9 @@ def spend_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         basis=spend_day.BASIS_BILLED,
         evidence="fixture",
     )
-    monkeypatch.setattr(spend_day, "query_modal_rows", lambda *_: (row, "fixture billing"))
-    monkeypatch.setattr(spend_day, "query_model_job_rows", lambda *_: ([], [], 0.0))
-    monkeypatch.setattr(spend_day, "query_daytona_rows", lambda *_: ([], []))
+    monkeypatch.setattr(spend_day, "query_modal_rows", lambda *_, **__: ([row], "fixture billing"))
+    monkeypatch.setattr(spend_day, "query_model_job_rows", lambda *_, **__: ([], [], 0.0))
+    monkeypatch.setattr(spend_day, "query_daytona_rows", lambda *_, **__: ([], []))
     monkeypatch.setattr(spend_day, "sibling_worktree_roots", lambda _: [])
     monkeypatch.setattr(modal_billing, "fetch_modal_billing_report", lambda **_: [])
     monkeypatch.setattr(modal_billing, "store_billing_rows", lambda *_, **__: None)

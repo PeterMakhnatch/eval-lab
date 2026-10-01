@@ -63,6 +63,7 @@ BASE_SPEC = (
 TASKS = EXP / "tasks"
 SNAPSHOT_TASKS = "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks"
 QUESTION_REF = "ovn-g5"
+LINEAR_CARD = "HAR-126"
 
 STOCK_MODEL = "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
 TUNED_MODEL = "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129"
@@ -92,8 +93,8 @@ from evallab.terminus_harness import load_harness_tree  # noqa: E402
 # harness tree (the lf2 treatment, passed on the CLI) and minus model /
 # est_cost_usd (the arm treatments, set here). Same rationale as HAR-110's
 # ROUTE_FIELDS: override_storage_mb is included because these code tasks
-# declare no storage_mb, and without the override Harbor would request the
-# 3 GiB Daytona default.
+# declare no storage_mb; keep the retained round's explicit allocation instead
+# of relying on a server-selected storage default.
 ROUTE_FIELDS = (
     "agent",
     "environment",
@@ -403,6 +404,7 @@ def _spec(
         "hypothesis": _hypothesis(task_id, arm, order),
         "purpose": "comparison",
         "question_ref": QUESTION_REF,
+        "linear_card": LINEAR_CARD,
         "agent": "terminus-2",
         "task": task_rel,
         "task_path": task_rel,
@@ -577,6 +579,8 @@ def check(
             failures.append(f"{name}: agent {spec.agent!r} != 'terminus-2'")
         if spec.question_ref != QUESTION_REF:
             failures.append(f"{name}: question_ref {spec.question_ref!r} != {QUESTION_REF!r}")
+        if spec.linear_card != LINEAR_CARD:
+            failures.append(f"{name}: linear_card {spec.linear_card!r} != {LINEAR_CARD!r}")
         if (spec.attempts, spec.concurrency) != (1, 1):
             failures.append(f"{name}: attempts/concurrency != 1/1")
         if spec.task_id != want["task_id"]:

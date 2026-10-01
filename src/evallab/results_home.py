@@ -66,6 +66,30 @@ def card_from(*texts: str | None) -> str | None:
             return f"HAR-{match.group(1)}"
     return None
 
+def _explicit_linear_card(metadata: dict[str, Any], spec: dict[str, Any]) -> str | None:
+    """Explicit ``linear_card`` from run metadata or the frozen spec, if any.
+
+    Both bindings must agree; disagreement or a malformed value raises
+    ``ValueError`` fail-closed. Blank/missing stays ``None``. Task, model,
+    and harness names are never consulted.
+    """
+    from evallab.schemas import normalize_linear_card
+
+    found: dict[str, str] = {}
+    experiment = metadata.get("experiment")
+    if isinstance(experiment, dict) and experiment.get("linear_card") is not None:
+        normalized = normalize_linear_card(experiment.get("linear_card"))
+        if normalized is not None:
+            found["lab-metadata experiment.linear_card"] = normalized
+    if spec.get("linear_card") is not None:
+        normalized = normalize_linear_card(spec.get("linear_card"))
+        if normalized is not None:
+            found["experiment-spec linear_card"] = normalized
+    if len(set(found.values())) > 1:
+        detail = "; ".join(f"{source}={card}" for source, card in sorted(found.items()))
+        raise ValueError(f"Explicit linear_card bindings disagree: {detail}")
+    return next(iter(found.values()), None)
+
 
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str] | None:
     try:
@@ -340,13 +364,20 @@ def build_provenance(
         job_dir.name,
         spec.get("question_ref") if isinstance(spec.get("question_ref"), str) else None,
     )
+    explicit_card = _explicit_linear_card(metadata, spec)
+    if explicit_card is not None:
+        if card is not None and card != explicit_card:
+            raise ValueError(
+                f"Explicit linear_card {explicit_card} conflicts with recorded card {card}"
+            )
+        card = explicit_card
     if card is None:
-        unknown.append("no card in job name or spec question_ref")
+        unknown.append("no card in job name, spec question_ref, or explicit linear_card")
 
     commit = repository.get("commit")
     pr = _pr_number(commit if isinstance(commit, str) else None, pr_lookup)
 
-    return {
+    provenance: dict[str, Any] = {
         "schema": SCHEMA,
         "job_name": job_dir.name,
         "card": card,
@@ -360,6 +391,12 @@ def build_provenance(
         "host": metadata.get("host"),
         "unknown": unknown,
     }
+    if explicit_card is not None:
+        provenance["card_assignment"] = {
+            "source": "experiment_linear_card",
+            "card": explicit_card,
+        }
+    return provenance
 
 
 def _copy_file(source: Path, dest: Path) -> None:
@@ -515,7 +552,7 @@ def publish_job(
     if provenance["card"] is not None:
         provenance["unknown"] = [
             reason for reason in provenance["unknown"]
-            if reason != "no card in job name or spec question_ref"
+            if reason != "no card in job name, spec question_ref, or explicit linear_card"
         ]
     card = provenance["card"] or "unknown"
     dest, collided_with = _destination(home, day, card, source)

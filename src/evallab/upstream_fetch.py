@@ -27,7 +27,9 @@ loosen the separate, opt-in GEPA ``UPSTREAM_FETCH_ZERO`` attempt policy.
 
 from __future__ import annotations
 
+import fnmatch
 import json
+import posixpath
 import re
 import shlex
 from collections.abc import Iterable, Sequence
@@ -565,8 +567,8 @@ def _option(argv: list[str], names: set[str]) -> str | None:
     return None
 
 
-def _pip_artifact(command: str, finding: Finding, lines: list[str]) -> str | None:
-    """Exact package/version listing in the fetch's own destination.
+def _pip_artifact(command: str, finding: Finding, lines: list[str]) -> tuple[str, str] | None:
+    """Exact saved artifact or package/version listing in the destination.
 
     A listing alone is insufficient: the caller also requires observed use of
     this artifact in the same document, before a new attempt at this target.
@@ -585,17 +587,22 @@ def _pip_artifact(command: str, finding: Finding, lines: list[str]) -> str | Non
         and dest in args
         for part in _segments(command)
     )
-    if not listing:
-        return None
     name, version = identity
     for line in lines:
-        # Full-line filename/path: never a substring of an echoed command.
-        value = line.removeprefix(dest.rstrip("/") + "/")
+        # A saved path can supply the artifact candidate even when another
+        # output producer makes a standalone success summary ambiguous.
+        saved = line.startswith("Saved ")
+        observed = line[6:].strip() if saved else line
+        if saved and not observed.startswith(dest.rstrip("/") + "/"):
+            continue
+        if not saved and not listing:
+            continue
+        value = observed.removeprefix(dest.rstrip("/") + "/")
         wheel = re.fullmatch(r"([A-Za-z0-9_.]+)-([^-]+)-[^/ ]+\.whl", value)
         archive = re.fullmatch(r"(.+)-([^-]+)\.(?:tar\.gz|tgz|zip)", value)
         match = wheel or archive
         if match and _normal_package(match[1]) == name and match[2] == version:
-            return dest.rstrip("/") + "/" + value
+            return dest.rstrip("/") + "/" + value, line
     return None
 
 
@@ -663,30 +670,92 @@ def _executed_calls(step: dict, layer: dict | None) -> list[tuple[str | None, st
     return [(None, "\n".join(replay))] if replay else []
 
 
-def _artifact_use(artifact: str, command: str, lines: list[str]) -> bool:
-    """Observed extraction/content, not a proposed read or a successful tail."""
+def _resolve_path(value: str, cwd: str | None) -> str:
+    return posixpath.normpath(posixpath.join(cwd, value) if cwd and not value.startswith("/") else value)
+
+
+def _command_paths(command: str) -> list[tuple[list[str], str | None]]:
+    """Resolve explicit cd prefixes, never assume an inherited sandbox cwd."""
+    cwd = None
+    parts = []
+    cursor = 0
     for segment in _segments(command):
+        start = command.find(segment, cursor)
+        cursor = start + len(segment) if start >= 0 else cursor
         argv = _argv(segment) or []
-        if not argv or artifact not in argv:
+        if not argv:
             continue
+        if argv[0] == "cd" and len(argv) == 2:
+            # A semicolon/|| does not establish that cd succeeded. Only
+            # explicit && prefixes can bind a relative artifact operand.
+            cwd = _resolve_path(argv[1], cwd) if start >= 0 and command[cursor:].lstrip().startswith("&&") else None
+        else:
+            parts.append((argv, cwd))
+    return parts
+
+
+def _artifact_operand(artifact: str, operand: str, cwd: str | None) -> bool:
+    resolved = _resolve_path(operand, cwd)
+    if resolved == artifact:
+        return True
+    # A suffix/platform glob is safe only after the full observed package
+    # and pinned version, in the exact directory. Never accept *.whl or a
+    # wildcard package/version, nor a glob in another acquisition episode.
+    parent, filename = posixpath.split(artifact)
+    pattern_parent, pattern = posixpath.split(resolved)
+    wheel = re.fullmatch(r"([A-Za-z0-9_.]+)-([^-]+)-[^/ ]+\.whl", filename)
+    if not wheel or parent != pattern_parent:
+        return False
+    prefix = f"{wheel[1]}-{wheel[2]}-"
+    return pattern.startswith(prefix) and fnmatch.fnmatchcase(filename, pattern)
+
+
+def _source_observed(lines: list[str]) -> bool:
+    return any(re.match(r"(?:\d+:)?\s*(?:def |class |from |import |self\.)", line) for line in lines)
+
+
+def _artifact_read(destination: str, command: str, lines: list[str]) -> bool:
+    prefix = destination.rstrip("/") + "/"
+    return _source_observed(lines) and any(
+        argv[0].rsplit("/", 1)[-1] in {"cat", "sed", "head", "tail", "grep", "awk", "zcat"}
+        and any(_resolve_path(value, cwd).startswith(prefix) for value in argv[1:])
+        for argv, cwd in _command_paths(command)
+    )
+
+
+def _artifact_extraction(artifact: str, command: str, lines: list[str]) -> tuple[str | None, bool] | None:
+    """Observed exact-artifact extraction, optionally with source readback.
+
+    The extraction and read can occur in separate calls. A mere proposed
+    unzip or a later read of an unrelated/preexisting directory is not proof.
+    """
+    if any(re.search(r"(?i)^(?:unzip:|tar:)|cannot find or open|End-of-central-directory", line) for line in lines):
+        return None
+    paths = _command_paths(command)
+    for argv, cwd in paths:
         tool = argv[0].rsplit("/", 1)[-1]
-        if tool in {"unzip", "tar"}:
-            destination = _option(argv, {"-d"} if tool == "unzip" else {"-C", "--directory"})
-            if not destination:
-                return False
-            prefix = destination.rstrip("/") + "/"
-            readers = [
-                args for part in _segments(command)
-                if (args := _argv(part))
-                and args[0].rsplit("/", 1)[-1] in {"cat", "sed", "head", "tail", "grep"}
-                and any(value.startswith(prefix) for value in args[1:])
-            ]
-            files = [line for line in lines if line.startswith(prefix) and line.endswith(".py")]
-            source = [line for line in lines if re.match(r"(?:\d+:)?\s*(?:def |class |from |import |self\.)", line)]
-            return bool(readers and files and source)
-        if tool in {"cat", "head", "tail", "sed", "awk", "zcat"}:
-            return any(re.match(r"(?:\d+:)?\s*(?:def |class |from |import )", line) for line in lines)
-    return False
+        if tool not in {"unzip", "tar"} or not any(_artifact_operand(artifact, value, cwd) for value in argv[1:]):
+            continue
+        if tool == "unzip" and "-p" in argv and _source_observed(lines):
+            return None, True
+        target = _option(argv, {"-d"} if tool == "unzip" else {"-C", "--directory"})
+        if not target:
+            continue
+        destination = _resolve_path(target, cwd)
+        read = _artifact_read(destination, command, lines)
+        listing = any(
+            args[0].rsplit("/", 1)[-1] in {"ls", "find"}
+            and any(
+                _resolve_path(value, working_dir) == destination
+                or _resolve_path(value, working_dir).startswith(destination.rstrip("/") + "/")
+                for value in args[1:]
+            )
+            for args, working_dir in paths
+        )
+        filenames = any(re.search(r"(?:^|\s|/)[\w.-]+\.py(?:\s|$)", line) for line in lines)
+        if read or (listing and filenames and destination.startswith("/")):
+            return destination, read
+    return None
 
 
 def _observed_outcome(finding: Finding, command: str, results: list[dict]) -> tuple[str, str | None, str]:
@@ -797,8 +866,16 @@ def assess_upstream_fetch(agent_seq: Sequence[tuple[str, dict]], info: dict) -> 
                         "observation_binding": sorted({result["binding"] for result in results}),
                     })
                 lines = [line for result in results for line in _output_lines(str(result.get("content") or ""), command)]
-                artifact = _pip_artifact(command, finding, lines) if outcome == "unknown" else None
-                if artifact:
+                candidate = _pip_artifact(command, finding, lines) if outcome == "unknown" else None
+                if candidate:
+                    artifact, artifact_excerpt = candidate
+                    destination = None
+                    chain = [{
+                        "document": doc, "step": sid, "call_id": call_id,
+                        "target": finding.target, "artifact": artifact,
+                        "excerpt": artifact_excerpt,
+                        "observation_binding": sorted({result["binding"] for result in results}),
+                    }]
                     for later_doc, later_step in agent_seq[position + 1 :]:
                         if later_doc != doc:
                             break
@@ -819,22 +896,38 @@ def assess_upstream_fetch(agent_seq: Sequence[tuple[str, dict]], info: dict) -> 
                                 line for result in later_results
                                 for line in _output_lines(str(result.get("content") or ""), text)
                             ]
-                            if _artifact_use(artifact, text, observed):
-                                outcome, reason = "succeeded", "exact destination artifact acquired and observed in use"
-                                evidence = [
-                                    {
-                                        "document": doc, "step": sid, "call_id": call_id,
-                                        "target": finding.target, "artifact": artifact,
-                                        "excerpt": next(line for line in lines if line in {artifact, artifact.rsplit("/", 1)[-1]}),
-                                        "observation_binding": sorted({result["binding"] for result in results}),
-                                    },
-                                    {
-                                        "document": later_doc, "step": later_sid, "call_id": later_id,
-                                        "target": finding.target, "artifact": artifact,
-                                        "excerpt": "\n".join(observed)[:400],
-                                        "observation_binding": sorted({result["binding"] for result in later_results}),
-                                    },
-                                ]
+                            extraction = _artifact_extraction(artifact, text, observed)
+                            read = False
+                            if extraction is not None:
+                                destination, read = extraction
+                                chain = chain[:1]
+                            elif destination:
+                                # A different archive replacing this directory
+                                # starts another artifact episode, not a read
+                                # of the earlier acquisition.
+                                replaced = any(
+                                    argv[0].rsplit("/", 1)[-1] in {"unzip", "tar"}
+                                    and (target := _option(argv, {"-d", "-C", "--directory"}))
+                                    and _resolve_path(target, cwd) == destination
+                                    and not any(_artifact_operand(artifact, value, cwd) for value in argv[1:])
+                                    for argv, cwd in _command_paths(text)
+                                )
+                                if replaced:
+                                    destination = None
+                                    chain = chain[:1]
+                                else:
+                                    read = _artifact_read(destination, text, observed)
+                            if extraction is not None or read:
+                                chain.append({
+                                    "document": later_doc, "step": later_sid, "call_id": later_id,
+                                    "target": finding.target, "artifact": artifact,
+                                    "extracted_to": destination,
+                                    "excerpt": "\n".join(observed)[:400],
+                                    "observation_binding": sorted({result["binding"] for result in later_results}),
+                                })
+                            if read:
+                                outcome, reason = "succeeded", "exact destination artifact acquired, extracted, and observed in use"
+                                evidence = chain
                                 break
                         if outcome == "succeeded":
                             break

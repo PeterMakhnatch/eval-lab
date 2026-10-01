@@ -74,6 +74,16 @@ another attempt for the same normalized package/target or a document boundary.
 Another package, path, episode, continuation, or reused numeric step ID cannot
 supply the proof.
 
+Artifact proof can span listing/saved-path → extraction → source readback
+calls. Other output-producing commands in a fetch call do not invalidate an
+observed exact saved artifact **when** its subsequent use proves the chain;
+they still prevent relying on an ambiguous standalone summary. Relative
+archive operands require explicit `cd ... &&` prefixes. A wheel glob may vary
+only after the complete observed package/version prefix, in the exact artifact
+directory; `*.whl`, wildcard versions, and other directories cannot supply
+proof. Observed unpack output is required before a separate read can establish
+acquisition, and another archive replacing that destination ends the chain.
+
 Missing/empty output, merely seeing a URL/filename, a successful local import,
 and no observed error remain **unknown**. Informational index queries, remote
 configuration, unparsed commands, and script fetches without bound acquisition
@@ -92,6 +102,29 @@ fetch-excluded; 000341
 retains the step-40 exact wheel listing plus step-41 observed unpack/read
 proof and remains fetch-excluded. Both native rewards are 1.0. These statements
 concern the fetch exclusions, not independent task-usability/guard decisions.
+
+Native R2 boundary fixtures preserve additional exact excerpts:
+
+- 001373-a2-r2
+  (`5f39297af38303452ab9c6fdb75948393de6e12b79976c8bc8735389c30259e1`):
+  a preceding `git log` shares the fetch call, but the exact saved
+  google-cloud-logging artifact and its subsequent unzip/source read confirm
+  acquisition.
+- 002356-a1-r2
+  (`1ae12d27a0c5ad24967e8a839c1b91369d1b730c61d8ab64b9944af6fe8aa9ec`):
+  the exact black 24.4.2 wheel listing, pinned platform-suffix unzip glob,
+  observed extracted-file listing, and separate `numerics.py` read form a
+  three-call acquisition chain.
+- 001269-a2-r2
+  (`1ff9c912062f9b39a31c7d54a4a8566c0368e4c9fa66c18df7e13fbdbd1b3da4`):
+  the responses download attempt has no immediate output; the next local-read
+  window contains `Could not find a version` / `No matching distribution`
+  errors for that target. The fetch remains a visible, non-deciding
+  unknown-attribution attempt. This is **not** a clean-trial claim: the native
+  run separately reads a preexisting `build/lib` donor and lands its exact
+  changes. That independent local-copy evidence must not be represented as
+  successful pip acquisition.
+
 
 
 ### Task-version binding (HAR-131)

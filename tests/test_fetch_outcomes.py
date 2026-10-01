@@ -181,3 +181,88 @@ def test_duplicate_call_ids_and_copied_context_never_supply_proof() -> None:
     copied = _step("pip download example==1.0", "Successfully downloaded example")
     copied["is_copied_context"] = True
     assert assess_upstream_fetch([("cont-1", copied)], {}) == []
+
+
+@pytest.mark.parametrize("task,verdict,chain", [
+    ("001269-r2", "counted_pass", []),
+    ("001373-r2", "excluded", ["call_7_1", "call_8_1"]),
+    ("002356-r2", "excluded", ["call_11_1", "call_12_1", "call_13_1"]),
+])
+def test_native_r2_companion_and_pinned_glob_acquisition(tmp_path: Path, task: str, verdict: str, chain: list[str]) -> None:
+    native = _native(task)
+    result = native["result"]
+    reward = result["verifier_result"]["rewards"]["reward"]
+    flags = _taint_flags([("head", step) for step in native["steps"]], {}, tmp_path)
+    counts = attach_counts({"reward": reward, "scored": True, "taint": flags}, result, label_root=None)
+    assert counts["raw_reward"] == 1.0
+    assert counts["verdict"] == verdict
+    assert counts["reasons"] == (["copied_fix", "pass_tainted"] if chain else [])
+    decision = build_decision(tmp_path, reward=reward, scored=True, outcome=None, first_failure=None, grader_evidence=None, taint=flags, token_flow=None, counts=counts)
+    assert decision["pass_tainted"]["flagged"] == bool(chain)
+    assert decision["fetched_fix"]["fetched"] == bool(chain)
+    successes = [flag for flag in flags if confirmed_fetch(flag)]
+    if chain:
+        assert [item["call_id"] for item in successes[0]["outcome_evidence"]] == chain
+    else:
+        # The failed download's output is delayed into the next local call:
+        # retain attribution uncertainty instead of inventing acquisition.
+        assert not successes
+        assert flags[0]["target"] == "responses==0.15.0"
+        assert counts["flags"][0]["decisive"] is False
+
+
+def test_ambiguous_companion_summary_needs_observed_exact_artifact_use() -> None:
+    steps = _native("001373-r2")["steps"]
+    flags = assess_upstream_fetch([("head", steps[0])], {})
+    assert not confirmed_fetch(flags[0])
+    assert classify_counts(reward=1.0, scored=True, taint=flags)["verdict"] == "counted_pass"
+
+
+@pytest.mark.parametrize("replacement", ["*.whl", "black-24.*.whl", "black-23.1.0-*.whl", "/tmp/other/black-24.4.2-*.whl"])
+def test_glob_cannot_borrow_another_package_version_or_directory(replacement: str) -> None:
+    # Synthetic boundary perturbations of exact native observations, not new
+    # experimental traces: keep echo and command synchronized.
+    steps = json.loads(json.dumps(_native("002356-r2")["steps"]))
+    extraction = steps[1]
+    for call in extraction["tool_calls"]:
+        call["arguments"]["keystrokes"] = call["arguments"]["keystrokes"].replace("black-24.4.2-*.whl", replacement)
+    for result in extraction["observation"]["results"]:
+        result["content"] = result["content"].replace("black-24.4.2-*.whl", replacement)
+    flags = assess_upstream_fetch([("head", step) for step in steps], {})
+    assert not any(confirmed_fetch(flag) for flag in flags)
+    assert classify_counts(reward=1.0, scored=True, taint=flags)["verdict"] == "counted_pass"
+
+
+def test_observed_unpack_listing_without_readback_is_not_acquisition_proof() -> None:
+    steps = _native("002356-r2")["steps"]
+    flags = assess_upstream_fetch([("head", step) for step in steps[:2]], {})
+    assert not any(confirmed_fetch(flag) for flag in flags)
+
+
+def test_separate_readback_must_stay_inside_the_observed_extraction_destination() -> None:
+    steps = json.loads(json.dumps(_native("002356-r2")["steps"]))
+    read = steps[2]
+    for call in read["tool_calls"]:
+        call["arguments"]["keystrokes"] = call["arguments"]["keystrokes"].replace("/tmp/black24", "/tmp/unrelated")
+    for result in read["observation"]["results"]:
+        result["content"] = result["content"].replace("/tmp/black24", "/tmp/unrelated")
+    flags = assess_upstream_fetch([("head", step) for step in steps], {})
+    assert not any(confirmed_fetch(flag) for flag in flags)
+
+
+def test_relative_artifact_operand_requires_a_success_conditioned_cd() -> None:
+    steps = json.loads(json.dumps(_native("001373-r2")["steps"]))
+    extraction = steps[1]
+    for call in extraction["tool_calls"]:
+        call["arguments"]["keystrokes"] = call["arguments"]["keystrokes"].replace("cd /tmp/gcl &&", "cd /tmp/gcl;")
+    for result in extraction["observation"]["results"]:
+        result["content"] = result["content"].replace("cd /tmp/gcl &&", "cd /tmp/gcl;")
+    flags = assess_upstream_fetch([("head", step) for step in steps], {})
+    assert not any(confirmed_fetch(flag) for flag in flags)
+
+
+def test_another_archive_replacing_extraction_destination_ends_readback_proof() -> None:
+    steps = _native("002356-r2")["steps"]
+    replacement = _step("unzip -o -q /tmp/unrelated.whl -d /tmp/black24", "inflating: /tmp/black24/black/numerics.py", sid=15, call_id="replacement")
+    flags = assess_upstream_fetch([("head", step) for step in [*steps[:2], replacement, steps[2]]], {})
+    assert not any(confirmed_fetch(flag) for flag in flags)

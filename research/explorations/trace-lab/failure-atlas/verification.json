@@ -1626,6 +1626,64 @@
  "native_trial_manifest_verified": 212,
  "native_id_match": 212,
  "native_atif_match": "207/207",
+ "eligible_missing_atif": [
+  {
+   "trial_name": "har104-d-000226__Y2BTVP3",
+   "job_id": "cc94fb1c-4fd2-40a3-bd6e-051934c4ce6f",
+   "trial_id": "62f05b6e-e82f-4d9f-8f0c-ec8edbd371c7",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-000226-3/har104-d-000226__Y2BTVP3",
+   "counts_verdict": null,
+   "scored": false,
+   "reason": "no trajectory bytes published (trajectory_available=false); unscored-unknown with null counts_verdict; native result.json present and id-matching",
+   "result_sha256": "sha256:05e905511088be86d5693ccf5a3d1d16da1c30584dc2d60669fbfa88dd9809ff",
+   "id_match": true
+  },
+  {
+   "trial_name": "har104-d-000226__v276NfY",
+   "job_id": "0b62cb88-5d12-441d-a912-10ce1974c67b",
+   "trial_id": "3939b605-1722-41e6-a1c8-5207d8314e2c",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-000226-2/har104-d-000226__v276NfY",
+   "counts_verdict": null,
+   "scored": false,
+   "reason": "no trajectory bytes published (trajectory_available=false); unscored-unknown with null counts_verdict; native result.json present and id-matching",
+   "result_sha256": "sha256:0f60d11213d89d4fda6d1f60832ddee102355790022fb9ed56c5e9e5601b75cb",
+   "id_match": true
+  },
+  {
+   "trial_name": "har104-d-001896__BQr7N9b",
+   "job_id": "53cd1810-0689-4d29-8b19-1057abe6c71a",
+   "trial_id": "1eed8a90-d2dd-4f7b-b35d-a9bd23e18fcb",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-001896-2/har104-d-001896__BQr7N9b",
+   "counts_verdict": null,
+   "scored": false,
+   "reason": "no trajectory bytes published (trajectory_available=false); unscored-unknown with null counts_verdict; native result.json present and id-matching",
+   "result_sha256": "sha256:b4f8c431aae1abea5060a60d736acabb4e0c3909f37d2d90ac1bd225a3da5c76",
+   "id_match": true
+  },
+  {
+   "trial_name": "har104-d-001896__bRWKiLq",
+   "job_id": "58fa3204-d5f7-4d14-be19-7edbff8b7021",
+   "trial_id": "197e2f40-0b27-471d-887a-da771d6d9ccb",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-001896-3/har104-d-001896__bRWKiLq",
+   "counts_verdict": null,
+   "scored": false,
+   "reason": "no trajectory bytes published (trajectory_available=false); unscored-unknown with null counts_verdict; native result.json present and id-matching",
+   "result_sha256": "sha256:75e62dc50226b54ee09205f43f40790004b6af73e0e06cdac70c37139932bbd9",
+   "id_match": true
+  },
+  {
+   "trial_name": "har120-001647-a1__iqMRm5R",
+   "job_id": "e5012da9-76a4-4bd9-ba98-a9b930c48efc",
+   "trial_id": "32ea3c98-efdd-4884-be48-d5269c8aa92b",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001647-a1/har120-001647-a1__iqMRm5R",
+   "counts_verdict": "excluded",
+   "scored": false,
+   "reason": "no trajectory bytes published (trajectory_available=false); counts-excluded-infra member, both frozen raters blame infra (stop_reason infra_error); native result.json present and id-matching",
+   "result_sha256": "sha256:2151a5d48f8c2d473c93d53ee3528c017281f01242aa93675699cea89b814bd5",
+   "id_match": true
+  }
+ ],
+ "eligible_missing_atif_note": "Correction: the 33 missing-ATIF trials are 28 excluded rows plus these 5 eligible trials (4 null-count HAR-104 unscored + 1 infra-excluded HAR-120), not 33 non-eligible. Zero G5 impact: all 60 G5 cells carry ATIF bytes. The five are retained in denominators with empty ATIF and can never become exemplars (exemplar selection requires real non-copied steps).",
  "native_inputs": [
   {
    "job_id": "011a91c6-c551-412d-956b-da7e702d9565",

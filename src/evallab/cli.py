@@ -2143,6 +2143,7 @@ def _spend_day_command(
         print(render_ledger(ledger))
     return 0
 
+
 def _db_list_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -6027,6 +6028,9 @@ def parser() -> argparse.ArgumentParser:
     )
     results_backfill.add_argument("--home", type=Path, default=None)
     results_backfill.set_defaults(func=_results_backfill_command)
+    from evallab.run_telemetry import build_telemetry_parser
+
+    build_telemetry_parser(commands)
     return root
 
 

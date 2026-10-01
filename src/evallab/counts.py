@@ -5,7 +5,11 @@ quoted as a model result. Only deterministic facts exclude a trial:
 
 - ``copied_fix``: a pass whose existing fetch detector fired
 - ``pass_tainted``: HAR-100, a pass with a fetch or a guard reject
-- ``task_not_usable``: census or hand label says the task cannot be read
+- ``task_not_usable``: census or hand label says the task cannot be read.
+  The census labels a task's original package; a trial that ran a
+  ``validated`` task variant (``library/task-variants``: its own nop was
+  sound, e.g. a HAR-113/HAR-115 environment repair) is not excluded by the
+  original's census label. Hand labels still apply.
 - ``infra``: no verifier reward, or a proxy/gateway error and no score
 
 A fetch on a failure stays ``counted_fail`` and is flagged. First failure,
@@ -30,6 +34,7 @@ HAND_NOT_USABLE = frozenset({"broken", "suspect", "discarded", "review", "unchec
 CENSUS_NOT_USABLE = frozenset({"broken_environment", "grader_suspect", "unknown"})
 _CENSUS_RELATIVE = Path("research/experiments/har108-python-census/task_health.parquet")
 _HAND_GLOB = "research/explorations/trace-lab/**/hand/*.json"
+_VARIANT_GLOB = "library/task-variants/*/*.json"
 
 
 def classify_counts(
@@ -138,8 +143,14 @@ def attach_counts(
     result: dict[str, Any] | None,
     *,
     label_root: Path | None,
+    package_digest: str | None = None,
 ) -> dict[str, Any]:
-    """Build ``counts`` from a process-job record and its ``result.json``."""
+    """Build ``counts`` from a process-job record and its ``result.json``.
+
+    ``package_digest`` is the task package the job ran (its ExperimentSpec's
+    ``task_package_digest``); a validated variant's digest lifts the original
+    task's census exclusion.
+    """
     result = result if isinstance(result, dict) else {}
     task_name = record.get("task_name") or result.get("task_name")
     trial_name = record.get("trial_name") or result.get("trial_name")
@@ -149,7 +160,12 @@ def attach_counts(
         reward=record.get("reward"),
         scored=bool(record.get("scored")),
         taint=record.get("taint") if isinstance(record.get("taint"), list) else [],
-        usability=usability(task_index_for(label_root), trial_name=trial_name, task_name=task_name),
+        usability=usability(
+            task_index_for(label_root),
+            trial_name=trial_name,
+            task_name=task_name,
+            package_digest=package_digest,
+        ),
         exception=exception,
         first_failure=record.get("first_failure") if isinstance(record.get("first_failure"), dict) else None,
         outcome_failure=record.get("outcome_failure") if isinstance(record.get("outcome_failure"), dict) else None,
@@ -170,6 +186,7 @@ def usability(
     *,
     trial_name: str | None,
     task_name: str | None,
+    package_digest: str | None = None,
 ) -> dict[str, Any] | None:
     """Positive not-usable label, or None. Absence is not a label."""
     hand = index.hand_for(trial_name, task_name)
@@ -177,6 +194,8 @@ def usability(
         return hand
     census = index.census_for(task_name)
     if census is not None and census["status"] in CENSUS_NOT_USABLE:
+        if index.validated_variant(task_name, package_digest):
+            return None
         return census
     return None
 
@@ -184,9 +203,16 @@ def usability(
 class TaskIndex:
     """Hand labels win over a sound census row. A missing row excludes nothing."""
 
-    def __init__(self, hands: dict[str, dict[str, Any]], census: dict[str, dict[str, Any]]) -> None:
+    def __init__(
+        self,
+        hands: dict[str, dict[str, Any]],
+        census: dict[str, dict[str, Any]],
+        validated: dict[str, str] | None = None,
+    ) -> None:
         self.hands = hands
         self.census = census
+        #: validated variant digest -> its task id.
+        self.validated = validated or {}
 
     def hand_for(self, trial_name: str | None, task_name: str | None) -> dict[str, Any] | None:
         if trial_name and trial_name in self.hands:
@@ -201,6 +227,13 @@ class TaskIndex:
         if task_id and task_id in self.census:
             return self.census[task_id]
         return None
+
+    def validated_variant(self, task_name: str | None, package_digest: str | None) -> bool:
+        """The trial ran a validated variant of this very task."""
+        task_id = _task_id(task_name)
+        return bool(package_digest) and task_id is not None and (
+            self.validated.get(package_digest or "") == task_id
+        )
 
 
 def task_index_for(root: Path | None) -> TaskIndex:
@@ -251,7 +284,19 @@ def _load_task_index(root: str) -> TaskIndex:
                 "path": str(_CENSUS_RELATIVE),
                 "excerpt": f"label={label}; {row.get('evidence') or ''}"[:160],
             }
-    return TaskIndex(hands, census)
+    validated: dict[str, str] = {}
+    for path in sorted(base.glob(_VARIANT_GLOB)):
+        try:
+            variant = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(variant, dict) or variant.get("status") != "validated":
+            continue
+        digest = variant.get("variant_digest")
+        task_id = _task_id(variant.get("task_name"))
+        if isinstance(digest, str) and task_id:
+            validated[digest] = task_id
+    return TaskIndex(hands, census, validated)
 
 
 def _passed(reward: float | None, scored: bool) -> bool:

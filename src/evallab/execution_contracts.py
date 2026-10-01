@@ -416,11 +416,24 @@ def is_tinker_terminus_model(model: str | None) -> bool:
 #: serving ``XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B`` (run with
 #: ``--served-model-name`` equal to the native id below). The Eval Lab
 #: selector carries a ``selfhosted/`` prefix so it can never collide with a
-#: hosted provider id; exactly one selector is admitted and anything else
-#: under ``selfhosted/`` fails closed in :func:`parse_mimo_selfhosted_model`.
+#: hosted provider id; only the selectors below are admitted and anything
+#: else under ``selfhosted/`` fails closed in :func:`parse_mimo_selfhosted_model`.
 MIMO_SELFHOSTED_MODEL_PREFIX = "selfhosted/"
 MIMO_SELFHOSTED_NATIVE_MODEL = "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
 MIMO_SELFHOSTED_MODEL_SELECTOR = f"{MIMO_SELFHOSTED_MODEL_PREFIX}{MIMO_SELFHOSTED_NATIVE_MODEL}"
+#: LoRA adapters served beside the base by the LoRA-enabled server
+#: (``tools/modal-mimo-serve/serve_lora.py``), each chosen with SGLang's
+#: ``<base>:<adapter>`` model name, which SGLang also echoes back. ``har129``
+#: is the HAR-129 SFT adapter (tuned arm of the 2026-10-01 paired eval).
+#: Mirrored in ``containers/zai_openapi_secret_proxy.py``.
+MIMO_SELFHOSTED_ADAPTERS = ("har129",)
+MIMO_SELFHOSTED_NATIVE_MODELS: frozenset[str] = frozenset(
+    {MIMO_SELFHOSTED_NATIVE_MODEL}
+    | {f"{MIMO_SELFHOSTED_NATIVE_MODEL}:{adapter}" for adapter in MIMO_SELFHOSTED_ADAPTERS}
+)
+MIMO_SELFHOSTED_MODEL_SELECTORS: frozenset[str] = frozenset(
+    f"{MIMO_SELFHOSTED_MODEL_PREFIX}{native}" for native in MIMO_SELFHOSTED_NATIVE_MODELS
+)
 #: LiteLLM/OpenAI-compatible id sent upstream (served-model-name).
 MIMO_SELFHOSTED_LITELLM_MODEL = f"openai/{MIMO_SELFHOSTED_NATIVE_MODEL}"
 #: Context window as served (input+output).
@@ -448,7 +461,7 @@ MIMO_SELFHOSTED_PROXY_PROVIDER = "mimo_selfhosted"
 #: by Modal per second and accounted by the time-based estimate
 #: (:func:`mimo_selfhosted_trial_cost_usd`), not the token ledger.
 MIMO_SELFHOSTED_MODEL_PRICES_MICROS: Mapping[str, tuple[int, int]] = MappingProxyType(
-    {MIMO_SELFHOSTED_NATIVE_MODEL: (0, 0)}
+    {native: (0, 0) for native in sorted(MIMO_SELFHOSTED_NATIVE_MODELS)}
 )
 #: Modal rate (USD per hour) for the whole server container, from
 #: modal.com/pricing on 2026-09-28:
@@ -460,19 +473,20 @@ MIMO_SELFHOSTED_SERVER_USD_PER_HOUR = 2.814912
 
 
 def parse_mimo_selfhosted_model(model: str | None) -> str:
-    """Strictly parse the self-hosted MiMo Terminus selector, returning the native id.
+    """Strictly parse a self-hosted MiMo Terminus selector, returning the native id.
 
-    Exactly ``selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B`` is admitted;
-    any other ``selfhosted/...`` string — other models, suffixes, or
-    transport kwargs smuggled in the string — fails closed here before any
-    execution or spec freeze.
+    Exactly ``selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B`` and its
+    admitted adapter names (``...:<adapter>``, :data:`MIMO_SELFHOSTED_ADAPTERS`)
+    are accepted; any other ``selfhosted/...`` string — other models, other
+    suffixes, or transport kwargs smuggled in the string — fails closed here
+    before any execution or spec freeze.
     """
-    if model != MIMO_SELFHOSTED_MODEL_SELECTOR:
+    if model not in MIMO_SELFHOSTED_MODEL_SELECTORS:
         raise ValueError(
-            "self-hosted Terminus model must be exactly "
-            f"{MIMO_SELFHOSTED_MODEL_SELECTOR!r}, got {model!r}"
+            "self-hosted Terminus model must be exactly one of "
+            f"{sorted(MIMO_SELFHOSTED_MODEL_SELECTORS)!r}, got {model!r}"
         )
-    return MIMO_SELFHOSTED_NATIVE_MODEL
+    return model.removeprefix(MIMO_SELFHOSTED_MODEL_PREFIX)
 
 
 def is_mimo_selfhosted_model(model: str | None) -> bool:

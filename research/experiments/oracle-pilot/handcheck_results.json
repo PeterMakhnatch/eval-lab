@@ -1,0 +1,74 @@
+{
+ "source_dataset": "XiaomiMiMo/MiMo-V2.6-RL-oss code.parquet",
+ "source_revision": "639865fd3374018d6cb29b9fb82dd531406fcf5f",
+ "snapshot": "FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6",
+ "source_rows": 2698,
+ "instance_json_keysets": [
+  "cwd+dataset_type+docker_image+instance_id+problem_statement+test_command+test_patch+verifier_timeout_sec"
+ ],
+ "rows_with_nonempty_ground_truth": 0,
+ "problem_statements_with_github_repo_url": 339,
+ "problem_statements_with_40hex_sha": 106,
+ "pool_tasks": 1180,
+ "pool_tasks_with_leak_issue_url": 307,
+ "pool_instructions_with_github_repo_url": 149,
+ "pool_patches_only_add_files": 518,
+ "hand_checks": [
+  {
+   "task_id": "format-code-task-001647",
+   "repo": "joke2k/django-environ",
+   "issue_url": "https://github.com/joke2k/django-environ/issues/173",
+   "test_patch_files": [
+    "environ/test.py"
+   ],
+   "distinctive_hidden_test": "test_custom_db_scheme_no_engine_arg",
+   "upstream_commits_containing_it": [],
+   "synthetic": true
+  },
+  {
+   "task_id": "format-code-task-002408",
+   "repo": "python-hyper/h2",
+   "issue_url": "https://github.com/python-hyper/h2/issues/510",
+   "test_patch_files": [
+    "test/test_invalid_headers.py"
+   ],
+   "distinctive_hidden_test": "TestPseudoHeadersWrongDirection",
+   "upstream_commits_containing_it": [],
+   "synthetic": true
+  },
+  {
+   "task_id": "format-code-task-000803",
+   "repo": "didix21/mdutils",
+   "issue_url": "https://github.com/didix21/mdutils/issues/42",
+   "test_patch_files": [
+    "tests/test_tools/test_table_default_align.py"
+   ],
+   "distinctive_hidden_test": "test_table_default_align",
+   "upstream_commits_containing_it": [],
+   "synthetic": true
+  },
+  {
+   "task_id": "format-code-task-001870",
+   "repo": "matthewwithanm/python-markdownify",
+   "issue_url": "https://github.com/matthewwithanm/python-markdownify/issues/170",
+   "test_patch_files": [
+    "tests/test_empty_line_optimization.py"
+   ],
+   "distinctive_hidden_test": "empty_line_optimization",
+   "upstream_commits_containing_it": [],
+   "synthetic": true
+  },
+  {
+   "task_id": "format-code-task-002470",
+   "repo": "r1chardj0n3s/parse",
+   "issue_url": "https://github.com/r1chardj0n3s/parse/issues/88",
+   "test_patch_files": [
+    "test_parse.py"
+   ],
+   "distinctive_hidden_test": "test_sign_plus_issue_reproduction",
+   "upstream_commits_containing_it": [],
+   "synthetic": true
+  }
+ ],
+ "hand_synthetic_rate": "5/5"
+}

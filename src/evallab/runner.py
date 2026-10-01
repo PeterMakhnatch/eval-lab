@@ -51,7 +51,7 @@ from evallab.execution_contracts import (
     MAX_TRIAL_TIMEOUT_SECONDS,
     MIMO_SELFHOSTED_CAPABILITY_EXPIRES_AT_ENV,
     MIMO_SELFHOSTED_MODEL_PRICES_MICROS,
-    MIMO_SELFHOSTED_NATIVE_MODEL,
+    MIMO_SELFHOSTED_NATIVE_MODELS,
     MIMO_SELFHOSTED_PROXY_ATTEMPT_ID_ENV,
     MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV,
     MIMO_SELFHOSTED_PROXY_PROVIDER,
@@ -791,7 +791,7 @@ def _terminus_proxy_env(
     env["PYTHONUNBUFFERED"] = "1"
     env["EVALLAB_PROXY_PROVIDER"] = provider
     if provider == MIMO_SELFHOSTED_PROXY_PROVIDER:
-        if mimo_native != MIMO_SELFHOSTED_NATIVE_MODEL:
+        if mimo_native not in MIMO_SELFHOSTED_NATIVE_MODELS:
             raise ValueError("mimo_selfhosted proxy env requires the parsed native model")
         env[MIMO_SELFHOSTED_SECRET_PATH_ENV] = str(secret_path)
         upstream = os.environ.get(MIMO_SELFHOSTED_UPSTREAM_ENV)

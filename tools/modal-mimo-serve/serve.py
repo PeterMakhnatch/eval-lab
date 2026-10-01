@@ -128,6 +128,9 @@ def sglang_command(api_key: str) -> list[str]:
         "0.0.0.0",
         "--port",
         str(PORT),
+        # Prometheus /metrics (running/queued requests, throughput, KV usage)
+        # for the HAR-126 telemetry sampler; observability only.
+        "--enable-metrics",
         "--api-key",
         api_key,
     ]

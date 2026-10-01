@@ -83,10 +83,17 @@ def call_tokens(manifest: dict) -> dict[str, list[tuple[int, int]]]:
 
 
 def kept_tokens(calls: dict[str, list[tuple[int, int]]], stride: int) -> int:
+    """Tokens the exporter keeps at ``stride``: it strides over each
+    conversation's eligible calls (the stride-1 rows, copied context already
+    left out) by position and always keeps the last one."""
     total = 0
     for turns in calls.values():
-        last = max(index for index, _ in turns)
-        total += sum(t for index, t in turns if index % stride == stride - 1 or index == last)
+        ordered = [tokens for _, tokens in sorted(turns)]
+        total += sum(
+            tokens
+            for position, tokens in enumerate(ordered)
+            if position % stride == stride - 1 or position == len(ordered) - 1
+        )
     return total
 
 
@@ -199,10 +206,15 @@ def main() -> None:
         "",
         "## Trials",
         "",
-        "| job | trial | source | cut_step_id |",
-        "|---|---|---|---|",
+        "`format_warning_steps_kept` (Traces, HAR-128): kept steps whose observation carries a"
+        " Terminus-2 warning (missing duration, missing newline, parse error); the assistant"
+        " output that caused it is trained on.",
+        "",
+        "| job | trial | source | cut_step_id | format_warning_steps_kept |",
+        "|---|---|---|---|---|",
         *[
-            f"| {t['job']} | {t['trial']} | {t['source']} | {t['cut_step_id']} |"
+            f"| {t['job']} | {t['trial']} | {t['source']} | {t['cut_step_id']} "
+            f"| {t.get('format_warning_steps_kept')} |"
             for t in selection["trials"]
         ],
         "",

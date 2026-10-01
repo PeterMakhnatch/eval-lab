@@ -465,7 +465,7 @@ inputs:
   - path: src/evallab/trajectory_loss_manifest.py
     digest: sha256:9b94bbf60d2ae917340d67294223ea6e7caa8dbbe768cfb81306d118ef2cb228
   - path: src/evallab/trial_decision.py
-    digest: sha256:5209b42bc47f1ce8908470d5a53b02f80a30c409dcb0c8ebb15f7a2a989a11d4
+    digest: sha256:97a3acd90cf670693521b290fbac3d3df6b67e394f8c26b03df5a9ae9fc42a68
   - path: src/evallab/trial_diagnosis.py
     digest: sha256:a18ebcf16da5a0c7094c5c28519df7e5d3308e30d483695633c8a4a89f39f575
   - path: src/evallab/trial_treatment.py

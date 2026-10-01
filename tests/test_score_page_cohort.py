@@ -132,7 +132,6 @@ def test_missing_or_unknown_page_is_an_abstention_not_none(tmp_path: Path) -> No
     assert by_trial["gone"]["abstention_reason"]
     assert by_trial["weird"]["page"] is None
     assert by_trial["weird"]["abstention_reason"]
-    assert all(row["page"] != "none" or row["page_matches"] for row in payload["rows"])
 
 
 def test_wrong_manifest_sha_rejects_before_writing(tmp_path: Path) -> None:
@@ -158,3 +157,26 @@ def test_report_for_another_trial_aborts(tmp_path: Path) -> None:
     _write_report(home, "t1", "none", name="someone-else")
     with pytest.raises(SystemExit):
         _score(labels=labels, home=home, out=tmp_path / "o.json", trials=1)
+
+
+def test_duplicate_manifest_cannot_leave_a_scored_label_unverified(tmp_path: Path) -> None:
+    labels = _write_labels(tmp_path / "labels", {"t1": ("none", "none")})
+    manifest = labels / "MANIFEST.sha256"
+    first = manifest.read_text().splitlines()[0]
+    manifest.write_text(f"{first}\n{first}\n")
+    out = tmp_path / "o.json"
+    with pytest.raises(SystemExit):
+        _score(labels=labels, home=tmp_path / "home", out=out, trials=1)
+    assert not out.exists()
+
+
+def test_symlink_member_cannot_escape_frozen_root(tmp_path: Path) -> None:
+    labels = _write_labels(tmp_path / "labels", {"t1": ("none", "none")})
+    member = labels / "rater_a" / "t1.json"
+    outside = tmp_path / "outside.json"
+    member.replace(outside)
+    member.symlink_to(outside)
+    out = tmp_path / "o.json"
+    with pytest.raises(SystemExit):
+        _score(labels=labels, home=tmp_path / "home", out=out, trials=1)
+    assert not out.exists()

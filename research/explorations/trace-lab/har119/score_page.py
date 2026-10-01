@@ -391,7 +391,9 @@ def verify_published_freeze(labels_root: Path, expected_files: int) -> str:
             digest, name = line.split(maxsplit=1)
             digests[_canonical_member(name)] = digest
     for name in members:
-        target = labels_root / name
+        target = (labels_root / name).resolve()
+        if not target.is_relative_to(labels_root.resolve()):
+            raise SystemExit(f"label {name} escapes the frozen root")
         if not target.is_file():
             raise SystemExit(f"label {name} listed in the freeze is missing")
         if hashlib.sha256(target.read_bytes()).hexdigest() != digests[name]:

@@ -1,0 +1,12 @@
+{
+  "at_utc": "2026-10-01T09:22:22.973012+00:00",
+  "process_job_completed": true,
+  "results_home_isolated": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har131-page-calibration/derived/page-calibration-mlewnyx7/published",
+  "native_source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har116-live/runs/har116-a-000383-baseline",
+  "trial_decision_schema": "trial_decision/v3",
+  "counts_verdict": "excluded",
+  "reward": 0.0,
+  "allocated_total_usd": 0.2279783766870201,
+  "final_render_observed": "- Loop kind: `none`. 0 of 0 turns after the confirm prompt claimed completion. Opinion; HAR-119 part 2: 12 HAR-110 split-v2 runs: page `7/11` vs agreed rater cells; HAR-128 part 2: 40 HAR-116 trials: page `28/35`.",
+  "limits": "Publication succeeded; the initial smoke then referenced nonexistent total_estimate_usd in its assertion. Resumed validation from written output using actual total_usd; no repeated processing."
+}

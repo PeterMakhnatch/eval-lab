@@ -547,7 +547,7 @@ def _calibration_line(agreement: dict[str, Any]) -> str:
         extra_kind = extra.get("page_vs_agreed_loop_kind") or {}
         extra_rater = extra.get("rater_agreement_loop_kind") or {}
         text += (
-            f" Additional loop-kind-only calibration, same predictor, separately "
+            f"\n\nAdditional loop-kind-only calibration, same predictor, separately "
             f"denominated cohort {extra.get('cohort')} (frozen {extra.get('frozen_at')}): "
             f"page loop kind `{extra_kind.get('agree')}/{extra_kind.get('n')}` vs agreed "
             f"rater cells ({extra_rater.get('agree')} agreed of {extra_rater.get('n')}, "
@@ -568,7 +568,20 @@ def _field_calibration(
     score = agreement.get(score_key) or {}
     if not isinstance(score, dict) or score.get("n") is None:
         return "Opinion; calibration unavailable."
-    text = f"Opinion; page `{score.get('agree')}/{score.get('n')}` vs agreed rater cells"
+    text = (
+        f"Opinion; {agreement.get('cohort')}: page "
+        f"`{score.get('agree')}/{score.get('n')}` vs agreed rater cells"
+    )
+    if score_key == "page_vs_agreed_loop_kind":
+        for extra in agreement.get("additional_loop_calibrations") or []:
+            if not isinstance(extra, dict):
+                continue
+            extra_score = extra.get(score_key) or {}
+            if isinstance(extra_score, dict) and extra_score.get("n") is not None:
+                text += (
+                    f"; {extra.get('cohort')}: page "
+                    f"`{extra_score.get('agree')}/{extra_score.get('n')}`"
+                )
     if coverage_key:
         coverage = agreement.get(coverage_key) or {}
         text += (

@@ -72,7 +72,9 @@ RECORDED_HEADERS = (
 )
 
 #: Headers never forwarded upstream alongside an injected provider key.
-_AUTH_HEADERS = frozenset({"authorization", "x-api-key", "api-key", "cookie", "proxy-authorization"})
+_AUTH_HEADERS = frozenset(
+    {"authorization", "x-api-key", "api-key", "cookie", "proxy-authorization"}
+)
 
 _HOP_BY_HOP = frozenset(
     {
@@ -407,7 +409,9 @@ def _openai_tool_call(call: Any) -> dict[str, Any] | None:
     return {
         "id": call.get("id"),
         "name": name,
-        "arguments": arguments if isinstance(arguments, str) else json.dumps(arguments, sort_keys=True),
+        "arguments": arguments
+        if isinstance(arguments, str)
+        else json.dumps(arguments, sort_keys=True),
     }
 
 
@@ -626,6 +630,7 @@ def extract_from_sse(kind: str, raw: bytes) -> ExtractedTurns:
             turns.usage = _usage_pair(input_tokens, 0)
     return turns
 
+
 # --------------------------------------------------------------------------- #
 # Recorder, manifest, provenance
 # --------------------------------------------------------------------------- #
@@ -668,9 +673,7 @@ class CaptureRecorder:
             self._handle.close()
 
 
-def write_manifest(
-    out_dir: str | Path, *, upstream: str, bind: str, port: int
-) -> dict[str, Any]:
+def write_manifest(out_dir: str | Path, *, upstream: str, bind: str, port: int) -> dict[str, Any]:
     """Write ``capture.json`` at startup; returns the manifest."""
     manifest = {
         "schema": MANIFEST_SCHEMA,
@@ -838,9 +841,7 @@ class _CaptureHandler(BaseHTTPRequestHandler):
                 request_body = {"_text": request_bytes.decode("utf-8", "replace")}
         if isinstance(request_body, dict) and server.upstream_key:
             request_body = json.loads(
-                redact_key_text(
-                    json.dumps(request_body, ensure_ascii=False), server.upstream_key
-                )
+                redact_key_text(json.dumps(request_body, ensure_ascii=False), server.upstream_key)
             )
         record: dict[str, Any] = {
             "schema": CALL_RECORD_SCHEMA,
@@ -903,7 +904,10 @@ class _CaptureHandler(BaseHTTPRequestHandler):
                 response = connection.getresponse()
             except (OSError, http.client.HTTPException) as exc:
                 record["ended_at"] = utc_now_iso()
-                record["error"] = {"kind": "upstream_unreachable", "detail": f"{type(exc).__name__}"}
+                record["error"] = {
+                    "kind": "upstream_unreachable",
+                    "detail": f"{type(exc).__name__}",
+                }
                 server.recorder.append(record)
                 self._send_error(502, b'{"error":"upstream unreachable"}\n')
                 return
@@ -931,7 +935,10 @@ class _CaptureHandler(BaseHTTPRequestHandler):
             record["response_sse"] = is_stream
             self._record_response(record, kind, raw, server.upstream_key)
             if client_gone:
-                record["error"] = {"kind": "client_disconnect", "detail": "client went away mid-response"}
+                record["error"] = {
+                    "kind": "client_disconnect",
+                    "detail": "client went away mid-response",
+                }
             record["ended_at"] = utc_now_iso()
             server.recorder.append(record)
         except (OSError, http.client.HTTPException) as exc:
@@ -1002,7 +1009,9 @@ class _CaptureHandler(BaseHTTPRequestHandler):
             payload = json.loads(raw.decode("utf-8"))
         except (ValueError, UnicodeDecodeError):
             if kind != "ollama_chat":
-                record["response_body"] = {"_text": redact_key_text(raw.decode("utf-8", "replace"), upstream_key)}
+                record["response_body"] = {
+                    "_text": redact_key_text(raw.decode("utf-8", "replace"), upstream_key)
+                }
                 return
             text = redact_key_text(raw.decode("utf-8", "replace"), upstream_key)
             turns = extract_ollama_ndjson(raw)
@@ -1057,6 +1066,7 @@ def serve_capture(
     manifest = write_manifest(out_dir, upstream=upstream, bind=bind, port=port)
     return server, recorder, manifest
 
+
 # --------------------------------------------------------------------------- #
 # Link: attribute captured calls to trials, judge completeness
 # --------------------------------------------------------------------------- #
@@ -1072,6 +1082,7 @@ class TrialEvidence:
     agent: str | None
     window_start: datetime | None
     window_end: datetime | None
+    attempt_id: str | None = None
     atif_session: str | None = None
     atif_user_texts: list[str] = field(default_factory=list)
     atif_agent_texts: list[str] = field(default_factory=list)
@@ -1165,6 +1176,17 @@ def _resolve_instruction(result: dict[str, Any], job_dir: Path) -> str | None:
     return normalize_text(text) or None
 
 
+def _job_attempt_id(job_dir: Path) -> str | None:
+    """Job attempt id the runner's secret proxy stamps as the capture route token."""
+    metadata = _load_json(job_dir / "lab-metadata.json")
+    usage = metadata.get("provider_usage") if isinstance(metadata, dict) else None
+    if isinstance(usage, dict):
+        attempt = usage.get("attempt_id")
+        if isinstance(attempt, str) and attempt.strip():
+            return attempt.strip()
+    return None
+
+
 def collect_trial_evidence(trial_dir: str | Path, job_dir: str | Path) -> TrialEvidence:
     """Gather ATIF texts, the agent-execution window, and the instruction."""
     directory = Path(trial_dir)
@@ -1183,6 +1205,7 @@ def collect_trial_evidence(trial_dir: str | Path, job_dir: str | Path) -> TrialE
     if isinstance(window, dict):
         window_start = parse_ts(window.get("started_at"))
         window_end = parse_ts(window.get("finished_at"))
+    attempt_id = _job_attempt_id(Path(job_dir))
     evidence = TrialEvidence(
         name=str(result.get("trial_name") or directory.name),
         trial_id=str(result["id"]) if isinstance(result.get("id"), str) else None,
@@ -1190,6 +1213,7 @@ def collect_trial_evidence(trial_dir: str | Path, job_dir: str | Path) -> TrialE
         agent=agent,
         window_start=window_start,
         window_end=window_end,
+        attempt_id=attempt_id,
     )
     documents = _atif_documents(directory)
     if documents:
@@ -1298,9 +1322,7 @@ class Attribution:
     ambiguous_conversations: int = 0
 
 
-def attribute_calls(
-    calls: list[dict[str, Any]], trials: list[TrialEvidence]
-) -> Attribution:
+def attribute_calls(calls: list[dict[str, Any]], trials: list[TrialEvidence]) -> Attribution:
     """Assign calls to trials: route token, then session, then conversation chaining."""
     by_name: dict[str, list[TrialEvidence]] = {}
     for trial in trials:
@@ -1325,6 +1347,14 @@ def attribute_calls(
                     attribution.ambiguous_trials.add(candidate.name)
                 attribution.unassigned.append(seq)
                 continue
+            else:
+                # Runner-stamped job attempt id (secret proxy ``/t/<token>/``
+                # prefix): exact for one-trial jobs. A multi-trial job shares
+                # one attempt id, so those calls fall through to conversation
+                # chaining instead of going ambiguous here.
+                job_candidates = [t for t in trials if t.attempt_id == token]
+                if len(job_candidates) == 1:
+                    matched, how = job_candidates, "route_token"
         if matched is None and isinstance(call.get("session_id"), str) and call["session_id"]:
             candidates = by_session.get(str(call["session_id"]), [])
             if len(candidates) == 1:
@@ -1349,8 +1379,7 @@ def attribute_calls(
         candidates = [
             trial
             for trial in trials
-            if _anchor_match(root_user, trial)
-            and _window_contains(trial, conv_start, conv_end)
+            if _anchor_match(root_user, trial) and _window_contains(trial, conv_start, conv_end)
         ]
         if len(candidates) == 1:
             for call in conversation:
@@ -1366,6 +1395,7 @@ def attribute_calls(
                     attribution.ambiguous_trials.add(candidate.name)
     return attribution
 
+
 # --------------------------------------------------------------------------- #
 # Completeness verdicts
 # --------------------------------------------------------------------------- #
@@ -1375,7 +1405,13 @@ def attribute_calls(
 #: no captured calls): with zero evidence on either side an idle control agent
 #: is indistinguishable from a full bypass, so the operator must check the
 #: ``agent_execution`` window in ``result.json``; the receipt says so.
-VERDICTS = ("complete", "trajectory_missing", "trajectory_truncated", "capture_missing", "ambiguous")
+VERDICTS = (
+    "complete",
+    "trajectory_missing",
+    "trajectory_truncated",
+    "capture_missing",
+    "ambiguous",
+)
 
 
 def _captured_texts(calls: list[dict[str, Any]]) -> list[str]:
@@ -1425,6 +1461,7 @@ def _turn_present(text: str, atif_texts: list[str]) -> bool:
         if skeleton in agent_skeleton or agent_skeleton in skeleton:
             return True
     return False
+
 
 def judge_trial(
     trial: TrialEvidence, calls: list[dict[str, Any]], *, ambiguous: bool
@@ -1582,10 +1619,14 @@ def link_capture(
         if seq in by_seq and name in trial_calls:
             trial_calls[name].append(by_seq[seq])
     judgments = [
-        judge_trial(trial, trial_calls[trial.name], ambiguous=trial.name in attribution.ambiguous_trials)
+        judge_trial(
+            trial, trial_calls[trial.name], ambiguous=trial.name in attribution.ambiguous_trials
+        )
         for trial in trials
     ]
-    capture_digest = f"sha256:{sha256_file(calls_path)}" if calls_path.is_file() else "sha256:" + "0" * 64
+    capture_digest = (
+        f"sha256:{sha256_file(calls_path)}" if calls_path.is_file() else "sha256:" + "0" * 64
+    )
     linked_at = utc_now_iso()
     base = Path(derived_root) if derived_root is not None else None
     if base is None:
@@ -1687,6 +1728,7 @@ def _checkout_anchored_derived(start: Path) -> Path:
 
     def quiet(_message: str) -> None:
         return None
+
     node = start.resolve()
     for ancestor in (node, *node.parents):
         if (ancestor / ".git").exists():

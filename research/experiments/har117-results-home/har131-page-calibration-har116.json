@@ -1,0 +1,488 @@
+{
+  "schema": "har131.page_loop_calibration/v1",
+  "cohort": "HAR-128 part 2: 40 HAR-116 trials",
+  "generated_at": "2026-10-01T08:57:58.998721+00:00",
+  "labels_root": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116",
+  "labels_frozen_at": "2026-10-01T07:57:30Z",
+  "labels_manifest_sha256": "24b91001adf5707ebb65756e575a9acbc39a816173ee16a5da88cf989e99513d",
+  "results_home": "/Users/petermakhnatch/Developer/eval-lab-results",
+  "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+  "predictor_functions": {
+    "names": [
+      "trial_decision.classify_loop_kind",
+      "trial_decision._claim_bearing",
+      "token_flow._loop_onset"
+    ],
+    "sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae"
+  },
+  "scorer_sha256": "482c151c9196fec3c70378d75591d4257fbeb9c85d6b72137d7f180e133ea9e3",
+  "in_sample": false,
+  "rater_agreement": {
+    "agree": 35,
+    "n": 40
+  },
+  "disagreements": 5,
+  "page_vs_agreed": {
+    "agree": 28,
+    "n": 35
+  },
+  "page_abstentions": 0,
+  "loop_kind_confusion": {
+    "none": {
+      "agree": 17,
+      "n": 19
+    },
+    "repetition": {
+      "agree": 8,
+      "n": 13
+    },
+    "completion-claim": {
+      "agree": 3,
+      "n": 3
+    }
+  },
+  "rows": [
+    {
+      "trial": "har116-a-000383-baseline__igrXg8R",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000383-baseline/processed/trial-har116-a-000383-baseline__igrXg8R.json",
+      "report_sha256": "b4979bf8b049e6818816170499623aaefc9925b9b224d2e3b125fd9cf0a242bf"
+    },
+    {
+      "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+      "rater_a": "repetition",
+      "rater_b": "repetition",
+      "rater_agreed": true,
+      "page": "repetition",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000383-loopfix-r2/processed/trial-har116-a-000383-loopfix-r2__cNEHjBa.json",
+      "report_sha256": "b76eb226c75d0f7f54d4d07ca19d4989e1cbf8182ff2b13990d2b55269b05cd5"
+    },
+    {
+      "trial": "har116-a-000383-loopfix__wgujpBQ",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000383-loopfix/processed/trial-har116-a-000383-loopfix__wgujpBQ.json",
+      "report_sha256": "2c36eb74082124ed41a1fceea95a1ec3578b6931c1955f2e2dee13a3135b6e42"
+    },
+    {
+      "trial": "har116-a-000495-baseline__DiGmEPC",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "repetition",
+      "page_matches": false,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000495-baseline/processed/trial-har116-a-000495-baseline__DiGmEPC.json",
+      "report_sha256": "28faa12008e91416e0db3a7c243ab05ddfa4ef41b56ca7746b30293d7b3bb546"
+    },
+    {
+      "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000495-loopfix-r2/processed/trial-har116-a-000495-loopfix-r2__42F3G5T.json",
+      "report_sha256": "c3d90cc2a12fa274afde3e856e316ae0c2f4315c00f1e7de9494112d5825ae85"
+    },
+    {
+      "trial": "har116-a-000495-loopfix__rXR8je7",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000495-loopfix/processed/trial-har116-a-000495-loopfix__rXR8je7.json",
+      "report_sha256": "6e8b9fe7b6f2a1c53c887ef69691f7836d01337f867e4a3c023b4d696015f629"
+    },
+    {
+      "trial": "har116-a-000587-baseline__Vuxk2nX",
+      "rater_a": "repetition",
+      "rater_b": "repetition",
+      "rater_agreed": true,
+      "page": "repetition",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000587-baseline/processed/trial-har116-a-000587-baseline__Vuxk2nX.json",
+      "report_sha256": "70659afe26f6883b538e489e34efd05346a6554eb500377678e85a61e2ac1088"
+    },
+    {
+      "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+      "rater_a": "repetition",
+      "rater_b": "repetition",
+      "rater_agreed": true,
+      "page": "repetition",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000587-loopfix-r2/processed/trial-har116-a-000587-loopfix-r2__RmCmzbQ.json",
+      "report_sha256": "cf587aaf979dacc27f1c187960e51a08b0cd17fe6731748dc064cf0380ca600f"
+    },
+    {
+      "trial": "har116-a-000587-loopfix__X5SAhvg",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000587-loopfix/processed/trial-har116-a-000587-loopfix__X5SAhvg.json",
+      "report_sha256": "28c057fe3726264410220bc4e2e196214077857a84353893ca3ddf7977279166"
+    },
+    {
+      "trial": "har116-a-001161-baseline__DwYZaia",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001161-baseline/processed/trial-har116-a-001161-baseline__DwYZaia.json",
+      "report_sha256": "f878bb9ce92fc41853800bfc8998127cdda3aad2a950fd2dc2cad7bfc2744c4d"
+    },
+    {
+      "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "repetition",
+      "page_matches": false,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001161-loopfix-r2/processed/trial-har116-a-001161-loopfix-r2__uo7QDVh.json",
+      "report_sha256": "1bbbc997c0cb68f0832eadf5a5cd4fb907abb739b2989f958c35c78bb1e69733"
+    },
+    {
+      "trial": "har116-a-001161-loopfix__WxP98h8",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001161-loopfix/processed/trial-har116-a-001161-loopfix__WxP98h8.json",
+      "report_sha256": "15610701aa74ec73fe1beddc687c924378d4010fb9a4b788bfcfb3711e9cffd6"
+    },
+    {
+      "trial": "har116-a-001181-baseline__cK5qZMf",
+      "rater_a": "repetition",
+      "rater_b": "repetition",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": false,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001181-baseline/processed/trial-har116-a-001181-baseline__cK5qZMf.json",
+      "report_sha256": "3a2ecaed2b239894c7fba1dfcf414a983897726d2488b56b5b9a39c72cd5ef72"
+    },
+    {
+      "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+      "rater_a": "repetition",
+      "rater_b": "repetition",
+      "rater_agreed": true,
+      "page": "repetition",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001181-loopfix-r2/processed/trial-har116-a-001181-loopfix-r2__ZhWHNno.json",
+      "report_sha256": "867eb1ec2b46ddb05876a246f59c69a80c91368646b5d04e44b3803cdc7b72c4"
+    },
+    {
+      "trial": "har116-a-001181-loopfix__Cd9chGm",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001181-loopfix/processed/trial-har116-a-001181-loopfix__Cd9chGm.json",
+      "report_sha256": "ea46163818e80fa6230c25b89960ea6c28335675e106d5b668c8d96387e009ee"
+    },
+    {
+      "trial": "har116-a-001832-baseline__9jhqCTW",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001832-baseline/processed/trial-har116-a-001832-baseline__9jhqCTW.json",
+      "report_sha256": "9a7d407a7c72094fe5c4ddea32afde252458905ea7c25c654a5b2baa7f039b1b"
+    },
+    {
+      "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+      "rater_a": "repetition",
+      "rater_b": "repetition",
+      "rater_agreed": true,
+      "page": "repetition",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001832-loopfix-r2/processed/trial-har116-a-001832-loopfix-r2__RL4Q8AX.json",
+      "report_sha256": "048a1371c476971afb6e2be18feb8c4b28a9a853701764ea70939e9c19b65d0d"
+    },
+    {
+      "trial": "har116-a-001832-loopfix__rw7cJJ4",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001832-loopfix/processed/trial-har116-a-001832-loopfix__rw7cJJ4.json",
+      "report_sha256": "ae4bec289d6724e233081725338872c0a09c41571db60ea2ffc8b9b1ba417f65"
+    },
+    {
+      "trial": "har116-a-001896-baseline__mBFMKax",
+      "rater_a": "none",
+      "rater_b": "repetition",
+      "rater_agreed": false,
+      "page": "repetition",
+      "page_matches": null,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001896-baseline/processed/trial-har116-a-001896-baseline__mBFMKax.json",
+      "report_sha256": "7cdeefa4a29e54967c64fceefc65ca1ced69c7b44cbfcfdcece64db8dbb3d363"
+    },
+    {
+      "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+      "rater_a": "repetition",
+      "rater_b": "repetition",
+      "rater_agreed": true,
+      "page": "repetition",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001896-loopfix-r2/processed/trial-har116-a-001896-loopfix-r2__Wmwi4NK.json",
+      "report_sha256": "70200fbc98f94e700fbbcde839df5ace351c1093e89d17f603bdd952fd774d56"
+    },
+    {
+      "trial": "har116-a-001896-loopfix__n5p224u",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001896-loopfix/processed/trial-har116-a-001896-loopfix__n5p224u.json",
+      "report_sha256": "3c17dd720c1a39ed5bfd5bf5001ba040af27a3acf28df7fabd355866fd93baf5"
+    },
+    {
+      "trial": "har116-a-002256-baseline__uRsPnvZ",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002256-baseline/processed/trial-har116-a-002256-baseline__uRsPnvZ.json",
+      "report_sha256": "adfa0630c405b3cfbfff2a666fee6e1053e9f11dab3ae85122c23ed1c2928d7c"
+    },
+    {
+      "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+      "rater_a": "completion-claim",
+      "rater_b": "none",
+      "rater_agreed": false,
+      "page": "none",
+      "page_matches": null,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002256-loopfix-r2/processed/trial-har116-a-002256-loopfix-r2__5oQwkeW.json",
+      "report_sha256": "067627299cd015dd2b5ea17dcdc1a7feb4eec9d37f03bd6445160d4beec46003"
+    },
+    {
+      "trial": "har116-a-002256-loopfix__5Xu6dgc",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002256-loopfix/processed/trial-har116-a-002256-loopfix__5Xu6dgc.json",
+      "report_sha256": "ca1cb5fa1e48f8ec2a66214d4725f702eb5d0cbe0e48f74a7a75647249261845"
+    },
+    {
+      "trial": "har116-a-002391-baseline__xZqrQkD",
+      "rater_a": "repetition",
+      "rater_b": "repetition",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": false,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-baseline/processed/trial-har116-a-002391-baseline__xZqrQkD.json",
+      "report_sha256": "6bcbf7f39512485db2a7e5148b6d5d795a27a274df662d1478468be2c3db24c1"
+    },
+    {
+      "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+      "rater_a": "repetition",
+      "rater_b": "repetition",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": false,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2/processed/trial-har116-a-002391-loopfix-r2__NvEfxbt.json",
+      "report_sha256": "a017d00042bd38fcbf44eca295635753cdb1ebfe8eafa3c63243b65edc71fb95"
+    },
+    {
+      "trial": "har116-a-002391-loopfix__KMAky2p",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix/processed/trial-har116-a-002391-loopfix__KMAky2p.json",
+      "report_sha256": "0ed3083610bcbee1eea825d1338c382107a5937c8a5ad06f355504bbdd755f28"
+    },
+    {
+      "trial": "har116-a-002864-baseline__LnaWDq6",
+      "rater_a": "completion-claim",
+      "rater_b": "completion-claim",
+      "rater_agreed": true,
+      "page": "completion-claim",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002864-baseline/processed/trial-har116-a-002864-baseline__LnaWDq6.json",
+      "report_sha256": "8f09a6c03b01fabcaef20069c06bcfefcbcfc8d13e4b1f8b9d1b4f54241b84ce"
+    },
+    {
+      "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002864-loopfix-r2/processed/trial-har116-a-002864-loopfix-r2__CWRe7mJ.json",
+      "report_sha256": "e1824d8daa333a7ddc4d0a683ec9316131f9eb9159376b4dffeb26037ef7f736"
+    },
+    {
+      "trial": "har116-a-002864-loopfix__oHC4HdZ",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002864-loopfix/processed/trial-har116-a-002864-loopfix__oHC4HdZ.json",
+      "report_sha256": "32098028cdb7205ec56c342cb62bb002147e191b97400acb9d241298d929d098"
+    },
+    {
+      "trial": "har116-b-000146-leakclosed__UsngzaQ",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000146-leakclosed/processed/trial-har116-b-000146-leakclosed__UsngzaQ.json",
+      "report_sha256": "d7c96d477de4962f7b7c6e672a24f25baca77991fa0c3532d393228f6e2aa21b"
+    },
+    {
+      "trial": "har116-b-000146-original__JT6tRiN",
+      "rater_a": "completion-claim",
+      "rater_b": "completion-claim",
+      "rater_agreed": true,
+      "page": "completion-claim",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000146-original/processed/trial-har116-b-000146-original__JT6tRiN.json",
+      "report_sha256": "6b11789d55851dc52f7c926d70626c83d73889f627b47d1347f8f6814ac767b6"
+    },
+    {
+      "trial": "har116-b-000226-leakclosed__K9ddjiP",
+      "rater_a": "repetition",
+      "rater_b": "repetition",
+      "rater_agreed": true,
+      "page": "repetition",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000226-leakclosed/processed/trial-har116-b-000226-leakclosed__K9ddjiP.json",
+      "report_sha256": "0b87883c5b2c74bbbc56634ea6e9fc231f27edf6947b6f3f9cf95a2fe770cade"
+    },
+    {
+      "trial": "har116-b-000226-original__JTEerfm",
+      "rater_a": "repetition",
+      "rater_b": "repetition",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": false,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000226-original/processed/trial-har116-b-000226-original__JTEerfm.json",
+      "report_sha256": "51892ad1979a2c1aa8ddd85dab686aa1df74d814a1a0dc8b281e1df84c2bf182"
+    },
+    {
+      "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+      "rater_a": "repetition",
+      "rater_b": "repetition",
+      "rater_agreed": true,
+      "page": "repetition",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000927-leakclosed/processed/trial-har116-b-000927-leakclosed__Sj3aGEg.json",
+      "report_sha256": "58b7ee81ffccdd337e3604236faf6c0b18a10eeb16bc3bdff1ed4f72a011e668"
+    },
+    {
+      "trial": "har116-b-000927-original__kvyP9fr",
+      "rater_a": "completion-claim",
+      "rater_b": "none",
+      "rater_agreed": false,
+      "page": "none",
+      "page_matches": null,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000927-original/processed/trial-har116-b-000927-original__kvyP9fr.json",
+      "report_sha256": "deedfb31d9eb3edd4de7ecf027f5c5c394a8ceadb8c1d80c70c6d0584d319ee2"
+    },
+    {
+      "trial": "har116-b-002308-leakclosed__idknFAu",
+      "rater_a": "none",
+      "rater_b": "repetition",
+      "rater_agreed": false,
+      "page": "none",
+      "page_matches": null,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002308-leakclosed/processed/trial-har116-b-002308-leakclosed__idknFAu.json",
+      "report_sha256": "3e875eec0bfeaf7ae4f578bb495d85e7d92ea19cc36ba128c7f8abfaa4f90473"
+    },
+    {
+      "trial": "har116-b-002308-original__oYziU3z",
+      "rater_a": "repetition",
+      "rater_b": "none",
+      "rater_agreed": false,
+      "page": "repetition",
+      "page_matches": null,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002308-original/processed/trial-har116-b-002308-original__oYziU3z.json",
+      "report_sha256": "06dfbc2a2a3cfc3671d88036735775b07fd6fdd31689e0315a2f56e06f5e7e46"
+    },
+    {
+      "trial": "har116-b-002402-leakclosed__X7nGHNs",
+      "rater_a": "repetition",
+      "rater_b": "repetition",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": false,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002402-leakclosed/processed/trial-har116-b-002402-leakclosed__X7nGHNs.json",
+      "report_sha256": "b8a94fcfa376f046d0d248683bf5841039c3a3b32a2df4701413f5fea5561cb8"
+    },
+    {
+      "trial": "har116-b-002402-original__PCgLbp7",
+      "rater_a": "completion-claim",
+      "rater_b": "completion-claim",
+      "rater_agreed": true,
+      "page": "completion-claim",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002402-original/processed/trial-har116-b-002402-original__PCgLbp7.json",
+      "report_sha256": "2166dba5cd9efa1ecbe1bbe3834de783545d31cbcde553b91e1d28ce96e4bfa7"
+    }
+  ],
+  "heldout": "har116 001181 baseline/loopfix/loopfix-r2 (3 trials): analysis and calibration only, never training reflection",
+  "limit": "Actual published trial_decision/v3 predictions, no classifier tuning. Frozen blind scout-agent annotations, not human ground truth; rater A on har116-a-000383-baseline__igrXg8R reports off_limits_opened. har116 001181 baseline/loopfix/loopfix-r2 (3 trials): analysis and calibration only, never training reflection; do not export this cohort to training reflection. Scores and report hashes only, not trial content."
+}

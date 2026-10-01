@@ -99,6 +99,7 @@ from evallab.schemas import (
     RunProvenance,
     StandingApprovalsPolicy,
     canonical_grid_point_id,
+    effective_daily_cost_ceiling,
 )
 from evallab.storage.paths import derived_root_from_environment
 
@@ -418,6 +419,7 @@ class PolicyGate:
         spent_today_usd: float,
         consecutive_harness_failures: int = 0,
         authorization: PaidRunAuthorization | None = None,
+        now: datetime | None = None,
     ) -> PolicyDecision:
 
         if spec.task.startswith("registered/"):
@@ -583,13 +585,14 @@ class PolicyGate:
                         f"{self.policy.per_job_cost_ceiling_usd:.2f}"
                     ),
                 )
-            if spent_today_usd + spec.est_cost_usd > self.policy.daily_cost_ceiling_usd:
+            ceiling = effective_daily_cost_ceiling(self.policy, now or datetime.now(UTC))
+            if spent_today_usd + spec.est_cost_usd > ceiling:
                 return PolicyDecision(
                     admitted=False,
                     reason_code="daily_cost_ceiling",
                     message=(
                         f"estimated daily total {spent_today_usd + spec.est_cost_usd:.2f} "
-                        f"exceeds ceiling {self.policy.daily_cost_ceiling_usd:.2f}"
+                        f"exceeds ceiling {ceiling:.2f}"
                     ),
                 )
             if consecutive_harness_failures >= self.policy.quiet_failure_rule:

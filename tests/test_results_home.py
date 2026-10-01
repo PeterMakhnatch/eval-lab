@@ -542,7 +542,7 @@ def _session_receipt(job: Path, receipt_path: Path, *, daytona_a: float | None =
                         "interval_start": "2026-10-01T00:00:00Z",
                         "resource": "GPU",
                         "cost_usd": 1.2,
-                        "resolution": "day",
+                        "resolution": "d",
                         "reported_at": "2026-10-01T02:23:10Z",
                     }
                 ],

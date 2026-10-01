@@ -930,12 +930,11 @@ the morning/report date; its primary reporting period is the preceding catalog d
 uv run evallab digest --date 2026-08-14
 ```
 
-Ordinary `digest` and `nightly` runs never dirty or commit source. Promote a curated
-snapshot explicitly:
+Digest rendering and the nightly report steps do not commit or overwrite reviewed
+source snapshots by default. Promote a curated digest explicitly:
 
 ```bash
 uv run evallab digest --date 2026-08-14 -o digests/2026-08-14.md
-uv run evallab nightly
 ```
 
 Before canary dispatch, a healthy nightly cycle runs the Compose PostgreSQL
@@ -1078,11 +1077,8 @@ catalog-before-Parquet failure boundary.
 PostgreSQL is shared across linked Git worktrees, so Parquet must be shared too.
 By default, every worktree resolves the live derived root outside source under the
 shared runtime state directory (`<primary>-state/derived/parquet`), not against the
-invoking worktree. `.env.example` records the equivalent explicit setting:
-
-```dotenv
-EVALLAB_DERIVED_ROOT=derived/parquet
-```
+invoking worktree. `.env.example` leaves `EVALLAB_DERIVED_ROOT` unset so copying
+the template retains this default. Set it only to select a deliberate override.
 
 A relative value is resolved against the primary checkout; an absolute value
 may instead select a shared volume. The default live status, lessons, and digest
@@ -1097,13 +1093,20 @@ This setting is storage topology, not authentication: model access remains
 subscription-only through Keychain or the agent's auth file, and API-key
 variables do not belong in this lab's `.env`.
 
-To migrate an older worktree-local store, stop dispatch, copy each complete
-`job_id=<uuid>` directory into the configured shared root without overwriting an
-existing UUID, and run `uv run evallab doctor`. If the catalog contains a job
-whose raw evidence was intentionally discarded, remove only that exact derived
-catalog row; never drop or recreate the shared database to repair one stale job.
-Once doctor reports equal catalog and projected counts, reinstall the schedule
-and resume dispatch.
+Before adopting this default on an existing installation, keep projection writers
+quiescent and preserve the **complete** previous live store, not just hot `job_id=`
+partitions: cold partitions, quality ledgers and other evidence matter too. Copy
+to an empty external destination under the existing Parquet publication lock and
+verify bytes and metadata before restoring reviewed source snapshots. Retain the
+originals and restoration instructions; do not overwrite a colliding store or
+delete catalog rows to hide discrepancies.
+
+An older `.env` containing `EVALLAB_DERIVED_ROOT=derived/parquet` still explicitly
+selects the in-source store. After verified migration, remove that override to
+use the new default, or set the intended external absolute path. Code pinned to
+an older revision needs that explicit external override; changing current source
+does not repin it. Do not restart active experiments or reinstall schedules as
+an incidental data-migration step; runtime adoption requires its own approval.
 
 Because that store is shared across worktrees, doctor's `catalog-parquet` line
 ends with `db=<host>:<port>/<dbname>` — the database it actually inspected,

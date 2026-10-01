@@ -1,0 +1,12 @@
+{
+  "approved_by": "Research-Harbor, explicit current user instruction",
+  "declared_at": "2026-10-01T08:43:02.167Z",
+  "source_ref": "https://linear.app/petermakhnatch/issue/HAR-135/overnight-gepa-on-lf2-prompt-optimization-as-the-second",
+  "instruction": "Excluded attempt-1 seeds (001647 infra, 000341 and 001870 copied/tainted) drop their task from the gate for the seed and every candidate, with no substitution, declared before any candidate run. That leaves a 7-task gate. Also exclude the 3 held-out 001181 runs from reflection inputs.",
+  "excluded_task_ids": [
+    "format-code-task-001647",
+    "format-code-task-000341",
+    "format-code-task-001870"
+  ],
+  "original_frozen_manifest_sha256": "4daca9553ef7b0880d857cd11d452b3aaad951dc957990fc887b37d8bee6b5e7"
+}

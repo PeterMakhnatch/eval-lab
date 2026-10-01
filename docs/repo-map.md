@@ -63,7 +63,7 @@ inputs:
   - path: src/evallab/curve.py
     digest: sha256:b9b2712aa1dfb58d7f95f7dc5eb9e2291cc8e9f7cc6d30a6d95120ad82f806cf
   - path: src/evallab/database.py
-    digest: sha256:72396477870f1a6f964c925956e3ef032d0142c34b8348e99cdb41d76d87a9d9
+    digest: sha256:1c1ef60b52dc0a2d1337c08b01e3f9d392eeb47f25042d6df5225b61827040f3
   - path: src/evallab/deepplanning.py
     digest: sha256:82d416cc459c600c447339aa1c088e9e2216f068bfc58eb17c00bd198d8560bf
   - path: src/evallab/devloop.py
@@ -281,7 +281,7 @@ inputs:
   - path: src/evallab/modal_ops.py
     digest: sha256:0b18ab439fc17061d46594d53fc365d7c2eb3acb2fcc6c125a6243e706236137
   - path: src/evallab/model_capture.py
-    digest: sha256:b3878a51c25425227d17bab95c725af4efc2e2ad9dc03c352c42c2194ce59d28
+    digest: sha256:955b52040b2b3c58cdb32cb45112f841200d364178fe209b715b8ca81521e11f
   - path: src/evallab/modeladapter.py
     digest: sha256:ed5f90419fa7da52ab3848e0ce2a019a8fcba1f685ece81f41b8112e34992ddb
   - path: src/evallab/observation_masking.py

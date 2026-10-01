@@ -1,0 +1,271 @@
+[
+  {
+    "agent_steps": 42,
+    "confirmation_loop": {
+      "detector": "recorded",
+      "first_confirmation_ref": "head#42",
+      "loop_span": [
+        "head#42",
+        "head#43"
+      ],
+      "rule_id": "R-COMP-04",
+      "steps_in_span": 2,
+      "suffix_claim_only": true
+    },
+    "counts_sha256": "sha256:b126fc41193d81bc78a4b1547b32075e387d0b001e2d2d2cd2f01dcc8f7bd134",
+    "counts_verdict": "counted_fail",
+    "coverage": {
+      "complete": true,
+      "continuation_count": 0,
+      "copied_context_steps": 0,
+      "summarization_count": 0,
+      "unique_steps": 43
+    },
+    "loop_suspicion": {
+      "cyclic_patterns_count": 0,
+      "detected": false,
+      "repeated_command_count": 0,
+      "repeated_error_count": 0,
+      "score": 0.0
+    },
+    "model_steps": 42,
+    "project": "mdutils",
+    "settled_proxy_tokens": {
+      "input_tokens": 580852,
+      "output_tokens": 6332
+    },
+    "stitched_steps": 43,
+    "stop_reason": "task_complete_confirmed",
+    "task_id": "format-code-task-000803",
+    "trial_id": "8cc70fcd-47e8-47d5-8c20-710ed2ed3fe1",
+    "trial_name": "har120-000803-a1__xWzxKCn"
+  },
+  {
+    "agent_steps": 60,
+    "confirmation_loop": {
+      "detector": null,
+      "first_confirmation_ref": null,
+      "loop_span": null,
+      "rule_id": null,
+      "steps_in_span": null,
+      "suffix_claim_only": null
+    },
+    "counts_sha256": "sha256:a1df459d6d228a509706dab94ed3818f9a0d9d6a9db8dfbe6b0d6c95b1c53b4e",
+    "counts_verdict": "counted_fail",
+    "coverage": {
+      "complete": true,
+      "continuation_count": 0,
+      "copied_context_steps": 0,
+      "summarization_count": 0,
+      "unique_steps": 61
+    },
+    "loop_suspicion": {
+      "cyclic_patterns_count": 0,
+      "detected": true,
+      "repeated_command_count": 1,
+      "repeated_error_count": 0,
+      "score": 0.5885
+    },
+    "model_steps": 60,
+    "project": "linkpreview",
+    "settled_proxy_tokens": {
+      "input_tokens": 1501027,
+      "output_tokens": 27897
+    },
+    "stitched_steps": 61,
+    "stop_reason": "unknown",
+    "task_id": "format-code-task-001897",
+    "trial_id": "982505ca-763a-4dd2-aac8-a1ede3023e12",
+    "trial_name": "har120-001897-a1__6AyLy9W"
+  },
+  {
+    "agent_steps": 51,
+    "confirmation_loop": {
+      "detector": null,
+      "first_confirmation_ref": null,
+      "loop_span": null,
+      "rule_id": null,
+      "steps_in_span": null,
+      "suffix_claim_only": null
+    },
+    "counts_sha256": "sha256:e6e809b5b2dd0425dbbcd936945814c448d6fd4bd1eaf0560eb3f8abc8de900a",
+    "counts_verdict": "counted_pass",
+    "coverage": {
+      "complete": true,
+      "continuation_count": 0,
+      "copied_context_steps": 0,
+      "summarization_count": 0,
+      "unique_steps": 52
+    },
+    "loop_suspicion": {
+      "cyclic_patterns_count": 0,
+      "detected": false,
+      "repeated_command_count": 0,
+      "repeated_error_count": 0,
+      "score": 0.0
+    },
+    "model_steps": 51,
+    "project": "krakenex",
+    "settled_proxy_tokens": {
+      "input_tokens": 485421,
+      "output_tokens": 4929
+    },
+    "stitched_steps": 52,
+    "stop_reason": "unknown",
+    "task_id": "format-code-task-002938",
+    "trial_id": "477f4399-7579-4109-a5fb-9805ec669403",
+    "trial_name": "har120-002938-a1__UpSjiuM"
+  },
+  {
+    "agent_steps": 94,
+    "confirmation_loop": {
+      "detector": null,
+      "first_confirmation_ref": null,
+      "loop_span": null,
+      "rule_id": null,
+      "steps_in_span": null,
+      "suffix_claim_only": null
+    },
+    "counts_sha256": "sha256:a5eb80f029b01fe8eea174fc55edd3c445c2319a90866be556e502320623a7c4",
+    "counts_verdict": "counted_fail",
+    "coverage": {
+      "complete": true,
+      "continuation_count": 0,
+      "copied_context_steps": 0,
+      "summarization_count": 0,
+      "unique_steps": 95
+    },
+    "loop_suspicion": {
+      "cyclic_patterns_count": 0,
+      "detected": true,
+      "repeated_command_count": 1,
+      "repeated_error_count": 0,
+      "score": 0.5727
+    },
+    "model_steps": 94,
+    "project": "pbxproj",
+    "settled_proxy_tokens": {
+      "input_tokens": 2082993,
+      "output_tokens": 5648
+    },
+    "stitched_steps": 95,
+    "stop_reason": "unknown",
+    "task_id": "format-code-task-001710",
+    "trial_id": "35304602-de90-4ba2-8f02-516dbd751e6c",
+    "trial_name": "har120-001710-a1__BLMKCZN"
+  },
+  {
+    "agent_steps": 86,
+    "confirmation_loop": {
+      "detector": null,
+      "first_confirmation_ref": null,
+      "loop_span": null,
+      "rule_id": null,
+      "steps_in_span": null,
+      "suffix_claim_only": null
+    },
+    "counts_sha256": "sha256:da7a6e946141d22ebd3f55827a4b66462d5dedf12fd55f6a298877cbdbcfdac9",
+    "counts_verdict": "counted_fail",
+    "coverage": {
+      "complete": true,
+      "continuation_count": 0,
+      "copied_context_steps": 0,
+      "summarization_count": 0,
+      "unique_steps": 87
+    },
+    "loop_suspicion": {
+      "cyclic_patterns_count": 0,
+      "detected": true,
+      "repeated_command_count": 1,
+      "repeated_error_count": 2,
+      "score": 1.0
+    },
+    "model_steps": 86,
+    "project": "django_filters",
+    "settled_proxy_tokens": {
+      "input_tokens": 1758425,
+      "output_tokens": 17294
+    },
+    "stitched_steps": 87,
+    "stop_reason": "unknown",
+    "task_id": "format-code-task-001399",
+    "trial_id": "7424984e-73eb-45f1-8d7f-314761ff0f33",
+    "trial_name": "har120-001399-a1__fwLaw2U"
+  },
+  {
+    "agent_steps": 89,
+    "confirmation_loop": {
+      "detector": null,
+      "first_confirmation_ref": null,
+      "loop_span": null,
+      "rule_id": null,
+      "steps_in_span": null,
+      "suffix_claim_only": null
+    },
+    "counts_sha256": "sha256:6eeaba29369d29d7fdb259f9048dcdf872a2a33fb8a5716adec2216a76a4ab92",
+    "counts_verdict": "counted_fail",
+    "coverage": {
+      "complete": true,
+      "continuation_count": 0,
+      "copied_context_steps": 0,
+      "summarization_count": 0,
+      "unique_steps": 90
+    },
+    "loop_suspicion": {
+      "cyclic_patterns_count": 0,
+      "detected": true,
+      "repeated_command_count": 1,
+      "repeated_error_count": 1,
+      "score": 1.0
+    },
+    "model_steps": 89,
+    "project": "sc3",
+    "settled_proxy_tokens": {
+      "input_tokens": 2458142,
+      "output_tokens": 17377
+    },
+    "stitched_steps": 90,
+    "stop_reason": "ceiling:input_tokens",
+    "task_id": "format-code-task-002680",
+    "trial_id": "53114429-a1fc-468e-ba64-409e4625d00e",
+    "trial_name": "har120-002680-a1__Ci4bEkf"
+  },
+  {
+    "agent_steps": 56,
+    "confirmation_loop": {
+      "detector": null,
+      "first_confirmation_ref": null,
+      "loop_span": null,
+      "rule_id": null,
+      "steps_in_span": null,
+      "suffix_claim_only": null
+    },
+    "counts_sha256": "sha256:d0e6e4fb6722c6a0b069f124e547beb563289411d68f29ad4189c80bcf014a33",
+    "counts_verdict": "counted_fail",
+    "coverage": {
+      "complete": true,
+      "continuation_count": 0,
+      "copied_context_steps": 0,
+      "summarization_count": 0,
+      "unique_steps": 57
+    },
+    "loop_suspicion": {
+      "cyclic_patterns_count": 0,
+      "detected": true,
+      "repeated_command_count": 1,
+      "repeated_error_count": 1,
+      "score": 1.0
+    },
+    "model_steps": 56,
+    "project": "friends",
+    "settled_proxy_tokens": {
+      "input_tokens": 1189308,
+      "output_tokens": 17722
+    },
+    "stitched_steps": 57,
+    "stop_reason": "unknown",
+    "task_id": "format-code-task-001661",
+    "trial_id": "65685955-910c-4f92-afbc-e81c03eb5151",
+    "trial_name": "har120-001661-a1__xdRDCYr"
+  }
+]

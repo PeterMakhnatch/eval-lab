@@ -16,14 +16,13 @@ Covers, against consumer-visible behaviour (never wiring):
 from __future__ import annotations
 
 import json
-import sys
-import types
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from evallab import cli
+from evallab.modal_billing import BillingRow
 from evallab.spend_day import (
     REASON_CAP_UNVERIFIED,
     REASON_CEILING_EXCEEDED,
@@ -200,29 +199,19 @@ class _FakeConnection:
         return None
 
     def execute(self, sql: str, params: tuple = ()) -> _FakeResult:
-        if "WITH daily_totals" in sql:
-            if "SELECT coalesce(sum" in sql:
-                start, end = params[0], params[1]
-                hourly = [r for r in self._modal_rows if len(r) == 3 or len(r) > 3 and r[3] == "h"]
-                daily = [r for r in self._modal_rows if len(r) > 3 and r[3] == "d"]
-                hourly_sum = sum(r[1] for r in hourly)
-                daily_sum = sum(r[1] for r in daily)
-                if not daily or hourly_sum >= daily_sum - 0.01:
-                    matching = [r for r in hourly if start <= r[0] < end]
-                else:
-                    matching = [r for r in daily if r[0] < end and r[0] + timedelta(days=1) > start]
-                total = sum(r[1] for r in matching)
-                reported = max((r[2] for r in matching), default=None)
-                return _FakeResult([(total, len(matching), reported)])
-            else:
-                hourly = [r for r in self._modal_rows if len(r) == 3 or len(r) > 3 and r[3] == "h"]
-                daily = [r for r in self._modal_rows if len(r) > 3 and r[3] == "d"]
-                hourly_sum = sum(r[1] for r in hourly)
-                daily_sum = sum(r[1] for r in daily)
-                if not daily or hourly_sum >= daily_sum - 0.01:
-                    days = {r[0].date() for r in hourly}
-                    return _FakeResult([(d,) for d in sorted(days)])
-                return _FakeResult([])
+        if "WITH days_with_daily" in sql:
+            end, start = params[0], params[1]
+            daily = [r for r in self._modal_rows if len(r) > 3 and r[3] == "d"]
+            matching_daily = [r for r in daily if r[0] < end and r[0] + timedelta(days=1) > start]
+            if matching_daily:
+                total = sum(r[1] for r in matching_daily)
+                reported = max((r[2] for r in matching_daily), default=None)
+                return _FakeResult([(total, len(matching_daily), reported)])
+            hourly = [r for r in self._modal_rows if len(r) == 3 or (len(r) > 3 and r[3] == "h")]
+            matching_hourly = [r for r in hourly if start <= r[0] < end]
+            total = sum(r[1] for r in matching_hourly)
+            reported = max((r[2] for r in matching_hourly), default=None)
+            return _FakeResult([(total, len(matching_hourly), reported)])
         if "WITH day_has_hourly" in sql:
             start, end = params[0], params[1]
             matching = [row for row in self._modal_rows if start <= row[0] < end]
@@ -296,28 +285,28 @@ def test_modal_window_counts_hour_starting_in_window_whole(
 def test_check_launch_stale_modal_refreshes_and_uses_fresh_rows(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Stale stored rows trigger a refresh; fresh rows are then included in settled spend."""
-    initial_rows = [
-        (datetime(2026, 10, 1, 0, 0, tzinfo=UTC), 1.0, datetime(2026, 10, 1, 0, 30, tzinfo=UTC))
-    ]
-    conn = _FakeConnection(list(initial_rows), latest=datetime(2026, 10, 1, 0, 0, tzinfo=UTC))
-    fake_psycopg = types.ModuleType("psycopg")
-    fake_psycopg.connect = lambda url: conn
-    monkeypatch.setitem(sys.modules, "psycopg", fake_psycopg)
+    """Live Modal rows are fetched in memory and included directly in settled spend."""
+    from evallab.modal_billing import BillingRow
+
+    conn = _FakeConnection([], latest=None)
+    import psycopg
+
+    monkeypatch.setattr(psycopg, "connect", lambda url: conn)
 
     refresher_called = []
 
-    def _mock_refresh(start: date, end: date) -> int:
+    def _mock_refresh(start: date, end: date) -> list[BillingRow]:
         refresher_called.append((start, end))
-        # The refresher fetches new rows and updates the catalog
-        new_row = (
-            datetime(2026, 10, 1, 4, 0, tzinfo=UTC),
-            0.9142,
-            datetime(2026, 10, 1, 5, 10, tzinfo=UTC),
-        )
-        conn._modal_rows.append(new_row)
-        conn._latest = datetime(2026, 10, 1, 4, 0, tzinfo=UTC)
-        return 1
+        return [
+            BillingRow(
+                object_id="app-fresh",
+                description="fresh app",
+                environment="test",
+                interval_start=datetime(2026, 10, 1, 4, 0, tzinfo=UTC),
+                resource="gpu",
+                cost_usd=0.9142,
+            )
+        ]
 
     decision = check_launch(
         repo_root=tmp_path,
@@ -327,7 +316,7 @@ def test_check_launch_stale_modal_refreshes_and_uses_fresh_rows(
         window_end=datetime(2026, 10, 1, 5, 30, tzinfo=UTC),
         candidate_usd=1.0,
         cap_usd=30.0,
-        now=datetime(2026, 10, 1, 5, 30, tzinfo=UTC),  # 5.5h after 00:00 -> stale
+        now=datetime(2026, 10, 1, 5, 30, tzinfo=UTC),
         modal_refresher=_mock_refresh,
     )
     assert len(refresher_called) == 1
@@ -335,19 +324,20 @@ def test_check_launch_stale_modal_refreshes_and_uses_fresh_rows(
     assert decision.allowed is True
     # The fresh $0.9142 row from 04:00 is included in settled spend
     assert decision.settled_usd == pytest.approx(0.9142)
+    assert any("live Modal report" in note for note in decision.notes)
     assert any("reporting lag" in note for note in decision.notes)
 
 
 def test_check_launch_stale_modal_fails_closed_when_refresh_fails(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """When Modal rows are stale and refresh fails, launch is refused (fail closed, exit 2)."""
-    conn = _FakeConnection([], latest=datetime(2026, 10, 1, 0, 0, tzinfo=UTC))
-    fake_psycopg = types.ModuleType("psycopg")
-    fake_psycopg.connect = lambda url: conn
-    monkeypatch.setitem(sys.modules, "psycopg", fake_psycopg)
+    """When Modal live fetch fails, launch is refused (fail closed, exit 2)."""
+    conn = _FakeConnection([], latest=None)
+    import psycopg
 
-    def _failing_refresh(start: date, end: date) -> int:
+    monkeypatch.setattr(psycopg, "connect", lambda url: conn)
+
+    def _failing_refresh(start: date, end: date) -> list[BillingRow]:
         raise RuntimeError("modal credentials missing")
 
     decision = check_launch(
@@ -363,19 +353,21 @@ def test_check_launch_stale_modal_fails_closed_when_refresh_fails(
     )
     assert decision.allowed is False
     assert decision.reason_code == REASON_STALE_MODAL
-    # Refusal message names the stale day/hour
-    assert "2026-10-01" in decision.notes[0]
+    assert "modal credentials missing" in decision.notes[0]
     assert any("reporting lag" in note for note in decision.notes)
 
 
 def test_check_launch_allow_stale_modal_downgrades_to_warning(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """--allow-stale-modal permits launch despite stale rows with an explicit printed warning."""
-    conn = _FakeConnection([], latest=datetime(2026, 10, 1, 0, 0, tzinfo=UTC))
-    fake_psycopg = types.ModuleType("psycopg")
-    fake_psycopg.connect = lambda url: conn
-    monkeypatch.setitem(sys.modules, "psycopg", fake_psycopg)
+    """--allow-stale-modal permits launch despite live fetch failure by falling back to cache."""
+    conn = _FakeConnection([], latest=None)
+    import psycopg
+
+    monkeypatch.setattr(psycopg, "connect", lambda url: conn)
+
+    def _failing_refresh(start: date, end: date) -> list[BillingRow]:
+        raise RuntimeError("network down")
 
     decision = check_launch(
         repo_root=tmp_path,
@@ -387,11 +379,11 @@ def test_check_launch_allow_stale_modal_downgrades_to_warning(
         cap_usd=30.0,
         now=datetime(2026, 10, 1, 5, 30, tzinfo=UTC),
         allow_stale_modal=True,
-        modal_refresher=lambda s, e: 0,
+        modal_refresher=_failing_refresh,
     )
     assert decision.allowed is True
     assert decision.reason_code is None
-    assert any("allowed despite staleness" in note for note in decision.notes)
+    assert any("fell back to catalog cache" in note for note in decision.notes)
     assert any("reporting lag" in note for note in decision.notes)
 
 
@@ -517,6 +509,7 @@ def test_unreachable_catalog_is_unverified_never_zero(tmp_path: Path) -> None:
         window_end=datetime(2026, 10, 1, 6, 0, tzinfo=UTC),
         candidate_usd=1.0,
         cap_usd=30.0,
+        modal_refresher=lambda s, e: [],
     )
     assert decision.allowed is False
     assert decision.reason_code == REASON_CAP_UNVERIFIED
@@ -536,14 +529,6 @@ def test_unratable_spec_fails_closed_with_ledger_shown(
         ),
     )
     monkeypatch.setattr(
-        "evallab.spend_day.query_modal_latest_interval",
-        lambda url: datetime(2026, 10, 1, 5, 0, tzinfo=UTC),
-    )
-    monkeypatch.setattr(
-        "evallab.spend_day.query_modal_dates_with_hourly_coverage",
-        lambda url, s, e: {date(2026, 10, 1)},
-    )
-    monkeypatch.setattr(
         "evallab.spend_day.build_window_ledger",
         lambda *a, **k: summarize_window(
             datetime(2026, 10, 1, 4, 0, tzinfo=UTC),
@@ -561,6 +546,7 @@ def test_unratable_spec_fails_closed_with_ledger_shown(
         candidate_usd=1.0,
         cap_usd=30.0,
         now=datetime(2026, 10, 1, 5, 30, tzinfo=UTC),
+        modal_refresher=lambda s, e: [],
     )
     assert decision.allowed is False
     assert decision.reason_code == REASON_UNRATABLE_SPEC
@@ -597,6 +583,10 @@ def _run_check(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, argv: list[str])
 def test_cli_unreachable_catalog_exits_2(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture
 ) -> None:
+    monkeypatch.setattr(
+        "evallab.modal_billing.fetch_modal_billing_report",
+        lambda *a, **k: [],
+    )
     rc = _run_check(
         monkeypatch,
         tmp_path,
@@ -637,13 +627,20 @@ def test_cli_allowed_refused_and_unratable_exits(
     queue_root = tmp_path / "queue"
     _write_queue_spec(queue_root, "approved", "nop-01SPEC5.json", _spec_payload("har129-local-nop"))
 
+    from evallab.modal_billing import BillingRow
+
     monkeypatch.setattr(
-        "evallab.spend_day.query_modal_latest_interval",
-        lambda url: datetime(2026, 10, 1, 5, 0, tzinfo=UTC),
-    )
-    monkeypatch.setattr(
-        "evallab.spend_day.query_modal_dates_with_hourly_coverage",
-        lambda url, s, e: {date(2026, 10, 1)},
+        "evallab.modal_billing.fetch_modal_billing_report",
+        lambda *a, **k: [
+            BillingRow(
+                object_id="app-1",
+                description="test",
+                environment="test",
+                interval_start=datetime(2026, 10, 1, 4, 0, tzinfo=UTC),
+                resource="gpu",
+                cost_usd=2.0,
+            )
+        ],
     )
 
     def _settled_two_dollars(*args: object, **kwargs: object):
@@ -975,7 +972,7 @@ def test_defect4_unresolved_finished_job_charges_reserved_or_refused(
 
     monkeypatch.setattr(psycopg, "connect", lambda url: _FakeUnresolvedConn())
 
-    # Candidate $5, Cap $20. Settled $1 + Unresolved $24 + Candidate $5 = $30 > $20 -> REFUSED!
+    # Candidate $5, Cap $20. Settled $1 + Unresolved $25 + Candidate $5 = $31 > $20 -> REFUSED!
     decision = check_launch(
         repo_root=tmp_path,
         queue_root=tmp_path / "queue",
@@ -984,17 +981,17 @@ def test_defect4_unresolved_finished_job_charges_reserved_or_refused(
         window_end=datetime(2026, 10, 1, 6, 0, tzinfo=UTC),
         candidate_usd=5.0,
         cap_usd=20.0,
+        modal_refresher=lambda s, e: [],
     )
     assert not decision.allowed
     assert decision.reason_code == REASON_CEILING_EXCEEDED
     assert decision.settled_usd == pytest.approx(1.0)
-    assert decision.unresolved_jobs_usd == pytest.approx(24.0)
-    assert decision.committed_usd == pytest.approx(30.0)
+    assert decision.unresolved_jobs_usd == pytest.approx(25.0)
+    assert decision.committed_usd == pytest.approx(31.0)
 
     rendered = render_decision(decision)
-    assert "unresolved-jobs: $24.0000" in rendered
-    assert "committed (settled + in-flight + unresolved-jobs + candidate): $30.0000" in rendered
-
+    assert "unresolved-jobs: $25.0000" in rendered
+    assert "committed (settled + in-flight + unresolved-jobs + candidate): $31.0000" in rendered
     # Also test: if unresolved provider calls have NO pricing, launch check fails closed (exit 2)
     pu_unratable = dict(pu)
     pu_unratable["pricing"] = None
@@ -1040,17 +1037,17 @@ def test_defect4_unresolved_finished_job_charges_reserved_or_refused(
         window_end=datetime(2026, 10, 1, 6, 0, tzinfo=UTC),
         candidate_usd=1.0,
         cap_usd=20.0,
+        modal_refresher=lambda s, e: [],
     )
     assert not d_unratable.allowed
     assert d_unratable.reason_code == REASON_CAP_UNVERIFIED
 
 
-def test_defect5_modal_coverage_required_for_intraday_window(
+def test_defect5_modal_live_fetch_failure_fails_closed_unless_allow_stale(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Defect 5: Intra-day window on date with only daily rows requires hourly rows or fails closed."""
+    """Defect 5: Live Modal fetch failure must fail closed unless --allow-stale-modal falls back to cache."""
 
-    # Catalog has only daily row at 00:00 ($25.00)
     class _DailyOnlyConn:
         def __enter__(self):
             return self
@@ -1059,11 +1056,8 @@ def test_defect5_modal_coverage_required_for_intraday_window(
             return None
 
         def execute(self, sql: str, params: tuple = ()):
-            if "WITH daily_totals" in sql or "WITH day_has_hourly" in sql:
-                if "SELECT coalesce(sum" in sql:
-                    return _FakeResult([(25.0, 1, datetime(2026, 10, 1, 0, 0, tzinfo=UTC))])
-                else:
-                    return _FakeResult([])
+            if "WITH days_with_daily" in sql:
+                return _FakeResult([(25.0, 1, datetime(2026, 10, 1, 0, 0, tzinfo=UTC))])
             if "max(interval_start)" in sql:
                 return _FakeResult([(datetime(2026, 10, 1, 0, 0, tzinfo=UTC),)])
             if "FROM jobs" in sql:
@@ -1074,9 +1068,12 @@ def test_defect5_modal_coverage_required_for_intraday_window(
 
     import psycopg
 
-    monkeypatch.setattr(psycopg, "connect", lambda url: _DailyOnlyConn())
+    conn = _DailyOnlyConn()
 
-    # Window is intra-day slice [01:00, 03:00). Without hourly rows, must fail closed with REASON_STALE_MODAL
+    def _failing_fetch(start: date, end: date):
+        raise RuntimeError("network timeout")
+
+    # 1. Without allow_stale_modal: refuses with REASON_STALE_MODAL
     refused = check_launch(
         repo_root=tmp_path,
         queue_root=tmp_path / "queue",
@@ -1085,13 +1082,15 @@ def test_defect5_modal_coverage_required_for_intraday_window(
         window_end=datetime(2026, 10, 1, 3, 0, tzinfo=UTC),
         candidate_usd=5.0,
         cap_usd=20.0,
+        modal_refresher=_failing_fetch,
         allow_stale_modal=False,
     )
     assert not refused.allowed
     assert refused.reason_code == REASON_STALE_MODAL
-    assert any("intra-day slice" in n for n in refused.notes)
+    assert any("live Modal billing fetch failed" in n for n in refused.notes)
 
-    # With allow_stale_modal=True, the daily row's spend is allowed with warning
+    # 2. With allow_stale_modal=True: falls back to catalog cache (reads $25 daily row)
+    monkeypatch.setattr(psycopg, "connect", lambda url: conn)
     allowed_override = check_launch(
         repo_root=tmp_path,
         queue_root=tmp_path / "queue",
@@ -1100,20 +1099,21 @@ def test_defect5_modal_coverage_required_for_intraday_window(
         window_end=datetime(2026, 10, 1, 3, 0, tzinfo=UTC),
         candidate_usd=1.0,
         cap_usd=30.0,
+        modal_refresher=_failing_fetch,
         allow_stale_modal=True,
     )
-    # Settled $25 + candidate $1 = $26 <= $30 -> allowed with warning
     assert allowed_override.allowed
     assert allowed_override.settled_usd == pytest.approx(25.0)
+    assert any("fell back to catalog cache" in n for n in allowed_override.notes)
 
 
-def test_defect6_modal_nonoverlapping_resolution_query_and_storage(
+def test_defect6_modal_pure_upsert_storage(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Defect 6: Mixed resolution coexistence must not double-count, and storage must be safe in both directions."""
+    """Defect 6: Modal storage must be pure upsert without deleting existing rows."""
     import psycopg
 
-    from evallab.modal_billing import BillingRow, store_billing_rows
+    from evallab.modal_billing import store_billing_rows
 
     executed_sqls: list[tuple[str, tuple]] = []
 
@@ -1130,7 +1130,6 @@ def test_defect6_modal_nonoverlapping_resolution_query_and_storage(
 
     monkeypatch.setattr(psycopg, "connect", lambda url: _CaptureConn())
 
-    # 1. Storing hourly rows atomically replaces existing hourly rows for that day
     row_h = BillingRow(
         object_id="app-1",
         description="hourly app",
@@ -1140,32 +1139,17 @@ def test_defect6_modal_nonoverlapping_resolution_query_and_storage(
         cost_usd=1.5,
     )
     store_billing_rows("postgresql://fake/db", [row_h], resolution="h")
+    # Must NOT execute any DELETE statement
+    assert not any("DELETE FROM modal_billing_rows" in s for s, p in executed_sqls)
     assert any(
-        "DELETE FROM modal_billing_rows" in s and "resolution = %s" in s and p[0] == "h"
-        for s, p in executed_sqls
-    )
-
-    executed_sqls.clear()
-    # 2. Storing daily rows atomically replaces existing daily rows for that day
-    row_d = BillingRow(
-        object_id="app-1",
-        description="daily app",
-        environment="test",
-        interval_start=datetime(2026, 10, 1, 0, 0, tzinfo=UTC),
-        resource="gpu",
-        cost_usd=2.5,
-    )
-    store_billing_rows("postgresql://fake/db", [row_d], resolution="d")
-    assert any(
-        "DELETE FROM modal_billing_rows" in s and "resolution = %s" in s and p[0] == "d"
-        for s, p in executed_sqls
+        "INSERT INTO modal_billing_rows" in s and "ON CONFLICT" in s for s, p in executed_sqls
     )
 
 
 def test_modal_partial_hourly_falls_back_to_daily_without_undercount(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A partial hourly set must never cause an undercount: fall back to daily rows."""
+    """A partial hourly set in cache must fall back to daily rows without undercount."""
     reported = datetime(2026, 10, 1, 5, 30, tzinfo=UTC)
     fake_rows = [
         # Daily row: $4.1540 (includes 00:00 app ap-i1jDX... $1.534)
@@ -1177,11 +1161,11 @@ def test_modal_partial_hourly_falls_back_to_daily_without_undercount(
     ]
 
     conn = _FakeConnection(fake_rows, latest=datetime(2026, 10, 1, 5, 0, tzinfo=UTC))
-    fake = types.ModuleType("psycopg")
-    fake.connect = lambda url: conn
-    monkeypatch.setitem(sys.modules, "psycopg", fake)
+    import psycopg
 
-    # 1. Whole-day window [00:00, 24:00) MUST report $4.1540 (not $2.6202!)
+    monkeypatch.setattr(psycopg, "connect", lambda url: conn)
+
+    # 1. Whole-day window [00:00, 24:00) MUST report $4.1540 from daily rows
     row, _ = query_modal_rows(
         "postgresql://fake/db",
         datetime(2026, 10, 1, 0, 0, tzinfo=UTC),
@@ -1191,8 +1175,7 @@ def test_modal_partial_hourly_falls_back_to_daily_without_undercount(
     assert row.usd == pytest.approx(4.1540)
     assert row.basis == "billed"
 
-    # 2. Intra-day window [04:00, 06:00) with incomplete hourly rows must fail closed
-    # when refresh cannot complete the hourly rows (never silently use partial $0.91 or $2.62)
+    # 2. Live fetch failure without allow_stale_modal fails closed with REASON_STALE_MODAL
     refused = check_launch(
         repo_root=tmp_path,
         queue_root=tmp_path / "queue",
@@ -1202,8 +1185,8 @@ def test_modal_partial_hourly_falls_back_to_daily_without_undercount(
         candidate_usd=1.0,
         cap_usd=30.0,
         now=datetime(2026, 10, 1, 5, 30, tzinfo=UTC),
+        modal_refresher=lambda s, e: (_ for _ in ()).throw(RuntimeError("fetch fail")),
         allow_stale_modal=False,
     )
     assert not refused.allowed
     assert refused.reason_code == REASON_STALE_MODAL
-    assert any("incomplete" in n for n in refused.notes)

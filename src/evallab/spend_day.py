@@ -55,6 +55,7 @@ this module still never spends, never writes, and never launches.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import math
@@ -532,18 +533,12 @@ REASON_STALE_MODAL = "stale_modal_billing"
 def query_modal_rows(
     database_url: str, window_start: datetime, window_end: datetime
 ) -> tuple[SpendRow | None, str]:
-    """Billed Modal rows whose hour starts in ``[window_start, window_end)``.
+    """Billed Modal rows from catalog cache for ``[window_start, window_end)``.
 
-    Modal billing rows are hourly (``interval_start``): a row counts whole
-    when its hour starts inside the window, even if that hour extends
-    past the window end. Hour granularity is exact for whole UTC days and
-    approximate to the hour for arbitrary windows.
-
-    Non-overlapping rule: where hourly rows (resolution='h') are complete
-    for a UTC day (matching or exceeding daily rows, hourly_sum >= daily_sum - 0.01),
-    hourly rows are used and daily rows are excluded. When hourly rows are missing
-    or incomplete for a day, the ledger safely falls back to daily rows for that day
-    so incomplete finer data never causes an undercount.
+    Resolution preference rule: per UTC day, prefer daily rows (resolution='d')
+    when present (they come from whole-day reconciles and are authoritative),
+    else hourly rows (resolution='h'). Never sums both resolutions for the
+    same day.
     """
     import psycopg
 
@@ -552,48 +547,32 @@ def query_modal_rows(
     with psycopg.connect(database_url) as connection:
         row = connection.execute(
             """
-            WITH daily_totals AS (
-                SELECT (interval_start AT TIME ZONE 'UTC')::date AS day,
-                       coalesce(sum(cost_usd), 0) AS daily_usd
+            WITH days_with_daily AS (
+                SELECT DISTINCT (interval_start AT TIME ZONE 'UTC')::date AS day
                 FROM modal_billing_rows
                 WHERE resolution = 'd'
-                GROUP BY 1
-            ),
-            hourly_totals AS (
-                SELECT (interval_start AT TIME ZONE 'UTC')::date AS day,
-                       coalesce(sum(cost_usd), 0) AS hourly_usd
-                FROM modal_billing_rows
-                WHERE resolution = 'h'
-                GROUP BY 1
-            ),
-            complete_hourly_days AS (
-                SELECT h.day
-                FROM hourly_totals h
-                LEFT JOIN daily_totals d ON d.day = h.day
-                WHERE d.daily_usd IS NULL OR h.hourly_usd >= d.daily_usd - 0.01
             )
             SELECT coalesce(sum(m.cost_usd), 0), count(m.*), max(m.reported_at)
             FROM modal_billing_rows m
             WHERE (
                 (
-                    m.resolution = 'h'
-                    AND m.interval_start >= %s AND m.interval_start < %s
-                    AND (m.interval_start AT TIME ZONE 'UTC')::date IN (SELECT day FROM complete_hourly_days)
+                    m.resolution = 'd'
+                    AND m.interval_start < %s AND m.interval_start + interval '1 day' > %s
                 )
                 OR
                 (
-                    m.resolution = 'd'
-                    AND m.interval_start < %s AND m.interval_start + interval '1 day' > %s
-                    AND (m.interval_start AT TIME ZONE 'UTC')::date NOT IN (SELECT day FROM complete_hourly_days)
+                    m.resolution = 'h'
+                    AND m.interval_start >= %s AND m.interval_start < %s
+                    AND (m.interval_start AT TIME ZONE 'UTC')::date NOT IN (SELECT day FROM days_with_daily)
                 )
             )
             """,
-            (window_start, window_end, window_end, window_start),
+            (window_end, window_start, window_start, window_end),
         ).fetchone()
     total, count, reported_at = row if row is not None else (0.0, 0, None)
     label = f"{window_start.isoformat()}..{window_end.isoformat()}"
     if int(count) == 0:
-        return None, f"modal: no billing rows with hour starting in {label} in modal_billing_rows"
+        return None, f"modal: no billing rows matching {label} in modal_billing_rows"
     return (
         SpendRow(
             source="modal",
@@ -606,43 +585,6 @@ def query_modal_rows(
         f"modal: billed ${float(total):.4f} across {int(count)} rows in {label}"
         + (f" (last reported {reported_at})" if reported_at else ""),
     )
-
-
-def query_modal_dates_with_hourly_coverage(
-    database_url: str, start_day: date, end_day: date
-) -> set[date]:
-    """Dates in [start_day, end_day] with complete hourly Modal rows in catalog."""
-    import psycopg
-
-    with psycopg.connect(database_url) as connection:
-        rows = connection.execute(
-            """
-            WITH daily_totals AS (
-                SELECT (interval_start AT TIME ZONE 'UTC')::date AS day,
-                       coalesce(sum(cost_usd), 0) AS daily_usd
-                FROM modal_billing_rows
-                WHERE resolution = 'd'
-                  AND (interval_start AT TIME ZONE 'UTC')::date >= %s
-                  AND (interval_start AT TIME ZONE 'UTC')::date <= %s
-                GROUP BY 1
-            ),
-            hourly_totals AS (
-                SELECT (interval_start AT TIME ZONE 'UTC')::date AS day,
-                       coalesce(sum(cost_usd), 0) AS hourly_usd
-                FROM modal_billing_rows
-                WHERE resolution = 'h'
-                  AND (interval_start AT TIME ZONE 'UTC')::date >= %s
-                  AND (interval_start AT TIME ZONE 'UTC')::date <= %s
-                GROUP BY 1
-            )
-            SELECT h.day
-            FROM hourly_totals h
-            LEFT JOIN daily_totals d ON d.day = h.day
-            WHERE d.daily_usd IS NULL OR h.hourly_usd >= d.daily_usd - 0.01
-            """,
-            (start_day, end_day, start_day, end_day),
-        ).fetchall()
-    return {r[0] for r in rows if r[0] is not None}
 
 
 def query_modal_latest_interval(database_url: str) -> datetime | None:
@@ -739,9 +681,7 @@ def query_model_job_rows(
                     f"finished job {job_name} has {unresolved_requests} unresolved provider call(s) "
                     "with no pricing; cost ceiling cannot be verified",
                 )
-        if attempted_usd is not None and used_usd is not None and attempted_usd > used_usd:
-            unresolved_model_usd += attempted_usd - used_usd
-        elif attempted_usd is not None and used_usd is None and attempted_usd > 0:
+        if attempted_usd is not None and attempted_usd > 0:
             unresolved_model_usd += attempted_usd
 
         if used_usd is None:
@@ -1090,14 +1030,14 @@ def build_window_ledger(
     label: str | None = None,
     staleness_now: datetime | None = None,
     include_window_preamble: bool = True,
+    live_modal_row: SpendRow | None = None,
+    live_modal_note: str | None = None,
 ) -> WindowLedger:
     """Assemble the full window ledger from all three sources (read-only).
 
     ``label`` names the window in notes (defaults to the ISO range).
-    When ``staleness_now`` is given, a note is added if the newest Modal
-    billing hour is older than :data:`MODAL_STALE_AFTER_HOURS` versus
-    ``staleness_now`` — Modal rows lag, so a stale catalog undercounts
-    tonight; the note says so instead of silently reporting a low total.
+    When ``live_modal_row`` is provided, it is used directly (live report);
+    otherwise Modal spend is read from the catalog cache.
     """
     window_start = _coerce_utc(window_start)
     window_end = _coerce_utc(window_end)
@@ -1113,10 +1053,19 @@ def build_window_ledger(
             "daytona trials contribute overlapping wall seconds; spend.jsonl rows count by "
             "their own ts; per-job proxy ledgers count whole on the job finish day"
         )
-    modal_row, modal_note = query_modal_rows(database_url, window_start, window_end)
-    notes.append(modal_note)
-    if modal_row is not None:
-        rows.append(modal_row)
+    if live_modal_note is not None:
+        notes.append(live_modal_note)
+        if live_modal_row is not None:
+            rows.append(live_modal_row)
+    else:
+        modal_row, modal_note = query_modal_rows(database_url, window_start, window_end)
+        notes.append(modal_note)
+        if modal_row is not None:
+            rows.append(modal_row)
+        if window_end.date() >= datetime.now(UTC).date():
+            notes.append(
+                "modal: current-day billing data is partial; unsettled usage may still accumulate"
+            )
     if staleness_now is not None:
         latest = query_modal_latest_interval(database_url)
         if latest is None:
@@ -1528,7 +1477,6 @@ def check_launch(
         )
     window_start = _coerce_utc(window_start)
     window_end = _coerce_utc(window_end)
-    effective_now = _coerce_utc(now) if now is not None else datetime.now(UTC)
     try:
         flight, unratable, flight_notes = collect_in_flight(queue_root)
     except SpendUnverified as exc:
@@ -1543,106 +1491,85 @@ def check_launch(
     flight_usd = sum(item.reservation_usd for item in flight)
 
     # -----------------------------------------------------------------------
-    # Modal coverage & freshness:
-    # 1. Intra-day window slices require hourly coverage for each intersecting date.
-    # 2. Window extending past the latest hour requires fresh rows (<=4h vs now).
+    # Modal live fetch (Main design 1):
+    # check_launch always fetches the window's intersecting UTC days at hourly
+    # resolution live via Modal CLI report, and computes Modal settled spend
+    # from those in-memory rows. Fetch failure -> unverified (exit 2).
+    # --allow-stale-modal falls back to catalog cache with warning.
     # -----------------------------------------------------------------------
     start_date = window_start.date()
     end_date = (window_end - timedelta(microseconds=1)).date()
-    intersecting_dates = [
-        start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)
-    ]
+    fetch_start = start_date
+    fetch_end = end_date + timedelta(days=1)
 
-    def _is_intraday(d: date) -> bool:
-        day_start = datetime.combine(d, time.min, tzinfo=UTC)
-        day_end = day_start + timedelta(days=1)
-        return window_start > day_start or window_end < day_end
+    live_modal_rows: list[Any] | None = None
+    modal_fetch_error: str | None = None
 
-    try:
-        latest = query_modal_latest_interval(database_url)
-        hourly_covered = query_modal_dates_with_hourly_coverage(database_url, start_date, end_date)
-    except Exception as exc:
-        return unverified_decision(
-            reason_code=REASON_CAP_UNVERIFIED,
-            message=(
-                f"REFUSAL: {REASON_CAP_UNVERIFIED} "
-                f"(catalog unreachable: {type(exc).__name__}: {exc}); "
-                "settled spend is unknown, never $0"
-            ),
-            window_start=window_start,
-            window_end=window_end,
-            candidate_usd=candidate_usd,
-            cap_usd=cap_usd,
-            in_flight_usd=flight_usd,
-            in_flight_count=len(flight),
-            in_flight=flight,
-            unratable=unratable,
-            notes=flight_notes,
-        )
-
-    modal_is_stale = (
-        latest is None
-        or (effective_now - latest).total_seconds() / 3600.0 > MODAL_STALE_AFTER_HOURS
-    ) and (latest is None or window_end > latest)
-
-    missing_hourly_slices = [
-        d for d in intersecting_dates if _is_intraday(d) and d not in hourly_covered
-    ]
-
-    refresh_note: str | None = None
-    if modal_is_stale or missing_hourly_slices:
-        fetch_start = min([*missing_hourly_slices, start_date])
-        fetch_end = max([*missing_hourly_slices, end_date]) + timedelta(days=1)
+    if modal_refresher is not None:
         try:
-            if modal_refresher is not None:
-                modal_refresher(fetch_start, fetch_end)
-            else:
-                from evallab.modal_billing import refresh_modal_billing
-
-                refresh_modal_billing(
-                    database_url,
-                    start=fetch_start,
-                    end=fetch_end,
-                    repo_root=repo_root,
-                    resolution="h",
-                )
-            latest = query_modal_latest_interval(database_url)
-            hourly_covered = query_modal_dates_with_hourly_coverage(
-                database_url, start_date, end_date
-            )
+            res = modal_refresher(fetch_start, fetch_end)
+            if isinstance(res, list):
+                live_modal_rows = res
         except Exception as exc:
-            refresh_note = f"modal refresh failed ({type(exc).__name__}: {exc})"
+            modal_fetch_error = f"{type(exc).__name__}: {exc}"
+    else:
+        try:
+            from evallab.modal_billing import fetch_modal_billing_report, store_billing_rows
 
-        modal_is_stale = (
-            latest is None
-            or (effective_now - latest).total_seconds() / 3600.0 > MODAL_STALE_AFTER_HOURS
-        ) and (latest is None or window_end > latest)
-        missing_hourly_slices = [
-            d for d in intersecting_dates if _is_intraday(d) and d not in hourly_covered
-        ]
+            live_modal_rows = fetch_modal_billing_report(
+                start=fetch_start,
+                end=fetch_end,
+                resolution="h",
+                repo_root=repo_root,
+            )
+            # Pure upsert into catalog cache (best effort)
+            with contextlib.suppress(Exception):
+                store_billing_rows(database_url, live_modal_rows, resolution="h")
+        except Exception as exc:
+            modal_fetch_error = f"{type(exc).__name__}: {exc}"
 
+    live_modal_row: SpendRow | None = None
+    live_modal_note: str | None = None
     stale_warning: str | None = None
-    if modal_is_stale or missing_hourly_slices or refresh_note:
-        stale_hour_str = latest.isoformat() if latest else "none"
+
+    if live_modal_rows is not None:
+        matching_rows = [
+            r
+            for r in live_modal_rows
+            if window_start
+            <= (
+                _coerce_utc(r.interval_start)
+                if isinstance(r.interval_start, datetime)
+                else parse_dt(r.interval_start)
+            )
+            < window_end
+        ]
+        total_modal_usd = sum(float(r.cost_usd) for r in matching_rows)
+        if matching_rows:
+            live_modal_row = SpendRow(
+                source="modal",
+                card=UNATTRIBUTED,
+                job="modal-account",
+                usd=total_modal_usd,
+                basis=BASIS_BILLED,
+                evidence=f"modal:live_report:{len(matching_rows)} rows",
+            )
+        live_modal_note = (
+            f"modal: billed ${total_modal_usd:.4f} across {len(matching_rows)} hourly rows "
+            f"in {window_start.isoformat()}..{window_end.isoformat()} (live Modal report)"
+        )
+    else:
+        # Live fetch failed or was not provided
         if not allow_stale_modal:
-            if missing_hourly_slices:
-                missing_str = ", ".join(d.isoformat() for d in missing_hourly_slices)
-                refusal_msg = (
-                    f"REFUSAL: {REASON_STALE_MODAL} "
-                    f"(window [{window_start.isoformat()}..{window_end.isoformat()}) intersects {missing_str} "
-                    "as an intra-day slice, but hourly Modal coverage is incomplete or missing; "
-                    "hourly data is required to determine settled spend; pass --allow-stale-modal to override)"
-                )
-            else:
-                refusal_msg = (
-                    f"REFUSAL: {REASON_STALE_MODAL} "
-                    f"(latest Modal hour {stale_hour_str} is older than {MODAL_STALE_AFTER_HOURS:g}h vs now; "
-                    "modal rows lag, so spend cannot be verified tonight; "
-                    "pass --allow-stale-modal to override)"
-                )
+            refusal_msg = (
+                f"REFUSAL: {REASON_STALE_MODAL} "
+                f"(live Modal billing fetch failed: {modal_fetch_error or 'no live rows'}; "
+                "modal spend cannot be verified tonight; "
+                "pass --allow-stale-modal to fall back to catalog cache)"
+            )
             extra_notes = list(flight_notes)
-            if refresh_note:
-                extra_notes.append(f"modal: {refresh_note}")
+            if modal_fetch_error:
+                extra_notes.append(f"modal: {modal_fetch_error}")
             extra_notes.append(
                 "modal: reporting lag: Modal billing reports lag real-time execution; "
                 "the current hour is partial and unsettled runtime may not yet be reflected."
@@ -1661,8 +1588,8 @@ def check_launch(
                 notes=extra_notes,
             )
         stale_warning = (
-            f"modal: billing rows are stale or daily-only (latest hour {stale_hour_str}); "
-            "allowed despite staleness (--allow-stale-modal recorded)"
+            f"modal: live billing fetch failed ({modal_fetch_error or 'no live rows'}); "
+            "fell back to catalog cache (--allow-stale-modal recorded)"
         )
 
     try:
@@ -1673,6 +1600,8 @@ def check_launch(
             database_url=database_url,
             cap_usd=cap_usd,
             extra_roots=extra_roots,
+            live_modal_row=live_modal_row,
+            live_modal_note=live_modal_note,
         )
     except SpendUnverified as exc:
         return unverified_decision(
@@ -1712,8 +1641,8 @@ def check_launch(
     dynamic_notes: list[str] = list(ledger.notes)
     if stale_warning:
         dynamic_notes.append(stale_warning)
-    if refresh_note:
-        dynamic_notes.append(f"modal: {refresh_note}")
+    if modal_fetch_error:
+        dynamic_notes.append(f"modal: {modal_fetch_error}")
     dynamic_notes.append(
         "modal: reporting lag: Modal billing reports lag real-time execution; "
         "the current hour is partial and unsettled runtime may not yet be reflected."

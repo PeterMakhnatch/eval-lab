@@ -99,23 +99,11 @@ def aggregate_daily(rows: list[BillingRow]) -> dict[date, float]:
 def store_billing_rows(database_url: str, rows: list[BillingRow], *, resolution: str) -> int:
     """Upsert fetched rows into the catalog. Returns the row count.
 
-    Atomic whole-day replacement: replaces existing rows of the same resolution
-    for the affected UTC dates in one transaction, so stored hourly coverage
-    for each day is complete by construction.
+    Pure upsert: inserts new rows and updates existing rows on conflict,
+    never deleting existing rows so older partial fetches cannot erase newer data.
     """
     with psycopg.connect(database_url) as connection:
         connection.execute(BILLING_TABLE_DDL)
-        if rows:
-            days = {row.interval_start.date() for row in rows}
-            for target_day in days:
-                connection.execute(
-                    """
-                    DELETE FROM modal_billing_rows
-                    WHERE resolution = %s
-                      AND (interval_start AT TIME ZONE 'UTC')::date = %s
-                    """,
-                    (resolution, target_day),
-                )
         for row in rows:
             connection.execute(
                 """
@@ -141,19 +129,17 @@ def store_billing_rows(database_url: str, rows: list[BillingRow], *, resolution:
     return len(rows)
 
 
-def refresh_modal_billing(
-    database_url: str,
+def fetch_modal_billing_report(
     *,
     start: date,
     end: date,
     repo_root: Any | None = None,
     runner: Any | None = None,
     resolution: str = "h",
-) -> int:
-    """Fetch Modal billing rows (read-only) and upsert them into the catalog.
+) -> list[BillingRow]:
+    """Fetch Modal billing rows (read-only) via Modal CLI report.
 
-    Reuses ``modal_default_runner``, ``normalize_report_rows``, and
-    ``store_billing_rows``. Returns the count of stored rows.
+    Returns the normalized list of :class:`BillingRow` objects in memory.
     Raises ``RuntimeError`` if the runner fails or returns unreadable output.
     """
     import json
@@ -182,7 +168,30 @@ def refresh_modal_billing(
         payload = json.loads(completed.stdout)
     except Exception as exc:
         raise RuntimeError(f"modal billing report unreadable: {exc}") from exc
-    rows = normalize_report_rows(payload, resolution=resolution)
+    return normalize_report_rows(payload, resolution=resolution)
+
+
+def refresh_modal_billing(
+    database_url: str,
+    *,
+    start: date,
+    end: date,
+    repo_root: Any | None = None,
+    runner: Any | None = None,
+    resolution: str = "h",
+) -> int:
+    """Fetch Modal billing rows (read-only) and upsert them into the catalog.
+
+    Reuses ``fetch_modal_billing_report`` and ``store_billing_rows``.
+    Returns the count of stored rows.
+    """
+    rows = fetch_modal_billing_report(
+        start=start,
+        end=end,
+        repo_root=repo_root,
+        runner=runner,
+        resolution=resolution,
+    )
     return store_billing_rows(database_url, rows, resolution=resolution)
 
 

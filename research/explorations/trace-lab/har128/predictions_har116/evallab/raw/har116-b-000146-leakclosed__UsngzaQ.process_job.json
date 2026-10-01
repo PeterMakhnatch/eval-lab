@@ -1,0 +1,709 @@
+{
+  "acceptance": {
+    "agreement": {
+      "agree_accept": 31,
+      "agree_reject": 0,
+      "disagree": 0,
+      "inferred_unknown": 0
+    },
+    "counts": {
+      "false": 0,
+      "true": 31,
+      "unknown": 0
+    },
+    "provenance": {
+      "inferred": 0,
+      "reconstructed": 0,
+      "recorded": 31
+    }
+  },
+  "agent_steps": 31,
+  "assembly_pattern": "single_head",
+  "claim_regime": {
+    "end": 32,
+    "end_doc": "head",
+    "start": 30,
+    "start_doc": "head",
+    "steps": 3
+  },
+  "completion_refs": [
+    "head#31",
+    "head#32"
+  ],
+  "confirmation_loop": null,
+  "cost_attempted_usd": 0.0,
+  "cost_estimate_reason": "shared GPU, not additive; excludes sandbox and warm periods; see evallab spend day",
+  "cost_estimate_usd": 0.68098151948976,
+  "cost_reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+  "cost_source": "proxy_ledger_x_pinned_price",
+  "cost_usd": null,
+  "counts": {
+    "evidence": [],
+    "flags": [],
+    "judgments": [
+      {
+        "accuracy": null,
+        "accuracy_note": "display only; HAR-119 pending; never decides",
+        "attribution": "model",
+        "label": "blame",
+        "value": "R-COMP-02"
+      }
+    ],
+    "raw_reward": 0.0,
+    "reasons": [],
+    "schema": "evallab.counts/v1",
+    "scored": true,
+    "task_status": {
+      "digest_match": true,
+      "evidence": [
+        "research/experiments/har108-python-census/task_health.parquet#format-code-task-000146",
+        "library/task-variants/mimo-v2.6-rl__format-code-task-000146/3415583f08d4.json",
+        "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-000146"
+      ],
+      "ledger_status": "usable",
+      "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-000146",
+      "reason": "status=usable; nop sound, leak closed",
+      "run_digest": "sha256:3415583f08d45afa011bc4230848a083058ca14c9dca2166e849056727da7a71",
+      "source": "python_task_ledger",
+      "source_sha256": "949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a",
+      "status": "usable",
+      "task_id": "format-code-task-000146",
+      "trial_digest": "sha256:3415583f08d45afa011bc4230848a083058ca14c9dca2166e849056727da7a71"
+    },
+    "verdict": "counted_fail"
+  },
+  "coverage": {
+    "complete": true,
+    "continuation_count": 0,
+    "continuation_indices": [],
+    "continuations_missing": [],
+    "copied_context_steps": 0,
+    "duplicate_segments": {},
+    "duplicated_steps": 0,
+    "gaps": [],
+    "malformed_steps": 0,
+    "notes": [],
+    "parts": [
+      {
+        "copied_steps": 0,
+        "index": 0,
+        "kind": "head",
+        "path": "trajectory.json",
+        "readable": true,
+        "session_id": "15b7516d-feb8-4459-9e79-861ad8b3df32",
+        "steps": 32
+      }
+    ],
+    "summarization_count": 0,
+    "trajectory_head": true,
+    "unique_steps": 32
+  },
+  "decision": {
+    "asked": {
+      "excerpt": null,
+      "grader_gap": "instruction.md not located; deliverable check skipped",
+      "grader_tests_asked": "unknown",
+      "instruction_bytes": null,
+      "instruction_present": false
+    },
+    "attribution": "model",
+    "counts": {
+      "evidence": [],
+      "note": "Rendered from the HAR-78 counts field. Not computed here.",
+      "reasons": [],
+      "status": "rendered",
+      "task_ledger": {
+        "digest_match": true,
+        "evidence": [
+          "research/experiments/har108-python-census/task_health.parquet#format-code-task-000146",
+          "library/task-variants/mimo-v2.6-rl__format-code-task-000146/3415583f08d4.json",
+          "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-000146"
+        ],
+        "ledger_status": "usable",
+        "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-000146",
+        "reason": "status=usable; nop sound, leak closed",
+        "run_digest": "sha256:3415583f08d45afa011bc4230848a083058ca14c9dca2166e849056727da7a71",
+        "source": "python_task_ledger",
+        "source_sha256": "949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a",
+        "status": "usable",
+        "task_id": "format-code-task-000146",
+        "trial_digest": "sha256:3415583f08d45afa011bc4230848a083058ca14c9dca2166e849056727da7a71"
+      },
+      "verdict": "counted_fail"
+    },
+    "did": {
+      "evidence_steps": [
+        "head#31",
+        "head#32"
+      ],
+      "last_edit_excerpt": "cd /testbed && python - <<'EOF'",
+      "last_edit_step": 25,
+      "note": "harness-confirmed task_complete at head#31, head#32, but the verifier contradicts the claim (0/1 tests pass)",
+      "secondary": null,
+      "step": "head#31"
+    },
+    "facts": {
+      "calls": 31,
+      "fetches": [],
+      "grader_gap": "instruction.md not located; deliverable check skipped",
+      "instruction_excerpt": null,
+      "nop_same_crash": {
+        "answer": "unknown",
+        "nop_trial": null,
+        "reason": "No same-task nop crash comparison was recorded."
+      },
+      "stop_reason": "task_complete_confirmed",
+      "tokens": {
+        "attribution": "single_trial",
+        "input_tokens": 440043,
+        "output_tokens": 6521,
+        "path": "lab-metadata.json#provider_usage",
+        "reason": null,
+        "scope": "job",
+        "source": "proxy_settled_ledger",
+        "total_tokens": 446564
+      },
+      "verifier_message": ""
+    },
+    "fetched_fix": {
+      "command": null,
+      "fetched": false,
+      "kind": null,
+      "note": null,
+      "step": null
+    },
+    "first_failure": null,
+    "judgments": {
+      "agreement": {
+        "abstentions": 0,
+        "artifact": "research/explorations/trace-lab/har119/page_scores.json",
+        "blame_abstentions": 0,
+        "cohort": "HAR-119 part 2: 12 HAR-110 split-v2 runs",
+        "eligible_n": 11,
+        "excluded_rater_disagreement": 1,
+        "first_failure_coverage": {
+          "abstentions": 11,
+          "expressed": 1,
+          "of": 12
+        },
+        "frozen_at": "2026-10-01T00:00:02Z",
+        "grader_alignment": "opinion with no page-measured calibration on this cohort",
+        "in_sample": false,
+        "limits": "Out-of-sample for the loop rule. Loop kind: n=11 agreed cells. First failure: n=9 agreed cells with page coverage 1/12 (11 abstentions). Blame 11/11 is uninformative on this cohort: the raters say model on every failure, so a constant prior scores the same. Grader alignment stays opinion.",
+        "method": "research/explorations/trace-lab/har119/score_page.py",
+        "page_vs_agreed_blame": {
+          "agree": 11,
+          "n": 11
+        },
+        "page_vs_agreed_first_failure": {
+          "agree": 1,
+          "n": 9
+        },
+        "page_vs_agreed_loop_kind": {
+          "agree": 7,
+          "n": 11
+        },
+        "page_vs_agreed_loop_present": {
+          "agree": 7,
+          "n": 11
+        },
+        "page_vs_loop_rule_kind": {
+          "agree": 12,
+          "n": 12
+        },
+        "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+        "predictor_functions": {
+          "names": [
+            "trial_decision.classify_loop_kind",
+            "trial_decision._claim_bearing",
+            "token_flow._loop_onset"
+          ],
+          "sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae"
+        },
+        "rater_agreement_blame": {
+          "agree": 11,
+          "n": 12
+        },
+        "rater_agreement_first_failure": {
+          "agree": 9,
+          "n": 12
+        },
+        "rater_agreement_loop_kind": {
+          "agree": 11,
+          "n": 12
+        },
+        "rater_agreement_loop_present": {
+          "agree": 11,
+          "n": 12
+        },
+        "selection_sha256": "941db9c064e34a2d6f9f7209df42a92cee13b20e776c8fd28c7cc72bc4de860f"
+      },
+      "blame": {
+        "attribution": "model",
+        "note": "harness-confirmed task_complete at head#31, head#32, but the verifier contradicts the claim (0/1 tests pass)",
+        "rule_id": "R-COMP-02",
+        "whose": "model"
+      },
+      "first_failure": null,
+      "grader_alignment": {
+        "answer": "unknown",
+        "why": "instruction.md not located; deliverable check skipped"
+      },
+      "label": "opinion",
+      "loop_kind": {
+        "claim_bearing_turns": 1,
+        "claim_fraction": 1.0,
+        "first_prompt_step": 31,
+        "kind": "none",
+        "loop_onset_step": null,
+        "rule": "HAR-119",
+        "stop_reason": "task_complete_confirmed",
+        "turns_after_prompt": 1
+      }
+    },
+    "nop_same_crash": {
+      "answer": "unknown",
+      "nop_trial": null,
+      "reason": "No same-task nop crash comparison was recorded."
+    },
+    "pass_tainted": {
+      "flagged": false,
+      "reasons": [],
+      "status": "not_a_pass"
+    },
+    "reward": 0.0,
+    "reward_why": "Reward `0.0`. Harness-confirmed task_complete at head#31, head#32, but the verifier contradicts the claim (0/1 tests pass).",
+    "rule_id": "R-COMP-02",
+    "schema": "trial_decision/v3",
+    "scored": true,
+    "whose": "model"
+  },
+  "diagnosis": {
+    "exception_class": null,
+    "heuristic_label": "planning_no_edit",
+    "modes": [
+      {
+        "excerpt": "New Terminal Output: root@63946de5-9afa-4677-9612-141694f183c1:/testbed# cd /testbed && git config --global core.pager cat 2>/dev/null; git diff --no-pager -- p...",
+        "mode": "wrong_tool_arguments",
+        "step_ids": [
+          "28"
+        ]
+      }
+    ],
+    "notices": [
+      "stop reason: prose_completion (final turn mapped prose_completion to task_complete)"
+    ],
+    "outcome": "scored",
+    "reward": 0.0
+  },
+  "errors": {
+    "analysis": null,
+    "decision": null,
+    "diagnosis": null,
+    "outline": null,
+    "token_flow": null
+  },
+  "first_failure": null,
+  "flags": [
+    "completion_handshake:head#31:0x-echo",
+    "claim_regime:3-steps",
+    "outcome:R-COMP-02:model",
+    "diagnosis:wrong_tool_arguments",
+    "completed",
+    "post_edit_input_share:33%",
+    "max_prompt:22203"
+  ],
+  "grader_evidence": null,
+  "handshake": {
+    "confirmed": true,
+    "echo_task_complete_turns": 0,
+    "first_prompt_ref": "head#31",
+    "prompt_tokens_after_first_prompt": 22203,
+    "prompts": 1,
+    "steps_without_metrics": 0,
+    "turns_after_first_prompt": 1
+  },
+  "identical_runs": [],
+  "loop_cost": {
+    "all_steps": {
+      "completion": 6521,
+      "prompt": 440043,
+      "steps": 31,
+      "steps_without_metrics": 0
+    },
+    "confirmation": null,
+    "identical": null,
+    "in_loops": null,
+    "loop_prompt_share": null,
+    "result_input_tokens": 440043,
+    "spans": []
+  },
+  "loop_suspicion": {
+    "cyclic_patterns_count": 0,
+    "detected": false,
+    "reasons": [],
+    "repeated_command_count": 0,
+    "repeated_error_count": 0,
+    "score": 0.0
+  },
+  "model_name": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+  "model_steps": 31,
+  "outcome_failure": {
+    "attribution": "model",
+    "evidence_step_refs": [
+      "head#31",
+      "head#32"
+    ],
+    "grader_note": "instruction.md not located; deliverable check skipped",
+    "loop_token_cost": {
+      "completion": 559,
+      "prompt": 43937
+    },
+    "note": "harness-confirmed task_complete at head#31, head#32, but the verifier contradicts the claim (0/1 tests pass)",
+    "rule_id": "R-COMP-02",
+    "step_id": 31,
+    "step_ref": "head#31",
+    "tag": "completion"
+  },
+  "outline": {
+    "agent_steps": 0,
+    "exception_class": null,
+    "primary_reward": null,
+    "status": "accounted_unavailable",
+    "total_steps": 0
+  },
+  "rejection_causes": {},
+  "reward": 0.0,
+  "reward_source": "verifier_result",
+  "schema": "process_job/v1",
+  "scored": true,
+  "secondaries": [],
+  "shape_counts": {
+    "prose": 31
+  },
+  "stitched_steps": 32,
+  "stop_reason": "task_complete_confirmed",
+  "taint": [],
+  "task_name": "mimo-v2.6-rl/format-code-task-000146",
+  "task_package_digest": "sha256:3415583f08d45afa011bc4230848a083058ca14c9dca2166e849056727da7a71",
+  "token_flow": {
+    "last_useful_edit": {
+      "call_index": 24,
+      "command_excerpt": "cd /testbed && python - <<'EOF'",
+      "kind": "write-call",
+      "persistence_reason": "touched basename present in final diff",
+      "persists_in_final_diff": true,
+      "step_id": 25,
+      "touched_paths": [
+        "CHANGELOG.md"
+      ]
+    },
+    "loop_onset": {
+      "reason": "no repeat run detected",
+      "step_id": null
+    },
+    "prompt_series": [
+      {
+        "call_index": 1,
+        "completion_tokens": 103,
+        "prompt_tokens": 2278,
+        "step_id": 2
+      },
+      {
+        "call_index": 2,
+        "completion_tokens": 67,
+        "prompt_tokens": 2725,
+        "step_id": 3
+      },
+      {
+        "call_index": 3,
+        "completion_tokens": 160,
+        "prompt_tokens": 5119,
+        "step_id": 4
+      },
+      {
+        "call_index": 4,
+        "completion_tokens": 583,
+        "prompt_tokens": 6064,
+        "step_id": 5
+      },
+      {
+        "call_index": 5,
+        "completion_tokens": 951,
+        "prompt_tokens": 7416,
+        "step_id": 6
+      },
+      {
+        "call_index": 6,
+        "completion_tokens": 770,
+        "prompt_tokens": 8569,
+        "step_id": 7
+      },
+      {
+        "call_index": 7,
+        "completion_tokens": 154,
+        "prompt_tokens": 9720,
+        "step_id": 8
+      },
+      {
+        "call_index": 8,
+        "completion_tokens": 53,
+        "prompt_tokens": 10036,
+        "step_id": 9
+      },
+      {
+        "call_index": 9,
+        "completion_tokens": 55,
+        "prompt_tokens": 10425,
+        "step_id": 10
+      },
+      {
+        "call_index": 10,
+        "completion_tokens": 425,
+        "prompt_tokens": 10671,
+        "step_id": 11
+      },
+      {
+        "call_index": 11,
+        "completion_tokens": 306,
+        "prompt_tokens": 11646,
+        "step_id": 12
+      },
+      {
+        "call_index": 12,
+        "completion_tokens": 90,
+        "prompt_tokens": 12734,
+        "step_id": 13
+      },
+      {
+        "call_index": 13,
+        "completion_tokens": 83,
+        "prompt_tokens": 13316,
+        "step_id": 14
+      },
+      {
+        "call_index": 14,
+        "completion_tokens": 390,
+        "prompt_tokens": 13760,
+        "step_id": 15
+      },
+      {
+        "call_index": 15,
+        "completion_tokens": 88,
+        "prompt_tokens": 14738,
+        "step_id": 16
+      },
+      {
+        "call_index": 16,
+        "completion_tokens": 94,
+        "prompt_tokens": 15173,
+        "step_id": 17
+      },
+      {
+        "call_index": 17,
+        "completion_tokens": 219,
+        "prompt_tokens": 15534,
+        "step_id": 18
+      },
+      {
+        "call_index": 18,
+        "completion_tokens": 91,
+        "prompt_tokens": 16103,
+        "step_id": 19
+      },
+      {
+        "call_index": 19,
+        "completion_tokens": 433,
+        "prompt_tokens": 16492,
+        "step_id": 20
+      },
+      {
+        "call_index": 20,
+        "completion_tokens": 89,
+        "prompt_tokens": 17493,
+        "step_id": 21
+      },
+      {
+        "call_index": 21,
+        "completion_tokens": 64,
+        "prompt_tokens": 17742,
+        "step_id": 22
+      },
+      {
+        "call_index": 22,
+        "completion_tokens": 47,
+        "prompt_tokens": 18421,
+        "step_id": 23
+      },
+      {
+        "call_index": 23,
+        "completion_tokens": 48,
+        "prompt_tokens": 18599,
+        "step_id": 24
+      },
+      {
+        "call_index": 24,
+        "completion_tokens": 197,
+        "prompt_tokens": 18909,
+        "step_id": 25
+      },
+      {
+        "call_index": 25,
+        "completion_tokens": 56,
+        "prompt_tokens": 19390,
+        "step_id": 26
+      },
+      {
+        "call_index": 26,
+        "completion_tokens": 73,
+        "prompt_tokens": 20153,
+        "step_id": 27
+      },
+      {
+        "call_index": 27,
+        "completion_tokens": 92,
+        "prompt_tokens": 20576,
+        "step_id": 28
+      },
+      {
+        "call_index": 28,
+        "completion_tokens": 93,
+        "prompt_tokens": 20818,
+        "step_id": 29
+      },
+      {
+        "call_index": 29,
+        "completion_tokens": 88,
+        "prompt_tokens": 21486,
+        "step_id": 30
+      },
+      {
+        "call_index": 30,
+        "completion_tokens": 365,
+        "prompt_tokens": 21734,
+        "step_id": 31
+      },
+      {
+        "call_index": 31,
+        "completion_tokens": 194,
+        "prompt_tokens": 22203,
+        "step_id": 32
+      }
+    ],
+    "prompt_summary": {
+      "first": 2278,
+      "max": 22203,
+      "max_step_id": 32,
+      "median": 15173.0,
+      "n_calls": 31,
+      "reason": null,
+      "slope_per_call": 621.6443548387097,
+      "steps_without_metrics": 0
+    },
+    "schema": "token_flow/v1",
+    "stop": {
+      "exception_type": null,
+      "metadata_stop_reason": null,
+      "reason": "agent stopped without exception and without a harness stop label (clean finish, unlabeled by this harness version)",
+      "stop_reason": null
+    },
+    "summarisations": {
+      "discrepancy": null,
+      "events": [],
+      "metadata_count": 0,
+      "metadata_reason": null
+    },
+    "tokens_after_last_edit": {
+      "input_tokens": 146360,
+      "note": null,
+      "output_tokens": 961,
+      "share_input": 0.3326,
+      "share_output": 0.1474,
+      "totals_source": "agent_result"
+    },
+    "tokens_after_reason": null,
+    "top_terminal_outputs": [
+      {
+        "call_index": 2,
+        "chars": 10068,
+        "est_tokens": 2517,
+        "next_prompt_tokens": 5119,
+        "step_id": 3
+      },
+      {
+        "call_index": 4,
+        "chars": 4208,
+        "est_tokens": 1052,
+        "next_prompt_tokens": 7416,
+        "step_id": 5
+      },
+      {
+        "call_index": 5,
+        "chars": 3766,
+        "est_tokens": 941,
+        "next_prompt_tokens": 8569,
+        "step_id": 6
+      },
+      {
+        "call_index": 3,
+        "chars": 3012,
+        "est_tokens": 753,
+        "next_prompt_tokens": 6064,
+        "step_id": 4
+      },
+      {
+        "call_index": 11,
+        "chars": 2662,
+        "est_tokens": 665,
+        "next_prompt_tokens": 12734,
+        "step_id": 12
+      }
+    ],
+    "trajectory": {
+      "agent_steps_without_metrics": 0,
+      "n_agent_steps": 31,
+      "n_steps_stitched": 32
+    },
+    "trajectory_reason": null,
+    "trial_name": "har116-b-000146-leakclosed__UsngzaQ"
+  },
+  "tokens_attempted_proxy": 446564,
+  "tokens_native": {
+    "input_tokens": 440043,
+    "output_tokens": 6521,
+    "source": "result.json#agent_result"
+  },
+  "tokens_proxy": {
+    "attribution": "single_trial",
+    "input_tokens": 440043,
+    "output_tokens": 6521,
+    "path": "lab-metadata.json#provider_usage",
+    "reason": null,
+    "scope": "job",
+    "source": "proxy_settled_ledger",
+    "total_tokens": 446564
+  },
+  "tokens_steps": {
+    "agent_steps": 31,
+    "completion_tokens": 6521,
+    "metered_steps": 31,
+    "prompt_tokens": 440043,
+    "reason": null,
+    "total_tokens": 446564,
+    "unmetered_steps": 0
+  },
+  "trial_concurrency": 1,
+  "trial_name": "har116-b-000146-leakclosed__UsngzaQ",
+  "trial_wall_hours": 0.2419192925,
+  "trial_wall_reason": null,
+  "wedge": {
+    "executed_turns": 29,
+    "keystroke_source": "recorded",
+    "short_stretches": 1,
+    "states": {
+      "pager": 1,
+      "prompt": 28
+    },
+    "stretches": []
+  }
+}

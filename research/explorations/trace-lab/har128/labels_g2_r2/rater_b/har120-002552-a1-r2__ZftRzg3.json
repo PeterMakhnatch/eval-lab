@@ -1,0 +1,46 @@
+{
+  "blame": "none",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "grep -rn \"roidmi.vacuum.v66\\|roidmi.vacuum.v60\" /testbed/miio --include=*.py",
+      "ref": "head#53"
+    },
+    {
+      "quote": "you are repeating; change approach or finish",
+      "ref": "head#60"
+    },
+    {
+      "quote": "The fix is complete. Here's a summary of the changes:",
+      "ref": "head#81"
+    },
+    {
+      "quote": "cd /testbed && git --no-pager diff --stat",
+      "ref": "head#82"
+    },
+    {
+      "quote": "echo \"task_complete\"",
+      "ref": "head#96"
+    }
+  ],
+  "first_failure": null,
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#82",
+    "head#96"
+  ],
+  "notes": "TrialBudgetExhaustedError with 96 episodes (<120) and 2.46M input tokens (~2.5M). No fetch of any kind; fix derived locally. Post-completion claims (15 turns) beat mid-run grep repeat (8 turns).",
+  "off_limits_opened": false,
+  "pass_copied": false,
+  "pass_copied_confidence": "high",
+  "sft_cut": {
+    "clean": false,
+    "cut_step_id": 81,
+    "reason": "genuine fix but steps 53-60 repeat the identical empty-message grep 8 times inside kept steps"
+  },
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har120-002552-a1-r2__ZftRzg3"
+}

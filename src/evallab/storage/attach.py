@@ -8,6 +8,7 @@ still returned.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -186,7 +187,8 @@ def _postgres_dsn() -> str:
     return database_url_from_environment()
 
 
-def _postgres_identity(dsn: str) -> str:
+def postgres_identity(dsn: str) -> str:
+    """Return a PostgreSQL target label without its user/password fields."""
     try:
         from psycopg.conninfo import conninfo_to_dict
 
@@ -204,7 +206,7 @@ def _attach_z2(conn: duckdb.DuckDBPyConnection, dsn: str) -> ZoneStatus:
         conn.execute("INSTALL postgres_scanner")
         conn.execute("LOAD postgres_scanner")
         conn.execute(f"ATTACH {_sql_string_literal(dsn)} AS z2 (TYPE postgres)")
-        return ZoneStatus("z2", True, detail=_postgres_identity(dsn))
+        return ZoneStatus("z2", True, detail=postgres_identity(dsn))
     except Exception as exc:
         detail = str(exc)
         for candidate in (dsn, dsn.replace("'", "''")):
@@ -551,6 +553,24 @@ def attach(
         conn.close()
         raise
 
+
+def attach_trace(
+    *,
+    repo_root: Path | None = None,
+    results_home: Path | None = None,
+    explicit_derived: Path | None = None,
+    job_dirs: Sequence[Path] | None = None,
+) -> tuple[duckdb.DuckDBPyConnection, dict[str, Any]]:
+    """Return transient DuckDB connection with trace query views attached (no PG/network)."""
+    from evallab.trace_query import connect_trace_query
+
+    root = repo_root or Path.cwd()
+    return connect_trace_query(
+        repo_root=root,
+        results_home=results_home,
+        derived_root=explicit_derived,
+        job_dirs=job_dirs,
+    )
 
 def build_sql_preamble(
     dsn: str, derived: Path, root: Path, *, catalog_pair: dict[str, Path] | None = None

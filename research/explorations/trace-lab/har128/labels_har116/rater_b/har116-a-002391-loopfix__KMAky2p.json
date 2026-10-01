@@ -1,0 +1,27 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "You are an AI assistant tasked with solving command-line tasks in a Linux environment.",
+      "ref": "head#1"
+    }
+  ],
+  "first_failure": {
+    "quote": "ModuleNotFoundError: No module named 'duckdb'",
+    "ref": "head#1",
+    "what": "Harness loopfix crashed importing duckdb before any agent action"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Trajectory holds only head#1 (user); result.json n_episodes 1, verifier null; crash in exception.txt/trial.log: loopfix.py live_loop_action -> token_flow._is_edit -> traj import duckdb. First-failure quote is the exception text since no agent step recorded the error.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "har116-a-002391-loopfix__KMAky2p"
+}

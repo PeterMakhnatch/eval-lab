@@ -1,0 +1,108 @@
+{
+ "trial": "har116-b-002308-leakclosed__idknFAu",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002308-leakclosed/har116-b-002308-leakclosed__idknFAu",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002308-leakclosed",
+ "task": "mimo-v2.6-rl/format-code-task-002308",
+ "verifier": {
+  "scored": true,
+  "reward": 1.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "none",
+  "attribution": "n/a",
+  "rule_id": "R-NONE-01",
+  "evidence_step_refs": [
+   "head#2",
+   "head#20"
+  ],
+  "note": "scored pass with no outcome-relevant failure",
+  "secondary": "error_recovery/model secondary: identical run head#2-head#20",
+  "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): no_prompt after head#52 (`cd /testbed && python -m pytest tests/commands/hook_impl_tes`), 26 turns head#53-head#78 with no interrupt, until run end"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 19,
+    "span": [
+     "head#2",
+     "head#20"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 238698,
+   "completion": 17775,
+   "steps": 19,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 238698,
+   "completion": 17775,
+   "steps": 19,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2440994,
+   "completion": 24498,
+   "steps": 77,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.0978,
+  "result_input_tokens": 2440994
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 77,
+  "states": {
+   "no_prompt": 29,
+   "prompt": 48
+  },
+  "stretches": [
+   {
+    "trigger_ref": "head#52",
+    "trigger_command": "cd /testbed && python -m pytest tests/commands/hook_impl_test.py tests/commands/install_uninstall_test.py tests/commands/run_test.py tests/repository_test.py te",
+    "cause": "no_prompt",
+    "screen": "sts/commands/run_test.py tests/repository_test.py tests/main_test.py -q 2>&1 | tail -10",
+    "start_ref": "head#53",
+    "end_ref": "head#78",
+    "turns": 26,
+    "interrupt_ref": null,
+    "interrupt_keys": null,
+    "prompt_returned": false,
+    "until_run_end": true,
+    "prompt_tokens": 1126268,
+    "steps_without_metrics": 0
+   }
+  ],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "ba8d8358d2bb6ca6fae7c00e871c0271e587269c"
+ },
+ "nop_runs_dir": null
+}

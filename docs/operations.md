@@ -209,12 +209,14 @@ independent campaigns do not reuse each other's trials. Resume uses an existing
 completed receipt's recorded in-repository job path after provenance checks;
 missing retained evidence must be restored, not silently rerun.
 
-Use the existing `CohortComparisonSpec` with
+For native-reward searches, use the existing `CohortComparisonSpec` with
 `declared_variable="preamble_content_sha256"` and `pairing_key="task_digest"` for
-seed-versus-candidate analysis. A GEPA callback that reads a cached result is not
-another trial or another unit of spend. The seed is a supplementary instruction,
-not a no-extra-instructions stock baseline. Keep failed infrastructure attempts
-outside the scored comparison while retaining their raw evidence and spend.
+seed-versus-candidate analysis. A GEPA callback reading a cached result is not
+another trial or another unit of spend. A nonempty seed is supplementary
+instruction content; an exact zero-byte instruction seed represents stock with
+no addendum. Whitespace is a different candidate, and an empty Python toolbox is
+invalid. Retain failed infrastructure attempts and their evidence and spend
+outside the scored comparison.
 Run `evallab compare <spec.json>` without `--index` for already-owned native
 jobs. That flag assigns legacy/raw job ownership; it is not a general comparison
 index and correctly refuses to replace a job's original experiment/spec ID.
@@ -241,6 +243,58 @@ Raw rewards and evaluation receipts remain unchanged;
 unresolved or missing provider accounting halts the run rather than reporting a
 free zero score. Selection evaluates common-pool utility but vetoes any per-task
 native reward regression and retains the seed on utility ties.
+
+### Counted stock seed reuse and the overnight gate
+
+Set `"score_rules": ["counted_verdict"]` to score authoritative
+`process-job` reports rather than raw reward. A `counted_pass` scores 1 and a
+`counted_fail` scores 0. Excluded, missing, malformed or mismatched reports are
+unavailable, with a persisted null score; they are never fabricated failures.
+A finite verifier reward after `AgentTimeoutError`, `TrialBudgetExhaustedError`
+or `LoopBreakStop` is an agent outcome, not infrastructure failure. A stop with
+no finite reward remains unavailable; unrelated execution errors remain errors.
+The raw reward, canonical counts, report path and byte digest remain in the
+evaluation receipt. Do not combine this rule with `upstream_fetch_zero`:
+canonical counts already distinguish a tainted pass from a fetch-and-fail.
+
+`LabEvaluator.import_seed_evaluation(job_dir, example)` imports a finished,
+retained single-trial stock job for the exact empty instruction seed. It requires
+the counted rule and verifies task-package, agent/model and addendum provenance.
+With a retained target base spec, its full native `experiment-spec.json` must
+match the frozen harness digest, environment, attempts, concurrency, timeout,
+provider limits and policy. Terminus-2 retains provider limits in that base
+spec, not campaign-level `provider_ceilings`. Native job bytes are not rewritten.
+The deterministic budget identity is counted once, later empty-seed evaluations
+reuse the same job, and another native repeat cannot overwrite that seed receipt.
+Both import and every cached empty-seed reuse reject declared toolbox digests
+and nonempty or invalid toolbox metadata; a retained stock receipt cannot hide
+later augmentation of its native job.
+Reused evidence is not a fresh launch or a claim of zero historical cost.
+
+For HAR-135, `research/experiments/ovn-sft-v0/gepa_gate.py freeze` takes explicit
+`--proposal`, `--eval-tasks` and `--out` paths. It binds their bytes and freezes
+the first ten training tasks and repeat 1. This metadata check does not replace
+the independent G1 contamination audit. `select` takes `--manifest`, `--seed`,
+up to two `--candidates` receipts, and `--out`; each candidate receipt binds
+`candidate_id`, `candidate_path`, timezone-aware `frozen_at` and `rows`.
+Selection normally requires all ten seed/candidate outcomes to be countable.
+An explicit pre-candidate `seed_exclusions` ruling may remove canonical
+excluded repeat-1 seeds from every arm without replacing them: keep the ten-task
+parent, bind `approved_by`, `declared_at`, `source_ref` and native excluded `rows`,
+and supply only the remaining tasks for stock and every candidate. A declaration
+after candidate freeze, reintroduced task, or later candidate-only exclusion
+cannot establish a paired improvement. HAR-135's 08:25Z ruling removes 001647
+(infra), 000341 and 001870 (copied/tainted), leaving the fixed seven in parent order.
+More counted passes wins; a pass tie wins only with known, strictly fewer settled
+proxy input-plus-output tokens. Unknown usage is not zero and an exact seed tie
+retains stock. Native Harbor usage stays separate.
+Build rows from verified evaluator receipts and retain each row's candidate,
+native configuration/lock and capture bindings. The selector verifies supplied
+instruction bytes and coverage, not that those bytes generated every supplied row.
+The $2 total gate ceiling still requires the ordinary pre-dispatch spend check
+and serving-session accounting. This training selection is exploratory; G5
+analysis follows the frozen [overnight preregistration](../research/experiments/ovn-sft-v0/PREREG.md).
+
 
 ### Python toolbox candidates and Oracle contrast
 

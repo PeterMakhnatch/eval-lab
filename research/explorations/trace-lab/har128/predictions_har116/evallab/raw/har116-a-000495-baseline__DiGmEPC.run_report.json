@@ -1,0 +1,1606 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "har116-a-000495-baseline__DiGmEPC",
+    "trial_id": "5b847adf-be59-4486-9f00-acc4e2c248b2",
+    "task": "mimo-v2.6-rl/format-code-task-000495",
+    "job": "HAR-116-har116-a-000495-baseline",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "d200f55c-46c0-4dad-b292-1cc9432c1bf8",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000495-baseline/har116-a-000495-baseline__DiGmEPC"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "failed",
+    "reward": 0.0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "verifier_outcome": "fail",
+    "stop_reason": "trial_budget_exhausted",
+    "stop_detail": "agent metadata stop_reason; binding ceiling: input_tokens",
+    "completion": "Completion: never claimed; the run ended on step 104 (cd /testbed && grep -rn \"FUNCTIONS\" src/cfnlint/ --include=\"*.py\" -r | grep -v \"helpers.py\\|context/context.py\\|jsonsche...).",
+    "execution_problems": {
+      "parse_errors": 1,
+      "prose_completions": 0,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": "<tool_call><function=bash><parameter=command>sed -n 1,100p /testbed/src/cfnlint/rules/functions/_BaseFn.py</parameter><parameter=duration>0.1</parameter></</parameter></function></tool_call>",
+    "verifier_files": [
+      "verifier/agent.diff",
+      "verifier/apply.log",
+      "verifier/reward.txt",
+      "verifier/test-stdout.txt",
+      "verifier/test_output.log"
+    ],
+    "first_failure": {
+      "step": 22,
+      "kind": "harness_rejection",
+      "evidence": "agent step with no executed tool call: <tool_call><function=bash><parameter=command>sed -n 1,100p /testbed/src/cfnlint/rules/functions/_BaseFn.py</parameter><pa...",
+      "confidence": "high"
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T00:06:51.536337+00:00",
+    "finished_at": "2026-10-01T00:19:12.869397+00:00",
+    "total_seconds": 741.333,
+    "phases": {
+      "environment_setup": {
+        "seconds": 102.249,
+        "starts_at_offset_seconds": 0.054
+      },
+      "agent_setup": {
+        "seconds": 10.683,
+        "starts_at_offset_seconds": 103.65
+      },
+      "agent_execution": {
+        "seconds": 620.294,
+        "starts_at_offset_seconds": 114.952
+      },
+      "verifier": {
+        "seconds": 3.245,
+        "starts_at_offset_seconds": 737.93
+      }
+    },
+    "unaccounted_seconds": 4.862,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": 4.698,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 104,
+    "agent_span_seconds": 583.441,
+    "step_gap_seconds": {
+      "count": 100,
+      "median": 4.02,
+      "p90": 10.563,
+      "max": 21.555,
+      "total": 579.405
+    },
+    "slowest_steps": [
+      {
+        "step": 26,
+        "seconds": 21.555,
+        "action": "bash_command: grep -n \"Fn::Join\\|functions\\|DefinitionString\" /testbed/test/unit/rules/resources/stepfunctions/tes..."
+      },
+      {
+        "step": 7,
+        "seconds": 20.943,
+        "action": "bash_command: cat /testbed/src/cfnlint/data/schemas/other/step_functions/statemachine.json ; grep -rn \"DefinitionS..."
+      },
+      {
+        "step": 4,
+        "seconds": 19.972,
+        "action": "bash_command: cd /testbed && cat > /tmp/statemachine.json <<'EOF' { \"AWSTemplateFormatVersion\" : \"2010-09-09\", \"De..."
+      },
+      {
+        "step": 81,
+        "seconds": 13.537,
+        "action": "bash_command: cd /testbed && git log --oneline -5 && git status --short && git diff HEAD --stat | tail -20"
+      },
+      {
+        "step": 24,
+        "seconds": 13.077,
+        "action": "bash_command: sed -n 95,175p /testbed/src/cfnlint/jsonschema/_keywords_cfn.py"
+      }
+    ]
+  },
+  "tokens": {
+    "input": 2476358,
+    "cached_input": 0,
+    "uncached_input": 2476358,
+    "output": 19130,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 2495488,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 2476358,
+        "cached_input": 0,
+        "output": 19130,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 2476358,
+        "cached_input": 0,
+        "output": 19130,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": 2361325,
+        "cached_input": null,
+        "output": 18640,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 101,
+    "llm_steps_with_usage": 101,
+    "context": {
+      "first_prompt_tokens": 1420,
+      "peak_prompt_tokens": 55244,
+      "peak_step": 78,
+      "last_prompt_tokens": 12491
+    },
+    "top_steps": [
+      {
+        "step": 78,
+        "input": 55244,
+        "output": 369,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && python3 - <<'PYEOF' from cfnlint.template import Template from cfnlint.jsonschema.val..."
+      },
+      {
+        "step": 77,
+        "input": 54250,
+        "output": 369,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && python3 - <<'PYEOF' from cfnlint.template import Template from cfnlint.jsonschema.val..."
+      },
+      {
+        "step": 76,
+        "input": 53256,
+        "output": 369,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && python3 - <<'PYEOF' from cfnlint.template import Template from cfnlint.jsonschema.val..."
+      },
+      {
+        "step": 75,
+        "input": 52422,
+        "output": 369,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && python3 - <<'PYEOF' from cfnlint.template import Template from cfnlint.jsonschema.val..."
+      },
+      {
+        "step": 74,
+        "input": 51429,
+        "output": 369,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && python3 - <<'PYEOF' from cfnlint.template import Template from cfnlint.jsonschema.val..."
+      }
+    ]
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 110,
+    "actions": 100,
+    "distinct_tools": 1,
+    "polls": 0,
+    "by_tool": [
+      {
+        "tool": "bash_command",
+        "calls": 110,
+        "ok": 0,
+        "errors": 26,
+        "unknown": 84,
+        "output_chars": 171365,
+        "first_step": 2,
+        "last_step": 104,
+        "judged": 26,
+        "error_rate": 1.0
+      }
+    ],
+    "top_programs": [
+      {
+        "program": "grep",
+        "calls": 30
+      },
+      {
+        "program": "python3",
+        "calls": 22
+      },
+      {
+        "program": "cat",
+        "calls": 14
+      },
+      {
+        "program": "sed",
+        "calls": 14
+      },
+      {
+        "program": "git",
+        "calls": 13
+      },
+      {
+        "program": "find",
+        "calls": 3
+      },
+      {
+        "program": "ls",
+        "calls": 1
+      },
+      {
+        "program": "which",
+        "calls": 1
+      },
+      {
+        "program": "cfn-lint",
+        "calls": 1
+      },
+      {
+        "program": "pip",
+        "calls": 1
+      }
+    ],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 100,
+    "distinct_actions": 85,
+    "repeated_actions": 15,
+    "repeat_rate": 0.15,
+    "returns_to_earlier_action": 0,
+    "consecutive_repeats": 15,
+    "exact_revisits": 9,
+    "same_result_from_different_action": 0,
+    "repeated_errors": 23,
+    "longest_identical_run": {
+      "length": 9,
+      "steps": [
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78
+      ],
+      "start_step": 70,
+      "end_step": 78
+    },
+    "longest_cycle": null,
+    "most_repeated": [
+      {
+        "tool": "bash_command",
+        "target": "cd /testbed && python3 - <<'PYEOF' from cfnlint.template import Template from cfnlint.jsonschema.validators import CfnTemplateValidator from cfnlint.rules.resou...",
+        "count": 9,
+        "steps": [
+          70,
+          71,
+          72,
+          73,
+          74,
+          75,
+          76,
+          77,
+          78
+        ],
+        "identical_results": 5
+      },
+      {
+        "tool": "bash_command",
+        "target": "cd /testbed && python3 - <<'EOF' from cfnlint.template import Template from cfnlint.jsonschema.validators import CfnTemplateValidator from cfnlint.rules.resourc...",
+        "count": 6,
+        "steps": [
+          64,
+          65,
+          66,
+          67,
+          68,
+          69
+        ],
+        "identical_results": 3
+      },
+      {
+        "tool": "bash_command",
+        "target": "cd /testbed && cat src/cfnlint/rules/resources/stepfunctions/StateMachineDefinition.py",
+        "count": 3,
+        "steps": [
+          84,
+          85,
+          86
+        ],
+        "identical_results": 1
+      }
+    ],
+    "loop_suspicion": {
+      "detected": true,
+      "score": 1.0,
+      "reasons": [
+        "repeated_consecutive_command: \"cd /testbed && python3 - <<'EOF'\\nfrom cf\" (6\u00d7 consecutively, steps 64\u201369)",
+        "repeated_consecutive_command: \"cd /testbed && python3 - <<'PYEOF'\\nfrom \" (9\u00d7 consecutively, steps 70\u201378)",
+        "repeated_consecutive_command: 'cd /testbed && cat src/cfnlint/rules/res' (3\u00d7 consecutively, steps 84\u201386)",
+        "repeated_failing_command: bash_command:cd /testbed && python3 - <<'EOF'\nfrom cfnlint.template impor:unknown (10 failures)",
+        "repeated_failing_command: bash_command:cd /testbed && python3 - <<'PYEOF'\nfrom cfnlint.template imp:unknown (9 failures)"
+      ]
+    },
+    "repeats_by_window": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      8,
+      5,
+      2,
+      0
+    ],
+    "revisits_started": {
+      "repeat_rate_by_window": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.8,
+        0.5556,
+        0.2,
+        0.0
+      ],
+      "median_repeat_rate": 0.0,
+      "status": "onset",
+      "reason": null,
+      "window": 6,
+      "steps": [
+        64,
+        73
+      ],
+      "repeat_rate": 0.8
+    }
+  },
+  "subagents": {
+    "observability": "captured",
+    "reason": null,
+    "count": 3,
+    "delegated_count": 0,
+    "summarization_count": 3,
+    "delegation_calls": [],
+    "items": [
+      {
+        "id": "d200f55c-46c0-4dad-b292-1cc9432c1bf8-summarization-1-answers",
+        "kind": "context_summarization",
+        "evidence": "atif_subagent_ref",
+        "location": "agent/trajectory.summarization-1-answers.json",
+        "spawned_at_step": 79,
+        "spawned_at_offset_seconds": 477.707,
+        "model": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+        "steps": 81,
+        "tool_calls": 85,
+        "input_tokens": 56937,
+        "output_tokens": 50,
+        "cost_usd": null,
+        "started_at": "2026-10-01T00:08:47.150321+00:00",
+        "ended_at": "2026-10-01T00:16:42.608529+00:00",
+        "duration_seconds": 475.458,
+        "nested_subagents": 0
+      },
+      {
+        "id": "d200f55c-46c0-4dad-b292-1cc9432c1bf8-summarization-1-questions",
+        "kind": "context_summarization",
+        "evidence": "atif_subagent_ref",
+        "location": "agent/trajectory.summarization-1-questions.json",
+        "spawned_at_step": 79,
+        "spawned_at_offset_seconds": 477.707,
+        "model": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+        "steps": 2,
+        "tool_calls": 0,
+        "input_tokens": 1616,
+        "output_tokens": 59,
+        "cost_usd": null,
+        "started_at": "2026-10-01T00:16:39.903004+00:00",
+        "ended_at": "2026-10-01T00:16:41.085195+00:00",
+        "duration_seconds": 1.182,
+        "nested_subagents": 0
+      },
+      {
+        "id": "d200f55c-46c0-4dad-b292-1cc9432c1bf8-summarization-1-summary",
+        "kind": "context_summarization",
+        "evidence": "atif_subagent_ref",
+        "location": "agent/trajectory.summarization-1-summary.json",
+        "spawned_at_step": 79,
+        "spawned_at_offset_seconds": 477.707,
+        "model": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+        "steps": 79,
+        "tool_calls": 85,
+        "input_tokens": 56480,
+        "output_tokens": 381,
+        "cost_usd": null,
+        "started_at": "2026-10-01T00:08:47.150321+00:00",
+        "ended_at": "2026-10-01T00:16:39.566968+00:00",
+        "duration_seconds": 472.417,
+        "nested_subagents": 0
+      }
+    ],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": [
+      {
+        "step": 79,
+        "kind": "context_management",
+        "detail": "compaction"
+      },
+      {
+        "step": 79,
+        "kind": "summarization_subagent",
+        "detail": "trajectory.summarization-1-summary.json"
+      },
+      {
+        "step": 79,
+        "kind": "summarization_subagent",
+        "detail": "trajectory.summarization-1-questions.json"
+      },
+      {
+        "step": 79,
+        "kind": "summarization_subagent",
+        "detail": "trajectory.summarization-1-answers.json"
+      },
+      {
+        "step": 81,
+        "kind": "inferred_context_drop",
+        "detail": "input tokens fell 55,244 -> 3,178"
+      }
+    ]
+  },
+  "errors": {
+    "tool_errors": 26,
+    "harness_signalled": 0,
+    "inferred_from_output": 26,
+    "status_unknown_calls": 84,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {
+      "inferred_from_output": 26
+    },
+    "first_error": {
+      "step": 4,
+      "offset_seconds": 27.546,
+      "evidence": "output_text"
+    },
+    "ended_in_error": true,
+    "examples": [
+      {
+        "step": 4,
+        "tool": "bash_command",
+        "target": "cd /testbed && cat > /tmp/statemachine.json <<'EOF' { \"AWSTemplateFormatVersion\" : \"2010-09-09\", \"Description\" : \"An exa...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "rocessing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth: Traceback (most recent call last): File \"<frozen site>\", line 213, in addpackage File \"<string>\", line 1, in <module> ModuleNotFoundError: No module named '_distut..."
+      },
+      {
+        "step": 6,
+        "tool": "bash_command",
+        "target": "cd /testbed && cfn-lint /tmp/statemachine.json; echo \"exit=$?\"",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "rocessing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth: Traceback (most recent call last): File \"<frozen site>\", line 213, in addpackage File \"<string>\", line 1, in <module> ModuleNotFoundError: No module named '_distut..."
+      },
+      {
+        "step": 7,
+        "tool": "bash_command",
+        "target": "cat /testbed/src/cfnlint/data/schemas/other/step_functions/statemachine.json ; grep -rn \"DefinitionString\" /testbed/src/...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "/src/cfnlint/data/schemas/us-east-1/providers/us-east-1/AWSCloudFormation.json: No such file or directory Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth: Traceback (most recent call last): File \"<frozen s..."
+      },
+      {
+        "step": 38,
+        "tool": "bash_command",
+        "target": "cd /testbed && python3 -c \" import json with open('/testbed/test/fixtures/templates/good/functions/sub_needed.yaml') as...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "Current Terminal Screen: ModuleNotFoundError: No module named '_distutils_hack' Remainder of file ignored Error processing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth: Traceback (most recent call last): File \"<frozen s..."
+      },
+      {
+        "step": 58,
+        "tool": "bash_command",
+        "target": "cd /testbed && python3 - <<'EOF' import json with open('src/cfnlint/data/schemas/providers/us_east_1/aws-stepfunctions-s...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "rocessing line 1 of /usr/lib/python3/dist-packages/distutils-precedence.pth: Traceback (most recent call last): File \"<frozen site>\", line 213, in addpackage File \"<string>\", line 1, in <module> ModuleNotFoundError: No module named '_distut..."
+      }
+    ],
+    "exception": {
+      "type": "TrialBudgetExhaustedError",
+      "message": "the trial proxy refused a model call: trial budget exhausted",
+      "occurred_at": "2026-10-01T00:19:06.785135Z"
+    }
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 0,
+    "items": []
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 104,
+    "shown_steps": 47,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 0.662,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      },
+      {
+        "step": 2,
+        "offset_seconds": 4.698,
+        "source": "agent",
+        "action": "bash_command: ls /testbed && git -C /testbed log --oneline -5 ; grep -ri \"DefinitionString\" /testbed/src --include...",
+        "status": "unknown",
+        "input_tokens": 1420,
+        "output_tokens": 168,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 3,
+        "offset_seconds": 7.574,
+        "source": "agent",
+        "action": "bash_command: cat /testbed/src/cfnlint/rules/resources/stepfunctions/StateMachineDefinition.py ; git -C /testbed s...",
+        "status": "unknown",
+        "input_tokens": 1916,
+        "output_tokens": 98,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 4,
+        "offset_seconds": 27.546,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && cat > /tmp/statemachine.json <<'EOF' { \"AWSTemplateFormatVersion\" : \"2010-09-09\", \"De...",
+        "status": "error",
+        "input_tokens": 3200,
+        "output_tokens": 1227,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 5,
+        "offset_seconds": 29.925,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && which cfn-lint; pip show cfn-lint 2>/dev/null | head -3; python3 -c \"import cfnlint;...",
+        "status": "unknown",
+        "input_tokens": 4491,
+        "output_tokens": 74,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 6,
+        "offset_seconds": 33.431,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && cfn-lint /tmp/statemachine.json; echo \"exit=$?\"",
+        "status": "error",
+        "input_tokens": 4667,
+        "output_tokens": 49,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 7,
+        "offset_seconds": 54.374,
+        "source": "agent",
+        "action": "bash_command: cat /testbed/src/cfnlint/data/schemas/other/step_functions/statemachine.json ; grep -rn \"DefinitionS...",
+        "status": "error",
+        "input_tokens": 5223,
+        "output_tokens": 1391,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 8,
+        "offset_seconds": 59.323,
+        "source": "agent",
+        "action": "bash_command: find /testbed/src/cfnlint/data/schemas -name \"AWSCloudFormation*\" -o -name \"*CloudFormation*.json\" |...",
+        "status": "unknown",
+        "input_tokens": 8795,
+        "output_tokens": 215,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 9,
+        "offset_seconds": 62.6,
+        "source": "agent",
+        "action": "bash_command: cat /testbed/src/cfnlint/rules/jsonschema/JsonSchema.py ; ls /testbed/src/cfnlint/data/schemas/other...",
+        "status": "unknown",
+        "input_tokens": 9219,
+        "output_tokens": 109,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 10,
+        "offset_seconds": 68.054,
+        "source": "agent",
+        "action": "bash_command: cat /testbed/src/cfnlint/jsonschema/_keywords_cfn.py 2>/dev/null | head -100; ls /testbed/src/cfnlin...",
+        "status": "unknown",
+        "input_tokens": 10714,
+        "output_tokens": 272,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "omitted_steps": [
+          11,
+          37
+        ]
+      },
+      {
+        "step": 38,
+        "offset_seconds": 190.906,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 -c \" import json with open('/testbed/test/fixtures/templates/good/functions/s...",
+        "status": "error",
+        "input_tokens": 25388,
+        "output_tokens": 88,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          39,
+          57
+        ]
+      },
+      {
+        "step": 58,
+        "offset_seconds": 265.023,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'EOF' import json with open('src/cfnlint/data/schemas/providers/us_east_1...",
+        "status": "error",
+        "input_tokens": 36942,
+        "output_tokens": 104,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 59,
+        "offset_seconds": 275.503,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'EOF' # Reproduce the error flow manually from cfnlint.template import Te...",
+        "status": "error",
+        "input_tokens": 37334,
+        "output_tokens": 345,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 60,
+        "offset_seconds": 284.623,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'EOF' from cfnlint.template import Template from cfnlint.jsonschema.valid...",
+        "status": "error",
+        "input_tokens": 38108,
+        "output_tokens": 321,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 61,
+        "offset_seconds": 294.398,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'EOF' from cfnlint.template import Template from cfnlint.jsonschema.valid...",
+        "status": "error",
+        "input_tokens": 39019,
+        "output_tokens": 327,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 62,
+        "offset_seconds": 303.489,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'EOF' from cfnlint.template import Template from cfnlint.jsonschema.valid...",
+        "status": "error",
+        "input_tokens": 39963,
+        "output_tokens": 365,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 63,
+        "offset_seconds": 314.197,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'EOF' from cfnlint.template import Template from cfnlint.jsonschema.valid...",
+        "status": "error",
+        "input_tokens": 40983,
+        "output_tokens": 364,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 64,
+        "offset_seconds": 324.922,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'EOF' from cfnlint.template import Template from cfnlint.jsonschema.valid...",
+        "status": "error",
+        "input_tokens": 41840,
+        "output_tokens": 367,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 65,
+        "offset_seconds": 335.712,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'EOF' from cfnlint.template import Template from cfnlint.jsonschema.valid...",
+        "status": "error",
+        "input_tokens": 42829,
+        "output_tokens": 367,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error",
+          "revisit"
+        ]
+      },
+      {
+        "step": 66,
+        "offset_seconds": 346.046,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'EOF' from cfnlint.template import Template from cfnlint.jsonschema.valid...",
+        "status": "error",
+        "input_tokens": 43818,
+        "output_tokens": 367,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error",
+          "revisit"
+        ]
+      },
+      {
+        "step": 67,
+        "offset_seconds": 356.723,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'EOF' from cfnlint.template import Template from cfnlint.jsonschema.valid...",
+        "status": "error",
+        "input_tokens": 44807,
+        "output_tokens": 367,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error",
+          "revisit"
+        ]
+      },
+      {
+        "step": 68,
+        "offset_seconds": 365.869,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'EOF' from cfnlint.template import Template from cfnlint.jsonschema.valid...",
+        "status": "error",
+        "input_tokens": 45638,
+        "output_tokens": 367,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error",
+          "revisit"
+        ]
+      },
+      {
+        "step": 69,
+        "offset_seconds": 376.131,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'EOF' from cfnlint.template import Template from cfnlint.jsonschema.valid...",
+        "status": "error",
+        "input_tokens": 46627,
+        "output_tokens": 367,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error",
+          "revisit"
+        ]
+      },
+      {
+        "step": 70,
+        "offset_seconds": 386.708,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'PYEOF' from cfnlint.template import Template from cfnlint.jsonschema.val...",
+        "status": "error",
+        "input_tokens": 47616,
+        "output_tokens": 369,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 71,
+        "offset_seconds": 397.271,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'PYEOF' from cfnlint.template import Template from cfnlint.jsonschema.val...",
+        "status": "error",
+        "input_tokens": 48609,
+        "output_tokens": 369,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error",
+          "revisit"
+        ]
+      },
+      {
+        "step": 72,
+        "offset_seconds": 407.265,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'PYEOF' from cfnlint.template import Template from cfnlint.jsonschema.val...",
+        "status": "error",
+        "input_tokens": 49443,
+        "output_tokens": 369,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error",
+          "revisit"
+        ]
+      },
+      {
+        "step": 73,
+        "offset_seconds": 417.809,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'PYEOF' from cfnlint.template import Template from cfnlint.jsonschema.val...",
+        "status": "error",
+        "input_tokens": 50436,
+        "output_tokens": 369,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error",
+          "revisit"
+        ]
+      },
+      {
+        "step": 74,
+        "offset_seconds": 427.44,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'PYEOF' from cfnlint.template import Template from cfnlint.jsonschema.val...",
+        "status": "error",
+        "input_tokens": 51429,
+        "output_tokens": 369,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error",
+          "revisit"
+        ]
+      },
+      {
+        "step": 75,
+        "offset_seconds": 437.324,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'PYEOF' from cfnlint.template import Template from cfnlint.jsonschema.val...",
+        "status": "error",
+        "input_tokens": 52422,
+        "output_tokens": 369,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error",
+          "revisit"
+        ]
+      },
+      {
+        "step": 76,
+        "offset_seconds": 447.083,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'PYEOF' from cfnlint.template import Template from cfnlint.jsonschema.val...",
+        "status": "error",
+        "input_tokens": 53256,
+        "output_tokens": 369,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error",
+          "revisit"
+        ]
+      },
+      {
+        "step": 77,
+        "offset_seconds": 456.916,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'PYEOF' from cfnlint.template import Template from cfnlint.jsonschema.val...",
+        "status": "error",
+        "input_tokens": 54250,
+        "output_tokens": 369,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error",
+          "revisit"
+        ]
+      },
+      {
+        "step": 78,
+        "offset_seconds": 466.579,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 - <<'PYEOF' from cfnlint.template import Template from cfnlint.jsonschema.val...",
+        "status": "error",
+        "input_tokens": 55244,
+        "output_tokens": 369,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error",
+          "revisit"
+        ]
+      },
+      {
+        "step": 79,
+        "offset_seconds": 477.707,
+        "source": "system",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "Performed context summarization and handoff to continue task.",
+        "flags": [
+          "subagent",
+          "context"
+        ]
+      },
+      {
+        "omitted_steps": [
+          80,
+          80
+        ]
+      },
+      {
+        "step": 81,
+        "offset_seconds": 480.116,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && git log --oneline -5 && git status --short && git diff HEAD --stat | tail -20",
+        "status": "unknown",
+        "input_tokens": 3178,
+        "output_tokens": 76,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "context"
+        ]
+      },
+      {
+        "omitted_steps": [
+          82,
+          84
+        ]
+      },
+      {
+        "step": 85,
+        "offset_seconds": 497.141,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && cat src/cfnlint/rules/resources/stepfunctions/StateMachineDefinition.py",
+        "status": "unknown",
+        "input_tokens": 4561,
+        "output_tokens": 49,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 86,
+        "offset_seconds": 500.253,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && cat src/cfnlint/rules/resources/stepfunctions/StateMachineDefinition.py",
+        "status": "unknown",
+        "input_tokens": 4942,
+        "output_tokens": 48,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "omitted_steps": [
+          87,
+          89
+        ]
+      },
+      {
+        "step": 90,
+        "offset_seconds": 524.992,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && pip show cfn-lint 2>/dev/null | head -3; python3 -c \"import cfnlint, inspect; print(c...",
+        "status": "error",
+        "input_tokens": 7246,
+        "output_tokens": 327,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          91,
+          94
+        ]
+      },
+      {
+        "step": 95,
+        "offset_seconds": 545.097,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && grep -rn \"FUNCTIONS\" src/cfnlint/schema/manager.py src/cfnlint/schema/_*.py 2>/dev/nu...",
+        "status": "unknown",
+        "input_tokens": 9030,
+        "output_tokens": 66,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 96,
+        "offset_seconds": 548.987,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && grep -rn \"FUNCTIONS\" src/cfnlint/ --include=\"*.py\" | grep -v test | head -20",
+        "status": "unknown",
+        "input_tokens": 9243,
+        "output_tokens": 63,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 97,
+        "offset_seconds": 553.062,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && grep -rn \"FUNCTIONS\" src/cfnlint/schema/_*.py src/cfnlint/schema/*.py 2>/dev/null; ls...",
+        "status": "unknown",
+        "input_tokens": 9935,
+        "output_tokens": 68,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 98,
+        "offset_seconds": 557.025,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && grep -rn \"FUNCTIONS\" src/cfnlint/schema/ src/cfnlint/template.py src/cfnlint/runner/*...",
+        "status": "unknown",
+        "input_tokens": 10184,
+        "output_tokens": 69,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 99,
+        "offset_seconds": 562.085,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && grep -rn \"FUNCTIONS\" src/cfnlint/ --include=\"*.py\" -r | grep -v \"src/cfnlint/helpers....",
+        "status": "unknown",
+        "input_tokens": 10403,
+        "output_tokens": 105,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 100,
+        "offset_seconds": 565.983,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && sed -n 720,745p src/cfnlint/template/template.py",
+        "status": "unknown",
+        "input_tokens": 11203,
+        "output_tokens": 54,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 101,
+        "offset_seconds": 569.973,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && grep -rn \"FUNCTIONS\" src/cfnlint/runner/ src/cfnlint/api.py src/cfnlint/__init__.py 2...",
+        "status": "unknown",
+        "input_tokens": 11618,
+        "output_tokens": 70,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 102,
+        "offset_seconds": 574.52,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && grep -rn \"FUNCTIONS\" src/cfnlint/ --include=\"*.py\" -r | grep -v \"helpers.py\\|context/...",
+        "status": "unknown",
+        "input_tokens": 11840,
+        "output_tokens": 119,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 103,
+        "offset_seconds": 579.359,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && grep -rn \"FUNCTIONS\" src/cfnlint/ --include=\"*.py\" -r | grep -v \"helpers.py\\|context/...",
+        "status": "unknown",
+        "input_tokens": 12163,
+        "output_tokens": 122,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 104,
+        "offset_seconds": 584.103,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && grep -rn \"FUNCTIONS\" src/cfnlint/ --include=\"*.py\" -r | grep -v \"helpers.py\\|context/...",
+        "status": "unknown",
+        "input_tokens": 12491,
+        "output_tokens": 125,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      }
+    ],
+    "windows": [
+      {
+        "steps": [
+          1,
+          11
+        ],
+        "tool_calls": 10,
+        "errors": 3,
+        "revisits": 0,
+        "output_tokens": 3731,
+        "cost_usd": null,
+        "seconds": 71.953,
+        "peak_prompt_tokens": 11826,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          12,
+          21
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1035,
+        "cost_usd": null,
+        "seconds": 29.687,
+        "peak_prompt_tokens": 19027,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          22,
+          32
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 2481,
+        "cost_usd": null,
+        "seconds": 59.576,
+        "peak_prompt_tokens": 23803,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          33,
+          42
+        ],
+        "tool_calls": 10,
+        "errors": 1,
+        "revisits": 0,
+        "output_tokens": 658,
+        "cost_usd": null,
+        "seconds": 32.619,
+        "peak_prompt_tokens": 27830,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          43,
+          52
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 617,
+        "cost_usd": null,
+        "seconds": 31.161,
+        "peak_prompt_tokens": 33885,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          53,
+          63
+        ],
+        "tool_calls": 11,
+        "errors": 6,
+        "revisits": 0,
+        "output_tokens": 2111,
+        "cost_usd": null,
+        "seconds": 68.884,
+        "peak_prompt_tokens": 40983,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          64,
+          73
+        ],
+        "tool_calls": 10,
+        "errors": 10,
+        "revisits": 8,
+        "output_tokens": 3678,
+        "cost_usd": null,
+        "seconds": 92.888,
+        "peak_prompt_tokens": 50436,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          74,
+          84
+        ],
+        "tool_calls": 9,
+        "errors": 5,
+        "revisits": 5,
+        "output_tokens": 2193,
+        "cost_usd": null,
+        "seconds": 65.732,
+        "peak_prompt_tokens": 55244,
+        "compactions": 1
+      },
+      {
+        "steps": [
+          85,
+          94
+        ],
+        "tool_calls": 10,
+        "errors": 1,
+        "revisits": 2,
+        "output_tokens": 1275,
+        "cost_usd": null,
+        "seconds": 44.72,
+        "peak_prompt_tokens": 8688,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          95,
+          104
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 861,
+        "cost_usd": null,
+        "seconds": 39.006,
+        "peak_prompt_tokens": 12491,
+        "compactions": 0
+      }
+    ],
+    "time_windows": {
+      "status": "available",
+      "reason": null,
+      "origin": "2026-10-01T00:08:47.150321+00:00",
+      "span_seconds": 583.441,
+      "steps_without_timestamps": 0,
+      "windows": [
+        {
+          "steps": [
+            1,
+            7
+          ],
+          "tool_calls": 6,
+          "errors": 3,
+          "revisits": 0,
+          "output_tokens": 3007,
+          "cost_usd": null,
+          "peak_prompt_tokens": 5223,
+          "compactions": 0,
+          "starts_at_offset_seconds": 0.0,
+          "ends_at_offset_seconds": 58.344
+        },
+        {
+          "steps": [
+            8,
+            23
+          ],
+          "tool_calls": 15,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1866,
+          "cost_usd": null,
+          "peak_prompt_tokens": 19488,
+          "compactions": 0,
+          "starts_at_offset_seconds": 58.344,
+          "ends_at_offset_seconds": 116.688
+        },
+        {
+          "steps": [
+            24,
+            33
+          ],
+          "tool_calls": 10,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 2446,
+          "cost_usd": null,
+          "peak_prompt_tokens": 23987,
+          "compactions": 0,
+          "starts_at_offset_seconds": 116.688,
+          "ends_at_offset_seconds": 175.032
+        },
+        {
+          "steps": [
+            34,
+            49
+          ],
+          "tool_calls": 16,
+          "errors": 1,
+          "revisits": 0,
+          "output_tokens": 1025,
+          "cost_usd": null,
+          "peak_prompt_tokens": 32330,
+          "compactions": 0,
+          "starts_at_offset_seconds": 175.032,
+          "ends_at_offset_seconds": 233.376
+        },
+        {
+          "steps": [
+            50,
+            60
+          ],
+          "tool_calls": 11,
+          "errors": 3,
+          "revisits": 0,
+          "output_tokens": 1233,
+          "cost_usd": null,
+          "peak_prompt_tokens": 38108,
+          "compactions": 0,
+          "starts_at_offset_seconds": 233.376,
+          "ends_at_offset_seconds": 291.72
+        },
+        {
+          "steps": [
+            61,
+            66
+          ],
+          "tool_calls": 6,
+          "errors": 6,
+          "revisits": 2,
+          "output_tokens": 2157,
+          "cost_usd": null,
+          "peak_prompt_tokens": 43818,
+          "compactions": 0,
+          "starts_at_offset_seconds": 291.72,
+          "ends_at_offset_seconds": 350.064
+        },
+        {
+          "steps": [
+            67,
+            72
+          ],
+          "tool_calls": 6,
+          "errors": 6,
+          "revisits": 5,
+          "output_tokens": 2208,
+          "cost_usd": null,
+          "peak_prompt_tokens": 49443,
+          "compactions": 0,
+          "starts_at_offset_seconds": 350.064,
+          "ends_at_offset_seconds": 408.409
+        },
+        {
+          "steps": [
+            73,
+            78
+          ],
+          "tool_calls": 6,
+          "errors": 6,
+          "revisits": 6,
+          "output_tokens": 2214,
+          "cost_usd": null,
+          "peak_prompt_tokens": 55244,
+          "compactions": 0,
+          "starts_at_offset_seconds": 408.409,
+          "ends_at_offset_seconds": 466.753
+        },
+        {
+          "steps": [
+            79,
+            90
+          ],
+          "tool_calls": 10,
+          "errors": 1,
+          "revisits": 2,
+          "output_tokens": 1330,
+          "cost_usd": null,
+          "peak_prompt_tokens": 7246,
+          "compactions": 1,
+          "starts_at_offset_seconds": 466.753,
+          "ends_at_offset_seconds": 525.097
+        },
+        {
+          "steps": [
+            91,
+            104
+          ],
+          "tool_calls": 14,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1154,
+          "cost_usd": null,
+          "peak_prompt_tokens": 12491,
+          "compactions": 0,
+          "starts_at_offset_seconds": 525.097,
+          "ends_at_offset_seconds": 583.441
+        }
+      ]
+    }
+  },
+  "data_quality": [
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B' has no pinned price-table entry",
+    "harness reports no per-call status (no exit codes or error flags): tool errors are only inferred from output text"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "3a4a0448b2afa5ad1ff815be9b333e9f1d0586fadb170834b4a9b8f71a0a9097"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "e9e1bc62d48a6a2845c503e0e561741b460415c7b344410f4e2c9df96d41a64b"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 101,
+    "recorded": 101,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 1,
+    "prose_completions": 0,
+    "executed_calls": 110,
+    "task_complete_turns": 0,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 1,
+    "continuations_missing": [
+      1
+    ],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 104,
+        "copied_steps": 0,
+        "session_id": "d200f55c-46c0-4dad-b292-1cc9432c1bf8"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 104,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": [
+      "1 summarization attempt(s) left no continuation file: [1]"
+    ]
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B) failed (reward 0) on mimo-v2.6-rl/format-code-task-000495; in 12m21s wall (10m20s agent); 104 steps, 110 tool calls, 26 errors, 2.50M tokens, cost unavailable; 15 repeated actions (9 exact revisits); 3 subagents, 0 delegation calls."
+}

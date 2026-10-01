@@ -20,6 +20,7 @@ from evallab.schemas import (
     QueueEvent,
     QueueReason,
     StandingApprovalsPolicy,
+    effective_daily_cost_ceiling,
 )
 from evallab.storm import StormAlarm, detect_storm_alarms, digest_storm_section
 
@@ -131,6 +132,7 @@ class DigestRenderer:
         health_report: HeadlessDoctorReport | None = None,
         dispatched: int | None = None,
         destination: Path | None = None,
+        now: datetime | None = None,
     ) -> Path:
         period_date = report_date - timedelta(days=1)
         catalog_error = False
@@ -289,7 +291,7 @@ class DigestRenderer:
                 "## Cost and failures",
                 "",
                 f"- Recorded spend: ${spend:.4f} / "
-                f"${self.policy.daily_cost_ceiling_usd:.2f} daily ceiling",
+                f"${effective_daily_cost_ceiling(self.policy, now or datetime.now(UTC)):.2f} daily ceiling",
                 "- Exceptions by taxonomy: "
                 + (
                     ", ".join(f"{name}={count}" for name, count in sorted(exceptions.items()))

@@ -1,0 +1,50 @@
+{
+  "blame": "none",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "10 passed, 3 warnings in 0.02s",
+      "ref": "head#51"
+    },
+    {
+      "quote": "representative = min(group, key=lambda vuln: _id_comparison_key(vuln.id))",
+      "ref": "head#50"
+    },
+    {
+      "quote": "The terminal seems to have issues with output. Let me try a fresh command: echo \"test\"",
+      "ref": "head#59"
+    },
+    {
+      "quote": "The terminal output is garbled. Let me try a fresh command: echo \"hi\"",
+      "ref": "head#66"
+    },
+    {
+      "quote": "The terminal output is garbled. Let me try a fresh command: echo \"hi\"",
+      "ref": "head#96"
+    },
+    {
+      "quote": "trial budget exhausted (n_episodes 96, n_input 2427397, loop_break fired false; verifier reward 1.0)",
+      "ref": "head#96"
+    }
+  ],
+  "first_failure": null,
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#66",
+    "head#96"
+  ],
+  "notes": "Reward 1.0 (8/8 auditor dedup tests pass). Real fix done by head#50-51; head#52+ are hanging full-suite probes then a 31-turn echo-hi terminal-probe loop to budget exhaustion. No mark_task_complete ever issued. No pip/curl/git/site-packages fetch.",
+  "off_limits_opened": false,
+  "pass_copied": false,
+  "pass_copied_confidence": "high",
+  "sft_cut": {
+    "clean": true,
+    "cut_step_id": 51,
+    "reason": "Fix complete and 10/10 test_audit.py pass at head#51; later steps add no code, only garbled-terminal probes."
+  },
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-a-002391-loopfix-r2__NvEfxbt"
+}

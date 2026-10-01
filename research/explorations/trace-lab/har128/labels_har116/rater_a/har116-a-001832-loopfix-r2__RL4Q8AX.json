@@ -1,0 +1,46 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "inverted rename mapping with undefined new_name in ValueError branch",
+      "ref": "head#31"
+    },
+    {
+      "quote": "identical sed of verbs.py select/arrange region repeated 10 turns",
+      "ref": "head#55"
+    },
+    {
+      "quote": "same identical sed still repeating at the final step",
+      "ref": "head#64"
+    },
+    {
+      "quote": "LoopBreakStop: repetition still going 63 calls in, five after nudge at 58",
+      "ref": "head#64"
+    },
+    {
+      "quote": "verifier: NameError new_name not defined, 11 failed 3 passed, nothing renamed",
+      "ref": "head#31"
+    }
+  ],
+  "first_failure": {
+    "quote": "inverted rename mapping with undefined new_name in ValueError branch",
+    "ref": "head#31",
+    "what": "wrote pandas rename with inverted mapping and undefined new_name"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#55",
+    "head#64"
+  ],
+  "notes": "Tail 10 turns repeat the identical sed plus identical simple_varname analysis with no progress; detector nudged at 58, stopped at 63. No completion claims.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har116-a-001832-loopfix-r2__RL4Q8AX"
+}

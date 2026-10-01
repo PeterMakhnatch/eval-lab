@@ -1,0 +1,38 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "to_rename = {new_name: simple_varname(old_name) for new_name, old_name in kwargs.items()}\\n\\n    for old_name in to_rename.values():\\n        if old_name is None:\\n            raise ValueError",
+      "ref": "head#31"
+    },
+    {
+      "quote": "sed -n 2110,2140p /workspace/repo/siuba/dply/verbs.py; echo ====; sed -n 840,900p /workspace/repo/siuba/dply/verbs.py",
+      "ref": "head#56"
+    },
+    {
+      "quote": "sed -n 2110,2140p /workspace/repo/siuba/dply/verbs.py; echo ====; sed -n 840,900p /workspace/repo/siuba/dply/verbs.py",
+      "ref": "head#64"
+    }
+  ],
+  "first_failure": {
+    "quote": "to_rename = {new_name: simple_varname(old_name) for new_name, old_name in kwargs.items()}",
+    "ref": "head#31",
+    "what": "Inverted column renaming dictionary mapping (new_name: old_name instead of old_name: new_name), causing pandas rename to silently no-op"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#56",
+    "head#64"
+  ],
+  "notes": "Harness loop detector triggered on repeated sed command (nudged at call 58, stopped at call 63 after 9 repeating turns).",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har116-a-001832-loopfix-r2__RL4Q8AX"
+}

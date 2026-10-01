@@ -42,22 +42,53 @@
 |---|---|
 | `copied_fix` | `reward >= 1.0` and upstream package download detector fired |
 | `pass_tainted` | `reward >= 1.0` and upstream fetch or verifier guard reject |
-| `task_not_usable` | Hand label (`broken`, `suspect`, `discarded`, `review`, `unchecked`) or census row (`broken_environment`, `grader_suspect`, `unknown`) |
+| `task_not_usable` | Digest-matched canonical ledger status `review`, `discarded` or `unchecked`; without a match, the legacy hand/census exclusion policy below |
 | `infra` | Not scored, verifier reward missing, or proxy 502 / bad gateway |
 
 - Upstream fetch on a failure stays `counted_fail` (flagged `upstream_fetch`, decisive=false).
 - A budget exhaustion on a scored trial stays `counted_fail`.
 - Diagnostic judgments (`first_failure`, blame, loops) carry `accuracy: null` and never exclude.
 
+### Task-version binding (HAR-131)
+
+`process-job` supplies the retained `experiment-spec.json` task ID and
+`task_package_digest`. A row in `python-task-ledger/ledger.csv` is authoritative
+only when its `run_digest` matches that exact package. A matched `review`,
+`discarded` or `unchecked` row excludes it. The validated-variant rule from
+HAR-127/#600 is retained: a validated same-task repair can lift the original
+package's census exclusion. Hand exclusions still apply even when the ledger
+row says `usable`; candidate or wrong-task variants do not lift the exclusion.
+
+For historical jobs with no digest, a different digest, or no ledger row, the
+existing policy is unchanged: hand `broken`/`suspect`/`discarded`/`review`/`unchecked`
+or census `broken_environment`/`grader_suspect`/`unknown` excludes, with the
+validated-variant exception above. Missing evidence alone is not a ledger status
+and does not invent a new exclusion.
+
+`counts.task_status` reports the applied `status` (null without a match), the
+unapplied `ledger_status`, task and package identities, `digest_match`, the CSV
+SHA-256, source path and supporting evidence. A mismatched current ledger is not
+proof that an old run used a repaired or usable task. The page renders this
+binding rather than claiming every task is unchecked. Rollups below retain their
+historical measurement; regenerate before using them as current cohort counts.
+
+
 ---
 
 ## 2. Campaign Rollups
 
-### A. HAR-81 (ARVO Cyber Tasks)
+HAR-132's read-only backfill replay reproduced **90 comparison cells from
+81 distinct raw trials**, with no keyed row differences. Nine HAR-104 trials
+are reused in HAR-110 cells; summing campaign cells is not a unique-run count.
+
+### A. HAR-81 (mixed-domain declared cohort)
 
 | Campaign | Trials on disk | Raw Pass | Counted Pass | Counted Fail | Excluded | Notes |
 |---|---|---|---|---|---|---|
-| **HAR-81** | 44 | 8 | **8** | 36 | 0 | **No ledger covers these tasks (not checked)**. All 8 passes earned; no PyPI package download bypasses. |
+| **HAR-81** | 44 | 8 | **8** | 36 | 0 | **No ledger covers these tasks (not checked)**. Eight pass under the recorded counts rules; absence of detector findings is not independent proof that every pass is earned. |
+
+The frozen `round_arm=arvo_cyber` value is a legacy grouping label, not a
+domain assertion about all 44 tasks.
 
 ### B. HAR-104 (Plain Dev & Dropped Baseline)
 
@@ -75,7 +106,7 @@
 | `har104-d-002864__B7cJ4cG` | `format-code-task-002864` | 1.0 | `counted_pass` | - | Earned pass |
 
 **HAR-104 Rollup:** 10 trials | Raw Pass: 4 | **Counted Pass: 2** | **Counted Fail: 4** | **Excluded: 4**  
-*True pass rate:* **33.3% (2/6)** on sound tasks.
+*Counted pass rate:* **33.3% (2/6)** among non-excluded trials.
 
 ---
 
@@ -96,7 +127,7 @@ There is **exactly one infra trial** in HAR-110: `002256` candidate (`har110-dev
 | **002391** | 1.0 (`counted_pass`) | 0.0 (`counted_fail`) | 0.0 (`counted_fail`) |
 | **002864** | 1.0 (`counted_pass`) | 0.0 (`counted_fail`) | 1.0 (`counted_pass`, agent finished early) |
 | **Rollup (Raw)** | **2/6** | **1/6** | **1/5 (+1 unscored)** |
-| **Rollup (Counted)** | **2/6 pass (4 fail)** | **0/5 pass (5 fail, 1 excluded)** | **1/4 pass (4 fail, 1 excluded)** |
+| **Rollup (Counted)** | **2/6 pass (4 fail)** | **0/5 pass (5 fail, 1 excluded)** | **1/5 pass (4 fail, 1 excluded)** |
 
 #### 2. Held-Out Split (4 Tasks)
 

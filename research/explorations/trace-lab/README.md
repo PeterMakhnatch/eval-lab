@@ -34,6 +34,10 @@ MiMo kit).
 - `probe-03-capabilities/` — HAR-91 capability tagger (`capabilities.py`):
   five never-collapsed dimensions per trial (outcome, stop reason, first
   failure, outcome-relevant failure), blind hand keys in `validation/`.
+  Native `LoopBreakStop` is preserved as `loop_break` by the shared
+  analysis/decision-page stop mapping, without changing a finite verifier
+  reward into an infrastructure failure. Earlier published pages need
+  reprocessing to replace their legacy `unknown` stop value.
 - `2026-09-29-system-state/` — system diagrams (Excalidraw + SVG) and
   notes on how runs flow into decisions.
 - `LANDSCAPE.md` — the tool landscape: which trajectory tools work with

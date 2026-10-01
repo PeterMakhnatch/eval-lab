@@ -758,15 +758,18 @@ def test_infra_error_raises_evaluation_unavailable(tmp_path: Path) -> None:
         ("TrialBudgetExhaustedError", 1.0, 1.0),
         ("TrialBudgetExhaustedError", 0.0, 0.0),
         ("AgentTimeoutError", 1.0, 1.0),
+        ("LoopBreakStop", 1.0, 1.0),
+        ("LoopBreakStop", 0.0, 0.0),
+        ("LoopBreakStop", None, None),
         ("TrialBudgetExhaustedError", None, None),
         ("RuntimeError", 1.0, None),
     ],
-    ids=["ceiling-pass", "ceiling-fail", "timeout-pass", "ceiling-unscored", "other-error"],
+    ids=["ceiling-pass", "ceiling-fail", "timeout-pass", "loop-pass", "loop-fail", "loop-unscored", "ceiling-unscored", "other-error"],
 )
 def test_agent_stop_with_verifier_reward_is_scored(
     tmp_path: Path, exception_type: str, reward: float | None, expected: float | None
 ) -> None:
-    """A trial-ceiling or agent-timeout stop the verifier scored is the agent's outcome.
+    """A verifier-scored trial-ceiling, timeout, or active-loop stop is the agent's outcome.
 
     Only a finite reward after an agent stop is scored; an unscored stop or any other
     exception still halts the campaign as an unavailable evaluation.
@@ -1613,3 +1616,529 @@ def test_invalid_python_candidate_returns_static_feedback_without_native_trial(t
     assert info["native_trial_executed"] is False
     assert evaluator.records == []
     assert executor.submitted_specs == []
+
+
+# --- HAR-135 counted_verdict regression (native process-job counts) ---
+
+
+def _write_counted_report(
+    job_dir: Path,
+    trial_name: str,
+    *,
+    reward: float | None,
+    verdict: str,
+    reasons: list[str] | None = None,
+    raw_reward: float | None = None,
+    schema: str | None = None,
+    trial_name_in_report: str | None = None,
+) -> Path:
+    """Write <job>/processed/trial-<name>.json with an authoritative counts block."""
+    from evallab.counts import COUNTS_SCHEMA as _SCHEMA
+
+    report_path = job_dir / "processed" / f"trial-{trial_name}.json"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    resolved_raw = reward if raw_reward is None and verdict != "excluded" else raw_reward
+    if verdict != "excluded" and resolved_raw is None:
+        resolved_raw = reward
+    counts = {
+        "schema": _SCHEMA if schema is None else schema,
+        "raw_reward": resolved_raw,
+        "scored": resolved_raw is not None,
+        "verdict": verdict,
+        "reasons": list(reasons or []),
+        "evidence": [],
+        "flags": [],
+        "judgments": [],
+    }
+    payload = {
+        "schema": "process_job/v1",
+        "trial_name": trial_name_in_report or trial_name,
+        "task_name": "task_1",
+        "reward": reward,
+        "scored": reward is not None,
+        "counts": counts,
+    }
+    report_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return report_path
+
+
+def _make_stock_job(
+    jobs_dir: Path,
+    *,
+    job_name: str,
+    task_id: str,
+    task_path: str,
+    package_digest: str,
+    reward: float | None = 1.0,
+) -> Path:
+    """Native stock job: zero extra_instructions and absent preamble (no addendum)."""
+    job_dir = jobs_dir / job_name
+    trial_name = f"{task_id}__trial01"
+    trial_dir = job_dir / trial_name
+    agent_config: dict[str, Any] = {"name": "oracle", "import_path": None, "model_name": None}
+    trial_lock: dict[str, Any] = {
+        "schema_version": 2,
+        "agent": agent_config,
+        "extra_instructions": [],
+    }
+    write_json(job_dir / "config.json", {"job_name": job_name, "agents": [agent_config]})
+    write_json(job_dir / "lock.json", {"harbor": {"version": "0.21.0"}, "trials": [trial_lock]})
+    write_json(
+        job_dir / "result.json",
+        {
+            "id": str(uuid5(NAMESPACE_URL, job_name)),
+            "started_at": "2026-09-08T10:00:00Z",
+            "finished_at": "2026-09-08T10:01:00Z",
+            "n_total_trials": 1,
+            "stats": {"n_completed_trials": 1, "n_errored_trials": 0},
+        },
+    )
+    write_json(
+        job_dir / "lab-metadata.json",
+        {
+            "schema_version": 1,
+            "command": ["harbor", "run", "--agent", "oracle"],
+            "started_at": "2026-09-08T10:00:00Z",
+            "finished_at": "2026-09-08T10:01:00Z",
+            "exit_code": 0,
+            "timed_out": False,
+            "timed_out_trial": None,
+            "experiment": {
+                "spec_id": f"spec-{task_id}",
+                "task": task_path,
+                "task_path": task_path,
+                "task_id": task_id,
+                "package_digest": package_digest,
+            },
+        },
+    )
+    write_json(trial_dir / "config.json", {"agent": agent_config})
+    write_json(trial_dir / "lock.json", trial_lock)
+    rewards_dict: dict[str, float] = {}
+    if reward is not None:
+        rewards_dict["reward"] = float(reward)
+    write_json(
+        trial_dir / "result.json",
+        {
+            "id": str(uuid5(NAMESPACE_URL, job_name + "/" + trial_name)),
+            "trial_name": trial_name,
+            "task_name": task_id,
+            "started_at": "2026-09-08T10:00:01Z",
+            "finished_at": "2026-09-08T10:00:55Z",
+            "agent_info": {"name": "oracle", "model_name": None},
+            "agent_result": {
+                "cost_usd": None,
+                "n_input_tokens": None,
+                "n_cache_tokens": None,
+                "n_output_tokens": None,
+            },
+            "duration_seconds": 54.0,
+            "verifier_result": {"rewards": rewards_dict},
+        },
+    )
+    return job_dir
+
+
+def _counted_evaluator(
+    repo_root: Path, task: dict[str, Any], executor: Any, **overrides: Any
+) -> Any:
+    from evallab.gepa_optimizer.evaluator import COUNTED_VERDICT
+
+    kwargs: dict[str, Any] = {
+        "repo_root": repo_root,
+        "output_dir": repo_root / "out" / "lab",
+        "examples": [task],
+        "agent": "oracle",
+        "executor": executor,
+        "score_rules": (COUNTED_VERDICT,),
+    }
+    kwargs.update(overrides)
+    return LabEvaluator(**kwargs)
+
+
+def test_counted_verdict_pass_and_fail_reusable_without_fresh_calls(tmp_path: Path) -> None:
+    """Counted pass is 1.0 and counted fail is 0.0 from authoritative receipts, reused."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = create_task_fixture(repo_root, "tasks/task_1")
+    executor = MockExecutor(repo_root)
+    evaluator = _counted_evaluator(repo_root, task, executor)
+    candidate_pass = "Pass candidate instructions."
+    candidate_fail = "Fail candidate instructions."
+    pass_sha = f"sha256:{hashlib.sha256(candidate_pass.encode()).hexdigest()}"
+    fail_sha = f"sha256:{hashlib.sha256(candidate_fail.encode()).hexdigest()}"
+    for sha, reward, verdict in (
+        (pass_sha, 1.0, "counted_pass"),
+        (fail_sha, 0.0, "counted_fail"),
+    ):
+        job_name = deterministic_job_name(
+            campaign_path="out/lab", agent="oracle", model=None, task_id="task_1",
+            candidate_sha256=sha,
+        )
+        job_dir = create_completed_job_fixture(
+            repo_root / "runs", job_name=job_name, agent="oracle", model=None,
+            task_id="task_1", task_path="tasks/task_1",
+            package_digest=task["task_package_digest"], candidate_sha256=sha, reward=reward,
+        )
+        _write_counted_report(job_dir, "task_1__trial01", reward=reward, verdict=verdict)
+    score_pass, info_pass = evaluator(candidate_pass, task)
+    assert score_pass == 1.0
+    assert info_pass["usage"]["counted_verdict"]["verdict"] == "counted_pass"
+    assert info_pass["usage"]["counts"]["raw_reward"] == 1.0
+    assert "counts_report" in info_pass["receipt_paths"]
+    assert "counted_verdict counted_pass" in info_pass["feedback"]
+    assert Path(info_pass["receipt_paths"]["counts_report"]).is_file()
+    score_fail, info_fail = evaluator(candidate_fail, task)
+    assert score_fail == 0.0
+    assert info_fail["usage"]["counted_verdict"]["verdict"] == "counted_fail"
+    assert "counted_verdict counted_fail" in info_fail["feedback"]
+    # Honest raw rewards preserved alongside the counted objective.
+    assert info_pass["rewards"]["reward"] == 1.0
+    assert info_fail["rewards"]["reward"] == 0.0
+    # Zero fresh native calls: both jobs were retained evidence.
+    assert executor.direct_requests == []
+    assert executor.submitted_specs == []
+    # Second consumption reuses the same receipts without dispatch.
+    assert evaluator(candidate_pass, task)[0] == 1.0
+    assert evaluator(candidate_fail, task)[0] == 0.0
+    assert executor.direct_requests == []
+
+
+def test_counted_verdict_tainted_pass_excluded_while_fetch_fail_scores_zero(
+    tmp_path: Path,
+) -> None:
+    """A tainted pass is excluded (unavailable), a fetch-and-fail stays counted fail 0.0."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = create_task_fixture(repo_root, "tasks/task_1")
+    executor = MockExecutor(repo_root)
+    evaluator = _counted_evaluator(repo_root, task, executor)
+    tainted = "Tainted pass candidate."
+    tainted_sha = f"sha256:{hashlib.sha256(tainted.encode()).hexdigest()}"
+    job_name = deterministic_job_name(
+        campaign_path="out/lab", agent="oracle", model=None, task_id="task_1",
+        candidate_sha256=tainted_sha,
+    )
+    job_dir = create_completed_job_fixture(
+        repo_root / "runs", job_name=job_name, agent="oracle", model=None,
+        task_id="task_1", task_path="tasks/task_1",
+        package_digest=task["task_package_digest"], candidate_sha256=tainted_sha, reward=1.0,
+    )
+    _write_counted_report(
+        job_dir, "task_1__trial01", reward=1.0, verdict="excluded",
+        reasons=["pass_tainted"], raw_reward=1.0,
+    )
+    with pytest.raises(EvaluationUnavailable):
+        evaluator(tainted, task)
+    record = evaluator.records[-1]
+    assert record.status == "error"
+    assert record.score is None
+    failed = "Fetch but failed candidate."
+    failed_sha = f"sha256:{hashlib.sha256(failed.encode()).hexdigest()}"
+    fail_job = deterministic_job_name(
+        campaign_path="out/lab", agent="oracle", model=None, task_id="task_1",
+        candidate_sha256=failed_sha,
+    )
+    fail_dir = create_completed_job_fixture(
+        repo_root / "runs", job_name=fail_job, agent="oracle", model=None,
+        task_id="task_1", task_path="tasks/task_1",
+        package_digest=task["task_package_digest"], candidate_sha256=failed_sha, reward=0.0,
+    )
+    _write_counted_report(
+        fail_dir, "task_1__trial01", reward=0.0, verdict="counted_fail", reasons=[],
+        raw_reward=0.0,
+    )
+    score, info = evaluator(failed, task)
+    assert score == 0.0
+    assert info["usage"]["counted_verdict"]["verdict"] == "counted_fail"
+
+
+def test_counted_verdict_rejects_missing_malformed_mismatched(tmp_path: Path) -> None:
+    """Missing, malformed, or mismatched counts never fall back to raw reward or zero."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = create_task_fixture(repo_root, "tasks/task_1")
+    executor = MockExecutor(repo_root)
+    evaluator = _counted_evaluator(repo_root, task, executor)
+
+    def _job_for(candidate: str, reward: float | None = 1.0) -> tuple[Path, str]:
+        sha = f"sha256:{hashlib.sha256(candidate.encode()).hexdigest()}"
+        job_name = deterministic_job_name(
+            campaign_path="out/lab", agent="oracle", model=None, task_id="task_1",
+            candidate_sha256=sha,
+        )
+        job_dir = create_completed_job_fixture(
+            repo_root / "runs", job_name=job_name, agent="oracle", model=None,
+            task_id="task_1", task_path="tasks/task_1",
+            package_digest=task["task_package_digest"], candidate_sha256=sha, reward=reward,
+        )
+        return job_dir, sha
+
+    # Missing report (unprocessed job has no counts yet).
+    missing_candidate = "Missing counts candidate."
+    _job_for(missing_candidate)
+    with pytest.raises(EvaluationUnavailable):
+        evaluator(missing_candidate, task)
+    assert evaluator.records[-1].score is None
+    # Malformed schema.
+    bad_schema = "Bad schema candidate."
+    bad_dir, _ = _job_for(bad_schema)
+    _write_counted_report(
+        bad_dir, "task_1__trial01", reward=1.0, verdict="counted_pass", schema="nope/v0",
+    )
+    with pytest.raises(EvaluationUnavailable):
+        evaluator(bad_schema, task)
+    assert evaluator.records[-1].score is None
+    # Mismatched raw reward: counts say 0.0 while the native trial says 1.0.
+    mismatch = "Mismatched raw candidate."
+    mismatch_dir, _ = _job_for(mismatch, reward=1.0)
+    _write_counted_report(
+        mismatch_dir, "task_1__trial01", reward=1.0, verdict="counted_pass",
+        reasons=[], raw_reward=0.0,
+    )
+    with pytest.raises(EvaluationUnavailable):
+        evaluator(mismatch, task)
+    assert evaluator.records[-1].score is None
+    # Wrong trial identity in the receipt.
+    wrong_trial = "Wrong trial candidate."
+    wrong_dir, _ = _job_for(wrong_trial)
+    _write_counted_report(
+        wrong_dir, "task_1__trial01", reward=1.0, verdict="counted_pass",
+        trial_name_in_report="other__trial99",
+    )
+    with pytest.raises(EvaluationUnavailable):
+        evaluator(wrong_trial, task)
+    assert evaluator.records[-1].score is None
+    # A copied reward can agree while the verdict or scored flag contradicts it.
+    for index, corrupt_counts in enumerate(
+        ({"verdict": "counted_fail"}, {"scored": False}, {"reasons": ["pass_tainted"]})
+    ):
+        candidate = f"Inconsistent counts candidate {index}."
+        job_dir, _ = _job_for(candidate)
+        report_path = _write_counted_report(
+            job_dir, "task_1__trial01", reward=1.0, verdict="counted_pass"
+        )
+        report = json.loads(report_path.read_text())
+        report["counts"].update(corrupt_counts)
+        report_path.write_text(json.dumps(report))
+        with pytest.raises(EvaluationUnavailable):
+            evaluator(candidate, task)
+        assert evaluator.records[-1].score is None
+
+
+def test_counted_verdict_mutually_exclusive_with_upstream_fetch_zero(tmp_path: Path) -> None:
+    """Historic fetch-zero is preserved alone; combining it with counted_verdict is refused."""
+    from evallab.gepa_optimizer.evaluator import COUNTED_VERDICT
+    from evallab.upstream_fetch import UPSTREAM_FETCH_ZERO
+
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = create_task_fixture(repo_root, "tasks/task_1")
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        LabEvaluator(
+            repo_root=repo_root,
+            output_dir=repo_root / "out",
+            examples=[task],
+            agent="oracle",
+            executor=MockExecutor(repo_root),
+            score_rules=(COUNTED_VERDICT, UPSTREAM_FETCH_ZERO),
+        )
+
+
+def test_import_seed_stock_then_exact_empty_reuse_without_dispatch(tmp_path: Path) -> None:
+    """Plain stock imports once, then the exact empty seed reuses it with no dispatch."""
+    from evallab.gepa_optimizer.budget import AggregateBudget
+    from evallab.gepa_optimizer.evaluator import EMPTY_CANDIDATE_SHA256
+
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = create_task_fixture(repo_root, "tasks/task_1")
+    evidence = repo_root / "research" / "evidence" / "runs" / "g2-stock-task_1"
+    stock_dir = _make_stock_job(
+        evidence.parent, job_name=evidence.name, task_id="task_1",
+        task_path="tasks/task_1", package_digest=task["task_package_digest"], reward=1.0,
+    )
+    _write_counted_report(stock_dir, "task_1__trial01", reward=1.0, verdict="counted_pass")
+    before = {
+        rel: hashlib.sha256((stock_dir / rel).read_bytes()).hexdigest()
+        for rel in ("result.json", "lock.json", "lab-metadata.json", "task_1__trial01/result.json")
+    }
+    budget = AggregateBudget(
+        repo_root / "budget", max_target_attempts=4, max_proposer_requests=1,
+        max_proposer_cost_usd=0.5,
+    )
+    executor = MockExecutor(repo_root)
+    evaluator = _counted_evaluator(repo_root, task, executor, budgets=(budget,))
+    score, info = evaluator.import_seed_evaluation(stock_dir, task)
+    assert score == 1.0
+    assert info["candidate_id"] == EMPTY_CANDIDATE_SHA256
+    assert info["usage"]["counted_verdict"]["verdict"] == "counted_pass"
+    report_path = Path(info["receipt_paths"]["counts_report"])
+    assert info["usage"]["counted_verdict"]["receipt_sha256"] == (
+        "sha256:" + hashlib.sha256(report_path.read_bytes()).hexdigest()
+    )
+    # Native bytes untouched; no paid launch marked.
+    for rel, digest in before.items():
+        assert hashlib.sha256((stock_dir / rel).read_bytes()).hexdigest() == digest
+    assert not (stock_dir / "experiment-spec.json").exists()
+    summary = budget.summary()["target"]
+    assert summary["reserved"] == 1
+    assert summary["completed"] == 1
+    # Exact empty seed reuses the imported evidence with zero fresh calls.
+    reused_score, reused_info = evaluator("", task)
+    assert reused_score == 1.0
+    assert reused_info["job_path"] == str(stock_dir.resolve()) or Path(reused_info["job_path"]).resolve() == stock_dir.resolve()
+    assert executor.direct_requests == []
+    assert executor.submitted_specs == []
+    assert budget.summary()["target"]["reserved"] == 1
+    # Even without the aggregate ledger, a frozen repeat cannot be swapped for
+    # another stock trial at the same candidate/task identity.
+    foreign = _make_stock_job(
+        evidence.parent, job_name="other-stock-repeat", task_id="task_1",
+        task_path="tasks/task_1", package_digest=task["task_package_digest"], reward=0.0,
+    )
+    _write_counted_report(foreign, "task_1__trial01", reward=0.0, verdict="counted_fail")
+    without_budget = _counted_evaluator(repo_root, task, executor)
+    with pytest.raises(ProvenanceMismatchError):
+        without_budget.import_seed_evaluation(foreign, task)
+    assert without_budget("", task)[0] == 1.0
+
+
+@pytest.mark.parametrize("toolbox_source", ["experiment_digest", "toolbox_metadata"])
+def test_empty_stock_cache_rejects_toolbox_augmentation(
+    tmp_path: Path, toolbox_source: str
+) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = create_task_fixture(repo_root, "tasks/task_1")
+    stock_dir = _make_stock_job(
+        repo_root / "research" / "evidence" / "runs",
+        job_name="g2-stock",
+        task_id="task_1",
+        task_path=task["task_path"],
+        package_digest=task["task_package_digest"],
+    )
+    _write_counted_report(stock_dir, "task_1__trial01", reward=1.0, verdict="counted_pass")
+    executor = MockExecutor(repo_root)
+    evaluator = _counted_evaluator(repo_root, task, executor)
+    assert evaluator.import_seed_evaluation(stock_dir, task)[0] == 1.0
+    assert evaluator("", task)[0] == 1.0
+
+    metadata_path = stock_dir / "lab-metadata.json"
+    metadata = json.loads(metadata_path.read_text())
+    toolbox_sha256 = "sha256:" + "f" * 64
+    if toolbox_source == "experiment_digest":
+        metadata["experiment"]["toolbox_sha256"] = toolbox_sha256
+    else:
+        metadata["toolbox"] = {
+            "artifact_path": "retained-toolbox/repl_tools.py",
+            "sha256": toolbox_sha256,
+        }
+    write_json(metadata_path, metadata)
+
+    with pytest.raises(ProvenanceMismatchError):
+        evaluator("", task)
+    with pytest.raises(ProvenanceMismatchError):
+        evaluator.import_seed_evaluation(stock_dir, task)
+    assert executor.direct_requests == []
+    assert executor.submitted_specs == []
+
+
+def test_import_seed_rejects_unprocessed_wrong_harness_and_mismatch(tmp_path: Path) -> None:
+    """Unprocessed jobs, changed harness/limits, and mismatched receipts are refused."""
+    from evallab.schemas import ExperimentSpec
+
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = create_task_fixture(repo_root, "tasks/task_1")
+
+    def _base(timeout: int, policy: str | None) -> ExperimentSpec:
+        return ExperimentSpec(
+            spec_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            name="retained-harbor-run",
+            hypothesis="frozen lf2",
+            purpose="comparison",
+            task="tasks/task_1",
+            task_path="tasks/task_1",
+            task_id="task_1",
+            task_package_digest=task["task_package_digest"],
+            agent="oracle",
+            submitted_by="operator",
+            timeout_seconds=timeout,
+            attempts=1,
+            concurrency=1,
+            environment="docker",
+            harness_policy=policy,
+            est_cost_usd=0.1,
+            jobs_dir="runs",
+        )
+
+    base = _base(900, "lf2")
+    executor = MockExecutor(repo_root)
+    evaluator = _counted_evaluator(
+        repo_root, task, executor, base_spec=base, timeout_seconds=900,
+    )
+    stock_dir = _make_stock_job(
+        repo_root / "research" / "evidence" / "runs", job_name="g2-stock", task_id="task_1",
+        task_path="tasks/task_1", package_digest=task["task_package_digest"], reward=0.0,
+    )
+    _write_counted_report(stock_dir, "task_1__trial01", reward=0.0, verdict="counted_fail")
+    with pytest.raises(ProvenanceMismatchError):
+        evaluator.import_seed_evaluation(stock_dir, task)
+    (stock_dir / "experiment-spec.json").write_text(base.model_dump_json(), encoding="utf-8")
+    score, _ = evaluator.import_seed_evaluation(stock_dir, task)
+    assert score == 0.0
+    # Changed behavioral limit (timeout) must not reuse the frozen receipt.
+    other_base = _base(901, "lf2")
+    other = _counted_evaluator(
+        repo_root, task, MockExecutor(repo_root), base_spec=other_base,
+        timeout_seconds=901, output_dir=repo_root / "out" / "lab",
+    )
+    with pytest.raises(ProvenanceMismatchError):
+        other("", task)
+    # Changed harness selector must not reuse either.
+    harness_base = _base(900, "lf3")
+    harness_other = _counted_evaluator(
+        repo_root, task, MockExecutor(repo_root), base_spec=harness_base,
+        timeout_seconds=900, output_dir=repo_root / "out" / "lab",
+    )
+    with pytest.raises(ProvenanceMismatchError):
+        harness_other("", task)
+    # Unprocessed native job (no finished_at) is unavailable, never scored.
+    unfinished = _make_stock_job(
+        repo_root / "research" / "evidence" / "runs", job_name="g2-unfinished",
+        task_id="task_1", task_path="tasks/task_1",
+        package_digest=task["task_package_digest"], reward=1.0,
+    )
+    (unfinished / "result.json").write_text(
+        json.dumps({"id": "x", "n_total_trials": 1, "stats": {}}) + "\n", encoding="utf-8"
+    )
+    fresh = _counted_evaluator(
+        repo_root, task, executor, output_dir=repo_root / "out" / "unprocessed"
+    )
+    with pytest.raises(EvaluationUnavailable):
+        fresh.import_seed_evaluation(unfinished, task)
+
+
+@pytest.mark.parametrize("nonempty", ["Nonempty addendum candidate.", "   \n"])
+def test_nonempty_candidate_cannot_masquerade_as_stock(tmp_path: Path, nonempty: str) -> None:
+    """Zero extra_instructions only ever matches the exact empty seed, not another digest."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = create_task_fixture(repo_root, "tasks/task_1")
+    executor = MockExecutor(repo_root)
+    evaluator = _counted_evaluator(repo_root, task, executor)
+    nonempty_sha = f"sha256:{hashlib.sha256(nonempty.encode()).hexdigest()}"
+    job_name = deterministic_job_name(
+        campaign_path="out/lab", agent="oracle", model=None, task_id="task_1",
+        candidate_sha256=nonempty_sha,
+    )
+    # A stock-shaped job (no extras) sits where the nonempty job would be.
+    _make_stock_job(
+        repo_root / "runs", job_name=job_name, task_id="task_1",
+        task_path="tasks/task_1", package_digest=task["task_package_digest"], reward=1.0,
+    )
+    stock_dir = repo_root / "runs" / job_name
+    _write_counted_report(stock_dir, "task_1__trial01", reward=1.0, verdict="counted_pass")
+    with pytest.raises(ProvenanceMismatchError):
+        evaluator(nonempty, task)

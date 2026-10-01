@@ -1,0 +1,54 @@
+{
+  "blame": "none",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -2",
+      "ref": "head#13"
+    },
+    {
+      "quote": "ERROR: No matching distribution found for markdownify==0.12.0",
+      "ref": "head#15"
+    },
+    {
+      "quote": "No network. I'll implement the fix myself.",
+      "ref": "head#16"
+    },
+    {
+      "quote": "'\\n\\n* 1\\n\\n  2\\n'",
+      "ref": "head#91"
+    },
+    {
+      "quote": "python -m pytest tests -q 2>&1 | tail -30",
+      "ref": "head#92"
+    },
+    {
+      "quote": "pwd > /tmp/out.txt 2>&1; wc -c /tmp/out.txt",
+      "ref": "head#104"
+    },
+    {
+      "quote": "pwd > /tmp/out.txt 2>&1; wc -c /tmp/out.txt",
+      "ref": "head#120"
+    }
+  ],
+  "first_failure": null,
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#104",
+    "head#120"
+  ],
+  "notes": "TrialBudgetExhaustedError (token budget: 118 episodes < 120 request limit, 2.37M input tokens of 2.5M cap). Verifier 9/9 empty-line-optimization tests passed. Fix hand-written through iterative edits (indent no-newline handling, blockquote stripped-text closure); pip download failed with connection refused so no upstream code entered. Post-compaction dead-terminal flail (steps 93-120) cut away.",
+  "off_limits_opened": false,
+  "pass_copied": false,
+  "pass_copied_confidence": "high",
+  "sft_cut": {
+    "clean": true,
+    "cut_step_id": 92,
+    "reason": "Genuine hand-written fix verified at steps 91-92; failed pip fetch brought in no code; cut before summarization and dead-terminal loop."
+  },
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har120-001870-a1__rXFPYLR"
+}

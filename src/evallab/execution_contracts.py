@@ -297,8 +297,7 @@ def zai_openapi_model_prices(
             )
         except ValueError as exc:
             raise ValueError(
-                "EVALLAB_ZAI_OPENAPI_{INPUT,OUTPUT}_COST_MICROS_PER_MILLION "
-                "must be integers"
+                "EVALLAB_ZAI_OPENAPI_{INPUT,OUTPUT}_COST_MICROS_PER_MILLION must be integers"
             ) from exc
     return ZAI_OPENAPI_MODEL_PRICES_MICROS
 
@@ -379,9 +378,7 @@ def parse_tinker_model(model: str | None) -> TinkerModelSpec:
         )
     remainder = model[len(TINKER_MODEL_PREFIX) :]
     if not remainder or remainder != remainder.strip() or "/" not in remainder:
-        raise ValueError(
-            f"malformed Tinker Terminus model selector: {model!r}"
-        )
+        raise ValueError(f"malformed Tinker Terminus model selector: {model!r}")
     base, separator, checkpoint = remainder.partition("@")
     if base not in TINKER_MODEL_PRICES_MICROS:
         raise ValueError(
@@ -457,6 +454,18 @@ MIMO_SELFHOSTED_PROXY_ATTEMPT_ID_ENV = "EVALLAB_MIMO_SELFHOSTED_ATTEMPT_ID"
 MIMO_SELFHOSTED_PROXY_USAGE_FILE_ENV = "EVALLAB_MIMO_SELFHOSTED_USAGE_FILE"
 MIMO_SELFHOSTED_PROXY_PROVIDER_ENV = "EVALLAB_PROXY_PROVIDER"
 MIMO_SELFHOSTED_PROXY_PROVIDER = "mimo_selfhosted"
+#: Env var carrying the per-job capture route token into the metered secret
+#: proxy. When set, the proxy forwards upstream to ``/t/<token>/<path>``;
+#: ``evallab capture serve`` strips the prefix (recording it as
+#: ``route_token``) before forwarding to the real upstream. Mirrored as a
+#: literal in ``containers/zai_openapi_secret_proxy.py`` (standalone script).
+CAPTURE_ROUTE_TOKEN_ENV = "EVALLAB_CAPTURE_ROUTE_TOKEN"
+#: Opt-in flag (``=1``) telling the runner a recording capture proxy sits in
+#: the provider upstream path. The runner then hands each secret proxy the
+#: job attempt id as ``EVALLAB_CAPTURE_ROUTE_TOKEN`` (``/t/<token>/``), so
+#: ``capture link`` can attribute calls per job. Never set for
+#: direct-to-vendor rounds.
+CAPTURE_ENABLED_ENV = "EVALLAB_MODEL_CAPTURE"
 #: Self-hosted tokens have no per-token price. The server container is billed
 #: by Modal per second and accounted by the time-based estimate
 #: (:func:`mimo_selfhosted_trial_cost_usd`), not the token ledger.
@@ -503,11 +512,7 @@ def mimo_selfhosted_trial_cost_usd(
     proxy's cost ceiling cannot trip; its request and token ceilings still
     bound the run.
     """
-    if (
-        isinstance(concurrency, bool)
-        or not isinstance(concurrency, int)
-        or concurrency < 1
-    ):
+    if isinstance(concurrency, bool) or not isinstance(concurrency, int) or concurrency < 1:
         raise ValueError(f"concurrency must be a positive integer, got {concurrency!r}")
     for label, value in (("trial_hours", trial_hours), ("sandbox_usd", sandbox_usd)):
         if (
@@ -518,6 +523,7 @@ def mimo_selfhosted_trial_cost_usd(
         ):
             raise ValueError(f"{label} must be a finite non-negative number, got {value!r}")
     return MIMO_SELFHOSTED_SERVER_USD_PER_HOUR * trial_hours / concurrency + sandbox_usd
+
 
 #: OpenRouter metered route for Terminus-2 (HAR-104): a fixed table of models
 #: behind OpenRouter's OpenAI-compatible chat-completions endpoint, each
@@ -589,9 +595,7 @@ OPENROUTER_ROUTES: Mapping[str, OpenRouterRoute] = MappingProxyType(
         "openai/gpt-oss-120b": OpenRouterRoute(
             native_model="openai/gpt-oss-120b",
             endpoint="deepinfra/bf16",
-            provider_pin=MappingProxyType(
-                {"order": ("deepinfra/bf16",), "allow_fallbacks": False}
-            ),
+            provider_pin=MappingProxyType({"order": ("deepinfra/bf16",), "allow_fallbacks": False}),
             reasoning_pin=MappingProxyType({"effort": "medium"}),
             input_cost_micros_per_million=37_000,
             output_cost_micros_per_million=170_000,
@@ -1090,7 +1094,10 @@ def collected_secret_values(
         *((key, ZAI_PROXY_TOKEN) for key in ZAI_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, ZAI_OPENAPI_PROXY_TOKEN) for key in ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, TINKER_PROXY_TOKEN) for key in TINKER_CREDENTIAL_ENVIRONMENT_KEYS),
-        *((key, MIMO_SELFHOSTED_PROXY_TOKEN) for key in MIMO_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS),
+        *(
+            (key, MIMO_SELFHOSTED_PROXY_TOKEN)
+            for key in MIMO_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
+        ),
         *((key, OPENROUTER_PROXY_TOKEN) for key in OPENROUTER_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, GLM_SELFHOSTED_PROXY_TOKEN) for key in GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS),
     ):
@@ -1481,7 +1488,10 @@ def validate_request(request: RunRequest) -> None:
         raise ValueError("harness_policy is supported only by the rlm lane")
     if request.verifier_repeat_n is not None and not 2 <= request.verifier_repeat_n <= 10:
         raise ValueError("verifier_repeat_n must be between 2 and 10")
-    if request.override_storage_mb is not None and not 1024 <= request.override_storage_mb <= 1048576:
+    if (
+        request.override_storage_mb is not None
+        and not 1024 <= request.override_storage_mb <= 1048576
+    ):
         raise ValueError("override_storage_mb must be between 1024 and 1048576")
     if request.agent == RLM_AGENT:
         if request.attempts != 1 or request.concurrency != 1:
@@ -1658,7 +1668,12 @@ def build_command(request: RunRequest) -> list[str]:
     command.extend(["--plugin", HARBOR_STATE_JOURNAL_PLUGIN])
     if request.verifier_repeat_n is not None:
         command.extend(
-            ["--verifier", VERIFIER_IMPORT_PATH, "--verifier-kwarg", f"repeat_n={request.verifier_repeat_n}"]
+            [
+                "--verifier",
+                VERIFIER_IMPORT_PATH,
+                "--verifier-kwarg",
+                f"repeat_n={request.verifier_repeat_n}",
+            ]
         )
     if request.override_storage_mb is not None:
         command.extend(["--override-storage-mb", str(request.override_storage_mb)])
@@ -1777,12 +1792,13 @@ def build_command(request: RunRequest) -> list[str]:
             ]
         )
     if request.agent == TERMINUS_AGENT:
-        command.extend(
-            ["--n-concurrent-agents", "1", "--n-tasks", "1", "--max-retries", "0"]
-        )
+        command.extend(["--n-concurrent-agents", "1", "--n-tasks", "1", "--max-retries", "0"])
         for key, value in sorted(terminus_agent_kwargs(request).items()):
             command.extend(
-                ["--agent-kwarg", f"{key}={json.dumps(value, separators=(',', ':'), allow_nan=False)}"]
+                [
+                    "--agent-kwarg",
+                    f"{key}={json.dumps(value, separators=(',', ':'), allow_nan=False)}",
+                ]
             )
     if request.agent == RLM_AGENT:
         if harbor_model not in ZAI_OPENCODE_MODEL_SELECTORS:

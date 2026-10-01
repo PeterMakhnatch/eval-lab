@@ -1,0 +1,523 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "har116-a-002256-baseline__uRsPnvZ",
+    "trial_id": "d0e3f133-3e94-48f1-a526-6f95a6c77904",
+    "task": "mimo-v2.6-rl/format-code-task-002256",
+    "job": "HAR-116-har116-a-002256-baseline",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "12fcff13-c64a-4080-8e46-21e305e24755",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002256-baseline/har116-a-002256-baseline__uRsPnvZ"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "failed",
+    "reward": 0.0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "verifier_outcome": "fail",
+    "stop_reason": "prose_completion",
+    "stop_detail": "final turn mapped prose_completion to task_complete",
+    "completion": "Completion: claimed at step 7, confirmed at step 8; the run ended on step 8 (mark_task_complete).",
+    "execution_problems": {
+      "parse_errors": 0,
+      "prose_completions": 2,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": "Analysis: Yes, the task is complete. The fix has been applied and verified: 1. **Root cause**: `full()` returned `self.qsize() == self.maxsize`, which is `True` for an empty queue when `maxsize` defaults to `0`. 2. **Fix applied** in `/testbed/persistqueue/queue.py`: ```python def full(self) -> bool: return 0 < self.maxsize and self._qsize() == self.maxsize ``` This follows the documented convention that `maxsize <= 0` means an unbounded queue, so `full()` is only `True` when a positive maxsize is set and the queue is at capacity. 3. **Verification**: - Default queue now reports `(0, True, Fal...",
+    "verifier_files": [
+      "verifier/agent.diff",
+      "verifier/apply.log",
+      "verifier/reward.txt",
+      "verifier/test-stdout.txt",
+      "verifier/test_output.log"
+    ],
+    "first_failure": {
+      "step": 4,
+      "kind": "bad_edit",
+      "evidence": "first repo edit (persistqueue/queue.py) with a tool error at step 5 or later",
+      "confidence": "medium"
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T00:06:51.208631+00:00",
+    "finished_at": "2026-10-01T00:09:38.504599+00:00",
+    "total_seconds": 167.296,
+    "phases": {
+      "environment_setup": {
+        "seconds": 2.347,
+        "starts_at_offset_seconds": 0.067
+      },
+      "agent_setup": {
+        "seconds": 9.94,
+        "starts_at_offset_seconds": 3.834
+      },
+      "agent_execution": {
+        "seconds": 147.845,
+        "starts_at_offset_seconds": 13.835
+      },
+      "verifier": {
+        "seconds": 3.309,
+        "starts_at_offset_seconds": 163.73
+      }
+    },
+    "unaccounted_seconds": 3.855,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": 4.105,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 8,
+    "agent_span_seconds": 147.286,
+    "step_gap_seconds": {
+      "count": 6,
+      "median": 5.815,
+      "p90": 61.956,
+      "max": 61.956,
+      "total": 143.731
+    },
+    "slowest_steps": [
+      {
+        "step": 5,
+        "seconds": 61.956,
+        "action": "bash_command: cd /testbed && python -m pytest persistqueue/tests -q 2>&1 | tail -5"
+      },
+      {
+        "step": 6,
+        "seconds": 61.768,
+        "action": "bash_command: cd /testbed && python -m pytest persistqueue/tests -q --ignore=persistqueue/[hidden-path]/test_mysql..."
+      },
+      {
+        "step": 4,
+        "seconds": 6.403,
+        "action": "bash_command: cd /testbed && python - <<'EOF' import re p = 'persistqueue/queue.py' s = open(p).read() old = \" ret..."
+      },
+      {
+        "step": 8,
+        "seconds": 5.226,
+        "action": "mark_task_complete: {}"
+      },
+      {
+        "step": 7,
+        "seconds": 4.78,
+        "action": "mark_task_complete: {}"
+      }
+    ]
+  },
+  "tokens": {
+    "input": 16955,
+    "cached_input": 0,
+    "uncached_input": 16955,
+    "output": 1194,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 18149,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 16955,
+        "cached_input": 0,
+        "output": 1194,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 16955,
+        "cached_input": 0,
+        "output": 1194,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": 16955,
+        "cached_input": null,
+        "output": 1194,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 7,
+    "llm_steps_with_usage": 7,
+    "context": {
+      "first_prompt_tokens": 1305,
+      "peak_prompt_tokens": 3486,
+      "peak_step": 8,
+      "last_prompt_tokens": 3486
+    },
+    "top_steps": [
+      {
+        "step": 8,
+        "input": 3486,
+        "output": 295,
+        "cost_usd": null,
+        "action": "mark_task_complete: {}"
+      },
+      {
+        "step": 7,
+        "input": 3101,
+        "output": 283,
+        "cost_usd": null,
+        "action": "mark_task_complete: {}"
+      },
+      {
+        "step": 6,
+        "input": 2850,
+        "output": 61,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && python -m pytest persistqueue/tests -q --ignore=persistqueue/[hidden-path]/test_mysql..."
+      },
+      {
+        "step": 5,
+        "input": 2632,
+        "output": 60,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && python -m pytest persistqueue/tests -q 2>&1 | tail -5"
+      },
+      {
+        "step": 4,
+        "input": 1956,
+        "output": 304,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && python - <<'EOF' import re p = 'persistqueue/queue.py' s = open(p).read() old = \" ret..."
+      }
+    ]
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 7,
+    "actions": 7,
+    "distinct_tools": 2,
+    "polls": 0,
+    "by_tool": [
+      {
+        "tool": "bash_command",
+        "calls": 5,
+        "ok": 0,
+        "errors": 1,
+        "unknown": 4,
+        "output_chars": 3739,
+        "first_step": 2,
+        "last_step": 6,
+        "judged": 1,
+        "error_rate": 1.0
+      },
+      {
+        "tool": "mark_task_complete",
+        "calls": 2,
+        "ok": 0,
+        "errors": 0,
+        "unknown": 2,
+        "output_chars": 391,
+        "first_step": 7,
+        "last_step": 8,
+        "judged": 0,
+        "error_rate": null
+      }
+    ],
+    "top_programs": [
+      {
+        "program": "python",
+        "calls": 3
+      },
+      {
+        "program": "ls",
+        "calls": 1
+      },
+      {
+        "program": "grep",
+        "calls": 1
+      }
+    ],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 7,
+    "distinct_actions": 6,
+    "repeated_actions": 1,
+    "repeat_rate": 0.1429,
+    "returns_to_earlier_action": 0,
+    "consecutive_repeats": 1,
+    "exact_revisits": 0,
+    "same_result_from_different_action": 0,
+    "repeated_errors": 0,
+    "longest_identical_run": {
+      "length": 2,
+      "steps": [
+        7,
+        8
+      ],
+      "start_step": 7,
+      "end_step": 8
+    },
+    "longest_cycle": null,
+    "most_repeated": [
+      {
+        "tool": "mark_task_complete",
+        "target": "{}",
+        "count": 2,
+        "steps": [
+          7,
+          8
+        ],
+        "identical_results": 0
+      }
+    ],
+    "loop_suspicion": {
+      "detected": false,
+      "score": 0.0,
+      "reasons": []
+    }
+  },
+  "subagents": {
+    "observability": "none_observed",
+    "reason": null,
+    "count": 0,
+    "delegated_count": 0,
+    "summarization_count": 0,
+    "delegation_calls": [],
+    "items": [],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": []
+  },
+  "errors": {
+    "tool_errors": 1,
+    "harness_signalled": 0,
+    "inferred_from_output": 1,
+    "status_unknown_calls": 6,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {
+      "inferred_from_output": 1
+    },
+    "first_error": {
+      "step": 5,
+      "offset_seconds": 76.062,
+      "evidence": "output_text"
+    },
+    "ended_in_error": true,
+    "examples": [
+      {
+        "step": 5,
+        "tool": "bash_command",
+        "target": "cd /testbed && python -m pytest persistqueue/tests -q 2>&1 | tail -5",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "stbed# cd /testbed && python -m pytest persistqueue/tests -q 2>&1 | tail -5 E ModuleNotFoundError: No module named 'dbutils' =========================== short test summary info ============================ ERROR persistqueue/[hidden-path]/t..."
+      }
+    ],
+    "exception": null
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 0,
+    "items": []
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 8,
+    "shown_steps": 8,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 0.55,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      },
+      {
+        "step": 2,
+        "offset_seconds": 4.105,
+        "source": "agent",
+        "action": "bash_command: ls /testbed && grep -n \"def full\" -A 5 /testbed/persistqueue/queue.py",
+        "status": "unknown",
+        "input_tokens": 1305,
+        "output_tokens": 51,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 3,
+        "offset_seconds": 7.703,
+        "source": "agent",
+        "action": "bash_command: grep -n \"maxsize\" /testbed/persistqueue/queue.py | head -30",
+        "status": "unknown",
+        "input_tokens": 1625,
+        "output_tokens": 140,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 4,
+        "offset_seconds": 14.106,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python - <<'EOF' import re p = 'persistqueue/queue.py' s = open(p).read() old = \" ret...",
+        "status": "unknown",
+        "input_tokens": 1956,
+        "output_tokens": 304,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 5,
+        "offset_seconds": 76.062,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python -m pytest persistqueue/tests -q 2>&1 | tail -5",
+        "status": "error",
+        "input_tokens": 2632,
+        "output_tokens": 60,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 6,
+        "offset_seconds": 137.83,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python -m pytest persistqueue/tests -q --ignore=persistqueue/[hidden-path]/test_mysql...",
+        "status": "unknown",
+        "input_tokens": 2850,
+        "output_tokens": 61,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 7,
+        "offset_seconds": 142.61,
+        "source": "agent",
+        "action": "mark_task_complete: {}",
+        "status": "unknown",
+        "input_tokens": 3101,
+        "output_tokens": 283,
+        "cost_usd": null,
+        "message": "Analysis: Fixed. The bug was in `persistqueue/queue.py` in the `full()` method: ```python def full(self) -> bool: return self.qsize() == sel...",
+        "flags": [
+          "completion"
+        ]
+      },
+      {
+        "step": 8,
+        "offset_seconds": 147.836,
+        "source": "agent",
+        "action": "mark_task_complete: {}",
+        "status": "unknown",
+        "input_tokens": 3486,
+        "output_tokens": 295,
+        "cost_usd": null,
+        "message": "Analysis: Yes, the task is complete. The fix has been applied and verified: 1. **Root cause**: `full()` returned `self.qsize() == self.maxsi...",
+        "flags": [
+          "revisit",
+          "completion"
+        ]
+      }
+    ],
+    "windows": [],
+    "time_windows": {
+      "status": "unavailable",
+      "reason": "fewer than 20 steps",
+      "windows": []
+    }
+  },
+  "data_quality": [
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B' has no pinned price-table entry",
+    "harness reports no per-call status (no exit codes or error flags): tool errors are only inferred from output text"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "33bedd137fb89507da50c895faf8698b33ec00c73f1dc022605b5e71a23e7b74"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "d7443b30e2c3e0bab68066265f623d53b796659e798adaaf1dd7f03567991117"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 7,
+    "recorded": 7,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 0,
+    "prose_completions": 2,
+    "executed_calls": 5,
+    "task_complete_turns": 2,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 0,
+    "continuations_missing": [],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 8,
+        "copied_steps": 0,
+        "session_id": "12fcff13-c64a-4080-8e46-21e305e24755"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 8,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": []
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B) failed (reward 0) on mimo-v2.6-rl/format-code-task-002256; in 2m47s wall (2m28s agent); 8 steps, 7 tool calls, 1 error, 18.1k tokens, cost unavailable; 1 repeated action (0 exact revisits); no subagents observed."
+}

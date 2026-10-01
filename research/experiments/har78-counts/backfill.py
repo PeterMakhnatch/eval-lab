@@ -1,9 +1,9 @@
 """Back-fill HAR-78 counts for landed HAR-81, HAR-104, and HAR-110 trials.
 
 Rollup matches RESULTS.md:
-- HAR-81: 44 ARVO cyber tasks (no ledger covers these tasks / unchecked)
+- HAR-81: 44 mixed-domain trials (no ledger covers these tasks / not checked)
 - HAR-104: 10 dev and v1 baseline plain runs
-- HAR-110: 27 real trials organized per round and arm:
+- HAR-110: 36 comparison cells (27 fresh trials + 9 retained HAR-104 trials):
     - development: plain (6), seed-addendum (6), gepa-candidate (6)
     - held-out: plain (4), seed-addendum (4), gepa-candidate (4)
     - v1-only (dropped): plain (3), seed-addendum (3)
@@ -35,6 +35,18 @@ def _index_trials() -> dict[str, Path]:
     return found
 
 
+def _counts_for_trial(trial_dir: Path, record: dict, result: dict) -> dict:
+    spec_path = trial_dir.parent / "experiment-spec.json"
+    spec = json.loads(spec_path.read_text(encoding="utf-8")) if spec_path.is_file() else {}
+    return attach_counts(
+        record,
+        result,
+        label_root=REPO,
+        package_digest=spec.get("task_package_digest"),
+        task_id=spec.get("task_id"),
+    )
+
+
 def _load_har81(located: dict[str, Path]) -> list[dict]:
     rows: list[dict] = []
     csv_path = ROOT / "research/experiments/har114-tokenflow/runs.csv"
@@ -48,7 +60,7 @@ def _load_har81(located: dict[str, Path]) -> list[dict]:
                 continue
             record = _process_trial(t_dir, t_dir.parent)
             result = json.loads((t_dir / "result.json").read_text(encoding="utf-8"))
-            counts = attach_counts(record, result, label_root=REPO)
+            counts = _counts_for_trial(t_dir, record, result)
             rows.append(
                 {
                     "campaign": "HAR-81",
@@ -75,7 +87,7 @@ def _load_har104(located: dict[str, Path]) -> list[dict]:
             continue
         record = _process_trial(t_dir, t_dir.parent)
         result = json.loads((t_dir / "result.json").read_text(encoding="utf-8"))
-        counts = attach_counts(record, result, label_root=REPO)
+        counts = _counts_for_trial(t_dir, record, result)
         rows.append(
             {
                 "campaign": "HAR-104",
@@ -111,7 +123,7 @@ def _load_har110(located: dict[str, Path]) -> list[dict]:
             continue
         record = _process_trial(t_dir, t_dir.parent)
         result = json.loads((t_dir / "result.json").read_text(encoding="utf-8"))
-        counts = attach_counts(record, result, label_root=REPO)
+        counts = _counts_for_trial(t_dir, record, result)
         rows.append(
             {
                 "campaign": "HAR-110",

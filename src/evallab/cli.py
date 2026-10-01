@@ -1696,6 +1696,40 @@ def _capture_link_command(
     return 0
 
 
+def _capture_smoke_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    import tempfile
+
+    from evallab.model_capture import SmokeError, run_capture_smoke
+
+    del harbor
+    out = (
+        _resolve(root, args.out)
+        if args.out is not None
+        else Path(tempfile.mkdtemp(prefix="evallab-capture-smoke."))
+    )
+    try:
+        summary = run_capture_smoke(
+            upstream=args.upstream,
+            out_dir=out,
+            key_env=args.key_env,
+            max_tokens=args.max_tokens,
+        )
+    except SmokeError as exc:
+        print(f"smoke failed: {exc}", file=sys.stderr)
+        return 1
+    print(f"status: {summary['status']}")
+    print(f"model: {summary['model']}")
+    print(f"forwarded_host: {summary['forwarded_host']}")
+    print(f"route_token: {summary['route_token']}")
+    print(f"request_sha256: {summary['request_sha256']}")
+    print(f"response_sha256: {summary['response_sha256']}")
+    print(f"calls: {summary['calls']}")
+    print(f"capture_dir: {summary['capture_dir']}")
+    return 0
+
+
 def _analyze_plan_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -2145,6 +2179,90 @@ def _spend_day_command(
     return 0
 
 
+def _spend_check_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    """Pre-launch spend-cap check: settled(window) + in-flight + candidate vs cap."""
+    del harbor
+    import math
+
+    from evallab.spend_day import (
+        REASON_CAP_UNVERIFIED,
+        REASON_CEILING_EXCEEDED,
+        REASON_STALE_MODAL,
+        REASON_UNRATABLE_SPEC,
+        check_launch,
+        day_window_now,
+        decision_to_dict,
+        parse_launch_since,
+        render_decision,
+        sibling_worktree_roots,
+    )
+
+    if not math.isfinite(args.candidate_usd) or args.candidate_usd < 0:
+        print(
+            f"invalid --candidate-usd: {args.candidate_usd!r} (must be a finite non-negative number)",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        window_start, window_end = (
+            (parse_launch_since(args.since), datetime.now(UTC)) if args.since else day_window_now()
+        )
+    except ValueError as exc:
+        print(f"{exc}", file=sys.stderr)
+        return 2
+    if window_end <= window_start:
+        print(
+            f"invalid window: --since {args.since!r} is not before now ({window_end.isoformat()})",
+            file=sys.stderr,
+        )
+        return 2
+    if args.cap_usd is not None:
+        cap_usd = args.cap_usd
+        if not math.isfinite(cap_usd) or cap_usd <= 0:
+            print(
+                f"invalid --cap-usd: {cap_usd!r} (must be a finite positive number)",
+                file=sys.stderr,
+            )
+            return 2
+    else:
+        try:
+            cap_usd = load_policy(root / "policy/standing-approvals.yaml").daily_cost_ceiling_usd
+        except ValueError as exc:
+            print(f"spend check: policy unreadable ({exc}); refusing unverified", file=sys.stderr)
+            return 2
+    queue_root = args.queue_root if args.queue_root is not None else root / "queue"
+    url = database_url_from_environment(args.database_url)
+    extra_roots = sibling_worktree_roots(root)
+    decision = check_launch(
+        repo_root=root,
+        queue_root=queue_root,
+        database_url=url,
+        window_start=window_start,
+        window_end=window_end,
+        candidate_usd=args.candidate_usd,
+        cap_usd=cap_usd,
+        extra_roots=extra_roots,
+        allow_stale_modal=getattr(args, "allow_stale_modal", False),
+    )
+    if args.json:
+        print(json.dumps(decision_to_dict(decision), indent=2, sort_keys=True))
+    else:
+        print(render_decision(decision))
+    if decision.allowed:
+        return 0
+    if decision.reason_code == REASON_CEILING_EXCEEDED:
+        return 3
+    if decision.reason_code in (
+        REASON_CAP_UNVERIFIED,
+        REASON_UNRATABLE_SPEC,
+        REASON_STALE_MODAL,
+    ):
+        return 2
+    return 2
+
+
 def _db_list_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -2198,6 +2316,51 @@ def _db_attach_command(
     # thin layer over attach/print_zones/attach_and_query/build_sql_preamble
     explicit = getattr(args, "derived_root", None)
     derived = derived_root_from_environment(root, explicit=explicit)
+
+    trace_mode = bool(
+        getattr(args, "trace", False)
+        or getattr(args, "trace_results_home", None)
+        or getattr(args, "trace_job_dirs", None)
+    )
+    if trace_mode:
+        from evallab.trace_query import connect_trace_query
+
+        con, coverage = connect_trace_query(
+            repo_root=root,
+            results_home=getattr(args, "trace_results_home", None),
+            derived_root=derived,
+            job_dirs=getattr(args, "trace_job_dirs", None),
+        )
+        try:
+            if args.zones:
+                print(
+                    f"trace: attached ({coverage['discovered_jobs']} jobs, "
+                    f"{coverage['discovered_trials']} trials, "
+                    f"{coverage['discovered_steps']} steps; "
+                    f"{coverage['missing_processed']} missing processed, "
+                    f"{coverage['missing_counts']} missing counts)"
+                )
+                return 0
+            if args.print_sql:
+                queries_path = root / "sql" / "trace_queries.sql"
+                if queries_path.is_file():
+                    print(queries_path.read_text(encoding="utf-8"))
+                else:
+                    print("-- v_trace_trials and v_trace_steps transient views")
+                return 0
+            if args.query:
+                rows = con.execute(args.query).fetchall()
+                for row in rows:
+                    print(row)
+                return 0
+            print(
+                f"trace: attached ({coverage['discovered_trials']} trials, "
+                f"{coverage['discovered_steps']} steps across {coverage['discovered_jobs']} jobs)"
+            )
+            return 0
+        finally:
+            con.close()
+
     result = attach(repo_root=root, explicit_derived=derived)
     if args.zones:
         print_zones(result.zones)
@@ -3856,6 +4019,7 @@ def _process_job_command(
             ingest=not args.no_ingest,
             publish=not args.no_publish,
             nop_runs_dir=args.nop_runs_dir,
+            session_spend=args.session_spend,
         )
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -4704,6 +4868,20 @@ def parser() -> argparse.ArgumentParser:
     capture_link.add_argument("--derived-root", type=Path, help="Override the derived Parquet root")
     capture_link.add_argument("--json", action="store_true", help="Emit the link receipt as JSON")
     capture_link.set_defaults(func=_capture_link_command)
+    capture_smoke = capture_commands.add_parser(
+        "smoke", help="One live call through secret proxy -> capture -> upstream"
+    )
+    capture_smoke.add_argument("--upstream", required=True, help="Upstream base URL to forward to")
+    capture_smoke.add_argument(
+        "--out", type=Path, default=None, help="Capture directory (default: temp)"
+    )
+    capture_smoke.add_argument(
+        "--key-env", default="MIMO_SELFHOSTED_API_KEY", help="Env var holding the provider key"
+    )
+    capture_smoke.add_argument(
+        "--max-tokens", type=int, default=64, help="Completion cap for the probe call"
+    )
+    capture_smoke.set_defaults(func=_capture_smoke_command)
 
     analyze = commands.add_parser("analyze", help="Plan or index bounded trial analyses")
     analyze_commands = analyze.add_subparsers(dest="analyze_command", required=True)
@@ -4907,6 +5085,25 @@ def parser() -> argparse.ArgumentParser:
         type=Path,
         help="override the shared Parquet root (same resolution as library)",
     )  # noqa: E501
+    db_attach.add_argument(
+        "--trace",
+        action="store_true",
+        help="attach transient trace query surface (v_trace_trials + v_trace_steps in memory, no PG required)",
+    )  # noqa: E501
+    db_attach.add_argument(
+        "--trace-results-home",
+        type=Path,
+        metavar="PATH",
+        help="override results home directory for trace job discovery",
+    )  # noqa: E501
+    db_attach.add_argument(
+        "--trace-job-dir",
+        action="append",
+        type=Path,
+        dest="trace_job_dirs",
+        metavar="PATH",
+        help="pin specific Harbor job directory (may be repeated)",
+    )  # noqa: E501
     db_attach.set_defaults(func=_db_attach_command)
 
     modal = commands.add_parser("modal", help="Self-hosted Modal operations")
@@ -4950,6 +5147,44 @@ def parser() -> argparse.ArgumentParser:
     spend_day.add_argument("--database-url", help="Override catalog PostgreSQL URL")
     spend_day.add_argument("--json", action="store_true", help="Emit ledger as JSON")
     spend_day.set_defaults(func=_spend_day_command)
+    spend_check = spend_commands.add_parser(
+        "check",
+        help="Pre-launch spend-cap check: settled(window) + in-flight + candidate vs cap",
+    )
+    spend_check.add_argument(
+        "--candidate-usd",
+        type=float,
+        required=True,
+        metavar="FLOAT",
+        help="Estimated cost of the candidate launch in USD (must be >= 0)",
+    )
+    spend_check.add_argument(
+        "--cap-usd",
+        type=float,
+        default=None,
+        metavar="FLOAT",
+        help="Spend cap in USD (default: policy daily_cost_ceiling_usd)",
+    )
+    spend_check.add_argument(
+        "--since",
+        default=None,
+        metavar="ISO8601",
+        help="Window start as ISO-8601 UTC (window end is now; default: current UTC day)",
+    )
+    spend_check.add_argument(
+        "--queue-root",
+        type=Path,
+        default=None,
+        help="Queue directory holding running/approved specs (default: <repo>/queue)",
+    )
+    spend_check.add_argument("--database-url", help="Override catalog PostgreSQL URL")
+    spend_check.add_argument("--json", action="store_true", help="Emit decision as JSON")
+    spend_check.add_argument(
+        "--allow-stale-modal",
+        action="store_true",
+        help="Allow launch despite stale Modal billing rows (downgrades refusal to warning)",
+    )
+    spend_check.set_defaults(func=_spend_check_command)
 
     lineage = commands.add_parser(
         "lineage", help="Trace recursive lineage of generated artifacts back to Z1"
@@ -6023,6 +6258,17 @@ def parser() -> argparse.ArgumentParser:
         help="Runs root holding same-task nop/qual trials for the grader cross-check",
     )
     process_job_parser.add_argument("--json", action="store_true", help="Emit report as JSON")
+    process_job_parser.add_argument(
+        "--session-spend",
+        type=Path,
+        default=None,
+        help=(
+            "Billed-session receipt JSON (evallab.session_spend/v1) for the "
+            "allocated GPU share. Reprocessing after the bills land requires "
+            "passing the receipt again; without it the legacy shared-GPU "
+            "estimate keeps its non-additive label."
+        ),
+    )
     process_job_parser.set_defaults(func=_process_job_command)
     process_job_parser.add_argument(
         "--no-publish",

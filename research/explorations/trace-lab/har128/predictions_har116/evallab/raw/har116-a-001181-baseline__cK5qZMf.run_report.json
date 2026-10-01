@@ -1,0 +1,970 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "har116-a-001181-baseline__cK5qZMf",
+    "trial_id": "5774ae2c-42fb-49ad-91bc-abb5ade25fb3",
+    "task": "mimo-v2.6-rl/format-code-task-001181",
+    "job": "HAR-116-har116-a-001181-baseline",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "23ad0af3-cfcc-4427-a12d-6221f3db3a16",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001181-baseline/har116-a-001181-baseline__cK5qZMf"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "failed",
+    "reward": 0.0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "verifier_outcome": "fail",
+    "stop_reason": "trial_budget_exhausted",
+    "stop_detail": "agent metadata stop_reason; binding ceiling: input_tokens",
+    "completion": "Completion: never claimed; the run ended on step 89 (cd /testbed && awk 'NR>=414 && NR<=423' rich/progress.py).",
+    "execution_problems": {
+      "parse_errors": 0,
+      "prose_completions": 0,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": null,
+    "verifier_files": [
+      "verifier/agent.diff",
+      "verifier/apply.log",
+      "verifier/reward.txt",
+      "verifier/test-stdout.txt",
+      "verifier/test_output.log"
+    ],
+    "first_failure": {
+      "step": null,
+      "kind": null,
+      "evidence": null,
+      "confidence": null
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T00:06:51.558824+00:00",
+    "finished_at": "2026-10-01T00:15:02.823570+00:00",
+    "total_seconds": 491.265,
+    "phases": {
+      "environment_setup": {
+        "seconds": 1.883,
+        "starts_at_offset_seconds": 0.091
+      },
+      "agent_setup": {
+        "seconds": 9.536,
+        "starts_at_offset_seconds": 3.265
+      },
+      "agent_execution": {
+        "seconds": 473.079,
+        "starts_at_offset_seconds": 12.83
+      },
+      "verifier": {
+        "seconds": 2.896,
+        "starts_at_offset_seconds": 488.061
+      }
+    },
+    "unaccounted_seconds": 3.871,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": 4.747,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 89,
+    "agent_span_seconds": 436.594,
+    "step_gap_seconds": {
+      "count": 87,
+      "median": 3.844,
+      "p90": 4.787,
+      "max": 58.591,
+      "total": 432.25
+    },
+    "slowest_steps": [
+      {
+        "step": 16,
+        "seconds": 58.591,
+        "action": "bash_command: cd /testbed && grep -n \"speed_estimate_period\" rich/progress.py"
+      },
+      {
+        "step": 17,
+        "seconds": 50.611,
+        "action": "bash_command: cd /testbed && grep -n \"speed\\|time_remaining\\|_progress\\|reset\\|finished\" [hidden-path]/test_progre..."
+      },
+      {
+        "step": 31,
+        "seconds": 5.442,
+        "action": "bash_command: cd /testbed && awk 'NR>=880 && NR<=908' rich/progress.py"
+      },
+      {
+        "step": 53,
+        "seconds": 5.312,
+        "action": "bash_command: cd /testbed && awk 'NR>=708 && NR<=737' rich/progress.py"
+      },
+      {
+        "step": 75,
+        "seconds": 5.079,
+        "action": "bash_command: cd /testbed && awk 'NR>=526 && NR<=535' rich/progress.py"
+      }
+    ]
+  },
+  "tokens": {
+    "input": 2410295,
+    "cached_input": 0,
+    "uncached_input": 2410295,
+    "output": 7444,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 2417739,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 2410295,
+        "cached_input": 0,
+        "output": 7444,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 2410295,
+        "cached_input": 0,
+        "output": 7444,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": 2410295,
+        "cached_input": null,
+        "output": 7444,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 88,
+    "llm_steps_with_usage": 88,
+    "context": {
+      "first_prompt_tokens": 997,
+      "peak_prompt_tokens": 44582,
+      "peak_step": 89,
+      "last_prompt_tokens": 44582
+    },
+    "top_steps": [
+      {
+        "step": 89,
+        "input": 44582,
+        "output": 42,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && awk 'NR>=414 && NR<=423' rich/progress.py"
+      },
+      {
+        "step": 88,
+        "input": 43688,
+        "output": 42,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && awk 'NR>=422 && NR<=431' rich/progress.py"
+      },
+      {
+        "step": 87,
+        "input": 43276,
+        "output": 42,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && awk 'NR>=430 && NR<=439' rich/progress.py"
+      },
+      {
+        "step": 86,
+        "input": 42981,
+        "output": 42,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && awk 'NR>=438 && NR<=447' rich/progress.py"
+      },
+      {
+        "step": 85,
+        "input": 42754,
+        "output": 42,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && awk 'NR>=446 && NR<=455' rich/progress.py"
+      }
+    ]
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 90,
+    "actions": 88,
+    "distinct_tools": 1,
+    "polls": 0,
+    "by_tool": [
+      {
+        "tool": "bash_command",
+        "calls": 90,
+        "ok": 0,
+        "errors": 0,
+        "unknown": 90,
+        "output_chars": 139817,
+        "first_step": 2,
+        "last_step": 89,
+        "judged": 0,
+        "error_rate": null
+      }
+    ],
+    "top_programs": [
+      {
+        "program": "awk",
+        "calls": 74
+      },
+      {
+        "program": "grep",
+        "calls": 5
+      },
+      {
+        "program": "sed",
+        "calls": 4
+      },
+      {
+        "program": "git",
+        "calls": 2
+      },
+      {
+        "program": "cat",
+        "calls": 2
+      },
+      {
+        "program": "ls",
+        "calls": 1
+      }
+    ],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 88,
+    "distinct_actions": 88,
+    "repeated_actions": 0,
+    "repeat_rate": 0.0,
+    "returns_to_earlier_action": 0,
+    "consecutive_repeats": 0,
+    "exact_revisits": 0,
+    "same_result_from_different_action": 0,
+    "repeated_errors": 0,
+    "longest_identical_run": {
+      "length": 1,
+      "steps": [
+        2
+      ],
+      "start_step": 2,
+      "end_step": 2
+    },
+    "longest_cycle": null,
+    "most_repeated": [],
+    "loop_suspicion": {
+      "detected": false,
+      "score": 0.0,
+      "reasons": []
+    },
+    "repeats_by_window": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "revisits_started": {
+      "repeat_rate_by_window": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "median_repeat_rate": 0.0,
+      "status": "no_repeats",
+      "reason": "no repeated actions in the run",
+      "window": null,
+      "steps": null,
+      "repeat_rate": null
+    }
+  },
+  "subagents": {
+    "observability": "none_observed",
+    "reason": null,
+    "count": 0,
+    "delegated_count": 0,
+    "summarization_count": 0,
+    "delegation_calls": [],
+    "items": [],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": []
+  },
+  "errors": {
+    "tool_errors": 0,
+    "harness_signalled": 0,
+    "inferred_from_output": 0,
+    "status_unknown_calls": 90,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {},
+    "first_error": null,
+    "ended_in_error": false,
+    "examples": [],
+    "exception": {
+      "type": "TrialBudgetExhaustedError",
+      "message": "the trial proxy refused a model call: trial budget exhausted",
+      "occurred_at": "2026-10-01T00:14:57.476963Z"
+    }
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 0,
+    "items": []
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 89,
+    "shown_steps": 20,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 0.403,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      },
+      {
+        "step": 2,
+        "offset_seconds": 4.747,
+        "source": "agent",
+        "action": "bash_command: ls /testbed && cat /testbed/README* 2>/dev/null | head -50 ; grep -rn \"Progress\" /testbed --include=...",
+        "status": "unknown",
+        "input_tokens": 997,
+        "output_tokens": 83,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 3,
+        "offset_seconds": 8.603,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && git log --oneline -5 && git status ; cd /testbed && wc -l rich/progress.py rich/_task...",
+        "status": "unknown",
+        "input_tokens": 2392,
+        "output_tokens": 80,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 4,
+        "offset_seconds": 11.622,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && cat rich/progress.py",
+        "status": "unknown",
+        "input_tokens": 3027,
+        "output_tokens": 29,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 5,
+        "offset_seconds": 15.912,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && grep -n \"class Progress\\|class Task\\|def update\\|def advance\\|def reset\\|def start_ta...",
+        "status": "unknown",
+        "input_tokens": 5552,
+        "output_tokens": 86,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 6,
+        "offset_seconds": 19.507,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && sed -n '900,1040p' rich/progress.py",
+        "status": "unknown",
+        "input_tokens": 6224,
+        "output_tokens": 42,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 7,
+        "offset_seconds": 23.634,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && sed -n '1040,1250p' rich/progress.py",
+        "status": "unknown",
+        "input_tokens": 7457,
+        "output_tokens": 43,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 8,
+        "offset_seconds": 27.425,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && sed -n '1340,1560p' rich/progress.py",
+        "status": "unknown",
+        "input_tokens": 7899,
+        "output_tokens": 43,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 9,
+        "offset_seconds": 31.432,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && awk 'NR>=1300 && NR<=1530' rich/progress.py",
+        "status": "unknown",
+        "input_tokens": 8305,
+        "output_tokens": 44,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 10,
+        "offset_seconds": 35.053,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && awk 'NR>=1240 && NR<=1345' rich/progress.py",
+        "status": "unknown",
+        "input_tokens": 8728,
+        "output_tokens": 44,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "omitted_steps": [
+          11,
+          79
+        ]
+      },
+      {
+        "step": 80,
+        "offset_seconds": 401.15,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && awk 'NR>=486 && NR<=495' rich/progress.py",
+        "status": "unknown",
+        "input_tokens": 41542,
+        "output_tokens": 42,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 81,
+        "offset_seconds": 405.147,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && awk 'NR>=478 && NR<=487' rich/progress.py",
+        "status": "unknown",
+        "input_tokens": 41811,
+        "output_tokens": 42,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 82,
+        "offset_seconds": 409.76,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && awk 'NR>=470 && NR<=480' rich/progress.py",
+        "status": "unknown",
+        "input_tokens": 42047,
+        "output_tokens": 42,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 83,
+        "offset_seconds": 413.721,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && awk 'NR>=462 && NR<=471' rich/progress.py",
+        "status": "unknown",
+        "input_tokens": 42286,
+        "output_tokens": 42,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 84,
+        "offset_seconds": 417.682,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && awk 'NR>=454 && NR<=463' rich/progress.py",
+        "status": "unknown",
+        "input_tokens": 42525,
+        "output_tokens": 42,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 85,
+        "offset_seconds": 421.627,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && awk 'NR>=446 && NR<=455' rich/progress.py",
+        "status": "unknown",
+        "input_tokens": 42754,
+        "output_tokens": 42,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 86,
+        "offset_seconds": 424.726,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && awk 'NR>=438 && NR<=447' rich/progress.py",
+        "status": "unknown",
+        "input_tokens": 42981,
+        "output_tokens": 42,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 87,
+        "offset_seconds": 428.645,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && awk 'NR>=430 && NR<=439' rich/progress.py",
+        "status": "unknown",
+        "input_tokens": 43276,
+        "output_tokens": 42,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 88,
+        "offset_seconds": 432.868,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && awk 'NR>=422 && NR<=431' rich/progress.py",
+        "status": "unknown",
+        "input_tokens": 43688,
+        "output_tokens": 42,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 89,
+        "offset_seconds": 436.998,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && awk 'NR>=414 && NR<=423' rich/progress.py",
+        "status": "unknown",
+        "input_tokens": 44582,
+        "output_tokens": 42,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      }
+    ],
+    "windows": [
+      {
+        "steps": [
+          1,
+          9
+        ],
+        "tool_calls": 8,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 450,
+        "cost_usd": null,
+        "seconds": 31.029,
+        "peak_prompt_tokens": 8305,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          10,
+          18
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 3772,
+        "cost_usd": null,
+        "seconds": 130.432,
+        "peak_prompt_tokens": 14436,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          19,
+          27
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 610,
+        "cost_usd": null,
+        "seconds": 30.145,
+        "peak_prompt_tokens": 19348,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          28,
+          36
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 386,
+        "cost_usd": null,
+        "seconds": 32.38,
+        "peak_prompt_tokens": 24241,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          37,
+          45
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 378,
+        "cost_usd": null,
+        "seconds": 27.732,
+        "peak_prompt_tokens": 29643,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          46,
+          54
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 378,
+        "cost_usd": null,
+        "seconds": 30.527,
+        "peak_prompt_tokens": 34226,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          55,
+          63
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 378,
+        "cost_usd": null,
+        "seconds": 29.472,
+        "peak_prompt_tokens": 36781,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          64,
+          72
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 378,
+        "cost_usd": null,
+        "seconds": 31.978,
+        "peak_prompt_tokens": 39493,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          73,
+          81
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 378,
+        "cost_usd": null,
+        "seconds": 30.974,
+        "peak_prompt_tokens": 41811,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          82,
+          89
+        ],
+        "tool_calls": 8,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 336,
+        "cost_usd": null,
+        "seconds": 27.238,
+        "peak_prompt_tokens": 44582,
+        "compactions": 0
+      }
+    ],
+    "time_windows": {
+      "status": "available",
+      "reason": null,
+      "origin": "2026-10-01T00:07:04.791840+00:00",
+      "span_seconds": 436.594,
+      "steps_without_timestamps": 0,
+      "windows": [
+        {
+          "steps": [
+            1,
+            12
+          ],
+          "tool_calls": 11,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 582,
+          "cost_usd": null,
+          "peak_prompt_tokens": 10630,
+          "compactions": 0,
+          "starts_at_offset_seconds": 0.0,
+          "ends_at_offset_seconds": 43.659
+        },
+        {
+          "steps": [
+            13,
+            15
+          ],
+          "tool_calls": 3,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 153,
+          "cost_usd": null,
+          "peak_prompt_tokens": 12356,
+          "compactions": 0,
+          "starts_at_offset_seconds": 43.659,
+          "ends_at_offset_seconds": 87.319
+        },
+        {
+          "steps": [
+            16,
+            16
+          ],
+          "tool_calls": 1,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 36,
+          "cost_usd": null,
+          "peak_prompt_tokens": 13496,
+          "compactions": 0,
+          "starts_at_offset_seconds": 87.319,
+          "ends_at_offset_seconds": 130.978
+        },
+        {
+          "steps": [
+            17,
+            20
+          ],
+          "tool_calls": 4,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 3563,
+          "cost_usd": null,
+          "peak_prompt_tokens": 15933,
+          "compactions": 0,
+          "starts_at_offset_seconds": 130.978,
+          "ends_at_offset_seconds": 174.638
+        },
+        {
+          "steps": [
+            21,
+            31
+          ],
+          "tool_calls": 11,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 668,
+          "cost_usd": null,
+          "peak_prompt_tokens": 21321,
+          "compactions": 0,
+          "starts_at_offset_seconds": 174.638,
+          "ends_at_offset_seconds": 218.297
+        },
+        {
+          "steps": [
+            32,
+            42
+          ],
+          "tool_calls": 11,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 468,
+          "cost_usd": null,
+          "peak_prompt_tokens": 27948,
+          "compactions": 0,
+          "starts_at_offset_seconds": 218.297,
+          "ends_at_offset_seconds": 261.957
+        },
+        {
+          "steps": [
+            43,
+            55
+          ],
+          "tool_calls": 13,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 546,
+          "cost_usd": null,
+          "peak_prompt_tokens": 34543,
+          "compactions": 0,
+          "starts_at_offset_seconds": 261.957,
+          "ends_at_offset_seconds": 305.616
+        },
+        {
+          "steps": [
+            56,
+            66
+          ],
+          "tool_calls": 11,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 462,
+          "cost_usd": null,
+          "peak_prompt_tokens": 37572,
+          "compactions": 0,
+          "starts_at_offset_seconds": 305.616,
+          "ends_at_offset_seconds": 349.275
+        },
+        {
+          "steps": [
+            67,
+            77
+          ],
+          "tool_calls": 11,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 462,
+          "cost_usd": null,
+          "peak_prompt_tokens": 40764,
+          "compactions": 0,
+          "starts_at_offset_seconds": 349.275,
+          "ends_at_offset_seconds": 392.935
+        },
+        {
+          "steps": [
+            78,
+            89
+          ],
+          "tool_calls": 12,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 504,
+          "cost_usd": null,
+          "peak_prompt_tokens": 44582,
+          "compactions": 0,
+          "starts_at_offset_seconds": 392.935,
+          "ends_at_offset_seconds": 436.594
+        }
+      ]
+    }
+  },
+  "data_quality": [
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B' has no pinned price-table entry",
+    "harness reports no per-call status (no exit codes or error flags): tool errors are only inferred from output text"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "2c99bfc4f8ed733712d0c40c8bcfcb9f4566079e867253e98d1665212e4942b5"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "c05148436b2d729043ccda0742cd92fa478bbb44368520a29f41b421fba2fb20"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 88,
+    "recorded": 88,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 0,
+    "prose_completions": 0,
+    "executed_calls": 90,
+    "task_complete_turns": 0,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 0,
+    "continuations_missing": [],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 89,
+        "copied_steps": 0,
+        "session_id": "23ad0af3-cfcc-4427-a12d-6221f3db3a16"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 89,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": []
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B) failed (reward 0) on mimo-v2.6-rl/format-code-task-001181; in 8m11s wall (7m53s agent); 89 steps, 90 tool calls, 0 errors, 2.42M tokens, cost unavailable; 0 repeated actions (0 exact revisits); no subagents observed."
+}

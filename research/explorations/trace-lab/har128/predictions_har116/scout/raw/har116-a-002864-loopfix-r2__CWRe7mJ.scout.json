@@ -1,0 +1,102 @@
+{
+ "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002864-loopfix-r2/har116-a-002864-loopfix-r2__CWRe7mJ",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002864-loopfix-r2",
+ "task": "mimo-v2.6-rl/format-code-task-002864",
+ "verifier": {
+  "scored": true,
+  "reward": 1.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "task_complete_confirmed",
+  "exception_type": null,
+  "exception_message": "",
+  "natural_completion": true,
+  "task_complete_refs": [
+   "head#19",
+   "head#22",
+   "head#23"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "none",
+  "attribution": "n/a",
+  "rule_id": "R-NONE-01",
+  "evidence_step_refs": [
+   "head#2",
+   "head#11"
+  ],
+  "note": "scored pass with no outcome-relevant failure",
+  "secondary": "error_recovery/model secondary: identical run head#2-head#11"
+ },
+ "handshake": {
+  "first_prompt_ref": "head#19",
+  "prompts": 2,
+  "confirmed": true,
+  "turns_after_first_prompt": 4,
+  "prompt_tokens_after_first_prompt": 43697,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 10,
+    "span": [
+     "head#2",
+     "head#11"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 36863,
+   "completion": 2178,
+   "steps": 10,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 36863,
+   "completion": 2178,
+   "steps": 10,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 147542,
+   "completion": 4868,
+   "steps": 22,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.2498,
+  "result_input_tokens": 147542
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 19,
+  "states": {
+   "prompt": 19
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "ba8d8358d2bb6ca6fae7c00e871c0271e587269c"
+ },
+ "nop_runs_dir": null
+}

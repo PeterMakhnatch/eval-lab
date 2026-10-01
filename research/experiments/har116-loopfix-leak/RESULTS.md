@@ -19,6 +19,11 @@ gaps as suggestive, not conclusive.
   the GEPA `upstream_fetch_zero` rule (`evallab.upstream_fetch`: any remote
   fetch attempt forces the objective score to 0). `names_task_repo` is
   unavailable (the builder does not pass a task repo, so all read False).
+- Token columns throughout this report are **native Harbor** totals from raw
+  trial `result.json` → `agent_result`, not settled proxy usage. HAR-132 pinned
+  the builder to that source: the historical processed field `tokens_proxy`
+  was mispopulated with native totals, and correcting that field must not
+  silently change the metric in these historical tables.
 
 **Correction to the interim notes:** the loopfix arm passes **5/10**, not 6/10
 (HAR-116, RE 02:24Z said 6). `verifier/reward.txt` is 1.0 for exactly five
@@ -92,16 +97,23 @@ answered `exit=0`, but the real fetch at step 37
 | 002391 | 0 → 1 | −12,492 (passed despite hitting the ceiling at 95) | gained (no nudge) |
 | 002864 | 0 → 1 | −2,305,539 (confirmed at 22 vs 112-call claim loop) | gained (no nudge) |
 
-| arm | passes | input tokens | calls | wall (trial h) |
+| arm | passes | native input tokens | agent steps | wall (trial h) |
 |---|---|---|---|---|
 | baseline | 0/10 | 21,993,932 | 806 | 2.001 |
 | loopfix-r2 | 5/10 | 16,219,340 | 691 | 1.746 |
-| saving | +5, no pass lost | −5,774,592 (−26%) | −115 | −0.255 |
+| saving | +5, no pass lost | −5,774,592 (−26.26%) | −115 | −0.255 |
+
+The independent settled-proxy comparison is **22,045,465 → 16,235,816**
+input tokens: **5,809,649 fewer (26.35%)**. Thus the coarse “26% fewer”
+headline survives, but native and proxy totals must not be interchanged.
+HAR-132's read-only builder replay reproduced all 40 stored rows on reward,
+token, call, stop and break-position fields and the exact saved summary;
+the raw runs and frozen machine tables were not rewritten.
 
 No pass was lost: the baseline had no passes to lose. Three loopfix runs were
-stopped (000383, 000587, 001832) and in all three the stop came after the last
-useful edit, so under HAR-120's adoption rule no scored run was cut (the only
-stopped run that scored 1 is 000587, stop 66 after edit 53).
+stopped (000383, 000587, 001832), after their last detected useful edit.
+**A passing episode was stopped:** 000587 at call 66, after edit 53. This
+supports “no detected edit was cut off,” not “no passing run was cut.”
 
 ### Wave-A loopfix runs: infra failures, not results
 
@@ -114,19 +126,20 @@ excluded from every table above; the valid loopfix arm is loopfix-r2.
 ### Investigation: the 5/10 vs 0/10 gap (first look, not a claim)
 
 1. **Cap, break, or neither?** Four of the five passes (000495, 002256,
-   002391, 002864) happened with the nudge never firing and no stop — the loop
-   break cannot have caused them. The fifth (000587) is a pass *with* a stop,
-   but the last useful edit (call 53) predates the nudge (call 61); the break
-   only ended an already-fixed episode and the verifier passed. So the loop
-   break caused **0 of 5** passes; at most it saved post-fix tokens in 000587.
-   The 2,000-char cap was the active treatment in all five passes (1–21 capped
-   steps, starting at step ≤3, always before the passing edit), but the model
-   never read a spill file (`evallab-output/step-*.txt`) in any passing run,
-   so the cap's grep-back path went unused. Whether seeing head+tail instead of
-   full output helped, hurt, or did nothing is unknowable at n=1 — the arms
-   also sampled different solutions (e.g. 002864: baseline and loopfix wrote
-   *different* `trino.py` edits; the loopfix one fixed the
-   `WRAPPED`→`WRAPPER` typo and passed while the baseline's variant failed).
+   002391, 002864) happened with the nudge never firing and no stop. The fifth
+   (000587) has its last passing file edit at call 53, before the nudge at
+   call 61 and stop at 66; recorded commands after edit 53 are pytest or
+   git-diff checks, not another source edit. **No passing file edit was
+   observed after a nudge.** This is temporal evidence, not a randomized
+   cap-versus-break ablation or proof of the counterfactual without a stop.
+   The 2,000-char cap was active in all five passes (1–21 capped steps,
+   starting at step ≤3, before the passing edit). No explicit
+   `evallab-output/step-*.txt` reference appears in their recorded commands;
+   that is narrower than proving no spill-file read was possible. Whether
+   seeing head+tail instead of full output helped, hurt, or did nothing is
+   unknowable at n=1 — the arms also sampled different solutions (e.g.
+   002864: baseline and loopfix wrote different `trino.py` edits; loopfix fixed
+   the `WRAPPED`→`WRAPPER` typo and passed while the baseline's variant failed).
 2. **Upstream fetch in the passes?** None. All five passing runs have zero
    `detect_upstream_fetch` findings.
 3. **Was the baseline disadvantaged by wave-A concurrency?** No evidence of

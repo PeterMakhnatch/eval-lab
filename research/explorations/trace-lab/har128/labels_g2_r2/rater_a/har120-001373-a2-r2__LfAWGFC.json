@@ -1,0 +1,43 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Saved /tmp/gcl/google_cloud_logging-2.2.0-py2.py3-none-any.whl / Successfully downloaded google-cloud-logging",
+      "ref": "head#9"
+    },
+    {
+      "quote": "cd /tmp/gcl && unzip -o -q google_cloud_logging-2.2.0-py2.py3-none-any.whl -d x && sed -n '80,140p' x/google/cloud/logging_v2/handlers/_helpers.py",
+      "ref": "head#10"
+    },
+    {
+      "quote": "content_length = int(request.META.get(_DJANGO_CONTENT_LENGTH))",
+      "ref": "head#10"
+    },
+    {
+      "quote": "The fix is complete and matches the upstream resolution of this issue (google-cloud-logging v2.2.0).",
+      "ref": "head#23"
+    }
+  ],
+  "first_failure": {
+    "quote": "pip download google-cloud-logging==2.2.0 --no-deps -d /tmp/gcl",
+    "ref": "head#9",
+    "what": "fetched upstream 2.2.0 release and pasted its CONTENT_LENGTH fix as the passing change"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Textbook copied pass: download succeeded, upstream _helpers.py read at steps 10-12 showing the content_length/META fix, then byte-identical logic applied to /testbed. Verifier 3/3 pass. No loop (30 episodes, varied work, brief completion tail only). SFT unclean due to copying.",
+  "off_limits_opened": false,
+  "pass_copied": true,
+  "pass_copied_confidence": "high",
+  "sft_cut": {
+    "clean": false,
+    "cut_step_id": 23,
+    "reason": "Passing code copied from pip-downloaded upstream 2.2.0 wheel read in /tmp/gcl."
+  },
+  "stop_confidence": "high",
+  "stop_reason": "model_finished",
+  "trial": "har120-001373-a2-r2__LfAWGFC"
+}

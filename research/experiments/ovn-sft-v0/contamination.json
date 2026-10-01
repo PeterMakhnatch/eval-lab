@@ -113,18 +113,18 @@
     "localstack"
    ]
   },
+  "format-code-task-001833": {
+   "max_jaccard_pair": "format-code-task-001988",
+   "max_jaccard_vs_train": 0.002,
+   "modules": [
+    "safedelete"
+   ]
+  },
   "format-code-task-002017": {
    "max_jaccard_pair": "format-code-task-001612",
    "max_jaccard_vs_train": 0.0109,
    "modules": [
     "napari"
-   ]
-  },
-  "format-code-task-002209": {
-   "max_jaccard_pair": "format-code-task-002201",
-   "max_jaccard_vs_train": 0.0117,
-   "modules": [
-    "fastparquet"
    ]
   },
   "format-code-task-002302": {
@@ -151,6 +151,7 @@
   "format-code-task-000324": "repository aiohttp has training-split tasks",
   "format-code-task-000337": "training-split tasks use its modules: ['format-code-task-000338', 'format-code-task-000339']",
   "format-code-task-000379": "repository unknown",
+  "format-code-task-000585": "repository unknown",
   "format-code-task-000767": "repository unknown",
   "format-code-task-000843": "repository pil has training-split tasks",
   "format-code-task-000992": "repository ansible_collections has training-split tasks",
@@ -164,6 +165,7 @@
   "format-code-task-002015": "repository already picked",
   "format-code-task-002052": "repository nilearn has training-split tasks",
   "format-code-task-002053": "repository nilearn has training-split tasks",
+  "format-code-task-002209": "test files live in a training-split package: ['pandas']",
   "format-code-task-002216": "tests name no project module",
   "format-code-task-002283": "repository smart_open has training-split tasks",
   "format-code-task-002306": "repository unknown",

@@ -1,0 +1,27 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Fix the following issue:",
+      "ref": "head#1"
+    }
+  ],
+  "first_failure": {
+    "quote": "No module named 'duckdb'",
+    "ref": "head#1",
+    "what": "harness loop-fix crashed importing duckdb before any agent action was recorded"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Trajectory holds only the prompt step (head#1); quote is the task prompt opening. Failure evidence is exception.txt: ModuleNotFoundError in evallab loopfix import chain (token_flow -> traj -> duckdb) during first command batch; n_episodes 1, no verifier. Per brief, loopfix startup import failure = infra_error/blame infra.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "har116-a-001161-loopfix__WxP98h8"
+}

@@ -19,7 +19,7 @@ The overnight experiment of 2026-10-01 (plan: `research-context/inbox/sft-overni
   | `image_mib` | image size |
 
 - Built by [`select_eval.py`](select_eval.py) from the Python task ledger ([`../python-task-ledger/`](../python-task-ledger/), merged in #592):
-  - 20 `usable` held-out tasks, lightest image first (394–2931 MiB);
+  - 20 `usable` held-out tasks, lightest image first (394–2944 MiB);
   - one per repository;
   - HAR-116's 15 tasks excluded.
 - Packages: 16 run the original. 2 run a validated repair (002017, 002209: `env-keep-build-outputs@1`). 2 run a leak-closed variant (001695, 001809) whose record is still `candidate`; its nop evidence is the original's, because the PyPI blocklist acts only through the agent harness.

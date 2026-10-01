@@ -6,11 +6,11 @@
   "Missing canonical counts: 47.",
   "Coverage and calibration limits apply; this is not a causal attribution study."
  ],
- "generated_at_utc": "2026-10-01T08:48:16+00:00",
+ "generated_at_utc": "2026-10-01T09:15:15+00:00",
  "repo_head": "26073dfb7d831d964ea430ee7f59099f2526279a",
  "atlas_input_digest": "sha256:6f33081c66e358731649318a154511f6cf6543ec708541de0a6d834ad4e9dc28",
  "source_hashes": {
-  "trace_query_py": "sha256:8bf9868ebf8616b16e403c9e7c3b6d7bdd3b455f52b87bd19bc4603304836d25",
+  "trace_query_py": "sha256:18211cb257e3b6418368f4c9ed60ccfe34e7a943859de714a30cfff7201b498f",
   "trace_query_note": "Transient query surface over recorded evidence; implementation bytes are hashed here.",
   "ledger_csv": "sha256:949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a",
   "page_scores_json": "sha256:bb789c1e41ff371c5cf2e62ef1189962811370ca032ba724817dcf4b543f51d9",
@@ -58,6 +58,11 @@
      "verified": 24,
      "failed": [],
      "manifest": "research/explorations/trace-lab/har119/labels/MANIFEST.sha256"
+    },
+    "har128-har116": {
+     "verified": 0,
+     "failed": [],
+     "manifest": "missing"
     },
     "har109": {
      "verified": 10,
@@ -4616,26 +4621,65 @@
  "correction": {
   "superseded_atlas_sha256": "292aee54ea435a189ebb858f619f5654069bd6b22873972039c523976078e6f6",
   "reason": "Original 90 eligible improperly included 9 HAR81 trials (000240x4 + 000434x1 JavaScript; 001520x4 Unknown metadata) sharing format-code naming with Python tasks. Corrected predicate requires canonical Python-ledger membership; exact :har129 adapter admitted. Historical 165 native pairs preserved; no new live G2 pairs admitted.",
-  "original": {
-   "n_discovered": 165,
-   "n_eligible": 90,
-   "n_excluded": 75,
-   "discovered_jobs": 172
+  "language_source_evidence": "000240x4 and 000434x1 are JavaScript; 001520x4 has Unknown metadata; all 9 absent from the canonical Python ledger (ledger sha256:949be0ab...).",
+  "history": "a6468126 Python-only correction left all 10 canonical rowsets byte-identical; this cohort-aware query revision (7397d7f2) changes query08 schema/semantics to per-cohort non-additive rows (adds cohort column; agreement_limitation reworded; consensus grain per trial\u00d7cohort).",
+  "har128_har116_cohort": "UNAVAILABLE in historical data root followup26073 (research/explorations/trace-lab/har128/labels_har116 absent; loader manifest=missing, verified=0). Admitted-cohort fallback yields har119-only rows; har128rater80 labels intentionally not backfilled into this historical correction.",
+  "query08_change": {
+   "old_columns": [
+    "card",
+    "n_total",
+    "n_with_frozen_labels",
+    "n_with_hand_labels",
+    "n_with_sft_labels",
+    "n_missing_loop_labels",
+    "n_unknown_label_input",
+    "n_ambiguous_cohort",
+    "n_insufficient_or_invalid_labels",
+    "n_disagreement",
+    "n_agreed",
+    "n_agreed_claim",
+    "n_agreed_repetition",
+    "n_agreed_none",
+    "n_prediction_abstention",
+    "eligibleN",
+    "n_match",
+    "accuracy",
+    "agreement_limitation"
+   ],
+   "new_columns": [
+    "card",
+    "cohort",
+    "n_total",
+    "n_with_frozen_labels",
+    "n_with_hand_labels",
+    "n_with_sft_labels",
+    "n_missing_loop_labels",
+    "n_unknown_label_input",
+    "n_ambiguous_cohort",
+    "n_insufficient_or_invalid_labels",
+    "n_disagreement",
+    "n_agreed",
+    "n_agreed_claim",
+    "n_agreed_repetition",
+    "n_agreed_none",
+    "n_prediction_abstention",
+    "eligibleN",
+    "n_match",
+    "accuracy",
+    "agreement_limitation"
+   ],
+   "old_rows": 6,
+   "new_rows": 6,
+   "other_9_rowsets_identical_to_a6468126": true,
+   "non_additive": "rows must not be summed across cohorts"
   },
-  "corrected": {
-   "n_discovered": 165,
-   "n_eligible": 81,
-   "n_excluded": 84,
-   "discovered_jobs": 172
-  },
-  "duplicate_job_discovery": "Pinned 172 historical job dirs (165 unique native pairs + 7 second copies: 5 HAR-90 archive/har92-step-layers + 2 HAR-104/~har104-runs); connect_trace_query dedup collapses to 165 trials. Original auto-discovery also reported 172 jobs/165 trials; pinned run reproduces that count with zero new pairs.",
+  "duplicate_job_discovery": "Pinned exact tracked 172 historical job dirs (165 unique native pairs + 7 second copies); dedup collapses to 165 trials with zero missing/additional. 19 new live pairs excluded by pinning.",
   "pinned_manifest_sha256": "sha256:b478e433512b7168feb1c688be8d8a75a0cd20f536f1aad33f7244cd45b92e5f",
   "code": {
-   "repo_head": "4aa26712dc1e238f51cf15748b0b92d4a9b16b7f",
+   "repo_head": "7397d7f26f2995108c9a6894ee79353de3a8717b",
    "build_py": "sha256:a7dcc0c834f0b382e75c034f11ce23a084faba385b2c3e486450799107cee158",
-   "trace_query_py": "sha256:8bf9868ebf8616b16e403c9e7c3b6d7bdd3b455f52b87bd19bc4603304836d25",
-   "trace_queries_sql": "sha256:94d6adc7b3e88d13fbc770631b615744877bd2e204e22c37f45d887e91b5a4fd",
-   "note": "Parent build.py/test edits uncommitted at generation time; hashes pin the executing bytes."
+   "trace_query_py": "sha256:18211cb257e3b6418368f4c9ed60ccfe34e7a943859de714a30cfff7201b498f",
+   "trace_queries_sql": "sha256:6727ad87b429dafb346b921148430aedac04519ef6e786b04344fb1d2118edbc"
   },
   "data": {
    "repo_root": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har131-results-followup",

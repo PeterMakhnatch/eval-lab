@@ -1,13 +1,13 @@
 # HAR-131 failure atlas — CORRECTED snapshot (historical, pinned)
 
 Supersedes atlas.json `292aee54ea435a189ebb858f619f5654069bd6b22873972039c523976078e6f6` from commit `4aa26712`; its 90-Python denominator was incorrect.
-Correction: 9 HAR81 trials (000240×4 and 000434×1 JavaScript; 001520×4 Unknown) are now excluded by requiring canonical Python-ledger membership. Historical 165 native pairs are unchanged: 81 positively identified Python trials, 84 excluded. All nine excluded identities remain inspectable. The admitted `:har129` adapter is eligible for future comparisons, not present in this historical population. The fixed snapshot excludes the 19 G2 trials discovered during its refresh. See `verification.json` and `job-manifest.json`.
+Correction: 9 HAR81 trials (000240×4 and 000434×1 JavaScript; 001520×4 Unknown) are now excluded by requiring canonical Python-ledger membership. Historical 165 native pairs are unchanged: 81 positively identified Python trials, 84 excluded. All nine excluded identities remain inspectable. The admitted `:har129` adapter is eligible for future comparisons, not present in this historical population. G2 and later inputs are outside this pinned snapshot. See `verification.json` and `job-manifest.json`.
 
 ---
 
 # HAR-131 failure atlas (inspection-only)
 
-Generated 2026-10-01T08:48:16+00:00 from current trace-query rows. Every number below is computed from recorded inputs; unknown stays unknown and `counts_verdict` is the sole counted authority. Overlapping patterns are not an exhaustive causal partition.
+Generated 2026-10-01T09:15:15+00:00 from pinned historical trace-query rows. Every number below is computed from recorded inputs; unknown stays unknown and `counts_verdict` is the sole counted authority. Overlapping patterns are not an exhaustive causal partition.
 
 ## Corpus
 
@@ -15,7 +15,8 @@ Generated 2026-10-01T08:48:16+00:00 from current trace-query rows. Every number 
 - Excluded (reported, not dropped): 84 (model or canonical Python identity predicate failed; unknown identity is not asserted non-Python)
 - Coverage: missing_processed=47, missing_counts=47, missing_atif=32
 - Missing evidence is retained explicitly. Rebuild after report or label refreshes; do not interpret missing counts or labels as clean outcomes.
-- Frozen labels independently re-verified (24 files ok=True); heuristic label rows dropped: 0.
+- The HAR-119 page-calibration freeze independently verifies 24 rater files; heuristic label rows dropped: 0. The query view also verifies 10 HAR-109 hand-label files and the 9-row HAR-128 SFT-pass gate, which is a different taxonomy.
+- The later 80-file HAR-128/HAR-116 rater cohort is explicitly unavailable in pinned data revision `26073dfb`. It is not silently backfilled here. Its separate actual runtime proof is `research/experiments/har117-results-home/har131-label-join-proof.json`: 40 trials, 35 rater-agreed cells, 28 matching page predictions.
 - Step links open retained local ATIF files and name the raw step_id. Verification checks file bytes and reference existence, not causal responsibility. Context-only anchors and page-opinion anchors remain explicitly labelled.
 
 ## Patterns (frequency | eligible denominator | N, current view only)
@@ -134,4 +135,4 @@ The following rebuilds the **current** corpus, not this frozen population:
 
 To replay this historical snapshot, use a data checkout at `26073dfb7d831d964ea430ee7f59099f2526279a` for `--repo-root`, the recorded results home and `derived/parquet` root, and pass every `job_dirs` value in `job-manifest.json` as a repeated `--job-dir`. That pins 172 physical job copies to the same 165 native identities. It requires the retained local run files; this repository does not contain those raw inputs.
 
-The pinned API records `published_job_dir=null`, so its full projection digest differs from the earlier discovery-mode digest. All ten canonical query row sets and the atlas input digest are unchanged; the Python eligibility correction changes the atlas denominators. No G2 or later frozen-label cohort is silently inserted into this historical receipt.
+The pinned API records `published_job_dir=null`, so its full projection digest differs from the earlier discovery-mode digest. The Python-only correction at `a6468126` preserved all ten query row sets and the atlas input digest. The subsequent cohort-aware SQL revision adds a `cohort` column and explicitly non-additive study rows to query 08; the other nine query outputs remain unchanged. No G2 or later frozen-label cohort is silently inserted into this historical receipt.

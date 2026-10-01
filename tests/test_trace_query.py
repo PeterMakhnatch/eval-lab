@@ -617,7 +617,7 @@ def test_har128_har116_declared_file_boundaries(tmp_path: Path, case: str) -> No
     base = tmp_path / "research/explorations/trace-lab/har128/labels_har116"
     rater_a = base / "rater_a"
     rater_a.mkdir(parents=True)
-    good_body = json.dumps({"loop_kind": "none"})
+    good_body = json.dumps({"trial": "trial_ok", "loop_kind": "none"})
     (rater_a / "trial_ok.json").write_text(good_body, encoding="utf-8")
     member = f"{hashlib.sha256(good_body.encode()).hexdigest()}  rater_a/trial_ok.json\n"
     if case == "missing":
@@ -634,6 +634,21 @@ def test_har128_har116_declared_file_boundaries(tmp_path: Path, case: str) -> No
     (base / "MANIFEST.sha256").write_text(manifest_body, encoding="utf-8")
     job = tmp_path / "job_bounds"
     _create_minimal_trial(job, "trial_ok")
+    with pytest.raises(ValueError):
+        connect_trace_query(repo_root=tmp_path, job_dirs=[job])
+
+
+def test_har128_labels_cannot_be_reassigned_by_filename(tmp_path: Path) -> None:
+    job = tmp_path / "job_identity"
+    _create_minimal_trial(job, "trial_target")
+    _write_rater_freeze(
+        tmp_path,
+        "research/explorations/trace-lab/har128/labels_har116",
+        {
+            f"{rater}/trial_target.json": {"trial": "trial_other", "loop_kind": "none"}
+            for rater in ("rater_a", "rater_b")
+        },
+    )
     with pytest.raises(ValueError):
         connect_trace_query(repo_root=tmp_path, job_dirs=[job])
 

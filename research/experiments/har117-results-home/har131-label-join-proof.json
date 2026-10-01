@@ -1,0 +1,108 @@
+{
+  "coverage": {
+    "discovered_jobs": 40,
+    "discovered_trials": 40,
+    "discovered_steps": 2386,
+    "stitched_duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "missing_processed": 0,
+    "missing_counts": 0,
+    "missing_atif": 0,
+    "projections_skipped": {},
+    "label_manifest_hashes": {
+      "har119": "262e3596f43876ebe200c6892bd0e123bd16c503c650d6c8038a351079848fe6",
+      "har128-har116": "24b91001adf5707ebb65756e575a9acbc39a816173ee16a5da88cf989e99513d",
+      "har109": "8a4e68ce777706bbd8cabc382829d2cf031df8f73e3ed8e817609844e574d96b",
+      "har128-sft-pass": "46cf1834ff0585f2196f8586522b6d7f8003cf5ce856c9cc0a1f9654ab4494e9"
+    },
+    "label_verification": {
+      "har119": {
+        "verified": 24,
+        "failed": [],
+        "manifest": "research/explorations/trace-lab/har119/labels/MANIFEST.sha256"
+      },
+      "har128-har116": {
+        "verified": 80,
+        "failed": [],
+        "manifest": "research/explorations/trace-lab/har128/labels_har116/MANIFEST.sha256"
+      },
+      "har109": {
+        "verified": 10,
+        "failed": [],
+        "manifest": "research/explorations/trace-lab/har109/hand_labels.sha256"
+      },
+      "har128-sft-pass": {
+        "verified": 1,
+        "rows": 9,
+        "failed": [],
+        "manifest": "research/explorations/trace-lab/har128/sft_gate/labels.sha256"
+      }
+    },
+    "by_card": {
+      "HAR-116": 40
+    },
+    "by_arm": {
+      "baseline": 10,
+      "loopfix": 10,
+      "loopfix-r2": 10,
+      "leakclosed": 5,
+      "original": 5
+    },
+    "corpus_digest": "sha256:00e33ef9b15f53f0816ff382fa4c4e3af90537a666d02ebe2751d27cbf95bddf"
+  },
+  "agreement": [
+    {
+      "card": "HAR-116",
+      "cohort": "har128-har116",
+      "n_total": 40,
+      "n_with_frozen_labels": 40,
+      "n_with_hand_labels": 0,
+      "n_with_sft_labels": 6,
+      "n_missing_loop_labels": 0,
+      "n_unknown_label_input": 0,
+      "n_ambiguous_cohort": 0,
+      "n_insufficient_or_invalid_labels": 0,
+      "n_disagreement": 5,
+      "n_agreed": 35,
+      "n_agreed_claim": 3,
+      "n_agreed_repetition": 13,
+      "n_agreed_none": 19,
+      "n_prediction_abstention": 0,
+      "eligibleN": 35,
+      "n_match": 28,
+      "accuracy": 0.8,
+      "agreement_limitation": "agreement uses valid top-level loop_kind votes from at least two distinct agent raters in an admitted cohort (har119, har128-har116), evaluated separately per cohort with non-additive rows, excludes within-cohort disagreement and missing labels, prediction abstentions are outside eligibleN, HAR-109 hand and HAR-128 cleanliness labels are coverage only, descriptive frozen-cohort alignment is not general calibration"
+    }
+  ],
+  "completeness": [
+    {
+      "card": "HAR-116",
+      "n_trials": 40,
+      "n_trajectory_available": 40,
+      "n_trajectory_missing": 0,
+      "n_processed_available": 40,
+      "n_processed_missing": 0,
+      "n_counts_available": 40,
+      "n_counts_unknown": 0,
+      "n_unscored": 10,
+      "n_trials_with_observed_steps": 40,
+      "n_trials_without_observed_steps": 0,
+      "n_trajectory_present_without_observed_steps": 0,
+      "n_labels_available": 40,
+      "n_no_frozen_label_entries": 0,
+      "n_label_input_unknown": 0,
+      "n_sft_labels_available": 6,
+      "n_loop_prediction_unknown": 0,
+      "n_proxy_input_unknown": 0,
+      "n_proxy_output_unknown": 0,
+      "trajectory_file_coverage_rate": 1.0,
+      "observed_step_coverage_rate": 1.0,
+      "processed_coverage_rate": 1.0
+    }
+  ],
+  "unique_candidate_trials": 16,
+  "executing_source_hashes": {
+    "src/evallab/trace_query.py": "720173b12a7a7089bce97a934820c13b7c75dc2d79d37bf8e923a29ca5e493ec",
+    "sql/trace_queries.sql": "6727ad87b429dafb346b921148430aedac04519ef6e786b04344fb1d2118edbc"
+  }
+}

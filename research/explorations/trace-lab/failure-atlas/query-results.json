@@ -1,12 +1,12 @@
 {
  "schema": "har131.canonical_query_outputs/v1",
- "generated_at_utc": "2026-10-01T08:48:16+00:00",
+ "generated_at_utc": "2026-10-01T09:15:15+00:00",
  "data_repo_root": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har131-results-followup",
  "data_commit": "26073dfb7d831d964ea430ee7f59099f2526279a",
  "results_home": "/Users/petermakhnatch/Developer/eval-lab-results",
  "derived_root": "/Users/petermakhnatch/Developer/eval-lab/derived/parquet",
- "projection_sha256": "8bf9868ebf8616b16e403c9e7c3b6d7bdd3b455f52b87bd19bc4603304836d25",
- "definitions_sha256": "94d6adc7b3e88d13fbc770631b615744877bd2e204e22c37f45d887e91b5a4fd",
+ "projection_sha256": "18211cb257e3b6418368f4c9ed60ccfe34e7a943859de714a30cfff7201b498f",
+ "definitions_sha256": "6727ad87b429dafb346b921148430aedac04519ef6e786b04344fb1d2118edbc",
  "coverage": {
   "discovered_jobs": 172,
   "discovered_trials": 165,
@@ -27,6 +27,11 @@
     "verified": 24,
     "failed": [],
     "manifest": "research/explorations/trace-lab/har119/labels/MANIFEST.sha256"
+   },
+   "har128-har116": {
+    "verified": 0,
+    "failed": [],
+    "manifest": "missing"
    },
    "har109": {
     "verified": 10,
@@ -2463,9 +2468,10 @@
   },
   {
    "path": "sql/trace-queries/08_frozen_label_agreement.sql",
-   "sha256": "fffb45c2c6ff543f268975fd4bbfb66432ac78e899759b1dc958266b19cd8a66",
+   "sha256": "bf7102907d53e4865ab0ac24fb7457a130cc9ceea3732cfeb0cf9e05574d31d9",
    "columns": [
     "card",
+    "cohort",
     "n_total",
     "n_with_frozen_labels",
     "n_with_hand_labels",
@@ -2486,6 +2492,7 @@
     "agreement_limitation"
    ],
    "column_types": [
+    "VARCHAR",
     "VARCHAR",
     "BIGINT",
     "BIGINT",
@@ -2509,6 +2516,7 @@
    "rows": [
     {
      "card": "HAR-104",
+     "cohort": "har119",
      "n_total": 16,
      "n_with_frozen_labels": 10,
      "n_with_hand_labels": 10,
@@ -2526,10 +2534,11 @@
      "eligibleN": 0,
      "n_match": 0,
      "accuracy": null,
-     "agreement_limitation": "agreement uses valid top-level HAR-119 loop_kind votes from at least two distinct agent raters in one cohort, excludes disagreement and missing labels, prediction abstentions are outside eligibleN, HAR-109 hand and HAR-128 cleanliness labels are coverage only, descriptive frozen-cohort alignment is not general calibration"
+     "agreement_limitation": "agreement uses valid top-level loop_kind votes from at least two distinct agent raters in an admitted cohort (har119, har128-har116), evaluated separately per cohort with non-additive rows, excludes within-cohort disagreement and missing labels, prediction abstentions are outside eligibleN, HAR-109 hand and HAR-128 cleanliness labels are coverage only, descriptive frozen-cohort alignment is not general calibration"
     },
     {
      "card": "HAR-110",
+     "cohort": "har119",
      "n_total": 24,
      "n_with_frozen_labels": 12,
      "n_with_hand_labels": 0,
@@ -2547,10 +2556,11 @@
      "eligibleN": 11,
      "n_match": 7,
      "accuracy": 0.6364,
-     "agreement_limitation": "agreement uses valid top-level HAR-119 loop_kind votes from at least two distinct agent raters in one cohort, excludes disagreement and missing labels, prediction abstentions are outside eligibleN, HAR-109 hand and HAR-128 cleanliness labels are coverage only, descriptive frozen-cohort alignment is not general calibration"
+     "agreement_limitation": "agreement uses valid top-level loop_kind votes from at least two distinct agent raters in an admitted cohort (har119, har128-har116), evaluated separately per cohort with non-additive rows, excludes within-cohort disagreement and missing labels, prediction abstentions are outside eligibleN, HAR-109 hand and HAR-128 cleanliness labels are coverage only, descriptive frozen-cohort alignment is not general calibration"
     },
     {
      "card": "HAR-116",
+     "cohort": "har119",
      "n_total": 40,
      "n_with_frozen_labels": 6,
      "n_with_hand_labels": 0,
@@ -2568,10 +2578,11 @@
      "eligibleN": 0,
      "n_match": 0,
      "accuracy": null,
-     "agreement_limitation": "agreement uses valid top-level HAR-119 loop_kind votes from at least two distinct agent raters in one cohort, excludes disagreement and missing labels, prediction abstentions are outside eligibleN, HAR-109 hand and HAR-128 cleanliness labels are coverage only, descriptive frozen-cohort alignment is not general calibration"
+     "agreement_limitation": "agreement uses valid top-level loop_kind votes from at least two distinct agent raters in an admitted cohort (har119, har128-har116), evaluated separately per cohort with non-additive rows, excludes within-cohort disagreement and missing labels, prediction abstentions are outside eligibleN, HAR-109 hand and HAR-128 cleanliness labels are coverage only, descriptive frozen-cohort alignment is not general calibration"
     },
     {
      "card": "HAR-81",
+     "cohort": "har119",
      "n_total": 44,
      "n_with_frozen_labels": 0,
      "n_with_hand_labels": 0,
@@ -2589,10 +2600,11 @@
      "eligibleN": 0,
      "n_match": 0,
      "accuracy": null,
-     "agreement_limitation": "agreement uses valid top-level HAR-119 loop_kind votes from at least two distinct agent raters in one cohort, excludes disagreement and missing labels, prediction abstentions are outside eligibleN, HAR-109 hand and HAR-128 cleanliness labels are coverage only, descriptive frozen-cohort alignment is not general calibration"
+     "agreement_limitation": "agreement uses valid top-level loop_kind votes from at least two distinct agent raters in an admitted cohort (har119, har128-har116), evaluated separately per cohort with non-additive rows, excludes within-cohort disagreement and missing labels, prediction abstentions are outside eligibleN, HAR-109 hand and HAR-128 cleanliness labels are coverage only, descriptive frozen-cohort alignment is not general calibration"
     },
     {
      "card": "HAR-85",
+     "cohort": "har119",
      "n_total": 27,
      "n_with_frozen_labels": 0,
      "n_with_hand_labels": 0,
@@ -2610,10 +2622,11 @@
      "eligibleN": 0,
      "n_match": 0,
      "accuracy": null,
-     "agreement_limitation": "agreement uses valid top-level HAR-119 loop_kind votes from at least two distinct agent raters in one cohort, excludes disagreement and missing labels, prediction abstentions are outside eligibleN, HAR-109 hand and HAR-128 cleanliness labels are coverage only, descriptive frozen-cohort alignment is not general calibration"
+     "agreement_limitation": "agreement uses valid top-level loop_kind votes from at least two distinct agent raters in an admitted cohort (har119, har128-har116), evaluated separately per cohort with non-additive rows, excludes within-cohort disagreement and missing labels, prediction abstentions are outside eligibleN, HAR-109 hand and HAR-128 cleanliness labels are coverage only, descriptive frozen-cohort alignment is not general calibration"
     },
     {
      "card": "HAR-90",
+     "cohort": "har119",
      "n_total": 14,
      "n_with_frozen_labels": 0,
      "n_with_hand_labels": 0,
@@ -2631,7 +2644,7 @@
      "eligibleN": 0,
      "n_match": 0,
      "accuracy": null,
-     "agreement_limitation": "agreement uses valid top-level HAR-119 loop_kind votes from at least two distinct agent raters in one cohort, excludes disagreement and missing labels, prediction abstentions are outside eligibleN, HAR-109 hand and HAR-128 cleanliness labels are coverage only, descriptive frozen-cohort alignment is not general calibration"
+     "agreement_limitation": "agreement uses valid top-level loop_kind votes from at least two distinct agent raters in an admitted cohort (har119, har128-har116), evaluated separately per cohort with non-additive rows, excludes within-cohort disagreement and missing labels, prediction abstentions are outside eligibleN, HAR-109 hand and HAR-128 cleanliness labels are coverage only, descriptive frozen-cohort alignment is not general calibration"
     }
    ]
   },
@@ -3487,5 +3500,6 @@
     }
    ]
   }
- ]
+ ],
+ "cohort_note": "har128-har116 labels absent in followup26073 (manifest missing); query08 yields har119-only per-cohort rows."
 }

@@ -384,7 +384,7 @@ def _load_frozen_labels(
                     continue
                 trial_name = label_file.stem
                 data = _safe_read_json(label_file)
-                if not data:
+                if not data or data.get("trial") != trial_name:
                     har128_report["failed"].append(rel)
                     continue
                 har128_report["verified"] += 1

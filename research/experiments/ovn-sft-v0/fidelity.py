@@ -12,15 +12,14 @@ For every exported row (one model call):
   assistant turn after the generation prompt (``<think>…</think>…`` plus
   ``<|im_end|>``); the comparison is reported, with the exact delta, and
   gates only when ``--gate-target`` is set.
-* **captured** (``--capture calls.jsonl``): for the captured call whose
-  usage ``prompt_tokens`` equals the row's recorded prompt tokens, the row's
-  history must equal the request's ``messages`` (role and content, byte for
-  byte) and its target must equal choice 0's ``content`` and
-  ``reasoning_content``; the first difference is reported.
+* **captured** (``--capture TRIAL=calls.jsonl``, one file per trial holding
+  only that trial's calls): see :func:`capture_verdict`. A row of a trial
+  with a capture fails unless it is ``identical``; with
+  ``--require-capture`` every row needs one.
 
-Prints one JSON summary and writes ``fidelity.json`` (per-row results) next
-to the export. With ``--show N`` it also writes the first N rows' rendered
-prompts to ``rendered/`` for a human diff.
+Prints one JSON summary, writes ``fidelity.json`` (per-row results) next to
+the export and exits 1 when any row fails. With ``--show N`` it also writes
+the first N rows' rendered prompts to ``rendered/`` for a human diff.
 
 Needs the tokenizer files only (``tokenizer.json``, ``tokenizer_config.json``,
 ``chat_template.jinja``) of ``XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B`` at the
@@ -34,18 +33,54 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-
-from transformers import AutoTokenizer
+from typing import Any
 
 REVISION = "2367e865d009c13ac81713a2878291d33ab28177"
 
 
+def capture_verdict(history: list[dict], target: dict, calls: list[dict]) -> str:
+    """Compare one exported row with its own trial's captured calls.
+
+    ``calls`` holds only the row's trial (bound by ``--capture TRIAL=PATH``),
+    so two trials with identical prompts can never borrow each other's call.
+    The row's call is the one whose request carries exactly
+    ``len(history)`` messages; none is ``missing``, more than one is
+    ``ambiguous`` (a retried call: the export cannot say which was trained).
+    Then the history must equal the request ``messages`` (role and content,
+    byte for byte) and the target must equal choice 0's ``content`` and
+    ``reasoning_content``.
+    """
+    matches = [call for call in calls if len(_messages(call) or []) == len(history)]
+    if not matches:
+        return "missing"
+    if len(matches) > 1:
+        return "ambiguous"
+    sent = _messages(matches[0]) or []
+    for index, (ours, theirs) in enumerate(zip(history, sent, strict=True)):
+        if (ours["role"], ours["content"]) != (theirs.get("role"), theirs.get("content")):
+            return f"differs_at_message_{index}"
+    expected = (target.get("content"), target.get("reasoning_content") or "")
+    return "identical" if _reply(matches[0]) == expected else "differs_at_target"
+
+
 def main() -> None:
+    from transformers import AutoTokenizer
+
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("export", type=Path)
     parser.add_argument("--tokenizer", type=Path, required=True)
-    parser.add_argument("--capture", type=Path, action="append", default=[])
+    parser.add_argument(
+        "--capture",
+        action="append",
+        default=[],
+        help="TRIAL=calls.jsonl holding that trial's captured calls only (repeatable)",
+    )
     parser.add_argument("--gate-target", action="store_true")
+    parser.add_argument(
+        "--require-capture",
+        action="store_true",
+        help="every row must have an identical capture (validation runs)",
+    )
     parser.add_argument("--show", type=int, default=0)
     args = parser.parse_args()
 
@@ -55,7 +90,14 @@ def main() -> None:
     meta = manifest["rows"]
     if len(meta) != len(rows):
         raise SystemExit(f"manifest lists {len(meta)} rows, conversations.jsonl has {len(rows)}")
-    captured = [json.loads(line) for path in args.capture for line in path.open() if line.strip()]
+    trial_of = {c["conversation_id"]: Path(c["trial"]).name for c in manifest["conversations"]}
+    captured: dict[str, list[dict[str, Any]]] = {}
+    for spec in args.capture:
+        trial, _, path = spec.partition("=")
+        if not path or trial in captured:
+            raise SystemExit(f"--capture must be TRIAL=PATH, once per trial: {spec}")
+        lines = Path(path).read_text().splitlines()
+        captured[trial] = [json.loads(line) for line in lines if line.strip()]
 
     results = []
     for index, (row, info) in enumerate(zip(rows, meta, strict=True)):
@@ -75,41 +117,9 @@ def main() -> None:
             "target_recorded": recorded_target,
             "target_delta": None if recorded_target is None else len(target_ids) - recorded_target,
         }
-        if captured:
-            match = next(
-                (
-                    call
-                    for call in captured
-                    if ((call.get("response_body") or {}).get("usage") or {}).get("prompt_tokens")
-                    == recorded_prompt
-                    and _messages(call) is not None
-                    and len(_messages(call)) == len(history)
-                ),
-                None,
-            )
-            if match is None:
-                result["capture"] = "no_matching_call"
-            else:
-                sent = _messages(match)
-                diff = next(
-                    (
-                        i
-                        for i, (a, b) in enumerate(zip(history, sent, strict=True))
-                        if (a["role"], a["content"]) != (b.get("role"), b.get("content"))
-                    ),
-                    None,
-                )
-                if diff is None:
-                    reply = _reply(match)
-                    expected = (target.get("content"), target.get("reasoning_content") or "")
-                    diff = None if reply == expected else "target"
-                result["capture"] = (
-                    "identical"
-                    if diff is None
-                    else "differs_at_target"
-                    if diff == "target"
-                    else f"differs_at_message_{diff}"
-                )
+        trial = trial_of[info["conversation_id"]]
+        if trial in captured:
+            result["capture"] = capture_verdict(history, target, captured[trial])
         results.append(result)
         if index < args.show:
             out = args.export / "rendered"
@@ -119,6 +129,13 @@ def main() -> None:
     gated = [r for r in results if not r["prompt_ok"]]
     if args.gate_target:
         gated += [r for r in results if r["target_delta"] not in (0, None)]
+    # A row whose trial has a capture must match it; with --require-capture,
+    # every row must have one.
+    gated += [
+        r
+        for r in results
+        if r.get("capture", "missing" if args.require_capture else "identical") != "identical"
+    ]
     summary = {
         "tokenizer_revision": REVISION,
         "rows": len(results),
@@ -127,12 +144,14 @@ def main() -> None:
         "target_delta_values": sorted({r["target_delta"] for r in results if r["target_delta"]}),
         "captured_identical": sum(r.get("capture") == "identical" for r in results),
         "captured_checked": sum("capture" in r for r in results),
-        "failing_rows": [r["row_id"] for r in gated],
+        "failing_rows": sorted({r["row_id"] for r in gated}),
     }
     (args.export / "fidelity.json").write_text(
         json.dumps({"summary": summary, "rows": results}, indent=1) + "\n"
     )
     print(json.dumps(summary, indent=1))
+    if summary["failing_rows"]:
+        raise SystemExit(1)
 
 
 def _messages(call: dict) -> list[dict] | None:

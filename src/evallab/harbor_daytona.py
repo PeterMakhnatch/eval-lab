@@ -4,9 +4,14 @@ Harbor 0.21 stages extra Compose files but not their host bind mounts. Keep the
 provider key on the sandbox VM, mounted only into the trusted proxy container,
 and recover its accounting before Harbor deletes the VM. The task container
 has only the internal proxy network, never the VM filesystem or Docker socket.
+
+``BoundedDaytonaEnvironment`` also offers an opt-in post-setup egress lock
+(HAR-122): Daytona's runner-side firewall, which a root agent cannot undo.
 """
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import hashlib
 import json
 import os
@@ -14,6 +19,8 @@ import re
 import shlex
 import subprocess
 import tempfile
+from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +40,8 @@ from evallab.execution_contracts import (
 
 _REMOTE_ROOT = "/run/evallab-zai-openapi"
 _PROXY_UID = 65532
+#: Written into the trial directory when the egress lock is applied.
+EGRESS_LOCK_RECORD = "egress-lock.json"
 
 
 def render_proxy_overlay(source: Path) -> dict[str, Any]:
@@ -111,19 +120,47 @@ class _ProxyDaytonaDinD(_DaytonaDinD):
 
 
 class BoundedDaytonaEnvironment(DaytonaEnvironment):
-    """Native Daytona task handling with a provider-side destruction deadline."""
+    """Native Daytona task handling with a provider-side destruction deadline.
 
-    def __init__(self, *args: Any, ttl_minutes: int, **kwargs: Any) -> None:
+    ``egress_lock=true`` (off by default) blocks all outbound traffic from the
+    sandbox once agent setup has finished, through Daytona's runner-side
+    firewall (``update_network_settings(network_block_all=True)``,
+    https://www.daytona.io/docs/en/network-limits/). Task setup (the
+    healthcheck) and the agent's own install keep the network. The rule lives
+    outside the sandbox, so a root agent cannot lift it by editing
+    ``/etc/hosts``, changing the index URL or dialing an IP; the verifier runs
+    under it too. The lock is taken before the first command after agent
+    setup, whichever agent runs; if Daytona refuses it, that command fails and
+    the agent never runs unlocked.
+    """
+
+    def __init__(
+        self, *args: Any, ttl_minutes: int, egress_lock: bool = False, **kwargs: Any
+    ) -> None:
         if (
             isinstance(ttl_minutes, bool)
             or not isinstance(ttl_minutes, int)
             or not 1 <= ttl_minutes <= 1440
         ):
             raise ValueError("An explicit positive Daytona lifetime is required")
+        if not isinstance(egress_lock, bool):
+            raise ValueError("egress_lock must be true or false")
         self._trial_ttl_minutes = ttl_minutes
+        self._egress_lock = egress_lock
+        self._egress_scope_depth = 0
+        self._egress_lock_due = False
+        self._egress_locked = False
+        self._egress_lock_guard = asyncio.Lock()
         kwargs["auto_delete_interval_mins"] = 0
         kwargs["auto_stop_interval_mins"] = 5
         super().__init__(*args, **kwargs)
+        if egress_lock:
+            if self._compose_mode:
+                raise ValueError("egress_lock supports single-container tasks only")
+            if any(policy != self._network_policy for policy in self._phase_network_policies):
+                # Harbor would restore the task's baseline after that phase,
+                # lifting the lock.
+                raise ValueError("egress_lock cannot be combined with task phase network policies")
 
     async def _create_sandbox(self, params: Any, daytona: Any = None) -> None:
         params.ttl_minutes = self._trial_ttl_minutes
@@ -131,6 +168,52 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
         identity = f"{self.session_id}:{self.environment_name}"
         params.name = "evallab-" + hashlib.sha256(identity.encode()).hexdigest()[:24]
         await super()._create_sandbox(params=params, daytona=daytona)
+
+    @contextlib.contextmanager
+    def scoped_exec_env(self, env: dict[str, str]) -> Iterator[None]:
+        # Harbor 0.21 runs agent.setup() inside the first top-level scope
+        # (trial.py _setup_agent); leaving it marks setup as finished.
+        self._egress_scope_depth += 1
+        try:
+            with super().scoped_exec_env(env):
+                yield
+        finally:
+            self._egress_scope_depth -= 1
+            if self._egress_lock and self._egress_scope_depth == 0:
+                self._egress_lock_due = True
+
+    async def exec(self, *args: Any, **kwargs: Any) -> Any:
+        if self._egress_lock_due and not self._egress_locked:
+            await self._lock_egress()
+        return await super().exec(*args, **kwargs)
+
+    async def _lock_egress(self) -> None:
+        async with self._egress_lock_guard:
+            if self._egress_locked:
+                return
+            sandbox = self._sandbox
+            if sandbox is None:
+                raise RuntimeError("egress_lock: no sandbox to lock")
+            await sandbox.update_network_settings(network_block_all=True)
+            if sandbox.network_block_all is not True:
+                raise RuntimeError("egress_lock: Daytona did not confirm network_block_all")
+            self._egress_locked = True
+            record = {
+                "schema_version": 1,
+                "locked_at": datetime.now(UTC).isoformat(),
+                "sandbox_id": sandbox.id,
+                "network_block_all": sandbox.network_block_all,
+                "mechanism": "daytona update_network_settings(network_block_all=True)",
+            }
+            (self.trial_paths.trial_dir / EGRESS_LOCK_RECORD).write_text(
+                json.dumps(record, indent=2) + "\n"
+            )
+            self.logger.info("egress locked after agent setup: sandbox %s", sandbox.id)
+
+    async def _apply_network_policy(self, network_policy: Any) -> None:
+        if self._egress_locked:
+            raise RuntimeError("egress_lock: refusing to change the network after the lock")
+        await super()._apply_network_policy(network_policy)
 
     async def stop(self, delete: bool) -> None:
         await super().stop(delete=True)
@@ -140,6 +223,8 @@ class SecretSafeDaytonaEnvironment(BoundedDaytonaEnvironment):
     """Bounded Daytona VM with the same metered proxy used by local GLM trials."""
 
     def __init__(self, *args: Any, ttl_minutes: int, **kwargs: Any) -> None:
+        if kwargs.get("egress_lock"):
+            raise ValueError("egress_lock would cut the in-sandbox model proxy off its provider")
         self._proxy_staged = False
         self._proxy_networks: dict[str, str] = {}
         super().__init__(*args, ttl_minutes=ttl_minutes, **kwargs)

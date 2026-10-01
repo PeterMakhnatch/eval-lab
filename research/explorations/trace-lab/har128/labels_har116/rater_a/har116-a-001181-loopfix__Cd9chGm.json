@@ -1,0 +1,27 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "You are an AI assistant tasked with solving command-line tasks in a Linux environment.",
+      "ref": "head#1"
+    }
+  ],
+  "first_failure": {
+    "quote": "No module named 'duckdb'",
+    "ref": "head#1",
+    "what": "agent phase never ran: ModuleNotFoundError No module named 'duckdb' at startup"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Quote is from exception.txt (trajectory holds only the user-prompt step head#1); n_episodes 1, ModuleNotFoundError before any model action, verifier null, loop_break fired false. Known loopfix (non-r2) agent import error per brief.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "har116-a-001181-loopfix__Cd9chGm"
+}

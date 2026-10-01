@@ -26,6 +26,13 @@
 # where only the provider's own exhaustion refuses.
 version: 1
 daily_cost_ceiling_usd: 20
+daily_cost_ceiling_overrides:
+  - utc_date: 2026-10-01
+    ceiling_usd: 35
+    expires_at: 2026-10-02T00:00:00Z
+    approved_by: Research-Harbor HAR-126 ruling 2026-10-01T08:42Z
+    approval_quote: Peter 2026-10-01 ~03:55Z "i approve like a $30 budget for runs total", from 04:00Z, plus ~$5 approved earlier on HAR-116
+    card: HAR-126
 per_job_cost_ceiling_usd: 3
 quiet_failure_rule: 3
 refuse_billable_at_used_percent: null

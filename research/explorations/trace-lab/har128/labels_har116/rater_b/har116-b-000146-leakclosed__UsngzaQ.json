@@ -1,0 +1,39 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "33 passed, 75 warnings in 52.15s",
+      "ref": "head#30"
+    },
+    {
+      "quote": "All 33 tests pass. Let me provide a summary of the fix.",
+      "ref": "head#31"
+    },
+    {
+      "quote": "self._check_on_train_epoch_end = trainer.val_check_interval == 1.0 and trainer.check_val_every_n_epoch == 1",
+      "ref": "head#7"
+    },
+    {
+      "quote": "assert ckpt._save_on_train_epoch_end is False",
+      "ref": "head#30"
+    }
+  ],
+  "first_failure": {
+    "quote": "All 33 tests pass. Let me provide a summary of the fix.",
+    "ref": "head#31",
+    "what": "claimed completion with EarlyStopping-only fix, leaving ModelCheckpoint._save_on_train_epoch_end unfixed"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Reward 0, n_episodes 31, no exception. Local early_stopping suite passes (33 passed) but hidden verifier fails 1/6 on test_model_checkpoint_save_on_train_epoch_end_with_check_val_every_n_epoch_gt_1 (True is False). agent.diff touches only early_stopping.py (+ changelog/test), never touches model_checkpoint.py. Instruction mentions only EarlyStopping but hidden tests require analogous ModelCheckpoint fix; pattern was discoverable so model blame.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "model_finished",
+  "trial": "har116-b-000146-leakclosed__UsngzaQ"
+}

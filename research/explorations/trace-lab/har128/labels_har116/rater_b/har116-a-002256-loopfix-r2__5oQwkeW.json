@@ -1,0 +1,43 @@
+{
+  "blame": "none",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "return self.maxsize > 0 and self.qsize() >= self.maxsize",
+      "ref": "head#6"
+    },
+    {
+      "quote": "122 passed in 14.13s",
+      "ref": "head#11"
+    },
+    {
+      "quote": "140 passed, 16 skipped in 12.93s",
+      "ref": "head#13"
+    },
+    {
+      "quote": "return self.maxsize > 0 and await self.qsize() >= self.maxsize",
+      "ref": "head#14"
+    },
+    {
+      "quote": "Fixed. Summary of the change",
+      "ref": "head#15"
+    }
+  ],
+  "first_failure": null,
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "reward 1.0, verifier 11 passed, completion accepted => model_finished earned pass. head#16-21 is a short confirmation fumble (echo confirmed/task_complete + double mark_task_complete after harness re-prompt), not an extended claim loop. Edits are local-only (queue.py + async_queue.py), no upstream fetch.",
+  "off_limits_opened": false,
+  "pass_copied": false,
+  "pass_copied_confidence": "high",
+  "sft_cut": {
+    "clean": true,
+    "cut_step_id": 15,
+    "reason": "genuine two-file full() fix matching issue repro; 122 queue/async + 140 sql tests pass; no copy, hidden-test access, or verifier tampering; kept steps 1-15 have no 5-repeat run"
+  },
+  "stop_confidence": "high",
+  "stop_reason": "model_finished",
+  "trial": "har116-a-002256-loopfix-r2__5oQwkeW"
+}

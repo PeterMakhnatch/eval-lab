@@ -1,0 +1,121 @@
+{
+ "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2/har116-a-002391-loopfix-r2__NvEfxbt",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2",
+ "task": "mimo-v2.6-rl/format-code-task-002391",
+ "verifier": {
+  "scored": true,
+  "reward": 1.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": {
+  "step_id": 3,
+  "step_ref": "head#3",
+  "tag": "tool_use",
+  "attribution": "model",
+  "rule_id": "R-TOOL-02",
+  "evidence_step_refs": [
+   "head#3"
+  ],
+  "recovered": true,
+  "note": "model-emitted surface the normalizer declines (unknown_function:read); A-NON-NATIVE-MODEL; harness feedback: 'No valid JSON found in response' (names the problem: false)",
+  "harness_feedback": "No valid JSON found in response",
+  "feedback_names_problem": false
+ },
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "none",
+  "attribution": "n/a",
+  "rule_id": "R-NONE-01",
+  "evidence_step_refs": [
+   "head#5",
+   "head#14"
+  ],
+  "note": "scored pass with no outcome-relevant failure",
+  "secondary": "error_recovery/model secondary: identical run head#5-head#14",
+  "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): no_prompt after head#53 (`cd /workspace/repo && python -m pytest test/ -q 2>&1 | tail `), 43 turns head#54-head#96 with no interrupt, until run end"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 10,
+    "span": [
+     "head#5",
+     "head#14"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 53331,
+   "completion": 773,
+   "steps": 10,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 53331,
+   "completion": 773,
+   "steps": 10,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2427397,
+   "completion": 12030,
+   "steps": 95,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.022,
+  "result_input_tokens": 2427397
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 93,
+  "states": {
+   "no_prompt": 45,
+   "prompt": 48
+  },
+  "stretches": [
+   {
+    "trigger_ref": "head#53",
+    "trigger_command": "cd /workspace/repo && python -m pytest test/ -q 2>&1 | tail -3",
+    "cause": "no_prompt",
+    "screen": "cd /workspace/repo && python -m pytest test/ -q 2>&1 | tail -3",
+    "start_ref": "head#54",
+    "end_ref": "head#96",
+    "turns": 43,
+    "interrupt_ref": null,
+    "interrupt_keys": null,
+    "prompt_returned": false,
+    "until_run_end": true,
+    "prompt_tokens": 1543437,
+    "steps_without_metrics": 0
+   }
+  ],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "ba8d8358d2bb6ca6fae7c00e871c0271e587269c"
+ },
+ "nop_runs_dir": null
+}

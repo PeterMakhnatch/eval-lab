@@ -1,0 +1,1000 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "har120-000227-a1__7WRBQ4u",
+    "trial_id": "5757d35c-79e4-478c-8fb5-ce95a536e13f",
+    "task": "mimo-v2.6-rl/format-code-task-000227",
+    "job": "HAR-120-har120-000227-a1",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "00a51a03-239f-4ad3-9daa-ba99014476b2",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000227-a1/har120-000227-a1__7WRBQ4u"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "failed",
+    "reward": 0.0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "verifier_outcome": "fail",
+    "stop_reason": "trial_budget_exhausted",
+    "stop_detail": "agent metadata stop_reason; binding ceiling: input_tokens",
+    "completion": "Completion: never claimed; the run ended on step 100 (sed -n 316,327p /testbed/src/waitress/parser.py).",
+    "execution_problems": {
+      "parse_errors": 0,
+      "prose_completions": 0,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": null,
+    "verifier_files": [
+      "verifier/agent.diff",
+      "verifier/apply.log",
+      "verifier/reward.txt",
+      "verifier/test-stdout.txt",
+      "verifier/test_output.log"
+    ],
+    "first_failure": {
+      "step": null,
+      "kind": null,
+      "evidence": null,
+      "confidence": null
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T08:01:59.745247+00:00",
+    "finished_at": "2026-10-01T08:10:04.686834+00:00",
+    "total_seconds": 484.942,
+    "phases": {
+      "environment_setup": {
+        "seconds": 1.55,
+        "starts_at_offset_seconds": 0.028
+      },
+      "agent_setup": {
+        "seconds": 8.834,
+        "starts_at_offset_seconds": 2.833
+      },
+      "agent_execution": {
+        "seconds": 468.466,
+        "starts_at_offset_seconds": 11.692
+      },
+      "verifier": {
+        "seconds": 2.677,
+        "starts_at_offset_seconds": 482.115
+      }
+    },
+    "unaccounted_seconds": 3.415,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": 5.141,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 100,
+    "agent_span_seconds": 431.321,
+    "step_gap_seconds": {
+      "count": 98,
+      "median": 4.437,
+      "p90": 4.931,
+      "max": 10.521,
+      "total": 426.556
+    },
+    "slowest_steps": [
+      {
+        "step": 7,
+        "seconds": 10.521,
+        "action": "bash_command: sed -n 230,300p /testbed/src/waitress/channel.py ; grep -rn \"HEAD\\|head\" /testbed/src/waitress/serve..."
+      },
+      {
+        "step": 97,
+        "seconds": 6.065,
+        "action": "bash_command: sed -n 344,362p /testbed/src/waitress/parser.py"
+      },
+      {
+        "step": 8,
+        "seconds": 5.423,
+        "action": "bash_command: grep -n \"HEAD\\|head\\|Content-Length\" /testbed/src/waitress/server.py"
+      },
+      {
+        "step": 57,
+        "seconds": 5.38,
+        "action": "bash_command: grep -n \"def __init__\\|def append\\|def close\\|def __len__\\|def __bool__\\|def get\\|def skip\\|def prun..."
+      },
+      {
+        "step": 4,
+        "seconds": 5.22,
+        "action": "bash_command: sed -n 380,560p /testbed/src/waitress/channel.py"
+      }
+    ]
+  },
+  "tokens": {
+    "input": 2451194,
+    "cached_input": 0,
+    "uncached_input": 2451194,
+    "output": 4838,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 2456032,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 2451194,
+        "cached_input": 0,
+        "output": 4838,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 2451194,
+        "cached_input": 0,
+        "output": 4838,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": 2451194,
+        "cached_input": null,
+        "output": 4838,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 99,
+    "llm_steps_with_usage": 99,
+    "context": {
+      "first_prompt_tokens": 1455,
+      "peak_prompt_tokens": 44458,
+      "peak_step": 100,
+      "last_prompt_tokens": 44458
+    },
+    "top_steps": [
+      {
+        "step": 100,
+        "input": 44458,
+        "output": 39,
+        "cost_usd": null,
+        "action": "bash_command: sed -n 316,327p /testbed/src/waitress/parser.py"
+      },
+      {
+        "step": 99,
+        "input": 44226,
+        "output": 39,
+        "cost_usd": null,
+        "action": "bash_command: sed -n 326,333p /testbed/src/waitress/parser.py"
+      },
+      {
+        "step": 98,
+        "input": 43965,
+        "output": 39,
+        "cost_usd": null,
+        "action": "bash_command: sed -n 332,346p /testbed/src/waitress/parser.py"
+      },
+      {
+        "step": 97,
+        "input": 43561,
+        "output": 39,
+        "cost_usd": null,
+        "action": "bash_command: sed -n 344,362p /testbed/src/waitress/parser.py"
+      },
+      {
+        "step": 96,
+        "input": 43291,
+        "output": 39,
+        "cost_usd": null,
+        "action": "bash_command: sed -n 360,372p /testbed/src/waitress/parser.py"
+      }
+    ]
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 101,
+    "actions": 99,
+    "distinct_tools": 1,
+    "polls": 0,
+    "by_tool": [
+      {
+        "tool": "bash_command",
+        "calls": 101,
+        "ok": 0,
+        "errors": 0,
+        "unknown": 101,
+        "output_chars": 140144,
+        "first_step": 2,
+        "last_step": 100,
+        "judged": 0,
+        "error_rate": null
+      }
+    ],
+    "top_programs": [
+      {
+        "program": "sed",
+        "calls": 83
+      },
+      {
+        "program": "grep",
+        "calls": 12
+      },
+      {
+        "program": "wc",
+        "calls": 2
+      },
+      {
+        "program": "ls",
+        "calls": 1
+      },
+      {
+        "program": "cat",
+        "calls": 1
+      }
+    ],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 99,
+    "distinct_actions": 98,
+    "repeated_actions": 1,
+    "repeat_rate": 0.0101,
+    "returns_to_earlier_action": 1,
+    "consecutive_repeats": 0,
+    "exact_revisits": 0,
+    "same_result_from_different_action": 0,
+    "repeated_errors": 0,
+    "longest_identical_run": {
+      "length": 1,
+      "steps": [
+        2
+      ],
+      "start_step": 2,
+      "end_step": 2
+    },
+    "longest_cycle": null,
+    "most_repeated": [
+      {
+        "tool": "bash_command",
+        "target": "sed -n 150,200p /testbed/src/waitress/parser.py",
+        "count": 2,
+        "steps": [
+          37,
+          43
+        ],
+        "identical_results": 0
+      }
+    ],
+    "loop_suspicion": {
+      "detected": false,
+      "score": 0.0,
+      "reasons": []
+    },
+    "repeats_by_window": [
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "revisits_started": {
+      "repeat_rate_by_window": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.1,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "median_repeat_rate": 0.0,
+      "status": "onset",
+      "reason": null,
+      "window": 4,
+      "steps": [
+        41,
+        50
+      ],
+      "repeat_rate": 0.1
+    }
+  },
+  "subagents": {
+    "observability": "none_observed",
+    "reason": null,
+    "count": 0,
+    "delegated_count": 0,
+    "summarization_count": 0,
+    "delegation_calls": [],
+    "items": [],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": []
+  },
+  "errors": {
+    "tool_errors": 0,
+    "harness_signalled": 0,
+    "inferred_from_output": 0,
+    "status_unknown_calls": 101,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {},
+    "first_error": null,
+    "ended_in_error": false,
+    "examples": [],
+    "exception": {
+      "type": "TrialBudgetExhaustedError",
+      "message": "the trial proxy refused a model call: trial budget exhausted",
+      "occurred_at": "2026-10-01T08:09:59.907917Z"
+    }
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 0,
+    "items": []
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 100,
+    "shown_steps": 21,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 0.376,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      },
+      {
+        "step": 2,
+        "offset_seconds": 5.141,
+        "source": "agent",
+        "action": "bash_command: ls /testbed && git -C /testbed log --oneline -3 && git -C /testbed status ; ls /testbed/src/waitress...",
+        "status": "unknown",
+        "input_tokens": 1455,
+        "output_tokens": 99,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 3,
+        "offset_seconds": 8.59,
+        "source": "agent",
+        "action": "bash_command: grep -n \"body\\|HEAD\\|head\" /testbed/src/waitress/channel.py | head -50",
+        "status": "unknown",
+        "input_tokens": 2008,
+        "output_tokens": 81,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 4,
+        "offset_seconds": 13.81,
+        "source": "agent",
+        "action": "bash_command: sed -n 380,560p /testbed/src/waitress/channel.py",
+        "status": "unknown",
+        "input_tokens": 2381,
+        "output_tokens": 201,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 5,
+        "offset_seconds": 16.89,
+        "source": "agent",
+        "action": "bash_command: sed -n 560,760p /testbed/src/waitress/channel.py",
+        "status": "unknown",
+        "input_tokens": 2944,
+        "output_tokens": 39,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 6,
+        "offset_seconds": 20.146,
+        "source": "agent",
+        "action": "bash_command: wc -l /testbed/src/waitress/channel.py; sed -n 300,380p /testbed/src/waitress/channel.py",
+        "status": "unknown",
+        "input_tokens": 3118,
+        "output_tokens": 51,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 7,
+        "offset_seconds": 30.667,
+        "source": "agent",
+        "action": "bash_command: sed -n 230,300p /testbed/src/waitress/channel.py ; grep -rn \"HEAD\\|head\" /testbed/src/waitress/serve...",
+        "status": "unknown",
+        "input_tokens": 3728,
+        "output_tokens": 436,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 8,
+        "offset_seconds": 36.09,
+        "source": "agent",
+        "action": "bash_command: grep -n \"HEAD\\|head\\|Content-Length\" /testbed/src/waitress/server.py",
+        "status": "unknown",
+        "input_tokens": 4462,
+        "output_tokens": 182,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 9,
+        "offset_seconds": 40.095,
+        "source": "agent",
+        "action": "bash_command: sed -n 100,230p /testbed/src/waitress/channel.py",
+        "status": "unknown",
+        "input_tokens": 4748,
+        "output_tokens": 91,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 10,
+        "offset_seconds": 43.279,
+        "source": "agent",
+        "action": "bash_command: sed -n 1,100p /testbed/src/waitress/channel.py",
+        "status": "unknown",
+        "input_tokens": 5343,
+        "output_tokens": 37,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "omitted_steps": [
+          11,
+          42
+        ]
+      },
+      {
+        "step": 43,
+        "offset_seconds": 171.607,
+        "source": "agent",
+        "action": "bash_command: sed -n 150,200p /testbed/src/waitress/parser.py",
+        "status": "unknown",
+        "input_tokens": 21809,
+        "output_tokens": 39,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "omitted_steps": [
+          44,
+          90
+        ]
+      },
+      {
+        "step": 91,
+        "offset_seconds": 388.31,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"crack_first_line\" /testbed/src/",
+        "status": "unknown",
+        "input_tokens": 41537,
+        "output_tokens": 33,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 92,
+        "offset_seconds": 392.973,
+        "source": "agent",
+        "action": "bash_command: sed -n 416,460p /testbed/src/waitress/parser.py",
+        "status": "unknown",
+        "input_tokens": 41746,
+        "output_tokens": 39,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 93,
+        "offset_seconds": 397.501,
+        "source": "agent",
+        "action": "bash_command: sed -n 400,416p /testbed/src/waitress/parser.py",
+        "status": "unknown",
+        "input_tokens": 42167,
+        "output_tokens": 39,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 94,
+        "offset_seconds": 402.084,
+        "source": "agent",
+        "action": "bash_command: sed -n 382,400p /testbed/src/waitress/parser.py",
+        "status": "unknown",
+        "input_tokens": 42482,
+        "output_tokens": 39,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 95,
+        "offset_seconds": 406.825,
+        "source": "agent",
+        "action": "bash_command: sed -n 370,382p /testbed/src/waitress/parser.py",
+        "status": "unknown",
+        "input_tokens": 42808,
+        "output_tokens": 39,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 96,
+        "offset_seconds": 411.499,
+        "source": "agent",
+        "action": "bash_command: sed -n 360,372p /testbed/src/waitress/parser.py",
+        "status": "unknown",
+        "input_tokens": 43291,
+        "output_tokens": 39,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 97,
+        "offset_seconds": 417.564,
+        "source": "agent",
+        "action": "bash_command: sed -n 344,362p /testbed/src/waitress/parser.py",
+        "status": "unknown",
+        "input_tokens": 43561,
+        "output_tokens": 39,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 98,
+        "offset_seconds": 422.777,
+        "source": "agent",
+        "action": "bash_command: sed -n 332,346p /testbed/src/waitress/parser.py",
+        "status": "unknown",
+        "input_tokens": 43965,
+        "output_tokens": 39,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 99,
+        "offset_seconds": 427.217,
+        "source": "agent",
+        "action": "bash_command: sed -n 326,333p /testbed/src/waitress/parser.py",
+        "status": "unknown",
+        "input_tokens": 44226,
+        "output_tokens": 39,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 100,
+        "offset_seconds": 431.697,
+        "source": "agent",
+        "action": "bash_command: sed -n 316,327p /testbed/src/waitress/parser.py",
+        "status": "unknown",
+        "input_tokens": 44458,
+        "output_tokens": 39,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      }
+    ],
+    "windows": [
+      {
+        "steps": [
+          1,
+          10
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1217,
+        "cost_usd": null,
+        "seconds": 42.903,
+        "peak_prompt_tokens": 5343,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          11,
+          20
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 436,
+        "cost_usd": null,
+        "seconds": 29.453,
+        "peak_prompt_tokens": 11039,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          21,
+          30
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 397,
+        "cost_usd": null,
+        "seconds": 34.217,
+        "peak_prompt_tokens": 15926,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          31,
+          40
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 395,
+        "cost_usd": null,
+        "seconds": 39.811,
+        "peak_prompt_tokens": 20917,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          41,
+          50
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 1,
+        "output_tokens": 398,
+        "cost_usd": null,
+        "seconds": 38.208,
+        "peak_prompt_tokens": 24610,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          51,
+          60
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 458,
+        "cost_usd": null,
+        "seconds": 41.142,
+        "peak_prompt_tokens": 29455,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          61,
+          70
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 386,
+        "cost_usd": null,
+        "seconds": 41.072,
+        "peak_prompt_tokens": 33876,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          71,
+          80
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 390,
+        "cost_usd": null,
+        "seconds": 41.64,
+        "peak_prompt_tokens": 37741,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          81,
+          90
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 377,
+        "cost_usd": null,
+        "seconds": 41.55,
+        "peak_prompt_tokens": 41354,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          91,
+          100
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 384,
+        "cost_usd": null,
+        "seconds": 43.387,
+        "peak_prompt_tokens": 44458,
+        "compactions": 0
+      }
+    ],
+    "time_windows": {
+      "status": "available",
+      "reason": null,
+      "origin": "2026-10-01T08:02:11.813006+00:00",
+      "span_seconds": 431.321,
+      "steps_without_timestamps": 0,
+      "windows": [
+        {
+          "steps": [
+            1,
+            10
+          ],
+          "tool_calls": 9,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1217,
+          "cost_usd": null,
+          "peak_prompt_tokens": 5343,
+          "compactions": 0,
+          "starts_at_offset_seconds": 0.0,
+          "ends_at_offset_seconds": 43.132
+        },
+        {
+          "steps": [
+            11,
+            22
+          ],
+          "tool_calls": 12,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 514,
+          "cost_usd": null,
+          "peak_prompt_tokens": 12145,
+          "compactions": 0,
+          "starts_at_offset_seconds": 43.132,
+          "ends_at_offset_seconds": 86.264
+        },
+        {
+          "steps": [
+            23,
+            33
+          ],
+          "tool_calls": 11,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 433,
+          "cost_usd": null,
+          "peak_prompt_tokens": 17797,
+          "compactions": 0,
+          "starts_at_offset_seconds": 86.264,
+          "ends_at_offset_seconds": 129.396
+        },
+        {
+          "steps": [
+            34,
+            43
+          ],
+          "tool_calls": 10,
+          "errors": 0,
+          "revisits": 1,
+          "output_tokens": 386,
+          "cost_usd": null,
+          "peak_prompt_tokens": 21809,
+          "compactions": 0,
+          "starts_at_offset_seconds": 129.396,
+          "ends_at_offset_seconds": 172.528
+        },
+        {
+          "steps": [
+            44,
+            53
+          ],
+          "tool_calls": 10,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 410,
+          "cost_usd": null,
+          "peak_prompt_tokens": 26233,
+          "compactions": 0,
+          "starts_at_offset_seconds": 172.528,
+          "ends_at_offset_seconds": 215.661
+        },
+        {
+          "steps": [
+            54,
+            62
+          ],
+          "tool_calls": 9,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 416,
+          "cost_usd": null,
+          "peak_prompt_tokens": 30478,
+          "compactions": 0,
+          "starts_at_offset_seconds": 215.661,
+          "ends_at_offset_seconds": 258.793
+        },
+        {
+          "steps": [
+            63,
+            72
+          ],
+          "tool_calls": 10,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 389,
+          "cost_usd": null,
+          "peak_prompt_tokens": 34671,
+          "compactions": 0,
+          "starts_at_offset_seconds": 258.793,
+          "ends_at_offset_seconds": 301.925
+        },
+        {
+          "steps": [
+            73,
+            81
+          ],
+          "tool_calls": 9,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 350,
+          "cost_usd": null,
+          "peak_prompt_tokens": 38042,
+          "compactions": 0,
+          "starts_at_offset_seconds": 301.925,
+          "ends_at_offset_seconds": 345.057
+        },
+        {
+          "steps": [
+            82,
+            91
+          ],
+          "tool_calls": 10,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 372,
+          "cost_usd": null,
+          "peak_prompt_tokens": 41537,
+          "compactions": 0,
+          "starts_at_offset_seconds": 345.057,
+          "ends_at_offset_seconds": 388.189
+        },
+        {
+          "steps": [
+            92,
+            100
+          ],
+          "tool_calls": 9,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 351,
+          "cost_usd": null,
+          "peak_prompt_tokens": 44458,
+          "compactions": 0,
+          "starts_at_offset_seconds": 388.189,
+          "ends_at_offset_seconds": 431.321
+        }
+      ]
+    }
+  },
+  "data_quality": [
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B' has no pinned price-table entry",
+    "harness reports no per-call status (no exit codes or error flags): tool errors are only inferred from output text"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "5a951fbe294a4df84d52e736840416a7fa224e164d2bb5f545fe6f91ee53569d"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "7073531c3bb4b6642600ea4797fbb59a0bc900b8c427c71233ae4a4d3b66735a"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 99,
+    "recorded": 99,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 0,
+    "prose_completions": 0,
+    "executed_calls": 101,
+    "task_complete_turns": 0,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 0,
+    "continuations_missing": [],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 100,
+        "copied_steps": 0,
+        "session_id": "00a51a03-239f-4ad3-9daa-ba99014476b2"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 100,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": []
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B) failed (reward 0) on mimo-v2.6-rl/format-code-task-000227; in 8m05s wall (7m48s agent); 100 steps, 101 tool calls, 0 errors, 2.46M tokens, cost unavailable; 1 repeated action (0 exact revisits); no subagents observed."
+}

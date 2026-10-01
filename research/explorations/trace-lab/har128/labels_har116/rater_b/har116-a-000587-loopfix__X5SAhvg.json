@@ -1,0 +1,27 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "ModuleNotFoundError: No module named 'duckdb'",
+      "ref": "head#1"
+    }
+  ],
+  "first_failure": {
+    "quote": "Trial har116-a-000587-loopfix__X5SAhvg failed: No module named 'duckdb'",
+    "ref": "head#1",
+    "what": "Harness crashed on agent setup/loop due to missing duckdb dependency in loopfix"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Harness loopfix hook failed to import duckdb at step 1.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "har116-a-000587-loopfix__X5SAhvg"
+}

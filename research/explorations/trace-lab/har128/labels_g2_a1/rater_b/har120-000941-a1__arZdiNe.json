@@ -1,0 +1,50 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "TrialBudgetExhaustedError: the trial proxy refused a model call: trial budget exhausted",
+      "ref": "head#103"
+    },
+    {
+      "quote": "matches = new_hash == known_hash.split(\":\")[-1].lower()",
+      "ref": "head#11"
+    },
+    {
+      "quote": "ValueError: Algorithm 'SHA256' not available in hashlib",
+      "ref": "head#N/A verifier"
+    },
+    {
+      "quote": "assert 'SHA256' == 'sha256'",
+      "ref": "head#N/A verifier"
+    },
+    {
+      "quote": "Are you sure you want to mark the task as complete? ... include \"task_complete\": true in your JSON response again.",
+      "ref": "head#47"
+    },
+    {
+      "quote": "The fix is complete and all 15 tests pass.",
+      "ref": "head#48"
+    }
+  ],
+  "first_failure": {
+    "quote": "matches = new_hash == known_hash.split(\":\")[-1].lower()",
+    "ref": "head#11",
+    "what": "Lowercased only hash value, not algorithm prefix (hash_algorithm still returns 'SHA256')"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#48",
+    "head#103"
+  ],
+  "notes": "Reward 0 (7/10 pass; 3 fail on uppercase/mixed-case alg prefix). Visible tests passed (15/15) so model claimed done at 47; hidden tests need hash_algorithm lowercasing too. 2.46M/2.5M input tokens, 103<120 episodes => token_ceiling. Post-claim turns 48-103 are same claim + pytest re-checks.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har120-000941-a1__arZdiNe"
+}

@@ -1,0 +1,47 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Tables created without using text_align, should use `---` as a default, instead of `:---:`.",
+      "ref": "head#2"
+    },
+    {
+      "quote": "text_align='default'",
+      "ref": "head#19"
+    },
+    {
+      "quote": "if text_align.lower() in ('right', 'center', 'left', 'default'):",
+      "ref": "head#19"
+    },
+    {
+      "quote": "AttributeError: 'NoneType' object has no attribute 'lower'",
+      "ref": "head#43"
+    },
+    {
+      "quote": "Ran 96 tests in 0.005s OK",
+      "ref": "head#41"
+    },
+    {
+      "quote": "Are you sure you want to mark the task as complete?",
+      "ref": "head#42"
+    }
+  ],
+  "first_failure": {
+    "quote": "text_align='default'",
+    "ref": "head#19",
+    "what": "chose 'default' sentinel instead of None-safe default, leaving .lower() crash on explicit None"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "7/8 hidden pass; only explicit-None case errors; local 96 tests gave false confidence; clean 2-step completion",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "model_finished",
+  "trial": "har120-000803-a1__xWzxKCn"
+}

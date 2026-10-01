@@ -1,0 +1,114 @@
+{
+ "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001896-loopfix-r2/har116-a-001896-loopfix-r2__Wmwi4NK",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001896-loopfix-r2",
+ "task": "mimo-v2.6-rl/format-code-task-001896",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": {
+  "step_id": 39,
+  "step_ref": "head#39",
+  "tag": "tool_use",
+  "attribution": "model",
+  "rule_id": "R-TOOL-02",
+  "evidence_step_refs": [
+   "head#39"
+  ],
+  "recovered": false,
+  "note": "model-emitted surface the normalizer declines (unknown_function:command); A-NON-NATIVE-MODEL; harness feedback: 'Missing required fields: analysis, plan, commands' (names the problem: true)",
+  "harness_feedback": "Missing required fields: analysis, plan, commands",
+  "feedback_names_problem": true
+ },
+ "outcome": {
+  "step_id": 39,
+  "step_ref": "head#39",
+  "tag": "tool_use",
+  "attribution": "model",
+  "rule_id": "R-TOOL-02",
+  "evidence_step_refs": [
+   "head#39",
+   "head#45",
+   "head#95"
+  ],
+  "note": "model-emitted surface the normalizer declines (unknown_function:command); A-NON-NATIVE-MODEL; harness feedback: 'Missing required fields: analysis, plan, commands' (names the problem: true)",
+  "harness_feedback": "Missing required fields: analysis, plan, commands",
+  "feedback_names_problem": true,
+  "secondary": "error_recovery/model secondary: identical run head#45-head#95"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 35,
+    "span": [
+     "head#2",
+     "head#36"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 51,
+    "span": [
+     "head#45",
+     "head#95"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 2237573,
+   "completion": 12876,
+   "steps": 86,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 2237573,
+   "completion": 12876,
+   "steps": 86,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2427344,
+   "completion": 23326,
+   "steps": 94,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.9218,
+  "result_input_tokens": 2427344
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 37,
+  "states": {
+   "prompt": 37
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "ba8d8358d2bb6ca6fae7c00e871c0271e587269c"
+ },
+ "nop_runs_dir": null
+}

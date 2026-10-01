@@ -77,11 +77,18 @@ historical measurement; regenerate before using them as current cohort counts.
 
 ## 2. Campaign Rollups
 
-### A. HAR-81 (ARVO Cyber Tasks)
+HAR-132's read-only backfill replay reproduced **90 comparison cells from
+81 distinct raw trials**, with no keyed row differences. Nine HAR-104 trials
+are reused in HAR-110 cells; summing campaign cells is not a unique-run count.
+
+### A. HAR-81 (mixed-domain declared cohort)
 
 | Campaign | Trials on disk | Raw Pass | Counted Pass | Counted Fail | Excluded | Notes |
 |---|---|---|---|---|---|---|
-| **HAR-81** | 44 | 8 | **8** | 36 | 0 | **No ledger covers these tasks (not checked)**. All 8 passes earned; no PyPI package download bypasses. |
+| **HAR-81** | 44 | 8 | **8** | 36 | 0 | **No ledger covers these tasks (not checked)**. Eight pass under the recorded counts rules; absence of detector findings is not independent proof that every pass is earned. |
+
+The frozen `round_arm=arvo_cyber` value is a legacy grouping label, not a
+domain assertion about all 44 tasks.
 
 ### B. HAR-104 (Plain Dev & Dropped Baseline)
 
@@ -99,7 +106,7 @@ historical measurement; regenerate before using them as current cohort counts.
 | `har104-d-002864__B7cJ4cG` | `format-code-task-002864` | 1.0 | `counted_pass` | - | Earned pass |
 
 **HAR-104 Rollup:** 10 trials | Raw Pass: 4 | **Counted Pass: 2** | **Counted Fail: 4** | **Excluded: 4**  
-*True pass rate:* **33.3% (2/6)** on sound tasks.
+*Counted pass rate:* **33.3% (2/6)** among non-excluded trials.
 
 ---
 
@@ -120,7 +127,7 @@ There is **exactly one infra trial** in HAR-110: `002256` candidate (`har110-dev
 | **002391** | 1.0 (`counted_pass`) | 0.0 (`counted_fail`) | 0.0 (`counted_fail`) |
 | **002864** | 1.0 (`counted_pass`) | 0.0 (`counted_fail`) | 1.0 (`counted_pass`, agent finished early) |
 | **Rollup (Raw)** | **2/6** | **1/6** | **1/5 (+1 unscored)** |
-| **Rollup (Counted)** | **2/6 pass (4 fail)** | **0/5 pass (5 fail, 1 excluded)** | **1/4 pass (4 fail, 1 excluded)** |
+| **Rollup (Counted)** | **2/6 pass (4 fail)** | **0/5 pass (5 fail, 1 excluded)** | **1/5 pass (4 fail, 1 excluded)** |
 
 #### 2. Held-Out Split (4 Tasks)
 

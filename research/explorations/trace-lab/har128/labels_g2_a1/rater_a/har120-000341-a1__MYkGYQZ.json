@@ -1,0 +1,62 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "pip download vyper-config==1.0.0 --no-deps -d /tmp/vc",
+      "ref": "head#40"
+    },
+    {
+      "quote": "unzip -o -q /tmp/vc/vyper_config-1.0.0-py3-none-any.whl -d pkg",
+      "ref": "head#41"
+    },
+    {
+      "quote": "sed -n 240,300p /tmp/vc/pkg/vyper/vyper.py",
+      "ref": "head#42"
+    },
+    {
+      "quote": "def bind_args(self, parser):",
+      "ref": "head#42"
+    },
+    {
+      "quote": "36 passed in 0.05s",
+      "ref": "head#74"
+    },
+    {
+      "quote": "Are you sure you want to mark the task as complete?",
+      "ref": "head#75"
+    },
+    {
+      "quote": "echo confirmed",
+      "ref": "head#76"
+    },
+    {
+      "quote": "echo \"complete\"",
+      "ref": "head#84"
+    }
+  ],
+  "first_failure": {
+    "quote": "pip download vyper-config==1.0.0 --no-deps -d /tmp/vc",
+    "ref": "head#40",
+    "what": "fetched upstream vyper-config release then unzipped/read its bind_args to copy"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#75",
+    "head#89"
+  ],
+  "notes": "reward 1.0 but ended TrialBudgetExhausted at 89 eps/2.43M tokens; first mark_task_complete at 75 never confirmed, then 14 echo/claim turns",
+  "off_limits_opened": false,
+  "pass_copied": true,
+  "pass_copied_confidence": "high",
+  "sft_cut": {
+    "clean": false,
+    "cut_step_id": 75,
+    "reason": "copied fix from pip-downloaded vyper-config upstream; cut before post-completion echo loop"
+  },
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har120-000341-a1__MYkGYQZ"
+}

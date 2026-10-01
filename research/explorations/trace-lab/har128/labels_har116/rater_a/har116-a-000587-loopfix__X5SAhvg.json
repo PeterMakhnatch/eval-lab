@@ -1,0 +1,31 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Trial har116-a-000587-loopfix__X5SAhvg failed: No module named 'duckdb'",
+      "ref": "head#1"
+    },
+    {
+      "quote": "ls -la /testbed && cat /testbed/pottery/__init__.py",
+      "ref": "head#1"
+    }
+  ],
+  "first_failure": {
+    "quote": "ModuleNotFoundError: No module named 'duckdb'",
+    "ref": "head#1",
+    "what": "harness loopfix crashed on the first model turn importing duckdb (live_loop_action -> traj), before any fix work"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "trajectory.json holds only the initial user prompt; model exploration (ls, cat __init__.py, ls pottery) visible in agent/terminus_2.pane; crash is harness-side per exception.txt. Known loopfix-startup import failure.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "har116-a-000587-loopfix__X5SAhvg"
+}

@@ -1,0 +1,116 @@
+{
+ "trial": "har116-a-002391-baseline__xZqrQkD",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-baseline/har116-a-002391-baseline__xZqrQkD",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-baseline",
+ "task": "mimo-v2.6-rl/format-code-task-002391",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 1,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "unclear",
+  "attribution": "unclear",
+  "rule_id": "R-UNC-01",
+  "evidence_step_refs": [
+   "head#64"
+  ],
+  "note": "no rule fired; needs hand reading",
+  "progress": {
+   "last_file_changing_step": "head#64",
+   "distinct_files_edited": [
+    "/tmp/f.log",
+    "/tmp/full.log",
+    "/tmp/r1.log",
+    "/tmp/ta.log",
+    "/tmp/ta2.log",
+    "/tmp/ta3.log",
+    "55,130p",
+    "86,120p",
+    "_merge_aliases"
+   ],
+   "distinct_files_edited_count": 9,
+   "distinct_task_files_edited": [
+    "pip_audit/_audit.py",
+    "pip_audit/_service/__init__.py"
+   ],
+   "distinct_task_files_edited_count": 2,
+   "longest_identical_keystrokes_run": "head#68-head#69 (2)",
+   "verifier_passes": 5,
+   "verifier_total": 8,
+   "verifier_any_pass": true,
+   "longest_identical_run": null,
+   "prose_completions": 0,
+   "summarization_count": 1,
+   "summarization_files": 1
+  },
+  "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): no_prompt after head#42 (`cd /workspace/repo && python -m pytest test/ -q 2>&1 | grep `), 27 turns head#43-head#69 with no interrupt, until run end"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [],
+  "identical": null,
+  "confirmation": null,
+  "in_loops": null,
+  "all_steps": {
+   "prompt": 2439889,
+   "completion": 23955,
+   "steps": 68,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": null,
+  "result_input_tokens": 2439889
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 68,
+  "states": {
+   "continuation": 1,
+   "no_prompt": 28,
+   "prompt": 39
+  },
+  "stretches": [
+   {
+    "trigger_ref": "head#42",
+    "trigger_command": "cd /workspace/repo && python -m pytest test/ -q 2>&1 | grep -E \"passed|failed|error\" | tail -5",
+    "cause": "no_prompt",
+    "screen": "cd /workspace/repo && python -m pytest test/ -q 2>&1 | grep -E \"passed|failed|error\" | tail -5",
+    "start_ref": "head#43",
+    "end_ref": "head#69",
+    "turns": 27,
+    "interrupt_ref": null,
+    "interrupt_keys": null,
+    "prompt_returned": false,
+    "until_run_end": true,
+    "prompt_tokens": 1356887,
+    "steps_without_metrics": 0
+   }
+  ],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "ba8d8358d2bb6ca6fae7c00e871c0271e587269c"
+ },
+ "nop_runs_dir": null
+}

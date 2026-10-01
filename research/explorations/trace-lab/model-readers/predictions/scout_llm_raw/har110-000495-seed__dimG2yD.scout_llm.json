@@ -1,0 +1,14 @@
+{
+ "stop_reason": "request_ceiling",
+ "stop_evidence": "[M183] \"yield from self._iter_errors(cfn_validator, instance)\"",
+ "first_failure_is_pass": false,
+ "first_failure_what": "After correctly diagnosing the regression and stating the needed fix, the model never made any edit; it spent the remaining ~75 episodes on read-only code exploration until the budget was exhausted.",
+ "first_failure_evidence": "[M18] \"we should either skip validation or resolve the function. Let me look at how the actual upstream fix was done.\"",
+ "blame": "model",
+ "blame_evidence": "[M182] \"cat /testbed/src/cfnlint/rules/jsonschema/CfnLintJsonSchema.py\"",
+ "loop_kind": "repetition",
+ "loop_start_evidence": "[M90] \"grep -rn \\\"DefinitionString\\|Definition\\\" /testbed/src/cfnlint/schema/provider_resources.py 2>/dev/null | head\"",
+ "loop_end_evidence": "[M182] \"cat /testbed/src/cfnlint/rules/jsonschema/CfnLintJsonSchema.py\"",
+ "upstream_fetch": false,
+ "upstream_evidence": "none observed"
+}

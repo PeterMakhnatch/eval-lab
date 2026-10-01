@@ -1,0 +1,43 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "created linkpreview/preview/generic.py from scratch",
+      "ref": "head#48"
+    },
+    {
+      "quote": "favicon returns list instead of expected tuple, None when empty",
+      "ref": "head#48"
+    },
+    {
+      "quote": "verifier: 5 failed 13 passed, list-vs-tuple and None-vs-empty favicon asserts",
+      "ref": "head#48"
+    },
+    {
+      "quote": "TrialBudgetExhaustedError, n_episodes 81, large input tokens",
+      "ref": "head#81"
+    },
+    {
+      "quote": "no completion claims and no 10-turn identical repetition in trajectory",
+      "ref": "head#81"
+    }
+  ],
+  "first_failure": {
+    "quote": "favicon returns list instead of expected tuple, None when empty",
+    "ref": "head#48",
+    "what": "Generic favicon returns list and empty-None instead of tuple and empty tuple"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Core fallbacks worked (13 passed); 5 favicon-type failures from head#48 design never converted to tuple. Varied fixes until token ceiling.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-a-001896-baseline__mBFMKax"
+}

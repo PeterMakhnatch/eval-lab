@@ -1,0 +1,99 @@
+{
+ "trial": "har120-001661-a1__xdRDCYr",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001661-a1/har120-001661-a1__xdRDCYr",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001661-a1",
+ "task": "mimo-v2.6-rl/format-code-task-001661",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "unknown",
+  "exception_type": "LoopBreakStop",
+  "exception_message": "loop break: the repetition was still going 56 calls in, 15 after the nudge at call 41",
+  "natural_completion": false,
+  "task_complete_refs": [
+   "head#33"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 37,
+  "step_ref": "head#37",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#37",
+   "head#57"
+  ],
+  "note": "identical message repeated steps 37-57 with no change after errors"
+ },
+ "handshake": {
+  "first_prompt_ref": "head#33",
+  "prompts": 1,
+  "confirmed": false,
+  "turns_after_first_prompt": 24,
+  "prompt_tokens_after_first_prompt": 761058,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 21,
+    "span": [
+     "head#37",
+     "head#57"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 678294,
+   "completion": 5160,
+   "steps": 21,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 678294,
+   "completion": 5160,
+   "steps": 21,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 1189308,
+   "completion": 17722,
+   "steps": 56,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.5703,
+  "result_input_tokens": 1189308
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 55,
+  "states": {
+   "prompt": 55
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "36c4c0a4ba3f117a69ed0825cb2a2e7de9b75291"
+ },
+ "nop_runs_dir": null
+}

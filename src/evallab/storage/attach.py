@@ -187,7 +187,8 @@ def _postgres_dsn() -> str:
     return database_url_from_environment()
 
 
-def _postgres_identity(dsn: str) -> str:
+def postgres_identity(dsn: str) -> str:
+    """Return a PostgreSQL target label without its user/password fields."""
     try:
         from psycopg.conninfo import conninfo_to_dict
 
@@ -205,7 +206,7 @@ def _attach_z2(conn: duckdb.DuckDBPyConnection, dsn: str) -> ZoneStatus:
         conn.execute("INSTALL postgres_scanner")
         conn.execute("LOAD postgres_scanner")
         conn.execute(f"ATTACH {_sql_string_literal(dsn)} AS z2 (TYPE postgres)")
-        return ZoneStatus("z2", True, detail=_postgres_identity(dsn))
+        return ZoneStatus("z2", True, detail=postgres_identity(dsn))
     except Exception as exc:
         detail = str(exc)
         for candidate in (dsn, dsn.replace("'", "''")):

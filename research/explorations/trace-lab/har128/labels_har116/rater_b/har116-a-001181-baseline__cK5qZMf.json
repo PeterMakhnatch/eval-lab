@@ -1,0 +1,38 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "cd /testbed && cat > /tmp/new_behavior.py <<'EOF'",
+      "ref": "head#21"
+    },
+    {
+      "quote": "cd /testbed && awk 'NR>=830 && NR<=880' rich/progress.py",
+      "ref": "head#49"
+    },
+    {
+      "quote": "cd /testbed && awk 'NR>=414 && NR<=423' rich/progress.py",
+      "ref": "head#89"
+    }
+  ],
+  "first_failure": {
+    "quote": "# Reference: upstream rich implementation of Task.speed / update / reset",
+    "ref": "head#21",
+    "what": "wrote a comment-only plan note to /tmp instead of editing code; followed by 68 read-only steps"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#49",
+    "head#89"
+  ],
+  "notes": "89 episodes/2.41M input tokens, TrialBudgetExhaustedError, empty agent.diff, reward 0 (8 codespec failures on unmodified code). Never ran tests or edited. head#49-89 is a 41-turn monotonic backward crawl of ~8-line awk windows with empty messages. No completion claims.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-a-001181-baseline__cK5qZMf"
+}

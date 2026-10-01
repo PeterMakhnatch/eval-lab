@@ -1,0 +1,147 @@
+{
+ "trial": "har120-001373-a1__vHMkbJW",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001373-a1/har120-001373-a1__vHMkbJW",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001373-a1",
+ "task": "mimo-v2.6-rl/format-code-task-001373",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "task_complete_confirmed",
+  "exception_type": null,
+  "exception_message": "",
+  "natural_completion": true,
+  "task_complete_refs": [
+   "head#71",
+   "head#72"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 71,
+  "step_ref": "head#71",
+  "tag": "completion",
+  "attribution": "model",
+  "rule_id": "R-COMP-02",
+  "evidence_step_refs": [
+   "head#71",
+   "head#72"
+  ],
+  "note": "harness-confirmed task_complete at head#71, head#72, but the verifier contradicts the claim (1/3 tests pass)",
+  "grader_note": "instruction.md not located; deliverable check skipped",
+  "confirmation_loop": {
+   "rule_id": "R-COMP-04",
+   "detector": "recorded",
+   "first_confirmation_ref": "head#71",
+   "loop_span": [
+    "head#71",
+    "head#72"
+   ],
+   "steps_in_span": 2,
+   "suffix_claim_only": true,
+   "note": "confirmation_with_call loop (secondary): the harness asked 'Are you sure ...' and the model kept replying claim+call, which executed instead of confirming; attribution unclear (confirm vs continue ambiguous)"
+  },
+  "secondary": "confirmation_with_call loop (recorded): first confirmation head#71, span head#71-head#72; attribution unclear (confirm vs continue ambiguous)",
+  "loop_token_cost": {
+   "prompt": 52185,
+   "completion": 510
+  },
+  "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): no_prompt after head#33 (`cd /testbed && python3 -m pytest tests/unit/ -q 2>&1 | grep `), 34 turns head#34-head#67 with no interrupt, prompt back after the command finished"
+ },
+ "handshake": {
+  "first_prompt_ref": "head#71",
+  "prompts": 1,
+  "confirmed": true,
+  "turns_after_first_prompt": 1,
+  "prompt_tokens_after_first_prompt": 26328,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "confirmation",
+    "length": 2,
+    "span": [
+     "head#71",
+     "head#72"
+    ]
+   }
+  ],
+  "identical": null,
+  "confirmation": {
+   "prompt": 52185,
+   "completion": 510,
+   "steps": 2,
+   "steps_without_metrics": 0
+  },
+  "in_loops": {
+   "prompt": 52185,
+   "completion": 510,
+   "steps": 2,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 1196234,
+   "completion": 8297,
+   "steps": 71,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.0436,
+  "result_input_tokens": 1196234
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 69,
+  "states": {
+   "no_prompt": 37,
+   "prompt": 32
+  },
+  "stretches": [
+   {
+    "trigger_ref": "head#33",
+    "trigger_command": "cd /testbed && python3 -m pytest tests/unit/ -q 2>&1 | grep -E \"passed|failed|error\" | tail -5",
+    "cause": "no_prompt",
+    "screen": "root@67f5ebdf-f99c-416b-9738-cc8a97b45bcf:/testbed# cd /testbed && python3 -m pytest tests/unit/ -q 2>&1 | tail -20",
+    "start_ref": "head#34",
+    "end_ref": "head#67",
+    "turns": 34,
+    "interrupt_ref": null,
+    "interrupt_keys": null,
+    "prompt_returned": true,
+    "until_run_end": false,
+    "prompt_tokens": 734522,
+    "steps_without_metrics": 0
+   }
+  ],
+  "short_stretches": 0
+ },
+ "confirmation_loop": {
+  "rule_id": "R-COMP-04",
+  "detector": "recorded",
+  "first_confirmation_ref": "head#71",
+  "loop_span": [
+   "head#71",
+   "head#72"
+  ],
+  "steps_in_span": 2,
+  "suffix_claim_only": true,
+  "note": "confirmation_with_call loop (secondary): the harness asked 'Are you sure ...' and the model kept replying claim+call, which executed instead of confirming; attribution unclear (confirm vs continue ambiguous)"
+ },
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "36c4c0a4ba3f117a69ed0825cb2a2e7de9b75291"
+ },
+ "nop_runs_dir": null
+}

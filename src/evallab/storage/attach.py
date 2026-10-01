@@ -552,6 +552,24 @@ def attach(
         raise
 
 
+def attach_trace(
+    *,
+    repo_root: Path | None = None,
+    results_home: Path | None = None,
+    explicit_derived: Path | None = None,
+    job_dirs: Sequence[Path] | None = None,
+) -> tuple[duckdb.DuckDBPyConnection, dict[str, Any]]:
+    """Return transient DuckDB connection with trace query views attached (no PG/network)."""
+    from evallab.trace_query import connect_trace_query
+
+    root = repo_root or Path.cwd()
+    return connect_trace_query(
+        repo_root=root,
+        results_home=results_home,
+        derived_root=explicit_derived,
+        job_dirs=job_dirs,
+    )
+
 def build_sql_preamble(
     dsn: str, derived: Path, root: Path, *, catalog_pair: dict[str, Path] | None = None
 ) -> str:

@@ -82,4 +82,24 @@ $ uv run evallab db attach --query "SELECT j.job_name, COUNT(*) AS trials FROM z
 [('smoke-oracle-8ya566yyqwms', 1), ...]
 ```
 
+
+### Trace Query Mode (HAR-131)
+
+For in-memory exploratory querying over evaluated Harbor cohorts without PostgreSQL or network dependencies:
+
+```sh
+$ uv run evallab db attach --trace --zones
+trace: attached (163 jobs, 158 trials, 10995 steps; 103 missing processed, 118 missing counts)
+
+$ uv run evallab db attach --trace --query "SELECT card, arm, n_total, raw_pass_rate FROM v_trace_cohort_raw LIMIT 5"
+('HAR-104', 'unknown', 16, 0.25)
+('HAR-110', 'gepa', 9, 0.1111)
+...
+
+# Pin a specific job directory:
+$ uv run evallab db attach --trace-job-dir ~/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002308-original --zones
+trace: attached (1 jobs, 1 trials, 111 steps; 0 missing processed, 0 missing counts)
+```
+
+Trace mode exposes `v_trace_trials`, `v_trace_steps`, and ten saved canonical queries defined in `sql/trace_queries.sql`.
 `--zones` exits non-zero only when zero zones attach.

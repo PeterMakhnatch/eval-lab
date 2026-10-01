@@ -8,6 +8,9 @@ Infra posts the G4 adapter digest + parity record and HAR-135's
 candidate admission/family-size decision is frozen before the first G5
 trial, per PREREG.md.
 
+The record of what ran (segments, captures, all 60 cells, missing-cell
+rulings, spend, incidents) is [`G5-RUN.md`](G5-RUN.md).
+
 - `make_g5_specs.py` — generates 2–3 ExperimentSpecs per frozen eval
   task. `--check` revalidates without writing.
 - `tasks/` (gitignored) — staged task bytes, reproducible from the eval

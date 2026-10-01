@@ -217,6 +217,17 @@ final G5 atlas or a paired treatment comparison. The CLI emitted no reflection
 payload. The existing committed atlas/README/verification bundle remains its
 earlier pinned historical snapshot until the final run-data refresh.
 
+The [original-attempt publication receipt](../research/experiments/har117-results-home/har131-g5-original-publication.json)
+separately freezes all 60 original G5 jobs: 6 counted passes, 49 counted failures
+and 5 infrastructure exclusions with null verifier rewards. It binds 240
+raw-record fact checks and 6,339 source files unchanged during publication-card
+repairs. Every complete landing check—including the correct card and INDEX
+row—finished within 30 minutes; the maximum was 20 minutes 44.324 seconds.
+Research-Harbor's final 16:42Z disposition cancelled the proposed replacements,
+so these are also the final 60 physical cells. This receipt is not the
+preregistered contrast analysis or a G5 loop-calibration result; all five
+infrastructure outcomes remain missing rather than zero-valued failures.
+
 The full atlas may contain held-out evidence and must not be sent to a prompt
 proposer. Reflection export requires explicit authorized task/package bindings
 and canonical usable-training, countability and frozen-eval exclusions. Only

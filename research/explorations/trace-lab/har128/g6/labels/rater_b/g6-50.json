@@ -1,0 +1,43 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "the trial proxy refused a model call: trial budget exhausted",
+      "ref": "head#96"
+    },
+    {
+      "quote": "pip download napari==0.5.5 --no-deps -d /tmp/napari_dl",
+      "ref": "head#76"
+    },
+    {
+      "quote": "elif self._highlight_visible and self._is_selecting:",
+      "ref": "head#91"
+    },
+    {
+      "quote": "assert pos is None",
+      "ref": "head#96"
+    },
+    {
+      "quote": "assert array([[ 10., 20.], [ 10., 30.], [ 30., 30.], [ 30., 10.],",
+      "ref": "head#96"
+    }
+  ],
+  "first_failure": {
+    "quote": "elif self._highlight_visible and self._is_selecting:",
+    "ref": "head#91",
+    "what": "shapes select-mode guard left box visible when inactive (pos not None)"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "pip download stayed in /tmp; repo edits written by model. 12/13 pass; only select-mode box fails.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-50"
+}

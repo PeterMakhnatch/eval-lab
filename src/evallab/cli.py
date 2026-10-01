@@ -2185,6 +2185,7 @@ def _spend_check_command(
     """Pre-launch spend-cap check: settled(window) + in-flight + candidate vs cap."""
     del harbor
     import math
+    from dataclasses import replace
 
     from evallab.spend_day import (
         REASON_CAP_UNVERIFIED,
@@ -2195,6 +2196,7 @@ def _spend_check_command(
         day_window_now,
         decision_to_dict,
         parse_launch_since,
+        policy_cap_at,
         render_decision,
         sibling_worktree_roots,
     )
@@ -2218,6 +2220,7 @@ def _spend_check_command(
             file=sys.stderr,
         )
         return 2
+    cap_description = None
     if args.cap_usd is not None:
         cap_usd = args.cap_usd
         if not math.isfinite(cap_usd) or cap_usd <= 0:
@@ -2228,7 +2231,9 @@ def _spend_check_command(
             return 2
     else:
         try:
-            cap_usd = load_policy(root / "policy/standing-approvals.yaml").daily_cost_ceiling_usd
+            cap_usd, cap_description = policy_cap_at(
+                load_policy(root / "policy/standing-approvals.yaml"), window_end
+            )
         except ValueError as exc:
             print(f"spend check: policy unreadable ({exc}); refusing unverified", file=sys.stderr)
             return 2
@@ -2246,6 +2251,7 @@ def _spend_check_command(
         extra_roots=extra_roots,
         allow_stale_modal=getattr(args, "allow_stale_modal", False),
     )
+    decision = replace(decision, cap_description=cap_description)
     if args.json:
         print(json.dumps(decision_to_dict(decision), indent=2, sort_keys=True))
     else:
@@ -4020,6 +4026,7 @@ def _process_job_command(
             publish=not args.no_publish,
             nop_runs_dir=args.nop_runs_dir,
             session_spend=args.session_spend,
+            publication_card=args.publication_card,
         )
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -5136,9 +5143,9 @@ def parser() -> argparse.ArgumentParser:
     spend_day.add_argument(
         "--cap-usd",
         type=float,
-        default=20.0,
+        default=None,
         metavar="FLOAT",
-        help="Daily spend cap in USD (default: 20.0)",
+        help="Daily spend cap in USD (default: policy at reported day's 00:00 UTC)",
     )
     spend_day.add_argument("--database-url", help="Override catalog PostgreSQL URL")
     spend_day.add_argument("--json", action="store_true", help="Emit ledger as JSON")
@@ -5159,7 +5166,7 @@ def parser() -> argparse.ArgumentParser:
         type=float,
         default=None,
         metavar="FLOAT",
-        help="Spend cap in USD (default: policy daily_cost_ceiling_usd)",
+        help="Spend cap in USD (default: effective policy ceiling at launch time)",
     )
     spend_check.add_argument(
         "--since",
@@ -6264,6 +6271,11 @@ def parser() -> argparse.ArgumentParser:
             "passing the receipt again; without it the legacy shared-GPU "
             "estimate keeps its non-additive label."
         ),
+    )
+    process_job_parser.add_argument(
+        "--publication-card",
+        default=None,
+        help="Explicit HAR issue attribution when the frozen job/spec has none; native inputs stay unchanged",
     )
     process_job_parser.set_defaults(func=_process_job_command)
     process_job_parser.add_argument(

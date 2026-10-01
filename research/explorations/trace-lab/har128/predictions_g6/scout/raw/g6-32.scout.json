@@ -1,0 +1,91 @@
+{
+ "trial": "ovn-g5-001626-gepa__3kGXxof",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001626-gepa/ovn-g5-001626-gepa__3kGXxof",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001626-gepa",
+ "task": "mimo-v2.6-rl/format-code-task-001626",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 3,
+   "summarization_count": 1,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": [
+    "head#47"
+   ]
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 58,
+  "step_ref": "head#58",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#58",
+   "head#107"
+  ],
+  "note": "identical message repeated steps 58-107 with no change after errors"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 50,
+    "span": [
+     "head#58",
+     "head#107"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 1253775,
+   "completion": 7350,
+   "steps": 50,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 1253775,
+   "completion": 7350,
+   "steps": 50,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2226195,
+   "completion": 35603,
+   "steps": 104,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.5632,
+  "result_input_tokens": 2340109
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 104,
+  "states": {
+   "prompt": 104
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "b1619aa3e3f0bef20fd52cb8590c4203f7c27336"
+ },
+ "nop_runs_dir": null
+}

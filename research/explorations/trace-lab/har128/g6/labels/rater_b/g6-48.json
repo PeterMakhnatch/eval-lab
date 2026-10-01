@@ -1,0 +1,31 @@
+{
+  "blame": "none",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "The implementation is complete and working. Let me add the example recipe and documentation to satisfy the remaining outcomes.",
+      "ref": "head#90"
+    },
+    {
+      "quote": "Now I'll create the include example pair demonstrating sibling reuse.",
+      "ref": "head#98"
+    },
+    {
+      "quote": "As suspected -- `hpccm.Stage0` doesn't exist. The included file must use the local `Stage0` variable. Let me fix the example.",
+      "ref": "head#100"
+    }
+  ],
+  "first_failure": null,
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Earned pass: verifier shows 9/9 pre-existing plus 8/8 include tests passing. Model never declared completion; run died on input-token budget (99 eps, 2.486M tokens) mid example-polish (example used wrong API name hpccm.building_blocks.gnu(); graded tests unaffected). No pip/curl/wget/clone, no site-packages/build copies, no beyond-HEAD history use in trace.",
+  "off_limits_opened": false,
+  "pass_copied": false,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-48"
+}

@@ -180,7 +180,7 @@ def _taint_flags(
                 "guard_mutation_steps": writes,
             }
         )
-    flags.extend(assess_upstream_fetch(agent_seq, info))
+    flags.extend(assess_upstream_fetch(agent_seq, info, trial_dir=trial_dir))
     return flags
 
 
@@ -833,6 +833,7 @@ def process_job(
     results_home: str | Path | None = None,
     pr_lookup: Any = None,
     session_spend: str | Path | None = None,
+    publication_card: str | None = None,
 ) -> dict[str, Any]:
     """Process a landed Harbor job directory.
 
@@ -853,10 +854,15 @@ def process_job(
     its non-additive label. Reprocessing after the bills land requires
     passing the receipt again: allocation is post-session accounting,
     not automatic pre-bill metering.
+
+    ``publication_card`` is an explicit publish-time HAR issue assignment
+    for jobs whose frozen name/question_ref has none; native inputs stay intact.
     """
     job_path = Path(job_dir).resolve()
     if not job_path.is_dir():
         raise ValueError(f"Not a job directory: {job_dir}")
+    if publication_card is not None and not publish:
+        raise ValueError("publication_card requires publication")
     allocation: dict[str, Any] | None = None
     if session_spend is not None:
         from evallab.spend_day import session_spend_for_job
@@ -1052,6 +1058,7 @@ def process_job(
             repo_root=Path(root).resolve() if root is not None else None,
             pr_lookup=pr_lookup,
             processed_report_root=out_dir,
+            publication_card=publication_card,
         )
         report["results_home"] = published["published"]
         (out_dir / "job.json").write_text(

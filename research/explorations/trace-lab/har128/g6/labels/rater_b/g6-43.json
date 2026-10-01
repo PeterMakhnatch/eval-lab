@@ -1,0 +1,39 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "the trial proxy refused a model call: trial budget exhausted",
+      "ref": "head#107"
+    },
+    {
+      "quote": "src.replace( \"from lbry.schema.purchase import Purchase\\n\", \"from lbry.schema.purchase import Purchase\\n\" )",
+      "ref": "head#38"
+    },
+    {
+      "quote": "purchase = Purchase(claim_id=txo.claim_id)",
+      "ref": "head#38"
+    },
+    {
+      "quote": "NameError: name 'Purchase' is not defined",
+      "ref": "head#107"
+    }
+  ],
+  "first_failure": {
+    "quote": "src.replace( \"from lbry.schema.purchase import Purchase\\n\", \"from lbry.schema.purchase import Purchase\\n\" )",
+    "ref": "head#38",
+    "what": "inserted create_purchase_transaction using Purchase without importing it (no-op self-replace)"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Tail is sliding awk reads of adjacent ranges, not 10 identical repeats.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-43"
+}

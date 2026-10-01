@@ -1,0 +1,999 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "ovn-g5-001626-stock__6P6YXKD",
+    "trial_id": "69299ea6-a50d-4426-9b39-035a5e75e3a5",
+    "task": "mimo-v2.6-rl/format-code-task-001626",
+    "job": "HAR-126-ovn-g5-001626-stock",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "6834456c-7b50-4d35-9b83-7668552808b5",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001626-stock/ovn-g5-001626-stock__6P6YXKD"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "errored",
+    "reward": null,
+    "rewards": {},
+    "verifier_outcome": "none",
+    "stop_reason": "error",
+    "stop_detail": "exception DaytonaNotFoundError",
+    "completion": "Completion: never claimed; the run ended on step 76 (cd /workspace/repo && awk 'NR>=3774 && NR<=3779' dulwich/pack.py).",
+    "execution_problems": {
+      "parse_errors": 0,
+      "prose_completions": 0,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": null,
+    "verifier_files": [],
+    "first_failure": {
+      "step": null,
+      "kind": null,
+      "evidence": null,
+      "confidence": null
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T15:36:05.465011+00:00",
+    "finished_at": "2026-10-01T15:51:12.404309+00:00",
+    "total_seconds": 906.939,
+    "phases": {
+      "environment_setup": {
+        "seconds": 32.825,
+        "starts_at_offset_seconds": 0.028
+      },
+      "agent_setup": {
+        "seconds": 18.103,
+        "starts_at_offset_seconds": 35.043
+      },
+      "agent_execution": {
+        "seconds": 838.563,
+        "starts_at_offset_seconds": 53.177
+      },
+      "verifier": {
+        "seconds": null,
+        "starts_at_offset_seconds": null
+      }
+    },
+    "unaccounted_seconds": 17.448,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": 10.223,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 76,
+    "agent_span_seconds": 830.152,
+    "step_gap_seconds": {
+      "count": 74,
+      "median": 7.291,
+      "p90": 8.792,
+      "max": 261.689,
+      "total": 821.729
+    },
+    "slowest_steps": [
+      {
+        "step": 74,
+        "seconds": 261.689,
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3772 && NR<=3777' dulwich/pack.py"
+      },
+      {
+        "step": 62,
+        "seconds": 16.762,
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3760 && NR<=3766' dulwich/pack.py"
+      },
+      {
+        "step": 54,
+        "seconds": 11.755,
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=4540 && NR<=4600' dulwich/pack.py"
+      },
+      {
+        "step": 10,
+        "seconds": 9.665,
+        "action": "bash_command: grep -rn \"apply_delta\" /workspace/repo --include=\"*.py\" --include=\"*.rs\" -l; echo ===; grep -rn \"def..."
+      },
+      {
+        "step": 11,
+        "seconds": 9.566,
+        "action": "bash_command: sed -n 480,620p /workspace/repo/crates/pack/src/lib.rs ; sed -n 1,140p /workspace/repo/property_test..."
+      }
+    ]
+  },
+  "tokens": {
+    "input": 1574522,
+    "cached_input": 0,
+    "uncached_input": 1574522,
+    "output": 4286,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 1578808,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 1574522,
+        "cached_input": 0,
+        "output": 4286,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 1574522,
+        "cached_input": 0,
+        "output": 4286,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": 1540406,
+        "cached_input": null,
+        "output": 4240,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 75,
+    "llm_steps_with_usage": 75,
+    "context": {
+      "first_prompt_tokens": 1021,
+      "peak_prompt_tokens": 33867,
+      "peak_step": 76,
+      "last_prompt_tokens": 33867
+    },
+    "top_steps": [
+      {
+        "step": 76,
+        "input": 33867,
+        "output": 46,
+        "cost_usd": null,
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3774 && NR<=3779' dulwich/pack.py"
+      },
+      {
+        "step": 75,
+        "input": 33629,
+        "output": 46,
+        "cost_usd": null,
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3773 && NR<=3778' dulwich/pack.py"
+      },
+      {
+        "step": 74,
+        "input": 33394,
+        "output": 46,
+        "cost_usd": null,
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3772 && NR<=3777' dulwich/pack.py"
+      },
+      {
+        "step": 73,
+        "input": 33160,
+        "output": 46,
+        "cost_usd": null,
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3771 && NR<=3776' dulwich/pack.py"
+      },
+      {
+        "step": 72,
+        "input": 32936,
+        "output": 46,
+        "cost_usd": null,
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3770 && NR<=3775' dulwich/pack.py"
+      }
+    ]
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 85,
+    "actions": 75,
+    "distinct_tools": 1,
+    "polls": 0,
+    "by_tool": [
+      {
+        "tool": "bash_command",
+        "calls": 85,
+        "ok": 0,
+        "errors": 0,
+        "unknown": 85,
+        "output_chars": 93720,
+        "first_step": 2,
+        "last_step": 76,
+        "judged": 0,
+        "error_rate": null
+      }
+    ],
+    "top_programs": [
+      {
+        "program": "awk",
+        "calls": 57
+      },
+      {
+        "program": "sed",
+        "calls": 12
+      },
+      {
+        "program": "grep",
+        "calls": 4
+      },
+      {
+        "program": "ls",
+        "calls": 1
+      },
+      {
+        "program": "git",
+        "calls": 1
+      }
+    ],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 75,
+    "distinct_actions": 72,
+    "repeated_actions": 3,
+    "repeat_rate": 0.04,
+    "returns_to_earlier_action": 2,
+    "consecutive_repeats": 1,
+    "exact_revisits": 0,
+    "same_result_from_different_action": 0,
+    "repeated_errors": 0,
+    "longest_identical_run": {
+      "length": 2,
+      "steps": [
+        61,
+        62
+      ],
+      "start_step": 61,
+      "end_step": 62
+    },
+    "longest_cycle": null,
+    "most_repeated": [
+      {
+        "tool": "bash_command",
+        "target": "cd /workspace/repo && awk 'NR>=3760 && NR<=3766' dulwich/pack.py",
+        "count": 4,
+        "steps": [
+          25,
+          58,
+          61,
+          62
+        ],
+        "identical_results": 0
+      }
+    ],
+    "loop_suspicion": {
+      "detected": false,
+      "score": 0.0,
+      "reasons": []
+    },
+    "repeats_by_window": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      1,
+      0
+    ],
+    "revisits_started": {
+      "repeat_rate_by_window": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.2857,
+        0.125,
+        0.0
+      ],
+      "median_repeat_rate": 0.0,
+      "status": "onset",
+      "reason": null,
+      "window": 7,
+      "steps": [
+        55,
+        61
+      ],
+      "repeat_rate": 0.2857
+    }
+  },
+  "subagents": {
+    "observability": "none_observed",
+    "reason": null,
+    "count": 0,
+    "delegated_count": 0,
+    "summarization_count": 0,
+    "delegation_calls": [],
+    "items": [],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": []
+  },
+  "errors": {
+    "tool_errors": 0,
+    "harness_signalled": 0,
+    "inferred_from_output": 0,
+    "status_unknown_calls": 85,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {},
+    "first_error": null,
+    "ended_in_error": false,
+    "examples": [],
+    "exception": {
+      "type": "DaytonaNotFoundError",
+      "message": "Failed to create session: not found: sandbox 326ac4db-eff0-42e7-afdd-168e1b18a201 not found, it may have been deleted or stopped - inspect audit logs for more info",
+      "occurred_at": "2026-10-01T15:51:04.643002Z"
+    }
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 0,
+    "items": []
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 76,
+    "shown_steps": 23,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 1.8,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      },
+      {
+        "step": 2,
+        "offset_seconds": 10.223,
+        "source": "agent",
+        "action": "bash_command: ls /workspace/repo && grep -rn \"apply_delta\" /workspace/repo --include=\"*.py\" | head -50 ; grep -rn...",
+        "status": "unknown",
+        "input_tokens": 1021,
+        "output_tokens": 100,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 3,
+        "offset_seconds": 18.85,
+        "source": "agent",
+        "action": "bash_command: grep -n \"def apply_delta\\|def _apply_delta\\|^def \\|^class \" /workspace/repo/dulwich/pack.py | head -...",
+        "status": "unknown",
+        "input_tokens": 1824,
+        "output_tokens": 107,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 4,
+        "offset_seconds": 27.642,
+        "source": "agent",
+        "action": "bash_command: grep -n \"apply_delta\\|create_delta\\|_create_delta_py\\|_delta_encode_size\" /workspace/repo/dulwich/pa...",
+        "status": "unknown",
+        "input_tokens": 2649,
+        "output_tokens": 144,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 5,
+        "offset_seconds": 36.264,
+        "source": "agent",
+        "action": "bash_command: sed -n 1,120p /workspace/repo/dulwich/pack.py ; grep -rn \"apply_delta\\|ApplyDeltaError\" /workspace/r...",
+        "status": "unknown",
+        "input_tokens": 3501,
+        "output_tokens": 119,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 6,
+        "offset_seconds": 44.335,
+        "source": "agent",
+        "action": "bash_command: sed -n 120,180p /workspace/repo/dulwich/pack.py; echo ===; grep -n \"ApplyDeltaError\" /workspace/repo...",
+        "status": "unknown",
+        "input_tokens": 4333,
+        "output_tokens": 103,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 7,
+        "offset_seconds": 51.178,
+        "source": "agent",
+        "action": "bash_command: sed -n 3800,3990p /workspace/repo/dulwich/pack.py",
+        "status": "unknown",
+        "input_tokens": 5164,
+        "output_tokens": 43,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 8,
+        "offset_seconds": 58.665,
+        "source": "agent",
+        "action": "bash_command: sed -n 4400,4460p /workspace/repo/dulwich/pack.py; echo ===; sed -n 4540,4620p /workspace/repo/dulwi...",
+        "status": "unknown",
+        "input_tokens": 5821,
+        "output_tokens": 71,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 9,
+        "offset_seconds": 68.185,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"apply_delta\" /workspace/repo/dulwich/ /workspace/repo/crates/ 2>/dev/null | grep -v \"\\.pyc...",
+        "status": "unknown",
+        "input_tokens": 6499,
+        "output_tokens": 154,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 10,
+        "offset_seconds": 77.849,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"apply_delta\" /workspace/repo --include=\"*.py\" --include=\"*.rs\" -l; echo ===; grep -rn \"def...",
+        "status": "unknown",
+        "input_tokens": 7352,
+        "output_tokens": 134,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "omitted_steps": [
+          11,
+          57
+        ]
+      },
+      {
+        "step": 58,
+        "offset_seconds": 440.107,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3760 && NR<=3766' dulwich/pack.py",
+        "status": "unknown",
+        "input_tokens": 29456,
+        "output_tokens": 46,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "omitted_steps": [
+          59,
+          60
+        ]
+      },
+      {
+        "step": 61,
+        "offset_seconds": 462.092,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3760 && NR<=3766' dulwich/pack.py",
+        "status": "unknown",
+        "input_tokens": 30130,
+        "output_tokens": 46,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 62,
+        "offset_seconds": 478.854,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3760 && NR<=3766' dulwich/pack.py",
+        "status": "unknown",
+        "input_tokens": 30689,
+        "output_tokens": 46,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "omitted_steps": [
+          63,
+          66
+        ]
+      },
+      {
+        "step": 67,
+        "offset_seconds": 513.914,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3765 && NR<=3770' dulwich/pack.py",
+        "status": "unknown",
+        "input_tokens": 31776,
+        "output_tokens": 46,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 68,
+        "offset_seconds": 520.73,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3766 && NR<=3771' dulwich/pack.py",
+        "status": "unknown",
+        "input_tokens": 32002,
+        "output_tokens": 46,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 69,
+        "offset_seconds": 527.861,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3767 && NR<=3772' dulwich/pack.py",
+        "status": "unknown",
+        "input_tokens": 32233,
+        "output_tokens": 46,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 70,
+        "offset_seconds": 534.839,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3768 && NR<=3773' dulwich/pack.py",
+        "status": "unknown",
+        "input_tokens": 32474,
+        "output_tokens": 46,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 71,
+        "offset_seconds": 541.736,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3769 && NR<=3774' dulwich/pack.py",
+        "status": "unknown",
+        "input_tokens": 32707,
+        "output_tokens": 46,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 72,
+        "offset_seconds": 548.804,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3770 && NR<=3775' dulwich/pack.py",
+        "status": "unknown",
+        "input_tokens": 32936,
+        "output_tokens": 46,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 73,
+        "offset_seconds": 555.701,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3771 && NR<=3776' dulwich/pack.py",
+        "status": "unknown",
+        "input_tokens": 33160,
+        "output_tokens": 46,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 74,
+        "offset_seconds": 817.39,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3772 && NR<=3777' dulwich/pack.py",
+        "status": "unknown",
+        "input_tokens": 33394,
+        "output_tokens": 46,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 75,
+        "offset_seconds": 824.492,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3773 && NR<=3778' dulwich/pack.py",
+        "status": "unknown",
+        "input_tokens": 33629,
+        "output_tokens": 46,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 76,
+        "offset_seconds": 831.952,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && awk 'NR>=3774 && NR<=3779' dulwich/pack.py",
+        "status": "unknown",
+        "input_tokens": 33867,
+        "output_tokens": 46,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      }
+    ],
+    "windows": [
+      {
+        "steps": [
+          1,
+          8
+        ],
+        "tool_calls": 7,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 687,
+        "cost_usd": null,
+        "seconds": 56.865,
+        "peak_prompt_tokens": 5821,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          9,
+          16
+        ],
+        "tool_calls": 8,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 767,
+        "cost_usd": null,
+        "seconds": 60.41,
+        "peak_prompt_tokens": 11143,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          17,
+          23
+        ],
+        "tool_calls": 7,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 339,
+        "cost_usd": null,
+        "seconds": 44.183,
+        "peak_prompt_tokens": 15496,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          24,
+          31
+        ],
+        "tool_calls": 8,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 368,
+        "cost_usd": null,
+        "seconds": 50.929,
+        "peak_prompt_tokens": 17670,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          32,
+          38
+        ],
+        "tool_calls": 7,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 322,
+        "cost_usd": null,
+        "seconds": 42.937,
+        "peak_prompt_tokens": 20274,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          39,
+          46
+        ],
+        "tool_calls": 8,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 368,
+        "cost_usd": null,
+        "seconds": 52.068,
+        "peak_prompt_tokens": 23835,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          47,
+          54
+        ],
+        "tool_calls": 8,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 368,
+        "cost_usd": null,
+        "seconds": 55.911,
+        "peak_prompt_tokens": 28383,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          55,
+          61
+        ],
+        "tool_calls": 7,
+        "errors": 0,
+        "revisits": 2,
+        "output_tokens": 331,
+        "cost_usd": null,
+        "seconds": 43.281,
+        "peak_prompt_tokens": 30130,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          62,
+          69
+        ],
+        "tool_calls": 8,
+        "errors": 0,
+        "revisits": 1,
+        "output_tokens": 368,
+        "cost_usd": null,
+        "seconds": 49.007,
+        "peak_prompt_tokens": 32233,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          70,
+          76
+        ],
+        "tool_calls": 7,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 322,
+        "cost_usd": null,
+        "seconds": 297.113,
+        "peak_prompt_tokens": 33867,
+        "compactions": 0
+      }
+    ],
+    "time_windows": {
+      "status": "available",
+      "reason": null,
+      "origin": "2026-10-01T15:37:00.442446+00:00",
+      "span_seconds": 830.152,
+      "steps_without_timestamps": 0,
+      "windows": [
+        {
+          "steps": [
+            1,
+            10
+          ],
+          "tool_calls": 9,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 975,
+          "cost_usd": null,
+          "peak_prompt_tokens": 7352,
+          "compactions": 0,
+          "starts_at_offset_seconds": 0.0,
+          "ends_at_offset_seconds": 83.015
+        },
+        {
+          "steps": [
+            11,
+            21
+          ],
+          "tool_calls": 11,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 701,
+          "cost_usd": null,
+          "peak_prompt_tokens": 14598,
+          "compactions": 0,
+          "starts_at_offset_seconds": 83.015,
+          "ends_at_offset_seconds": 166.03
+        },
+        {
+          "steps": [
+            22,
+            32
+          ],
+          "tool_calls": 11,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 531,
+          "cost_usd": null,
+          "peak_prompt_tokens": 17984,
+          "compactions": 0,
+          "starts_at_offset_seconds": 166.03,
+          "ends_at_offset_seconds": 249.045
+        },
+        {
+          "steps": [
+            33,
+            44
+          ],
+          "tool_calls": 12,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 552,
+          "cost_usd": null,
+          "peak_prompt_tokens": 22903,
+          "compactions": 0,
+          "starts_at_offset_seconds": 249.045,
+          "ends_at_offset_seconds": 332.061
+        },
+        {
+          "steps": [
+            45,
+            54
+          ],
+          "tool_calls": 10,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 460,
+          "cost_usd": null,
+          "peak_prompt_tokens": 28383,
+          "compactions": 0,
+          "starts_at_offset_seconds": 332.061,
+          "ends_at_offset_seconds": 415.076
+        },
+        {
+          "steps": [
+            55,
+            64
+          ],
+          "tool_calls": 10,
+          "errors": 0,
+          "revisits": 3,
+          "output_tokens": 469,
+          "cost_usd": null,
+          "peak_prompt_tokens": 31121,
+          "compactions": 0,
+          "starts_at_offset_seconds": 415.076,
+          "ends_at_offset_seconds": 498.091
+        },
+        {
+          "steps": [
+            65,
+            73
+          ],
+          "tool_calls": 9,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 414,
+          "cost_usd": null,
+          "peak_prompt_tokens": 33160,
+          "compactions": 0,
+          "starts_at_offset_seconds": 498.091,
+          "ends_at_offset_seconds": 581.106
+        },
+        {
+          "steps": [
+            74,
+            76
+          ],
+          "tool_calls": 3,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 138,
+          "cost_usd": null,
+          "peak_prompt_tokens": 33867,
+          "compactions": 0,
+          "starts_at_offset_seconds": 747.136,
+          "ends_at_offset_seconds": 830.152
+        }
+      ]
+    }
+  },
+  "data_quality": [
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B' has no pinned price-table entry",
+    "harness reports no per-call status (no exit codes or error flags): tool errors are only inferred from output text"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "7de358d3babdf394fe084470030b214c2da10d090eb4bf2ffadda16a9137f0f2"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "0e814f253e0df78a950ad6ade41fe5f47bb5ba664b1fb3612735e12ed4324548"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 75,
+    "recorded": 75,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 0,
+    "prose_completions": 0,
+    "executed_calls": 85,
+    "task_complete_turns": 0,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 0,
+    "continuations_missing": [],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 76,
+        "copied_steps": 0,
+        "session_id": "6834456c-7b50-4d35-9b83-7668552808b5"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 76,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": []
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B) errored on mimo-v2.6-rl/format-code-task-001626; in 15m07s wall (13m59s agent); 76 steps, 85 tool calls, 0 errors, 1.58M tokens, cost unavailable; 3 repeated actions (0 exact revisits); no subagents observed."
+}

@@ -3,9 +3,10 @@
 Reads the transient trace-query views and emits
 a small reproducible atlas: ``atlas.json`` + ``README.md``.
 
-Every number is computed from current view rows. ``counts_verdict`` is the
-sole counted authority; unknown stays unknown. Import/connect errors fail
-visibly -- there is no fallback ingestor and no hardcoded stats.
+Numbers come from recorded query rows, frozen calibration receipts and explicit
+expected cohort cells. ``counts_verdict`` is the sole counted authority; unknown
+stays unknown. Import/connect errors fail visibly -- no fallback ingestor or
+hardcoded measurements.
 
 Usage::
 
@@ -17,6 +18,13 @@ Optional explicit corpus pinning and GEPA gate::
     --job-dir PATH (repeatable) --results-home PATH --derived-root PATH
     --g2-bindings PATH  # authorized G2 training task+package bindings JSON
     --eval-tasks PATH --training-proposal PATH  # heldout gate + proposal provenance
+    --g5-cohort PATH  # frozen G5 cohort.json; sibling specs bind expected cells
+
+The G5 argument checks the admitted cohort SHA and all 60 frozen spec bytes.
+Missing expected cells retain null outcomes and not_run/unknown states; reserved
+G5 job names are never pooled into historical frequencies, even without a freeze.
+Loop-calibration receipts load from har117-results-home and remain separate by
+their manifest-bound label cohort. No historical accuracy is assigned to G5.
 
 On a fully gated training selection the build also writes
 ``reflection-training.json`` (training-only safe payload) beside the outputs.
@@ -30,6 +38,7 @@ import datetime
 import hashlib
 import json
 import re
+import shlex
 import subprocess
 import sys
 from collections.abc import Collection
@@ -293,40 +302,40 @@ def pick_exemplar_step(trial: dict, steps: list, judgments: dict, taint: list,
     return ordered[len(ordered) // 2], "median real step (only copied context available)"
 
 
-FROZEN_LABEL_COHORTS = {"har109", "har119", "har128-sft-pass"}
+FROZEN_LABEL_PROVENANCE = {
+    "har109": "frozen_hand",
+    "har119": "agent_rater",
+    "har128-sft-pass": "frozen_adjudication",
+    "har128-har116": "agent_rater",
+    "har128-g2-a1": "agent_rater",
+    "har128-g2-r2": "agent_rater",
+    "har128-g2-tail": "agent_rater",
+}
+FROZEN_LABEL_COHORTS = set(FROZEN_LABEL_PROVENANCE)
 
 
 def summarize_labels(trial: dict) -> tuple[list, int]:
-    """Frozen entries only (har109/har119 raters, har128-sft-pass adjudication).
+    """Retain the manifest-verified trace-query annotations without merging taxonomies.
 
-    Heuristic rows are dropped. The inspection atlas retains structured judgments;
-    the separately constructed proposer payload never receives these labels.
+    The query surface verifies source bytes and manifests. Require its frozen
+    cohort, provenance and source identity, not merely a familiar cohort name.
+    Preserve complete entries, including adjudication batch and first-failure
+    fields; these inspection labels never enter the separate proposer payload.
     """
     out, dropped = [], 0
     for entry in _parse_json_list(trial.get("labels_json")):
         if not isinstance(entry, dict):
-            continue
-        if entry.get("cohort") not in FROZEN_LABEL_COHORTS:
             dropped += 1
             continue
-        summary = {"cohort": entry.get("cohort"), "rater": entry.get("rater"),
-                   "provenance": entry.get("provenance")}
-        if entry.get("label_scope"):
-            summary["label_scope"] = entry.get("label_scope")
-        summary["source_file"] = entry.get("source_file")
-        summary["source_sha256"] = entry.get("source_sha256")
-        for field in ("loop_kind", "pass_copied", "blame", "stop_reason",
-                      "task_verdict", "completion_confirmed"):
-            if field in entry:
-                summary[field] = entry[field]
-        if entry.get("cohort") == "har128-sft-pass":
-            label = entry.get("label") or {}
-            summary["adjudication"] = {
-                field: label.get(field) for field in (
-                    "clean", "genuine", "cut_step_id", "ends_with_completion",
-                    "format_warning_steps_kept",
-                )
-            }
+        cohort = entry.get("cohort")
+        source_sha = str(entry.get("source_sha256") or "").removeprefix("sha256:")
+        if (not isinstance(cohort, str) or cohort not in FROZEN_LABEL_COHORTS
+                or entry.get("provenance") != FROZEN_LABEL_PROVENANCE[cohort]
+                or not entry.get("source_file")
+                or not re.fullmatch(r"[0-9a-f]{64}", source_sha)):
+            dropped += 1
+            continue
+        summary = dict(entry)
         out.append(summary)
     return out, dropped
 
@@ -520,8 +529,81 @@ def _agree_str(section: object) -> str | None:
     return None
 
 
-def derive_opinion_limits(page_scores: object) -> dict:
-    """Opinion limits measured from the actual page_scores file; missing metrics stay unavailable."""
+LOOP_CALIBRATION_STUDIES = (
+    ("har128-har116", "har116", "labels_har116"),
+    ("har128-g2-a1", "g2-a1", "labels_g2_a1"),
+    ("har128-g2-r2", "g2-r2", "labels_g2_r2"),
+    ("har128-g2-tail", "g2-tail", "labels_g2_tail"),
+)
+
+
+def load_loop_calibrations(repo_root: Path) -> list:
+    """Read each frozen study independently; bind receipt bytes to its label freeze."""
+    studies = []
+    for label_cohort, suffix, label_dir in LOOP_CALIBRATION_STUDIES:
+        receipt = repo_root / (
+            f"research/experiments/har117-results-home/har131-page-calibration-{suffix}.json")
+        manifest = repo_root / f"research/explorations/trace-lab/har128/{label_dir}/MANIFEST.sha256"
+        study = {
+            "label_cohort": label_cohort,
+            "source_file": str(receipt.relative_to(repo_root)),
+            "source_sha256": None,
+            "labels_manifest_sha256": None,
+            "status": "unavailable",
+            "loop_kind_vs_agreed": "unavailable",
+            "page_abstentions": None,
+            "scope_note": "This study only; not pooled or transferred to G5. Inspection/calibration only, never training reflection.",
+        }
+        studies.append(study)
+        if not receipt.is_file():
+            study["reason"] = "calibration receipt missing"
+            continue
+        try:
+            raw = receipt.read_bytes()
+            study["source_sha256"] = "sha256:" + hashlib.sha256(raw).hexdigest()
+            study["labels_manifest_sha256"] = _optional_sha(manifest)
+            scores = json.loads(raw)
+        except (OSError, ValueError, UnicodeDecodeError):
+            study["reason"] = "calibration receipt or label manifest unreadable"
+            continue
+        if not isinstance(scores, dict) or scores.get("schema") != "har131.page_loop_calibration/v1":
+            study["reason"] = "unrecognized calibration receipt"
+            continue
+        study.update({key: scores.get(key) for key in (
+            "cohort", "predictor", "predictor_functions", "scorer_sha256",
+            "in_sample", "labels_frozen_at", "heldout", "limit",
+        )})
+        claimed_manifest = str(scores.get("labels_manifest_sha256") or "").removeprefix("sha256:")
+        actual_manifest = str(study["labels_manifest_sha256"] or "").removeprefix("sha256:")
+        study["receipt_labels_manifest_sha256"] = scores.get("labels_manifest_sha256")
+        if not actual_manifest or claimed_manifest != actual_manifest:
+            study["reason"] = "calibration label manifest missing or mismatched"
+            continue
+        metric = scores.get("page_vs_agreed")
+        agreement = scores.get("rater_agreement")
+        abstentions = scores.get("page_abstentions")
+        if (not isinstance(metric, dict) or not isinstance(agreement, dict)
+                or any(type(metric.get(key)) is not int for key in ("agree", "n"))
+                or any(type(agreement.get(key)) is not int for key in ("agree", "n"))
+                or type(abstentions) is not int
+                or not 0 <= metric["agree"] <= metric["n"] == agreement["agree"] <= agreement["n"]
+                or not 0 <= abstentions <= metric["n"]):
+            study["reason"] = "calibration metric or evidence denominator unavailable"
+            continue
+        study.update({
+            "status": "available",
+            "page_vs_agreed": dict(metric),
+            "loop_kind_vs_agreed": _agree_str(metric),
+            "page_abstentions": abstentions,
+            "rater_agreement": dict(agreement),
+            "disagreements": scores.get("disagreements"),
+            "loop_kind_confusion": scores.get("loop_kind_confusion"),
+        })
+    return studies
+
+
+def derive_opinion_limits(page_scores: object, loop_calibrations: list | None = None) -> dict:
+    """Keep HAR-119 page scores and separately frozen studies scoped to their own cohorts."""
     scores = page_scores if isinstance(page_scores, dict) else {}
     limits: dict = {
         "provenance": "research/explorations/trace-lab/har119/page_scores.json",
@@ -564,6 +646,11 @@ def derive_opinion_limits(page_scores: object) -> dict:
     limits["eligible_n"] = eligible_n if isinstance(eligible_n, int) else "unavailable"
     excluded = scores.get("excluded_rater_disagreement")
     limits["excluded_rater_disagreement"] = excluded if isinstance(excluded, int) else "unavailable"
+    limits["loop_calibration_studies"] = loop_calibrations or []
+    limits["g5_calibration"] = {
+        "status": "unavailable",
+        "reason": "No frozen G5 calibration receipt supplied; historical accuracy is not G5 accuracy.",
+    }
     return limits
 
 
@@ -611,9 +698,214 @@ def verified_step_refs(trial: dict, steps: list) -> list:
                      "command_provenance": step.get("command_provenance")})
     return refs
 
+G5_ARMS = ("stock", "tuned", "gepa")
+G5_COHORT_SHA256 = "sha256:ecfb2613ecfe0fdc941b28a07fdf67fc0ee8110bf05234c758b244330bce80d3"
+G5_SPEC_MANIFEST_SHA256 = "sha256:a8551c185172e7ad5b6c54acd50b4e41a8fd4a7d558cf6992e819b22c8838029"
+
+
+def load_g5_cohort(path: Path) -> dict:
+    """Bind the admitted G5 cohort and all 60 sibling specs, without reading runs."""
+    path = path.resolve()
+    cohort_sha = _sha256_file(path)
+    if cohort_sha != G5_COHORT_SHA256:
+        raise ValueError("G5 cohort bytes do not match the admitted freeze")
+    cohort = _load_json(path)
+    if not isinstance(cohort, dict) or cohort.get("arms") != list(G5_ARMS):
+        raise ValueError("G5 cohort must declare stock/tuned/gepa separately")
+    cells, spec_lines = [], {}
+    for task in cohort["cohort"]:
+        for arm in G5_ARMS:
+            name = f"ovn-g5-{task['task_id'].removeprefix('format-code-task-')}-{arm}"
+            spec_path = path.parent / f"{name}.json"
+            spec_sha = _sha256_file(spec_path)
+            spec = _load_json(spec_path)
+            instruction = cohort["gepa_candidate"] if arm == "gepa" else {}
+            expected = {
+                "name": name, "question_ref": "ovn-g5", "task_id": task["task_id"],
+                "task_package_digest": task["package_digest"],
+                "verifier_digest": task["verifier_digest"], "model": cohort["models"][arm],
+                "harness_tree_path": cohort["harness_tree"]["path"],
+                "harness_tree_sha256": cohort["harness_tree"]["sha256"],
+                "extra_instruction_path": instruction.get("path"),
+                "extra_instruction_sha256": instruction.get("sha256"),
+            }
+            if not isinstance(spec, dict) or any(spec.get(key) != value for key, value in expected.items()):
+                raise ValueError(f"G5 spec identity differs from the cohort: {spec_path.name}")
+            spec_lines[spec_path.name] = f"{spec_sha.removeprefix('sha256:')}  {spec_path.name}\n"
+            cells.append({
+                "task_id": task["task_id"], "arm": arm, "job_name": name,
+                "task_package_digest": task["package_digest"],
+                "source_spec_file": str(spec_path), "source_spec_sha256": spec_sha,
+                "spec": spec,
+            })
+    spec_manifest_sha = "sha256:" + hashlib.sha256(
+        "".join(spec_lines[name] for name in sorted(spec_lines)).encode()
+    ).hexdigest()
+    if spec_manifest_sha != G5_SPEC_MANIFEST_SHA256:
+        raise ValueError("G5 spec bytes do not match the admitted 60-spec freeze")
+    return {
+        "source_file": str(path), "source_sha256": cohort_sha,
+        "spec_manifest_sha256": spec_manifest_sha, "experiment": cohort["experiment"],
+        "eval_list": cohort["eval_list"], "harness_tree": cohort["harness_tree"],
+        "gepa_candidate": cohort["gepa_candidate"], "models": cohort["models"], "cells": cells,
+    }
+
+
+def _recorded_job_name(trial: dict) -> str:
+    """Use the native source identity, not the results-home card/directory label."""
+    source = trial.get("source_job_dir")
+    name = Path(source).name if isinstance(source, str) and source else trial.get("job_name") or ""
+    return re.sub(r"^HAR-\d+-", "", name)
+
+
+def _g5_binding(trial: dict, cell: dict, python_tasks: Collection[str]) -> tuple[dict | None, str]:
+    """Check recorded identity/spec metadata only; never infer treatment from model."""
+    if trial.get("arm") != cell["arm"]:
+        return None, "recorded arm missing or mismatched"
+    if (task_id_of(trial) != cell["task_id"]
+            or trial.get("task_package_digest") != cell["task_package_digest"]):
+        return None, "recorded task/package identity missing or mismatched"
+    ok, reason = is_python_eligible(trial, python_tasks)
+    if not ok:
+        return None, reason
+    if not trial.get("source_job_dir"):
+        return None, "recorded job directory unavailable"
+    spec_path = Path(trial.get("published_job_dir") or trial["source_job_dir"]) / "experiment-spec.json"
+    try:
+        spec = _load_json(spec_path)
+        spec_sha = _sha256_file(spec_path)
+    except (OSError, ValueError, UnicodeDecodeError):
+        return None, "recorded experiment spec unavailable"
+    # The executor serializes schema defaults as well as the supplied fields.
+    # Compare every frozen field, not serialized-byte equality or just model.
+    if not isinstance(spec, dict) or any(
+            spec.get(key) != value for key, value in cell["spec"].items()):
+        return {"source_file": str(spec_path), "source_sha256": spec_sha}, "recorded experiment spec differs from frozen G5 spec"
+    return {"source_file": str(spec_path), "source_sha256": spec_sha}, ""
+
+
+def build_g5_comparison(trials: list, steps_by_trial: dict, python_tasks: Collection[str],
+                        cohort: dict | None) -> dict:
+    """Expected-cell accounting over bound G5 jobs only; no historical arm pooling."""
+    if cohort is None:
+        return {
+            "status": "unavailable", "reason": "No --g5-cohort supplied; G5 identity not asserted.",
+            "arms": [], "cells": [],
+        }
+    by_job: dict = {}
+    for trial in trials:
+        job_name = _recorded_job_name(trial)
+        by_job.setdefault(job_name, []).append(trial)
+    cells, rows_by_arm, rejections = [], {arm: [] for arm in G5_ARMS}, []
+    for expected in cohort["cells"]:
+        cell = {key: value for key, value in expected.items() if key != "spec"}
+        cell.update({"status": "not_run", "counts_verdict": None, "raw_reward": None,
+                     "scored": None, "recorded_trials": []})
+        candidates = by_job.get(expected["job_name"], [])
+        bound = []
+        for trial in candidates:
+            binding, reason = _g5_binding(trial, expected, python_tasks)
+            identity = {"job_id": trial.get("job_id"), "trial_id": trial.get("trial_id"),
+                        "trial_name": trial.get("trial_name"), "recorded_arm": trial.get("arm"),
+                        "task_id": task_id_of(trial), "task_package_digest": trial.get("task_package_digest"),
+                        "counts_verdict": trial.get("counts_verdict"),
+                        "raw_reward": trial.get("raw_reward"), "scored": trial.get("scored"),
+                        "source_job_dir": trial.get("source_job_dir"),
+                        "source_trial_dir": trial.get("source_trial_dir")}
+            cell["recorded_trials"].append(identity)
+            if reason:
+                rejections.append({**identity, "expected_job_name": expected["job_name"],
+                                   "recorded_spec": binding, "reason": reason})
+            else:
+                bound.append((trial, binding))
+        if candidates:
+            cell["status"] = "binding_unavailable"
+        if len(bound) > 1 or (bound and len(candidates) > 1):
+            cell["status"] = "ambiguous"
+        elif len(bound) == 1:
+            trial, binding = bound[0]
+            verdict = trial.get("counts_verdict")
+            cell.update({
+                "status": "recorded" if verdict in ("counted_pass", "counted_fail", "excluded") else "unknown",
+                "job_id": trial.get("job_id"), "trial_id": trial.get("trial_id"),
+                "trial_name": trial.get("trial_name"), "recorded_arm": trial.get("arm"),
+                "model_name": trial.get("model_name"), "recorded_split": trial.get("split"),
+                "source_trial_dir": trial.get("source_trial_dir"), "recorded_spec": binding,
+                "counts_verdict": verdict, "counts_reasons": _parse_json_list(trial.get("counts_reasons_json")),
+                "raw_reward": trial.get("raw_reward"), "scored": trial.get("scored"),
+            })
+            rows_by_arm[expected["arm"]].append(trial)
+        cells.append(cell)
+    arms = []
+    for arm in G5_ARMS:
+        arm_cells = [cell for cell in cells if cell["arm"] == arm]
+        rows = rows_by_arm[arm]
+        counts = {
+            "pass": sum(cell["counts_verdict"] == "counted_pass" for cell in arm_cells),
+            "fail": sum(cell["counts_verdict"] == "counted_fail" for cell in arm_cells),
+            "excluded": sum(cell["counts_verdict"] == "excluded" for cell in arm_cells),
+            "missing": sum(cell["status"] != "recorded" for cell in arm_cells),
+            "not_run": sum(cell["status"] == "not_run" for cell in arm_cells),
+            "unknown": sum(cell["status"] == "unknown" for cell in arm_cells),
+            "binding_unavailable": sum(cell["status"] in {"binding_unavailable", "ambiguous"}
+                                       for cell in arm_cells),
+        }
+        categories = []
+        for category in CATEGORY_DEFS:
+            denom = denominator_for(category["id"], rows)
+            matching = [row for row in denom if match_category(category["id"], row)]
+            exemplars = select_exemplars(
+                matching, steps_by_trial,
+                prefer_last=category["id"] == "recorded-budget-stop",
+                prefer_taint=category["id"] in {"counts-excluded-copied-pass", "recorded-upstream-fetch-signal"},
+            )
+            categories.append({
+                "id": category["id"], "kind": category["kind"],
+                "n": len(matching) if denom else None, "denominator_n": len(denom),
+                "denominator": category["denominator"],
+                "missing_from_expected_n": len(arm_cells) - len(denom),
+                "trial_names": sorted(row["trial_name"] for row in matching),
+                "exemplars": exemplars, "exemplar_coverage_met": len(exemplars) >= 2,
+            })
+        arms.append({
+            "arm": arm, "status": "recorded" if rows else "unavailable",
+            "expected_n": len(arm_cells), "recorded_n": len(rows), "counts": counts,
+            "counted_denominator_n": counts["pass"] + counts["fail"],
+            "evidence": {
+                "processed_n": sum(bool(row.get("processed_available")) for row in rows),
+                "counts_n": counts["pass"] + counts["fail"] + counts["excluded"],
+                "atif_n": sum(bool(row.get("trajectory_available")) for row in rows),
+                "loop_prediction_n": sum(row.get("loop_kind") is not None for row in rows),
+                "scored_n": sum(bool(row.get("scored")) for row in rows),
+            },
+            "categories": categories,
+        })
+    if all(cell["status"] == "not_run" for cell in cells):
+        status = "not_run"
+    elif any(cell["status"] != "recorded" for cell in cells):
+        status = "partial"
+    else:
+        status = "recorded_snapshot"
+    return {
+        "status": status,
+        "scope_note": "Only exact frozen G5 task/arm/job/spec bindings; historical trials are not pooled. Counts missing includes not_run, unknown and unavailable/ambiguous bindings, not counted failures.",
+        "source_file": cohort["source_file"], "source_sha256": cohort["source_sha256"],
+        "spec_manifest_sha256": cohort["spec_manifest_sha256"],
+        "experiment": cohort["experiment"], "eval_list": cohort["eval_list"],
+        "harness_tree": cohort["harness_tree"], "gepa_candidate": cohort["gepa_candidate"],
+        "models": cohort["models"], "arms": arms, "cells": cells,
+        "binding_rejections": rejections,
+        "calibration": {
+            "status": "unavailable",
+            "reason": "No frozen G5 calibration receipt supplied; historical accuracy is not G5 accuracy.",
+        },
+    }
+
+
 def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: Path,
                 ledger: dict, freeze: dict, page_scores: dict, g2_bindings: object,
-                eval_gate: dict | None = None, proposal: dict | None = None) -> dict:
+                eval_gate: dict | None = None, proposal: dict | None = None,
+                g5_cohort: dict | None = None) -> dict:
     eligible, excluded_rows = [], []
     for trial in trials:
         ok, reason = is_python_eligible(trial, ledger["by_task"])
@@ -626,19 +918,26 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
         trial["_ledger_project"] = entry["project"] if entry else None
         trial["_ledger_run_digest"] = entry["run_digest"] if entry else None
 
-    opinion_limits = derive_opinion_limits(page_scores)
+    opinion_limits = derive_opinion_limits(page_scores, load_loop_calibrations(repo_root))
+    g5_comparison = build_g5_comparison(trials, steps_by_trial, ledger["by_task"], g5_cohort)
+    # Reserve the G5 namespace even without a binding file: those rows remain
+    # visible in the corpus, never quietly enter the historical frequencies.
+    historical = [t for t in eligible if not _recorded_job_name(t).startswith("ovn-g5-")]
+    label_summaries, retained_cohorts = {}, set()
 
     heuristic_labels_dropped = 0
     har128_labeled_trials = 0
     for trial in eligible:
         kept, dropped = summarize_labels(trial)
         heuristic_labels_dropped += dropped
+        label_summaries[(trial["job_id"], trial["trial_id"])] = kept
+        retained_cohorts.update(entry["cohort"] for entry in kept)
         if any(e.get("cohort") == "har128-sft-pass" for e in kept):
             har128_labeled_trials += 1
 
     categories = []
     for cat in CATEGORY_DEFS:
-        denom = denominator_for(cat["id"], eligible)
+        denom = denominator_for(cat["id"], historical)
         matching = [t for t in denom if match_category(cat["id"], t)]
         exemplars = select_exemplars(
             matching, steps_by_trial,
@@ -649,7 +948,7 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
             **cat,
             "n": len(matching),
             "denominator_n": len(denom),
-            "excluded_from_denominator": len(eligible) - len(denom),
+            "excluded_from_denominator": len(historical) - len(denom),
             "trial_names": sorted(t.get("trial_name") for t in matching),
             "exemplars": exemplars,
             "exemplar_coverage_met": len(exemplars) >= 2,
@@ -704,11 +1003,30 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
     for trial in sorted(trials, key=lambda t: (t.get("job_id") or "", t.get("trial_id") or "")):
         input_hasher.update(json.dumps({
             "job_id": trial.get("job_id"), "trial_id": trial.get("trial_id"),
+            "job_name": trial.get("job_name"), "arm": trial.get("arm"),
+            "task_name": trial.get("task_name"), "task_package_digest": trial.get("task_package_digest"),
             "raw_reward": trial.get("raw_reward"), "scored": trial.get("scored"),
             "counts_verdict": trial.get("counts_verdict"),
             "counts_reasons_json": trial.get("counts_reasons_json"),
             "stop_reason": trial.get("stop_reason"), "labels_json": trial.get("labels_json"),
+            "loop_kind": trial.get("loop_kind"), "taint_json": trial.get("taint_json"),
+            "processed_available": trial.get("processed_available"),
+            "model_name": trial.get("model_name"),
         }, sort_keys=True).encode())
+    input_hasher.update(json.dumps({
+        "g5_cohort_sha256": (g5_cohort or {}).get("source_sha256"),
+        "g5_spec_manifest_sha256": (g5_cohort or {}).get("spec_manifest_sha256"),
+        "g5_recorded_bindings": [
+            {key: cell.get(key) for key in ("job_name", "status", "recorded_spec", "recorded_trials")}
+            for cell in g5_comparison["cells"]
+        ],
+        "g5_binding_rejections": g5_comparison.get("binding_rejections", []),
+        "loop_calibrations": [
+            {key: study.get(key) for key in (
+                "label_cohort", "source_sha256", "labels_manifest_sha256", "status")}
+            for study in opinion_limits["loop_calibration_studies"]
+        ],
+    }, sort_keys=True).encode())
 
     return {
         "atlas": "har131-failure-atlas",
@@ -730,14 +1048,25 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
             "har109_manifest": _optional_sha(repo_root / "research/explorations/trace-lab/har109/hand_labels.sha256"),
             "har128_labels_jsonl": _optional_sha(
                 repo_root / "research/explorations/trace-lab/har128/sft_gate/labels.jsonl"),
+            "label_manifests": coverage.get("label_manifest_hashes", {}),
+            "loop_calibration_receipts": {
+                study["label_cohort"]: study["source_sha256"]
+                for study in opinion_limits["loop_calibration_studies"]
+            },
+            "g5_cohort": (g5_cohort or {}).get("source_sha256"),
+            "g5_spec_manifest": (g5_cohort or {}).get("spec_manifest_sha256"),
         },
         "provenance": {
             "har119_freeze": freeze,
             "page_scores_match_manifest": (
-                page_scores.get("labels_manifest_sha256") in (freeze.get("manifest_sha256") or "")
+                bool(freeze.get("manifest_sha256"))
+                and str(page_scores.get("labels_manifest_sha256") or "").removeprefix("sha256:")
+                == str(freeze["manifest_sha256"]).removeprefix("sha256:")
             ),
             "heuristic_labels_dropped": heuristic_labels_dropped,
-            "label_cohorts_kept": sorted(FROZEN_LABEL_COHORTS),
+            "label_cohorts_kept": sorted(retained_cohorts),
+            "label_cohorts_supported": sorted(FROZEN_LABEL_COHORTS),
+            "label_verification": coverage.get("label_verification", {}),
             "har128_sft_pass": {"label_scope": "sft_pass_cleanliness",
                                 "labeled_eligible_trials": har128_labeled_trials,
                                 "eligible_n": len(eligible)},
@@ -747,6 +1076,8 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
             "eligible_predicate": "recorded MiMo-V2.6-Distill-Qwen-9B (base or admitted :har129 adapter) AND task identity present in the canonical Python ledger; a format-code-task name alone is not a language label",
             "n_discovered": len(trials),
             "n_eligible": len(eligible),
+            "historical_patterns_n": len(historical),
+            "historical_patterns_scope": "Non-G5 eligible rows only; reserved ovn-g5 job identities are kept out, even when G5 binding is unavailable.",
             "trials": [
                 {
                     "job_id": t["job_id"], "trial_id": t["trial_id"],
@@ -760,6 +1091,7 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
                     "ledger_project": (ledger["by_task"].get(task_id_of(t)) or {}).get("project"),
                     "counts_verdict": t.get("counts_verdict"),
                     "raw_reward": t.get("raw_reward"), "scored": t.get("scored"),
+                    "frozen_labels": label_summaries[(t["job_id"], t["trial_id"])],
                     "category_membership": [
                         c["id"] for c in CATEGORY_DEFS if match_category(c["id"], t)
                     ],
@@ -788,12 +1120,14 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
             ],
         },
         "categories": categories,
+        "g5_comparison": g5_comparison,
         "rare_cases": rare_cases,
         "task_health": task_health,
         "opinion_limits": opinion_limits,
         "reflection": reflection,
         "refresh": {
-            "command": "PYTHONPATH=src python research/explorations/trace-lab/failure-atlas/build.py --repo-root . --out-dir research/explorations/trace-lab/failure-atlas",
+            "command": "PYTHONPATH=src python research/explorations/trace-lab/failure-atlas/build.py --repo-root . --out-dir research/explorations/trace-lab/failure-atlas"
+                       + (f" --g5-cohort {shlex.quote(g5_cohort['source_file'])}" if g5_cohort else ""),
             "notes": "Re-run after recorded reports or frozen labels change; frequencies, exemplars and input hashes are recomputed. New publishes appear on the next connection.",
         },
     }
@@ -954,7 +1288,71 @@ def render_readme(atlas: dict) -> str:
         "checks file bytes and reference existence, not causal responsibility. Context-only "
         "anchors and page-opinion anchors remain explicitly labelled.",
         "",
-        "## Patterns (frequency | eligible denominator | N, current view only)",
+    ]
+    g5 = atlas["g5_comparison"]
+    lines += ["## Recorded G5 stock / tuned / GEPA (separate frozen cohort)", ""]
+    if g5["status"] == "unavailable":
+        lines += [f"- Unavailable: {g5['reason']}", ""]
+    else:
+        lines += [
+            f"- Cohort: `{g5['source_file']}` (`{g5['source_sha256']}`).",
+            f"- Frozen 60-spec manifest: `{g5['spec_manifest_sha256']}`.",
+            f"- Observed state: `{g5['status']}`. Submission or rejection bookkeeping is not a native outcome.",
+            f"- {g5['scope_note']}",
+            f"- GEPA: stock weights plus `{g5['gepa_candidate']['sha256']}`; arm identity comes from recorded metadata and exact spec binding, not the base-model name.",
+            f"- Calibration: {g5['calibration']['status']}; {g5['calibration']['reason']}",
+            "",
+            "| Arm | Expected | Recorded/bound | Pass | Fail | Excluded | Missing | Not run | Unknown | Binding unavailable | Counted denominator |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+        for arm in g5["arms"]:
+            counts = arm["counts"]
+            lines.append(
+                f"| {arm['arm']} | {arm['expected_n']} | {arm['recorded_n']} | "
+                f"{counts['pass']} | {counts['fail']} | {counts['excluded']} | "
+                f"{counts['missing']} | {counts['not_run']} | {counts['unknown']} | "
+                f"{counts['binding_unavailable']} | {arm['counted_denominator_n']} |")
+        lines.append("")
+        for arm in g5["arms"]:
+            evidence = arm["evidence"]
+            lines.append(
+                f"\n- {arm['arm']} evidence / {arm['expected_n']} expected: "
+                f"processed={evidence['processed_n']}, counts={evidence['counts_n']}, "
+                f"ATIF={evidence['atif_n']}, loop predictions={evidence['loop_prediction_n']}, "
+                f"scored={evidence['scored_n']}.")
+        lines += ["", "### G5 existing-pattern frequencies (available evidence denominators)", ""]
+        for arm in g5["arms"]:
+            for category in arm["categories"]:
+                frequency = (f"{category['n']}/{category['denominator_n']}"
+                             if category["n"] is not None else "unavailable (no eligible evidence)")
+                lines.append(
+                    f"- {arm['arm']} / {category['id']}: {frequency}; "
+                    f"{category['missing_from_expected_n']} expected cells outside evidence denominator "
+                    f"({category['denominator']}).")
+                for ex in category["exemplars"]:
+                    lines.append(
+                        f"  - [`{ex['trial_name']}` / {ex['step_ref']}](<{ex.get('step_link') or ''}>), "
+                        f"{ex['evidence_kind']}; raw-reference-verified={ex['raw_verification']['verified']}.")
+        lines += ["", f"- Binding rejections: {len(g5['binding_rejections'])}; identities/reasons and every missing cell are retained in atlas.json.", ""]
+    lines += [
+        "## Frozen loop-calibration limits (studies remain separate)",
+        "",
+        f"- Historical HAR-119 page_scores cohort only: {atlas['opinion_limits']['loop_kind_vs_agreed']}; not transferred to G5.",
+        "- These are frozen agent-rater calibration measurements, not human ground truth or G5 accuracy.",
+    ]
+    for study in atlas["opinion_limits"]["loop_calibration_studies"]:
+        measurement = (
+            f"{study['loop_kind_vs_agreed']} vs agreed raters; {study['page_abstentions']} abstentions"
+            if study["status"] == "available" else f"unavailable: {study['reason']}")
+        lines.append(
+            f"- {study['label_cohort']}: {measurement}. "
+            f"Receipt `{study['source_file']}` / `{study['source_sha256']}`; "
+            f"label freeze `{study['labels_manifest_sha256']}`. {study['scope_note']}")
+    lines += [
+        "",
+        "## Historical non-G5 patterns (frequency | eligible evidence denominator)",
+        "",
+        f"- Scope: {atlas['corpus']['historical_patterns_n']} eligible rows. {atlas['corpus']['historical_patterns_scope']}",
         "",
     ]
     for cat in atlas["categories"]:
@@ -1017,6 +1415,8 @@ def parse_args(argv: list | None = None) -> argparse.Namespace:
     parser.add_argument("--job-dir", type=Path, action="append", default=None, dest="job_dirs")
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--g2-bindings", type=Path, default=None)
+    parser.add_argument("--g5-cohort", type=Path, default=None,
+                        help="admitted G5 cohort.json with frozen sibling specs; expected missing cells stay not_run")
     parser.add_argument("--eval-tasks", type=Path, default=None,
                         help="frozen G1 eval list CSV (default research/experiments/ovn-sft-v0/eval_tasks.csv)")
     parser.add_argument("--training-proposal", type=Path, default=None,
@@ -1077,6 +1477,14 @@ def main(argv: list | None = None) -> int:
             print(f"ATLAS ABORT: {bindings_error}", file=sys.stderr)
             return 2
 
+    g5_cohort = None
+    if args.g5_cohort is not None:
+        try:
+            g5_cohort = load_g5_cohort(args.g5_cohort)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            print(f"ATLAS ABORT: --g5-cohort binding failed: {exc}", file=sys.stderr)
+            return 2
+
     try:
         conn, coverage = connect_trace_query(
             repo_root=repo_root,
@@ -1125,7 +1533,7 @@ def main(argv: list | None = None) -> int:
     proposal = load_training_proposal(repo_root, args.training_proposal)
 
     atlas = build_atlas(trials, steps_by_trial, coverage, repo_root, ledger, freeze, page_scores,
-                        g2_bindings, eval_gate=eval_gate, proposal=proposal)
+                        g2_bindings, eval_gate=eval_gate, proposal=proposal, g5_cohort=g5_cohort)
     reflection = atlas["reflection"]
     try:
         payload_file, payload_sha256, fresh = sync_reflection_payload(out_dir, reflection)
@@ -1149,6 +1557,10 @@ def main(argv: list | None = None) -> int:
     for cat in atlas["categories"]:
         print(f"{cat['id']}: {cat['n']}/{cat['denominator_n']} exemplars={len(cat['exemplars'])} "
               f"exemplar_coverage_met={cat['exemplar_coverage_met']}")
+    print(f"g5={atlas['g5_comparison']['status']}")
+    for arm in atlas["g5_comparison"]["arms"]:
+        print(f"g5/{arm['arm']}: expected={arm['expected_n']} recorded={arm['recorded_n']} "
+              f"counts={json.dumps(arm['counts'], sort_keys=True)}")
     print(f"reflection={atlas['reflection']['status']} "
           f"payload_file={atlas['reflection'].get('payload_file')}")
     print(f"wrote {out_dir / 'atlas.json'} and {out_dir / 'README.md'}")

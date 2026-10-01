@@ -1,0 +1,89 @@
+{
+ "trial": "ovn-g5-001833-gepa__aci6NkF",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001833-gepa/ovn-g5-001833-gepa__aci6NkF",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001833-gepa",
+ "task": "mimo-v2.6-rl/format-code-task-001833",
+ "verifier": {
+  "scored": false,
+  "reward": null,
+  "source": "missing",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "unknown",
+  "exception_type": "ServiceUnavailableError",
+  "exception_message": "litellm.ServiceUnavailableError: ServiceUnavailableError: OpenAIException - upstream provider error",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 2,
+  "step_ref": "head#2",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#2",
+   "head#55"
+  ],
+  "note": "identical message repeated steps 2-55 with no change after errors"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 54,
+    "span": [
+     "head#2",
+     "head#55"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 1053853,
+   "completion": 13691,
+   "steps": 54,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 1053853,
+   "completion": 13691,
+   "steps": 54,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 1053853,
+   "completion": 13691,
+   "steps": 54,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 1.0,
+  "result_input_tokens": 1053853
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 54,
+  "states": {
+   "prompt": 54
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "b1619aa3e3f0bef20fd52cb8590c4203f7c27336"
+ },
+ "nop_runs_dir": null
+}

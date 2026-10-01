@@ -1,0 +1,50 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Failed to get session command: not found: sandbox 87af8240-aad9-409d-a9fa-317278325d2b not found",
+      "ref": "head#83"
+    },
+    {
+      "quote": "reward null, n_episodes 83, loop_break fired nudge_call 81 stop_call null",
+      "ref": "head#83"
+    },
+    {
+      "quote": "grep -n \"from lbry.error\" /workspace/repo/lbry/wallet/manager.py",
+      "ref": "head#73"
+    },
+    {
+      "quote": "grep -n \"from lbry.error\" /workspace/repo/lbry/wallet/manager.py",
+      "ref": "head#83"
+    },
+    {
+      "quote": "you are repeating; change approach or finish",
+      "ref": "head#82"
+    },
+    {
+      "quote": "Analysis: Now I'll write the method. Let me add the imports and the method to the manager.",
+      "ref": "head#73"
+    }
+  ],
+  "first_failure": {
+    "quote": "Failed to get session command: not found: sandbox 87af8240-aad9-409d-a9fa-317278325d2b not found",
+    "ref": "head#83",
+    "what": "sandbox lost (DaytonaNotFoundError) on session command; run terminated by infra"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#73",
+    "head#83"
+  ],
+  "notes": "Repetition loop of ~11 identical greps preceded infra termination (nudge at 81); final stop was sandbox loss with no loop-break stop_call, so stop infra_error and blame infra per assignment. No edits made; verifier/ empty.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "g6-23"
+}

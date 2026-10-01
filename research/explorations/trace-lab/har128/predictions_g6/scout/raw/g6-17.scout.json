@@ -1,0 +1,118 @@
+{
+ "trial": "ovn-g5-000332-gepa__YyfJfPU",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000332-gepa/ovn-g5-000332-gepa__YyfJfPU",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000332-gepa",
+ "task": "mimo-v2.6-rl/format-code-task-000332",
+ "verifier": {
+  "scored": true,
+  "reward": 1.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "unknown",
+  "exception_type": "LoopBreakStop",
+  "exception_message": "loop break: the repetition was still going 79 calls in, 15 after the nudge at call 64",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": {
+  "step_id": 12,
+  "step_ref": "head#12",
+  "tag": "tool_use",
+  "attribution": "unclear",
+  "rule_id": "R-TOOL-01U",
+  "evidence_step_refs": [
+   "head#12"
+  ],
+  "recovered": true,
+  "note": "rejected turn, cause other_native; attribution unclear"
+ },
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "none",
+  "attribution": "n/a",
+  "rule_id": "R-NONE-01",
+  "evidence_step_refs": [
+   "head#58",
+   "head#80"
+  ],
+  "note": "scored pass with no outcome-relevant failure",
+  "secondary": "error_recovery/model secondary: identical run head#58-head#80"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 10,
+    "span": [
+     "head#2",
+     "head#11"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 17,
+    "span": [
+     "head#13",
+     "head#29"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 23,
+    "span": [
+     "head#58",
+     "head#80"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 1233095,
+   "completion": 3904,
+   "steps": 50,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 1233095,
+   "completion": 3904,
+   "steps": 50,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2114396,
+   "completion": 11535,
+   "steps": 79,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.5832,
+  "result_input_tokens": 2114396
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 78,
+  "states": {
+   "no_prompt": 1,
+   "prompt": 77
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "b1619aa3e3f0bef20fd52cb8590c4203f7c27336"
+ },
+ "nop_runs_dir": null
+}

@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "The implementation is complete. Here's a summary of what was done:",
+      "ref": "head#81"
+    },
+    {
+      "quote": "Are you sure you want to mark the task as complete? This will trigger your solution to be graded and you won't be able to make any further corrections. If so, include \"task_complete\": true in your JSON response again.",
+      "ref": "head#81"
+    },
+    {
+      "quote": "Ran 1 test in 0.216s OK",
+      "ref": "head#82"
+    },
+    {
+      "quote": "All 23 tests pass.",
+      "ref": "head#88"
+    }
+  ],
+  "first_failure": {
+    "quote": "The implementation is complete. Here's a summary of what was done:",
+    "ref": "head#81",
+    "what": "called mark_task_complete after unit-test + --help checks without exercising the CLI end-to-end path (no __init__ wiring; F2 downloads whole playlist)"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#81",
+    "head#90"
+  ],
+  "notes": "Same F2 e2e failure as g6-14 (whole playlist downloaded via CLI). Model confirmed nothing after the harness confirmation prompt; steps 82-90 are 'complete' claims plus no-op echoes (task complete/READY) to budget death. Junk *.info.json test artifacts left in repo (present in diff). parse implemented as YoutubeDL static method; utils.py untouched.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-12"
+}

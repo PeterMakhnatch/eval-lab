@@ -1,0 +1,31 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "ls /testbed && git -C /testbed log --oneline -3",
+      "ref": "head#2"
+    },
+    {
+      "quote": "cat > /tmp/repro23.py <<'PYEOF'",
+      "ref": "head#55"
+    }
+  ],
+  "first_failure": {
+    "quote": "cat > /tmp/repro23.py <<'PYEOF'",
+    "ref": "head#55",
+    "what": "model endpoint returned 503 upstream-provider error on the next call while run was still productively debugging; no fix applied yet"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "reward null, verifier/ empty (never verified); ServiceUnavailableError litellm 503 upstream provider error after head#55 (n_episodes 55); loop_break never fired; no completion claims; only source-adjacent edit was adding django.contrib.messages to test settings (env workaround, not a failure). Repro scripts vary per turn (iterative debugging with progress).",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "g6-45"
+}

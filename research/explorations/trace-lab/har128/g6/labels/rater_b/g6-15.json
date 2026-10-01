@@ -1,0 +1,46 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "open(path, 'w').writelines(out)",
+      "ref": "head#43"
+    },
+    {
+      "quote": "Traceback (most recent call last)",
+      "ref": "head#43"
+    },
+    {
+      "quote": "cd /testbed && git checkout skfem/mapping/mapping_isoparametric.py && python - <<'PYEOF'",
+      "ref": "head#44"
+    },
+    {
+      "quote": "cd /testbed && git status --short 2>&1 | cat",
+      "ref": "head#102"
+    },
+    {
+      "quote": "cd /testbed && git status --short 2>&1 | cat",
+      "ref": "head#120"
+    }
+  ],
+  "first_failure": {
+    "quote": "open(path, 'w').writelines(out)",
+    "ref": "head#43",
+    "what": "wrote only the extracted slice back with writelines(out) instead of full lines, gutting mapping_isoparametric.py; repeated the same bug after every git checkout"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#102",
+    "head#120"
+  ],
+  "notes": "Reward 0, budget out at 118 eps / 2.49M input. Correctly diagnosed lru_cache pickling, then destroyed the file at head#43 (final diff is just the bndmap/bndJ fragment, whole class gone). Terminal went dead ~head#100 (empty observations); ~19 identical git-status turns drew the loop nudge at call 107. One failed git ls-remote brought in no code.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-15"
+}

@@ -1,0 +1,42 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "cat > /workspace/repo/pyalgotrade/dataseries/resampled.py <<'PYEOF'",
+      "ref": "head#22"
+    },
+    {
+      "quote": "I keep pasting the same broken content.",
+      "ref": "head#23"
+    },
+    {
+      "quote": "cat > /workspace/repo/pyalgotrade/dataseries/resampled.py <<'PYEOF'",
+      "ref": "head#32"
+    },
+    {
+      "quote": "I keep pasting the same broken content.",
+      "ref": "head#32"
+    }
+  ],
+  "first_failure": {
+    "quote": "cat > /workspace/repo/pyalgotrade/dataseries/resampled.py <<'PYEOF'",
+    "ref": "head#32",
+    "what": "sandbox lost after this step (DaytonaNotFoundError in exception.txt); last observed trajectory step"
+  },
+  "first_failure_confidence": "low",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#22",
+    "head#32"
+  ],
+  "notes": "DaytonaNotFoundError 'sandbox d9c53891-5513-4bd2-a475-cb97d6182c5e not found' in exception.txt; n_episodes 32; reward null; loop_break never fired. Infra ended run during 11-turn near-identical heredoc rewrite loop (head#22-32); no fix was evaluated (empty/incomplete resampled.py).",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "g6-54"
+}

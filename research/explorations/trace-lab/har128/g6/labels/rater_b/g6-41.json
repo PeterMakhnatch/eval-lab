@@ -1,0 +1,39 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "def get(self, part, id=None, maxResults=None, pageToken=None,",
+      "ref": "head#31"
+    },
+    {
+      "quote": "TypeError: Activities.get() got an unexpected keyword argument 'mine'",
+      "ref": "head#43"
+    },
+    {
+      "quote": "cd /testbed && sed -i \"s/self.service.videos().get('snippet', q='foo', maxResults=5)/self.service.videos().get('snippet', mySubscribers=True, maxResults=5)/\" test/test_youtube.py",
+      "ref": "head#42"
+    },
+    {
+      "quote": "Are you sure you want to mark the task as complete?",
+      "ref": "head#50"
+    }
+  ],
+  "first_failure": {
+    "quote": "def get(self, part, id=None, maxResults=None, pageToken=None,",
+    "ref": "head#31",
+    "what": "defined narrow Activities.get without generic filter params like mine"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "exception null, prose 1, 3x mark_task_complete accepted then graded reward 0. Model edited test/test_youtube.py with sed (head#42-43) to hide Videos q-param gap but hidden verifier still fails on Activities mine param.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "model_finished",
+  "trial": "g6-41"
+}

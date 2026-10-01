@@ -1,0 +1,1023 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "ovn-g5-002017-stock__be4xo9x",
+    "trial_id": "8fbc4c4c-3001-43fe-9066-08cfb1828139",
+    "task": "mimo-v2.6-rl/format-code-task-002017",
+    "job": "HAR-126-ovn-g5-002017-stock",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "2bd9891e-b5e9-4c55-bb70-028a7e76357b",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002017-stock/ovn-g5-002017-stock__be4xo9x"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "failed",
+    "reward": 0.0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "verifier_outcome": "fail",
+    "stop_reason": "trial_budget_exhausted",
+    "stop_detail": "agent metadata stop_reason; binding ceiling: input_tokens",
+    "completion": "Completion: never claimed; the run ended on step 97 (grep -rn \"selected\" /testbed/napari/layers/shapes/shapes.py | awk -F: '$2>=3060 && $2<=3072').",
+    "execution_problems": {
+      "parse_errors": 0,
+      "prose_completions": 0,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": null,
+    "verifier_files": [
+      "verifier/agent.diff",
+      "verifier/apply.log",
+      "verifier/reward.txt",
+      "verifier/test-stdout.txt",
+      "verifier/test_output.log"
+    ],
+    "first_failure": {
+      "step": null,
+      "kind": null,
+      "evidence": null,
+      "confidence": null
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T13:01:41.360067+00:00",
+    "finished_at": "2026-10-01T13:08:02.731702+00:00",
+    "total_seconds": 381.372,
+    "phases": {
+      "environment_setup": {
+        "seconds": 1.31,
+        "starts_at_offset_seconds": 0.023
+      },
+      "agent_setup": {
+        "seconds": 7.355,
+        "starts_at_offset_seconds": 2.655
+      },
+      "agent_execution": {
+        "seconds": 363.428,
+        "starts_at_offset_seconds": 10.032
+      },
+      "verifier": {
+        "seconds": 5.83,
+        "starts_at_offset_seconds": 375.36
+      }
+    },
+    "unaccounted_seconds": 3.449,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": 3.842,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 97,
+    "agent_span_seconds": 326.349,
+    "step_gap_seconds": {
+      "count": 95,
+      "median": 3.207,
+      "p90": 4.407,
+      "max": 7.543,
+      "total": 322.949
+    },
+    "slowest_steps": [
+      {
+        "step": 4,
+        "seconds": 7.543,
+        "action": "bash_command: grep -rn \"active\" /testbed/napari/layers/shapes/shapes.py | head -40 ; grep -rn \"active\" /testbed/na..."
+      },
+      {
+        "step": 23,
+        "seconds": 6.379,
+        "action": "bash_command: sed -n 1980,2060p /testbed/napari/layers/points/points.py"
+      },
+      {
+        "step": 6,
+        "seconds": 5.604,
+        "action": "bash_command: grep -rn \"def active\\|_active\" /testbed/napari/layers/layers_list.py | head -20; grep -rn \"active\" /..."
+      },
+      {
+        "step": 17,
+        "seconds": 5.139,
+        "action": "bash_command: grep -rn \"highlight\" /testbed/napari/layers/base/base.py | head -20 ; grep -rn \"highlight\" /testbed/..."
+      },
+      {
+        "step": 20,
+        "seconds": 5.106,
+        "action": "bash_command: sed -n 2577,2640p /testbed/napari/layers/shapes/shapes.py"
+      }
+    ]
+  },
+  "tokens": {
+    "input": 2439447,
+    "cached_input": 0,
+    "uncached_input": 2439447,
+    "output": 7167,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 2446614,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 2439447,
+        "cached_input": 0,
+        "output": 7167,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 2439447,
+        "cached_input": 0,
+        "output": 7167,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": 2439447,
+        "cached_input": null,
+        "output": 7167,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 96,
+    "llm_steps_with_usage": 96,
+    "context": {
+      "first_prompt_tokens": 1110,
+      "peak_prompt_tokens": 47506,
+      "peak_step": 97,
+      "last_prompt_tokens": 47506
+    },
+    "top_steps": [
+      {
+        "step": 97,
+        "input": 47506,
+        "output": 68,
+        "cost_usd": null,
+        "action": "bash_command: grep -rn \"selected\" /testbed/napari/layers/shapes/shapes.py | awk -F: '$2>=3060 && $2<=3072'"
+      },
+      {
+        "step": 96,
+        "input": 47084,
+        "output": 53,
+        "cost_usd": null,
+        "action": "bash_command: grep -rn \"selected\" /testbed/napari/layers/shapes/shapes.py | tail -15"
+      },
+      {
+        "step": 95,
+        "input": 46904,
+        "output": 60,
+        "cost_usd": null,
+        "action": "bash_command: grep -rn \"selected\" /testbed/napari/layers/shapes/shapes.py | awk -F: '$2>=3080'"
+      },
+      {
+        "step": 94,
+        "input": 46650,
+        "output": 56,
+        "cost_usd": null,
+        "action": "bash_command: sed -n 3068,3080p /testbed/napari/layers/shapes/shapes.py"
+      },
+      {
+        "step": 93,
+        "input": 46469,
+        "output": 60,
+        "cost_usd": null,
+        "action": "bash_command: grep -rn \"selected\" /testbed/napari/layers/shapes/shapes.py | awk -F: '$2>=3060'"
+      }
+    ]
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 107,
+    "actions": 96,
+    "distinct_tools": 1,
+    "polls": 0,
+    "by_tool": [
+      {
+        "tool": "bash_command",
+        "calls": 107,
+        "ok": 0,
+        "errors": 2,
+        "unknown": 105,
+        "output_chars": 140109,
+        "first_step": 2,
+        "last_step": 97,
+        "judged": 2,
+        "error_rate": 1.0
+      }
+    ],
+    "top_programs": [
+      {
+        "program": "grep",
+        "calls": 46
+      },
+      {
+        "program": "sed",
+        "calls": 42
+      },
+      {
+        "program": "cat",
+        "calls": 5
+      },
+      {
+        "program": "ls",
+        "calls": 3
+      }
+    ],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 96,
+    "distinct_actions": 95,
+    "repeated_actions": 1,
+    "repeat_rate": 0.0104,
+    "returns_to_earlier_action": 1,
+    "consecutive_repeats": 0,
+    "exact_revisits": 0,
+    "same_result_from_different_action": 0,
+    "repeated_errors": 0,
+    "longest_identical_run": {
+      "length": 1,
+      "steps": [
+        2
+      ],
+      "start_step": 2,
+      "end_step": 2
+    },
+    "longest_cycle": null,
+    "most_repeated": [
+      {
+        "tool": "bash_command",
+        "target": "sed -n 2495,2560p /testbed/napari/layers/shapes/shapes.py",
+        "count": 2,
+        "steps": [
+          74,
+          77
+        ],
+        "identical_results": 0
+      }
+    ],
+    "loop_suspicion": {
+      "detected": false,
+      "score": 0.0,
+      "reasons": []
+    },
+    "repeats_by_window": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0
+    ],
+    "revisits_started": {
+      "repeat_rate_by_window": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.1,
+        0.0,
+        0.0
+      ],
+      "median_repeat_rate": 0.0,
+      "status": "onset",
+      "reason": null,
+      "window": 7,
+      "steps": [
+        69,
+        78
+      ],
+      "repeat_rate": 0.1
+    }
+  },
+  "subagents": {
+    "observability": "none_observed",
+    "reason": null,
+    "count": 0,
+    "delegated_count": 0,
+    "summarization_count": 0,
+    "delegation_calls": [],
+    "items": [],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": []
+  },
+  "errors": {
+    "tool_errors": 2,
+    "harness_signalled": 0,
+    "inferred_from_output": 2,
+    "status_unknown_calls": 105,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {
+      "inferred_from_output": 2
+    },
+    "first_error": {
+      "step": 6,
+      "offset_seconds": 26.094,
+      "evidence": "output_text"
+    },
+    "ended_in_error": true,
+    "examples": [
+      {
+        "step": 6,
+        "tool": "bash_command",
+        "target": "grep -rn \"def active\\|_active\" /testbed/napari/layers/layers_list.py | head -20; grep -rn \"active\" /testbed/napari/layer...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "/layers/list.py 2>/dev/null | head grep: /testbed/napari/layers/layers_list.py: No such file or directory root@a774f4fa-1743-48cf-adde-f6f9f6e82a1a:/testbed# grep -rn \"active\" /testbed/napari/_viewer_model.py | head -20 grep: /testbed/napar..."
+      },
+      {
+        "step": 9,
+        "tool": "bash_command",
+        "target": "grep -rn \"selected\" /testbed/napari/_qt/layer_controls/qt_shapes_controls.py /testbed/napari/_qt/layer_controls/qt_point...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "ntainer.py | head -30 grep: /testbed/napari/_qt/qt_layer_controls_container.py: No such file or directory root@a774f4fa-1743-48cf-adde-f6f9f6e82a1a:/testbed#"
+      }
+    ],
+    "exception": {
+      "type": "TrialBudgetExhaustedError",
+      "message": "the trial proxy refused a model call: trial budget exhausted",
+      "occurred_at": "2026-10-01T13:07:54.825540Z"
+    }
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 0,
+    "items": []
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 97,
+    "shown_steps": 21,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 0.442,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      },
+      {
+        "step": 2,
+        "offset_seconds": 3.842,
+        "source": "agent",
+        "action": "bash_command: ls /testbed && git -C /testbed log --oneline -3 ; ls /testbed/napari/layers",
+        "status": "unknown",
+        "input_tokens": 1110,
+        "output_tokens": 92,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 3,
+        "offset_seconds": 8.54,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"active\" /testbed/napari/layers/base/base.py | head -50 ; grep -rn \"_selection_box\\|selecte...",
+        "status": "unknown",
+        "input_tokens": 1670,
+        "output_tokens": 172,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 4,
+        "offset_seconds": 16.083,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"active\" /testbed/napari/layers/shapes/shapes.py | head -40 ; grep -rn \"active\" /testbed/na...",
+        "status": "unknown",
+        "input_tokens": 2479,
+        "output_tokens": 406,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 5,
+        "offset_seconds": 20.49,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"selected\" /testbed/napari/layers/points/points.py | head -60 ; grep -rn \"selected\" /testbe...",
+        "status": "unknown",
+        "input_tokens": 2915,
+        "output_tokens": 192,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 6,
+        "offset_seconds": 26.094,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"def active\\|_active\" /testbed/napari/layers/layers_list.py | head -20; grep -rn \"active\" /...",
+        "status": "error",
+        "input_tokens": 3708,
+        "output_tokens": 279,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 7,
+        "offset_seconds": 28.541,
+        "source": "agent",
+        "action": "bash_command: ls /testbed/napari; ls /testbed/napari/_qt 2>/dev/null | head",
+        "status": "unknown",
+        "input_tokens": 4107,
+        "output_tokens": 53,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 8,
+        "offset_seconds": 32.681,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"active\" /testbed/napari/_app_model/_submenus/_layer_control_menu.py 2>/dev/null | head; gr...",
+        "status": "unknown",
+        "input_tokens": 4391,
+        "output_tokens": 146,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 9,
+        "offset_seconds": 36.616,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"selected\" /testbed/napari/_qt/layer_controls/qt_shapes_controls.py /testbed/napari/_qt/lay...",
+        "status": "error",
+        "input_tokens": 4885,
+        "output_tokens": 120,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 10,
+        "offset_seconds": 40.388,
+        "source": "agent",
+        "action": "bash_command: ls /testbed/napari/_vispy/layers; grep -rn \"selected\" /testbed/napari/_vispy/layers/shapes.py | head...",
+        "status": "unknown",
+        "input_tokens": 5665,
+        "output_tokens": 132,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "omitted_steps": [
+          11,
+          76
+        ]
+      },
+      {
+        "step": 77,
+        "offset_seconds": 261.907,
+        "source": "agent",
+        "action": "bash_command: sed -n 2495,2560p /testbed/napari/layers/shapes/shapes.py",
+        "status": "unknown",
+        "input_tokens": 38127,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "omitted_steps": [
+          78,
+          87
+        ]
+      },
+      {
+        "step": 88,
+        "offset_seconds": 298.139,
+        "source": "agent",
+        "action": "bash_command: sed -n 2860,2960p /testbed/napari/layers/shapes/shapes.py",
+        "status": "unknown",
+        "input_tokens": 44124,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 89,
+        "offset_seconds": 301.493,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"selected\" /testbed/napari/layers/shapes/shapes.py | awk -F: '$2>2800'",
+        "status": "unknown",
+        "input_tokens": 44563,
+        "output_tokens": 60,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 90,
+        "offset_seconds": 304.536,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"selected\" /testbed/napari/layers/shapes/shapes.py | tail -20",
+        "status": "unknown",
+        "input_tokens": 44742,
+        "output_tokens": 53,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 91,
+        "offset_seconds": 307.758,
+        "source": "agent",
+        "action": "bash_command: sed -n 3000,3080p /testbed/napari/layers/shapes/shapes.py",
+        "status": "unknown",
+        "input_tokens": 45238,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 92,
+        "offset_seconds": 310.984,
+        "source": "agent",
+        "action": "bash_command: sed -n 3026,3070p /testbed/napari/layers/shapes/shapes.py",
+        "status": "unknown",
+        "input_tokens": 45862,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 93,
+        "offset_seconds": 313.886,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"selected\" /testbed/napari/layers/shapes/shapes.py | awk -F: '$2>=3060'",
+        "status": "unknown",
+        "input_tokens": 46469,
+        "output_tokens": 60,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 94,
+        "offset_seconds": 317.088,
+        "source": "agent",
+        "action": "bash_command: sed -n 3068,3080p /testbed/napari/layers/shapes/shapes.py",
+        "status": "unknown",
+        "input_tokens": 46650,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 95,
+        "offset_seconds": 320.422,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"selected\" /testbed/napari/layers/shapes/shapes.py | awk -F: '$2>=3080'",
+        "status": "unknown",
+        "input_tokens": 46904,
+        "output_tokens": 60,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 96,
+        "offset_seconds": 323.437,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"selected\" /testbed/napari/layers/shapes/shapes.py | tail -15",
+        "status": "unknown",
+        "input_tokens": 47084,
+        "output_tokens": 53,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 97,
+        "offset_seconds": 326.791,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"selected\" /testbed/napari/layers/shapes/shapes.py | awk -F: '$2>=3060 && $2<=3072'",
+        "status": "unknown",
+        "input_tokens": 47506,
+        "output_tokens": 68,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      }
+    ],
+    "windows": [
+      {
+        "steps": [
+          1,
+          10
+        ],
+        "tool_calls": 9,
+        "errors": 2,
+        "revisits": 0,
+        "output_tokens": 1592,
+        "cost_usd": null,
+        "seconds": 39.946,
+        "peak_prompt_tokens": 5665,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          11,
+          20
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 801,
+        "cost_usd": null,
+        "seconds": 32.867,
+        "peak_prompt_tokens": 11474,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          21,
+          30
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 640,
+        "cost_usd": null,
+        "seconds": 31.458,
+        "peak_prompt_tokens": 17000,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          31,
+          39
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 474,
+        "cost_usd": null,
+        "seconds": 24.422,
+        "peak_prompt_tokens": 19731,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          40,
+          49
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 637,
+        "cost_usd": null,
+        "seconds": 29.065,
+        "peak_prompt_tokens": 25791,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          50,
+          59
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 642,
+        "cost_usd": null,
+        "seconds": 28.03,
+        "peak_prompt_tokens": 30867,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          60,
+          68
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 581,
+        "cost_usd": null,
+        "seconds": 26.319,
+        "peak_prompt_tokens": 34241,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          69,
+          78
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 1,
+        "output_tokens": 665,
+        "cost_usd": null,
+        "seconds": 29.19,
+        "peak_prompt_tokens": 38738,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          79,
+          88
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 613,
+        "cost_usd": null,
+        "seconds": 29.779,
+        "peak_prompt_tokens": 44124,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          89,
+          97
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 522,
+        "cost_usd": null,
+        "seconds": 25.298,
+        "peak_prompt_tokens": 47506,
+        "compactions": 0
+      }
+    ],
+    "time_windows": {
+      "status": "available",
+      "reason": null,
+      "origin": "2026-10-01T13:01:51.834010+00:00",
+      "span_seconds": 326.349,
+      "steps_without_timestamps": 0,
+      "windows": [
+        {
+          "steps": [
+            1,
+            8
+          ],
+          "tool_calls": 7,
+          "errors": 1,
+          "revisits": 0,
+          "output_tokens": 1340,
+          "cost_usd": null,
+          "peak_prompt_tokens": 4391,
+          "compactions": 0,
+          "starts_at_offset_seconds": 0.0,
+          "ends_at_offset_seconds": 32.635
+        },
+        {
+          "steps": [
+            9,
+            17
+          ],
+          "tool_calls": 9,
+          "errors": 1,
+          "revisits": 0,
+          "output_tokens": 834,
+          "cost_usd": null,
+          "peak_prompt_tokens": 9329,
+          "compactions": 0,
+          "starts_at_offset_seconds": 32.635,
+          "ends_at_offset_seconds": 65.27
+        },
+        {
+          "steps": [
+            18,
+            25
+          ],
+          "tool_calls": 8,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 510,
+          "cost_usd": null,
+          "peak_prompt_tokens": 14712,
+          "compactions": 0,
+          "starts_at_offset_seconds": 65.27,
+          "ends_at_offset_seconds": 97.905
+        },
+        {
+          "steps": [
+            26,
+            36
+          ],
+          "tool_calls": 11,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 663,
+          "cost_usd": null,
+          "peak_prompt_tokens": 18641,
+          "compactions": 0,
+          "starts_at_offset_seconds": 97.905,
+          "ends_at_offset_seconds": 130.54
+        },
+        {
+          "steps": [
+            37,
+            46
+          ],
+          "tool_calls": 10,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 600,
+          "cost_usd": null,
+          "peak_prompt_tokens": 23895,
+          "compactions": 0,
+          "starts_at_offset_seconds": 130.54,
+          "ends_at_offset_seconds": 163.175
+        },
+        {
+          "steps": [
+            47,
+            56
+          ],
+          "tool_calls": 10,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 659,
+          "cost_usd": null,
+          "peak_prompt_tokens": 29548,
+          "compactions": 0,
+          "starts_at_offset_seconds": 163.175,
+          "ends_at_offset_seconds": 195.809
+        },
+        {
+          "steps": [
+            57,
+            67
+          ],
+          "tool_calls": 11,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 674,
+          "cost_usd": null,
+          "peak_prompt_tokens": 33949,
+          "compactions": 0,
+          "starts_at_offset_seconds": 195.809,
+          "ends_at_offset_seconds": 228.444
+        },
+        {
+          "steps": [
+            68,
+            76
+          ],
+          "tool_calls": 9,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 640,
+          "cost_usd": null,
+          "peak_prompt_tokens": 37796,
+          "compactions": 0,
+          "starts_at_offset_seconds": 228.444,
+          "ends_at_offset_seconds": 261.079
+        },
+        {
+          "steps": [
+            77,
+            86
+          ],
+          "tool_calls": 10,
+          "errors": 0,
+          "revisits": 1,
+          "output_tokens": 560,
+          "cost_usd": null,
+          "peak_prompt_tokens": 42842,
+          "compactions": 0,
+          "starts_at_offset_seconds": 261.079,
+          "ends_at_offset_seconds": 293.714
+        },
+        {
+          "steps": [
+            87,
+            97
+          ],
+          "tool_calls": 11,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 687,
+          "cost_usd": null,
+          "peak_prompt_tokens": 47506,
+          "compactions": 0,
+          "starts_at_offset_seconds": 293.714,
+          "ends_at_offset_seconds": 326.349
+        }
+      ]
+    }
+  },
+  "data_quality": [
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B' has no pinned price-table entry",
+    "harness reports no per-call status (no exit codes or error flags): tool errors are only inferred from output text"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "087babf1ce42cc7121e3985f63e495ae52d0a57b5d9dbbdb632a0cf59b60d702"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "afb21f413e91296c01b70dbd42f99997a252bc7e02fe4529c8cd5af651869b10"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 96,
+    "recorded": 96,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 0,
+    "prose_completions": 0,
+    "executed_calls": 107,
+    "task_complete_turns": 0,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 0,
+    "continuations_missing": [],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 97,
+        "copied_steps": 0,
+        "session_id": "2bd9891e-b5e9-4c55-bb70-028a7e76357b"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 97,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": []
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B) failed (reward 0) on mimo-v2.6-rl/format-code-task-002017; in 6m21s wall (6m03s agent); 97 steps, 107 tool calls, 2 errors, 2.45M tokens, cost unavailable; 1 repeated action (0 exact revisits); no subagents observed."
+}

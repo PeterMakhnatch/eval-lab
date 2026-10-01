@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # OVN G5 operator round (HAR-126): the whole paired eval in ONE LoRA-server session.
 #
-#   run_g5.sh --specs-dir DIR --adapter REL --candidate-usd USD --actor TEXT [options]
+#   run_g5.sh --specs-dir DIR --adapter REL --candidate-usd USD --actor TEXT \
+#             --modal-app-day-limit-usd USD [--round-cap-usd USD] [options]
 #
-# Order (each step aborts the round on failure; nothing billable starts before 6):
+# Order (failures abort, except a last-wave gate failure finalizes at 10;
+# nothing billable starts before 6):
 #   1. preflight: clean checkout, spec --check, free capture port, key file,
 #      `capture smoke --model` available
 #   2. `evallab modal billing-reconcile --for <UTC day>`
@@ -14,11 +16,14 @@
 #   7. warm smokes for BOTH model names through secret proxy -> capture -> Modal
 #      (retries, never a redeploy); abort unless both pass
 #   8. capture server (PID-checked owner of the port), telemetry sampler,
-#      per-app Modal spend watchdog
+#      watchdog stopping the app once ITS billed cost today reaches
+#      --modal-app-day-limit-usd
 #   9. tick position waves serially (all first arms, then seconds, then thirds),
 #      approving each wave just before its tick, at one pinned --parallel;
 #      between waves re-check /health; a wave advances only when every spec of
-#      the previous wave has a result.json; stop on 3+ infra failures or any refusal
+#      the previous wave has a result.json; stop on 3+ infra failures or any refusal;
+#      with --round-cap-usd, stop when this round's own spend (Modal app since
+#      deploy + its Daytona trials) plus a projected average wave would pass the cap
 #  10. capture link per job, freeze the capture file (sha256/bytes/lines),
 #      reconcile billing, write round-manifest.json
 #
@@ -35,8 +40,8 @@ set -euo pipefail
 usage() { sed -n '2,30p' "$0"; exit 2; }
 
 SPECS_DIR="" ADAPTER="" ADAPTER_NAME="har129" CANDIDATE_USD="" CAP_USD="35"
-PARALLEL="20" LABEL="g5" ACTOR="" MODAL_LIMIT_USD="" GEPA_CANDIDATE="" GEPA_SHA256=""
-PORT="8472" DRY_RUN=0
+PARALLEL="20" LABEL="g5" ACTOR="" MODAL_APP_DAY_LIMIT_USD="" GEPA_CANDIDATE="" GEPA_SHA256=""
+PORT="8472" DRY_RUN=0 ROUND_CAP_USD="" MODAL_RATE_USD_PER_H="2.8149" RESUME_NAMES="" PRIOR_SPEND_USD="0"
 while [ $# -gt 0 ]; do
   case "$1" in
     --specs-dir) SPECS_DIR=$2; shift 2 ;;
@@ -47,17 +52,20 @@ while [ $# -gt 0 ]; do
     --parallel) PARALLEL=$2; shift 2 ;;
     --label) LABEL=$2; shift 2 ;;
     --actor) ACTOR=$2; shift 2 ;;
-    --modal-limit-usd) MODAL_LIMIT_USD=$2; shift 2 ;;
+    --modal-app-day-limit-usd) MODAL_APP_DAY_LIMIT_USD=$2; shift 2 ;;
+    --modal-rate-usd-per-h) MODAL_RATE_USD_PER_H=$2; shift 2 ;;
     --gepa-candidate) GEPA_CANDIDATE=$2; shift 2 ;;
     --gepa-sha256) GEPA_SHA256=$2; shift 2 ;;
     --port) PORT=$2; shift 2 ;;
+    --round-cap-usd) ROUND_CAP_USD=$2; shift 2 ;;
+    --resume-names) RESUME_NAMES=$2; shift 2 ;;
+    --prior-spend-usd) PRIOR_SPEND_USD=$2; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage ;;
     *) echo "unknown argument: $1" >&2; usage ;;
   esac
 done
-[ -n "$SPECS_DIR" ] && [ -n "$ADAPTER" ] && [ -n "$CANDIDATE_USD" ] && [ -n "$ACTOR" ] || usage
-[ -n "$MODAL_LIMIT_USD" ] || MODAL_LIMIT_USD=$CANDIDATE_USD
+[ -n "$SPECS_DIR" ] && [ -n "$ADAPTER" ] && [ -n "$CANDIDATE_USD" ] && [ -n "$ACTOR" ] && [ -n "$MODAL_APP_DAY_LIMIT_USD" ] || usage
 
 REPO=$(git rev-parse --show-toplevel)
 cd "$REPO"
@@ -102,6 +110,31 @@ CHECK_ARGS=(--check "$SPECS_DIR" --tree "$TREE" --tree-digest "$TREE_DIGEST")
 "$PY" research/experiments/ovn-sft-v0/make_g5_specs.py "${CHECK_ARGS[@]}" >"$OUT/spec-check.txt" 2>&1 || true
 cat "$OUT/spec-check.txt" >>"$LOG"
 grep -q '^check ok' "$OUT/spec-check.txt" || die "spec --check failed (see $OUT/spec-check.txt)"
+# Every spec's agent/model must resolve to a profile and pass its pin, exactly
+# as dispatch will check it (g5r wave 1: the tuned arm had no profile).
+"$PY" - "$SPECS_DIR" "$REPO" >"$OUT/profile-check.txt" 2>&1 <<'EOF' || die "profile preflight failed (see $OUT/profile-check.txt)"
+import json, sys
+from collections import Counter
+from pathlib import Path
+from evallab.profiles import validate_model_pin
+from evallab.runner import RunRequest, profile_for_request
+specs, repo = Path(sys.argv[1]), Path(sys.argv[2])
+resolved, failures = Counter(), []
+for path in sorted(specs.glob("ovn-g5-*.json")):
+    spec = json.loads(path.read_text())
+    try:
+        request = RunRequest(task=repo, agent=spec["agent"], model=spec.get("model"), name=spec["name"], jobs_dir=repo / "runs")
+        profile = profile_for_request(request)
+        validate_model_pin(profile, spec.get("model"))
+        resolved[(spec.get("model"), profile.profile_id)] += 1
+    except ValueError as exc:
+        failures.append(f"{path.name}: {exc}")
+for (model, profile_id), count in sorted(resolved.items()):
+    print(f"{count} specs: {model} -> {profile_id}")
+print("\n".join(failures))
+sys.exit(1 if failures else 0)
+EOF
+cat "$OUT/profile-check.txt" >>"$LOG"
 if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then die "capture port $PORT already has a listener"; fi
 SMOKE_HELP=$("$EVALLAB" capture smoke --help 2>/dev/null || true)
 case "$SMOKE_HELP" in *--model*) ;; *) die "evallab capture smoke has no --model; the adapter leg cannot be smoked" ;; esac
@@ -115,11 +148,19 @@ case "$SMOKE_HELP" in *--model*) ;; *) die "evallab capture smoke has no --model
 log "spend check allowed (candidate \$$CANDIDATE_USD, cap \$$CAP_USD)"
 
 # ---- 4. wave plan (by name), then submit -------------------------------------------
-"$PY" - "$SPECS_DIR" "$OUT" <<'EOF' | tee -a "$LOG" || die "wave plan failed"
+"$PY" - "$SPECS_DIR" "$OUT" "$RESUME_NAMES" <<'EOF' | tee -a "$LOG" || die "wave plan failed"
 import json, sys, pathlib
 specs, out = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 cohort = json.loads((specs / "cohort.json").read_text())["cohort"]
 files = {p.stem for p in specs.glob("ovn-g5-*.json")}
+# --resume-names: run only the listed specs; every cohort spec left out must
+# already have a result.json, so each task's arm order is still preserved.
+keep = None
+if sys.argv[3]:
+    keep = {line.strip() for line in open(sys.argv[3]) if line.strip()}
+    unknown = keep - files
+    if unknown:
+        sys.exit(f"--resume-names lists specs not in {specs}: {sorted(unknown)}")
 waves = {}
 for entry in cohort:
     short = entry["task_id"].removeprefix("format-code-task-")
@@ -127,8 +168,12 @@ for entry in cohort:
         name = f"ovn-g5-{short}-{arm}"
         if name not in files:
             sys.exit(f"cohort names {name} but {specs} has no {name}.json")
+        if keep is not None and name not in keep:
+            if not list(pathlib.Path("runs", name).glob("*/result.json")):
+                sys.exit(f"--resume-names leaves out {name}, which has no result.json")
+            continue
         waves.setdefault(position, []).append(name)
-if sum(len(v) for v in waves.values()) != len(files):
+if keep is None and sum(len(v) for v in waves.values()) != len(files):
     sys.exit("spec files and cohort waves disagree")
 for position, names in sorted(waves.items()):
     (out / f"wave-{position}.names").write_text("\n".join(names) + "\n")
@@ -181,11 +226,21 @@ trap teardown EXIT
 
 # ---- 6. the one cold start --------------------------------------------------------
 KEY="$(<"$KEY_FILE")"
+app_cost() { # today's billed Modal cost for $APP alone
+  "${MODAL[@]}" billing report --for today --json 2>/dev/null \
+    | "$PY" -c "import json,sys; print(sum(float(r['cost']) for r in json.load(sys.stdin) if r.get('description')==sys.argv[1]))" "$APP"
+}
+MODAL_BASELINE=$(app_cost || echo 0)
+"$PY" -c "import sys; sys.exit(0 if float(sys.argv[1]) < float(sys.argv[2]) else 1)" "$MODAL_BASELINE" "$MODAL_APP_DAY_LIMIT_USD" \
+  || die "$APP already billed \$$MODAL_BASELINE today, at or over the \$$MODAL_APP_DAY_LIMIT_USD app-day limit"
+DEPLOYED_EPOCH=$(date +%s)
 log "deploy $APP (cold start)"
-DEPLOY_OUT=$(EVALLAB_MIMO_LORA_ADAPTER="$ADAPTER" EVALLAB_MIMO_LORA_NAME="$ADAPTER_NAME" \
+# COLUMNS keeps Modal's rich output from wrapping the endpoint URL across lines.
+DEPLOY_OUT=$(COLUMNS=1000 EVALLAB_MIMO_LORA_ADAPTER="$ADAPTER" EVALLAB_MIMO_LORA_NAME="$ADAPTER_NAME" \
   "${MODAL[@]}" deploy tools/modal-mimo-serve/serve_lora.py 2>&1) || die "deploy failed: $DEPLOY_OUT"
+echo "$DEPLOY_OUT" >"$OUT/deploy.txt"
 URL=$(awk 'match($0, /https:\/\/[A-Za-z0-9.-]+\.modal\.direct/) {print substr($0, RSTART, RLENGTH); exit}' <<<"$DEPLOY_OUT")
-[ -n "$URL" ] || die "no modal.direct URL in deploy output"
+[ -n "$URL" ] || die "no modal.direct URL in deploy output (see $OUT/deploy.txt)"
 manifest endpoint "{\"url\": \"$URL\", \"deployed_at\": \"$(date -u +%FT%TZ)\"}"
 for _ in $(seq 1 60); do
   [ "$(curl -s -o /dev/null -w '%{http_code}' -m 20 "$URL/health")" = 200 ] && break
@@ -225,26 +280,26 @@ done
 "$EVALLAB" telemetry sample --out "$OUT/telemetry.jsonl" --metrics-url "$URL/metrics" --runs-dir runs \
   --queue-dir queue --modal-app "$APP" --interval 15.0 >>"$OUT/telemetry.log" 2>&1 &
 SAMPLER_PID=$!
-app_cost() {
-  "${MODAL[@]}" billing report --for today --json 2>/dev/null \
-    | "$PY" -c "import json,sys; print(sum(float(r['cost']) for r in json.load(sys.stdin) if r.get('description')==sys.argv[1]))" "$APP"
-}
-MODAL_BASELINE=$(app_cost || echo 0)
+# (app_cost and MODAL_BASELINE were taken before the deploy, so the cold start counts.)
 (
   while sleep 180; do
     cost=$(app_cost) || continue
-    if "$PY" -c "import sys; sys.exit(0 if float(sys.argv[1]) - float(sys.argv[2]) >= float(sys.argv[3]) else 1)" "$cost" "$MODAL_BASELINE" "$MODAL_LIMIT_USD"; then
-      echo "$(date -u +%FT%TZ) WATCHDOG: $APP billed \$$cost (baseline \$$MODAL_BASELINE, limit \$$MODAL_LIMIT_USD); stopping" >>"$LOG"
+    if "$PY" -c "import sys; sys.exit(0 if float(sys.argv[1]) >= float(sys.argv[2]) else 1)" "$cost" "$MODAL_APP_DAY_LIMIT_USD"; then
+      echo "$(date -u +%FT%TZ) WATCHDOG: $APP billed \$$cost today, app-day limit \$$MODAL_APP_DAY_LIMIT_USD; stopping" >>"$LOG"
       "${MODAL[@]}" app stop --yes "$APP" >>"$LOG" 2>&1
       exit 0
     fi
   done
 ) &
 WATCHDOG_PID=$!
-log "capture pid $CAPTURE_PID on :$PORT, sampler pid $SAMPLER_PID, watchdog pid $WATCHDOG_PID (Modal limit \$$MODAL_LIMIT_USD over baseline \$$MODAL_BASELINE)"
+log "capture pid $CAPTURE_PID on :$PORT, sampler pid $SAMPLER_PID, watchdog pid $WATCHDOG_PID ($APP app-day limit \$$MODAL_APP_DAY_LIMIT_USD; billed \$$MODAL_BASELINE before deploy)"
 
 # ---- 9. tick position waves serially, approving each wave just before its tick ----------
 # (the lab's drain teardown never targets the LoRA app, so nothing stops it between waves)
+TOTAL_WAVES=$(echo "$WAVES" | awk 'END{print NR}')
+WAVES_DONE=0
+PREV_SPENT=0
+ROUND_STATUS=0
 for wave in $WAVES; do
   position=$(basename "$wave" .txt)
   if [ "$(curl -s -o /dev/null -w '%{http_code}' -m 20 "$URL/health")" != 200 ]; then
@@ -268,12 +323,59 @@ for wave in $WAVES; do
   # verifier reward and an exception outside AGENT_STOP_EXCEPTIONS) and no
   # refusal: PREREG's serial-per-task order. A nonzero tick also stops the round.
   advance=0
-  "$PY" research/experiments/ovn-sft-v0/g5_wave_outcome.py "$wave" "$started" >"$OUT/$position-outcome.json" || advance=$?
+  "$PY" research/experiments/ovn-sft-v0/g5_wave_outcome.py "$wave" "$started" --specs-dir "$SPECS_DIR" \
+    --capture "$CAPDIR/calls.jsonl" >"$OUT/$position-outcome.json" || advance=$?
   verdict=$(cat "$OUT/$position-outcome.json")
   manifest "$position" "{\"started\": \"$started\", \"finished\": \"$finished\", \"tick_status\": $tick_status, \"outcome\": $verdict}"
   log "$position done (tick exit $tick_status): $verdict"
-  [ "$tick_status" = 0 ] || die "$position: tick exited $tick_status; later waves not ticked"
-  [ "$advance" = 0 ] || die "$position: not every spec is terminal, or 3+ infra failures, or a dispatch refusal; later waves not ticked"
+  if [ "$tick_status" != 0 ] || [ "$advance" != 0 ]; then
+    last_wave=false
+    [ "$((WAVES_DONE + 1))" = "$TOTAL_WAVES" ] && last_wave=true
+    manifest gate_failure "{\"wave\": \"$position\", \"tick_status\": $tick_status, \"outcome_status\": $advance, \"last_wave\": $last_wave}"
+    log "GATE FAILED: $position (tick exit $tick_status, outcome exit $advance): non-terminal spec, 3+ infra failures, refusal, or unexpected model; last_wave=$last_wave"
+    [ "$last_wave" = true ] || die "$position: failed gate; later waves not ticked"
+    ROUND_STATUS=3
+    log "$position: last-wave gate failed; preserving capture and billing in step 10 before exiting $ROUND_STATUS"
+    break
+  fi
+  WAVES_DONE=$((WAVES_DONE + 1))
+  # Before the next wave: reconcile, then refuse if spend so far (--prior-spend-usd
+  # from earlier segments of the same round + this run's own spend) plus the cost
+  # of the LAST completed wave would pass --round-cap-usd.
+  # This run's spend: Modal = max(billed delta on $APP since before deploy, wall
+  # hours since deploy x MODAL_RATE_USD_PER_H) because billing lags and
+  # max_containers=1; Daytona = this run's trial lifetimes x the rate card.
+  # (`spend check --since` sums ALL lab spend in the window, other lanes included.)
+  if [ -n "$ROUND_CAP_USD" ] && [ "$WAVES_DONE" -lt "$TOTAL_WAVES" ]; then
+    "$EVALLAB" modal billing-reconcile --for "$DAY" >"$OUT/billing-reconcile-$position.txt" 2>&1 || log "billing reconcile after $position failed"
+    billed=$(app_cost || echo 0)
+    "$PY" - "$OUT/ids.txt" "$DEPLOYED_EPOCH" "$billed" "$MODAL_BASELINE" "$MODAL_RATE_USD_PER_H" "$PREV_SPENT" "$PRIOR_SPEND_USD" "$ROUND_CAP_USD" \
+      >"$OUT/budget-after-$position.json" <<'EOF' || die "round spend plus the last wave's cost would pass the \$$ROUND_CAP_USD round cap ($(cat "$OUT/budget-after-$position.json")); later waves not ticked"
+import glob, json, sys, time
+from datetime import datetime
+ids, deployed, billed, baseline, rate, prev, prior, cap = sys.argv[1:9]
+modal = max(float(billed) - float(baseline), (time.time() - float(deployed)) / 3600 * float(rate))
+daytona_seconds = 0.0
+for line in open(ids):
+    for path in glob.glob(f"runs/{line.split()[0]}/*/result.json"):
+        result = json.load(open(path))
+        if result.get("started_at") and result.get("finished_at"):
+            start = datetime.fromisoformat(result["started_at"].replace("Z", "+00:00"))
+            end = datetime.fromisoformat(result["finished_at"].replace("Z", "+00:00"))
+            daytona_seconds += (end - start).total_seconds()
+daytona = daytona_seconds / 3600 * 0.23094
+spent = modal + daytona
+last_wave = spent - float(prev)
+total = float(prior) + spent
+out = {"modal_usd": modal, "daytona_usd": daytona, "this_run_usd": spent, "prior_segments_usd": float(prior),
+       "round_total_usd": total, "last_wave_usd": last_wave, "round_cap_usd": float(cap),
+       "allowed": total + last_wave <= float(cap)}
+print(json.dumps(out))
+sys.exit(0 if out["allowed"] else 1)
+EOF
+    PREV_SPENT=$("$PY" -c "import json,sys; print(json.load(open(sys.argv[1]))['this_run_usd'])" "$OUT/budget-after-$position.json")
+    log "$position budget: $(cat "$OUT/budget-after-$position.json")"
+  fi
 done
 
 # ---- 10. link, freeze, reconcile ------------------------------------------------------
@@ -288,4 +390,9 @@ chmod a-w "$CAPDIR/calls.jsonl"
 manifest capture "{\"file\": \"$CAPDIR/calls.jsonl\", \"sha256\": \"$(shasum -a 256 "$CAPDIR/calls.jsonl" | awk '{print $1}')\", \"bytes\": $(wc -c <"$CAPDIR/calls.jsonl"), \"lines\": $(awk 'END{print NR}' "$CAPDIR/calls.jsonl")}"
 "$EVALLAB" modal billing-reconcile --for "$DAY" >"$OUT/billing-reconcile-after.txt" 2>&1 || log "billing reconcile after the round failed"
 "$EVALLAB" spend day --date "$DAY" >"$OUT/spend-day-after.txt" 2>&1 || true
-log "round $LABEL complete; manifest $OUT/round-manifest.json"
+if [ "$ROUND_STATUS" = 0 ]; then
+  log "round $LABEL complete; manifest $OUT/round-manifest.json"
+else
+  log "round $LABEL finalized after failed last-wave gate (exit $ROUND_STATUS); manifest $OUT/round-manifest.json"
+fi
+exit "$ROUND_STATUS"

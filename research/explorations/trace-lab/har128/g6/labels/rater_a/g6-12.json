@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Analysis: Now add the `playlist_items` param doc and the CLI option:",
+      "ref": "head#25"
+    },
+    {
+      "quote": "Analysis: The implementation is complete. Here's a summary of what was done:",
+      "ref": "head#81"
+    },
+    {
+      "quote": "python3 -m unittest test.test_YoutubeDL.TestYoutubeDL.test_playlist_items_selection 2>&1 | tail -3",
+      "ref": "head#82"
+    },
+    {
+      "quote": "echo \"READY\"",
+      "ref": "head#90"
+    }
+  ],
+  "first_failure": {
+    "quote": "Analysis: Now add the `playlist_items` param doc and the CLI option:",
+    "ref": "head#25",
+    "what": "added playlist_items param/CLI option without wiring it into ydl_opts in __init__.py, so CLI selection never reaches params"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#82",
+    "head#90"
+  ],
+  "notes": "Task 000568 (youtube-dlc playlist-items). TrialBudgetExhaustedError at 90 episodes (<120), ~2.43M input: token_ceiling; loop-break never fired. mark_task_complete at head#81, then 9 turns of claims/re-checks/echoes to budget end: completion-claim. Same hidden F2 failure (full v1-v4 list) and same root cause as g6-14: diff has no youtube_dlc/__init__.py wiring. sft_cut null per assignment.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-12"
+}

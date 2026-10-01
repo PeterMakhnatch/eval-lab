@@ -1,0 +1,38 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "open(path, 'w').writelines(out)",
+      "ref": "head#43"
+    },
+    {
+      "quote": "cd /testbed && git status --short 2>&1 | cat",
+      "ref": "head#118"
+    },
+    {
+      "quote": "cd /testbed && git status --short 2>&1 | cat",
+      "ref": "head#120"
+    }
+  ],
+  "first_failure": {
+    "quote": "open(path, 'w').writelines(out)",
+    "ref": "head#43",
+    "what": "truncated mapping file by writing only dedented block instead of full lines"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#111",
+    "head#120"
+  ],
+  "notes": "n_episodes 118 <120, input 2490958 at token limit; loop nudge at call 107 ('you are repeating') then 10+ identical git-status turns to head#120; verifier IndentationError unexpected indent; repeated checkout+retruncate cycle never recovered.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-15"
+}

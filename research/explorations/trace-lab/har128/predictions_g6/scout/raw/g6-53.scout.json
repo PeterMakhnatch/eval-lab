@@ -1,0 +1,89 @@
+{
+ "trial": "ovn-g5-001285-gepa__waX6njT",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001285-gepa/ovn-g5-001285-gepa__waX6njT",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001285-gepa",
+ "task": "mimo-v2.6-rl/format-code-task-001285",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "unknown",
+  "exception_type": "LoopBreakStop",
+  "exception_message": "loop break: the repetition was still going 90 calls in, 15 after the nudge at call 75",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 2,
+  "step_ref": "head#2",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#2",
+   "head#91"
+  ],
+  "note": "identical message repeated steps 2-91 with no change after errors"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 90,
+    "span": [
+     "head#2",
+     "head#91"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 2231160,
+   "completion": 6058,
+   "steps": 90,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 2231160,
+   "completion": 6058,
+   "steps": 90,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2231160,
+   "completion": 6058,
+   "steps": 90,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 1.0,
+  "result_input_tokens": 2231160
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 90,
+  "states": {
+   "prompt": 90
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "b1619aa3e3f0bef20fd52cb8590c4203f7c27336"
+ },
+ "nop_runs_dir": null
+}

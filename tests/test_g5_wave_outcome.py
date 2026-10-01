@@ -93,3 +93,43 @@ def test_refusal_since_the_wave_started_is_reported(tmp_path: Path) -> None:
     )
     outcome = g5.classify(_wave(tmp_path, "a"), STARTED, tmp_path / "runs", events)
     assert outcome["refused"] == ["a:x"]
+
+
+def test_base_model_call_inside_an_adapter_only_wave_is_unexpected(tmp_path: Path) -> None:
+    specs = tmp_path / "specs"
+    specs.mkdir()
+    adapter = "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129"
+    (specs / "t-tuned.json").write_text(json.dumps({"model": adapter}))
+    capture = tmp_path / "calls.jsonl"
+    rows = [
+        (
+            "2026-10-01T11:59:00Z",
+            "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+        ),  # before the wave: ignored
+        ("2026-10-01T12:01:00Z", "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129"),
+    ]
+    capture.write_text(
+        "".join(
+            json.dumps(
+                {"started_at": at, "request_body": {"model": m}, "response_body": {"model": m}}
+            )
+            + "\n"
+            for at, m in rows
+        )
+    )
+    wave = _wave(tmp_path, "t-tuned")
+    clean = g5.classify(wave, STARTED, tmp_path / "runs", tmp_path / "e.jsonl", specs, capture)
+    assert clean["unexpected_models"] == []
+    with capture.open("a") as handle:
+        handle.write(
+            json.dumps(
+                {
+                    "started_at": "2026-10-01T12:02:00Z",
+                    "request_body": {"model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"},
+                    "response_body": {"model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"},
+                }
+            )
+            + "\n"
+        )
+    dirty = g5.classify(wave, STARTED, tmp_path / "runs", tmp_path / "e.jsonl", specs, capture)
+    assert dirty["unexpected_models"] == ["XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"]

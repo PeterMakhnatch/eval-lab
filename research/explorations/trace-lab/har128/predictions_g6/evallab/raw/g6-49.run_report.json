@@ -1,0 +1,1035 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "ovn-g5-001809-gepa__nxdBvhh",
+    "trial_id": "affd5ea5-7a51-459e-92d5-d08668d7ec16",
+    "task": "mimo-v2.6-rl/format-code-task-001809",
+    "job": "HAR-126-ovn-g5-001809-gepa",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "8b0d7cfe-2c22-4336-89a6-0bd2aeb65442",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001809-gepa/ovn-g5-001809-gepa__nxdBvhh"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "passed",
+    "reward": 1.0,
+    "rewards": {
+      "reward": 1.0
+    },
+    "verifier_outcome": "pass",
+    "stop_reason": "trial_budget_exhausted",
+    "stop_detail": "exception TrialBudgetExhaustedError; binding ceiling: input_tokens",
+    "completion": "Completion: claimed at step 25, never confirmed; the run ended on step 118 (The fix is complete and verified. All tests pass (the thread-leakage warning is a pre-existing pytest teardown artifact,...).",
+    "execution_problems": {
+      "parse_errors": 90,
+      "prose_completions": 1,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": "The fix is complete and verified. All tests pass (the thread-leakage warning is a pre-existing pytest teardown artifact, unrelated to the change).<tool_call><function=task_complete>true</function></tool_call>",
+    "verifier_files": [
+      "verifier/agent.diff",
+      "verifier/apply.log",
+      "verifier/reward.txt",
+      "verifier/test-stdout.txt",
+      "verifier/test_output.log"
+    ],
+    "first_failure": {
+      "step": 29,
+      "kind": "harness_rejection",
+      "evidence": "agent step with no executed tool call: The fix is complete and verified. All tests pass (the thread-leakage warning is a pre-existing pytest teardown artifact,...",
+      "confidence": "high"
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T14:36:48.956093+00:00",
+    "finished_at": "2026-10-01T14:47:11.120890+00:00",
+    "total_seconds": 622.165,
+    "phases": {
+      "environment_setup": {
+        "seconds": 1.545,
+        "starts_at_offset_seconds": 0.038
+      },
+      "agent_setup": {
+        "seconds": 10.264,
+        "starts_at_offset_seconds": 2.984
+      },
+      "agent_execution": {
+        "seconds": 602.652,
+        "starts_at_offset_seconds": 13.29
+      },
+      "verifier": {
+        "seconds": 3.818,
+        "starts_at_offset_seconds": 618.203
+      }
+    },
+    "unaccounted_seconds": 3.886,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": 6.12,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 118,
+    "agent_span_seconds": 565.251,
+    "step_gap_seconds": {
+      "count": 116,
+      "median": 1.506,
+      "p90": 6.2,
+      "max": 70.84,
+      "total": 559.773
+    },
+    "slowest_steps": [
+      {
+        "step": 25,
+        "seconds": 70.84,
+        "action": "mark_task_complete: {}"
+      },
+      {
+        "step": 23,
+        "seconds": 67.324,
+        "action": "bash_command: cd /testbed && python3 -c \" from localstack.services.sqs import provider from localstack.services.sq..."
+      },
+      {
+        "step": 28,
+        "seconds": 64.301,
+        "action": "bash_command: cd /testbed && git diff --stat && python3 -m pytest [hidden-path]/unit/test_sqs.py -q 2>&1 | tail -3"
+      },
+      {
+        "step": 22,
+        "seconds": 63.635,
+        "action": "bash_command: cd /testbed && python3 -m pytest [hidden-path]/unit/test_sqs.py -q 2>&1 | tail -30"
+      },
+      {
+        "step": 10,
+        "seconds": 20.187,
+        "action": "bash_command: sed -n 1,40p /testbed/localstack/services/sqs/provider.py; echo ---; sed -n 125,140p /testbed/locals..."
+      }
+    ]
+  },
+  "tokens": {
+    "input": 2467934,
+    "cached_input": 0,
+    "uncached_input": 2467934,
+    "output": 11377,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 2479311,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 2467934,
+        "cached_input": 0,
+        "output": 11377,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 2467934,
+        "cached_input": 0,
+        "output": 11377,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": 2467934,
+        "cached_input": null,
+        "output": 11377,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 117,
+    "llm_steps_with_usage": 117,
+    "context": {
+      "first_prompt_tokens": 2126,
+      "peak_prompt_tokens": 28077,
+      "peak_step": 118,
+      "last_prompt_tokens": 28077
+    },
+    "top_steps": [
+      {
+        "step": 118,
+        "input": 28077,
+        "output": 44,
+        "cost_usd": null,
+        "action": "The fix is complete and verified. All tests pass (the thread-leakage warning is a pre-existing pytes..."
+      },
+      {
+        "step": 117,
+        "input": 27989,
+        "output": 44,
+        "cost_usd": null,
+        "action": "The fix is complete and verified. All tests pass (the thread-leakage warning is a pre-existing pytes..."
+      },
+      {
+        "step": 116,
+        "input": 27901,
+        "output": 44,
+        "cost_usd": null,
+        "action": "The fix is complete and verified. All tests pass (the thread-leakage warning is a pre-existing pytes..."
+      },
+      {
+        "step": 115,
+        "input": 27813,
+        "output": 44,
+        "cost_usd": null,
+        "action": "The fix is complete and verified. All tests pass (the thread-leakage warning is a pre-existing pytes..."
+      },
+      {
+        "step": 114,
+        "input": 27725,
+        "output": 44,
+        "cost_usd": null,
+        "action": "The fix is complete and verified. All tests pass (the thread-leakage warning is a pre-existing pytes..."
+      }
+    ]
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 31,
+    "actions": 27,
+    "distinct_tools": 2,
+    "polls": 0,
+    "by_tool": [
+      {
+        "tool": "bash_command",
+        "calls": 30,
+        "ok": 0,
+        "errors": 1,
+        "unknown": 29,
+        "output_chars": 45454,
+        "first_step": 2,
+        "last_step": 28,
+        "judged": 1,
+        "error_rate": 1.0
+      },
+      {
+        "tool": "mark_task_complete",
+        "calls": 1,
+        "ok": 0,
+        "errors": 0,
+        "unknown": 1,
+        "output_chars": 274,
+        "first_step": 25,
+        "last_step": 25,
+        "judged": 0,
+        "error_rate": null
+      }
+    ],
+    "top_programs": [
+      {
+        "program": "sed",
+        "calls": 11
+      },
+      {
+        "program": "grep",
+        "calls": 4
+      },
+      {
+        "program": "cat",
+        "calls": 4
+      },
+      {
+        "program": "git",
+        "calls": 3
+      },
+      {
+        "program": "python3",
+        "calls": 2
+      },
+      {
+        "program": "ls",
+        "calls": 1
+      },
+      {
+        "program": "echo",
+        "calls": 1
+      }
+    ],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 27,
+    "distinct_actions": 27,
+    "repeated_actions": 0,
+    "repeat_rate": 0.0,
+    "returns_to_earlier_action": 0,
+    "consecutive_repeats": 0,
+    "exact_revisits": 0,
+    "same_result_from_different_action": 0,
+    "repeated_errors": 0,
+    "longest_identical_run": {
+      "length": 1,
+      "steps": [
+        2
+      ],
+      "start_step": 2,
+      "end_step": 2
+    },
+    "longest_cycle": null,
+    "most_repeated": [],
+    "loop_suspicion": {
+      "detected": false,
+      "score": 0.0,
+      "reasons": []
+    },
+    "repeats_by_window": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "revisits_started": {
+      "repeat_rate_by_window": [
+        0.0,
+        0.0,
+        0.0,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "median_repeat_rate": 0.0,
+      "status": "no_repeats",
+      "reason": "no repeated actions in the run",
+      "window": null,
+      "steps": null,
+      "repeat_rate": null
+    }
+  },
+  "subagents": {
+    "observability": "none_observed",
+    "reason": null,
+    "count": 0,
+    "delegated_count": 0,
+    "summarization_count": 0,
+    "delegation_calls": [],
+    "items": [],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": []
+  },
+  "errors": {
+    "tool_errors": 1,
+    "harness_signalled": 0,
+    "inferred_from_output": 1,
+    "status_unknown_calls": 30,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {
+      "inferred_from_output": 1
+    },
+    "first_error": {
+      "step": 26,
+      "offset_seconds": 361.109,
+      "evidence": "output_text"
+    },
+    "ended_in_error": true,
+    "examples": [
+      {
+        "step": 26,
+        "tool": "bash_command",
+        "target": "cd /testbed && git diff --stat",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "ed64a66-fd05-48e4-9425-7a6d6e2d186f:/testbed# bed && git diff --stat bash: bed: command not found root@7ed64a66-fd05-48e4-9425-7a6d6e2d186f:/testbed#"
+      }
+    ],
+    "exception": {
+      "type": "TrialBudgetExhaustedError",
+      "message": "the trial proxy refused a model call: trial budget exhausted",
+      "occurred_at": "2026-10-01T14:47:04.905885Z"
+    }
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 0,
+    "items": []
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 118,
+    "shown_steps": 22,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 0.643,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      },
+      {
+        "step": 2,
+        "offset_seconds": 6.12,
+        "source": "agent",
+        "action": "bash_command: ls /testbed && git -C /testbed log --oneline -3 ; grep -rn \"262144\\|262,144\\|message must be shorter...",
+        "status": "unknown",
+        "input_tokens": 2126,
+        "output_tokens": 126,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 3,
+        "offset_seconds": 9.098,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"DEFAULT_MAXIMUM_MESSAGE_SIZE\" /testbed/localstack /testbed/tests --include=*.py",
+        "status": "unknown",
+        "input_tokens": 2733,
+        "output_tokens": 52,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 4,
+        "offset_seconds": 13.593,
+        "source": "agent",
+        "action": "bash_command: grep -n \"check_message_size\\|def send_message\\|def _assert_valid_batch_size\" /testbed/localstack/ser...",
+        "status": "unknown",
+        "input_tokens": 3236,
+        "output_tokens": 125,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 5,
+        "offset_seconds": 17.484,
+        "source": "agent",
+        "action": "bash_command: sed -n 100,120p /testbed/localstack/services/sqs/provider.py; echo ---; sed -n 470,560p /testbed/loc...",
+        "status": "unknown",
+        "input_tokens": 4129,
+        "output_tokens": 129,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 6,
+        "offset_seconds": 23.684,
+        "source": "agent",
+        "action": "bash_command: sed -n 107,125p /testbed/localstack/services/sqs/provider.py; echo ---; sed -n 484,560p /testbed/loc...",
+        "status": "unknown",
+        "input_tokens": 4865,
+        "output_tokens": 96,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 7,
+        "offset_seconds": 26.897,
+        "source": "agent",
+        "action": "bash_command: sed -n 484,500p /testbed/localstack/services/sqs/provider.py",
+        "status": "unknown",
+        "input_tokens": 5506,
+        "output_tokens": 51,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 8,
+        "offset_seconds": 38.889,
+        "source": "agent",
+        "action": "bash_command: sed -n 520,585p /testbed/localstack/services/sqs/provider.py",
+        "status": "unknown",
+        "input_tokens": 5825,
+        "output_tokens": 639,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 9,
+        "offset_seconds": 53.989,
+        "source": "agent",
+        "action": "bash_command: sed -n 1,75p /testbed/[hidden-path]/unit/test_sqs.py ; sed -n 295,345p /testbed/[hidden-path]/integr...",
+        "status": "unknown",
+        "input_tokens": 6390,
+        "output_tokens": 869,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 10,
+        "offset_seconds": 74.176,
+        "source": "agent",
+        "action": "bash_command: sed -n 1,40p /testbed/localstack/services/sqs/provider.py; echo ---; sed -n 125,140p /testbed/locals...",
+        "status": "unknown",
+        "input_tokens": 7154,
+        "output_tokens": 1225,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "omitted_steps": [
+          11,
+          24
+        ]
+      },
+      {
+        "step": 25,
+        "offset_seconds": 356.886,
+        "source": "agent",
+        "action": "mark_task_complete: {}",
+        "status": "unknown",
+        "input_tokens": 18171,
+        "output_tokens": 286,
+        "cost_usd": null,
+        "message": "Analysis: The change is complete and verified. Here's a summary of the fix: ## Problem LocalStack only accounted for the message body when e...",
+        "flags": [
+          "completion"
+        ]
+      },
+      {
+        "step": 26,
+        "offset_seconds": 361.109,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && git diff --stat",
+        "status": "error",
+        "input_tokens": 18525,
+        "output_tokens": 79,
+        "cost_usd": null,
+        "message": "Analysis: Yes, the fix is complete and verified. All unit tests pass, including the new attribute-size tests, and the diff shows the changes...",
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          27,
+          108
+        ]
+      },
+      {
+        "step": 109,
+        "offset_seconds": 550.742,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 27285,
+        "output_tokens": 44,
+        "cost_usd": null,
+        "message": "The fix is complete and verified. All tests pass (the thread-leakage warning is a pre-existing pytest teardown artifact, unrelated to the ch...",
+        "flags": []
+      },
+      {
+        "step": 110,
+        "offset_seconds": 552.283,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 27373,
+        "output_tokens": 44,
+        "cost_usd": null,
+        "message": "The fix is complete and verified. All tests pass (the thread-leakage warning is a pre-existing pytest teardown artifact, unrelated to the ch...",
+        "flags": []
+      },
+      {
+        "step": 111,
+        "offset_seconds": 553.912,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 27461,
+        "output_tokens": 44,
+        "cost_usd": null,
+        "message": "The fix is complete and verified. All tests pass (the thread-leakage warning is a pre-existing pytest teardown artifact, unrelated to the ch...",
+        "flags": []
+      },
+      {
+        "step": 112,
+        "offset_seconds": 555.467,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 27549,
+        "output_tokens": 44,
+        "cost_usd": null,
+        "message": "The fix is complete and verified. All tests pass (the thread-leakage warning is a pre-existing pytest teardown artifact, unrelated to the ch...",
+        "flags": []
+      },
+      {
+        "step": 113,
+        "offset_seconds": 556.925,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 27637,
+        "output_tokens": 44,
+        "cost_usd": null,
+        "message": "The fix is complete and verified. All tests pass (the thread-leakage warning is a pre-existing pytest teardown artifact, unrelated to the ch...",
+        "flags": []
+      },
+      {
+        "step": 114,
+        "offset_seconds": 558.69,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 27725,
+        "output_tokens": 44,
+        "cost_usd": null,
+        "message": "The fix is complete and verified. All tests pass (the thread-leakage warning is a pre-existing pytest teardown artifact, unrelated to the ch...",
+        "flags": []
+      },
+      {
+        "step": 115,
+        "offset_seconds": 561.105,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 27813,
+        "output_tokens": 44,
+        "cost_usd": null,
+        "message": "The fix is complete and verified. All tests pass (the thread-leakage warning is a pre-existing pytest teardown artifact, unrelated to the ch...",
+        "flags": []
+      },
+      {
+        "step": 116,
+        "offset_seconds": 562.932,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 27901,
+        "output_tokens": 44,
+        "cost_usd": null,
+        "message": "The fix is complete and verified. All tests pass (the thread-leakage warning is a pre-existing pytest teardown artifact, unrelated to the ch...",
+        "flags": []
+      },
+      {
+        "step": 117,
+        "offset_seconds": 564.474,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 27989,
+        "output_tokens": 44,
+        "cost_usd": null,
+        "message": "The fix is complete and verified. All tests pass (the thread-leakage warning is a pre-existing pytest teardown artifact, unrelated to the ch...",
+        "flags": []
+      },
+      {
+        "step": 118,
+        "offset_seconds": 565.894,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 28077,
+        "output_tokens": 44,
+        "cost_usd": null,
+        "message": "The fix is complete and verified. All tests pass (the thread-leakage warning is a pre-existing pytest teardown artifact, unrelated to the ch...",
+        "flags": []
+      }
+    ],
+    "windows": [
+      {
+        "steps": [
+          1,
+          12
+        ],
+        "tool_calls": 11,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 3843,
+        "cost_usd": null,
+        "seconds": 85.983,
+        "peak_prompt_tokens": 8429,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          13,
+          24
+        ],
+        "tool_calls": 12,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 3031,
+        "cost_usd": null,
+        "seconds": 195.437,
+        "peak_prompt_tokens": 17522,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          25,
+          36
+        ],
+        "tool_calls": 4,
+        "errors": 1,
+        "revisits": 0,
+        "output_tokens": 895,
+        "cost_usd": null,
+        "seconds": 85.824,
+        "peak_prompt_tokens": 20852,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          37,
+          48
+        ],
+        "tool_calls": 0,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 528,
+        "cost_usd": null,
+        "seconds": 16.401,
+        "peak_prompt_tokens": 21908,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          49,
+          59
+        ],
+        "tool_calls": 0,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 484,
+        "cost_usd": null,
+        "seconds": 15.069,
+        "peak_prompt_tokens": 22885,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          60,
+          71
+        ],
+        "tool_calls": 0,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 528,
+        "cost_usd": null,
+        "seconds": 15.848,
+        "peak_prompt_tokens": 23941,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          72,
+          83
+        ],
+        "tool_calls": 0,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 528,
+        "cost_usd": null,
+        "seconds": 15.768,
+        "peak_prompt_tokens": 24997,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          84,
+          95
+        ],
+        "tool_calls": 0,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 528,
+        "cost_usd": null,
+        "seconds": 16.114,
+        "peak_prompt_tokens": 26053,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          96,
+          107
+        ],
+        "tool_calls": 0,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 528,
+        "cost_usd": null,
+        "seconds": 17.103,
+        "peak_prompt_tokens": 27109,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          108,
+          118
+        ],
+        "tool_calls": 0,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 484,
+        "cost_usd": null,
+        "seconds": 16.622,
+        "peak_prompt_tokens": 28077,
+        "compactions": 0
+      }
+    ],
+    "time_windows": {
+      "status": "available",
+      "reason": null,
+      "origin": "2026-10-01T14:37:02.889191+00:00",
+      "span_seconds": 565.251,
+      "steps_without_timestamps": 0,
+      "windows": [
+        {
+          "steps": [
+            1,
+            9
+          ],
+          "tool_calls": 8,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 2087,
+          "cost_usd": null,
+          "peak_prompt_tokens": 6390,
+          "compactions": 0,
+          "starts_at_offset_seconds": 0.0,
+          "ends_at_offset_seconds": 56.525
+        },
+        {
+          "steps": [
+            10,
+            16
+          ],
+          "tool_calls": 7,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 2731,
+          "cost_usd": null,
+          "peak_prompt_tokens": 11622,
+          "compactions": 0,
+          "starts_at_offset_seconds": 56.525,
+          "ends_at_offset_seconds": 113.05
+        },
+        {
+          "steps": [
+            17,
+            21
+          ],
+          "tool_calls": 5,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1762,
+          "cost_usd": null,
+          "peak_prompt_tokens": 15600,
+          "compactions": 0,
+          "starts_at_offset_seconds": 113.05,
+          "ends_at_offset_seconds": 169.575
+        },
+        {
+          "steps": [
+            22,
+            22
+          ],
+          "tool_calls": 1,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 71,
+          "cost_usd": null,
+          "peak_prompt_tokens": 16345,
+          "compactions": 0,
+          "starts_at_offset_seconds": 169.575,
+          "ends_at_offset_seconds": 226.1
+        },
+        {
+          "steps": [
+            23,
+            23
+          ],
+          "tool_calls": 1,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 173,
+          "cost_usd": null,
+          "peak_prompt_tokens": 17111,
+          "compactions": 0,
+          "starts_at_offset_seconds": 226.1,
+          "ends_at_offset_seconds": 282.625
+        },
+        {
+          "steps": [
+            24,
+            24
+          ],
+          "tool_calls": 1,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 50,
+          "cost_usd": null,
+          "peak_prompt_tokens": 17522,
+          "compactions": 0,
+          "starts_at_offset_seconds": 282.625,
+          "ends_at_offset_seconds": 339.15
+        },
+        {
+          "steps": [
+            25,
+            27
+          ],
+          "tool_calls": 3,
+          "errors": 1,
+          "revisits": 0,
+          "output_tokens": 479,
+          "cost_usd": null,
+          "peak_prompt_tokens": 19225,
+          "compactions": 0,
+          "starts_at_offset_seconds": 339.15,
+          "ends_at_offset_seconds": 395.675
+        },
+        {
+          "steps": [
+            28,
+            43
+          ],
+          "tool_calls": 1,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 724,
+          "cost_usd": null,
+          "peak_prompt_tokens": 21468,
+          "compactions": 0,
+          "starts_at_offset_seconds": 395.675,
+          "ends_at_offset_seconds": 452.2
+        },
+        {
+          "steps": [
+            44,
+            81
+          ],
+          "tool_calls": 0,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1672,
+          "cost_usd": null,
+          "peak_prompt_tokens": 24821,
+          "compactions": 0,
+          "starts_at_offset_seconds": 452.2,
+          "ends_at_offset_seconds": 508.726
+        },
+        {
+          "steps": [
+            82,
+            118
+          ],
+          "tool_calls": 0,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1628,
+          "cost_usd": null,
+          "peak_prompt_tokens": 28077,
+          "compactions": 0,
+          "starts_at_offset_seconds": 508.726,
+          "ends_at_offset_seconds": 565.251
+        }
+      ]
+    }
+  },
+  "data_quality": [
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B' has no pinned price-table entry",
+    "harness reports no per-call status (no exit codes or error flags): tool errors are only inferred from output text"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "c238065cfa25e234f443fe0068bdd268a5f34e5629ea7284cace76acf9b292cd"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "f527f18d2a96f6b6e05825b22389c040baefd61e14cab3ff4cf2f0f2d630aee4"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 117,
+    "recorded": 117,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 90,
+    "prose_completions": 1,
+    "executed_calls": 30,
+    "task_complete_turns": 1,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 0,
+    "continuations_missing": [],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 118,
+        "copied_steps": 0,
+        "session_id": "8b0d7cfe-2c22-4336-89a6-0bd2aeb65442"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 118,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": []
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B) passed (reward 1) on mimo-v2.6-rl/format-code-task-001809; in 10m22s wall (10m03s agent); 118 steps, 31 tool calls, 1 error, 2.48M tokens, cost unavailable; 0 repeated actions (0 exact revisits); no subagents observed."
+}

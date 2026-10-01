@@ -1,0 +1,1615 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "ovn-g5-001285-tuned__WgPbz8K",
+    "trial_id": "780de673-e69b-429f-9d16-4ac2dfa7e0d3",
+    "task": "mimo-v2.6-rl/format-code-task-001285",
+    "job": "HAR-126-ovn-g5-001285-tuned",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "5ec20b52-1329-4c76-9c99-0ed2f88963ea",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001285-tuned/ovn-g5-001285-tuned__WgPbz8K"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "failed",
+    "reward": 0.0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "verifier_outcome": "fail",
+    "stop_reason": "trial_budget_exhausted",
+    "stop_detail": "agent metadata stop_reason; binding ceiling: input_tokens",
+    "completion": "Completion: never claimed; the run ended on step 105 (cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py).",
+    "execution_problems": {
+      "parse_errors": 2,
+      "prose_completions": 0,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": "<tool_call><function=read><parameter=file_path>/workspace/repo/pyftpdlib/authorizers.py</parameter></function></tool_call><tool_call><function=read><parameter=file_path>/workspace/repo/[hidden-path]/test_authorizers.py</parameter></function></tool_call>",
+    "verifier_files": [
+      "verifier/agent.diff",
+      "verifier/apply.log",
+      "verifier/reward.txt",
+      "verifier/test-stdout.txt",
+      "verifier/test_output.log"
+    ],
+    "first_failure": {
+      "step": 3,
+      "kind": "harness_rejection",
+      "evidence": "agent step with no executed tool call: <tool_call><function=read><parameter=file_path>/workspace/repo/pyftpdlib/authorizers.py</parameter></function></tool_call...",
+      "confidence": "high"
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T14:36:49.525873+00:00",
+    "finished_at": "2026-10-01T15:03:38.380408+00:00",
+    "total_seconds": 1608.855,
+    "phases": {
+      "environment_setup": {
+        "seconds": 2.647,
+        "starts_at_offset_seconds": 0.026
+      },
+      "agent_setup": {
+        "seconds": 17.479,
+        "starts_at_offset_seconds": 3.608
+      },
+      "agent_execution": {
+        "seconds": 1573.511,
+        "starts_at_offset_seconds": 21.114
+      },
+      "verifier": {
+        "seconds": 7.218,
+        "starts_at_offset_seconds": 1601.479
+      }
+    },
+    "unaccounted_seconds": 8.0,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": 13.402,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 105,
+    "agent_span_seconds": 1534.422,
+    "step_gap_seconds": {
+      "count": 103,
+      "median": 8.194,
+      "p90": 20.264,
+      "max": 223.039,
+      "total": 1522.819
+    },
+    "slowest_steps": [
+      {
+        "step": 30,
+        "seconds": 223.039,
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py"
+      },
+      {
+        "step": 3,
+        "seconds": 134.712,
+        "action": null
+      },
+      {
+        "step": 58,
+        "seconds": 94.743,
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py"
+      },
+      {
+        "step": 46,
+        "seconds": 63.727,
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py"
+      },
+      {
+        "step": 56,
+        "seconds": 59.081,
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py"
+      }
+    ]
+  },
+  "tokens": {
+    "input": 2434593,
+    "cached_input": 0,
+    "uncached_input": 2434593,
+    "output": 6441,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 2441034,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 2434593,
+        "cached_input": 0,
+        "output": 6441,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 2434593,
+        "cached_input": 0,
+        "output": 6441,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": 2434593,
+        "cached_input": null,
+        "output": 6441,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 104,
+    "llm_steps_with_usage": 104,
+    "context": {
+      "first_prompt_tokens": 1377,
+      "peak_prompt_tokens": 43408,
+      "peak_step": 105,
+      "last_prompt_tokens": 43408
+    },
+    "top_steps": [
+      {
+        "step": 105,
+        "input": 43408,
+        "output": 56,
+        "cost_usd": null,
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py"
+      },
+      {
+        "step": 104,
+        "input": 43044,
+        "output": 56,
+        "cost_usd": null,
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py"
+      },
+      {
+        "step": 103,
+        "input": 42680,
+        "output": 56,
+        "cost_usd": null,
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py"
+      },
+      {
+        "step": 102,
+        "input": 42316,
+        "output": 56,
+        "cost_usd": null,
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py"
+      },
+      {
+        "step": 101,
+        "input": 41952,
+        "output": 56,
+        "cost_usd": null,
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py"
+      }
+    ]
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 114,
+    "actions": 102,
+    "distinct_tools": 1,
+    "polls": 0,
+    "by_tool": [
+      {
+        "tool": "bash_command",
+        "calls": 114,
+        "ok": 0,
+        "errors": 0,
+        "unknown": 114,
+        "output_chars": 152214,
+        "first_step": 2,
+        "last_step": 105,
+        "judged": 0,
+        "error_rate": null
+      }
+    ],
+    "top_programs": [
+      {
+        "program": "sed",
+        "calls": 87
+      },
+      {
+        "program": "git",
+        "calls": 11
+      },
+      {
+        "program": "ls",
+        "calls": 1
+      },
+      {
+        "program": "cat",
+        "calls": 1
+      },
+      {
+        "program": "wc",
+        "calls": 1
+      },
+      {
+        "program": "awk",
+        "calls": 1
+      }
+    ],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 102,
+    "distinct_actions": 10,
+    "repeated_actions": 92,
+    "repeat_rate": 0.902,
+    "returns_to_earlier_action": 0,
+    "consecutive_repeats": 92,
+    "exact_revisits": 83,
+    "same_result_from_different_action": 0,
+    "repeated_errors": 0,
+    "longest_identical_run": {
+      "length": 85,
+      "steps": [
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40
+      ],
+      "start_step": 21,
+      "end_step": 105
+    },
+    "longest_cycle": null,
+    "most_repeated": [
+      {
+        "tool": "bash_command",
+        "target": "cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "count": 85,
+        "steps": [
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40
+        ],
+        "identical_results": 77
+      },
+      {
+        "tool": "bash_command",
+        "target": "cd /workspace/repo && git status --short | head -20 ; sed -n '300,480p' /workspace/repo/pyftpdlib/authorizers.py",
+        "count": 9,
+        "steps": [
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20
+        ],
+        "identical_results": 6
+      }
+    ],
+    "loop_suspicion": {
+      "detected": true,
+      "score": 0.7952,
+      "reasons": [
+        "repeated_consecutive_command: 'cd /workspace/repo && git status --short' (9\u00d7 consecutively, steps 12\u201320)",
+        "repeated_consecutive_command: \"cd /workspace/repo && sed -n '300,480p' \" (85\u00d7 consecutively, steps 21\u2013105)"
+      ]
+    },
+    "repeats_by_window": [
+      0,
+      8,
+      11,
+      10,
+      11,
+      10,
+      11,
+      10,
+      11,
+      10
+    ],
+    "revisits_started": {
+      "repeat_rate_by_window": [
+        0.0,
+        0.8,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "median_repeat_rate": 1.0,
+      "status": "flat",
+      "reason": "no window exceeds the run-median repeat rate",
+      "window": null,
+      "steps": null,
+      "repeat_rate": null
+    }
+  },
+  "subagents": {
+    "observability": "none_observed",
+    "reason": null,
+    "count": 0,
+    "delegated_count": 0,
+    "summarization_count": 0,
+    "delegation_calls": [],
+    "items": [],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": []
+  },
+  "errors": {
+    "tool_errors": 0,
+    "harness_signalled": 0,
+    "inferred_from_output": 0,
+    "status_unknown_calls": 114,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {},
+    "first_error": null,
+    "ended_in_error": false,
+    "examples": [],
+    "exception": {
+      "type": "TrialBudgetExhaustedError",
+      "message": "the trial proxy refused a model call: trial budget exhausted",
+      "occurred_at": "2026-10-01T15:03:24.157762Z"
+    }
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 0,
+    "items": []
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 105,
+    "shown_steps": 60,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 1.799,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      },
+      {
+        "step": 2,
+        "offset_seconds": 13.402,
+        "source": "agent",
+        "action": "bash_command: ls -la /workspace/repo && find /workspace/repo -maxdepth 2 -type f | head -50",
+        "status": "unknown",
+        "input_tokens": 1377,
+        "output_tokens": 67,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 3,
+        "offset_seconds": 148.114,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 2279,
+        "output_tokens": 65,
+        "cost_usd": null,
+        "message": "<tool_call><function=read><parameter=file_path>/workspace/repo/pyftpdlib/authorizers.py</parameter></function></tool_call><tool_call><functi...",
+        "flags": []
+      },
+      {
+        "step": 4,
+        "offset_seconds": 150.1,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 2375,
+        "output_tokens": 52,
+        "cost_usd": null,
+        "message": "<tool_call><function=read><parameter=file_path>/workspace/repo/pyftpdlib/authorizers.py</parameter></function></tool_call><tool_call><functi...",
+        "flags": []
+      },
+      {
+        "step": 5,
+        "offset_seconds": 158.951,
+        "source": "agent",
+        "action": "bash_command: cat /workspace/repo/pyftpdlib/authorizers.py ; cat /workspace/repo/[hidden-path]/test_authorizers.py",
+        "status": "unknown",
+        "input_tokens": 2471,
+        "output_tokens": 78,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 6,
+        "offset_seconds": 166.059,
+        "source": "agent",
+        "action": "bash_command: wc -l /workspace/repo/pyftpdlib/authorizers.py; grep -n \"class \\|def \" /workspace/repo/pyftpdlib/aut...",
+        "status": "unknown",
+        "input_tokens": 3133,
+        "output_tokens": 104,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 7,
+        "offset_seconds": 172.441,
+        "source": "agent",
+        "action": "bash_command: sed -n '1,185p' /workspace/repo/pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 3887,
+        "output_tokens": 52,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 8,
+        "offset_seconds": 178.929,
+        "source": "agent",
+        "action": "bash_command: sed -n '37,185p' /workspace/repo/pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 4509,
+        "output_tokens": 53,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 9,
+        "offset_seconds": 185.597,
+        "source": "agent",
+        "action": "bash_command: awk 'NR>=56 && NR<=185' /workspace/repo/pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 5099,
+        "output_tokens": 54,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 10,
+        "offset_seconds": 195.119,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && git log --oneline -5 2>/dev/null; git status --short 2>/dev/null | head ; sed...",
+        "status": "unknown",
+        "input_tokens": 5715,
+        "output_tokens": 190,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "omitted_steps": [
+          11,
+          12
+        ]
+      },
+      {
+        "step": 13,
+        "offset_seconds": 222.29,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && git status --short | head -20 ; sed -n '300,480p' /workspace/repo/pyftpdlib/au...",
+        "status": "unknown",
+        "input_tokens": 7427,
+        "output_tokens": 95,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 14,
+        "offset_seconds": 231.98,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && git status --short | head -20 ; sed -n '300,480p' /workspace/repo/pyftpdlib/au...",
+        "status": "unknown",
+        "input_tokens": 7867,
+        "output_tokens": 95,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 15,
+        "offset_seconds": 241.75,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && git status --short | head -20 ; sed -n '300,480p' /workspace/repo/pyftpdlib/au...",
+        "status": "unknown",
+        "input_tokens": 8307,
+        "output_tokens": 95,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 16,
+        "offset_seconds": 251.0,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && git status --short | head -20 ; sed -n '300,480p' /workspace/repo/pyftpdlib/au...",
+        "status": "unknown",
+        "input_tokens": 8747,
+        "output_tokens": 95,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 17,
+        "offset_seconds": 259.823,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && git status --short | head -20 ; sed -n '300,480p' /workspace/repo/pyftpdlib/au...",
+        "status": "unknown",
+        "input_tokens": 9187,
+        "output_tokens": 95,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 18,
+        "offset_seconds": 269.361,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && git status --short | head -20 ; sed -n '300,480p' /workspace/repo/pyftpdlib/au...",
+        "status": "unknown",
+        "input_tokens": 9627,
+        "output_tokens": 95,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 19,
+        "offset_seconds": 285.176,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && git status --short | head -20 ; sed -n '300,480p' /workspace/repo/pyftpdlib/au...",
+        "status": "unknown",
+        "input_tokens": 10067,
+        "output_tokens": 95,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 20,
+        "offset_seconds": 293.438,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && git status --short | head -20 ; sed -n '300,480p' /workspace/repo/pyftpdlib/au...",
+        "status": "unknown",
+        "input_tokens": 10515,
+        "output_tokens": 95,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "omitted_steps": [
+          21,
+          21
+        ]
+      },
+      {
+        "step": 22,
+        "offset_seconds": 308.055,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 11587,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 23,
+        "offset_seconds": 315.458,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 11951,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 24,
+        "offset_seconds": 322.022,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 12315,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 25,
+        "offset_seconds": 329.423,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 12679,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 26,
+        "offset_seconds": 336.818,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 13043,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 27,
+        "offset_seconds": 343.963,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 13407,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 28,
+        "offset_seconds": 396.05,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 13771,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 29,
+        "offset_seconds": 404.987,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 14135,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 30,
+        "offset_seconds": 628.025,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 14499,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 31,
+        "offset_seconds": 634.662,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 14863,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 32,
+        "offset_seconds": 642.463,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 15458,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 33,
+        "offset_seconds": 650.374,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 15822,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 34,
+        "offset_seconds": 657.827,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 16186,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 35,
+        "offset_seconds": 665.615,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 16550,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 36,
+        "offset_seconds": 673.81,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 16914,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 37,
+        "offset_seconds": 681.543,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 17278,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 38,
+        "offset_seconds": 690.138,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 17642,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 39,
+        "offset_seconds": 722.154,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 18006,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 40,
+        "offset_seconds": 731.396,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 18370,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 41,
+        "offset_seconds": 739.386,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 18734,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 42,
+        "offset_seconds": 746.291,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 19098,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 43,
+        "offset_seconds": 754.085,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 19691,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 44,
+        "offset_seconds": 761.666,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 20055,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 45,
+        "offset_seconds": 788.407,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 20419,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 46,
+        "offset_seconds": 852.134,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 20783,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 47,
+        "offset_seconds": 860.873,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 21147,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 48,
+        "offset_seconds": 870.62,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 21511,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 49,
+        "offset_seconds": 897.578,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 21875,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 50,
+        "offset_seconds": 906.81,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 22239,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 51,
+        "offset_seconds": 931.374,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 22603,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 52,
+        "offset_seconds": 939.152,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 22967,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 53,
+        "offset_seconds": 946.353,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 23331,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "omitted_steps": [
+          54,
+          95
+        ]
+      },
+      {
+        "step": 96,
+        "offset_seconds": 1448.541,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 39902,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 97,
+        "offset_seconds": 1456.464,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 40266,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 98,
+        "offset_seconds": 1463.901,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 40630,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 99,
+        "offset_seconds": 1472.148,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 41224,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 100,
+        "offset_seconds": 1485.39,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 41588,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 101,
+        "offset_seconds": 1493.493,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 41952,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 102,
+        "offset_seconds": 1502.216,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 42316,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 103,
+        "offset_seconds": 1511.416,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 42680,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 104,
+        "offset_seconds": 1526.24,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 43044,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 105,
+        "offset_seconds": 1536.221,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+        "status": "unknown",
+        "input_tokens": 43408,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "steps": [
+          1,
+          11
+        ],
+        "tool_calls": 8,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 826,
+        "cost_usd": null,
+        "seconds": 202.866,
+        "peak_prompt_tokens": 6476,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          12,
+          21
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 8,
+        "output_tokens": 911,
+        "cost_usd": null,
+        "seconds": 87.148,
+        "peak_prompt_tokens": 11223,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          22,
+          32
+        ],
+        "tool_calls": 11,
+        "errors": 0,
+        "revisits": 11,
+        "output_tokens": 616,
+        "cost_usd": null,
+        "seconds": 334.408,
+        "peak_prompt_tokens": 15458,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          33,
+          42
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 10,
+        "output_tokens": 560,
+        "cost_usd": null,
+        "seconds": 95.917,
+        "peak_prompt_tokens": 19098,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          43,
+          53
+        ],
+        "tool_calls": 11,
+        "errors": 0,
+        "revisits": 11,
+        "output_tokens": 616,
+        "cost_usd": null,
+        "seconds": 192.268,
+        "peak_prompt_tokens": 23331,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          54,
+          63
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 10,
+        "output_tokens": 560,
+        "cost_usd": null,
+        "seconds": 208.999,
+        "peak_prompt_tokens": 27202,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          64,
+          74
+        ],
+        "tool_calls": 11,
+        "errors": 0,
+        "revisits": 11,
+        "output_tokens": 616,
+        "cost_usd": null,
+        "seconds": 82.197,
+        "peak_prompt_tokens": 31436,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          75,
+          84
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 10,
+        "output_tokens": 560,
+        "cost_usd": null,
+        "seconds": 76.072,
+        "peak_prompt_tokens": 35305,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          85,
+          95
+        ],
+        "tool_calls": 11,
+        "errors": 0,
+        "revisits": 11,
+        "output_tokens": 616,
+        "cost_usd": null,
+        "seconds": 95.104,
+        "peak_prompt_tokens": 39538,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          96,
+          105
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 10,
+        "output_tokens": 560,
+        "cost_usd": null,
+        "seconds": 87.679,
+        "peak_prompt_tokens": 43408,
+        "compactions": 0
+      }
+    ],
+    "time_windows": {
+      "status": "available",
+      "reason": null,
+      "origin": "2026-10-01T14:37:12.438998+00:00",
+      "span_seconds": 1534.422,
+      "steps_without_timestamps": 0,
+      "windows": [
+        {
+          "steps": [
+            1,
+            4
+          ],
+          "tool_calls": 1,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 184,
+          "cost_usd": null,
+          "peak_prompt_tokens": 2375,
+          "compactions": 0,
+          "starts_at_offset_seconds": 0.0,
+          "ends_at_offset_seconds": 153.442
+        },
+        {
+          "steps": [
+            5,
+            22
+          ],
+          "tool_calls": 18,
+          "errors": 0,
+          "revisits": 9,
+          "output_tokens": 1609,
+          "cost_usd": null,
+          "peak_prompt_tokens": 11587,
+          "compactions": 0,
+          "starts_at_offset_seconds": 153.442,
+          "ends_at_offset_seconds": 306.884
+        },
+        {
+          "steps": [
+            23,
+            29
+          ],
+          "tool_calls": 7,
+          "errors": 0,
+          "revisits": 7,
+          "output_tokens": 392,
+          "cost_usd": null,
+          "peak_prompt_tokens": 14135,
+          "compactions": 0,
+          "starts_at_offset_seconds": 306.884,
+          "ends_at_offset_seconds": 460.327
+        },
+        {
+          "steps": [
+            30,
+            44
+          ],
+          "tool_calls": 15,
+          "errors": 0,
+          "revisits": 15,
+          "output_tokens": 840,
+          "cost_usd": null,
+          "peak_prompt_tokens": 20055,
+          "compactions": 0,
+          "starts_at_offset_seconds": 613.769,
+          "ends_at_offset_seconds": 767.211
+        },
+        {
+          "steps": [
+            45,
+            50
+          ],
+          "tool_calls": 6,
+          "errors": 0,
+          "revisits": 6,
+          "output_tokens": 336,
+          "cost_usd": null,
+          "peak_prompt_tokens": 22239,
+          "compactions": 0,
+          "starts_at_offset_seconds": 767.211,
+          "ends_at_offset_seconds": 920.653
+        },
+        {
+          "steps": [
+            51,
+            57
+          ],
+          "tool_calls": 7,
+          "errors": 0,
+          "revisits": 7,
+          "output_tokens": 392,
+          "cost_usd": null,
+          "peak_prompt_tokens": 25018,
+          "compactions": 0,
+          "starts_at_offset_seconds": 920.653,
+          "ends_at_offset_seconds": 1074.095
+        },
+        {
+          "steps": [
+            58,
+            71
+          ],
+          "tool_calls": 14,
+          "errors": 0,
+          "revisits": 14,
+          "output_tokens": 784,
+          "cost_usd": null,
+          "peak_prompt_tokens": 30344,
+          "compactions": 0,
+          "starts_at_offset_seconds": 1074.095,
+          "ends_at_offset_seconds": 1227.538
+        },
+        {
+          "steps": [
+            72,
+            89
+          ],
+          "tool_calls": 18,
+          "errors": 0,
+          "revisits": 18,
+          "output_tokens": 1008,
+          "cost_usd": null,
+          "peak_prompt_tokens": 37354,
+          "compactions": 0,
+          "starts_at_offset_seconds": 1227.538,
+          "ends_at_offset_seconds": 1380.98
+        },
+        {
+          "steps": [
+            90,
+            105
+          ],
+          "tool_calls": 16,
+          "errors": 0,
+          "revisits": 16,
+          "output_tokens": 896,
+          "cost_usd": null,
+          "peak_prompt_tokens": 43408,
+          "compactions": 0,
+          "starts_at_offset_seconds": 1380.98,
+          "ends_at_offset_seconds": 1534.422
+        }
+      ]
+    }
+  },
+  "data_quality": [
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129' has no pinned price-table entry",
+    "harness reports no per-call status (no exit codes or error flags): tool errors are only inferred from output text"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "c66426f69a3df3dcc52596758ed42cd3c4c3a642aae01807b94f77a7a0f59ca5"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "2a59af902e546376e4df25665775f6f7294eeabb13eadba19d1577ad87740a9e"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 104,
+    "recorded": 104,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 2,
+    "prose_completions": 0,
+    "executed_calls": 114,
+    "task_complete_turns": 0,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 0,
+    "continuations_missing": [],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 105,
+        "copied_steps": 0,
+        "session_id": "5ec20b52-1329-4c76-9c99-0ed2f88963ea"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 105,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": []
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129) failed (reward 0) on mimo-v2.6-rl/format-code-task-001285; in 26m49s wall (26m14s agent); 105 steps, 114 tool calls, 0 errors, 2.44M tokens, cost unavailable; 92 repeated actions (83 exact revisits); no subagents observed."
+}

@@ -1,0 +1,99 @@
+{
+ "trial": "ovn-g5-001606-gepa__ySwezhm",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001606-gepa/ovn-g5-001606-gepa__ySwezhm",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001606-gepa",
+ "task": "mimo-v2.6-rl/format-code-task-001606",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "task_complete_confirmed",
+  "exception_type": null,
+  "exception_message": "",
+  "natural_completion": true,
+  "task_complete_refs": [
+   "head#33",
+   "head#34"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": {
+  "step_id": 32,
+  "step_ref": "head#32",
+  "tag": "completion",
+  "attribution": "harness",
+  "rule_id": "R-COMP-01",
+  "evidence_step_refs": [
+   "head#32"
+  ],
+  "recovered": true,
+  "note": "prose final answer with no call rejected as a parse error; Terminus has no prose completion path (A-PROSE-HARNESS)"
+ },
+ "outcome": {
+  "step_id": 33,
+  "step_ref": "head#33",
+  "tag": "completion",
+  "attribution": "model",
+  "rule_id": "R-COMP-02",
+  "evidence_step_refs": [
+   "head#33",
+   "head#34"
+  ],
+  "note": "harness-confirmed task_complete at head#33, head#34, but the verifier contradicts the claim (0/5 tests pass)",
+  "grader_note": "instruction.md not located; deliverable check skipped",
+  "loop_token_cost": {
+   "prompt": 41481,
+   "completion": 256
+  }
+ },
+ "handshake": {
+  "first_prompt_ref": "head#33",
+  "prompts": 1,
+  "confirmed": true,
+  "turns_after_first_prompt": 1,
+  "prompt_tokens_after_first_prompt": 20858,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [],
+  "identical": null,
+  "confirmation": null,
+  "in_loops": null,
+  "all_steps": {
+   "prompt": 395688,
+   "completion": 6555,
+   "steps": 33,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": null,
+  "result_input_tokens": 395688
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 30,
+  "states": {
+   "continuation": 1,
+   "no_prompt": 10,
+   "prompt": 19
+  },
+  "stretches": [],
+  "short_stretches": 1
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "b1619aa3e3f0bef20fd52cb8590c4203f7c27336"
+ },
+ "nop_runs_dir": null
+}

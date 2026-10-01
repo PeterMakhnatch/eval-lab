@@ -1,0 +1,35 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "sed -n 2495,2560p /testbed/napari/layers/shapes/shapes.py",
+      "ref": "head#74"
+    },
+    {
+      "quote": "sed -n 2495,2560p /testbed/napari/layers/shapes/shapes.py",
+      "ref": "head#77"
+    },
+    {
+      "quote": "grep -rn \"selected\" /testbed/napari/layers/shapes/shapes.py | awk -F: '$2>=3060 && $2<=3072'",
+      "ref": "head#97"
+    }
+  ],
+  "first_failure": {
+    "quote": "sed -n 2495,2560p /testbed/napari/layers/shapes/shapes.py",
+    "ref": "head#77",
+    "what": "re-issued the identical sed window already viewed at head#74 instead of implementing; run burned remaining budget re-scanning and never wrote code"
+  },
+  "first_failure_confidence": "low",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Reward 0, budget out at 97 eps / 2.44M input, zero source edits (no agent patch). 97 turns of read-only grep/sed exploration. Loop nudge at call 80 hit during overlapping-window scanning of shapes.py 2450-2600, but each view returned new content and post-nudge turns covered genuinely new regions, so no 10-turn identical run: nudge was a false positive, harness never stopped the run.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-06"
+}

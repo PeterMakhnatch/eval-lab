@@ -1,0 +1,38 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "skip related when not related dot deleted fix",
+      "ref": "head#12"
+    },
+    {
+      "quote": "you are repeating change approach or finish",
+      "ref": "head#70"
+    },
+    {
+      "quote": "task_complete invalid XML repeated to 112",
+      "ref": "head#51"
+    }
+  ],
+  "first_failure": {
+    "quote": "django contrib admin plus django contrib messages",
+    "ref": "head#16",
+    "what": "added django contrib messages to settings breaking verifier"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#51",
+    "head#112"
+  ],
+  "notes": "Core cascade fix looked right. Verifier duplicates messages. Final is TrialBudget 112 under 120 so token ceiling.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-19"
+}

@@ -1,0 +1,1019 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "ovn-g5-001765-gepa__yHdbtvs",
+    "trial_id": "9b0ba222-b281-4a4c-aab9-24c7f7cc8a9e",
+    "task": "mimo-v2.6-rl/format-code-task-001765",
+    "job": "HAR-126-ovn-g5-001765-gepa",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "cd224272-6f10-40e6-b57e-0764f7c92c97",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001765-gepa/ovn-g5-001765-gepa__yHdbtvs"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "failed",
+    "reward": 0.0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "verifier_outcome": "fail",
+    "stop_reason": "trial_budget_exhausted",
+    "stop_detail": "agent metadata stop_reason; binding ceiling: input_tokens",
+    "completion": "Completion: never claimed; the run ended on step 96 (python3 - <<'PYEOF' path = '/workspace/repo/lbry/wallet/manager.py' src = open(path).read() src = src.replace( \" async d...).",
+    "execution_problems": {
+      "parse_errors": 0,
+      "prose_completions": 0,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": "Analysis: The annotation is evaluated at class definition time. I need to use `typing.TYPE_CHECKING`-safe annotation or import at runtime. Let me use a string annotation.",
+    "verifier_files": [
+      "verifier/agent.diff",
+      "verifier/apply.log",
+      "verifier/reward.txt",
+      "verifier/test-stdout.txt",
+      "verifier/test_output.log"
+    ],
+    "first_failure": {
+      "step": null,
+      "kind": null,
+      "evidence": null,
+      "confidence": null
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T14:36:49.225001+00:00",
+    "finished_at": "2026-10-01T14:56:10.224617+00:00",
+    "total_seconds": 1161.0,
+    "phases": {
+      "environment_setup": {
+        "seconds": 2.862,
+        "starts_at_offset_seconds": 0.037
+      },
+      "agent_setup": {
+        "seconds": 19.141,
+        "starts_at_offset_seconds": 5.054
+      },
+      "agent_execution": {
+        "seconds": 1122.671,
+        "starts_at_offset_seconds": 24.221
+      },
+      "verifier": {
+        "seconds": 6.913,
+        "starts_at_offset_seconds": 1153.871
+      }
+    },
+    "unaccounted_seconds": 9.413,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": 9.605,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 96,
+    "agent_span_seconds": 1083.682,
+    "step_gap_seconds": {
+      "count": 94,
+      "median": 7.252,
+      "p90": 22.151,
+      "max": 106.458,
+      "total": 1075.745
+    },
+    "slowest_steps": [
+      {
+        "step": 24,
+        "seconds": 106.458,
+        "action": "bash_command: grep -rn \"stream\\b\" /workspace/repo/lbry/schema/stream.py | head -30; echo ====; sed -n 1,120p /work..."
+      },
+      {
+        "step": 26,
+        "seconds": 65.827,
+        "action": "bash_command: sed -n 280,340p /workspace/repo/lbry/schema/claim.py"
+      },
+      {
+        "step": 62,
+        "seconds": 54.774,
+        "action": "bash_command: sed -n 794,860p /workspace/repo/lbry/wallet/transaction.py"
+      },
+      {
+        "step": 67,
+        "seconds": 51.674,
+        "action": "bash_command: sed -n 505,530p /workspace/repo/lbry/wallet/script.py"
+      },
+      {
+        "step": 83,
+        "seconds": 35.393,
+        "action": "bash_command: sed -n 1,20p /workspace/repo/lbry/wallet/manager.py; echo ====; sed -n 293,310p /workspace/repo/lbry..."
+      }
+    ]
+  },
+  "tokens": {
+    "input": 2432761,
+    "cached_input": 0,
+    "uncached_input": 2432761,
+    "output": 8587,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 2441348,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 2432761,
+        "cached_input": 0,
+        "output": 8587,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 2432761,
+        "cached_input": 0,
+        "output": 8587,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": 2432761,
+        "cached_input": null,
+        "output": 8587,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 95,
+    "llm_steps_with_usage": 95,
+    "context": {
+      "first_prompt_tokens": 1324,
+      "peak_prompt_tokens": 48667,
+      "peak_step": 96,
+      "last_prompt_tokens": 48667
+    },
+    "top_steps": [
+      {
+        "step": 96,
+        "input": 48667,
+        "output": 244,
+        "cost_usd": null,
+        "action": "bash_command: python3 - <<'PYEOF' path = '/workspace/repo/lbry/wallet/manager.py' src = open(path).read() src = sr..."
+      },
+      {
+        "step": 95,
+        "input": 48120,
+        "output": 180,
+        "cost_usd": null,
+        "action": "bash_command: python3 - <<'PYEOF' path = '/workspace/repo/lbry/wallet/manager.py' src = open(path).read() src = sr..."
+      },
+      {
+        "step": 94,
+        "input": 47449,
+        "output": 79,
+        "cost_usd": null,
+        "action": "bash_command: sed -n 20,26p /workspace/repo/lbry/wallet/manager.py; echo ====; sed -n 295,340p /workspace/repo/lbr..."
+      },
+      {
+        "step": 93,
+        "input": 46934,
+        "output": 215,
+        "cost_usd": null,
+        "action": "bash_command: python3 - <<'PYEOF' path = '/workspace/repo/lbry/wallet/manager.py' src = open(path).read() src = sr..."
+      },
+      {
+        "step": 92,
+        "input": 46629,
+        "output": 102,
+        "cost_usd": null,
+        "action": "bash_command: cd /workspace/repo && python3 -c \"import lbry.wallet.manager\" 2>&1 | tail -5; echo \"exit=$?\""
+      }
+    ]
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 98,
+    "actions": 95,
+    "distinct_tools": 1,
+    "polls": 0,
+    "by_tool": [
+      {
+        "tool": "bash_command",
+        "calls": 98,
+        "ok": 0,
+        "errors": 2,
+        "unknown": 96,
+        "output_chars": 131578,
+        "first_step": 2,
+        "last_step": 96,
+        "judged": 2,
+        "error_rate": 1.0
+      }
+    ],
+    "top_programs": [
+      {
+        "program": "sed",
+        "calls": 56
+      },
+      {
+        "program": "grep",
+        "calls": 28
+      },
+      {
+        "program": "python3",
+        "calls": 6
+      },
+      {
+        "program": "ls",
+        "calls": 2
+      },
+      {
+        "program": "find",
+        "calls": 1
+      },
+      {
+        "program": "git",
+        "calls": 1
+      },
+      {
+        "program": "cat",
+        "calls": 1
+      }
+    ],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 95,
+    "distinct_actions": 95,
+    "repeated_actions": 0,
+    "repeat_rate": 0.0,
+    "returns_to_earlier_action": 0,
+    "consecutive_repeats": 0,
+    "exact_revisits": 0,
+    "same_result_from_different_action": 0,
+    "repeated_errors": 0,
+    "longest_identical_run": {
+      "length": 1,
+      "steps": [
+        2
+      ],
+      "start_step": 2,
+      "end_step": 2
+    },
+    "longest_cycle": null,
+    "most_repeated": [],
+    "loop_suspicion": {
+      "detected": false,
+      "score": 0.0,
+      "reasons": []
+    },
+    "repeats_by_window": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "revisits_started": {
+      "repeat_rate_by_window": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "median_repeat_rate": 0.0,
+      "status": "no_repeats",
+      "reason": "no repeated actions in the run",
+      "window": null,
+      "steps": null,
+      "repeat_rate": null
+    }
+  },
+  "subagents": {
+    "observability": "none_observed",
+    "reason": null,
+    "count": 0,
+    "delegated_count": 0,
+    "summarization_count": 0,
+    "delegation_calls": [],
+    "items": [],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": []
+  },
+  "errors": {
+    "tool_errors": 2,
+    "harness_signalled": 0,
+    "inferred_from_output": 2,
+    "status_unknown_calls": 96,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {
+      "inferred_from_output": 2
+    },
+    "first_error": {
+      "step": 3,
+      "offset_seconds": 17.853,
+      "evidence": "output_text"
+    },
+    "ended_in_error": true,
+    "examples": [
+      {
+        "step": 3,
+        "tool": "bash_command",
+        "target": "grep -n \"class WalletManager\\|def \" /workspace/repo/lbry/wallet/wallet_manager.py | head -60 ; sed -n 2370,2420p /worksp...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "llet_manager.py | head -60 grep: /workspace/repo/lbry/wallet/wallet_manager.py: No such file or directory root@d82fe769-77ab-4de2-8c8b-d8171782309b:/workspace/repo# sed -n 2370,2420p /workspace/repo/lbry/extras/daemon/daemon.py; echo ----;..."
+      },
+      {
+        "step": 24,
+        "tool": "bash_command",
+        "target": "grep -rn \"stream\\b\" /workspace/repo/lbry/schema/stream.py | head -30; echo ====; sed -n 1,120p /workspace/repo/lbry/sche...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "ks pace/repo/lbry/schema/stream.py grep: /workspace/repo/lbry/schema/stream.py: No such file or directory ==== sed: can't read /workspace/repo/lbry/schema/stream.py: No such file or directory root@d82fe769-77ab-4de2-8c8b-d8171782309b:/works..."
+      }
+    ],
+    "exception": {
+      "type": "TrialBudgetExhaustedError",
+      "message": "the trial proxy refused a model call: trial budget exhausted",
+      "occurred_at": "2026-10-01T14:55:56.120007Z"
+    }
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 0,
+    "items": []
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 96,
+    "shown_steps": 21,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 1.668,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      },
+      {
+        "step": 2,
+        "offset_seconds": 9.605,
+        "source": "agent",
+        "action": "bash_command: ls -la /workspace/repo ; grep -rn \"create_purchase_transaction\" /workspace/repo --include=\"*.py\" | h...",
+        "status": "unknown",
+        "input_tokens": 1324,
+        "output_tokens": 99,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 3,
+        "offset_seconds": 17.853,
+        "source": "agent",
+        "action": "bash_command: grep -n \"class WalletManager\\|def \" /workspace/repo/lbry/wallet/wallet_manager.py | head -60 ; sed -...",
+        "status": "error",
+        "input_tokens": 2242,
+        "output_tokens": 158,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 4,
+        "offset_seconds": 24.094,
+        "source": "agent",
+        "action": "bash_command: find /workspace/repo/lbry -name \"*.py\" | xargs grep -ln \"class WalletManager\"",
+        "status": "unknown",
+        "input_tokens": 3004,
+        "output_tokens": 53,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 5,
+        "offset_seconds": 30.419,
+        "source": "agent",
+        "action": "bash_command: grep -n \"def \\|class \" /workspace/repo/lbry/wallet/manager.py",
+        "status": "unknown",
+        "input_tokens": 3183,
+        "output_tokens": 49,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 6,
+        "offset_seconds": 39.242,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && git log --oneline | head -10 && git status ; sed -n 1,60p /workspace/repo/lbry...",
+        "status": "unknown",
+        "input_tokens": 3709,
+        "output_tokens": 137,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 7,
+        "offset_seconds": 47.0,
+        "source": "agent",
+        "action": "bash_command: sed -n 60,400p /workspace/repo/lbry/wallet/manager.py",
+        "status": "unknown",
+        "input_tokens": 4437,
+        "output_tokens": 106,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 8,
+        "offset_seconds": 53.851,
+        "source": "agent",
+        "action": "bash_command: sed -n 225,300p /workspace/repo/lbry/wallet/manager.py",
+        "status": "unknown",
+        "input_tokens": 5080,
+        "output_tokens": 53,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 9,
+        "offset_seconds": 60.392,
+        "source": "agent",
+        "action": "bash_command: sed -n 175,230p /workspace/repo/lbry/wallet/manager.py",
+        "status": "unknown",
+        "input_tokens": 5709,
+        "output_tokens": 53,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 10,
+        "offset_seconds": 67.562,
+        "source": "agent",
+        "action": "bash_command: sed -n 293,320p /workspace/repo/lbry/wallet/manager.py; echo ====; grep -rn \"KeyFeeAboveMaxAllowedEr...",
+        "status": "unknown",
+        "input_tokens": 6328,
+        "output_tokens": 77,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "omitted_steps": [
+          11,
+          23
+        ]
+      },
+      {
+        "step": 24,
+        "offset_seconds": 272.197,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"stream\\b\" /workspace/repo/lbry/schema/stream.py | head -30; echo ====; sed -n 1,120p /work...",
+        "status": "error",
+        "input_tokens": 13390,
+        "output_tokens": 75,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          25,
+          86
+        ]
+      },
+      {
+        "step": 87,
+        "offset_seconds": 988.851,
+        "source": "agent",
+        "action": "bash_command: cat /workspace/repo/lbry/wallet/constants.py",
+        "status": "unknown",
+        "input_tokens": 43670,
+        "output_tokens": 41,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 88,
+        "offset_seconds": 996.277,
+        "source": "agent",
+        "action": "bash_command: grep -n \"COIN\" /workspace/repo/lbry/wallet/transaction.py | head; echo ====; grep -n \"from .constant...",
+        "status": "unknown",
+        "input_tokens": 43986,
+        "output_tokens": 82,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 89,
+        "offset_seconds": 1003.66,
+        "source": "agent",
+        "action": "bash_command: grep -n \"COIN\" /workspace/repo/lbry/wallet/transaction.py; echo ====; sed -n 17,17p /workspace/repo/...",
+        "status": "unknown",
+        "input_tokens": 44279,
+        "output_tokens": 74,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 90,
+        "offset_seconds": 1010.484,
+        "source": "agent",
+        "action": "bash_command: sed -n 209,240p /workspace/repo/lbry/wallet/transaction.py",
+        "status": "unknown",
+        "input_tokens": 44554,
+        "output_tokens": 80,
+        "cost_usd": null,
+        "message": "Analysis: `Output` doesn't have `COIN` attribute. Let me check whether `Output` has a `COIN` attribute.",
+        "flags": []
+      },
+      {
+        "step": 91,
+        "offset_seconds": 1042.12,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' path = '/workspace/repo/lbry/wallet/manager.py' src = open(path).read() # Fix im...",
+        "status": "unknown",
+        "input_tokens": 45143,
+        "output_tokens": 994,
+        "cost_usd": null,
+        "message": "Analysis: `Output` has no `COIN` attribute. I need to import `COIN` from constants. Let me rewrite the method cleanly now.",
+        "flags": []
+      },
+      {
+        "step": 92,
+        "offset_seconds": 1050.054,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && python3 -c \"import lbry.wallet.manager\" 2>&1 | tail -5; echo \"exit=$?\"",
+        "status": "unknown",
+        "input_tokens": 46629,
+        "output_tokens": 102,
+        "cost_usd": null,
+        "message": "Analysis: Now let me verify the file compiles and check the `ExchangeRateManager` type hint. Let me also verify the `ExchangeRateManager` ty...",
+        "flags": []
+      },
+      {
+        "step": 93,
+        "offset_seconds": 1059.595,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' path = '/workspace/repo/lbry/wallet/manager.py' src = open(path).read() src = sr...",
+        "status": "unknown",
+        "input_tokens": 46934,
+        "output_tokens": 215,
+        "cost_usd": null,
+        "message": "Analysis: The `ExchangeRateManager` is only imported under TYPE_CHECKING. I need to either import it at runtime or remove the type annotatio...",
+        "flags": []
+      },
+      {
+        "step": 94,
+        "offset_seconds": 1066.897,
+        "source": "agent",
+        "action": "bash_command: sed -n 20,26p /workspace/repo/lbry/wallet/manager.py; echo ====; sed -n 295,340p /workspace/repo/lbr...",
+        "status": "unknown",
+        "input_tokens": 47449,
+        "output_tokens": 79,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 95,
+        "offset_seconds": 1075.245,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' path = '/workspace/repo/lbry/wallet/manager.py' src = open(path).read() src = sr...",
+        "status": "unknown",
+        "input_tokens": 48120,
+        "output_tokens": 180,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 96,
+        "offset_seconds": 1085.35,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' path = '/workspace/repo/lbry/wallet/manager.py' src = open(path).read() src = sr...",
+        "status": "unknown",
+        "input_tokens": 48667,
+        "output_tokens": 244,
+        "cost_usd": null,
+        "message": "Analysis: The annotation is evaluated at class definition time. I need to use `typing.TYPE_CHECKING`-safe annotation or import at runtime. L...",
+        "flags": []
+      }
+    ],
+    "windows": [
+      {
+        "steps": [
+          1,
+          10
+        ],
+        "tool_calls": 9,
+        "errors": 1,
+        "revisits": 0,
+        "output_tokens": 785,
+        "cost_usd": null,
+        "seconds": 65.894,
+        "peak_prompt_tokens": 6328,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          11,
+          20
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 643,
+        "cost_usd": null,
+        "seconds": 56.439,
+        "peak_prompt_tokens": 11924,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          21,
+          29
+        ],
+        "tool_calls": 9,
+        "errors": 1,
+        "revisits": 0,
+        "output_tokens": 565,
+        "cost_usd": null,
+        "seconds": 228.13,
+        "peak_prompt_tokens": 14859,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          30,
+          39
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 601,
+        "cost_usd": null,
+        "seconds": 79.742,
+        "peak_prompt_tokens": 20679,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          40,
+          48
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 496,
+        "cost_usd": null,
+        "seconds": 58.282,
+        "peak_prompt_tokens": 25262,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          49,
+          58
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 671,
+        "cost_usd": null,
+        "seconds": 66.762,
+        "peak_prompt_tokens": 30886,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          59,
+          68
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 685,
+        "cost_usd": null,
+        "seconds": 174.592,
+        "peak_prompt_tokens": 35840,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          69,
+          77
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 628,
+        "cost_usd": null,
+        "seconds": 66.812,
+        "peak_prompt_tokens": 39459,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          78,
+          87
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1463,
+        "cost_usd": null,
+        "seconds": 117.121,
+        "peak_prompt_tokens": 43670,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          88,
+          96
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 2050,
+        "cost_usd": null,
+        "seconds": 89.073,
+        "peak_prompt_tokens": 48667,
+        "compactions": 0
+      }
+    ],
+    "time_windows": {
+      "status": "available",
+      "reason": null,
+      "origin": "2026-10-01T14:37:15.113546+00:00",
+      "span_seconds": 1083.682,
+      "steps_without_timestamps": 0,
+      "windows": [
+        {
+          "steps": [
+            1,
+            16
+          ],
+          "tool_calls": 15,
+          "errors": 1,
+          "revisits": 0,
+          "output_tokens": 1156,
+          "cost_usd": null,
+          "peak_prompt_tokens": 9395,
+          "compactions": 0,
+          "starts_at_offset_seconds": 0.0,
+          "ends_at_offset_seconds": 108.368
+        },
+        {
+          "steps": [
+            17,
+            23
+          ],
+          "tool_calls": 7,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 467,
+          "cost_usd": null,
+          "peak_prompt_tokens": 13162,
+          "compactions": 0,
+          "starts_at_offset_seconds": 108.368,
+          "ends_at_offset_seconds": 216.736
+        },
+        {
+          "steps": [
+            24,
+            25
+          ],
+          "tool_calls": 2,
+          "errors": 1,
+          "revisits": 0,
+          "output_tokens": 141,
+          "cost_usd": null,
+          "peak_prompt_tokens": 13646,
+          "compactions": 0,
+          "starts_at_offset_seconds": 216.736,
+          "ends_at_offset_seconds": 325.105
+        },
+        {
+          "steps": [
+            26,
+            36
+          ],
+          "tool_calls": 11,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 671,
+          "cost_usd": null,
+          "peak_prompt_tokens": 18757,
+          "compactions": 0,
+          "starts_at_offset_seconds": 325.105,
+          "ends_at_offset_seconds": 433.473
+        },
+        {
+          "steps": [
+            37,
+            51
+          ],
+          "tool_calls": 15,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 845,
+          "cost_usd": null,
+          "peak_prompt_tokens": 27072,
+          "compactions": 0,
+          "starts_at_offset_seconds": 433.473,
+          "ends_at_offset_seconds": 541.841
+        },
+        {
+          "steps": [
+            52,
+            61
+          ],
+          "tool_calls": 10,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 637,
+          "cost_usd": null,
+          "peak_prompt_tokens": 32270,
+          "compactions": 0,
+          "starts_at_offset_seconds": 541.841,
+          "ends_at_offset_seconds": 650.209
+        },
+        {
+          "steps": [
+            62,
+            66
+          ],
+          "tool_calls": 5,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 397,
+          "cost_usd": null,
+          "peak_prompt_tokens": 34705,
+          "compactions": 0,
+          "starts_at_offset_seconds": 650.209,
+          "ends_at_offset_seconds": 758.577
+        },
+        {
+          "steps": [
+            67,
+            77
+          ],
+          "tool_calls": 11,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 760,
+          "cost_usd": null,
+          "peak_prompt_tokens": 39459,
+          "compactions": 0,
+          "starts_at_offset_seconds": 758.577,
+          "ends_at_offset_seconds": 866.945
+        },
+        {
+          "steps": [
+            78,
+            85
+          ],
+          "tool_calls": 8,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1375,
+          "cost_usd": null,
+          "peak_prompt_tokens": 43193,
+          "compactions": 0,
+          "starts_at_offset_seconds": 866.945,
+          "ends_at_offset_seconds": 975.314
+        },
+        {
+          "steps": [
+            86,
+            96
+          ],
+          "tool_calls": 11,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 2138,
+          "cost_usd": null,
+          "peak_prompt_tokens": 48667,
+          "compactions": 0,
+          "starts_at_offset_seconds": 975.314,
+          "ends_at_offset_seconds": 1083.682
+        }
+      ]
+    }
+  },
+  "data_quality": [
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B' has no pinned price-table entry",
+    "harness reports no per-call status (no exit codes or error flags): tool errors are only inferred from output text"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "41d1261fda939158737546b6305503d8639b20b14f8e3c7ebae7f213ef4b0a39"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "fe7e6667eaa01d298b90872f1e64e4fd1acdd570eea7cd300007dd4d5b6eabef"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 95,
+    "recorded": 95,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 0,
+    "prose_completions": 0,
+    "executed_calls": 98,
+    "task_complete_turns": 0,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 0,
+    "continuations_missing": [],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 96,
+        "copied_steps": 0,
+        "session_id": "cd224272-6f10-40e6-b57e-0764f7c92c97"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 96,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": []
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B) failed (reward 0) on mimo-v2.6-rl/format-code-task-001765; in 19m21s wall (18m43s agent); 96 steps, 98 tool calls, 2 errors, 2.44M tokens, cost unavailable; 0 repeated actions (0 exact revisits); no subagents observed."
+}

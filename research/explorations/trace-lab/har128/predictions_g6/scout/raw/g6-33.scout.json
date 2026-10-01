@@ -1,0 +1,101 @@
+{
+ "trial": "ovn-g5-000169-tuned__CxBpceW",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000169-tuned/ovn-g5-000169-tuned__CxBpceW",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000169-tuned",
+ "task": "mimo-v2.6-rl/format-code-task-000169",
+ "verifier": {
+  "scored": true,
+  "reward": 1.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 3,
+   "summarization_count": 1,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": [
+    "head#83"
+   ]
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "none",
+  "attribution": "n/a",
+  "rule_id": "R-NONE-01",
+  "evidence_step_refs": [
+   "head#2",
+   "head#46"
+  ],
+  "note": "scored pass with no outcome-relevant failure",
+  "secondary": "error_recovery/model secondary: identical run head#2-head#46"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 45,
+    "span": [
+     "head#2",
+     "head#46"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 16,
+    "span": [
+     "head#85",
+     "head#100"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 827136,
+   "completion": 9034,
+   "steps": 61,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 827136,
+   "completion": 9034,
+   "steps": 61,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2374961,
+   "completion": 17009,
+   "steps": 97,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.3483,
+  "result_input_tokens": 2485435
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 97,
+  "states": {
+   "no_prompt": 3,
+   "prompt": 94
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "b1619aa3e3f0bef20fd52cb8590c4203f7c27336"
+ },
+ "nop_runs_dir": null
+}

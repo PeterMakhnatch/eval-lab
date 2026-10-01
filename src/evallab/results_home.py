@@ -22,6 +22,7 @@ import re
 import shutil
 import subprocess
 from collections.abc import Callable, Iterator
+from glob import escape as glob_escape
 from pathlib import Path
 from typing import Any
 
@@ -447,6 +448,7 @@ def publish_job(
     primary_checkout: Path | None = None,
     rewrite_index: bool = True,
     processed_report_root: str | Path | None = None,
+    publication_card: str | None = None,
 ) -> dict[str, Any]:
     """Publish one job into the results home. Idempotent.
 
@@ -461,6 +463,10 @@ def publish_job(
     ``job.json``/``job.md`` and ``trial-*.json``/``trial-*.md`` pages are
     overlaid; nothing else is taken from that directory. Raw job inputs and
     provenance still come from ``job_dir``.
+
+    ``publication_card`` explicitly annotates an otherwise unattributed job;
+    it never rewrites the frozen spec or overrides a recorded card. The
+    source-bound annotation survives republication without the argument.
     """
     source = Path(job_dir).resolve()
     if not source.is_dir():
@@ -473,8 +479,45 @@ def publish_job(
         raise ValueError("Processed report input must be outside the results home when publishing")
     custom_reports = report_root is not None and report_root != source / "processed"
     provenance = build_provenance(source, repo_root=repo_root, pr_lookup=pr_lookup, capture=capture)
-    card = provenance["card"] or "unknown"
+    recorded_card = provenance["card"]
+    if publication_card is not None:
+        if not CARD_RE.fullmatch(publication_card):
+            raise ValueError("Publication card must be a HAR issue identifier, e.g. HAR-126")
+        publication_card = card_from(publication_card)
+        if recorded_card is not None and publication_card != recorded_card:
+            raise ValueError(f"Publication card conflicts with recorded card {recorded_card}")
     day = _job_date(source, provenance)
+    previous = []
+    for candidate in (home / day).glob(f"*-{glob_escape(source.name)}*"):
+        if candidate.is_symlink() or not candidate.is_dir():
+            continue
+        saved = _read_json(candidate / "provenance.json") or {}
+        if saved.get("source_path") == str(source):
+            previous.append((candidate, saved))
+    assigned_cards = {
+        saved["card"]
+        for _, saved in previous
+        if isinstance(saved.get("card"), str) and saved.get("card_assignment")
+    }
+    if any(not CARD_RE.fullmatch(card) for card in assigned_cards):
+        raise ValueError("Invalid existing source-bound publication card")
+    requested = publication_card or recorded_card
+    if len(assigned_cards) > 1 or (assigned_cards and requested and requested not in assigned_cards):
+        raise ValueError("Publication card conflicts with the existing source-bound assignment")
+    if publication_card is not None and recorded_card is None:
+        provenance["card_assignment"] = {"source": "publication_argument", "card": publication_card}
+    elif recorded_card is None and assigned_cards:
+        publication_card = next(iter(assigned_cards))
+        provenance["card_assignment"] = next(
+            saved["card_assignment"] for _, saved in previous if saved.get("card") == publication_card
+        )
+    provenance["card"] = publication_card or recorded_card
+    if provenance["card"] is not None:
+        provenance["unknown"] = [
+            reason for reason in provenance["unknown"]
+            if reason != "no card in job name or spec question_ref"
+        ]
+    card = provenance["card"] or "unknown"
     dest, collided_with = _destination(home, day, card, source)
     provenance["source_path"] = str(source)
     provenance["collided_with"] = collided_with
@@ -499,6 +542,11 @@ def publish_job(
     diff_source = source / "repository-provenance" / "uncommitted.diff"
     if diff_source.is_file():
         _copy_file(diff_source, dest / "uncommitted.diff")
+    # Rehome only this exact source after its replacement is complete. An
+    # unrelated same-name job or failed replacement must keep its snapshot.
+    for previous_path, _ in previous:
+        if previous_path != dest and previous_path.exists():
+            shutil.rmtree(previous_path)
     index = (
         write_index(home, primary_checkout=primary_checkout) if rewrite_index else home / "INDEX.md"
     )

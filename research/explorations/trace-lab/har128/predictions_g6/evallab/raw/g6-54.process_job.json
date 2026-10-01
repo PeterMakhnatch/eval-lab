@@ -1,0 +1,873 @@
+{
+  "acceptance": {
+    "agreement": {
+      "agree_accept": 31,
+      "agree_reject": 0,
+      "disagree": 0,
+      "inferred_unknown": 0
+    },
+    "counts": {
+      "false": 0,
+      "true": 31,
+      "unknown": 0
+    },
+    "provenance": {
+      "inferred": 0,
+      "reconstructed": 0,
+      "recorded": 31
+    }
+  },
+  "agent_steps": 31,
+  "assembly_pattern": "single_head",
+  "claim_regime": null,
+  "completion_refs": [],
+  "confirmation_loop": null,
+  "cost_attempted_usd": 0.0,
+  "cost_estimate_reason": "shared GPU, not additive; excludes sandbox and warm periods; see evallab spend day",
+  "cost_estimate_usd": 0.7304715757944001,
+  "cost_reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+  "cost_source": "proxy_ledger_x_pinned_price",
+  "cost_usd": null,
+  "counts": {
+    "evidence": [
+      {
+        "detector": "result.exception_info",
+        "excerpt": "Failed to create session: not found: sandbox d9c53891-5513-4bd2-a475-cb97d6182c5e not found, it may have been deleted or stopped - inspect audit logs for more i",
+        "path": "result.json",
+        "reason": "infra"
+      }
+    ],
+    "flags": [],
+    "judgments": [
+      {
+        "accuracy": null,
+        "accuracy_note": "display only; HAR-119 pending; never decides",
+        "attribution": "model",
+        "label": "blame",
+        "value": "R-REC-01"
+      },
+      {
+        "accuracy": null,
+        "accuracy_note": "display only; HAR-119 pending; never decides",
+        "attribution": null,
+        "label": "loop_kind",
+        "value": "identical_loop"
+      }
+    ],
+    "raw_reward": null,
+    "reasons": [
+      "infra"
+    ],
+    "schema": "evallab.counts/v1",
+    "scored": false,
+    "task_status": {
+      "digest_match": true,
+      "evidence": [
+        "research/experiments/har108-python-census/task_health.parquet#format-code-task-001241",
+        "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-001241"
+      ],
+      "ledger_status": "usable",
+      "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-001241",
+      "reason": "status=usable; nop sound",
+      "run_digest": "sha256:5bee129ed4e919b3507be46c259a561c4d6b6f82503bc6106146a6d7b2b5f3df",
+      "source": "python_task_ledger",
+      "source_sha256": "083c5c777d573988dca573391c9012cb1d33c83729c51263ccd0e4f5d5fc0a7f",
+      "status": "usable",
+      "task_id": "format-code-task-001241",
+      "trial_digest": "sha256:5bee129ed4e919b3507be46c259a561c4d6b6f82503bc6106146a6d7b2b5f3df"
+    },
+    "verdict": "excluded"
+  },
+  "coverage": {
+    "complete": true,
+    "continuation_count": 0,
+    "continuation_indices": [],
+    "continuations_missing": [],
+    "copied_context_steps": 0,
+    "duplicate_segments": {},
+    "duplicated_steps": 0,
+    "gaps": [],
+    "malformed_steps": 0,
+    "notes": [],
+    "parts": [
+      {
+        "copied_steps": 0,
+        "index": 0,
+        "kind": "head",
+        "path": "trajectory.json",
+        "readable": true,
+        "session_id": "ce09e459-2f81-4ae1-b4a0-ea2e6b428f6f",
+        "steps": 32
+      }
+    ],
+    "summarization_count": 0,
+    "trajectory_head": true,
+    "unique_steps": 32
+  },
+  "decision": {
+    "asked": {
+      "excerpt": null,
+      "grader_gap": "instruction.md not located; deliverable check skipped",
+      "grader_tests_asked": "unknown",
+      "instruction_bytes": null,
+      "instruction_present": false
+    },
+    "attribution": "model",
+    "counts": {
+      "evidence": [
+        {
+          "detector": "result.exception_info",
+          "excerpt": "Failed to create session: not found: sandbox d9c53891-5513-4bd2-a475-cb97d6182c5e not found, it may have been deleted or stopped - inspect audit logs for more i",
+          "path": "result.json",
+          "reason": "infra"
+        }
+      ],
+      "note": "Rendered from the HAR-78 counts field. Not computed here.",
+      "reasons": [
+        "infra"
+      ],
+      "status": "rendered",
+      "task_ledger": {
+        "digest_match": true,
+        "evidence": [
+          "research/experiments/har108-python-census/task_health.parquet#format-code-task-001241",
+          "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-001241"
+        ],
+        "ledger_status": "usable",
+        "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-001241",
+        "reason": "status=usable; nop sound",
+        "run_digest": "sha256:5bee129ed4e919b3507be46c259a561c4d6b6f82503bc6106146a6d7b2b5f3df",
+        "source": "python_task_ledger",
+        "source_sha256": "083c5c777d573988dca573391c9012cb1d33c83729c51263ccd0e4f5d5fc0a7f",
+        "status": "usable",
+        "task_id": "format-code-task-001241",
+        "trial_digest": "sha256:5bee129ed4e919b3507be46c259a561c4d6b6f82503bc6106146a6d7b2b5f3df"
+      },
+      "verdict": "excluded"
+    },
+    "did": {
+      "evidence_steps": [
+        "head#2",
+        "head#14"
+      ],
+      "last_edit_excerpt": "cat > /workspace/repo/pyalgotrade/dataseries/resampled.py <<'PYEOF'",
+      "last_edit_step": 32,
+      "note": "identical message repeated steps 2-14 with no change after errors",
+      "secondary": null,
+      "step": "head#2"
+    },
+    "facts": {
+      "calls": 31,
+      "fetches": [],
+      "grader_gap": "instruction.md not located; deliverable check skipped",
+      "instruction_excerpt": null,
+      "nop_same_crash": {
+        "answer": "unknown",
+        "nop_trial": null,
+        "reason": "No same-task nop crash comparison was recorded."
+      },
+      "stop_reason": "unknown",
+      "tokens": {
+        "attribution": "single_trial",
+        "input_tokens": 571592,
+        "output_tokens": 31998,
+        "path": "lab-metadata.json#provider_usage",
+        "reason": null,
+        "scope": "job",
+        "source": "proxy_settled_ledger",
+        "total_tokens": 603590
+      },
+      "verifier_message": ""
+    },
+    "fetched_fix": {
+      "command": null,
+      "fetched": false,
+      "kind": null,
+      "note": null,
+      "step": null
+    },
+    "first_failure": null,
+    "judgments": {
+      "agreement": {
+        "abstentions": 0,
+        "additional_loop_calibrations": [
+          {
+            "abstentions": 0,
+            "artifact": "research/experiments/har117-results-home/har131-page-calibration-har116.json",
+            "cohort": "HAR-128 part 2: 40 HAR-116 trials",
+            "excluded_rater_disagreement": 5,
+            "frozen_at": "2026-10-01T07:57:30Z",
+            "heldout": "har116 001181 baseline/loopfix/loopfix-r2 (3 trials): analysis and calibration only, never training reflection",
+            "in_sample": false,
+            "labels": "research/explorations/trace-lab/har128/labels_har116",
+            "labels_manifest_sha256": "24b91001adf5707ebb65756e575a9acbc39a816173ee16a5da88cf989e99513d",
+            "limits": "Loop kind only: this cohort carries no first-failure/blame calibration. Blind scout-agent raters (L116A1-8/L116B1-8), not human ground truth; rater A on har116-a-000383-baseline__igrXg8R reports off_limits_opened (config.json seen via a broad grep, arm info unused). Denominators stay per-cohort, never pooled. The artifact exports scores and report hashes only, not trial content.",
+            "loop_kind_confusion": {
+              "completion-claim": {
+                "agree": 3,
+                "n": 3
+              },
+              "none": {
+                "agree": 17,
+                "n": 19
+              },
+              "repetition": {
+                "agree": 8,
+                "n": 13
+              }
+            },
+            "method": "research/explorations/trace-lab/har119/score_page.py --labels research/explorations/trace-lab/har128/labels_har116 --results-home <eval-lab-results> --output research/experiments/har117-results-home/har131-page-calibration-har116.json",
+            "page_vs_agreed_loop_kind": {
+              "agree": 28,
+              "n": 35
+            },
+            "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+            "predictor_functions_sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae",
+            "rater_agreement_loop_kind": {
+              "agree": 35,
+              "n": 40
+            }
+          },
+          {
+            "abstentions": 0,
+            "artifact": "research/experiments/har117-results-home/har131-page-calibration-g2-a1.json",
+            "cohort": "HAR-128 G2 attempt 1: 20 HAR-120 trials",
+            "excluded_rater_disagreement": 3,
+            "frozen_at": "2026-10-01T09:14:45Z",
+            "heldout": "G2 attempt-1 frozen cohort only: analysis and calibration only, never training reflection",
+            "in_sample": false,
+            "labels": "research/explorations/trace-lab/har128/labels_g2_a1",
+            "labels_manifest_sha256": "f6a11da4b3994c101785742f27565d169469e062764585a210baeccfb5b92674",
+            "limits": "Loop kind only: this cohort carries no first-failure/blame calibration. Blind scout-agent raters A (G2A1-4) / B (G2B1-4), not human ground truth; no reported off-limits openings. Denominators stay per-cohort, never pooled. The artifact exports scores and report hashes only, not trial content; inspection only, never training reflection.",
+            "loop_kind_confusion": {
+              "completion-claim": {
+                "agree": 3,
+                "n": 6
+              },
+              "none": {
+                "agree": 5,
+                "n": 5
+              },
+              "repetition": {
+                "agree": 4,
+                "n": 6
+              }
+            },
+            "method": "research/explorations/trace-lab/har119/score_page.py --published-cohort --cohort har128-g2-a1 --results-home <eval-lab-results> --output research/experiments/har117-results-home/har131-page-calibration-g2-a1.json",
+            "page_vs_agreed_loop_kind": {
+              "agree": 12,
+              "n": 17
+            },
+            "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+            "predictor_functions_sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae",
+            "rater_agreement_loop_kind": {
+              "agree": 17,
+              "n": 20
+            }
+          },
+          {
+            "abstentions": 0,
+            "artifact": "research/experiments/har117-results-home/har131-page-calibration-g2-r2.json",
+            "cohort": "HAR-128 G2 re-run: 19 HAR-120 trials",
+            "excluded_rater_disagreement": 3,
+            "frozen_at": "2026-10-01T09:54:19Z",
+            "heldout": "G2 re-run frozen cohort only: analysis and calibration only, never training reflection",
+            "in_sample": false,
+            "labels": "research/explorations/trace-lab/har128/labels_g2_r2",
+            "labels_manifest_sha256": "ddc1f2ad8bf52dc762067a367f7383b990164174b1732c108fb788167597f2ff",
+            "limits": "Loop kind only: this cohort carries no first-failure/blame calibration. Blind scout-agent raters A (G3A1-4) / B (G3B1-4), not human ground truth; no reported off-limits openings. Denominators stay per-cohort, never pooled. The artifact exports scores and report hashes only, not trial content; inspection only, never training reflection.",
+            "loop_kind_confusion": {
+              "completion-claim": {
+                "agree": 7,
+                "n": 10
+              },
+              "none": {
+                "agree": 1,
+                "n": 2
+              },
+              "repetition": {
+                "agree": 2,
+                "n": 4
+              }
+            },
+            "method": "research/explorations/trace-lab/har119/score_page.py --published-cohort --cohort har128-g2-r2 --labels <labels_g2_r2> --results-home <eval-lab-results> --output research/experiments/har117-results-home/har131-page-calibration-g2-r2.json",
+            "page_vs_agreed_loop_kind": {
+              "agree": 10,
+              "n": 16
+            },
+            "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+            "predictor_functions_sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae",
+            "rater_agreement_loop_kind": {
+              "agree": 16,
+              "n": 19
+            }
+          },
+          {
+            "abstentions": 0,
+            "artifact": "research/experiments/har117-results-home/har131-page-calibration-g2-tail.json",
+            "cohort": "HAR-128 G2 tail: 3 HAR-120 trials",
+            "excluded_rater_disagreement": 0,
+            "frozen_at": "2026-10-01T10:21:18Z",
+            "heldout": "G2 tail freeze: analysis and calibration only, never training reflection",
+            "in_sample": false,
+            "labels": "research/explorations/trace-lab/har128/labels_g2_tail",
+            "labels_manifest_sha256": "3b88eb4c2450d76f4b58533c12fae7a0ed25f0816bb45d1b3baeb72a54cdbb50",
+            "limits": "Loop kind only; no first-failure/blame calibration. Blind scout-agent raters G4A/G4B, not human ground truth; neither reports off-limits openings. Tiny cohort: three trials, all agreed labels completion-claim. Denominators stay per-cohort, never pooled. Scores and report hashes only, not trial content; never training reflection.",
+            "loop_kind_confusion": {
+              "completion-claim": {
+                "agree": 1,
+                "n": 3
+              },
+              "none": {
+                "agree": 0,
+                "n": 0
+              },
+              "repetition": {
+                "agree": 0,
+                "n": 0
+              }
+            },
+            "method": "research/explorations/trace-lab/har119/score_page.py --published-cohort --cohort har128-g2-tail --results-home <eval-lab-results> --output research/experiments/har117-results-home/har131-page-calibration-g2-tail.json",
+            "page_vs_agreed_loop_kind": {
+              "agree": 1,
+              "n": 3
+            },
+            "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+            "predictor_functions_sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae",
+            "rater_agreement_loop_kind": {
+              "agree": 3,
+              "n": 3
+            }
+          }
+        ],
+        "artifact": "research/explorations/trace-lab/har119/page_scores.json",
+        "blame_abstentions": 0,
+        "cohort": "HAR-119 part 2: 12 HAR-110 split-v2 runs",
+        "eligible_n": 11,
+        "excluded_rater_disagreement": 1,
+        "first_failure_coverage": {
+          "abstentions": 11,
+          "expressed": 1,
+          "of": 12
+        },
+        "frozen_at": "2026-10-01T00:00:02Z",
+        "grader_alignment": "opinion with no page-measured calibration on this cohort",
+        "in_sample": false,
+        "limits": "Out-of-sample for the loop rule. Loop kind: n=11 agreed cells. First failure: n=9 agreed cells with page coverage 1/12 (11 abstentions). Blame 11/11 is uninformative on this cohort: the raters say model on every failure, so a constant prior scores the same. Grader alignment stays opinion.",
+        "method": "research/explorations/trace-lab/har119/score_page.py",
+        "page_vs_agreed_blame": {
+          "agree": 11,
+          "n": 11
+        },
+        "page_vs_agreed_first_failure": {
+          "agree": 1,
+          "n": 9
+        },
+        "page_vs_agreed_loop_kind": {
+          "agree": 7,
+          "n": 11
+        },
+        "page_vs_agreed_loop_present": {
+          "agree": 7,
+          "n": 11
+        },
+        "page_vs_loop_rule_kind": {
+          "agree": 12,
+          "n": 12
+        },
+        "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+        "predictor_functions": {
+          "names": [
+            "trial_decision.classify_loop_kind",
+            "trial_decision._claim_bearing",
+            "token_flow._loop_onset"
+          ],
+          "sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae"
+        },
+        "rater_agreement_blame": {
+          "agree": 11,
+          "n": 12
+        },
+        "rater_agreement_first_failure": {
+          "agree": 9,
+          "n": 12
+        },
+        "rater_agreement_loop_kind": {
+          "agree": 11,
+          "n": 12
+        },
+        "rater_agreement_loop_present": {
+          "agree": 11,
+          "n": 12
+        },
+        "selection_sha256": "941db9c064e34a2d6f9f7209df42a92cee13b20e776c8fd28c7cc72bc4de860f"
+      },
+      "blame": {
+        "attribution": "model",
+        "note": "identical message repeated steps 2-14 with no change after errors",
+        "rule_id": "R-REC-01",
+        "whose": "model"
+      },
+      "first_failure": null,
+      "grader_alignment": {
+        "answer": "unknown",
+        "why": "instruction.md not located; deliverable check skipped"
+      },
+      "label": "opinion",
+      "loop_kind": {
+        "claim_bearing_turns": 0,
+        "claim_fraction": 0.0,
+        "first_prompt_step": null,
+        "kind": "none",
+        "loop_onset_step": null,
+        "rule": "HAR-119",
+        "stop_reason": "unknown",
+        "turns_after_prompt": 0
+      }
+    },
+    "nop_same_crash": {
+      "answer": "unknown",
+      "nop_trial": null,
+      "reason": "No same-task nop crash comparison was recorded."
+    },
+    "pass_tainted": {
+      "flagged": false,
+      "reasons": [],
+      "status": "not_a_pass"
+    },
+    "reward": null,
+    "reward_why": "Unscored. The reward is not a capability result. Identical message repeated steps 2-14 with no change after errors.",
+    "rule_id": "R-REC-01",
+    "schema": "trial_decision/v3",
+    "scored": false,
+    "whose": "model"
+  },
+  "diagnosis": {
+    "exception_class": "DaytonaNotFoundError",
+    "heuristic_label": null,
+    "modes": [],
+    "notices": [
+      "trial raised before scoring; never labeled as a task failure"
+    ],
+    "outcome": "infra_failed",
+    "reward": null
+  },
+  "errors": {
+    "analysis": null,
+    "decision": null,
+    "diagnosis": null,
+    "outline": null,
+    "token_flow": null
+  },
+  "first_failure": null,
+  "flags": [
+    "identical_loop:13x:head#2-head#14",
+    "outcome:R-REC-01:model",
+    "post_edit_input_share:0%",
+    "max_prompt:41535"
+  ],
+  "grader_evidence": null,
+  "handshake": null,
+  "identical_runs": [
+    {
+      "end": "head#14",
+      "length": 13,
+      "start": "head#2"
+    }
+  ],
+  "loop_cost": {
+    "all_steps": {
+      "completion": 26292,
+      "prompt": 520700,
+      "steps": 31,
+      "steps_without_metrics": 0
+    },
+    "confirmation": null,
+    "identical": {
+      "completion": 2652,
+      "prompt": 75639,
+      "steps": 13,
+      "steps_without_metrics": 0
+    },
+    "in_loops": {
+      "completion": 2652,
+      "prompt": 75639,
+      "steps": 13,
+      "steps_without_metrics": 0
+    },
+    "loop_prompt_share": 0.1453,
+    "result_input_tokens": 564278,
+    "spans": [
+      {
+        "kind": "identical",
+        "length": 13,
+        "span": [
+          "head#2",
+          "head#14"
+        ]
+      }
+    ]
+  },
+  "loop_suspicion": {
+    "cyclic_patterns_count": 0,
+    "detected": false,
+    "reasons": [],
+    "repeated_command_count": 0,
+    "repeated_error_count": 0,
+    "score": 0.0
+  },
+  "model_name": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+  "model_steps": 31,
+  "outcome_failure": {
+    "attribution": "model",
+    "evidence_step_refs": [
+      "head#2",
+      "head#14"
+    ],
+    "note": "identical message repeated steps 2-14 with no change after errors",
+    "rule_id": "R-REC-01",
+    "step_id": 2,
+    "step_ref": "head#2",
+    "tag": "error_recovery"
+  },
+  "outline": {
+    "agent_steps": 0,
+    "exception_class": null,
+    "primary_reward": null,
+    "status": "accounted_unavailable",
+    "total_steps": 0
+  },
+  "rejection_causes": {},
+  "reward": null,
+  "reward_source": "missing",
+  "schema": "process_job/v1",
+  "scored": false,
+  "secondaries": [],
+  "shape_counts": {
+    "prose": 31
+  },
+  "stitched_steps": 32,
+  "stop_reason": "unknown",
+  "taint": [],
+  "task_name": "mimo-v2.6-rl/format-code-task-001241",
+  "task_package_digest": "sha256:5bee129ed4e919b3507be46c259a561c4d6b6f82503bc6106146a6d7b2b5f3df",
+  "token_flow": {
+    "last_useful_edit": {
+      "call_index": 31,
+      "command_excerpt": "cat > /workspace/repo/pyalgotrade/dataseries/resampled.py <<'PYEOF'",
+      "kind": "shell-redirect",
+      "persistence_reason": "verifier/agent.diff unreadable",
+      "persists_in_final_diff": null,
+      "step_id": 32,
+      "touched_paths": [
+        "/workspace/repo/pyalgotrade/dataseries/resampled.py"
+      ]
+    },
+    "loop_onset": {
+      "reason": "no repeat run detected",
+      "step_id": null
+    },
+    "prompt_series": [
+      {
+        "call_index": 1,
+        "completion_tokens": 90,
+        "prompt_tokens": 1323,
+        "step_id": 2
+      },
+      {
+        "call_index": 2,
+        "completion_tokens": 127,
+        "prompt_tokens": 1754,
+        "step_id": 3
+      },
+      {
+        "call_index": 3,
+        "completion_tokens": 95,
+        "prompt_tokens": 2506,
+        "step_id": 4
+      },
+      {
+        "call_index": 4,
+        "completion_tokens": 142,
+        "prompt_tokens": 3325,
+        "step_id": 5
+      },
+      {
+        "call_index": 5,
+        "completion_tokens": 108,
+        "prompt_tokens": 4249,
+        "step_id": 6
+      },
+      {
+        "call_index": 6,
+        "completion_tokens": 239,
+        "prompt_tokens": 4945,
+        "step_id": 7
+      },
+      {
+        "call_index": 7,
+        "completion_tokens": 1002,
+        "prompt_tokens": 5802,
+        "step_id": 8
+      },
+      {
+        "call_index": 8,
+        "completion_tokens": 209,
+        "prompt_tokens": 6580,
+        "step_id": 9
+      },
+      {
+        "call_index": 9,
+        "completion_tokens": 126,
+        "prompt_tokens": 7398,
+        "step_id": 10
+      },
+      {
+        "call_index": 10,
+        "completion_tokens": 155,
+        "prompt_tokens": 8178,
+        "step_id": 11
+      },
+      {
+        "call_index": 11,
+        "completion_tokens": 103,
+        "prompt_tokens": 9045,
+        "step_id": 12
+      },
+      {
+        "call_index": 12,
+        "completion_tokens": 120,
+        "prompt_tokens": 9862,
+        "step_id": 13
+      },
+      {
+        "call_index": 13,
+        "completion_tokens": 136,
+        "prompt_tokens": 10672,
+        "step_id": 14
+      },
+      {
+        "call_index": 14,
+        "completion_tokens": 155,
+        "prompt_tokens": 11456,
+        "step_id": 15
+      },
+      {
+        "call_index": 15,
+        "completion_tokens": 101,
+        "prompt_tokens": 12272,
+        "step_id": 16
+      },
+      {
+        "call_index": 16,
+        "completion_tokens": 86,
+        "prompt_tokens": 12828,
+        "step_id": 17
+      },
+      {
+        "call_index": 17,
+        "completion_tokens": 874,
+        "prompt_tokens": 13625,
+        "step_id": 18
+      },
+      {
+        "call_index": 18,
+        "completion_tokens": 1415,
+        "prompt_tokens": 14910,
+        "step_id": 19
+      },
+      {
+        "call_index": 19,
+        "completion_tokens": 1655,
+        "prompt_tokens": 16681,
+        "step_id": 20
+      },
+      {
+        "call_index": 20,
+        "completion_tokens": 1641,
+        "prompt_tokens": 18769,
+        "step_id": 21
+      },
+      {
+        "call_index": 21,
+        "completion_tokens": 1616,
+        "prompt_tokens": 21102,
+        "step_id": 22
+      },
+      {
+        "call_index": 22,
+        "completion_tokens": 1607,
+        "prompt_tokens": 23151,
+        "step_id": 23
+      },
+      {
+        "call_index": 23,
+        "completion_tokens": 1610,
+        "prompt_tokens": 25191,
+        "step_id": 24
+      },
+      {
+        "call_index": 24,
+        "completion_tokens": 1610,
+        "prompt_tokens": 27234,
+        "step_id": 25
+      },
+      {
+        "call_index": 25,
+        "completion_tokens": 1610,
+        "prompt_tokens": 29277,
+        "step_id": 26
+      },
+      {
+        "call_index": 26,
+        "completion_tokens": 1610,
+        "prompt_tokens": 31320,
+        "step_id": 27
+      },
+      {
+        "call_index": 27,
+        "completion_tokens": 1610,
+        "prompt_tokens": 33363,
+        "step_id": 28
+      },
+      {
+        "call_index": 28,
+        "completion_tokens": 1610,
+        "prompt_tokens": 35406,
+        "step_id": 29
+      },
+      {
+        "call_index": 29,
+        "completion_tokens": 1610,
+        "prompt_tokens": 37449,
+        "step_id": 30
+      },
+      {
+        "call_index": 30,
+        "completion_tokens": 1610,
+        "prompt_tokens": 39492,
+        "step_id": 31
+      },
+      {
+        "call_index": 31,
+        "completion_tokens": 1610,
+        "prompt_tokens": 41535,
+        "step_id": 32
+      }
+    ],
+    "prompt_summary": {
+      "first": 1323,
+      "max": 41535,
+      "max_step_id": 32,
+      "median": 12828.0,
+      "n_calls": 31,
+      "reason": null,
+      "slope_per_call": 1317.6790322580646,
+      "steps_without_metrics": 0
+    },
+    "schema": "token_flow/v1",
+    "stop": {
+      "exception_type": "DaytonaNotFoundError",
+      "metadata_stop_reason": null,
+      "reason": "no metadata stop_reason and unmapped exception type",
+      "stop_reason": null
+    },
+    "summarisations": {
+      "discrepancy": null,
+      "events": [],
+      "metadata_count": 0,
+      "metadata_reason": null
+    },
+    "tokens_after_last_edit": {
+      "input_tokens": 0,
+      "note": null,
+      "output_tokens": 0,
+      "share_input": 0.0,
+      "share_output": 0.0,
+      "totals_source": "agent_result"
+    },
+    "tokens_after_reason": null,
+    "top_terminal_outputs": [
+      {
+        "call_index": 2,
+        "chars": 2448,
+        "est_tokens": 612,
+        "next_prompt_tokens": 2506,
+        "step_id": 3
+      },
+      {
+        "call_index": 3,
+        "chars": 2448,
+        "est_tokens": 612,
+        "next_prompt_tokens": 3325,
+        "step_id": 4
+      },
+      {
+        "call_index": 4,
+        "chars": 2447,
+        "est_tokens": 611,
+        "next_prompt_tokens": 4249,
+        "step_id": 5
+      },
+      {
+        "call_index": 6,
+        "chars": 2447,
+        "est_tokens": 611,
+        "next_prompt_tokens": 5802,
+        "step_id": 7
+      },
+      {
+        "call_index": 7,
+        "chars": 2447,
+        "est_tokens": 611,
+        "next_prompt_tokens": 6580,
+        "step_id": 8
+      }
+    ],
+    "trajectory": {
+      "agent_steps_without_metrics": 0,
+      "n_agent_steps": 31,
+      "n_steps_stitched": 32
+    },
+    "trajectory_reason": null,
+    "trial_name": "ovn-g5-001241-stock__FGtdyNH"
+  },
+  "tokens_attempted_proxy": 603590,
+  "tokens_native": {
+    "input_tokens": 564278,
+    "output_tokens": 27902,
+    "source": "result.json#agent_result"
+  },
+  "tokens_proxy": {
+    "attribution": "single_trial",
+    "input_tokens": 571592,
+    "output_tokens": 31998,
+    "path": "lab-metadata.json#provider_usage",
+    "reason": null,
+    "scope": "job",
+    "source": "proxy_settled_ledger",
+    "total_tokens": 603590
+  },
+  "tokens_steps": {
+    "agent_steps": 31,
+    "completion_tokens": 26292,
+    "metered_steps": 31,
+    "prompt_tokens": 520700,
+    "reason": null,
+    "total_tokens": 546992,
+    "unmetered_steps": 0
+  },
+  "trial_concurrency": 1,
+  "trial_name": "ovn-g5-001241-stock__FGtdyNH",
+  "trial_wall_hours": 0.2595006791666667,
+  "trial_wall_reason": null,
+  "wedge": {
+    "executed_turns": 31,
+    "keystroke_source": "recorded",
+    "short_stretches": 0,
+    "states": {
+      "prompt": 31
+    },
+    "stretches": []
+  }
+}

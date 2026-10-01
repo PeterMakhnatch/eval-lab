@@ -1,0 +1,47 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "pip download hpccm==22.2.0 --no-deps -d /tmp/hpccm_pkg",
+      "ref": "head#21"
+    },
+    {
+      "quote": "Successfully downloaded hpccm hpccm-22.2.0-py2.py3-none-any.whl",
+      "ref": "head#21"
+    },
+    {
+      "quote": "cd /tmp && unzip -o -q hpccm_pkg/hpccm-22.2.0-py2.py3-none-any.whl -d /tmp/hpccm_pkg",
+      "ref": "head#22"
+    },
+    {
+      "quote": "cat -n /tmp/hpccm_pkg/hpccm/recipe.py",
+      "ref": "head#23"
+    },
+    {
+      "quote": "def include(recipe_file, _globals=None, _locals=None, prepend_path=True, raise_exceptions=False):",
+      "ref": "head#25"
+    },
+    {
+      "quote": "9 passed, 8 deselected",
+      "ref": "head#100"
+    }
+  ],
+  "first_failure": {
+    "quote": "pip download hpccm==22.2.0 --no-deps -d /tmp/hpccm_pkg",
+    "ref": "head#21",
+    "what": "fetched the upstream hpccm 22.2.0 release; the passing include() implementation was taken from its recipe.py"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Copied pass: budget-exhausted (98 episodes) but verifier reward 1.0. Model unzipped the wheel and read upstream recipe.py lines 1-156+ before writing a matching include() with prepend_path/raise_from semantics.",
+  "off_limits_opened": false,
+  "pass_copied": true,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-33"
+}

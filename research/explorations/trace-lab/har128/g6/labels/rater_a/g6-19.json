@@ -1,0 +1,50 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "open(p, w).write(s)",
+      "ref": "head#16"
+    },
+    {
+      "quote": "def test_soft_delete_cascade_skips_already_deleted_related(self):",
+      "ref": "head#17"
+    },
+    {
+      "quote": "All 64 tests pass",
+      "ref": "head#48"
+    },
+    {
+      "quote": "mark_task_complete",
+      "ref": "head#49"
+    },
+    {
+      "quote": "task_complete",
+      "ref": "head#51"
+    },
+    {
+      "quote": "task_complete",
+      "ref": "head#112"
+    }
+  ],
+  "first_failure": {
+    "quote": "s.replace django.contrib.admin with django.contrib.admin + django.contrib.messages",
+    "ref": "head#16",
+    "what": "edited safedelete/tests/settings.py to insert a duplicate django.contrib.messages into INSTALLED_APPS; verifier dies in app loading (duplicates: messages); never reverted"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#49",
+    "head#112"
+  ],
+  "notes": "112 calls / 2.47M input tokens; identical_message_run detector fired mid-run (nudge 69 / stop 84) but the run continued to budget exhaustion, whose TrialBudgetExhaustedError is the outer/terminal exception, so token_ceiling. Core models.py fix (and not related.deleted) looked right locally, but the shipped diff also taints tests/settings.py; verifier fails with ImproperlyConfigured duplicates: messages; reward 0.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-19"
+}

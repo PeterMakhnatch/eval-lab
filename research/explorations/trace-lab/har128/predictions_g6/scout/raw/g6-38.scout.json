@@ -1,0 +1,89 @@
+{
+ "trial": "ovn-g5-001626-stock__6P6YXKD",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001626-stock/ovn-g5-001626-stock__6P6YXKD",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001626-stock",
+ "task": "mimo-v2.6-rl/format-code-task-001626",
+ "verifier": {
+  "scored": false,
+  "reward": null,
+  "source": "missing",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "unknown",
+  "exception_type": "DaytonaNotFoundError",
+  "exception_message": "Failed to create session: not found: sandbox 326ac4db-eff0-42e7-afdd-168e1b18a201 not found, it may have been deleted or stopped - inspect audit logs for more info",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 2,
+  "step_ref": "head#2",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#2",
+   "head#76"
+  ],
+  "note": "identical message repeated steps 2-76 with no change after errors"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 75,
+    "span": [
+     "head#2",
+     "head#76"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 1540406,
+   "completion": 4240,
+   "steps": 75,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 1540406,
+   "completion": 4240,
+   "steps": 75,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 1540406,
+   "completion": 4240,
+   "steps": 75,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 1.0,
+  "result_input_tokens": 1574522
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 75,
+  "states": {
+   "prompt": 75
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "b1619aa3e3f0bef20fd52cb8590c4203f7c27336"
+ },
+ "nop_runs_dir": null
+}

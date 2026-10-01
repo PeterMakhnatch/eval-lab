@@ -1,0 +1,8 @@
+2026-10-01T17:18:24Z
+Frozen before the arm map is joined (G6_PLAN.md step 2).
+- labels/: 60 G5 cells x 2 blind raters (scout agents G6A01-10, G6B01-10) under RATER_GUIDE_v2.md (sha256 13fe391e...7cfb), reading arm-stripped packs only. None reports opening off-limits files.
+- metrics_blind.jsonl: deterministic process-job metrics per opaque id (g6_metrics.py).
+- Packs: ~/Developer/eval-lab/derived/trace-lab/har128-g6/packs/. Job and trial names were replaced; the model id and GEPA addendum were removed; timestamps, agent metadata and trial.log were dropped. A token scan found 0 hits.
+- Sealed arm map: ~/Developer/eval-lab/derived/trace-lab/har128-g6/SEALED_arm_map.json, sha256 5fcfcc8e6004de41a1d55c94f659cb674246edb0ef29a3928bb12310fe2971db. It is committed only after this freeze. The coordinator built the packs from the native trial folders and did not read the map before this freeze.
+- Tool predictions (Eval Lab and Scout rules only; Docent quota spent, no Scout LLM) were made blind by ToolRunner116 and keyed by opaque id. They were not read before this freeze.
+- Rater outputs with problems: G6A07 and G6B07 first returned incomplete reports and were asked to resend their own judgements. Rater A on g6-45 named the wrong task in a note (the trajectory is task 001833, safedelete); its labels are unaffected.

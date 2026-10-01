@@ -1,0 +1,14 @@
+{
+ "stop_reason": "token_ceiling",
+ "stop_evidence": "[M157] \"10 passed, 3 warnings in 0.01s\" \u2014 final repeated output before TrialBudgetExhaustedError at 79 episodes (run facts).",
+ "first_failure_is_pass": false,
+ "first_failure_what": "At [M90], introduced group matching by group-local index range (`range(len(group))`) instead of the original vulnerability indices, leaving duplicate advisories unmerged when an unrelated result precedes them; hidden tests failed (reward 0.0), and the bug was never detected.",
+ "first_failure_evidence": "[M90] \"if any(find(j) == root for j in range(len(group))):\"",
+ "blame": "model",
+ "blame_evidence": "[M90] \"if any(find(j) == root for j in range(len(group))):\"",
+ "loop_kind": "repetition",
+ "loop_start_evidence": "[M104] \"cd /workspace/repo && git stash list && git status --short && git diff --stat\"",
+ "loop_end_evidence": "[M134] \"cd /workspace/repo; git status --short 2>&1 | tail -20\"",
+ "upstream_fetch": false,
+ "upstream_evidence": "none observed \u2014 every edit was typed in place via `python - <<'EOF'` heredocs; no pip/curl/wget/git clone."
+}

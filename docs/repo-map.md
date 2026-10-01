@@ -303,7 +303,7 @@ inputs:
   - path: src/evallab/probe03.py
     digest: sha256:939de53574bb4c9c6002d968331d1341662d23f859badf8cb29c9d328b96fd1c
   - path: src/evallab/process_job.py
-    digest: sha256:c18690d124a67edff8971db06304fa655de6060ed68161b4605c686f68a392e9
+    digest: sha256:010a43cf4881d0f6efc6fd1e36225faeb4e840ee53407595cf39e7e9f9eaaa01
   - path: src/evallab/profiles.py
     digest: sha256:2a85f3a9d512135b9b90c86124eb92a1c1ed24c8c244274c6932438d8868e173
   - path: src/evallab/provenance.py
@@ -469,7 +469,7 @@ inputs:
   - path: src/evallab/trajectory_loss_manifest.py
     digest: sha256:9b94bbf60d2ae917340d67294223ea6e7caa8dbbe768cfb81306d118ef2cb228
   - path: src/evallab/trial_decision.py
-    digest: sha256:5a5068affa28341f41c87fc07bca80abe412d4e08db3dbb2ecbd7cfd2c977759
+    digest: sha256:5209b42bc47f1ce8908470d5a53b02f80a30c409dcb0c8ebb15f7a2a989a11d4
   - path: src/evallab/trial_diagnosis.py
     digest: sha256:a18ebcf16da5a0c7094c5c28519df7e5d3308e30d483695633c8a4a89f39f575
   - path: src/evallab/trial_treatment.py

@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "fatal: unable to access 'https://github.com/pyro-ppl/numpyro.git/': Failed to connect to github.com port 443",
+      "ref": "head#20"
+    },
+    {
+      "quote": "tr = jax.eval_shape(numpyro.handlers.seed(f, 1), ())",
+      "ref": "head#43"
+    },
+    {
+      "quote": "For simplicity, JAX has removed its internal frames from the traceback of the following exception.",
+      "ref": "head#44"
+    },
+    {
+      "quote": "cat > /tmp/inspect_trace.py <<'PYEOF'",
+      "ref": "head#83"
+    }
+  ],
+  "first_failure": {
+    "quote": "For simplicity, JAX has removed its internal frames from the traceback of the following exception.",
+    "ref": "head#44",
+    "what": "began repeating the same failing eval_shape trace probe instead of implementing the fix; never recovered"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#44",
+    "head#83"
+  ],
+  "notes": "reward 0 (5 hidden tests FAILED with NotImplementedError .event_dim), n_episodes 83, TrialBudgetExhaustedError. Never edited batch_util.py (empty diff); burned budget re-running identical failing trace probe from head#44 to end.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-b-002402-leakclosed__X7nGHNs"
+}

@@ -1,0 +1,69 @@
+{
+ "trial": "har116-a-002256-loopfix__5Xu6dgc",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002256-loopfix/har116-a-002256-loopfix__5Xu6dgc",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002256-loopfix",
+ "task": "mimo-v2.6-rl/format-code-task-002256",
+ "verifier": {
+  "scored": false,
+  "reward": null,
+  "source": "missing",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "unknown",
+  "exception_type": "ModuleNotFoundError",
+  "exception_message": "No module named 'duckdb'",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "environment",
+  "attribution": "unclear",
+  "rule_id": "R-ENV-01",
+  "evidence_step_refs": [],
+  "recovered": false,
+  "note": "no model turns; infra-only failure, nothing to attribute to the model"
+ },
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "environment",
+  "attribution": "unclear",
+  "rule_id": "R-ENV-01",
+  "evidence_step_refs": [],
+  "note": "no model turns; infra-only failure, nothing to attribute to the model"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [],
+  "identical": null,
+  "confirmation": null,
+  "in_loops": null,
+  "all_steps": null,
+  "loop_prompt_share": null,
+  "result_input_tokens": 1306
+ },
+ "wedge": {
+  "keystroke_source": "none",
+  "executed_turns": 0,
+  "states": {},
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "ba8d8358d2bb6ca6fae7c00e871c0271e587269c"
+ },
+ "nop_runs_dir": null
+}

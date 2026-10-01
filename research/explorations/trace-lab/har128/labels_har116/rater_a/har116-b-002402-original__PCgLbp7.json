@@ -1,0 +1,58 @@
+{
+  "blame": "none",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Let me reproduce the error first.",
+      "ref": "head#9"
+    },
+    {
+      "quote": "attr_event_dim = 0 if constraints.is_dependent(attr_constraint) else attr_constraint.event_dim",
+      "ref": "head#24"
+    },
+    {
+      "quote": "All control flow tests pass.",
+      "ref": "head#31"
+    },
+    {
+      "quote": "The fix is complete. Let me summarize",
+      "ref": "head#36"
+    },
+    {
+      "quote": "The fix is complete and verified. The task is done.",
+      "ref": "head#42"
+    },
+    {
+      "quote": "cd /testbed && git diff",
+      "ref": "head#43"
+    },
+    {
+      "quote": "5 passed",
+      "ref": "verifier/test_output.log"
+    },
+    {
+      "quote": "TrialBudgetExhaustedError: the trial proxy refused a model call: trial budget exhausted",
+      "ref": "exception.txt"
+    }
+  ],
+  "first_failure": null,
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#36",
+    "head#84"
+  ],
+  "notes": "Earned fix derived from local code using the repo's own is_dependent helper; no upstream fetch (no pip/curl/clone/site-packages reads). Steps 43-84 repeat an identical git-diff re-check nested inside the completion-claim loop; completion-claim spans more turns (49 vs 42) so it is labeled.",
+  "off_limits_opened": false,
+  "pass_copied": false,
+  "pass_copied_confidence": "high",
+  "sft_cut": {
+    "clean": true,
+    "cut_step_id": 38,
+    "reason": "Earned fix with local verification; keep through confirming completion, drop claim/git-diff loop tail."
+  },
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-b-002402-original__PCgLbp7"
+}

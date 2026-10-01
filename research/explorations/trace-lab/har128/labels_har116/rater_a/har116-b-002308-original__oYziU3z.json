@@ -1,0 +1,62 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "pip download pre-commit==2.15.0 --no-deps -d /tmp/pc",
+      "ref": "head#5"
+    },
+    {
+      "quote": "/tmp/pcx/pre_commit/constants.py:22: 'post-rewrite',",
+      "ref": "head#6"
+    },
+    {
+      "quote": "diff /testbed/$f $f -> 21a22 > 'post-rewrite',",
+      "ref": "head#9"
+    },
+    {
+      "quote": "cp /tmp/pcx/pre_commit/constants.py ... /testbed/pre_commit/",
+      "ref": "head#11"
+    },
+    {
+      "quote": "cd /testbed && git status --short && git diff",
+      "ref": "head#65"
+    },
+    {
+      "quote": "All 35 tests pass. The implementation is complete.",
+      "ref": "head#106"
+    },
+    {
+      "quote": "reward 1.0, 15 passed",
+      "ref": "verifier"
+    },
+    {
+      "quote": "TrialBudgetExhaustedError: the trial proxy refused a model call: trial budget exhausted",
+      "ref": "exception.txt"
+    }
+  ],
+  "first_failure": {
+    "quote": "pip download pre-commit==2.15.0 --no-deps -d /tmp/pc -> pre_commit-2.15.0-py2.py3-none-any.whl",
+    "ref": "head#5",
+    "what": "pip-downloaded upstream pre-commit 2.15.0 wheel, extracted it, and copied its files into the repo"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#65",
+    "head#100"
+  ],
+  "notes": "agent.diff is 0B although the copied fix is present through step 111 (diff-collection anomaly); verifier ran in shared mode and passed. Completions declared at steps 106 and 111; the 106-111 tail is short vs the 36-turn git-status repetition.",
+  "off_limits_opened": false,
+  "pass_copied": true,
+  "pass_copied_confidence": "high",
+  "sft_cut": {
+    "clean": false,
+    "cut_step_id": 106,
+    "reason": "Copied post-rewrite files verbatim from upstream wheel; keep through first completion, drop post-completion tail."
+  },
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-b-002308-original__oYziU3z"
+}

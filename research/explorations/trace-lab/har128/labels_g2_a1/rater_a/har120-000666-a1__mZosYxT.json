@@ -1,0 +1,47 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "it should report that no substance with that ID was found and raise `pyromat.utility.PMParamError`",
+      "ref": "head#2"
+    },
+    {
+      "quote": "def get(idstr):",
+      "ref": "head#22"
+    },
+    {
+      "quote": "raise utility.PMParamError('Invalid substance ID: ' + repr(idstr))",
+      "ref": "head#22"
+    },
+    {
+      "quote": "assert 'not.a.real.substance' in ''",
+      "ref": "head#28"
+    },
+    {
+      "quote": "PMParamError: Invalid substance ID: 'not.a.real.substance'",
+      "ref": "head#22"
+    },
+    {
+      "quote": "Are you sure you want to mark the task as complete?",
+      "ref": "head#27"
+    }
+  ],
+  "first_failure": {
+    "quote": "raise utility.PMParamError('Invalid substance ID: ' + repr(idstr))",
+    "ref": "head#22",
+    "what": "added get() that raises but never prints missing ID, missing report requirement"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "7/9 pass; 2 fails both capsys stdout empty on invalid ID; clean finish 27-28 confirming completion",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "model_finished",
+  "trial": "har120-000666-a1__mZosYxT"
+}

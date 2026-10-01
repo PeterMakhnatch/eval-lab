@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "The fix (matching upstream waitress commit for issue #165)",
+      "ref": "head#8"
+    },
+    {
+      "quote": "def split_uri(uri):",
+      "ref": "head#8"
+    },
+    {
+      "quote": "AssertionError: '/whatever' != '//testing/whatever'",
+      "ref": "head#90"
+    },
+    {
+      "quote": "FAILED (failures=6)",
+      "ref": "head#90"
+    }
+  ],
+  "first_failure": {
+    "quote": "The fix (matching upstream waitress commit for issue #165)",
+    "ref": "head#8",
+    "what": "began repeating identical split_uri edit that never applies; file left unchanged so //testing bug persists"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#8",
+    "head#60"
+  ],
+  "notes": "Reward 0, TrialBudgetExhausted, n_episodes 90 (<121), n_input ~2.41M => token_ceiling. agent.diff empty; verifier fails 6/13 double-slash cases (path '/whatever' vs '//testing/whatever', proxy_netloc 'testing' vs ''). Trajectory is ~80 turns of identical python replace block with no file change and no verification, never recovering.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-b-000226-original__JTEerfm"
+}

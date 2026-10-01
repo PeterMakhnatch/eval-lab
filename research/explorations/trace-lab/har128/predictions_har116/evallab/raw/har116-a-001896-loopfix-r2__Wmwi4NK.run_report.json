@@ -1,0 +1,1078 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "har116-a-001896-loopfix-r2__Wmwi4NK",
+    "trial_id": "bb3001e3-7d74-4dba-9149-79bd294e02aa",
+    "task": "mimo-v2.6-rl/format-code-task-001896",
+    "job": "HAR-116-har116-a-001896-loopfix-r2",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "7ca37240-b581-48f3-89e9-fb74601b17e4",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001896-loopfix-r2/har116-a-001896-loopfix-r2__Wmwi4NK"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "failed",
+    "reward": 0.0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "verifier_outcome": "fail",
+    "stop_reason": "trial_budget_exhausted",
+    "stop_detail": "agent metadata stop_reason; binding ceiling: input_tokens",
+    "completion": "Completion: never claimed; the run ended on step 95 (<tool_call><function=command><parameter=analysis>Write the fallback module using a python script.</parameter><parameter=...).",
+    "execution_problems": {
+      "parse_errors": 57,
+      "prose_completions": 0,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": "<tool_call><function=command><parameter=analysis>Write the fallback module using a python script.</parameter><parameter=plan>Create linkpreview/preview/html.py via python3 -c with escaped string.</parameter><parameter=commands>[{\"keystrokes\": \"python3 -c '\\nfrom pathlib import Path\\np = Path(\\\"/workspace/repo/linkpreview/preview/html.py\\\")\\np.write_text(\\\"from typing import Union\\\\n\\\\nfrom bs4 import BeautifulSoup\\\\nfrom linkpreview.link import Link\\\\n\\\")\\nprint(\\\"ok\\\")\\n'\\n]</parameter><parameter=duration>0.2</parameter></function></tool_call>",
+    "verifier_files": [
+      "verifier/agent.diff",
+      "verifier/apply.log",
+      "verifier/reward.txt",
+      "verifier/test-stdout.txt",
+      "verifier/test_output.log"
+    ],
+    "first_failure": {
+      "step": 39,
+      "kind": "harness_rejection",
+      "evidence": "agent step with no executed tool call: Now I'll implement the fallback metadata. Plan: 1. Add `site_name`, `title`, `description`, `image` fallback properties t...",
+      "confidence": "high"
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T01:50:05.064202+00:00",
+    "finished_at": "2026-10-01T02:00:18.254754+00:00",
+    "total_seconds": 613.191,
+    "phases": {
+      "environment_setup": {
+        "seconds": 1.567,
+        "starts_at_offset_seconds": 0.052
+      },
+      "agent_setup": {
+        "seconds": 7.402,
+        "starts_at_offset_seconds": 1.921
+      },
+      "agent_execution": {
+        "seconds": 598.276,
+        "starts_at_offset_seconds": 9.364
+      },
+      "verifier": {
+        "seconds": 2.833,
+        "starts_at_offset_seconds": 610.186
+      }
+    },
+    "unaccounted_seconds": 3.113,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": 4.019,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 95,
+    "agent_span_seconds": 561.203,
+    "step_gap_seconds": {
+      "count": 93,
+      "median": 3.185,
+      "p90": 6.468,
+      "max": 50.909,
+      "total": 557.671
+    },
+    "slowest_steps": [
+      {
+        "step": 30,
+        "seconds": 50.909,
+        "action": "bash_command: cd /workspace/repo && cat linkpreview/compose.py && echo \"=== README ===\" && cat README.md && echo \"..."
+      },
+      {
+        "step": 44,
+        "seconds": 49.274,
+        "action": null
+      },
+      {
+        "step": 37,
+        "seconds": 34.121,
+        "action": "bash_command: cd /workspace/repo && ls [hidden-path]/ && python3 -m pytest tests -x -q 2>&1 | tail -20"
+      },
+      {
+        "step": 39,
+        "seconds": 28.755,
+        "action": null
+      },
+      {
+        "step": 43,
+        "seconds": 25.672,
+        "action": null
+      }
+    ]
+  },
+  "tokens": {
+    "input": 2427344,
+    "cached_input": 0,
+    "uncached_input": 2427344,
+    "output": 23326,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 2450670,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 2427344,
+        "cached_input": 0,
+        "output": 23326,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 2427344,
+        "cached_input": 0,
+        "output": 23326,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": 2427344,
+        "cached_input": null,
+        "output": 23326,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 94,
+    "llm_steps_with_usage": 94,
+    "context": {
+      "first_prompt_tokens": 1356,
+      "peak_prompt_tokens": 40488,
+      "peak_step": 95,
+      "last_prompt_tokens": 40488
+    },
+    "top_steps": [
+      {
+        "step": 95,
+        "input": 40488,
+        "output": 136,
+        "cost_usd": null,
+        "action": "<tool_call><function=command><parameter=analysis>Write the fallback module using a python script.</p..."
+      },
+      {
+        "step": 94,
+        "input": 40308,
+        "output": 136,
+        "cost_usd": null,
+        "action": "<tool_call><function=command><parameter=analysis>Write the fallback module using a python script.</p..."
+      },
+      {
+        "step": 93,
+        "input": 40128,
+        "output": 136,
+        "cost_usd": null,
+        "action": "<tool_call><function=command><parameter=analysis>Write the fallback module using a python script.</p..."
+      },
+      {
+        "step": 92,
+        "input": 39948,
+        "output": 136,
+        "cost_usd": null,
+        "action": "<tool_call><function=command><parameter=analysis>Write the fallback module using a python script.</p..."
+      },
+      {
+        "step": 91,
+        "input": 39768,
+        "output": 136,
+        "cost_usd": null,
+        "action": "<tool_call><function=command><parameter=analysis>Write the fallback module using a python script.</p..."
+      }
+    ]
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 41,
+    "actions": 37,
+    "distinct_tools": 1,
+    "polls": 0,
+    "by_tool": [
+      {
+        "tool": "bash_command",
+        "calls": 41,
+        "ok": 0,
+        "errors": 1,
+        "unknown": 40,
+        "output_chars": 53764,
+        "first_step": 2,
+        "last_step": 38,
+        "judged": 1,
+        "error_rate": 1.0
+      }
+    ],
+    "top_programs": [
+      {
+        "program": "cat",
+        "calls": 15
+      },
+      {
+        "program": "for",
+        "calls": 8
+      },
+      {
+        "program": "python3",
+        "calls": 6
+      },
+      {
+        "program": "sed",
+        "calls": 4
+      },
+      {
+        "program": "find",
+        "calls": 1
+      },
+      {
+        "program": "wc",
+        "calls": 1
+      },
+      {
+        "program": "grep",
+        "calls": 1
+      },
+      {
+        "program": "ls",
+        "calls": 1
+      }
+    ],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 37,
+    "distinct_actions": 35,
+    "repeated_actions": 2,
+    "repeat_rate": 0.0541,
+    "returns_to_earlier_action": 1,
+    "consecutive_repeats": 1,
+    "exact_revisits": 0,
+    "same_result_from_different_action": 4,
+    "repeated_errors": 0,
+    "longest_identical_run": {
+      "length": 2,
+      "steps": [
+        22,
+        23
+      ],
+      "start_step": 22,
+      "end_step": 23
+    },
+    "longest_cycle": null,
+    "most_repeated": [
+      {
+        "tool": "bash_command",
+        "target": "cd /workspace/repo && for f in opengraph.py twittercard.py metabase.py schemabase.py; do echo \"===== preview/$f =====\"; awk '{print NR\": \"$0}' linkpreview/previ...",
+        "count": 2,
+        "steps": [
+          22,
+          23
+        ],
+        "identical_results": 0
+      },
+      {
+        "tool": "bash_command",
+        "target": "cd /workspace/repo && cat linkpreview/compose.py",
+        "count": 2,
+        "steps": [
+          31,
+          33
+        ],
+        "identical_results": 0
+      }
+    ],
+    "loop_suspicion": {
+      "detected": false,
+      "score": 0.0,
+      "reasons": []
+    },
+    "repeats_by_window": [
+      0,
+      0,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "revisits_started": {
+      "repeat_rate_by_window": [
+        0.0,
+        0.0,
+        0.1,
+        0.1111,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "median_repeat_rate": 0.05,
+      "status": "onset",
+      "reason": null,
+      "window": 2,
+      "steps": [
+        20,
+        29
+      ],
+      "repeat_rate": 0.1
+    }
+  },
+  "subagents": {
+    "observability": "none_observed",
+    "reason": null,
+    "count": 0,
+    "delegated_count": 0,
+    "summarization_count": 0,
+    "delegation_calls": [],
+    "items": [],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": []
+  },
+  "errors": {
+    "tool_errors": 1,
+    "harness_signalled": 0,
+    "inferred_from_output": 1,
+    "status_unknown_calls": 40,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {
+      "inferred_from_output": 1
+    },
+    "first_error": {
+      "step": 21,
+      "offset_seconds": 78.146,
+      "evidence": "output_text"
+    },
+    "ended_in_error": true,
+    "examples": [
+      {
+        "step": 21,
+        "tool": "bash_command",
+        "target": "cd /workspace/repo && for f in opengraph.py twittercard.py metabase.py schemabase.py jsonld.py; do echo \"===== preview/$...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "Current Terminal Screen: 2: import orjson as json 3: except ModuleNotFoundError: # pragma: nocover 4: try: 5: import ujson as json 6: except ModuleNotFoundError: # pragma: nocover 7: import json 8: 9: from linkpreview.preview.schemabase imp..."
+      }
+    ],
+    "exception": {
+      "type": "TrialBudgetExhaustedError",
+      "message": "the trial proxy refused a model call: trial budget exhausted",
+      "occurred_at": "2026-10-01T02:00:12.707271Z"
+    }
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 0,
+    "items": []
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 95,
+    "shown_steps": 23,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 0.487,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      },
+      {
+        "step": 2,
+        "offset_seconds": 4.019,
+        "source": "agent",
+        "action": "bash_command: find /workspace/repo -type f -not -path '*/.git/*' | head -50; echo ---; ls -la /workspace/repo",
+        "status": "unknown",
+        "input_tokens": 1356,
+        "output_tokens": 61,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 3,
+        "offset_seconds": 7.781,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && for f in linkpreview/linkpreview.py linkpreview/preview/base.py linkpreview/pr...",
+        "status": "unknown",
+        "input_tokens": 2180,
+        "output_tokens": 161,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 4,
+        "offset_seconds": 11.4,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && cat -n linkpreview/linkpreview.py ; cd /workspace/repo && cat -n linkpreview/c...",
+        "status": "unknown",
+        "input_tokens": 3011,
+        "output_tokens": 109,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 5,
+        "offset_seconds": 15.243,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '1,140p' linkpreview/linkpreview.py ; cd /workspace/repo && cat -n link...",
+        "status": "unknown",
+        "input_tokens": 3875,
+        "output_tokens": 116,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 6,
+        "offset_seconds": 18.155,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && wc -l linkpreview/*.py linkpreview/preview/*.py [hidden-path]/*.py",
+        "status": "unknown",
+        "input_tokens": 4690,
+        "output_tokens": 66,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 7,
+        "offset_seconds": 22.165,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && cat -n linkpreview/linkpreview.py ; cd /workspace/repo && cat -n linkpreview/c...",
+        "status": "unknown",
+        "input_tokens": 5070,
+        "output_tokens": 110,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 8,
+        "offset_seconds": 25.287,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && cat -n linkpreview/linkpreview.py | sed -n '1,111p'",
+        "status": "unknown",
+        "input_tokens": 5991,
+        "output_tokens": 54,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 9,
+        "offset_seconds": 28.185,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '1,111p' linkpreview/linkpreview.py | tail -95",
+        "status": "unknown",
+        "input_tokens": 6775,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 10,
+        "offset_seconds": 31.829,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n '1,111p' linkpreview/linkpreview.py | sed -n '45,111p' && echo \"=== hel...",
+        "status": "unknown",
+        "input_tokens": 7433,
+        "output_tokens": 91,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "omitted_steps": [
+          11,
+          20
+        ]
+      },
+      {
+        "step": 21,
+        "offset_seconds": 78.146,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && for f in opengraph.py twittercard.py metabase.py schemabase.py jsonld.py; do e...",
+        "status": "error",
+        "input_tokens": 12715,
+        "output_tokens": 80,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          22,
+          22
+        ]
+      },
+      {
+        "step": 23,
+        "offset_seconds": 88.458,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && for f in opengraph.py twittercard.py metabase.py schemabase.py; do echo \"=====...",
+        "status": "unknown",
+        "input_tokens": 13722,
+        "output_tokens": 77,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "omitted_steps": [
+          24,
+          32
+        ]
+      },
+      {
+        "step": 33,
+        "offset_seconds": 178.492,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && cat linkpreview/compose.py",
+        "status": "unknown",
+        "input_tokens": 18024,
+        "output_tokens": 41,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "omitted_steps": [
+          34,
+          85
+        ]
+      },
+      {
+        "step": 86,
+        "offset_seconds": 535.718,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 38868,
+        "output_tokens": 136,
+        "cost_usd": null,
+        "message": "<tool_call><function=command><parameter=analysis>Write the fallback module using a python script.</parameter><parameter=plan>Create linkprev...",
+        "flags": []
+      },
+      {
+        "step": 87,
+        "offset_seconds": 538.659,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 39048,
+        "output_tokens": 136,
+        "cost_usd": null,
+        "message": "<tool_call><function=command><parameter=analysis>Write the fallback module using a python script.</parameter><parameter=plan>Create linkprev...",
+        "flags": []
+      },
+      {
+        "step": 88,
+        "offset_seconds": 541.484,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 39228,
+        "output_tokens": 136,
+        "cost_usd": null,
+        "message": "<tool_call><function=command><parameter=analysis>Write the fallback module using a python script.</parameter><parameter=plan>Create linkprev...",
+        "flags": []
+      },
+      {
+        "step": 89,
+        "offset_seconds": 544.581,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 39408,
+        "output_tokens": 136,
+        "cost_usd": null,
+        "message": "<tool_call><function=command><parameter=analysis>Write the fallback module using a python script.</parameter><parameter=plan>Create linkprev...",
+        "flags": []
+      },
+      {
+        "step": 90,
+        "offset_seconds": 547.547,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 39588,
+        "output_tokens": 136,
+        "cost_usd": null,
+        "message": "<tool_call><function=command><parameter=analysis>Write the fallback module using a python script.</parameter><parameter=plan>Create linkprev...",
+        "flags": []
+      },
+      {
+        "step": 91,
+        "offset_seconds": 550.561,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 39768,
+        "output_tokens": 136,
+        "cost_usd": null,
+        "message": "<tool_call><function=command><parameter=analysis>Write the fallback module using a python script.</parameter><parameter=plan>Create linkprev...",
+        "flags": []
+      },
+      {
+        "step": 92,
+        "offset_seconds": 553.405,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 39948,
+        "output_tokens": 136,
+        "cost_usd": null,
+        "message": "<tool_call><function=command><parameter=analysis>Write the fallback module using a python script.</parameter><parameter=plan>Create linkprev...",
+        "flags": []
+      },
+      {
+        "step": 93,
+        "offset_seconds": 556.13,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 40128,
+        "output_tokens": 136,
+        "cost_usd": null,
+        "message": "<tool_call><function=command><parameter=analysis>Write the fallback module using a python script.</parameter><parameter=plan>Create linkprev...",
+        "flags": []
+      },
+      {
+        "step": 94,
+        "offset_seconds": 559.062,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 40308,
+        "output_tokens": 136,
+        "cost_usd": null,
+        "message": "<tool_call><function=command><parameter=analysis>Write the fallback module using a python script.</parameter><parameter=plan>Create linkprev...",
+        "flags": []
+      },
+      {
+        "step": 95,
+        "offset_seconds": 561.69,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 40488,
+        "output_tokens": 136,
+        "cost_usd": null,
+        "message": "<tool_call><function=command><parameter=analysis>Write the fallback module using a python script.</parameter><parameter=plan>Create linkprev...",
+        "flags": []
+      }
+    ],
+    "windows": [
+      {
+        "steps": [
+          1,
+          10
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 824,
+        "cost_usd": null,
+        "seconds": 31.342,
+        "peak_prompt_tokens": 7433,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          11,
+          19
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 750,
+        "cost_usd": null,
+        "seconds": 34.087,
+        "peak_prompt_tokens": 11665,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          20,
+          29
+        ],
+        "tool_calls": 10,
+        "errors": 1,
+        "revisits": 1,
+        "output_tokens": 1043,
+        "cost_usd": null,
+        "seconds": 43.202,
+        "peak_prompt_tokens": 16452,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          30,
+          38
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 1,
+        "output_tokens": 3636,
+        "cost_usd": null,
+        "seconds": 66.329,
+        "peak_prompt_tokens": 20561,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          39,
+          48
+        ],
+        "tool_calls": 0,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 10681,
+        "cost_usd": null,
+        "seconds": 157.33,
+        "peak_prompt_tokens": 32028,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          49,
+          57
+        ],
+        "tool_calls": 0,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1224,
+        "cost_usd": null,
+        "seconds": 24.079,
+        "peak_prompt_tokens": 33648,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          58,
+          67
+        ],
+        "tool_calls": 0,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1360,
+        "cost_usd": null,
+        "seconds": 27.904,
+        "peak_prompt_tokens": 35448,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          68,
+          76
+        ],
+        "tool_calls": 0,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1224,
+        "cost_usd": null,
+        "seconds": 24.632,
+        "peak_prompt_tokens": 37068,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          77,
+          86
+        ],
+        "tool_calls": 0,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1360,
+        "cost_usd": null,
+        "seconds": 26.725,
+        "peak_prompt_tokens": 38868,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          87,
+          95
+        ],
+        "tool_calls": 0,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1224,
+        "cost_usd": null,
+        "seconds": 23.031,
+        "peak_prompt_tokens": 40488,
+        "compactions": 0
+      }
+    ],
+    "time_windows": {
+      "status": "available",
+      "reason": null,
+      "origin": "2026-10-01T01:50:14.915336+00:00",
+      "span_seconds": 561.203,
+      "steps_without_timestamps": 0,
+      "windows": [
+        {
+          "steps": [
+            1,
+            16
+          ],
+          "tool_calls": 15,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1341,
+          "cost_usd": null,
+          "peak_prompt_tokens": 10433,
+          "compactions": 0,
+          "starts_at_offset_seconds": 0.0,
+          "ends_at_offset_seconds": 56.12
+        },
+        {
+          "steps": [
+            17,
+            28
+          ],
+          "tool_calls": 12,
+          "errors": 1,
+          "revisits": 1,
+          "output_tokens": 1202,
+          "cost_usd": null,
+          "peak_prompt_tokens": 16047,
+          "compactions": 0,
+          "starts_at_offset_seconds": 56.12,
+          "ends_at_offset_seconds": 112.241
+        },
+        {
+          "steps": [
+            29,
+            30
+          ],
+          "tool_calls": 2,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 3107,
+          "cost_usd": null,
+          "peak_prompt_tokens": 16963,
+          "compactions": 0,
+          "starts_at_offset_seconds": 112.241,
+          "ends_at_offset_seconds": 168.361
+        },
+        {
+          "steps": [
+            31,
+            36
+          ],
+          "tool_calls": 6,
+          "errors": 0,
+          "revisits": 1,
+          "output_tokens": 290,
+          "cost_usd": null,
+          "peak_prompt_tokens": 19488,
+          "compactions": 0,
+          "starts_at_offset_seconds": 168.361,
+          "ends_at_offset_seconds": 224.481
+        },
+        {
+          "steps": [
+            37,
+            39
+          ],
+          "tool_calls": 2,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1976,
+          "cost_usd": null,
+          "peak_prompt_tokens": 21079,
+          "compactions": 0,
+          "starts_at_offset_seconds": 224.481,
+          "ends_at_offset_seconds": 280.601
+        },
+        {
+          "steps": [
+            40,
+            42
+          ],
+          "tool_calls": 0,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 4106,
+          "cost_usd": null,
+          "peak_prompt_tokens": 25569,
+          "compactions": 0,
+          "starts_at_offset_seconds": 280.601,
+          "ends_at_offset_seconds": 336.722
+        },
+        {
+          "steps": [
+            43,
+            43
+          ],
+          "tool_calls": 0,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1448,
+          "cost_usd": null,
+          "peak_prompt_tokens": 27032,
+          "compactions": 0,
+          "starts_at_offset_seconds": 336.722,
+          "ends_at_offset_seconds": 392.842
+        },
+        {
+          "steps": [
+            44,
+            57
+          ],
+          "tool_calls": 0,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 4688,
+          "cost_usd": null,
+          "peak_prompt_tokens": 33648,
+          "compactions": 0,
+          "starts_at_offset_seconds": 392.842,
+          "ends_at_offset_seconds": 448.962
+        },
+        {
+          "steps": [
+            58,
+            75
+          ],
+          "tool_calls": 0,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 2448,
+          "cost_usd": null,
+          "peak_prompt_tokens": 36888,
+          "compactions": 0,
+          "starts_at_offset_seconds": 448.962,
+          "ends_at_offset_seconds": 505.083
+        },
+        {
+          "steps": [
+            76,
+            95
+          ],
+          "tool_calls": 0,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 2720,
+          "cost_usd": null,
+          "peak_prompt_tokens": 40488,
+          "compactions": 0,
+          "starts_at_offset_seconds": 505.083,
+          "ends_at_offset_seconds": 561.203
+        }
+      ]
+    }
+  },
+  "data_quality": [
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B' has no pinned price-table entry",
+    "harness reports no per-call status (no exit codes or error flags): tool errors are only inferred from output text"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "3dd90721baaafb21e531d5d287762675a7eee1e324834b4e938b8b157c04587a"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "d4013bdb13f60a6007e9cd791f32d904fa80b094524790f3bc27c45813b13f85"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 94,
+    "recorded": 94,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 57,
+    "prose_completions": 0,
+    "executed_calls": 41,
+    "task_complete_turns": 0,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 0,
+    "continuations_missing": [],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 95,
+        "copied_steps": 0,
+        "session_id": "7ca37240-b581-48f3-89e9-fb74601b17e4"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 95,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": []
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B) failed (reward 0) on mimo-v2.6-rl/format-code-task-001896; in 10m13s wall (9m58s agent); 95 steps, 41 tool calls, 1 error, 2.45M tokens, cost unavailable; 2 repeated actions (0 exact revisits); no subagents observed."
+}

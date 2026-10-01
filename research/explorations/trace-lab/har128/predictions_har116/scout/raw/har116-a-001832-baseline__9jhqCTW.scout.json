@@ -1,0 +1,101 @@
+{
+ "trial": "har116-a-001832-baseline__9jhqCTW",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001832-baseline/har116-a-001832-baseline__9jhqCTW",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001832-baseline",
+ "task": "mimo-v2.6-rl/format-code-task-001832",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 3,
+   "summarization_count": 1,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": [
+    "head#71"
+   ]
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 73,
+  "step_ref": "head#73",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#73",
+   "head#87"
+  ],
+  "note": "identical message repeated steps 73-87 with no change after errors"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 13,
+    "span": [
+     "head#2",
+     "head#14"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 15,
+    "span": [
+     "head#73",
+     "head#87"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 224921,
+   "completion": 10505,
+   "steps": 28,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 224921,
+   "completion": 10505,
+   "steps": 28,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2367470,
+   "completion": 24287,
+   "steps": 84,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.095,
+  "result_input_tokens": 2481484
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 84,
+  "states": {
+   "continuation": 13,
+   "no_prompt": 4,
+   "prompt": 67
+  },
+  "stretches": [],
+  "short_stretches": 1
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "ba8d8358d2bb6ca6fae7c00e871c0271e587269c"
+ },
+ "nop_runs_dir": null
+}

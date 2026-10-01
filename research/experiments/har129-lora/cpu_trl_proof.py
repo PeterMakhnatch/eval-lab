@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""CPU proof of sft.py's training path on the pinned TRL stack (HAR-129, $0).
+"""Local proof of sft.py's training path on the pinned TRL stack (HAR-129, $0).
+
+Runs on the local accelerator (Apple MPS here, else CPU), in fp32; the GPU
+path differs in bf16, CUDA kernels, Qwen3_5/fla and the real weights.
 
 Uses the real distill tokenizer and the $0 fixture (including a G3-shaped
 ``loss: "last"`` row), a tiny randomly initialised Qwen2 model with the
@@ -85,14 +88,21 @@ def main() -> int:
         )
         check = sft.collated_label_check(trainer, rows)
 
-        # Chunked loss vs the stock causal-LM loss on the same labels.
+        # Chunked loss vs an independent full-logits cross-entropy over the
+        # same shifted labels (not the model's own, possibly TRL-patched, loss).
+        # A 7-token chunk forces several chunks per row.
+        sft.LOSS_CHUNK_TOKENS = 7
         diffs = []
         for example in trainer.train_dataset:
             batch = trainer.data_collator([example])
             batch = {key: value.to(trainer.model.device) for key, value in batch.items()}
             ours = trainer.compute_loss(trainer.model, batch).item()
-            stock = trainer.model(input_ids=batch["input_ids"], labels=batch["labels"]).loss.item()
-            diffs.append(abs(ours - stock))
+            logits = trainer.model(input_ids=batch["input_ids"]).logits[0, :-1].float()
+            reference = torch.nn.functional.cross_entropy(
+                logits, batch["labels"][0, 1:], ignore_index=-100
+            ).item()
+            diffs.append(abs(ours - reference))
+        sft.LOSS_CHUNK_TOKENS = 4096
 
         # A broken mask must be caught.
         broken = [dict(rows[0], assistant_masks=[0] + rows[0]["assistant_masks"][:-1])]

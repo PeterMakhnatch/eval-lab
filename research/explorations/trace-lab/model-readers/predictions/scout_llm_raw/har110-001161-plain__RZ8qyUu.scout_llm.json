@@ -1,0 +1,14 @@
+{
+ "stop_reason": "request_ceiling",
+ "stop_evidence": "[M166] \"grep -n \\\"non_cap\\|capitalize\\\" /testbed/tests/conftest.py; awk 'NR>=160 && NR<=200' /testbed/tests/conftest.py\"",
+ "first_failure_is_pass": false,
+ "first_failure_what": "Fetched the wrong upstream release (docformatter 1.7.1, which lacks --wrap-structured), starting a budget-consuming fetch-and-scratch-debug detour that never produced a single repo edit.",
+ "first_failure_evidence": "[M52] \"pip download docformatter==1.7.1 --no-deps -d /tmp/dfdl 2>&1 | tail -3\"",
+ "blame": "model",
+ "blame_evidence": "[M126] \"No network access to GitHub. I'll implement the feature from scratch.\"",
+ "loop_kind": "repetition",
+ "loop_start_evidence": "[M127] \"AttributeError: 'Namespace' object has no attribute 'line_range'\"",
+ "loop_end_evidence": "[M166] \"grep -n \\\"non_cap\\|capitalize\\\" /testbed/tests/conftest.py; awk 'NR>=160 && NR<=200' /testbed/tests/conftest.py\"",
+ "upstream_fetch": true,
+ "upstream_evidence": "[M52] \"pip download docformatter==1.7.1 --no-deps -d /tmp/dfdl 2>&1 | tail -3\""
+}

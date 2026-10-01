@@ -12,10 +12,11 @@ For every exported row (one model call):
   assistant turn after the generation prompt (``<think>…</think>…`` plus
   ``<|im_end|>``); the comparison is reported, with the exact delta, and
   gates only when ``--gate-target`` is set.
-* **captured** (``--capture calls.jsonl``): the row's history must equal the
-  captured request's ``messages`` (role and content, byte for byte) for the
-  call whose recorded prompt tokens match; any difference is reported with
-  the first differing message.
+* **captured** (``--capture calls.jsonl``): for the captured call whose
+  usage ``prompt_tokens`` equals the row's recorded prompt tokens, the row's
+  history must equal the request's ``messages`` (role and content, byte for
+  byte) and its target must equal choice 0's ``content`` and
+  ``reasoning_content``; the first difference is reported.
 
 Prints one JSON summary and writes ``fidelity.json`` (per-row results) next
 to the export. With ``--show N`` it also writes the first N rows' rendered
@@ -98,7 +99,17 @@ def main() -> None:
                     ),
                     None,
                 )
-                result["capture"] = "identical" if diff is None else f"differs_at_message_{diff}"
+                if diff is None:
+                    reply = _reply(match)
+                    expected = (target.get("content"), target.get("reasoning_content") or "")
+                    diff = None if reply == expected else "target"
+                result["capture"] = (
+                    "identical"
+                    if diff is None
+                    else "differs_at_target"
+                    if diff == "target"
+                    else f"differs_at_message_{diff}"
+                )
         results.append(result)
         if index < args.show:
             out = args.export / "rendered"
@@ -128,6 +139,18 @@ def _messages(call: dict) -> list[dict] | None:
     body = call.get("request_body")
     messages = body.get("messages") if isinstance(body, dict) else None
     return messages if isinstance(messages, list) else None
+
+
+def _reply(call: dict) -> tuple[str | None, str] | None:
+    """The served completion: ``(content, reasoning_content)`` of choice 0."""
+    body = call.get("response_body")
+    choices = body.get("choices") if isinstance(body, dict) else None
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        return None
+    message = choices[0].get("message")
+    if not isinstance(message, dict):
+        return None
+    return message.get("content"), message.get("reasoning_content") or ""
 
 
 if __name__ == "__main__":

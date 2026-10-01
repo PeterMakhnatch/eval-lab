@@ -75,6 +75,9 @@ ALLOWED_KNOBS = frozenset(
         "interleaved_thinking",
         "llm_call_kwargs",
         "loop_break",
+        "loop_command_run_min",
+        "loop_grace_calls",
+        "loop_message_run_min",
         "max_thinking_tokens",
         "max_turns",
         "output_cap_chars",
@@ -179,6 +182,12 @@ def _validate_config(config: dict[str, Any]) -> None:
     cap = config.get("output_cap_chars")
     if cap is not None and (isinstance(cap, bool) or not isinstance(cap, int) or cap < 2):
         raise ValueError("terminus config output_cap_chars must be an integer of at least 2")
+    for knob in ("loop_command_run_min", "loop_message_run_min", "loop_grace_calls"):
+        value = config.get(knob)
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, int) or value < 2
+        ):
+            raise ValueError(f"terminus config {knob} must be an integer of at least 2")
 
 
 @dataclass(frozen=True)

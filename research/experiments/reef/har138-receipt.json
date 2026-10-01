@@ -1,0 +1,181 @@
+{
+  "schema": "har138-curated-receipt/v1",
+  "recorded_at": "2026-10-01T05:22:56.374Z",
+  "issue": "https://linear.app/petermakhnatch/issue/HAR-138",
+  "revisions": {
+    "reef_base": "f4060bd1c9070e11333c2bfcfbd58d25d81bafa6",
+    "reef_integration": "b64254f55f76ed0c79fa06a2db61cbeb10131014",
+    "reef_client_base": "b7bfd4eefac22a7b0ea1be38f7ed998d174d27ac",
+    "reef_client_repair": "fff27d59d75ebdf347ab83001f5bf9f3f438de2b",
+    "publication": "Reef and SDK repair commits are local, unpublished; no fixed PyPI release claimed"
+  },
+  "before_patch": {
+    "client_distribution": "reef-client 0.2.0",
+    "scenario": "actual local Reef service with a seeded skill, no model calls",
+    "harness_pull": "KeyError: 'artifact_version'",
+    "files_left_after_failure": [
+      "skills/SKILL.md"
+    ]
+  },
+  "regression_checks": [
+    {
+      "command": ".venv/bin/python -m pytest third_party/reef-client/tests -q --override-ini addopts=",
+      "cwd": "owned Reef worktree",
+      "result": "20 passed"
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/reef_service/test_harness_channel.py -q --override-ini addopts= -k 'release_id_guards_sdk_evidence or pull_of_an_older or pulled_tree_is_byte_identical or version_addressed_pull or versions_catalog_carries or client_pull_writes or crlf_content or unknown_version_is_a_404 or release_reads_stay_responsive or inference_responses_of_a_file_serving'",
+      "cwd": "owned Reef worktree",
+      "result": "10 passed, 91 deselected"
+    },
+    {
+      "case": "stock SDK refuses before service startup",
+      "result": "exit 1, incompatible reef-client; no raw-HTTP fallback"
+    },
+    {
+      "case": "unscored trial",
+      "result": "exit 1; missing saved reward not coerced to zero"
+    },
+    {
+      "case": "aggregate job with two trials",
+      "result": "exit 1; refuses to guess"
+    },
+    {
+      "case": "existing output directory",
+      "result": "exit 1; original receipt remains byte-identical"
+    }
+  ],
+  "replay": {
+    "schema": "har138-flow-replay/v1",
+    "status": "pass",
+    "implementation": {
+      "script_sha256": "e947b25af3a87093c849cd8d011b33d3f81af066d96c31f7f7769ae8ea02ebf4",
+      "reef_version": "0.1.2.dev36+gf4060bd1c",
+      "reef_app_sha256": "d67d315969404e4cae8dbe1396541cd4553652abfa57ec093f77ec042b8cf8f2",
+      "sdk_client_sha256": "2b98100aa53dee72d4b7ec2bfa6752f2d0ef09a8443c25c41b58fb1379afe72d"
+    },
+    "sdk": {
+      "version": "0.2.1",
+      "source": "reef/.worktrees/lab-flow-release-contract/third_party/reef-client",
+      "installed_at": "/Users/petermakhnatch/Developer/reef/.worktrees/lab-flow-release-contract/third_party/reef-client/reef_client/__init__.py",
+      "sidecar": ".reef-harness-release"
+    },
+    "source_trial": {
+      "job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002864-loopfix-r2",
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002864-loopfix-r2/har116-a-002864-loopfix-r2__CWRe7mJ",
+      "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+      "task": "mimo-v2.6-rl/format-code-task-002864",
+      "saved_reward": 1,
+      "hashes": {
+        "result.json": "e07db8d20f08e3da16b5831a002535886ac3026db05e9e28139ccbd33ef0d0dd",
+        "config.json": "4e0666ea2cf30891cc54df3d2a940a0584b363f38af7aadf0ee4e83808bc3032",
+        "trial.log": "d70c5899dbc85c049db2b4082f9fd93060fa96fd6d0b5d120e933a2a135dba6e",
+        "trial-har116-a-002864-loopfix-r2__CWRe7mJ.json": "30b8b100eefe37649bf96b1ef1d6c15e8992afcbfea2c56feb9ce10e0926a0ec",
+        "agent/trajectory.json": "f435eb02e0fc31fcd3c1a3a8d5c922ada3f4f12599c5ea4cb755a061dcbe3403"
+      },
+      "projection": "counts/hashes only; no request history, logprobs, or prompts"
+    },
+    "scenario": "har138-replay",
+    "protocol_checks": [
+      {
+        "name": "import_trajectory_projection",
+        "status": "pass",
+        "detail": "lab-replay:har116-a-002864-loopfix-r2__CWRe7mJ:projection:1"
+      },
+      {
+        "name": "import_retry_idempotent",
+        "status": "pass",
+        "detail": "identical re-import dedups"
+      },
+      {
+        "name": "report_links_imported_inference",
+        "status": "pass",
+        "detail": "lab-replay:har116-a-002864-loopfix-r2__CWRe7mJ:projection:1"
+      },
+      {
+        "name": "fixture_step1_publishes",
+        "status": "pass",
+        "detail": "proposal 01790832134023158000-90e04266 release 7f65f700"
+      },
+      {
+        "name": "report_retry_idempotent",
+        "status": "pass",
+        "detail": "identical resend dedups"
+      },
+      {
+        "name": "same_id_conflict_rejected",
+        "status": "pass",
+        "detail": "status 409; stored report unchanged"
+      },
+      {
+        "name": "missing_reference_rejected",
+        "status": "pass",
+        "detail": "status 400"
+      },
+      {
+        "name": "foreign_reference_rejected",
+        "status": "pass",
+        "detail": "status 400"
+      },
+      {
+        "name": "fixture_step2_publishes",
+        "status": "pass",
+        "detail": "proposal 01790832134236984000-0a250477 release 586ab162"
+      },
+      {
+        "name": "pull_head_preserves_identity",
+        "status": "pass",
+        "detail": "release 586ab162 content content:8795d39f"
+      },
+      {
+        "name": "pinned_older_release_verified",
+        "status": "pass",
+        "detail": "release 7f65f700 distinct bytes"
+      },
+      {
+        "name": "unknown_release_refused",
+        "status": "pass",
+        "detail": "status 404"
+      }
+    ],
+    "fixture": {
+      "proposals": [
+        "01790832134023158000-90e04266",
+        "01790832134236984000-0a250477"
+      ],
+      "releases": [
+        "7f65f7009e114b1f8ba6b68fe2472fdf",
+        "586ab1627ad34e40a29e1ccdbc9ddffd"
+      ],
+      "content_id": "content:8795d39f15a74b7e887bab4ddd5edca9",
+      "second_step_trigger": "separate synthetic inference/report; the saved Lab reward is not rewritten",
+      "selection": "fixture-selected (marker rules beat the empty seed); NOT measured improvement",
+      "pulls": [
+        {
+          "dir": "pull-head",
+          "release_id": "586ab1627ad34e40a29e1ccdbc9ddffd",
+          "files": {
+            "pi-agent/AGENTS.md": "b70f05559908ce03327b06d0258cf65f5ad7344d57a9c5df4a0c3c06fb6ce6d5",
+            "pi-agent/models.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+            "pi-agent/settings.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+          }
+        },
+        {
+          "dir": "pull-pinned",
+          "release_id": "7f65f7009e114b1f8ba6b68fe2472fdf",
+          "files": {
+            "pi-agent/AGENTS.md": "326e28ccde1de39b63fc7a231fa196fb378cc573280b8cd407b56abbd7b4b344",
+            "pi-agent/models.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+            "pi-agent/settings.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+          }
+        }
+      ]
+    },
+    "limitations": [
+      "replay, not live: no provider request, so it cannot predict how a changed agent acts",
+      "single saved trial; no statistical claim",
+      "harness gain is fixture-selected, not earned from evidence",
+      "skill channel not exercised: the fixture seed serves no skills/SKILL.md"
+    ]
+  }
+}

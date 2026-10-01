@@ -38,36 +38,44 @@ from typing import Any
 REVISION = "2367e865d009c13ac81713a2878291d33ab28177"
 
 
-def capture_verdict(history: list[dict], target: dict, calls: list[dict]) -> str:
+def delivered(call: dict) -> bool:
+    """The agent got this response: status 200, no recorded ``error`` (such as
+    ``client_disconnect``) and a response body not cut at the size cap."""
+    body = call.get("response_body")
+    return (
+        call.get("error") is None
+        and call.get("response_status") == 200
+        and not (isinstance(body, dict) and body.get("_truncated"))
+    )
+
+
+def capture_verdict(history: list[dict], target: dict, calls: list[dict]) -> tuple[str, Any]:
     """Compare one exported row with its own trial's captured calls.
 
     ``calls`` holds only the row's trial (bound by ``--capture TRIAL=PATH``),
     so two trials with identical prompts can never borrow each other's call.
-    The row's call is the one delivered call (status 200, no recorded
-    ``error`` such as ``client_disconnect``) whose request carries exactly
+    The row's call is the one :func:`delivered` call whose request carries exactly
     ``len(history)`` messages; none is ``missing`` (``undelivered`` when
     calls at that position exist but none was delivered), more than one is
     ``ambiguous`` (a retried call: the export cannot say which was trained).
     Then the history must equal the request ``messages`` (role and content,
     byte for byte) and the target must equal choice 0's ``content`` and
-    ``reasoning_content``.
+    ``reasoning_content``. Returns the verdict and the matched call's ``seq``
+    (the coverage witness: one row, one delivered call).
     """
     at_position = [call for call in calls if len(_messages(call) or []) == len(history)]
-    matches = [
-        call
-        for call in at_position
-        if call.get("error") is None and call.get("response_status") == 200
-    ]
+    matches = [call for call in at_position if delivered(call)]
     if not matches:
-        return "undelivered" if at_position else "missing"
+        return ("undelivered" if at_position else "missing"), None
     if len(matches) > 1:
-        return "ambiguous"
+        return "ambiguous", None
+    seq = matches[0].get("seq")
     sent = _messages(matches[0]) or []
     for index, (ours, theirs) in enumerate(zip(history, sent, strict=True)):
         if (ours["role"], ours["content"]) != (theirs.get("role"), theirs.get("content")):
-            return f"differs_at_message_{index}"
+            return f"differs_at_message_{index}", seq
     expected = (target.get("content"), target.get("reasoning_content") or "")
-    return "identical" if _reply(matches[0]) == expected else "differs_at_target"
+    return ("identical" if _reply(matches[0]) == expected else "differs_at_target"), seq
 
 
 def main() -> None:
@@ -126,7 +134,9 @@ def main() -> None:
         }
         trial = trial_of[info["conversation_id"]]
         if trial in captured:
-            result["capture"] = capture_verdict(history, target, captured[trial])
+            result["capture"], result["capture_seq"] = capture_verdict(
+                history, target, captured[trial]
+            )
         results.append(result)
         if index < args.show:
             out = args.export / "rendered"

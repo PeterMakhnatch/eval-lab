@@ -37,8 +37,12 @@ def _call(messages, content="done", reasoning="check", *, status=200, error=None
     }
 
 
+def _verdict(history, target, calls):
+    return _load().capture_verdict(history, target, calls)[0]
+
+
 def test_identical_call_passes_and_any_byte_difference_fails() -> None:
-    verdict = _load().capture_verdict
+    verdict = _verdict
     first = _call(HISTORY[:1], content="<tool_call>ls</tool_call>", reasoning="")
     assert verdict(HISTORY, TARGET, [first, _call(HISTORY)]) == "identical"
     changed = [*HISTORY[:2], {"role": "user", "content": "a  b"}]
@@ -48,7 +52,7 @@ def test_identical_call_passes_and_any_byte_difference_fails() -> None:
 
 
 def test_missing_or_retried_call_is_not_identical() -> None:
-    verdict = _load().capture_verdict
+    verdict = _verdict
     assert verdict(HISTORY, TARGET, [_call(HISTORY[:1])]) == "missing"
     # A retried call at the same position: the export cannot say which reply it trained on.
     assert verdict(HISTORY, TARGET, [_call(HISTORY), _call(HISTORY, content="x")]) == "ambiguous"
@@ -56,17 +60,22 @@ def test_missing_or_retried_call_is_not_identical() -> None:
 
 def test_only_a_delivered_call_can_match() -> None:
     # Cdx 3: identical bytes on a disconnected call must not count as delivered.
-    verdict = _load().capture_verdict
+    verdict = _verdict
     disconnected = _call(HISTORY, error={"kind": "client_disconnect"})
     assert verdict(HISTORY, TARGET, [disconnected]) == "undelivered"
     assert verdict(HISTORY, TARGET, [_call(HISTORY, status=502)]) == "undelivered"
-    # A delivered retry after the disconnect is the call the agent saw.
-    assert verdict(HISTORY, TARGET, [disconnected, _call(HISTORY)]) == "identical"
+    truncated = _call(HISTORY)
+    truncated["response_body"]["_truncated"] = True
+    assert verdict(HISTORY, TARGET, [truncated]) == "undelivered"
+    # A delivered retry after the disconnect is the call the agent saw, and its
+    # seq is the row's coverage witness.
+    retry = {**_call(HISTORY), "seq": 7}
+    assert _load().capture_verdict(HISTORY, TARGET, [disconnected, retry]) == ("identical", 7)
 
 
 def test_two_attempts_with_the_same_prompt_each_match_their_own_capture() -> None:
     # Cdx 3's control: identical prompts, different one-token replies, one file per trial.
-    verdict = _load().capture_verdict
+    verdict = _verdict
     trial_a = [_call(HISTORY, content="done")]
     trial_b = [_call(HISTORY, content="fail")]
     assert verdict(HISTORY, TARGET, trial_a) == "identical"

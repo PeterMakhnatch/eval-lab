@@ -99,15 +99,14 @@ def aggregate_daily(rows: list[BillingRow]) -> dict[date, float]:
 def store_billing_rows(database_url: str, rows: list[BillingRow], *, resolution: str) -> int:
     """Upsert fetched rows into the catalog. Returns the row count.
 
-    When rows of either resolution (``"h"`` or ``"d"``) are stored, any
-    existing rows of the opposing resolution covering the same UTC dates
-    are removed first so queries never double-count mixed resolutions.
+    Atomic whole-day replacement: replaces existing rows of the same resolution
+    for the affected UTC dates in one transaction, so stored hourly coverage
+    for each day is complete by construction.
     """
     with psycopg.connect(database_url) as connection:
         connection.execute(BILLING_TABLE_DDL)
         if rows:
             days = {row.interval_start.date() for row in rows}
-            opposing = "d" if resolution == "h" else "h"
             for target_day in days:
                 connection.execute(
                     """
@@ -115,7 +114,7 @@ def store_billing_rows(database_url: str, rows: list[BillingRow], *, resolution:
                     WHERE resolution = %s
                       AND (interval_start AT TIME ZONE 'UTC')::date = %s
                     """,
-                    (opposing, target_day),
+                    (resolution, target_day),
                 )
         for row in rows:
             connection.execute(

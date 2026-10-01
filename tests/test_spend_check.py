@@ -200,6 +200,29 @@ class _FakeConnection:
         return None
 
     def execute(self, sql: str, params: tuple = ()) -> _FakeResult:
+        if "WITH daily_totals" in sql:
+            if "SELECT coalesce(sum" in sql:
+                start, end = params[0], params[1]
+                hourly = [r for r in self._modal_rows if len(r) == 3 or len(r) > 3 and r[3] == "h"]
+                daily = [r for r in self._modal_rows if len(r) > 3 and r[3] == "d"]
+                hourly_sum = sum(r[1] for r in hourly)
+                daily_sum = sum(r[1] for r in daily)
+                if not daily or hourly_sum >= daily_sum - 0.01:
+                    matching = [r for r in hourly if start <= r[0] < end]
+                else:
+                    matching = [r for r in daily if r[0] < end and r[0] + timedelta(days=1) > start]
+                total = sum(r[1] for r in matching)
+                reported = max((r[2] for r in matching), default=None)
+                return _FakeResult([(total, len(matching), reported)])
+            else:
+                hourly = [r for r in self._modal_rows if len(r) == 3 or len(r) > 3 and r[3] == "h"]
+                daily = [r for r in self._modal_rows if len(r) > 3 and r[3] == "d"]
+                hourly_sum = sum(r[1] for r in hourly)
+                daily_sum = sum(r[1] for r in daily)
+                if not daily or hourly_sum >= daily_sum - 0.01:
+                    days = {r[0].date() for r in hourly}
+                    return _FakeResult([(d,) for d in sorted(days)])
+                return _FakeResult([])
         if "WITH day_has_hourly" in sql:
             start, end = params[0], params[1]
             matching = [row for row in self._modal_rows if start <= row[0] < end]
@@ -234,9 +257,11 @@ def _install_fake_catalog(
     modal_rows: list[tuple[datetime, float, datetime]],
     latest: datetime | None,
 ) -> None:
-    fake = types.ModuleType("psycopg")
-    fake.connect = lambda database_url: _FakeConnection(modal_rows, latest)  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "psycopg", fake)
+    import psycopg
+
+    monkeypatch.setattr(
+        psycopg, "connect", lambda database_url: _FakeConnection(modal_rows, latest)
+    )
 
 
 def test_modal_window_counts_hour_starting_in_window_whole(
@@ -816,9 +841,9 @@ def test_defect3_negative_utc_offset_in_fallback_finish_time_preserved(
         def execute(self, sql: str, params: tuple = ()):
             return _FakeResult(fake_rows)
 
-    fake = types.ModuleType("psycopg")
-    fake.connect = lambda url: _JobsConn()
-    monkeypatch.setitem(sys.modules, "psycopg", fake)
+    import psycopg
+
+    monkeypatch.setattr(psycopg, "connect", lambda url: _JobsConn())
 
     # 1. Window [07:00, 08:00) UTC must find the job
     rows_correct, _, _ = query_model_job_rows(
@@ -923,10 +948,11 @@ def test_defect4_unresolved_finished_job_charges_reserved_or_refused(
             return None
 
         def execute(self, sql: str, params: tuple = ()):
-            if "WITH day_has_hourly" in sql:
-                return _FakeResult([(0.0, 0, None)])
-            if "SELECT DISTINCT" in sql:
-                return _FakeResult([(date(2026, 10, 1),)])
+            if "WITH daily_totals" in sql or "WITH day_has_hourly" in sql:
+                if "SELECT coalesce(sum" in sql:
+                    return _FakeResult([(0.0, 0, None)])
+                else:
+                    return _FakeResult([(date(2026, 10, 1),)])
             if "max(interval_start)" in sql:
                 return _FakeResult([(datetime(2026, 10, 1, 5, 0, tzinfo=UTC),)])
             if "FROM jobs" in sql:
@@ -945,9 +971,9 @@ def test_defect4_unresolved_finished_job_charges_reserved_or_refused(
                 return _FakeResult([])
             raise AssertionError(f"unexpected SQL: {sql!r}")
 
-    fake = types.ModuleType("psycopg")
-    fake.connect = lambda url: _FakeUnresolvedConn()
-    monkeypatch.setitem(sys.modules, "psycopg", fake)
+    import psycopg
+
+    monkeypatch.setattr(psycopg, "connect", lambda url: _FakeUnresolvedConn())
 
     # Candidate $5, Cap $20. Settled $1 + Unresolved $24 + Candidate $5 = $30 > $20 -> REFUSED!
     decision = check_launch(
@@ -982,10 +1008,11 @@ def test_defect4_unresolved_finished_job_charges_reserved_or_refused(
             return None
 
         def execute(self, sql: str, params: tuple = ()):
-            if "WITH day_has_hourly" in sql:
-                return _FakeResult([(0.0, 0, None)])
-            if "SELECT DISTINCT" in sql:
-                return _FakeResult([(date(2026, 10, 1),)])
+            if "WITH daily_totals" in sql or "WITH day_has_hourly" in sql:
+                if "SELECT coalesce(sum" in sql:
+                    return _FakeResult([(0.0, 0, None)])
+                else:
+                    return _FakeResult([(date(2026, 10, 1),)])
             if "max(interval_start)" in sql:
                 return _FakeResult([(datetime(2026, 10, 1, 5, 0, tzinfo=UTC),)])
             if "FROM jobs" in sql:
@@ -1004,7 +1031,7 @@ def test_defect4_unresolved_finished_job_charges_reserved_or_refused(
                 return _FakeResult([])
             raise AssertionError(f"unexpected SQL: {sql!r}")
 
-    fake.connect = lambda url: _FakeUnratableConn()
+    monkeypatch.setattr(psycopg, "connect", lambda url: _FakeUnratableConn())
     d_unratable = check_launch(
         repo_root=tmp_path,
         queue_root=tmp_path / "queue",
@@ -1032,11 +1059,11 @@ def test_defect5_modal_coverage_required_for_intraday_window(
             return None
 
         def execute(self, sql: str, params: tuple = ()):
-            if "WITH day_has_hourly" in sql:
-                return _FakeResult([(25.0, 1, datetime(2026, 10, 1, 0, 0, tzinfo=UTC))])
-            if "SELECT DISTINCT" in sql:
-                # No hourly rows exist
-                return _FakeResult([])
+            if "WITH daily_totals" in sql or "WITH day_has_hourly" in sql:
+                if "SELECT coalesce(sum" in sql:
+                    return _FakeResult([(25.0, 1, datetime(2026, 10, 1, 0, 0, tzinfo=UTC))])
+                else:
+                    return _FakeResult([])
             if "max(interval_start)" in sql:
                 return _FakeResult([(datetime(2026, 10, 1, 0, 0, tzinfo=UTC),)])
             if "FROM jobs" in sql:
@@ -1045,9 +1072,9 @@ def test_defect5_modal_coverage_required_for_intraday_window(
                 return _FakeResult([])
             raise AssertionError(f"unexpected SQL: {sql!r}")
 
-    fake = types.ModuleType("psycopg")
-    fake.connect = lambda url: _DailyOnlyConn()
-    monkeypatch.setitem(sys.modules, "psycopg", fake)
+    import psycopg
+
+    monkeypatch.setattr(psycopg, "connect", lambda url: _DailyOnlyConn())
 
     # Window is intra-day slice [01:00, 03:00). Without hourly rows, must fail closed with REASON_STALE_MODAL
     refused = check_launch(
@@ -1103,7 +1130,7 @@ def test_defect6_modal_nonoverlapping_resolution_query_and_storage(
 
     monkeypatch.setattr(psycopg, "connect", lambda url: _CaptureConn())
 
-    # 1. Storing hourly rows must delete daily rows for that day
+    # 1. Storing hourly rows atomically replaces existing hourly rows for that day
     row_h = BillingRow(
         object_id="app-1",
         description="hourly app",
@@ -1114,12 +1141,12 @@ def test_defect6_modal_nonoverlapping_resolution_query_and_storage(
     )
     store_billing_rows("postgresql://fake/db", [row_h], resolution="h")
     assert any(
-        "DELETE FROM modal_billing_rows" in s and "resolution = %s" in s and p[0] == "d"
+        "DELETE FROM modal_billing_rows" in s and "resolution = %s" in s and p[0] == "h"
         for s, p in executed_sqls
     )
 
     executed_sqls.clear()
-    # 2. Storing daily rows must delete hourly rows for that day (bidirectional safety)
+    # 2. Storing daily rows atomically replaces existing daily rows for that day
     row_d = BillingRow(
         object_id="app-1",
         description="daily app",
@@ -1130,6 +1157,53 @@ def test_defect6_modal_nonoverlapping_resolution_query_and_storage(
     )
     store_billing_rows("postgresql://fake/db", [row_d], resolution="d")
     assert any(
-        "DELETE FROM modal_billing_rows" in s and "resolution = %s" in s and p[0] == "h"
+        "DELETE FROM modal_billing_rows" in s and "resolution = %s" in s and p[0] == "d"
         for s, p in executed_sqls
     )
+
+
+def test_modal_partial_hourly_falls_back_to_daily_without_undercount(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A partial hourly set must never cause an undercount: fall back to daily rows."""
+    reported = datetime(2026, 10, 1, 5, 30, tzinfo=UTC)
+    fake_rows = [
+        # Daily row: $4.1540 (includes 00:00 app ap-i1jDX... $1.534)
+        (datetime(2026, 10, 1, 0, 0, tzinfo=UTC), 4.1540, reported, "d"),
+        # Partial hourly rows: $2.6202 (missing 00:00 app)
+        (datetime(2026, 10, 1, 1, 0, tzinfo=UTC), 0.6433, reported, "h"),
+        (datetime(2026, 10, 1, 2, 0, tzinfo=UTC), 1.0627, reported, "h"),
+        (datetime(2026, 10, 1, 4, 0, tzinfo=UTC), 0.9142, reported, "h"),
+    ]
+
+    conn = _FakeConnection(fake_rows, latest=datetime(2026, 10, 1, 5, 0, tzinfo=UTC))
+    fake = types.ModuleType("psycopg")
+    fake.connect = lambda url: conn
+    monkeypatch.setitem(sys.modules, "psycopg", fake)
+
+    # 1. Whole-day window [00:00, 24:00) MUST report $4.1540 (not $2.6202!)
+    row, _ = query_modal_rows(
+        "postgresql://fake/db",
+        datetime(2026, 10, 1, 0, 0, tzinfo=UTC),
+        datetime(2026, 10, 2, 0, 0, tzinfo=UTC),
+    )
+    assert row is not None
+    assert row.usd == pytest.approx(4.1540)
+    assert row.basis == "billed"
+
+    # 2. Intra-day window [04:00, 06:00) with incomplete hourly rows must fail closed
+    # when refresh cannot complete the hourly rows (never silently use partial $0.91 or $2.62)
+    refused = check_launch(
+        repo_root=tmp_path,
+        queue_root=tmp_path / "queue",
+        database_url="postgresql://fake/db",
+        window_start=datetime(2026, 10, 1, 4, 0, tzinfo=UTC),
+        window_end=datetime(2026, 10, 1, 6, 0, tzinfo=UTC),
+        candidate_usd=1.0,
+        cap_usd=30.0,
+        now=datetime(2026, 10, 1, 5, 30, tzinfo=UTC),
+        allow_stale_modal=False,
+    )
+    assert not refused.allowed
+    assert refused.reason_code == REASON_STALE_MODAL
+    assert any("incomplete" in n for n in refused.notes)

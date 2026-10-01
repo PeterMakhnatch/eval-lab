@@ -281,7 +281,7 @@ inputs:
   - path: src/evallab/mini_observation_masking.py
     digest: sha256:332e2a92b2db066699d7b4582992e40d710f884146705a9699dfa8ec24d17883
   - path: src/evallab/modal_billing.py
-    digest: sha256:319eb45869aaf4fea68d0433f711844c049402a3b23c4961e9ad2b2c84608d3a
+    digest: sha256:74588975e030ce4986cc9e8a235573fe419866d0b15897ab3c826c54ebabf5c4
   - path: src/evallab/modal_ops.py
     digest: sha256:89b909e6d54b8d8dcf399644635c70370e5072060018384eadec75f04fa900d3
   - path: src/evallab/model_capture.py
@@ -389,7 +389,7 @@ inputs:
   - path: src/evallab/smoke.py
     digest: sha256:8e9c4d8a8560513ed333c5bd794f69882632c4ba78a76cd04c4506ed5b246e46
   - path: src/evallab/spend_day.py
-    digest: sha256:0ee7e8943557587e6d6cc8411fe0a926334828cbd8f15f46f2b92f26fd4f585a
+    digest: sha256:bb787126d7cf8dbb4deb024d2c4933dc3b1015e9c7a0fae310db628347f78b9a
   - path: src/evallab/spine.py
     digest: sha256:0504f2eca179ed47e17d3ef7e7e4654e54d645f2745782edb998c7186770ae20
   - path: src/evallab/state_events.py

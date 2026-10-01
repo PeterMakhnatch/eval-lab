@@ -539,9 +539,11 @@ def query_modal_rows(
     past the window end. Hour granularity is exact for whole UTC days and
     approximate to the hour for arbitrary windows.
 
-    Non-overlapping rule: where hourly rows (resolution='h') exist for a
-    UTC day, daily rows (resolution='d') for that day are excluded. When
-    only daily rows exist, they count if their day overlaps the window.
+    Non-overlapping rule: where hourly rows (resolution='h') are complete
+    for a UTC day (matching or exceeding daily rows, hourly_sum >= daily_sum - 0.01),
+    hourly rows are used and daily rows are excluded. When hourly rows are missing
+    or incomplete for a day, the ledger safely falls back to daily rows for that day
+    so incomplete finer data never causes an undercount.
     """
     import psycopg
 
@@ -550,19 +552,39 @@ def query_modal_rows(
     with psycopg.connect(database_url) as connection:
         row = connection.execute(
             """
-            WITH day_has_hourly AS (
-                SELECT DISTINCT (interval_start AT TIME ZONE 'UTC')::date AS day
+            WITH daily_totals AS (
+                SELECT (interval_start AT TIME ZONE 'UTC')::date AS day,
+                       coalesce(sum(cost_usd), 0) AS daily_usd
+                FROM modal_billing_rows
+                WHERE resolution = 'd'
+                GROUP BY 1
+            ),
+            hourly_totals AS (
+                SELECT (interval_start AT TIME ZONE 'UTC')::date AS day,
+                       coalesce(sum(cost_usd), 0) AS hourly_usd
                 FROM modal_billing_rows
                 WHERE resolution = 'h'
+                GROUP BY 1
+            ),
+            complete_hourly_days AS (
+                SELECT h.day
+                FROM hourly_totals h
+                LEFT JOIN daily_totals d ON d.day = h.day
+                WHERE d.daily_usd IS NULL OR h.hourly_usd >= d.daily_usd - 0.01
             )
             SELECT coalesce(sum(m.cost_usd), 0), count(m.*), max(m.reported_at)
             FROM modal_billing_rows m
             WHERE (
-                (m.resolution = 'h' AND m.interval_start >= %s AND m.interval_start < %s)
-                OR (
+                (
+                    m.resolution = 'h'
+                    AND m.interval_start >= %s AND m.interval_start < %s
+                    AND (m.interval_start AT TIME ZONE 'UTC')::date IN (SELECT day FROM complete_hourly_days)
+                )
+                OR
+                (
                     m.resolution = 'd'
                     AND m.interval_start < %s AND m.interval_start + interval '1 day' > %s
-                    AND (m.interval_start AT TIME ZONE 'UTC')::date NOT IN (SELECT day FROM day_has_hourly)
+                    AND (m.interval_start AT TIME ZONE 'UTC')::date NOT IN (SELECT day FROM complete_hourly_days)
                 )
             )
             """,
@@ -589,19 +611,36 @@ def query_modal_rows(
 def query_modal_dates_with_hourly_coverage(
     database_url: str, start_day: date, end_day: date
 ) -> set[date]:
-    """Dates in [start_day, end_day] with hourly Modal rows in catalog."""
+    """Dates in [start_day, end_day] with complete hourly Modal rows in catalog."""
     import psycopg
 
     with psycopg.connect(database_url) as connection:
         rows = connection.execute(
             """
-            SELECT DISTINCT (interval_start AT TIME ZONE 'UTC')::date
-            FROM modal_billing_rows
-            WHERE resolution = 'h'
-              AND (interval_start AT TIME ZONE 'UTC')::date >= %s
-              AND (interval_start AT TIME ZONE 'UTC')::date <= %s
+            WITH daily_totals AS (
+                SELECT (interval_start AT TIME ZONE 'UTC')::date AS day,
+                       coalesce(sum(cost_usd), 0) AS daily_usd
+                FROM modal_billing_rows
+                WHERE resolution = 'd'
+                  AND (interval_start AT TIME ZONE 'UTC')::date >= %s
+                  AND (interval_start AT TIME ZONE 'UTC')::date <= %s
+                GROUP BY 1
+            ),
+            hourly_totals AS (
+                SELECT (interval_start AT TIME ZONE 'UTC')::date AS day,
+                       coalesce(sum(cost_usd), 0) AS hourly_usd
+                FROM modal_billing_rows
+                WHERE resolution = 'h'
+                  AND (interval_start AT TIME ZONE 'UTC')::date >= %s
+                  AND (interval_start AT TIME ZONE 'UTC')::date <= %s
+                GROUP BY 1
+            )
+            SELECT h.day
+            FROM hourly_totals h
+            LEFT JOIN daily_totals d ON d.day = h.day
+            WHERE d.daily_usd IS NULL OR h.hourly_usd >= d.daily_usd - 0.01
             """,
-            (start_day, end_day),
+            (start_day, end_day, start_day, end_day),
         ).fetchall()
     return {r[0] for r in rows if r[0] is not None}
 
@@ -1591,7 +1630,7 @@ def check_launch(
                 refusal_msg = (
                     f"REFUSAL: {REASON_STALE_MODAL} "
                     f"(window [{window_start.isoformat()}..{window_end.isoformat()}) intersects {missing_str} "
-                    "as an intra-day slice, but only daily Modal billing rows exist; "
+                    "as an intra-day slice, but hourly Modal coverage is incomplete or missing; "
                     "hourly data is required to determine settled spend; pass --allow-stale-modal to override)"
                 )
             else:

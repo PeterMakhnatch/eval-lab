@@ -1,0 +1,46 @@
+{
+  "blame": "harness",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "LoopBreakStop: loop break: the repetition was still going 33 calls in, 15 after the nudge at call 18",
+      "ref": "head#34"
+    },
+    {
+      "quote": "New Terminal Output: > ls /testbed/logstash && ls /testbed/logstash/templates >",
+      "ref": "head#3"
+    },
+    {
+      "quote": "New Terminal Output: > echo hi >",
+      "ref": "head#7"
+    },
+    {
+      "quote": "pwd",
+      "ref": "head#11"
+    },
+    {
+      "quote": "empty agent.diff; 2 failed, 1 passed (annotations None, no fix attempted)",
+      "ref": "head#N/A verifier"
+    }
+  ],
+  "first_failure": {
+    "quote": "New Terminal Output: > ls /testbed/logstash && ls /testbed/logstash/templates >",
+    "ref": "head#3",
+    "what": "Terminal stopped returning output (bare '>' prompts) for reasonable ls/grep; never recovered"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#10",
+    "head#34"
+  ],
+  "notes": "Reward 0 with no code change. After head#2 (which succeeded), every reasonable command (ls, echo hi, pwd) returned only '>' with no output. Model then looped pwd variants until loop-break. No completion claim.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har120-000865-a1__a2TWzyM"
+}

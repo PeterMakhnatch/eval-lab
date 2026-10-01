@@ -62,12 +62,15 @@ The ty job fails on any diagnostic. Keep the local premerge baseline and the
 GitHub `typecheck` workflow at zero; never restore a positive baseline.
 
 Lint, test and typecheck jobs cache uv artifacts keyed by OS, architecture,
-Python, uv version and lock digest. Typecheck also hashes its workflow to bind
-the pinned tool; its first miss can restore the matching project-package cache
-before populating that separate key. No project `.venv` is cached. Locked sync,
-all checks and every test shard still run on a cache hit. Cache-transfer segments
-abort after two minutes; existing job caps are unchanged. On cancellation,
-inspect setup and checker/test durations separately before blaming a test hang.
+Python, uv version, dependency profile, lock digest and defining workflow.
+Separate writer keys prevent the smaller lint install from occupying an
+immutable test-cache entry; workflow hashes also bind dependency groups and the
+pinned typechecker. Lint and typecheck may seed a miss from the matching test
+cache, but save only to their own keys. No project `.venv` is cached. Locked
+sync, all checks and every test shard still run on a cache hit. Cache-transfer
+segments abort after two minutes; existing job caps are unchanged. On
+cancellation, inspect setup and checker/test durations separately before
+blaming a test hang.
 
 Run focused checks or explicit premerge before pushing. Before final review and
 doc freshness checks, run explicit `make docs` to regenerate `docs/INDEX.md` and

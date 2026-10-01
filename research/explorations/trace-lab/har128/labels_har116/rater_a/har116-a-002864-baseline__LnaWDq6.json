@@ -1,0 +1,50 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "new = ARRAY WRAPPER, CONDITIONAL ARRAY WRAPPER, CONDITIONAL WRAPPER, UNCONDITIONAL ARRAY WRAPPER, UNCONDITIONAL WRAPPER (no bare WRAPPER)",
+      "ref": "head#9"
+    },
+    {
+      "quote": "Ran 22 tests in 0.101s OK (only ARRAY variants checked)",
+      "ref": "head#14"
+    },
+    {
+      "quote": "The 4 errors are pre-existing missing optional dependencies; mark_task_complete",
+      "ref": "head#17"
+    },
+    {
+      "quote": "Yes, the task is complete. The fix is verified",
+      "ref": "head#18"
+    },
+    {
+      "quote": "The task is complete. The fix has been implemented and verified: true",
+      "ref": "head#113"
+    },
+    {
+      "quote": "ERROR test_json_query_with_wrapper / without_wrapper: ParseError Expecting ) (bare WRAPPER unhandled)",
+      "ref": "head#17"
+    }
+  ],
+  "first_failure": {
+    "quote": "open(path).write(src.replace(old, new)) with new lacking (WRAPPER,)",
+    "ref": "head#9",
+    "what": "Applied incomplete JSON_QUERY_OPTIONS fix missing bare WRAPPER continuation"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#17",
+    "head#113"
+  ],
+  "notes": "Reward 0.0; budget exhausted at n_episodes 113 / 2.45M input with loop_break false. First completion claim head#17 (mark_task_complete), then ~96 turns of repeated complete claims + true/echo-done no-ops. Fix missed bare (WRAPPER,) so WITH/WITHOUT WRAPPER still fail.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-a-002864-baseline__LnaWDq6"
+}

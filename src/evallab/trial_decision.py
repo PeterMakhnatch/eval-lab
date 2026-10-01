@@ -63,6 +63,56 @@ PAGE_CALIBRATION = {
     "first_failure_coverage": {"expressed": 1, "of": 12, "abstentions": 11},
     "page_vs_agreed_blame": {"agree": 11, "n": 11},
     "blame_abstentions": 0,
+    #: Separately scoped loop-kind-only calibrations of the same page
+    #: predictor on later frozen cohorts. Each entry stands alone with its
+    #: own denominator: never pooled with the HAR-119 cohort above, and no
+    #: entry borrows first-failure/blame numbers it did not measure.
+    #: Reproduce the HAR-128 entry with
+    #: research/explorations/trace-lab/har119/score_page.py --labels
+    #: research/explorations/trace-lab/har128/labels_har116 --results-home
+    #: <eval-lab-results> --output
+    #: research/experiments/har117-results-home/har131-page-calibration-har116.json,
+    #: which refuses to run when the frozen labels change and records a
+    #: missing/unknown page prediction as an explicit abstention.
+    "additional_loop_calibrations": [
+        {
+            "cohort": "HAR-128 part 2: 40 HAR-116 trials",
+            "frozen_at": "2026-10-01T07:57:30Z",
+            "labels": "research/explorations/trace-lab/har128/labels_har116",
+            "labels_manifest_sha256": "24b91001adf5707ebb65756e575a9acbc39a816173ee16a5da88cf989e99513d",
+            "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+            "predictor_functions_sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae",
+            "in_sample": False,
+            "rater_agreement_loop_kind": {"agree": 35, "n": 40},
+            "excluded_rater_disagreement": 5,
+            "page_vs_agreed_loop_kind": {"agree": 28, "n": 35},
+            "abstentions": 0,
+            "loop_kind_confusion": {
+                "none": {"agree": 17, "n": 19},
+                "repetition": {"agree": 8, "n": 13},
+                "completion-claim": {"agree": 3, "n": 3},
+            },
+            "method": (
+                "research/explorations/trace-lab/har119/score_page.py --labels "
+                "research/explorations/trace-lab/har128/labels_har116 --results-home "
+                "<eval-lab-results> --output "
+                "research/experiments/har117-results-home/har131-page-calibration-har116.json"
+            ),
+            "artifact": "research/experiments/har117-results-home/har131-page-calibration-har116.json",
+            "heldout": (
+                "har116 001181 baseline/loopfix/loopfix-r2 (3 trials): analysis and "
+                "calibration only, never training reflection"
+            ),
+            "limits": (
+                "Loop kind only: this cohort carries no first-failure/blame calibration. "
+                "Blind scout-agent raters (L116A1-8/L116B1-8), not human ground truth; "
+                "rater A on har116-a-000383-baseline__igrXg8R reports off_limits_opened "
+                "(config.json seen via a broad grep, arm info unused). "
+                "Denominators stay per-cohort, never pooled. The artifact exports "
+                "scores and report hashes only, not trial content."
+            ),
+        }
+    ],
     "grader_alignment": "opinion with no page-measured calibration on this cohort",
     "method": "research/explorations/trace-lab/har119/score_page.py",
     "artifact": "research/explorations/trace-lab/har119/page_scores.json",
@@ -73,7 +123,6 @@ PAGE_CALIBRATION = {
         "failure, so a constant prior scores the same. Grader alignment stays opinion."
     ),
 }
-
 
 def build_decision(
     trial_dir: str | Path,
@@ -481,7 +530,7 @@ def _calibration_line(agreement: dict[str, Any]) -> str:
         return "Calibration: unavailable for this page."
     kind = agreement.get("page_vs_agreed_loop_kind") or {}
     rater = agreement.get("rater_agreement_loop_kind") or {}
-    return (
+    text = (
         f"Calibration: {agreement.get('predictor')}; cohort {agreement.get('cohort')} "
         f"(frozen {agreement.get('frozen_at')}); page loop kind "
         f"`{kind.get('agree')}/{kind.get('n')}` vs agreed rater cells "
@@ -492,6 +541,24 @@ def _calibration_line(agreement: dict[str, Any]) -> str:
         f"{'no' if agreement.get('in_sample') else 'yes'}. "
         f"Method: {agreement.get('method')}. {agreement.get('limits')}"
     )
+    for extra in agreement.get("additional_loop_calibrations") or []:
+        if not isinstance(extra, dict):
+            continue
+        extra_kind = extra.get("page_vs_agreed_loop_kind") or {}
+        extra_rater = extra.get("rater_agreement_loop_kind") or {}
+        text += (
+            f"\n\nAdditional loop-kind-only calibration, same predictor, separately "
+            f"denominated cohort {extra.get('cohort')} (frozen {extra.get('frozen_at')}): "
+            f"page loop kind `{extra_kind.get('agree')}/{extra_kind.get('n')}` vs agreed "
+            f"rater cells ({extra_rater.get('agree')} agreed of {extra_rater.get('n')}, "
+            f"{extra.get('excluded_rater_disagreement')} excluded on rater disagreement, "
+            f"{extra.get('abstentions')} abstentions); rater agreement "
+            f"`{extra_rater.get('agree')}/{extra_rater.get('n')}`. Loop kind only on this "
+            f"cohort: no first-failure/blame calibration, denominators never pooled. "
+            f"Method: {extra.get('method')}. Artifact: {extra.get('artifact')}. "
+            f"{extra.get('limits')}"
+        )
+    return text
 def _field_calibration(
     agreement: dict[str, Any], score_key: str, coverage_key: str | None
 ) -> str:
@@ -501,7 +568,20 @@ def _field_calibration(
     score = agreement.get(score_key) or {}
     if not isinstance(score, dict) or score.get("n") is None:
         return "Opinion; calibration unavailable."
-    text = f"Opinion; page `{score.get('agree')}/{score.get('n')}` vs agreed rater cells"
+    text = (
+        f"Opinion; {agreement.get('cohort')}: page "
+        f"`{score.get('agree')}/{score.get('n')}` vs agreed rater cells"
+    )
+    if score_key == "page_vs_agreed_loop_kind":
+        for extra in agreement.get("additional_loop_calibrations") or []:
+            if not isinstance(extra, dict):
+                continue
+            extra_score = extra.get(score_key) or {}
+            if isinstance(extra_score, dict) and extra_score.get("n") is not None:
+                text += (
+                    f"; {extra.get('cohort')}: page "
+                    f"`{extra_score.get('agree')}/{extra_score.get('n')}`"
+                )
     if coverage_key:
         coverage = agreement.get(coverage_key) or {}
         text += (

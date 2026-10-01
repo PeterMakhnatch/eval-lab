@@ -1,0 +1,38 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "print(\"valid:\", ff.clean(\"pub_date\"))\nPYEOF",
+      "ref": "head#65"
+    },
+    {
+      "quote": "print(\"valid:\", ff.clean(\"pub_date\"))\nPYEOF\nTraceback (most recent call last):",
+      "ref": "head#87"
+    },
+    {
+      "quote": "File \"/usr/local/lib/python3.8/site-packages/django_filters/fields.py\", line 189, in clean",
+      "ref": "head#87"
+    }
+  ],
+  "first_failure": {
+    "quote": "f = ReporterFilter.base_filters.get(\"order_by\")\nff = f.field\nprint(\"valid:\", ff.clean(\"pub_date\"))",
+    "ref": "head#65",
+    "what": "Began repeating the identical failing ff.clean('pub_date') probe instead of editing source; no code change ever made (agent.diff empty)"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#65",
+    "head#87"
+  ],
+  "notes": "LoopBreakStop: normalized_command_run, nudge call 71, stop call 86; identical probe repeated head#65-head#87 with ValidationError/Traceback every time. agent.diff empty; verifier 2 failed (camelCase multiword orderBy rejected as invalid_choice).",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har120-001399-a1__fwLaw2U"
+}

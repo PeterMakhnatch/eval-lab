@@ -1,0 +1,43 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "ignore_key = (record.levelno, record.getMessage())",
+      "ref": "head#51"
+    },
+    {
+      "quote": "self.assertFalse(self.f.filter(rec)) AssertionError: True is not false",
+      "ref": "head#N/A verifier"
+    },
+    {
+      "quote": "6 passed, 1 failed (test_filter_by_template_still_works)",
+      "ref": "head#N/A verifier"
+    },
+    {
+      "quote": "mark_task_complete",
+      "ref": "head#60"
+    },
+    {
+      "quote": "mark_task_complete",
+      "ref": "head#61"
+    }
+  ],
+  "first_failure": {
+    "quote": "ignore_key = (record.levelno, record.getMessage())",
+    "ref": "head#51",
+    "what": "Replaced record.msg with getMessage(), fixing formatted filter but breaking template filter"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Reward 0 (6/7). Correct fix checks both template (record.msg) and formatted (getMessage()); model checked only formatted. Step 53 even showed template case no longer filtered but model completed anyway. Clean finish, 2 completions, no 10-turn loop.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "model_finished",
+  "trial": "har120-001265-a1__3sBRy7Y"
+}

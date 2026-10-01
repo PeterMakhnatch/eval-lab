@@ -98,7 +98,11 @@ def aggregate_daily(rows: list[BillingRow]) -> dict[date, float]:
 
 
 def store_billing_rows(database_url: str, rows: list[BillingRow], *, resolution: str) -> int:
-    """Upsert fetched rows into the catalog. Returns the row count."""
+    """Upsert fetched rows into the catalog. Returns the row count.
+
+    Pure upsert: inserts new rows and updates existing rows on conflict,
+    never deleting existing rows so older partial fetches cannot erase newer data.
+    """
     with psycopg.connect(database_url) as connection:
         connection.execute(BILLING_TABLE_DDL)
         for row in rows:
@@ -124,6 +128,72 @@ def store_billing_rows(database_url: str, rows: list[BillingRow], *, resolution:
                 ),
             )
     return len(rows)
+
+
+def fetch_modal_billing_report(
+    *,
+    start: date,
+    end: date,
+    repo_root: Any | None = None,
+    runner: Any | None = None,
+    resolution: str = "h",
+) -> list[BillingRow]:
+    """Fetch Modal billing rows (read-only) via Modal CLI report.
+
+    Returns the normalized list of :class:`BillingRow` objects in memory.
+    Raises ``RuntimeError`` if the runner fails or returns unreadable output.
+    """
+    import json
+    from pathlib import Path
+
+    from evallab.modal_ops import default_runner
+
+    run = runner or default_runner(Path(repo_root) if repo_root else Path.cwd())
+    completed = run(
+        [
+            "billing",
+            "report",
+            "--start",
+            start.isoformat(),
+            "--end",
+            end.isoformat(),
+            "--resolution",
+            resolution,
+            "--json",
+        ]
+    )
+    if completed.returncode != 0:
+        err = getattr(completed, "stderr", "") or f"exit code {completed.returncode}"
+        raise RuntimeError(f"modal billing report failed: {err[-500:]}")
+    try:
+        payload = json.loads(completed.stdout)
+    except Exception as exc:
+        raise RuntimeError(f"modal billing report unreadable: {exc}") from exc
+    return normalize_report_rows(payload, resolution=resolution)
+
+
+def refresh_modal_billing(
+    database_url: str,
+    *,
+    start: date,
+    end: date,
+    repo_root: Any | None = None,
+    runner: Any | None = None,
+    resolution: str = "h",
+) -> int:
+    """Fetch Modal billing rows (read-only) and upsert them into the catalog.
+
+    Reuses ``fetch_modal_billing_report`` and ``store_billing_rows``.
+    Returns the count of stored rows.
+    """
+    rows = fetch_modal_billing_report(
+        start=start,
+        end=end,
+        repo_root=repo_root,
+        runner=runner,
+        resolution=resolution,
+    )
+    return store_billing_rows(database_url, rows, resolution=resolution)
 
 
 def lab_selfhosted_daily(database_url: str, day: date) -> tuple[float | None, int, int, str | None]:

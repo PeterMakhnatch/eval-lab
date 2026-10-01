@@ -1,0 +1,46 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "scheme, netloc, path, query, fragment = urlparse.urlsplit(uri)",
+      "ref": "head#12"
+    },
+    {
+      "quote": "cd /testbed && python3 - <<'PYEOF'",
+      "ref": "head#11"
+    },
+    {
+      "quote": "sed -n '252,275p' /testbed/waitress/parser.py",
+      "ref": "head#12"
+    },
+    {
+      "quote": "AssertionError: 'testing' != ''",
+      "ref": "head#11"
+    },
+    {
+      "quote": "AssertionError: '/whatever' != '//testing/whatever'",
+      "ref": "head#11"
+    }
+  ],
+  "first_failure": {
+    "quote": "cd /testbed && python3 - <<'PYEOF'",
+    "ref": "head#11",
+    "what": "began repeating failing split_uri edit cycle that never modifies the file (empty agent.diff)"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#11",
+    "head#90"
+  ],
+  "notes": "Never applied any fix (agent.diff empty); urlsplit left in place so all 6 double-slash tests fail. Alternating sed-check + PYEOF edit repeated 40+ times with file unchanged (sed still shows urlsplit). No upstream fetch.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-b-000226-original__JTEerfm"
+}

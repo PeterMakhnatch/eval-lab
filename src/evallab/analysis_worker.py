@@ -56,6 +56,7 @@ from evallab.schemas import (
     JudgeCalibrationRecord,
     StandingApprovalsPolicy,
     TrialAnalysisSidecar,
+    effective_daily_cost_ceiling,
 )
 from evallab.storage.fs import (
     durable_mkdir as _durable_mkdir,
@@ -518,6 +519,7 @@ class AdmissionContext:
     est_call_cost_usd: float
     services_healthy: Callable[[], bool]
     requirement_checks: dict[str, Callable[[], bool]]
+    now: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -628,9 +630,8 @@ def admit(
     ceiling = context.policy.per_job_cost_ceiling_usd
     if context.est_call_cost_usd > ceiling:
         return Admission("defer", f"cost_ceiling:call_estimate_exceeds_{ceiling}")
-    if context.spent_today_usd() + context.est_call_cost_usd > (
-        context.policy.daily_cost_ceiling_usd
-    ):
+    daily_ceiling = effective_daily_cost_ceiling(context.policy, context.now or datetime.now(UTC))
+    if context.spent_today_usd() + context.est_call_cost_usd > daily_ceiling:
         return Admission("defer", "cost_ceiling:daily")
 
     if not context.services_healthy():

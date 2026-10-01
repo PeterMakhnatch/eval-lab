@@ -11,12 +11,15 @@ Tools:
 - `tools/modal-mimo-serve/lora_smoke.py` sends the smoke requests.
 - `smoke_parity.py` (here) builds the prompts and scores the replies.
 
+Operator steps (train, serve, parity, cost): [`docs/lora-sft-runbook.md`](../../../docs/lora-sft-runbook.md).
+
 ## 1. Dry run (2026-10-01 04:10–04:20Z)
 
 **Data.** The card's three existing counted passes:
 - HAR-104 `002391` and `002864`, plus HAR-116 `000495-loopfix-r2`. All are among HAR-116's 10 tasks, which the G1 eval set excludes. They were selected at 04:08Z.
 - The sft_terminus exporter needs the original trial roots. These passes have only the ATIF trajectory, so `dryrun/build_dry_export.py` approximates each conversation from the recorded step layers: the raw proposed message, its reasoning, then the observation.
 - This export is for measuring plumbing, time and memory only; it is not a training set.
+- **Chronology deviation (Cdx 3, HAR-133).** These samples were selected at 04:08Z, before G1's first commit `f8924596` (04:09:33Z). The plan required the eval set to be frozen before any training data was chosen, so this run does not comply with that ordering. It is recorded here as a deviation. No claim of compliance is made for it. The three tasks are outside the G1 v2 eval set (sha `3b997fdc…`), and this adapter was deleted.
 
 **Run.** One optimizer step over all 3 rows on one A100-80GB, with `--grad-accum 1 --epochs 1`. The receipt is at `dryrun/receipt.json`.
 
@@ -37,7 +40,7 @@ Tools:
 3. **Fail-loud weight loading.** The text-only class loads from the multimodal checkpoint and raises if any weight is missing.
 4. **`--grad-accum` was ignored** (the default 16 was always used); it is now honoured and recorded.
 5. **Plain-JSON receipt.** `log_history` could carry tensors that the CPU-only client cannot unpickle, so the receipt is now plain JSON.
-6. **Collated-label check before step 1.** Every row goes through TRL's own collator, and the labels (`!= -100`) must equal the rendered mask. Any mismatch stops the run. The counts go in the receipt.
+6. **Collated-label audit before step 1.** The rows TRL prepared must match the rendered rows: the same count and order, identical `input_ids`, and collated labels (`!= -100`) equal to the rendered mask. Any mismatch stops the run, and the counts go in the receipt. TRL 1.14 drops `assistant_masks` after folding them into labels, so the audit compares against the rendered mask instead (PR #617). `cpu_trl_proof.py` checks this on the pinned stack at $0, on the local MPS/CPU device in fp32.
 7. **Loss on the last turn only.** A per-row `"loss": "last"` keeps only the final assistant turn, for per-call samples (Data's option A on HAR-127).
 8. **Cost estimate** uses the measured rate per sequence token (about $1.40 per 1M) instead of a guessed 1,000 trained tokens/s.
 

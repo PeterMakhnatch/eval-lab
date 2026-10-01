@@ -16,7 +16,10 @@ A trial is selected when all of these hold:
 4. its source is admissible: proxy-captured, or ``reconstructed_validated``
    only when ``--qualification`` (``qualify_reconstruction.py``'s
    ``qualification.json``) says ``admit_reconstructed`` (Research-Harbor's
-   04:45Z ruling on HAR-127); its sha256 is recorded in the selection;
+   04:45Z ruling on HAR-127); its sha256 is recorded in the selection. A
+   captured trial must also reproduce exactly in that qualification: a
+   ``complete`` coverage entry (every delivered call rebuilt byte for byte
+   from ATIF; a harness re-ask ATIF does not record breaks this);
 5. at most ``MAX_PER_TASK`` per task: captured before reconstructed, then
    the newer job, then trial name.
 
@@ -82,10 +85,11 @@ def main() -> None:
     args = parser.parse_args()
 
     admit_reconstructed = False
+    reproduced: set[str] = set()
     if args.qualification is not None:
-        admit_reconstructed = (
-            json.loads(args.qualification.read_text())["admit_reconstructed"] is True
-        )
+        qualification = json.loads(args.qualification.read_text())
+        admit_reconstructed = qualification["admit_reconstructed"] is True
+        reproduced = {c["trial"] for c in qualification["coverage"] if c["complete"]}
     split = json.loads(SPLIT.read_text())
     split_of = {entry["task_id"]: entry["split"] for entry in split["tasks"]}
     ledger = {row["task_id"]: row for row in csv.DictReader(LEDGER.open())}
@@ -121,6 +125,8 @@ def main() -> None:
                 reason = "traces:no_completion_in_kept_window"
             elif job.name not in args.captured and not admit_reconstructed:
                 reason = "source:reconstruction_not_qualified"
+            elif job.name in args.captured and trial not in reproduced:
+                reason = "capture:reconstruction_differs"
             if reason is not None:
                 exclusions.append({**base, "reason": reason})
                 continue

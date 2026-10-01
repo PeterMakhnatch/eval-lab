@@ -1,0 +1,104 @@
+{
+ "trial": "har116-a-002864-baseline__LnaWDq6",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002864-baseline/har116-a-002864-baseline__LnaWDq6",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002864-baseline",
+ "task": "mimo-v2.6-rl/format-code-task-002864",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [
+   "head#17"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 17,
+  "step_ref": "head#17",
+  "tag": "completion",
+  "attribution": "model",
+  "rule_id": "R-COMP-02",
+  "evidence_step_refs": [
+   "head#17",
+   "head#25",
+   "head#113"
+  ],
+  "note": "false completion claim from step 17 while the verifier score is 0.0 (scored=True); identical loop 25-113 until ceiling:input_tokens; the claim, not the harness, is wrong",
+  "loop_token_cost": {
+   "prompt": 2355761,
+   "completion": 17929
+  }
+ },
+ "handshake": {
+  "first_prompt_ref": "head#17",
+  "prompts": 1,
+  "confirmed": false,
+  "turns_after_first_prompt": 96,
+  "prompt_tokens_after_first_prompt": 2344705,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 89,
+    "span": [
+     "head#25",
+     "head#113"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 2260155,
+   "completion": 16910,
+   "steps": 89,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 2260155,
+   "completion": 16910,
+   "steps": 89,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2453081,
+   "completion": 21351,
+   "steps": 112,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.9214,
+  "result_input_tokens": 2453081
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 111,
+  "states": {
+   "prompt": 111
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "ba8d8358d2bb6ca6fae7c00e871c0271e587269c"
+ },
+ "nop_runs_dir": null
+}

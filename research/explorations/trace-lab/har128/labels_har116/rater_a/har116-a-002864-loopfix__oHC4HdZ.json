@@ -1,0 +1,31 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "ModuleNotFoundError: No module named 'duckdb' (evallab/traj.py line 26, via loopfix live_loop_action)",
+      "ref": "head#1"
+    },
+    {
+      "quote": "Trajectory holds only the user prompt (step 1); n_episodes 1, verifier null",
+      "ref": "head#1"
+    }
+  ],
+  "first_failure": {
+    "quote": "ModuleNotFoundError: No module named 'duckdb'",
+    "ref": "head#1",
+    "what": "Harness loopfix import failed at startup before any agent action"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Known loopfix (non-r2) startup import error; agent never acted.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "har116-a-002864-loopfix__oHC4HdZ"
+}

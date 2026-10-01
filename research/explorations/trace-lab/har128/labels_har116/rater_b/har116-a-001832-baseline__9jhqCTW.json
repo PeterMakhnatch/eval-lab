@@ -1,0 +1,35 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "col_list = []\\n    for k, v in renamed.items():\\n        col = columns[k]\\n        col_list.append(col.label(v))",
+      "ref": "head#29"
+    },
+    {
+      "quote": "Performed context summarization and handoff to continue task.",
+      "ref": "head#71"
+    },
+    {
+      "quote": "res = gb >> rename(z=_.a)",
+      "ref": "head#87"
+    }
+  ],
+  "first_failure": {
+    "quote": "col_list = []\\n    for k, v in renamed.items():\\n        col = columns[k]\\n        col_list.append(col.label(v))",
+    "ref": "head#29",
+    "what": "SQL rename implementation only projects renamed columns and group keys, omitting all other existing table columns"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Run exhausted the 2.5M token limit at 85 episodes while debugging SQL rename and grouped dataframe KeyError failures.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-a-001832-baseline__9jhqCTW"
+}

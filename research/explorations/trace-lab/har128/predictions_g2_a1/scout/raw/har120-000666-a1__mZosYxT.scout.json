@@ -1,0 +1,107 @@
+{
+ "trial": "har120-000666-a1__mZosYxT",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000666-a1/har120-000666-a1__mZosYxT",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000666-a1",
+ "task": "mimo-v2.6-rl/format-code-task-000666",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "task_complete_confirmed",
+  "exception_type": null,
+  "exception_message": "",
+  "natural_completion": true,
+  "task_complete_refs": [
+   "head#25",
+   "head#27",
+   "head#28"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 25,
+  "step_ref": "head#25",
+  "tag": "completion",
+  "attribution": "model",
+  "rule_id": "R-COMP-02",
+  "evidence_step_refs": [
+   "head#25",
+   "head#27",
+   "head#28"
+  ],
+  "note": "harness-confirmed task_complete at head#25, head#27, head#28, but the verifier contradicts the claim (7/9 tests pass)",
+  "grader_note": "instruction.md not located; deliverable check skipped",
+  "loop_token_cost": {
+   "prompt": 50722,
+   "completion": 499
+  }
+ },
+ "handshake": {
+  "first_prompt_ref": "head#25",
+  "prompts": 2,
+  "confirmed": true,
+  "turns_after_first_prompt": 3,
+  "prompt_tokens_after_first_prompt": 38578,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 18,
+    "span": [
+     "head#2",
+     "head#19"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 98308,
+   "completion": 1800,
+   "steps": 18,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 98308,
+   "completion": 1800,
+   "steps": 18,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 204192,
+   "completion": 3475,
+   "steps": 27,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.4814,
+  "result_input_tokens": 204192
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 24,
+  "states": {
+   "prompt": 24
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "36c4c0a4ba3f117a69ed0825cb2a2e7de9b75291"
+ },
+ "nop_runs_dir": null
+}

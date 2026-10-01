@@ -44,8 +44,8 @@ jobs:
           SEGMENT_DOWNLOAD_TIMEOUT_MINS: 2
         with:
           path: ~/.cache/uv
-          key: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-${{ hashFiles('uv.lock') }}-ty-${{ hashFiles('.github/workflows/typecheck.yml') }}
-          restore-keys: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-${{ hashFiles('uv.lock') }}
+          key: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-ty-${{ hashFiles('uv.lock', '.github/workflows/typecheck.yml') }}
+          restore-keys: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-3.12-test-${{ hashFiles('uv.lock', '.github/workflows/ci.yml') }}
       - run: uv sync --locked
 
       - name: ty check

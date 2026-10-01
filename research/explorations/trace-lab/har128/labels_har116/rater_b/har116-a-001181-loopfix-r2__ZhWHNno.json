@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Now the `update` and `advance` methods -- unify the sampling logic",
+      "ref": "head#23"
+    },
+    {
+      "quote": "total_completed = self._completed - self._total",
+      "ref": "head#34"
+    },
+    {
+      "quote": "m = re.search(r'expected = (.*?)(?=\\n    print)', seg, re.S)",
+      "ref": "head#79"
+    },
+    {
+      "quote": "m = re.search(r'expected = (.*?)(?=\\n    print)', seg, re.S)",
+      "ref": "head#87"
+    }
+  ],
+  "first_failure": {
+    "quote": "unify the sampling logic so both paths contribute positive deltas to the window",
+    "ref": "head#23",
+    "what": "first unvalidated rewrite of update/advance sampling with broken _completed/_total bookkeeping that persisted to final diff"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#48",
+    "head#87"
+  ],
+  "notes": "87 episodes/2.42M tokens, budget-exhausted; loop nudge at call 12 only, no stop. Edit persisted (3.3KB diff) but wrong: speed returns None/garbage (11 verifier failures incl. assert 0.667==2.0). head#48-87 (40 turns) repeats one heredoc template parsing test_track's expected string, only slice indices changing. No completion claims.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-a-001181-loopfix-r2__ZhWHNno"
+}

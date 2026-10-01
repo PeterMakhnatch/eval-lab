@@ -1,0 +1,1155 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "har120-001269-a1__y3Wy5Ku",
+    "trial_id": "356cdee5-3d6c-4da6-a83d-412130a645b8",
+    "task": "mimo-v2.6-rl/format-code-task-001269",
+    "job": "HAR-120-har120-001269-a1",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "2d3fce30-d790-49a8-9cd1-158c4a414fd7",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001269-a1/har120-001269-a1__y3Wy5Ku"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "failed",
+    "reward": 0.0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "verifier_outcome": "fail",
+    "stop_reason": "trial_budget_exhausted",
+    "stop_detail": "agent metadata stop_reason; binding ceiling: input_tokens",
+    "completion": "Completion: never claimed; the run ended on step 92 (grep -n \"__setattr__\\|__getattr__\\|__getattribute__\\|__delattr__\" /testbed/responses/__init__.py).",
+    "execution_problems": {
+      "parse_errors": 0,
+      "prose_completions": 0,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": "Analysis: Same object, same id, same dict, but `assert_all_requests_are_fired` is `False` despite the override setting it to `True`. This is extremely suspicious. Let me check if there's a `__setattr__` on the `RequestsMock` class that's silently failing:",
+    "verifier_files": [
+      "verifier/agent.diff",
+      "verifier/apply.log",
+      "verifier/reward.txt",
+      "verifier/test-stdout.txt",
+      "verifier/test_output.log"
+    ],
+    "first_failure": {
+      "step": 14,
+      "kind": "upstream_fetch",
+      "evidence": "pip_download responses==0.25.0 (read back at step 15)",
+      "confidence": "high"
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T08:01:59.729173+00:00",
+    "finished_at": "2026-10-01T08:20:12.024101+00:00",
+    "total_seconds": 1092.295,
+    "phases": {
+      "environment_setup": {
+        "seconds": 2.791,
+        "starts_at_offset_seconds": 0.029
+      },
+      "agent_setup": {
+        "seconds": 16.924,
+        "starts_at_offset_seconds": 3.717
+      },
+      "agent_execution": {
+        "seconds": 1058.08,
+        "starts_at_offset_seconds": 20.663
+      },
+      "verifier": {
+        "seconds": 6.737,
+        "starts_at_offset_seconds": 1085.364
+      }
+    },
+    "unaccounted_seconds": 7.763,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": 9.809,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 92,
+    "agent_span_seconds": 1019.215,
+    "step_gap_seconds": {
+      "count": 90,
+      "median": 8.772,
+      "p90": 14.135,
+      "max": 72.868,
+      "total": 1011.278
+    },
+    "slowest_steps": [
+      {
+        "step": 12,
+        "seconds": 72.868,
+        "action": "bash_command: grep -n \"def stop\" /testbed/responses/__init__.py"
+      },
+      {
+        "step": 14,
+        "seconds": 58.674,
+        "action": "bash_command: sed -n 290,305p /testbed/responses/__init__.pyi; echo ---; pip download responses==0.25.0 --no-deps..."
+      },
+      {
+        "step": 38,
+        "seconds": 36.06,
+        "action": "bash_command: cd /testbed && python -m pytest responses/[hidden-path]/test_responses.py -k \"activate\" -v 2>&1 | ta..."
+      },
+      {
+        "step": 32,
+        "seconds": 35.905,
+        "action": "bash_command: cd /testbed && python -m pytest responses/[hidden-path]/test_responses.py -k \"activate\" -v 2>&1 | ta..."
+      },
+      {
+        "step": 11,
+        "seconds": 24.256,
+        "action": "bash_command: sed -n 860,900p /testbed/responses/__init__.py"
+      }
+    ]
+  },
+  "tokens": {
+    "input": 2418316,
+    "cached_input": 0,
+    "uncached_input": 2418316,
+    "output": 19386,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 2437702,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 2418316,
+        "cached_input": 0,
+        "output": 19386,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 2418316,
+        "cached_input": 0,
+        "output": 19386,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": 2418316,
+        "cached_input": null,
+        "output": 19386,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 91,
+    "llm_steps_with_usage": 91,
+    "context": {
+      "first_prompt_tokens": 800,
+      "peak_prompt_tokens": 51616,
+      "peak_step": 92,
+      "last_prompt_tokens": 51616
+    },
+    "top_steps": [
+      {
+        "step": 92,
+        "input": 51616,
+        "output": 122,
+        "cost_usd": null,
+        "action": "bash_command: grep -n \"__setattr__\\|__getattr__\\|__getattribute__\\|__delattr__\" /testbed/responses/__init__.py"
+      },
+      {
+        "step": 91,
+        "input": 50969,
+        "output": 208,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && python - <<'EOF' 2>&1 import responses m = responses._default_mock # Check if the obj..."
+      },
+      {
+        "step": 90,
+        "input": 50459,
+        "output": 177,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && python - <<'EOF' 2>&1 import responses m = responses._default_mock def fn(): print(\"f..."
+      },
+      {
+        "step": 89,
+        "input": 49788,
+        "output": 218,
+        "cost_usd": null,
+        "action": "bash_command: sed -n '905,940p' /testbed/responses/__init__.py"
+      },
+      {
+        "step": 88,
+        "input": 48811,
+        "output": 214,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && python - <<'EOF' 2>&1 import responses m = responses._default_mock # Check if __dict_..."
+      }
+    ]
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 98,
+    "actions": 91,
+    "distinct_tools": 1,
+    "polls": 0,
+    "by_tool": [
+      {
+        "tool": "bash_command",
+        "calls": 98,
+        "ok": 0,
+        "errors": 4,
+        "unknown": 94,
+        "output_chars": 108582,
+        "first_step": 2,
+        "last_step": 92,
+        "judged": 4,
+        "error_rate": 1.0
+      }
+    ],
+    "top_programs": [
+      {
+        "program": "python",
+        "calls": 42
+      },
+      {
+        "program": "sed",
+        "calls": 25
+      },
+      {
+        "program": "python3",
+        "calls": 11
+      },
+      {
+        "program": "grep",
+        "calls": 8
+      },
+      {
+        "program": "ls",
+        "calls": 3
+      },
+      {
+        "program": "find",
+        "calls": 2
+      }
+    ],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 91,
+    "distinct_actions": 89,
+    "repeated_actions": 2,
+    "repeat_rate": 0.022,
+    "returns_to_earlier_action": 2,
+    "consecutive_repeats": 0,
+    "exact_revisits": 0,
+    "same_result_from_different_action": 0,
+    "repeated_errors": 1,
+    "longest_identical_run": {
+      "length": 1,
+      "steps": [
+        2
+      ],
+      "start_step": 2,
+      "end_step": 2
+    },
+    "longest_cycle": null,
+    "most_repeated": [
+      {
+        "tool": "bash_command",
+        "target": "cd /testbed && python -m pytest responses/[hidden-path]/test_responses.py -k \"activate\" -v 2>&1 | tail -20",
+        "count": 2,
+        "steps": [
+          32,
+          38
+        ],
+        "identical_results": 0
+      },
+      {
+        "tool": "bash_command",
+        "target": "cd /testbed && python - <<'EOF' import responses, requests m = responses._default_mock def fn(): print(\"inside flag:\", m.assert_all_requests_are_fired) w = resp...",
+        "count": 2,
+        "steps": [
+          55,
+          59
+        ],
+        "identical_results": 0
+      }
+    ],
+    "loop_suspicion": {
+      "detected": false,
+      "score": 0.0,
+      "reasons": []
+    },
+    "repeats_by_window": [
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      1,
+      0,
+      0,
+      0
+    ],
+    "revisits_started": {
+      "repeat_rate_by_window": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.1111,
+        0.0,
+        0.1111,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "median_repeat_rate": 0.0,
+      "status": "onset",
+      "reason": null,
+      "window": 4,
+      "steps": [
+        38,
+        46
+      ],
+      "repeat_rate": 0.1111
+    }
+  },
+  "subagents": {
+    "observability": "none_observed",
+    "reason": null,
+    "count": 0,
+    "delegated_count": 0,
+    "summarization_count": 0,
+    "delegation_calls": [],
+    "items": [],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": []
+  },
+  "errors": {
+    "tool_errors": 4,
+    "harness_signalled": 0,
+    "inferred_from_output": 4,
+    "status_unknown_calls": 94,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {
+      "inferred_from_output": 4
+    },
+    "first_error": {
+      "step": 19,
+      "offset_seconds": 297.466,
+      "evidence": "output_text"
+    },
+    "ended_in_error": true,
+    "examples": [
+      {
+        "step": 19,
+        "tool": "bash_command",
+        "target": "python3 - <<'EOF' import io path = \"/testbed/responses/__init__.py\" src = open(path).read() old_get_wrapped = '''def get...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "activate, new_activate, 1) > > open(path, \"w\").write(src) > print(\"done\") > EOF Traceback (most recent call last): File \"<stdin>\", line 77, in <module> AssertionError root@9589ec49-3e95-43b0-be48-429d7f1bccbd:/testbed#"
+      },
+      {
+        "step": 22,
+        "tool": "bash_command",
+        "target": "python3 - <<'PYEOF' path = \"/testbed/responses/__init__.py\" src = open(path).read() # 1. get_wrapped signature old = 'de...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "= src.replace(old, new, 1) > > open(path, \"w\").write(src) > print(\"ok\") > PYEOF Traceback (most recent call last): File \"<stdin>\", line 22, in <module> AssertionError: doc root@9589ec49-3e95-43b0-be48-429d7f1bccbd:/testbed#"
+      },
+      {
+        "step": 54,
+        "tool": "bash_command",
+        "target": "cd /testbed && python - <<'EOF' import responses, requests m = responses._default_mock # Check if get_wrapped is actuall...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "st_flag() > EOF get_wrapped in module: <function get_wrapped at 0x74872ff6e200> Traceback (most recent call last): File \"<stdin>\", line 6, in <module> AttributeError: 'RequestsMock' object has no attribute 'get_wrapped' root@9589ec49-3e95-4..."
+      },
+      {
+        "step": 55,
+        "tool": "bash_command",
+        "target": "cd /testbed && python - <<'EOF' import responses, requests m = responses._default_mock def fn(): print(\"inside flag:\", m...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "st_flag() > EOF get_wrapped in module: <function get_wrapped at 0x74872ff6e200> Traceback (most recent call last): File \"<stdin>\", line 6, in <module> AttributeError: 'RequestsMock' object has no attribute 'get_wrapped' root@9589ec49-3e95-4..."
+      }
+    ],
+    "exception": {
+      "type": "TrialBudgetExhaustedError",
+      "message": "the trial proxy refused a model call: trial budget exhausted",
+      "occurred_at": "2026-10-01T08:19:58.475336Z"
+    }
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 1,
+    "items": [
+      {
+        "step": 14,
+        "kind": "pip_download",
+        "command": "sed -n 290,305p /testbed/responses/__init__.pyi; echo ---; pip download responses==0.25.0 --no-deps -d /tmp/rs 2>&1 | tail -1",
+        "target": "responses==0.25.0",
+        "read_back_step": 15
+      }
+    ]
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 92,
+    "shown_steps": 26,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 1.872,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      },
+      {
+        "step": 2,
+        "offset_seconds": 9.809,
+        "source": "agent",
+        "action": "bash_command: ls /testbed && cat /testbed/README* 2>/dev/null | head -50 ; find /testbed -name \"*.py\" | grep -v te...",
+        "status": "unknown",
+        "input_tokens": 800,
+        "output_tokens": 107,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 3,
+        "offset_seconds": 18.159,
+        "source": "agent",
+        "action": "bash_command: ls /testbed/responses /testbed/scripts ; grep -n \"activate\" /testbed/responses/__init__.py | head -4...",
+        "status": "unknown",
+        "input_tokens": 1455,
+        "output_tokens": 111,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 4,
+        "offset_seconds": 26.6,
+        "source": "agent",
+        "action": "bash_command: sed -n 740,1000p /testbed/responses/__init__.py ; cat /testbed/responses/__init__.pyi",
+        "status": "unknown",
+        "input_tokens": 1827,
+        "output_tokens": 88,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 5,
+        "offset_seconds": 34.582,
+        "source": "agent",
+        "action": "bash_command: sed -n 780,830p /testbed/responses/__init__.py ; grep -n \"activate\\|assert_all_requests_are_fired\\|R...",
+        "status": "unknown",
+        "input_tokens": 2636,
+        "output_tokens": 104,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 6,
+        "offset_seconds": 43.214,
+        "source": "agent",
+        "action": "bash_command: sed -n 100,170p /testbed/responses/__init__.pyi ; sed -n 280,350p /testbed/responses/__init__.pyi",
+        "status": "unknown",
+        "input_tokens": 3404,
+        "output_tokens": 99,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 7,
+        "offset_seconds": 52.029,
+        "source": "agent",
+        "action": "bash_command: sed -n 1,100p /testbed/responses/__init__.pyi ; grep -rn \"get_wrapped\" /testbed/responses/__init__.p...",
+        "status": "unknown",
+        "input_tokens": 4215,
+        "output_tokens": 115,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 8,
+        "offset_seconds": 59.629,
+        "source": "agent",
+        "action": "bash_command: sed -n 120,170p /testbed/responses/__init__.py; echo ---; sed -n 540,620p /testbed/responses/__init_...",
+        "status": "unknown",
+        "input_tokens": 4996,
+        "output_tokens": 116,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 9,
+        "offset_seconds": 66.492,
+        "source": "agent",
+        "action": "bash_command: sed -n 134,200p /testbed/responses/__init__.py",
+        "status": "unknown",
+        "input_tokens": 5717,
+        "output_tokens": 50,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 10,
+        "offset_seconds": 87.603,
+        "source": "agent",
+        "action": "bash_command: sed -n 135,165p /testbed/responses/__init__.pyi; echo ---; sed -n 285,305p /testbed/responses/__init...",
+        "status": "unknown",
+        "input_tokens": 6304,
+        "output_tokens": 855,
+        "cost_usd": null,
+        "message": "Analysis: Now let me look at the stub file's `RequestsMock` class and `_Activate` definition:",
+        "flags": []
+      },
+      {
+        "omitted_steps": [
+          11,
+          18
+        ]
+      },
+      {
+        "step": 19,
+        "offset_seconds": 297.466,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'EOF' import io path = \"/testbed/responses/__init__.py\" src = open(path).read() old_get_...",
+        "status": "error",
+        "input_tokens": 10050,
+        "output_tokens": 810,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          20,
+          21
+        ]
+      },
+      {
+        "step": 22,
+        "offset_seconds": 331.973,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' path = \"/testbed/responses/__init__.py\" src = open(path).read() # 1. get_wrapped...",
+        "status": "error",
+        "input_tokens": 12049,
+        "output_tokens": 847,
+        "cost_usd": null,
+        "message": "Analysis: The text looks identical. The issue is likely the `Optional` import \u2014 my `old_activate` used `Optional[Callable[..., Any]]` in the...",
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          23,
+          37
+        ]
+      },
+      {
+        "step": 38,
+        "offset_seconds": 542.436,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python -m pytest responses/[hidden-path]/test_responses.py -k \"activate\" -v 2>&1 | ta...",
+        "status": "unknown",
+        "input_tokens": 23029,
+        "output_tokens": 58,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "omitted_steps": [
+          39,
+          53
+        ]
+      },
+      {
+        "step": 54,
+        "offset_seconds": 683.601,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python - <<'EOF' import responses, requests m = responses._default_mock # Check if ge...",
+        "status": "error",
+        "input_tokens": 30421,
+        "output_tokens": 317,
+        "cost_usd": null,
+        "message": "Analysis: The code looks correct. The issue is likely that `responses.activate` is a bound method captured at import time, and `get_wrapped`...",
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 55,
+        "offset_seconds": 692.498,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python - <<'EOF' import responses, requests m = responses._default_mock def fn(): pri...",
+        "status": "error",
+        "input_tokens": 31144,
+        "output_tokens": 124,
+        "cost_usd": null,
+        "message": "Analysis: Let me test the flag override directly:",
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          56,
+          58
+        ]
+      },
+      {
+        "step": 59,
+        "offset_seconds": 724.949,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python - <<'EOF' import responses, requests m = responses._default_mock def fn(): pri...",
+        "status": "unknown",
+        "input_tokens": 33218,
+        "output_tokens": 130,
+        "cost_usd": null,
+        "message": "Analysis: The code is correct. Let me test the flag override in isolation:",
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "omitted_steps": [
+          60,
+          82
+        ]
+      },
+      {
+        "step": 83,
+        "offset_seconds": 940.934,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python - <<'EOF' 2>&1 import responses m = responses._default_mock def fn(): print(\"f...",
+        "status": "unknown",
+        "input_tokens": 46049,
+        "output_tokens": 311,
+        "cost_usd": null,
+        "message": "Analysis: No `__getattr__` interference. Let me check if `fn` is actually being called during `get_wrapped` by checking the order of output...",
+        "flags": []
+      },
+      {
+        "step": 84,
+        "offset_seconds": 950.129,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python - <<'EOF' 2>&1 import responses m = responses._default_mock # Check if m is so...",
+        "status": "unknown",
+        "input_tokens": 46656,
+        "output_tokens": 235,
+        "cost_usd": null,
+        "message": "Analysis: `fn2` is NOT called during `get_wrapped` (0 calls). And the override runs (start: False, end: True). But `fn2` sees flag False. Th...",
+        "flags": []
+      },
+      {
+        "step": 85,
+        "offset_seconds": 959.4,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python - <<'EOF' 2>&1 import responses m = responses._default_mock # Check __setattr_...",
+        "status": "unknown",
+        "input_tokens": 47195,
+        "output_tokens": 241,
+        "cost_usd": null,
+        "message": "Analysis: This is extremely bizarre. Same object, same id, yet the flag reads False. Let me check if there's a `__setattr__` that's interfer...",
+        "flags": []
+      },
+      {
+        "step": 86,
+        "offset_seconds": 968.041,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python - <<'EOF' 2>&1 import responses m = responses._default_mock def fn(): print(\"f...",
+        "status": "unknown",
+        "input_tokens": 47915,
+        "output_tokens": 183,
+        "cost_usd": null,
+        "message": "Analysis: Direct set works fine. So the override in `get_wrapped` IS setting the attribute to True (confirmed by the debug print \"override e...",
+        "flags": []
+      },
+      {
+        "step": 87,
+        "offset_seconds": 976.772,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python - <<'EOF' 2>&1 import responses m = responses._default_mock print(\"before impo...",
+        "status": "unknown",
+        "input_tokens": 48298,
+        "output_tokens": 193,
+        "cost_usd": null,
+        "message": "Analysis: This is a genuine mystery. Let me check if the `requests` library is patching `m` via `unittest.mock`. The `responses` library pat...",
+        "flags": []
+      },
+      {
+        "step": 88,
+        "offset_seconds": 985.998,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python - <<'EOF' 2>&1 import responses m = responses._default_mock # Check if __dict_...",
+        "status": "unknown",
+        "input_tokens": 48811,
+        "output_tokens": 214,
+        "cost_usd": null,
+        "message": "Analysis: Same object, same id, but flag is False. Let me check if the `requests` library is somehow replacing the `__dict__` or if there's...",
+        "flags": []
+      },
+      {
+        "step": 89,
+        "offset_seconds": 996.041,
+        "source": "agent",
+        "action": "bash_command: sed -n '905,940p' /testbed/responses/__init__.py",
+        "status": "unknown",
+        "input_tokens": 49788,
+        "output_tokens": 218,
+        "cost_usd": null,
+        "message": "Analysis: Found it! Look at the dict inside `fn`: `'assert_all_requests_are_fired': False` but the override set it to True. And notice `_pat...",
+        "flags": []
+      },
+      {
+        "step": 90,
+        "offset_seconds": 1004.501,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python - <<'EOF' 2>&1 import responses m = responses._default_mock def fn(): print(\"f...",
+        "status": "unknown",
+        "input_tokens": 50459,
+        "output_tokens": 177,
+        "cost_usd": null,
+        "message": "Analysis: `start()` and `stop()` don't reset the flag. Let me check if `std_mock.patch` is somehow interfering. Actually, let me check if th...",
+        "flags": []
+      },
+      {
+        "step": 91,
+        "offset_seconds": 1013.508,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python - <<'EOF' 2>&1 import responses m = responses._default_mock # Check if the obj...",
+        "status": "unknown",
+        "input_tokens": 50969,
+        "output_tokens": 208,
+        "cost_usd": null,
+        "message": "Analysis: The dict shows `assert_all_requests_are_fired: False` even though the override set it to True! Something is resetting it. Let me c...",
+        "flags": []
+      },
+      {
+        "step": 92,
+        "offset_seconds": 1021.087,
+        "source": "agent",
+        "action": "bash_command: grep -n \"__setattr__\\|__getattr__\\|__getattribute__\\|__delattr__\" /testbed/responses/__init__.py",
+        "status": "unknown",
+        "input_tokens": 51616,
+        "output_tokens": 122,
+        "cost_usd": null,
+        "message": "Analysis: Same object, same id, same dict, but `assert_all_requests_are_fired` is `False` despite the override setting it to `True`. This is...",
+        "flags": []
+      }
+    ],
+    "windows": [
+      {
+        "steps": [
+          1,
+          10
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1645,
+        "cost_usd": null,
+        "seconds": 85.731,
+        "peak_prompt_tokens": 6304,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          11,
+          19
+        ],
+        "tool_calls": 9,
+        "errors": 1,
+        "revisits": 0,
+        "output_tokens": 3713,
+        "cost_usd": null,
+        "seconds": 185.607,
+        "peak_prompt_tokens": 10050,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          20,
+          28
+        ],
+        "tool_calls": 9,
+        "errors": 1,
+        "revisits": 0,
+        "output_tokens": 2614,
+        "cost_usd": null,
+        "seconds": 88.847,
+        "peak_prompt_tokens": 17285,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          29,
+          37
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1591,
+        "cost_usd": null,
+        "seconds": 106.237,
+        "peak_prompt_tokens": 22580,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          38,
+          46
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 1,
+        "output_tokens": 1287,
+        "cost_usd": null,
+        "seconds": 68.92,
+        "peak_prompt_tokens": 26340,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          47,
+          56
+        ],
+        "tool_calls": 10,
+        "errors": 2,
+        "revisits": 0,
+        "output_tokens": 1822,
+        "cost_usd": null,
+        "seconds": 79.596,
+        "peak_prompt_tokens": 31704,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          57,
+          65
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 1,
+        "output_tokens": 1444,
+        "cost_usd": null,
+        "seconds": 71.506,
+        "peak_prompt_tokens": 36083,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          66,
+          74
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1285,
+        "cost_usd": null,
+        "seconds": 66.099,
+        "peak_prompt_tokens": 40486,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          75,
+          83
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 2194,
+        "cost_usd": null,
+        "seconds": 76.521,
+        "peak_prompt_tokens": 46049,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          84,
+          92
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1791,
+        "cost_usd": null,
+        "seconds": 70.957,
+        "peak_prompt_tokens": 51616,
+        "compactions": 0
+      }
+    ],
+    "time_windows": {
+      "status": "available",
+      "reason": null,
+      "origin": "2026-10-01T08:02:22.264070+00:00",
+      "span_seconds": 1019.215,
+      "steps_without_timestamps": 0,
+      "windows": [
+        {
+          "steps": [
+            1,
+            10
+          ],
+          "tool_calls": 9,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1645,
+          "cost_usd": null,
+          "peak_prompt_tokens": 6304,
+          "compactions": 0,
+          "starts_at_offset_seconds": 0.0,
+          "ends_at_offset_seconds": 101.922
+        },
+        {
+          "steps": [
+            11,
+            13
+          ],
+          "tool_calls": 3,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1196,
+          "cost_usd": null,
+          "peak_prompt_tokens": 7946,
+          "compactions": 0,
+          "starts_at_offset_seconds": 101.922,
+          "ends_at_offset_seconds": 203.843
+        },
+        {
+          "steps": [
+            14,
+            20
+          ],
+          "tool_calls": 7,
+          "errors": 1,
+          "revisits": 0,
+          "output_tokens": 2589,
+          "cost_usd": null,
+          "peak_prompt_tokens": 11511,
+          "compactions": 0,
+          "starts_at_offset_seconds": 203.843,
+          "ends_at_offset_seconds": 305.765
+        },
+        {
+          "steps": [
+            21,
+            30
+          ],
+          "tool_calls": 10,
+          "errors": 1,
+          "revisits": 0,
+          "output_tokens": 2648,
+          "cost_usd": null,
+          "peak_prompt_tokens": 18177,
+          "compactions": 0,
+          "starts_at_offset_seconds": 305.765,
+          "ends_at_offset_seconds": 407.686
+        },
+        {
+          "steps": [
+            31,
+            37
+          ],
+          "tool_calls": 7,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1485,
+          "cost_usd": null,
+          "peak_prompt_tokens": 22580,
+          "compactions": 0,
+          "starts_at_offset_seconds": 407.686,
+          "ends_at_offset_seconds": 509.608
+        },
+        {
+          "steps": [
+            38,
+            46
+          ],
+          "tool_calls": 9,
+          "errors": 0,
+          "revisits": 1,
+          "output_tokens": 1287,
+          "cost_usd": null,
+          "peak_prompt_tokens": 26340,
+          "compactions": 0,
+          "starts_at_offset_seconds": 509.608,
+          "ends_at_offset_seconds": 611.529
+        },
+        {
+          "steps": [
+            47,
+            57
+          ],
+          "tool_calls": 11,
+          "errors": 2,
+          "revisits": 0,
+          "output_tokens": 1929,
+          "cost_usd": null,
+          "peak_prompt_tokens": 32112,
+          "compactions": 0,
+          "starts_at_offset_seconds": 611.529,
+          "ends_at_offset_seconds": 713.451
+        },
+        {
+          "steps": [
+            58,
+            69
+          ],
+          "tool_calls": 12,
+          "errors": 0,
+          "revisits": 1,
+          "output_tokens": 1923,
+          "cost_usd": null,
+          "peak_prompt_tokens": 38261,
+          "compactions": 0,
+          "starts_at_offset_seconds": 713.451,
+          "ends_at_offset_seconds": 815.372
+        },
+        {
+          "steps": [
+            70,
+            80
+          ],
+          "tool_calls": 11,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 2031,
+          "cost_usd": null,
+          "peak_prompt_tokens": 43796,
+          "compactions": 0,
+          "starts_at_offset_seconds": 815.372,
+          "ends_at_offset_seconds": 917.294
+        },
+        {
+          "steps": [
+            81,
+            92
+          ],
+          "tool_calls": 12,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 2653,
+          "cost_usd": null,
+          "peak_prompt_tokens": 51616,
+          "compactions": 0,
+          "starts_at_offset_seconds": 917.294,
+          "ends_at_offset_seconds": 1019.215
+        }
+      ]
+    }
+  },
+  "data_quality": [
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B' has no pinned price-table entry",
+    "harness reports no per-call status (no exit codes or error flags): tool errors are only inferred from output text"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "d88c0408bd00baf7e4434511116d42477574d264dd51ad5a0ab8139776bd551f"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "a5287ca24767ae90eaf6019e2add0204cfc0c8431d8869444e20f18bee5241fd"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 91,
+    "recorded": 91,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 0,
+    "prose_completions": 0,
+    "executed_calls": 98,
+    "task_complete_turns": 0,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 0,
+    "continuations_missing": [],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 92,
+        "copied_steps": 0,
+        "session_id": "2d3fce30-d790-49a8-9cd1-158c4a414fd7"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 92,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": []
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B) failed (reward 0) on mimo-v2.6-rl/format-code-task-001269; in 18m12s wall (17m38s agent); 92 steps, 98 tool calls, 4 errors, 2.44M tokens, cost unavailable; 2 repeated actions (0 exact revisits); no subagents observed."
+}

@@ -1,0 +1,31 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "ModuleNotFoundError: No module named 'duckdb'",
+      "ref": "exception.txt"
+    },
+    {
+      "quote": "the trial proxy refused a model call: trial budget exhausted",
+      "ref": "result.json"
+    }
+  ],
+  "first_failure": {
+    "quote": "ModuleNotFoundError: No module named 'duckdb'",
+    "ref": "head#1",
+    "what": "harness crashed in loopfix import (live_loop_action -> _is_edit -> import duckdb) before any agent step was recorded; trajectory holds only the user prompt"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Same startup import crash as run 1 (loopfix non-r2 variant): trajectory has only head#1, n_episodes 1, loop_break fired false, verifier never ran. The second evidence quote above is NOT from this run and is listed here in error scope only to distinguish it from the budget-exhaustion signature of run 5 -- this run's exception is strictly the duckdb ModuleNotFoundError.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "har116-a-002256-loopfix__5Xu6dgc"
+}

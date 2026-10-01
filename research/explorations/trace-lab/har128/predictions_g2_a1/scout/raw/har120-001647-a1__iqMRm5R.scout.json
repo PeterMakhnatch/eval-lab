@@ -1,0 +1,69 @@
+{
+ "trial": "har120-001647-a1__iqMRm5R",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001647-a1/har120-001647-a1__iqMRm5R",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001647-a1",
+ "task": "mimo-v2.6-rl/format-code-task-001647",
+ "verifier": {
+  "scored": false,
+  "reward": null,
+  "source": "missing",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "unknown",
+  "exception_type": "RuntimeError",
+  "exception_message": "Failed to start tmux session. Error: bash: line 1: tmux: command not found\n",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": null,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "environment",
+  "attribution": "unclear",
+  "rule_id": "R-ENV-01",
+  "evidence_step_refs": [],
+  "recovered": false,
+  "note": "no model turns; infra-only failure, nothing to attribute to the model"
+ },
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "environment",
+  "attribution": "unclear",
+  "rule_id": "R-ENV-01",
+  "evidence_step_refs": [],
+  "note": "no model turns; infra-only failure, nothing to attribute to the model"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [],
+  "identical": null,
+  "confirmation": null,
+  "in_loops": null,
+  "all_steps": null,
+  "loop_prompt_share": null,
+  "result_input_tokens": null
+ },
+ "wedge": {
+  "keystroke_source": "none",
+  "executed_turns": 0,
+  "states": {},
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "36c4c0a4ba3f117a69ed0825cb2a2e7de9b75291"
+ },
+ "nop_runs_dir": null
+}

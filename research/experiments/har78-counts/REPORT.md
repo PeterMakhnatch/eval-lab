@@ -40,14 +40,59 @@
 
 | Reason | Condition |
 |---|---|
-| `copied_fix` | `reward >= 1.0` and upstream package download detector fired |
-| `pass_tainted` | `reward >= 1.0` and upstream fetch or verifier guard reject |
+| `copied_fix` | `reward >= 1.0` and confirmed upstream acquisition with recorded, target-bound outcome evidence |
+| `pass_tainted` | `reward >= 1.0` and confirmed upstream acquisition or verifier guard reject |
 | `task_not_usable` | Digest-matched canonical ledger status `review`, `discarded` or `unchecked`; without a match, the legacy hand/census exclusion policy below |
 | `infra` | Not scored, verifier reward missing, or proxy 502 / bad gateway |
 
-- Upstream fetch on a failure stays `counted_fail` (flagged `upstream_fetch`, decisive=false).
+- Confirmed upstream acquisition on a verifier failure stays `counted_fail` (flagged `upstream_fetch`, decisive=false). Failed or unknown fetch attempts never decide counts, including on a native pass; they remain `upstream_fetch_attempt` flags.
 - A budget exhaustion on a scored trial stays `counted_fail`.
 - Diagnostic judgments (`first_failure`, blame, loops) carry `accuracy: null` and never exclude.
+
+### Successful acquisition evidence (HAR-131 correction)
+
+`upstream_fetch.detect_upstream_fetch` remains the canonical command-only
+**attempt** matcher. `process-job` now adds an outcome (`succeeded`, `failed`,
+or `unknown`) and source-bound evidence. Both copied-fix and fetch-based
+pass-taint exclusions require `succeeded` **and** nonempty outcome evidence;
+old command-only flags have no successful-acquisition fallback. The separate
+opt-in GEPA `UPSTREAM_FETCH_ZERO` objective is deliberately unchanged: **any
+attempt** still zeros that objective. Do not substitute its policy for counts.
+
+Positive proof is a package-specific acquisition summary/saved artifact, a
+recorded exit status of an isolated acquisition command (not a compound
+command's final `ls`/`tail`/`echo`/`|| true` status), or an exact pinned
+package/version artifact listed in the fetch destination and subsequently
+observed being unpacked and read. Call results must match the recorded call ID
+inside the same document and step. A legacy untagged result is usable only
+when an explicit, unique native-call command echo bounds its terminal window;
+the evidence records `terminal-command-window` attribution rather than
+inventing a `source_call_id`. Buffered text before the current command echo
+and output after the next prompt are not current-call stdout. Echoes and
+literal command content cannot prove success. Artifact-use proof stops at
+another attempt for the same normalized package/target or a document boundary.
+Another package, path, episode, continuation, or reused numeric step ID cannot
+supply the proof.
+
+Missing/empty output, merely seeing a URL/filename, a successful local import,
+and no observed error remain **unknown**. Informational index queries, remote
+configuration, unparsed commands, and script fetches without bound acquisition
+proof are not promoted by a whole-script exit status. Supported isolated-fetch
+statuses include pip/uv-pip, transfers, git acquisition, and apt source.
+Conservative unknowns are exposed, not fabricated failures or successes.
+An independent guard reject, unusable-task decision, or infra exclusion still
+applies. Native rewards and experimental evidence remain immutable.
+
+Portable producer→counts regressions retain exact native excerpts under
+`tests/fixtures/upstream_fetch/`, with trajectory/result SHA-256 provenance:
+001870 (`0c82546a26b004d5e3e544deada7273a08c70ce2edc176d85ed88d52dd3c47b3`)
+has only unsuccessful/unconfirmed markdownify attempts and is no longer
+fetch-excluded; 000341
+(`9e03e80486254e608b921fccc52505c9a5a076f42a13d3425ca7e94b860e9209`)
+retains the step-40 exact wheel listing plus step-41 observed unpack/read
+proof and remains fetch-excluded. Both native rewards are 1.0. These statements
+concern the fetch exclusions, not independent task-usability/guard decisions.
+
 
 ### Task-version binding (HAR-131)
 

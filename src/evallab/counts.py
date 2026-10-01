@@ -3,8 +3,8 @@
 ``reward`` is never rewritten. ``counts`` says whether that reward may be
 quoted as a model result. Only deterministic facts exclude a trial:
 
-- ``copied_fix``: a pass whose existing fetch detector fired
-- ``pass_tainted``: HAR-100, a pass with a fetch or a guard reject
+- ``copied_fix``: a pass with confirmed upstream acquisition
+- ``pass_tainted``: HAR-100, a pass with confirmed acquisition or a guard reject
 - ``task_not_usable``: census or hand label says the task cannot be read.
   The census labels a task's original package; a trial that ran a
   ``validated`` task variant (``library/task-variants``: its own nop was
@@ -16,6 +16,8 @@ A fetch on a failure stays ``counted_fail`` and is flagged. First failure,
 blame, and loop kind are attached for display. They never change the verdict.
 GEPA should read ``counts.verdict`` instead of applying its own fetch-to-zero
 rule; this module does not change GEPA.
+Failed and unknown fetch attempts are non-deciding flags. The legacy opt-in
+GEPA ``UPSTREAM_FETCH_ZERO`` rule still zeros any attempt, regardless of outcome.
 """
 
 from __future__ import annotations
@@ -27,6 +29,8 @@ import json
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+
+from evallab.upstream_fetch import confirmed_fetch
 
 COUNTS_SCHEMA = "evallab.counts/v1"
 VERDICTS = ("counted_pass", "counted_fail", "excluded")
@@ -47,7 +51,6 @@ def classify_counts(
     reward: float | None,
     scored: bool,
     taint: list[dict[str, Any]] | None = None,
-    copied_pass: dict[str, Any] | None = None,
     usability: dict[str, Any] | None = None,
     exception: dict[str, Any] | None = None,
     first_failure: dict[str, Any] | None = None,
@@ -57,16 +60,17 @@ def classify_counts(
     """Return ``counts`` for one trial. Judgments are attached and ignored."""
     flags = [flag for flag in (flags or []) if isinstance(flag, str)]
     taint_flags = [flag for flag in (taint or []) if isinstance(flag, dict)]
-    fetches = [flag for flag in taint_flags if flag.get("kind") == "upstream_fetch"]
+    attempts = [flag for flag in taint_flags if flag.get("kind") == "upstream_fetch"]
+    fetches = [flag for flag in attempts if confirmed_fetch(flag)]
     guards = [flag for flag in taint_flags if flag.get("kind") == "guard_reject"]
     passed = _passed(reward, scored)
     failed = scored and isinstance(reward, (int, float)) and not isinstance(reward, bool) and float(reward) < 1.0
 
     reasons: list[str] = []
     evidence: list[dict[str, Any]] = []
-    if passed and (fetches or copied_pass):
+    if passed and fetches:
         reasons.append("copied_fix")
-        evidence.extend(_fetch_evidence("copied_fix", fetches, copied_pass))
+        evidence.extend(_fetch_evidence("copied_fix", fetches))
     if passed and (fetches or guards):
         reasons.append("pass_tainted")
         evidence.extend(_taint_evidence(fetches, guards))
@@ -84,7 +88,23 @@ def classify_counts(
         reasons.append("infra")
         evidence.append(_infra_evidence(exception))
 
-    display_flags: list[dict[str, Any]] = []
+    display_flags: list[dict[str, Any]] = [
+        {
+            "code": "upstream_fetch_attempt",
+            "decisive": False,
+            "outcome": flag.get("outcome", "unknown"),
+            "step": flag.get("evidence"),
+            "target": flag.get("target"),
+            "command": flag.get("command"),
+            "outcome_evidence": flag.get("outcome_evidence") or [],
+            "document": flag.get("document"),
+            "call_id": flag.get("call_id"),
+            "outcome_reason": flag.get("outcome_reason"),
+            "note": "fetch attempt is not confirmed acquisition; never decides counts",
+        }
+        for flag in attempts
+        if not confirmed_fetch(flag)
+    ]
     if fetches and not passed:
         display_flags.append(
             {
@@ -413,44 +433,30 @@ def _evidence(
 def _fetch_evidence(
     reason: str,
     fetches: list[dict[str, Any]],
-    copied_pass: dict[str, Any] | None,
 ) -> list[dict[str, Any]]:
-    items = [
-        _evidence(
-            reason,
-            detector="upstream_fetch",
-            command=flag.get("command"),
-            excerpt=flag.get("evidence") or flag.get("rule"),
-            path="agent/trajectory.json",
-        )
+    return [
+        {
+            **_evidence(
+                reason,
+                detector="upstream_fetch",
+                command=flag.get("command"),
+                excerpt=flag.get("evidence"),
+                path="agent/trajectory.json"
+                if flag.get("document") == "head"
+                else f"agent/trajectory.{flag.get('document')}.json",
+            ),
+            "outcome": "succeeded",
+            "target": flag.get("target"),
+            "document": flag.get("document"),
+            "call_id": flag.get("call_id"),
+            "observations": flag["outcome_evidence"],
+        }
         for flag in fetches
     ]
-    if copied_pass:
-        steps = copied_pass.get("evidence_steps") or []
-        first = steps[0] if steps and isinstance(steps[0], dict) else {}
-        items.append(
-            _evidence(
-                reason,
-                detector="pass_may_be_copied",
-                step=first.get("fetch_step"),
-                excerpt=copied_pass.get("flag") or "pass_may_be_copied",
-                path="agent/trajectory.json",
-            )
-        )
-    return items or [_evidence(reason, detector="upstream_fetch", excerpt="fetch flagged", path="agent/trajectory.json")]
 
 
 def _taint_evidence(fetches: list[dict[str, Any]], guards: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    items = [
-        _evidence(
-            "pass_tainted",
-            detector="upstream_fetch",
-            command=flag.get("command"),
-            excerpt=flag.get("rule"),
-            path="agent/trajectory.json",
-        )
-        for flag in fetches
-    ]
+    items = _fetch_evidence("pass_tainted", fetches)
     items.extend(
         _evidence(
             "pass_tainted",

@@ -535,56 +535,109 @@ def query_modal_rows(
 ) -> tuple[SpendRow | None, str]:
     """Billed Modal rows from catalog cache for ``[window_start, window_end)``.
 
-    Resolution preference rule: per UTC day, prefer daily rows (resolution='d')
-    when present (they come from whole-day reconciles and are authoritative),
-    else hourly rows (resolution='h'). Never sums both resolutions for the
-    same day.
+    Per-(object_id, UTC day) rule: for each object/day, take
+    ``max(daily_cost, sum(hourly_costs))``. This survives PK collision
+    (resolution not in key) and partial snapshots without double-counting.
+    For intra-day windows, if an object/day has only a daily row, it counts
+    the full daily row conservatively.
     """
     import psycopg
 
     window_start = _coerce_utc(window_start)
     window_end = _coerce_utc(window_end)
     with psycopg.connect(database_url) as connection:
-        row = connection.execute(
+        rows = connection.execute(
             """
-            WITH days_with_daily AS (
-                SELECT DISTINCT (interval_start AT TIME ZONE 'UTC')::date AS day
+            WITH hourly_per_obj AS (
+                SELECT object_id,
+                       (interval_start AT TIME ZONE 'UTC')::date AS day,
+                       coalesce(sum(cost_usd), 0) AS hourly_usd,
+                       count(*) AS hourly_count,
+                       max(reported_at) AS hourly_reported
+                FROM modal_billing_rows
+                WHERE resolution = 'h'
+                  AND interval_start >= %s AND interval_start < %s
+                GROUP BY object_id, (interval_start AT TIME ZONE 'UTC')::date
+            ),
+            daily_per_obj AS (
+                SELECT object_id,
+                       (interval_start AT TIME ZONE 'UTC')::date AS day,
+                       coalesce(sum(cost_usd), 0) AS daily_usd,
+                       count(*) AS daily_count,
+                       max(reported_at) AS daily_reported
                 FROM modal_billing_rows
                 WHERE resolution = 'd'
+                  AND interval_start < %s AND interval_start + interval '1 day' > %s
+                GROUP BY object_id, (interval_start AT TIME ZONE 'UTC')::date
+            ),
+            combined_keys AS (
+                SELECT object_id, day FROM hourly_per_obj
+                UNION
+                SELECT object_id, day FROM daily_per_obj
             )
-            SELECT coalesce(sum(m.cost_usd), 0), count(m.*), max(m.reported_at)
-            FROM modal_billing_rows m
-            WHERE (
-                (
-                    m.resolution = 'd'
-                    AND m.interval_start < %s AND m.interval_start + interval '1 day' > %s
-                )
-                OR
-                (
-                    m.resolution = 'h'
-                    AND m.interval_start >= %s AND m.interval_start < %s
-                    AND (m.interval_start AT TIME ZONE 'UTC')::date NOT IN (SELECT day FROM days_with_daily)
-                )
-            )
+            SELECT
+                k.object_id,
+                k.day,
+                coalesce(h.hourly_usd, 0) AS hourly_usd,
+                coalesce(d.daily_usd, 0) AS daily_usd,
+                coalesce(h.hourly_count, 0) AS hourly_count,
+                coalesce(d.daily_count, 0) AS daily_count,
+                greatest(h.hourly_reported, d.daily_reported) AS reported_at
+            FROM combined_keys k
+            LEFT JOIN hourly_per_obj h ON h.object_id = k.object_id AND h.day = k.day
+            LEFT JOIN daily_per_obj d ON d.object_id = k.object_id AND d.day = k.day
             """,
-            (window_end, window_start, window_start, window_end),
-        ).fetchone()
-    total, count, reported_at = row if row is not None else (0.0, 0, None)
+            (window_start, window_end, window_end, window_start),
+        ).fetchall()
+
     label = f"{window_start.isoformat()}..{window_end.isoformat()}"
-    if int(count) == 0:
+    if not rows:
         return None, f"modal: no billing rows matching {label} in modal_billing_rows"
-    return (
-        SpendRow(
-            source="modal",
-            card=UNATTRIBUTED,
-            job="modal-account",
-            usd=float(total),
-            basis=BASIS_BILLED,
-            evidence=f"catalog:modal_billing_rows:{int(count)} rows",
-        ),
-        f"modal: billed ${float(total):.4f} across {int(count)} rows in {label}"
-        + (f" (last reported {reported_at})" if reported_at else ""),
+
+    total_usd = 0.0
+    total_count = 0
+    max_reported: datetime | None = None
+    sub_notes: list[str] = []
+
+    for obj_id, d, h_usd, d_usd, h_cnt, d_cnt, reported in rows:
+        h_val = float(h_usd)
+        d_val = float(d_usd)
+        if h_cnt > 0 and d_cnt > 0:
+            cost = max(h_val, d_val)
+            cnt = h_cnt
+        elif h_cnt > 0:
+            cost = h_val
+            cnt = h_cnt
+        else:
+            cost = d_val
+            cnt = d_cnt
+            day_start = datetime.combine(d, time.min, tzinfo=UTC)
+            day_end = day_start + timedelta(days=1)
+            if window_start > day_start or window_end < day_end:
+                sub_notes.append(
+                    f"object {obj_id} on {d} has only daily row; counted ${d_val:.4f} conservatively"
+                )
+
+        total_usd += cost
+        total_count += cnt
+        if reported is not None:
+            max_reported = reported if max_reported is None else max(max_reported, reported)
+
+    note_text = f"modal: billed ${total_usd:.4f} across {total_count} rows in {label}" + (
+        f" (last reported {max_reported})" if max_reported else ""
     )
+    if sub_notes:
+        note_text += " (" + "; ".join(sub_notes[:3]) + ")"
+
+    modal_row = SpendRow(
+        source="modal",
+        card=UNATTRIBUTED,
+        job="modal-account",
+        usd=total_usd,
+        basis=BASIS_BILLED,
+        evidence=f"catalog:modal_billing_rows:{total_count} rows",
+    )
+    return modal_row, note_text
 
 
 def query_modal_latest_interval(database_url: str) -> datetime | None:
@@ -1031,12 +1084,12 @@ def build_window_ledger(
     staleness_now: datetime | None = None,
     include_window_preamble: bool = True,
     live_modal_row: SpendRow | None = None,
-    live_modal_note: str | None = None,
+    live_modal_notes: Iterable[str] = (),
 ) -> WindowLedger:
     """Assemble the full window ledger from all three sources (read-only).
 
     ``label`` names the window in notes (defaults to the ISO range).
-    When ``live_modal_row`` is provided, it is used directly (live report);
+    When ``live_modal_notes`` is provided, they are used directly (live report);
     otherwise Modal spend is read from the catalog cache.
     """
     window_start = _coerce_utc(window_start)
@@ -1053,8 +1106,9 @@ def build_window_ledger(
             "daytona trials contribute overlapping wall seconds; spend.jsonl rows count by "
             "their own ts; per-job proxy ledgers count whole on the job finish day"
         )
-    if live_modal_note is not None:
-        notes.append(live_modal_note)
+    injected_notes = tuple(live_modal_notes)
+    if injected_notes:
+        notes.extend(injected_notes)
         if live_modal_row is not None:
             rows.append(live_modal_row)
     else:
@@ -1491,12 +1545,21 @@ def check_launch(
     flight_usd = sum(item.reservation_usd for item in flight)
 
     # -----------------------------------------------------------------------
-    # Modal live fetch (Main design 1):
-    # check_launch always fetches the window's intersecting UTC days at hourly
-    # resolution live via Modal CLI report, and computes Modal settled spend
-    # from those in-memory rows. Fetch failure -> unverified (exit 2).
-    # --allow-stale-modal falls back to catalog cache with warning.
+    # Modal settled spend in gate (Main rules 1 & 2):
+    # 1. Always query catalog cache over the window via the per-object rule.
+    # 2. Live Modal fetch for window's intersecting UTC dates.
+    # 3. Modal settled = max(live_sum, cached_sum). When they differ by > $0.01,
+    #    note both. Never skip catalog bills just because live fetch succeeded.
+    # 4. Live fetch failure -> unverified (exit 2) unless --allow-stale-modal.
     # -----------------------------------------------------------------------
+    cached_modal_row: SpendRow | None = None
+    try:
+        cached_modal_row, _ = query_modal_rows(database_url, window_start, window_end)
+    except Exception:
+        cached_modal_row = None
+
+    cached_modal_usd = cached_modal_row.usd if cached_modal_row is not None else 0.0
+
     start_date = window_start.date()
     end_date = (window_end - timedelta(microseconds=1)).date()
     fetch_start = start_date
@@ -1528,9 +1591,8 @@ def check_launch(
         except Exception as exc:
             modal_fetch_error = f"{type(exc).__name__}: {exc}"
 
-    live_modal_row: SpendRow | None = None
-    live_modal_note: str | None = None
-    stale_warning: str | None = None
+    effective_modal_row: SpendRow | None = None
+    modal_gate_notes: list[str] = []
 
     if live_modal_rows is not None:
         matching_rows = [
@@ -1544,20 +1606,40 @@ def check_launch(
             )
             < window_end
         ]
-        total_modal_usd = sum(float(r.cost_usd) for r in matching_rows)
-        if matching_rows:
-            live_modal_row = SpendRow(
+        live_modal_usd = sum(float(r.cost_usd) for r in matching_rows)
+
+        # Rule 1: Modal settled = max(live_sum, cached_sum)
+        effective_modal_usd = max(live_modal_usd, cached_modal_usd)
+
+        if abs(live_modal_usd - cached_modal_usd) > 0.01:
+            modal_gate_notes.append(
+                f"modal: live Modal report (${live_modal_usd:.4f}) and catalog cache (${cached_modal_usd:.4f}) differ; "
+                f"using conservative max ${effective_modal_usd:.4f}"
+            )
+        else:
+            modal_gate_notes.append(
+                f"modal: billed ${effective_modal_usd:.4f} across {len(matching_rows)} live hourly rows in "
+                f"{window_start.isoformat()}..{window_end.isoformat()} (live Modal report)"
+            )
+
+        if effective_modal_usd > 0:
+            evidence = (
+                f"modal:live_report:{len(matching_rows)} rows"
+                if effective_modal_usd == live_modal_usd
+                else (
+                    cached_modal_row.evidence
+                    if cached_modal_row is not None
+                    else "catalog:modal_billing_rows"
+                )
+            )
+            effective_modal_row = SpendRow(
                 source="modal",
                 card=UNATTRIBUTED,
                 job="modal-account",
-                usd=total_modal_usd,
+                usd=effective_modal_usd,
                 basis=BASIS_BILLED,
-                evidence=f"modal:live_report:{len(matching_rows)} rows",
+                evidence=evidence,
             )
-        live_modal_note = (
-            f"modal: billed ${total_modal_usd:.4f} across {len(matching_rows)} hourly rows "
-            f"in {window_start.isoformat()}..{window_end.isoformat()} (live Modal report)"
-        )
     else:
         # Live fetch failed or was not provided
         if not allow_stale_modal:
@@ -1587,10 +1669,11 @@ def check_launch(
                 unratable=unratable,
                 notes=extra_notes,
             )
-        stale_warning = (
+        modal_gate_notes.append(
             f"modal: live billing fetch failed ({modal_fetch_error or 'no live rows'}); "
-            "fell back to catalog cache (--allow-stale-modal recorded)"
+            f"fell back to catalog cache (${cached_modal_usd:.4f}) (--allow-stale-modal recorded)"
         )
+        effective_modal_row = cached_modal_row
 
     try:
         ledger = build_window_ledger(
@@ -1600,8 +1683,8 @@ def check_launch(
             database_url=database_url,
             cap_usd=cap_usd,
             extra_roots=extra_roots,
-            live_modal_row=live_modal_row,
-            live_modal_note=live_modal_note,
+            live_modal_row=effective_modal_row,
+            live_modal_notes=tuple(modal_gate_notes),
         )
     except SpendUnverified as exc:
         return unverified_decision(
@@ -1639,8 +1722,6 @@ def check_launch(
     for row in ledger.rows:
         per_basis[row.basis] = per_basis.get(row.basis, 0.0) + row.usd
     dynamic_notes: list[str] = list(ledger.notes)
-    if stale_warning:
-        dynamic_notes.append(stale_warning)
     if modal_fetch_error:
         dynamic_notes.append(f"modal: {modal_fetch_error}")
     dynamic_notes.append(

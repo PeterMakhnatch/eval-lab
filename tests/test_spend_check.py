@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -199,25 +200,38 @@ class _FakeConnection:
         return None
 
     def execute(self, sql: str, params: tuple = ()) -> _FakeResult:
-        if "WITH days_with_daily" in sql:
-            end, start = params[0], params[1]
-            daily = [r for r in self._modal_rows if len(r) > 3 and r[3] == "d"]
-            matching_daily = [r for r in daily if r[0] < end and r[0] + timedelta(days=1) > start]
-            if matching_daily:
-                total = sum(r[1] for r in matching_daily)
-                reported = max((r[2] for r in matching_daily), default=None)
-                return _FakeResult([(total, len(matching_daily), reported)])
-            hourly = [r for r in self._modal_rows if len(r) == 3 or (len(r) > 3 and r[3] == "h")]
-            matching_hourly = [r for r in hourly if start <= r[0] < end]
-            total = sum(r[1] for r in matching_hourly)
-            reported = max((r[2] for r in matching_hourly), default=None)
-            return _FakeResult([(total, len(matching_hourly), reported)])
-        if "WITH day_has_hourly" in sql:
+        if "hourly_per_obj" in sql:
             start, end = params[0], params[1]
-            matching = [row for row in self._modal_rows if start <= row[0] < end]
-            total = sum(row[1] for row in matching)
-            reported = max((row[2] for row in matching), default=None)
-            return _FakeResult([(total, len(matching), reported)])
+            by_obj: dict[tuple[str, date], dict[str, Any]] = {}
+            for r in self._modal_rows:
+                if len(r) == 3:
+                    obj, dt, usd, rep, res = "app-default", r[0], r[1], r[2], "h"
+                elif len(r) == 4:
+                    obj, dt, usd, rep, res = "app-default", r[0], r[1], r[2], r[3]
+                elif len(r) == 5:
+                    obj, dt, usd, rep, res = r[0], r[1], r[2], r[3], r[4]
+                else:
+                    continue
+                d = dt.date()
+                entry = by_obj.setdefault(
+                    (obj, d), {"h_usd": 0.0, "d_usd": 0.0, "h_cnt": 0, "d_cnt": 0, "rep": None}
+                )
+                if res == "h":
+                    if start <= dt < end:
+                        entry["h_usd"] += usd
+                        entry["h_cnt"] += 1
+                else:
+                    if dt < end and dt + timedelta(days=1) > start:
+                        entry["d_usd"] += usd
+                        entry["d_cnt"] += 1
+                if rep is not None:
+                    entry["rep"] = rep if entry["rep"] is None else max(entry["rep"], rep)
+            res_rows = [
+                (k[0], k[1], v["h_usd"], v["d_usd"], v["h_cnt"], v["d_cnt"], v["rep"])
+                for k, v in by_obj.items()
+                if v["h_cnt"] > 0 or v["d_cnt"] > 0
+            ]
+            return _FakeResult(res_rows)
         if "SELECT DISTINCT" in sql:
             start_d, end_d = params
             matching_days = {
@@ -945,11 +959,12 @@ def test_defect4_unresolved_finished_job_charges_reserved_or_refused(
             return None
 
         def execute(self, sql: str, params: tuple = ()):
-            if "WITH daily_totals" in sql or "WITH day_has_hourly" in sql:
-                if "SELECT coalesce(sum" in sql:
-                    return _FakeResult([(0.0, 0, None)])
-                else:
-                    return _FakeResult([(date(2026, 10, 1),)])
+            if (
+                "hourly_per_obj" in sql
+                or "WITH daily_totals" in sql
+                or "WITH day_has_hourly" in sql
+            ):
+                return _FakeResult([])
             if "max(interval_start)" in sql:
                 return _FakeResult([(datetime(2026, 10, 1, 5, 0, tzinfo=UTC),)])
             if "FROM jobs" in sql:
@@ -1005,11 +1020,12 @@ def test_defect4_unresolved_finished_job_charges_reserved_or_refused(
             return None
 
         def execute(self, sql: str, params: tuple = ()):
-            if "WITH daily_totals" in sql or "WITH day_has_hourly" in sql:
-                if "SELECT coalesce(sum" in sql:
-                    return _FakeResult([(0.0, 0, None)])
-                else:
-                    return _FakeResult([(date(2026, 10, 1),)])
+            if (
+                "hourly_per_obj" in sql
+                or "WITH daily_totals" in sql
+                or "WITH day_has_hourly" in sql
+            ):
+                return _FakeResult([])
             if "max(interval_start)" in sql:
                 return _FakeResult([(datetime(2026, 10, 1, 5, 0, tzinfo=UTC),)])
             if "FROM jobs" in sql:
@@ -1056,8 +1072,20 @@ def test_defect5_modal_live_fetch_failure_fails_closed_unless_allow_stale(
             return None
 
         def execute(self, sql: str, params: tuple = ()):
-            if "WITH days_with_daily" in sql:
-                return _FakeResult([(25.0, 1, datetime(2026, 10, 1, 0, 0, tzinfo=UTC))])
+            if "hourly_per_obj" in sql or "WITH days_with_daily" in sql:
+                return _FakeResult(
+                    [
+                        (
+                            "app-daily",
+                            datetime(2026, 10, 1, tzinfo=UTC).date(),
+                            0.0,
+                            25.0,
+                            0,
+                            1,
+                            datetime(2026, 10, 1, 0, 0, tzinfo=UTC),
+                        )
+                    ]
+                )
             if "max(interval_start)" in sql:
                 return _FakeResult([(datetime(2026, 10, 1, 0, 0, tzinfo=UTC),)])
             if "FROM jobs" in sql:
@@ -1190,3 +1218,73 @@ def test_modal_partial_hourly_falls_back_to_daily_without_undercount(
     )
     assert not refused.allowed
     assert refused.reason_code == REASON_STALE_MODAL
+
+
+def test_modal_empty_live_report_does_not_erase_cached_bills(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Finding 1: An empty live report must not erase known bills in the catalog cache."""
+    # Catalog has $25 recorded billed spend
+    reported = datetime(2026, 10, 1, 5, 0, tzinfo=UTC)
+    fake_rows = [
+        (datetime(2026, 10, 1, 4, 0, tzinfo=UTC), 25.0, reported, "h"),
+    ]
+    conn = _FakeConnection(fake_rows, latest=datetime(2026, 10, 1, 5, 0, tzinfo=UTC))
+    import psycopg
+
+    monkeypatch.setattr(psycopg, "connect", lambda url: conn)
+
+    # Live fetch returns empty list [] ($0.0)
+    decision = check_launch(
+        repo_root=tmp_path,
+        queue_root=tmp_path / "queue",
+        database_url="postgresql://fake/db",
+        window_start=datetime(2026, 10, 1, 4, 0, tzinfo=UTC),
+        window_end=datetime(2026, 10, 1, 6, 0, tzinfo=UTC),
+        candidate_usd=5.0,
+        cap_usd=20.0,
+        modal_refresher=lambda s, e: [],
+        allow_stale_modal=False,
+    )
+    # Must take max(live_sum, cached_sum) = max(0, 25) = 25
+    # Settled $25 + candidate $5 = $30 > $20 -> REFUSED!
+    assert not decision.allowed
+    assert decision.reason_code == REASON_CEILING_EXCEEDED
+    assert decision.settled_usd == pytest.approx(25.0)
+    assert decision.committed_usd == pytest.approx(30.0)
+    assert any(
+        "live Modal report ($0.0000) and catalog cache ($25.0000) differ" in n
+        for n in decision.notes
+    )
+
+
+def test_modal_per_object_query_survives_pk_collision_and_partial_snapshots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Finding 2: Per-object max(daily, hourly) survives PK collision and returns $26 for reviewer repro."""
+    reported = datetime(2026, 10, 1, 5, 0, tzinfo=UTC)
+    # Reviewer's exact repro:
+    # Object A: daily $1 ('d'), hourly A05 $1 ('h')
+    # Object B: daily $25 was overwritten at 00:00 by hourly B00 $20 ('h'), plus hourly B05 $5 ('h')
+    fake_rows = [
+        # Object A
+        ("app-A", datetime(2026, 10, 1, 0, 0, tzinfo=UTC), 1.0, reported, "d"),
+        ("app-A", datetime(2026, 10, 1, 5, 0, tzinfo=UTC), 1.0, reported, "h"),
+        # Object B (daily was overwritten by B00)
+        ("app-B", datetime(2026, 10, 1, 0, 0, tzinfo=UTC), 20.0, reported, "h"),
+        ("app-B", datetime(2026, 10, 1, 5, 0, tzinfo=UTC), 5.0, reported, "h"),
+    ]
+    conn = _FakeConnection(fake_rows, latest=datetime(2026, 10, 1, 5, 0, tzinfo=UTC))
+    import psycopg
+
+    monkeypatch.setattr(psycopg, "connect", lambda url: conn)
+
+    row, _ = query_modal_rows(
+        "postgresql://fake/db",
+        datetime(2026, 10, 1, 0, 0, tzinfo=UTC),
+        datetime(2026, 10, 2, 0, 0, tzinfo=UTC),
+    )
+    assert row is not None
+    # Must be $26.0 (A: max(1, 1)=1; B: max(0, 20+5)=25; sum = 26.0)
+    assert row.usd == pytest.approx(26.0)
+    assert row.basis == "billed"

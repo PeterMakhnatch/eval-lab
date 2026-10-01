@@ -13,15 +13,17 @@ Recommended fixed starting configuration, to record before training:
 | Collection | Keep G2's **30 training tasks × 2 attempts**; no adaptive resampling of promising tasks | Authorized plan; keeps the sampling denominator interpretable |
 | Retention | At most **2 distinct, clean, counted-pass trajectories per task**, across all source batches combined; do not duplicate a single success to meet the cap | Plan and SWE-Gym's per-instance-cap ablation |
 | Objective | Ordinary token cross-entropy on eligible **new assistant completion tokens**, with the exact captured conditioning context | Rejection-sampling SFT; not RL, preference training, or verifier training |
-| LoRA | **rank 16, alpha 32, dropout 0.05**; freeze base weights; use only modules the intended vLLM deployment can actually load | Conservative engineering choice; matches the current tool's rank/alpha/dropout, not a paper-validated 9B recipe |
+| LoRA | **rank 16, alpha 32, dropout 0.05**; freeze base weights; use only modules the actual paired serving backend can load | Conservative engineering choice; matches the current tool's rank/alpha/dropout, not a paper-validated 9B recipe |
 | Learning rate | **5e-5 peak** | Conservative recommendation for this tiny corpus; lower than the tool's 1e-4 default. Not copied from a LoRA policy experiment in the reviewed papers |
-| Epochs | **2 fixed epochs**, no best-checkpoint selection against the 20 final tasks | Small, bounded pilot; fewer exposures than the 5-epoch SWE-Gym setting. Not evidence that two is optimal |
+| Epochs / token budget | **1 fixed epoch**; target about **2.0M total sequence tokens**, never exceed Infra's remaining-budget allowance (04:26Z report: about **2.5M maximum**). No best-checkpoint selection against the 20 final tasks | Revised from the initial two-epoch suggestion after measured feasibility; more distinct captured decisions take priority over repeating the same targets |
 | Batch | Microbatch **1**, gradient accumulation **4** on one training GPU, effective batch **4 exported training units** | Recommendation to avoid the current accumulation-16 default leaving only a few optimizer updates when there are few units; record actual row, token, and update counts |
 | Other training choices | Keep existing cosine scheduling and seed 42; record the realized warmup-step count, gradient checkpointing, optimizer, precision, and exact package pins. **No cross-example packing** tonight | Reuse the maintained trainer; prevent unrelated context from entering a target's prefix |
 | Length | Accommodate the longest *faithful* training unit within the demonstrated memory/budget envelope, nominally up to the plan's ~60k tokens. **No silent truncation** | Current source defaults to 32,768 and right-truncates; that is not automatically compatible with G3 |
 | Model choice | `XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B`; source pin `2367e865d009c13ac81713a2878291d33ab28177` at the inspected base | Fixed mission/model; verify Infra's actual served and trained revisions agree |
 
 The hyperparameters are a **predeclared conservative recommendation**, not a search grid or permission to spend. Infra owns feasibility and the actual recorded config. A dry-run-driven change must be documented before final training and must not consult final-evaluation performance. Neither a low loss nor a working adapter is evidence of improved task performance.
+
+**04:26Z feasibility update:** Infra reports a real A100 dry run of 143,829 sequence tokens in 256.9 seconds (about 560 tokens/s), with 52.7 GiB peak memory at a longest sample of 51,700 tokens, and about $3.5 left for final training after its dry-run/serving allowance [HAR-127 receipt][har127]. This owner-reported measurement supersedes the source tool's 1,000-token/s estimate and the initial two-epoch recommendation. Library has not independently rerun the trainer. Use deterministic per-trajectory coverage-preserving subsampling of **captured calls** to fit the token ceiling; freeze the rule and selected call IDs before training. Do not substitute no-reasoning targets or reconstructed proxy bodies to save compute. A 51.7k-token measurement does not prove that every 65,536-token shape fits.
 
 ### Scope and authority
 
@@ -184,11 +186,11 @@ The small sample size does not justify inventing an arbitrary minimum-N success 
 
 ### Practical G4 boundary
 
-The current tool's 1,000-token/s training assumption and approximately $2.814912/hour A100 container rate are **estimation inputs**, not measured throughput for these long sequences [trainer][trainer]. Gradient checkpointing is not proof that 60k-token samples fit, nor that they fit within $6. In a per-request export, repeated context consumes compute even when its labels are masked.
+At the inspected source baseline, the tool's 1,000-token/s assumption was unmeasured for this workload. Infra's later [04:26Z receipt on HAR-127][har127] reports about **560 sequence tokens/s** on three real samples, or approximately **$1.40 per million sequence tokens** at the $2.814912/hour container rate. At that rate, 2.0M tokens cost about $2.79 and 2.5M about $3.49 for training compute alone. These are extrapolations of an owner-reported dry run, not a bill or a guarantee. Repeated prefix tokens consume compute even when their labels are masked.
 
-Before the final job, Infra should use its authorized dry run to measure peak memory, real step time, and startup/tail cost on representative long units. Budget from the **sum of all rendered input tokens across both epochs**, the actual sequence-length distribution, and observed throughput—not from supervised tokens alone or “under 50 examples.” Leave room for serving/parity smoke inside the G4 allocation. If a faithful sample is too long, stop and document an exclusion or an owner-approved configuration change before freezing/training; do not discard its completion silently.
+Use **one epoch**, the measured sequence-length distribution, actual startup/tail cost, and Infra's remaining allocation. Prefer a roughly 2.0M-token target to leave headroom below the reported 2.5M ceiling. A deterministic every-Nth-turn or stratified-by-trajectory selection can cover more behaviors than selecting only the longest late turns; the exact rule and every selected source call must be frozen in the data card. If a faithful sample is too long, document exclusion or a predeclared owner-approved configuration change; never silently discard its completion. The dry run observed 51.7k-token fit, so longer units still need appropriate feasibility proof.
 
-Use the exact module subset validated by the intended **vLLM** route. The inspected SFT tool's q/k/v/o/gate/up/down target list was justified against **SGLang** and omits hybrid linear-attention modules. That is not vLLM compatibility proof. Do not broaden to `all-linear` without proving that the adapter both trains and reloads on the serving path. This is a G4 compatibility check, not a model change.
+**Serving-name correction:** the plan/card originally said vLLM, but Infra's 04:26Z source/runtime receipt identifies the actual paired server as **SGLang v0.5.20**. G4 and Research-Harbor must reconcile that wording in their canonical receipt. Preserve the scientific invariant: base and adapter run on the **same backend/build, settings, model/tokenizer revision, and harness**, differing only by the adapter. The inspected q/k/v/o/gate/up/down targets were justified against SGLang and omit hybrid linear-attention modules; verify actual adapter reload and do not broaden to `all-linear` without evidence. A different engine for one arm is not parity.
 
 ## 6. Interpreting the frozen 20-task paired evaluation
 
@@ -232,6 +234,7 @@ Keep infrastructure/capture failures separate from measured model failures. Appl
 
 [har134]: https://linear.app/petermakhnatch/issue/HAR-134
 [har133]: https://linear.app/petermakhnatch/issue/HAR-133
+[har127]: https://linear.app/petermakhnatch/issue/HAR-127
 [swegym]: https://arxiv.org/pdf/2412.21139v2
 [r2egym]: https://arxiv.org/pdf/2504.07164v1
 [swesmith]: https://arxiv.org/pdf/2504.21798v2

@@ -290,7 +290,6 @@ def test_nightly_uses_completed_job_ingester_and_records_projection_failure(
             policy=_policy(),
             trial_loader=lambda day: [],
         ),
-        committer=lambda path: False,
         completed_job_ingester=lambda: calls.append("ingest-and-project") or _result(_failure()),
     ).run(report_date=date(2026, 8, 14))
 

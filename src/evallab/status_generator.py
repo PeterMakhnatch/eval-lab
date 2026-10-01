@@ -1,8 +1,8 @@
-"""STATUS.md Generator: deterministic projection of live catalog and queue state.
+"""Live STATUS report: deterministic projection of catalog and queue state.
 
-Generates and updates docs/STATUS.md to answer
-"what happened yesterday and what is running now" deterministically
-without requiring interactive terminal navigation.
+The committed snapshot lives at ``docs/STATUS.md``. Ordinary runs write to the
+external runtime reports home so the tracked tree stays clean; pass an explicit
+destination to promote a curated snapshot.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ from evallab.queue import QUEUE_STATES
 from evallab.results import load_job
 from evallab.runner import database_url_from_environment
 from evallab.schemas import ExperimentSpec
+from evallab.storage.paths import runtime_reports_dir
 from evallab.storm import (
     DEFAULT_STORM_THRESHOLD,
     StormAlarm,
@@ -28,7 +29,6 @@ from evallab.storm import (
     render_storm_banner,
 )
 
-DEFAULT_STATUS_PATH = Path("docs/STATUS.md")
 PROGRAM_PATH = Path("research/experiments/PROGRAM.json")
 
 
@@ -668,8 +668,13 @@ def update_status_file(
     storm_loader: Callable[[date], Sequence[StormAlarm]] | None = None,
     trial_loader: Callable[[date], Sequence[TrialSummary]] | None = None,
 ) -> Path:
-    """Generate and write STATUS.md to disk idempotently."""
-    dest = destination or (repo_root / DEFAULT_STATUS_PATH)
+    """Generate and write the live STATUS report idempotently.
+
+    Defaults to the external runtime reports home so ordinary runs leave the
+    tracked ``docs/STATUS.md`` snapshot untouched. Pass ``destination`` with
+    the snapshot path to deliberately promote a curated snapshot.
+    """
+    dest = destination if destination is not None else runtime_reports_dir(repo_root) / "STATUS.md"
     content = generate_status_markdown(
         repo_root,
         target_date=target_date,

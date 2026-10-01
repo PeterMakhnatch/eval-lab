@@ -21,8 +21,9 @@ current cleanup instructions. Module-location rules live in `src/evallab/AGENTS.
 |---|---|---|
 | `docs/INDEX.md` | `python -m evallab.docindex generate -o docs/INDEX.md` | `python -m evallab.docindex check`; indexes front-matter and hand-written doc digests (excludes generated `repo-map.md` and `STATUS.md` from inputs digest list) |
 | `docs/repo-map.md` | `python -m evallab.repomap generate -o docs/repo-map.md` | `python -m evallab.repomap check`; recursive Python discovery with structural declaration digests (resilient to function body edits) |
-| `docs/STATUS.md` | `evallab status --update` | Generated catalog snapshot (`status: historical`, excluded from context packs); not a clean-checkout byte-freshness invariant |
-| `research/lessons.md` | Python API `evallab.lessons.generate_lessons_file` | `python -m evallab.lessons` checks statistical evidence and freshness |
+| `docs/STATUS.md` | `evallab status --update -o docs/STATUS.md` (explicit snapshot promotion; ordinary `evallab status --update` writes external runtime `reports/STATUS.md`) | Generated catalog snapshot (`status: historical`, excluded from context packs); not a clean-checkout byte-freshness invariant |
+| `research/lessons.md` | Python API `evallab.lessons.generate_lessons_file(root, output_path=...)` (explicit promotion; default writes external runtime `reports/lessons.md`) | `python -m evallab.lessons` checks tracked snapshot inputs, statistical evidence and freshness |
+| `digests/<YYYY-MM-DD>.md` | `evallab digest -o digests/<YYYY-MM-DD>.md` (explicit promotion; ordinary `evallab digest` and nightly write external runtime `reports/`) | Human-facing derived report; ordinary runs never commit source |
 | `research/registration/inventory.json` | Registration workflow | `evallab registry audit --json`; cleanup does not register or recertify tasks |
 
 Run **`make docs`** for both deterministic documentation generators. Review the

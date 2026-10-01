@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-import subprocess
 from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -13,11 +12,7 @@ from pydantic import ValidationError
 from evallab import database
 from evallab.preflight import PreflightReport, build_preflight_report, digest_section
 from evallab.queue import DirectoryQueue, load_events, provider_reported_exhaustion
-from evallab.runner import (
-    SUPPORT_COMMAND_TIMEOUT_SECONDS,
-    database_url_from_environment,
-    subscription_environment,
-)
+from evallab.runner import database_url_from_environment
 from evallab.schemas import (
     CanaryDriftObservation,
     HeadlessDoctorReport,
@@ -87,6 +82,14 @@ def event_belongs_to_report_day(event: QueueEvent, day: date) -> bool:
 
 
 class DigestRenderer:
+    """Render the daily digest from catalog, queue, and policy state.
+
+    Reads live state from ``repo_root`` (queue, curated discoveries ledger).
+    Writes reports to the external runtime reports home by default so ordinary
+    runs leave the tracked ``digests/`` snapshots untouched. Pass an explicit
+    ``output_dir`` or ``destination`` to deliberately promote a snapshot.
+    """
+
     def __init__(
         self,
         *,
@@ -98,10 +101,21 @@ class DigestRenderer:
         preflight_loader: PreflightLoader | None = None,
         storm_loader: StormLoader | None = None,
         discoveries_loader: DiscoveriesLoader | None = None,
+        output_dir: Path | None = None,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.queue = queue
         self.policy = policy
+        if output_dir is not None:
+            self.output_dir = (
+                output_dir.resolve()
+                if output_dir.is_absolute()
+                else (self.repo_root / output_dir).resolve()
+            )
+        else:
+            from evallab.storage.paths import runtime_reports_dir
+
+            self.output_dir = runtime_reports_dir(self.repo_root)
         self._trial_loader = trial_loader or self._load_catalog_trials
         self._drift_loader = drift_loader or self._load_canary_drift
         self._preflight_loader = preflight_loader or self._load_preflight
@@ -116,6 +130,7 @@ class DigestRenderer:
         report_date: date,
         health_report: HeadlessDoctorReport | None = None,
         dispatched: int | None = None,
+        destination: Path | None = None,
     ) -> Path:
         period_date = report_date - timedelta(days=1)
         catalog_error = False
@@ -406,10 +421,14 @@ class DigestRenderer:
             )
 
         lines.extend(["", f"<!-- run-bytes: {run_bytes} -->", ""])
-        destination = self.repo_root / "digests" / f"{report_date.isoformat()}.md"
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text("\n".join(lines))
-        return destination
+        resolved = (
+            destination
+            if destination is not None
+            else self.output_dir / f"{report_date.isoformat()}.md"
+        )
+        resolved.parent.mkdir(parents=True, exist_ok=True)
+        resolved.write_text("\n".join(lines))
+        return resolved
 
     def _load_catalog_trials(self, day: date) -> list[DigestTrial]:
         rows = database.digest_trials(database_url_from_environment(), day)
@@ -572,59 +591,11 @@ class DigestRenderer:
         return max(recorded, key=lambda reason: reason.occurred_at).code
 
     def _prior_run_bytes(self, report_date: date) -> int | None:
-        path = self.repo_root / "digests" / f"{report_date.isoformat()}.md"
+        path = self.output_dir / f"{report_date.isoformat()}.md"
         if not path.is_file():
             return None
         match = re.search(r"<!-- run-bytes: (\d+) -->", path.read_text())
         return int(match.group(1)) if match else None
-
-
-def commit_digest(path: Path) -> bool:
-    repo_root = path.resolve().parent.parent
-    relative = path.resolve().relative_to(repo_root)
-    environment = {
-        **subscription_environment(),
-        "GIT_EDITOR": ":",
-        "GIT_TERMINAL_PROMPT": "0",
-    }
-
-    def run_git(command: list[str], *, check: bool) -> subprocess.CompletedProcess[str]:
-        try:
-            return subprocess.run(
-                command,
-                cwd=repo_root,
-                check=check,
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                text=True,
-                timeout=SUPPORT_COMMAND_TIMEOUT_SECONDS,
-                env=environment,
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise RuntimeError("bounded digest Git command failed") from exc
-
-    run_git(["git", "add", "--", str(relative)], check=True)
-    changed = run_git(
-        ["git", "diff", "--cached", "--quiet", "--", str(relative)],
-        check=False,
-    ).returncode
-    if changed == 0:
-        return False
-    if changed != 1:
-        raise RuntimeError("git could not inspect the staged digest")
-    run_git(
-        [
-            "git",
-            "commit",
-            "--only",
-            "-m",
-            f"Add {path.stem} lab digest",
-            "--",
-            str(relative),
-        ],
-        check=True,
-    )
-    return True
 
 
 def _directory_bytes(root: Path) -> int:

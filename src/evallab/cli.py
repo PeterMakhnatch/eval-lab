@@ -799,7 +799,8 @@ def _digest_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
     report_date = args.report_date or date.today()
-    path = _digest_renderer(root).write(report_date=report_date)
+    dest = _resolve(root, args.digest_output) if getattr(args, "digest_output", None) is not None else None
+    path = _digest_renderer(root).write(report_date=report_date, destination=dest)
     ResearcherLoop.from_repo(root).enrich_digest(path, report_date)
     append_gc_plan_to_digest(path, nightly_gc_plan(root))
     print(f"digest: {path}")
@@ -4158,12 +4159,12 @@ def parser() -> argparse.ArgumentParser:
     status.add_argument(
         "--generate",
         action="store_true",
-        help="Generate docs/STATUS.md markdown projection to stdout",
+        help="Generate live STATUS markdown projection to stdout",
     )
     status.add_argument(
         "--update",
         action="store_true",
-        help="Generate and update docs/STATUS.md on disk",
+        help="Write live STATUS report to external runtime reports home (use --output docs/STATUS.md to promote snapshot)",
     )
     status.add_argument(
         "--target-date",
@@ -4177,7 +4178,7 @@ def parser() -> argparse.ArgumentParser:
         dest="status_output",
         type=Path,
         default=None,
-        help="Destination path for status output",
+        help="Explicit destination path for status output (snapshot promotion); defaults to external runtime reports home",
     )
     status.set_defaults(func=_status_command)
 
@@ -4391,8 +4392,16 @@ def parser() -> argparse.ArgumentParser:
     )
     schedule_uninstall.set_defaults(func=_schedule_uninstall_command)
 
-    digest = commands.add_parser("digest", help="Render one daily digest from catalog and events")
+    digest = commands.add_parser("digest", help="Render one daily digest to external runtime reports home")
     digest.add_argument("--date", dest="report_date", type=date.fromisoformat)
+    digest.add_argument(
+        "--output",
+        "-o",
+        dest="digest_output",
+        type=Path,
+        default=None,
+        help="Explicit destination path for digest output (snapshot promotion); defaults to external runtime reports home",
+    )
     digest.set_defaults(func=_digest_command)
 
     nightly = commands.add_parser("nightly", help="Run the fail-closed unattended nightly cycle")

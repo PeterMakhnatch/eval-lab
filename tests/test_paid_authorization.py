@@ -293,7 +293,6 @@ def test_nightly_cycle_enqueues_paid_canaries_but_dispatches_none(tmp_path: Path
             trial_loader=lambda day: [],
             drift_loader=lambda day: [],
         ),
-        committer=lambda path: True,
         canary_enqueuer=enqueuer.enqueue,
     )
 

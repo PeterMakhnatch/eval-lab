@@ -276,6 +276,7 @@ def run_smoke(
         policy=load_policy(root / "policy/standing-approvals.yaml"),
         trial_loader=trial_loader,
         drift_loader=drift_loader,
+        output_dir=scratch / "digests",
     )
     digest_path = renderer.write(
         report_date=target_date,

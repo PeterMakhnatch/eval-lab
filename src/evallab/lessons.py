@@ -6,7 +6,9 @@ Wilson 95% confidence intervals (via `evallab.cohort.wilson_interval`). Rows
 below the power threshold are labeled 'insufficient n' and never reported
 as generalized findings. Refuse-to-rank propagates from `evallab.cohort`.
 
-Generates `research/lessons.md` with header `generated-by: lessons v1`.
+The committed snapshot lives at `research/lessons.md` with header
+`generated-by: lessons v1`. Ordinary generation writes to the external
+runtime reports home; pass an explicit output path to promote a snapshot.
 """
 
 from __future__ import annotations
@@ -30,10 +32,12 @@ from evallab.craft import CRAFT_SCHEMA, CraftRecord, TaskSource, scan
 from evallab.evidence.facts import TRIAL_FACT_SCHEMA
 from evallab.interpretation.trajectory_quality import QUALITY_REPORT_TABLE
 from evallab.lineage import compute_file_digest, resolve_lineage
+from evallab.storage.paths import runtime_reports_dir
 
 GENERATED_HEADER = "generated-by: lessons v1"
 DEFAULT_POWER_THRESHOLD = 5
 SQL_LESSONS_PATH = Path("sql/lessons.sql")
+SNAPSHOT_LESSONS_PATH = Path("research/lessons.md")
 
 ANALYSIS_SIDECAR_SCHEMA = pa.schema(
     [
@@ -1261,8 +1265,14 @@ def generate_lessons_file(
     sql_path: Path | None = None,
     generated_at: datetime | None = None,
 ) -> Path:
-    """Generate research/lessons.md from repository evidence."""
-    target = output_path if output_path is not None else root / "research/lessons.md"
+    """Generate the live lessons report from repository evidence.
+
+    Defaults to the external runtime reports home so ordinary runs leave the
+    tracked ``research/lessons.md`` snapshot untouched. Pass ``output_path``
+    with the snapshot path to deliberately promote a curated snapshot.
+    Snapshot inputs, freshness, and lineage stay pinned to tracked evidence.
+    """
+    target = output_path if output_path is not None else runtime_reports_dir(root) / "lessons.md"
     result = build_lessons(
         root,
         power_threshold=power_threshold,
@@ -1277,7 +1287,7 @@ def generate_lessons_file(
 
 def check_lessons_freshness(root: Path, target: Path | None = None) -> bool:
     """Return whether committed lessons exactly match current source inputs."""
-    lessons_path = target if target is not None else root / "research/lessons.md"
+    lessons_path = target if target is not None else root / SNAPSHOT_LESSONS_PATH
     if not lessons_path.is_file():
         return False
     committed = lessons_path.read_text(encoding="utf-8")

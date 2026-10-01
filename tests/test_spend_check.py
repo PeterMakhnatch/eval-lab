@@ -37,6 +37,7 @@ from evallab.spend_day import (
     decide_launch,
     parse_launch_since,
     query_modal_rows,
+    render_decision,
     summarize_window,
     window_overlap_seconds,
 )
@@ -199,10 +200,24 @@ class _FakeConnection:
         return None
 
     def execute(self, sql: str, params: tuple = ()) -> _FakeResult:
+        if "WITH day_has_hourly" in sql:
+            start, end = params[0], params[1]
+            matching = [row for row in self._modal_rows if start <= row[0] < end]
+            total = sum(row[1] for row in matching)
+            reported = max((row[2] for row in matching), default=None)
+            return _FakeResult([(total, len(matching), reported)])
+        if "SELECT DISTINCT" in sql:
+            start_d, end_d = params
+            matching_days = {
+                row[0].date()
+                for row in self._modal_rows
+                if start_d <= row[0].date() <= end_d and (len(row) < 4 or row[3] == "h")
+            }
+            return _FakeResult([(d,) for d in sorted(matching_days)])
         if "max(interval_start)" in sql and "coalesce" not in sql:
             return _FakeResult([(self._latest,)])
         if "FROM modal_billing_rows" in sql:
-            start, end = params
+            start, end = params[0], params[1]
             matching = [row for row in self._modal_rows if start <= row[0] < end]
             total = sum(row[1] for row in matching)
             reported = max((row[2] for row in matching), default=None)
@@ -323,8 +338,8 @@ def test_check_launch_stale_modal_fails_closed_when_refresh_fails(
     )
     assert decision.allowed is False
     assert decision.reason_code == REASON_STALE_MODAL
-    # Refusal message names the stale hour
-    assert "2026-10-01T00:00:00" in decision.notes[0]
+    # Refusal message names the stale day/hour
+    assert "2026-10-01" in decision.notes[0]
     assert any("reporting lag" in note for note in decision.notes)
 
 
@@ -500,6 +515,10 @@ def test_unratable_spec_fails_closed_with_ledger_shown(
         lambda url: datetime(2026, 10, 1, 5, 0, tzinfo=UTC),
     )
     monkeypatch.setattr(
+        "evallab.spend_day.query_modal_dates_with_hourly_coverage",
+        lambda url, s, e: {date(2026, 10, 1)},
+    )
+    monkeypatch.setattr(
         "evallab.spend_day.build_window_ledger",
         lambda *a, **k: summarize_window(
             datetime(2026, 10, 1, 4, 0, tzinfo=UTC),
@@ -597,6 +616,10 @@ def test_cli_allowed_refused_and_unratable_exits(
         "evallab.spend_day.query_modal_latest_interval",
         lambda url: datetime(2026, 10, 1, 5, 0, tzinfo=UTC),
     )
+    monkeypatch.setattr(
+        "evallab.spend_day.query_modal_dates_with_hourly_coverage",
+        lambda url, s, e: {date(2026, 10, 1)},
+    )
 
     def _settled_two_dollars(*args: object, **kwargs: object):
         from evallab.spend_day import SpendRow
@@ -661,3 +684,452 @@ def test_cli_allowed_refused_and_unratable_exits(
     )
     assert _check("1", "--allow-stale-modal") == 2
     assert REASON_UNRATABLE_SPEC in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# 6. Regression tests for PR #623 review findings
+# ---------------------------------------------------------------------------
+
+
+def test_defect1_reject_nonfinite_candidate_and_cap(tmp_path: Path) -> None:
+    """Defect 1: Non-finite candidate and cap amounts must be rejected (fail closed)."""
+    # 1. decide_launch raises ValueError for NaN / inf
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(ValueError, match="candidate_usd"):
+            decide_launch(
+                window_start=DAY_START,
+                window_end=DAY_START + timedelta(hours=1),
+                settled_usd=1.0,
+                candidate_usd=bad,
+                cap_usd=20.0,
+            )
+        with pytest.raises(ValueError, match="cap_usd"):
+            decide_launch(
+                window_start=DAY_START,
+                window_end=DAY_START + timedelta(hours=1),
+                settled_usd=1.0,
+                candidate_usd=1.0,
+                cap_usd=bad,
+            )
+
+    # 2. check_launch returns unverified decision for NaN / inf
+    for bad in (float("nan"), float("inf")):
+        d_cand = check_launch(
+            repo_root=tmp_path,
+            queue_root=tmp_path / "queue",
+            database_url=REFUSED_PORT_URL,
+            window_start=DAY_START,
+            window_end=DAY_START + timedelta(hours=1),
+            candidate_usd=bad,
+            cap_usd=20.0,
+        )
+        assert not d_cand.allowed
+        assert d_cand.reason_code == REASON_CAP_UNVERIFIED
+
+        d_cap = check_launch(
+            repo_root=tmp_path,
+            queue_root=tmp_path / "queue",
+            database_url=REFUSED_PORT_URL,
+            window_start=DAY_START,
+            window_end=DAY_START + timedelta(hours=1),
+            candidate_usd=1.0,
+            cap_usd=bad,
+        )
+        assert not d_cap.allowed
+        assert d_cap.reason_code == REASON_CAP_UNVERIFIED
+
+    # 3. CLI rejects NaN and exits 2
+    rc_cand = cli.run_cli(
+        [
+            "spend",
+            "check",
+            "--candidate-usd",
+            "nan",
+            "--cap-usd",
+            "30",
+            "--since",
+            "2026-10-01T04:00:00Z",
+        ],
+        workspace=tmp_path,
+    )
+    assert rc_cand == 2
+
+    rc_cap = cli.run_cli(
+        [
+            "spend",
+            "check",
+            "--candidate-usd",
+            "1",
+            "--cap-usd",
+            "nan",
+            "--since",
+            "2026-10-01T04:00:00Z",
+        ],
+        workspace=tmp_path,
+    )
+    assert rc_cap == 2
+
+
+def test_defect2_in_flight_concurrent_approved_to_running_transition_deduped(
+    tmp_path: Path,
+) -> None:
+    """Defect 2: Spec transitioning approved->running is deduplicated and never dropped."""
+    queue_root = tmp_path / "queue"
+    # Write the identical spec to both approved and running (simulating concurrent transition)
+    _write_queue_spec(
+        queue_root,
+        "approved",
+        "spec-concurrent.json",
+        _spec_payload("concurrent-job", cost_limit_usd=25.0, est_cost_usd=10.0),
+    )
+    _write_queue_spec(
+        queue_root,
+        "running",
+        "spec-concurrent.json",
+        _spec_payload("concurrent-job", cost_limit_usd=25.0, est_cost_usd=10.0),
+    )
+    items, unratable, _ = collect_in_flight(queue_root)
+    # Must be deduplicated by spec_id so reservation is not doubled
+    assert len(items) == 1
+    assert items[0].state == "running"
+    assert items[0].reservation_usd == pytest.approx(25.0)
+
+
+def test_defect3_negative_utc_offset_in_fallback_finish_time_preserved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Defect 3: Negative UTC offsets like -07:00 must be preserved, not overwritten with host tz."""
+    from evallab.spend_day import query_model_job_rows
+
+    # Job finished at 00:30:00-07:00, which is 07:30:00 UTC
+    fake_rows = [
+        ("job-neg-offset", "runs/neg-offset", 1, "2026-10-01T00:30:00-07:00", {}),
+    ]
+
+    class _JobsConn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def execute(self, sql: str, params: tuple = ()):
+            return _FakeResult(fake_rows)
+
+    fake = types.ModuleType("psycopg")
+    fake.connect = lambda url: _JobsConn()
+    monkeypatch.setitem(sys.modules, "psycopg", fake)
+
+    # 1. Window [07:00, 08:00) UTC must find the job
+    rows_correct, _, _ = query_model_job_rows(
+        "postgresql://fake/db",
+        datetime(2026, 10, 1, 7, 0, tzinfo=UTC),
+        datetime(2026, 10, 1, 8, 0, tzinfo=UTC),
+    )
+    # The job had empty provider usage so no settled dollars, but it was matched in window
+    # Let's verify by adding a settled provider usage block
+    pricing = {"input_cost_micros_per_million": 150_000, "output_cost_micros_per_million": 500_000}
+    pu = {
+        "schema_version": 2,
+        "pricing": pricing,
+        "totals": {
+            "requests": 1,
+            "input_tokens": 1000,
+            "output_tokens": 500,
+            "total_tokens": 1500,
+            "cost_micros": 50000,
+        },
+        "attempted": {
+            "requests": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "cost_micros": 0,
+        },
+        "unresolved_requests": 0,
+        "calls": [
+            {
+                "state": "reconciled",
+                "call_id": 1,
+                "input_tokens": 1000,
+                "output_tokens": 500,
+                "cost_micros": 50000,
+            }
+        ],
+    }
+    fake_rows[0] = (
+        "job-neg-offset",
+        "runs/neg-offset",
+        1,
+        "2026-10-01T00:30:00-07:00",
+        {"provider_usage": pu},
+    )
+
+    rows_correct, _, _ = query_model_job_rows(
+        "postgresql://fake/db",
+        datetime(2026, 10, 1, 7, 0, tzinfo=UTC),
+        datetime(2026, 10, 1, 8, 0, tzinfo=UTC),
+    )
+    assert len(rows_correct) == 1
+    assert rows_correct[0].usd == pytest.approx(0.05)
+
+    # 2. Window [04:00, 05:00) UTC (where America/New_York EDT = UTC-4 would have erroneously landed) must find 0 jobs
+    rows_wrong, _, _ = query_model_job_rows(
+        "postgresql://fake/db",
+        datetime(2026, 10, 1, 4, 0, tzinfo=UTC),
+        datetime(2026, 10, 1, 5, 0, tzinfo=UTC),
+    )
+    assert len(rows_wrong) == 0
+
+
+def test_defect4_unresolved_finished_job_charges_reserved_or_refused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Defect 4: Finished jobs with unresolved provider calls must have their charges reserved."""
+    from evallab.ledger import split_calls
+
+    pricing = {"input_cost_micros_per_million": 100_000, "output_cost_micros_per_million": 100_000}
+    calls = [
+        {
+            "state": "reconciled",
+            "call_id": 1,
+            "input_tokens": 10_000,
+            "output_tokens": 0,
+            "cost_micros": 1_000_000,
+        },
+        {
+            "state": "reserved",
+            "call_id": 2,
+            "reserved_input_tokens": 250_000,
+            "reserved_output_tokens": 0,
+            "reserved_cost_micros": 25_000_000,
+        },
+    ]
+    recomputed = split_calls(calls)
+    pu = {
+        "schema_version": 2,
+        "pricing": pricing,
+        "totals": recomputed["used"],
+        "attempted": recomputed["attempted"],
+        "unresolved_requests": recomputed["unresolved_requests"],
+        "calls": calls,
+    }
+
+    class _FakeUnresolvedConn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def execute(self, sql: str, params: tuple = ()):
+            if "WITH day_has_hourly" in sql:
+                return _FakeResult([(0.0, 0, None)])
+            if "SELECT DISTINCT" in sql:
+                return _FakeResult([(date(2026, 10, 1),)])
+            if "max(interval_start)" in sql:
+                return _FakeResult([(datetime(2026, 10, 1, 5, 0, tzinfo=UTC),)])
+            if "FROM jobs" in sql:
+                return _FakeResult(
+                    [
+                        (
+                            "job-finished-unresolved",
+                            "runs/unresolved",
+                            1,
+                            "2026-10-01T04:30:00Z",
+                            {"provider_usage": pu},
+                        )
+                    ]
+                )
+            if "FROM trials" in sql:
+                return _FakeResult([])
+            raise AssertionError(f"unexpected SQL: {sql!r}")
+
+    fake = types.ModuleType("psycopg")
+    fake.connect = lambda url: _FakeUnresolvedConn()
+    monkeypatch.setitem(sys.modules, "psycopg", fake)
+
+    # Candidate $5, Cap $20. Settled $1 + Unresolved $24 + Candidate $5 = $30 > $20 -> REFUSED!
+    decision = check_launch(
+        repo_root=tmp_path,
+        queue_root=tmp_path / "queue",
+        database_url="postgresql://fake/db",
+        window_start=datetime(2026, 10, 1, 4, 0, tzinfo=UTC),
+        window_end=datetime(2026, 10, 1, 6, 0, tzinfo=UTC),
+        candidate_usd=5.0,
+        cap_usd=20.0,
+    )
+    assert not decision.allowed
+    assert decision.reason_code == REASON_CEILING_EXCEEDED
+    assert decision.settled_usd == pytest.approx(1.0)
+    assert decision.unresolved_jobs_usd == pytest.approx(24.0)
+    assert decision.committed_usd == pytest.approx(30.0)
+
+    rendered = render_decision(decision)
+    assert "unresolved-jobs: $24.0000" in rendered
+    assert "committed (settled + in-flight + unresolved-jobs + candidate): $30.0000" in rendered
+
+    # Also test: if unresolved provider calls have NO pricing, launch check fails closed (exit 2)
+    pu_unratable = dict(pu)
+    pu_unratable["pricing"] = None
+    del pu_unratable["calls"]  # force unreadable pricing
+
+    class _FakeUnratableConn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def execute(self, sql: str, params: tuple = ()):
+            if "WITH day_has_hourly" in sql:
+                return _FakeResult([(0.0, 0, None)])
+            if "SELECT DISTINCT" in sql:
+                return _FakeResult([(date(2026, 10, 1),)])
+            if "max(interval_start)" in sql:
+                return _FakeResult([(datetime(2026, 10, 1, 5, 0, tzinfo=UTC),)])
+            if "FROM jobs" in sql:
+                return _FakeResult(
+                    [
+                        (
+                            "job-finished-unratable",
+                            "runs/unratable",
+                            1,
+                            "2026-10-01T04:30:00Z",
+                            {"provider_usage": pu_unratable},
+                        )
+                    ]
+                )
+            if "FROM trials" in sql:
+                return _FakeResult([])
+            raise AssertionError(f"unexpected SQL: {sql!r}")
+
+    fake.connect = lambda url: _FakeUnratableConn()
+    d_unratable = check_launch(
+        repo_root=tmp_path,
+        queue_root=tmp_path / "queue",
+        database_url="postgresql://fake/db",
+        window_start=datetime(2026, 10, 1, 4, 0, tzinfo=UTC),
+        window_end=datetime(2026, 10, 1, 6, 0, tzinfo=UTC),
+        candidate_usd=1.0,
+        cap_usd=20.0,
+    )
+    assert not d_unratable.allowed
+    assert d_unratable.reason_code == REASON_CAP_UNVERIFIED
+
+
+def test_defect5_modal_coverage_required_for_intraday_window(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Defect 5: Intra-day window on date with only daily rows requires hourly rows or fails closed."""
+
+    # Catalog has only daily row at 00:00 ($25.00)
+    class _DailyOnlyConn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def execute(self, sql: str, params: tuple = ()):
+            if "WITH day_has_hourly" in sql:
+                return _FakeResult([(25.0, 1, datetime(2026, 10, 1, 0, 0, tzinfo=UTC))])
+            if "SELECT DISTINCT" in sql:
+                # No hourly rows exist
+                return _FakeResult([])
+            if "max(interval_start)" in sql:
+                return _FakeResult([(datetime(2026, 10, 1, 0, 0, tzinfo=UTC),)])
+            if "FROM jobs" in sql:
+                return _FakeResult([])
+            if "FROM trials" in sql:
+                return _FakeResult([])
+            raise AssertionError(f"unexpected SQL: {sql!r}")
+
+    fake = types.ModuleType("psycopg")
+    fake.connect = lambda url: _DailyOnlyConn()
+    monkeypatch.setitem(sys.modules, "psycopg", fake)
+
+    # Window is intra-day slice [01:00, 03:00). Without hourly rows, must fail closed with REASON_STALE_MODAL
+    refused = check_launch(
+        repo_root=tmp_path,
+        queue_root=tmp_path / "queue",
+        database_url="postgresql://fake/db",
+        window_start=datetime(2026, 10, 1, 1, 0, tzinfo=UTC),
+        window_end=datetime(2026, 10, 1, 3, 0, tzinfo=UTC),
+        candidate_usd=5.0,
+        cap_usd=20.0,
+        allow_stale_modal=False,
+    )
+    assert not refused.allowed
+    assert refused.reason_code == REASON_STALE_MODAL
+    assert any("intra-day slice" in n for n in refused.notes)
+
+    # With allow_stale_modal=True, the daily row's spend is allowed with warning
+    allowed_override = check_launch(
+        repo_root=tmp_path,
+        queue_root=tmp_path / "queue",
+        database_url="postgresql://fake/db",
+        window_start=datetime(2026, 10, 1, 1, 0, tzinfo=UTC),
+        window_end=datetime(2026, 10, 1, 3, 0, tzinfo=UTC),
+        candidate_usd=1.0,
+        cap_usd=30.0,
+        allow_stale_modal=True,
+    )
+    # Settled $25 + candidate $1 = $26 <= $30 -> allowed with warning
+    assert allowed_override.allowed
+    assert allowed_override.settled_usd == pytest.approx(25.0)
+
+
+def test_defect6_modal_nonoverlapping_resolution_query_and_storage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Defect 6: Mixed resolution coexistence must not double-count, and storage must be safe in both directions."""
+    import psycopg
+
+    from evallab.modal_billing import BillingRow, store_billing_rows
+
+    executed_sqls: list[tuple[str, tuple]] = []
+
+    class _CaptureConn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def execute(self, sql: str, params: tuple = ()):
+            executed_sqls.append((sql.strip(), params))
+            return _FakeResult([])
+
+    monkeypatch.setattr(psycopg, "connect", lambda url: _CaptureConn())
+
+    # 1. Storing hourly rows must delete daily rows for that day
+    row_h = BillingRow(
+        object_id="app-1",
+        description="hourly app",
+        environment="test",
+        interval_start=datetime(2026, 10, 1, 4, 0, tzinfo=UTC),
+        resource="gpu",
+        cost_usd=1.5,
+    )
+    store_billing_rows("postgresql://fake/db", [row_h], resolution="h")
+    assert any(
+        "DELETE FROM modal_billing_rows" in s and "resolution = %s" in s and p[0] == "d"
+        for s, p in executed_sqls
+    )
+
+    executed_sqls.clear()
+    # 2. Storing daily rows must delete hourly rows for that day (bidirectional safety)
+    row_d = BillingRow(
+        object_id="app-1",
+        description="daily app",
+        environment="test",
+        interval_start=datetime(2026, 10, 1, 0, 0, tzinfo=UTC),
+        resource="gpu",
+        cost_usd=2.5,
+    )
+    store_billing_rows("postgresql://fake/db", [row_d], resolution="d")
+    assert any(
+        "DELETE FROM modal_billing_rows" in s and "resolution = %s" in s and p[0] == "h"
+        for s, p in executed_sqls
+    )

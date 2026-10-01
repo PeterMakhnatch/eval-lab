@@ -2149,6 +2149,8 @@ def _spend_check_command(
 ) -> int:
     """Pre-launch spend-cap check: settled(window) + in-flight + candidate vs cap."""
     del harbor
+    import math
+
     from evallab.spend_day import (
         REASON_CAP_UNVERIFIED,
         REASON_CEILING_EXCEEDED,
@@ -2162,8 +2164,11 @@ def _spend_check_command(
         sibling_worktree_roots,
     )
 
-    if args.candidate_usd < 0:
-        print(f"invalid --candidate-usd: {args.candidate_usd!r} (must be >= 0)", file=sys.stderr)
+    if not math.isfinite(args.candidate_usd) or args.candidate_usd < 0:
+        print(
+            f"invalid --candidate-usd: {args.candidate_usd!r} (must be a finite non-negative number)",
+            file=sys.stderr,
+        )
         return 2
     try:
         window_start, window_end = (
@@ -2180,8 +2185,11 @@ def _spend_check_command(
         return 2
     if args.cap_usd is not None:
         cap_usd = args.cap_usd
-        if cap_usd <= 0:
-            print(f"invalid --cap-usd: {cap_usd!r} (must be > 0)", file=sys.stderr)
+        if not math.isfinite(cap_usd) or cap_usd <= 0:
+            print(
+                f"invalid --cap-usd: {cap_usd!r} (must be a finite positive number)",
+                file=sys.stderr,
+            )
             return 2
     else:
         try:

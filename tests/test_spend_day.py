@@ -575,10 +575,10 @@ def test_model_job_rows_grouped_by_utc_finish_time_har53(monkeypatch: pytest.Mon
     monkeypatch.setitem(sys.modules, "psycopg", fake_psycopg)
 
     # Querying for 2026-09-16 UTC must find both jobs (both land on 2026-09-16 UTC)
-    rows_16, _ = query_model_job_rows("postgresql://fake/db", *day_to_window(date(2026, 9, 16)))
+    rows_16, _, _ = query_model_job_rows("postgresql://fake/db", *day_to_window(date(2026, 9, 16)))
     assert len(rows_16) == 2
     assert sum(r.usd for r in rows_16) == pytest.approx(0.08)
 
     # Querying for 2026-09-15 UTC must find zero jobs
-    rows_15, _ = query_model_job_rows("postgresql://fake/db", *day_to_window(date(2026, 9, 15)))
+    rows_15, _, _ = query_model_job_rows("postgresql://fake/db", *day_to_window(date(2026, 9, 15)))
     assert len(rows_15) == 0

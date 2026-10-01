@@ -57,6 +57,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
@@ -116,6 +117,7 @@ class DayLedger:
     over_by_usd: float
     headroom_usd: float
     notes: tuple[str, ...] = field(default_factory=tuple)
+    unresolved_model_usd: float = 0.0
 
 
 def parse_day(value: str) -> date:
@@ -220,6 +222,32 @@ def dedupe_records(records: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]
     return unique
 
 
+def model_usage_from_provider_usage(
+    provider_usage: Any,
+) -> tuple[float | None, float | None, str]:
+    """Settled dollars and attempted ceiling for one per-job proxy ledger.
+
+    Returns ``(settled_usd, attempted_usd, reason)``. Settled dollars cover
+    reconciled calls only; attempted dollars include unresolved reservations
+    as an upper-bound ceiling.
+    """
+    from evallab.ledger import build_cost_block
+
+    block = build_cost_block(provider_usage if isinstance(provider_usage, Mapping) else None)
+    cost = block.get("cost_usd")
+    cost_usd = (
+        float(cost) if isinstance(cost, (int, float)) and not isinstance(cost, bool) else None
+    )
+    attempted = block.get("attempted_cost_usd")
+    attempted_usd = (
+        float(attempted)
+        if isinstance(attempted, (int, float)) and not isinstance(attempted, bool)
+        else None
+    )
+    reason = str(block.get("reason") or "")
+    return cost_usd, attempted_usd, reason
+
+
 def model_usd_from_provider_usage(provider_usage: Any) -> tuple[float | None, str]:
     """Settled model dollars for one per-job proxy ledger.
 
@@ -228,13 +256,10 @@ def model_usd_from_provider_usage(provider_usage: Any) -> tuple[float | None, st
     zero-priced self-hosted route ($0 at the proxy, billed via Modal).
     Only settled ``used`` cost counts; unresolved reservations never do.
     """
-    from evallab.ledger import build_cost_block
-
-    block = build_cost_block(provider_usage if isinstance(provider_usage, Mapping) else None)
-    cost = block.get("cost_usd")
-    if isinstance(cost, (int, float)) and not isinstance(cost, bool):
-        return float(cost), ""
-    return None, str(block.get("reason") or "no settled model cost")
+    cost, _, reason = model_usage_from_provider_usage(provider_usage)
+    if cost is not None:
+        return cost, ""
+    return None, reason or "no settled model cost"
 
 
 def aggregate_spend_jsonl_calls(
@@ -367,6 +392,7 @@ class WindowLedger:
     over_by_usd: float
     headroom_usd: float
     notes: tuple[str, ...] = field(default_factory=tuple)
+    unresolved_model_usd: float = 0.0
 
 
 def _accumulate_totals(
@@ -388,6 +414,7 @@ def summarize_window(
     *,
     cap_usd: float = DEFAULT_CAP_USD,
     notes: Iterable[str] = (),
+    unresolved_model_usd: float = 0.0,
 ) -> WindowLedger:
     """Build the window ledger: per-source/card totals plus cap arithmetic."""
     ordered = tuple(rows)
@@ -405,6 +432,7 @@ def summarize_window(
         over_by_usd=over_by,
         headroom_usd=headroom,
         notes=tuple(notes),
+        unresolved_model_usd=unresolved_model_usd,
     )
 
 
@@ -414,6 +442,7 @@ def summarize_day(
     *,
     cap_usd: float = DEFAULT_CAP_USD,
     notes: Iterable[str] = (),
+    unresolved_model_usd: float = 0.0,
 ) -> DayLedger:
     """Build the day ledger: per-source/card totals plus cap arithmetic."""
     ordered = tuple(rows)
@@ -430,6 +459,7 @@ def summarize_day(
         over_by_usd=over_by,
         headroom_usd=headroom,
         notes=tuple(notes),
+        unresolved_model_usd=unresolved_model_usd,
     )
 
 
@@ -508,6 +538,10 @@ def query_modal_rows(
     when its hour starts inside the window, even if that hour extends
     past the window end. Hour granularity is exact for whole UTC days and
     approximate to the hour for arbitrary windows.
+
+    Non-overlapping rule: where hourly rows (resolution='h') exist for a
+    UTC day, daily rows (resolution='d') for that day are excluded. When
+    only daily rows exist, they count if their day overlaps the window.
     """
     import psycopg
 
@@ -516,11 +550,23 @@ def query_modal_rows(
     with psycopg.connect(database_url) as connection:
         row = connection.execute(
             """
-            SELECT coalesce(sum(cost_usd), 0), count(*), max(reported_at)
-            FROM modal_billing_rows
-            WHERE interval_start >= %s AND interval_start < %s
+            WITH day_has_hourly AS (
+                SELECT DISTINCT (interval_start AT TIME ZONE 'UTC')::date AS day
+                FROM modal_billing_rows
+                WHERE resolution = 'h'
+            )
+            SELECT coalesce(sum(m.cost_usd), 0), count(m.*), max(m.reported_at)
+            FROM modal_billing_rows m
+            WHERE (
+                (m.resolution = 'h' AND m.interval_start >= %s AND m.interval_start < %s)
+                OR (
+                    m.resolution = 'd'
+                    AND m.interval_start < %s AND m.interval_start + interval '1 day' > %s
+                    AND (m.interval_start AT TIME ZONE 'UTC')::date NOT IN (SELECT day FROM day_has_hourly)
+                )
+            )
             """,
-            (window_start, window_end),
+            (window_start, window_end, window_end, window_start),
         ).fetchone()
     total, count, reported_at = row if row is not None else (0.0, 0, None)
     label = f"{window_start.isoformat()}..{window_end.isoformat()}"
@@ -535,9 +581,29 @@ def query_modal_rows(
             basis=BASIS_BILLED,
             evidence=f"catalog:modal_billing_rows:{int(count)} rows",
         ),
-        f"modal: billed ${float(total):.4f} across {int(count)} hourly rows in {label}"
+        f"modal: billed ${float(total):.4f} across {int(count)} rows in {label}"
         + (f" (last reported {reported_at})" if reported_at else ""),
     )
+
+
+def query_modal_dates_with_hourly_coverage(
+    database_url: str, start_day: date, end_day: date
+) -> set[date]:
+    """Dates in [start_day, end_day] with hourly Modal rows in catalog."""
+    import psycopg
+
+    with psycopg.connect(database_url) as connection:
+        rows = connection.execute(
+            """
+            SELECT DISTINCT (interval_start AT TIME ZONE 'UTC')::date
+            FROM modal_billing_rows
+            WHERE resolution = 'h'
+              AND (interval_start AT TIME ZONE 'UTC')::date >= %s
+              AND (interval_start AT TIME ZONE 'UTC')::date <= %s
+            """,
+            (start_day, end_day),
+        ).fetchall()
+    return {r[0] for r in rows if r[0] is not None}
 
 
 def query_modal_latest_interval(database_url: str) -> datetime | None:
@@ -555,17 +621,20 @@ def query_modal_latest_interval(database_url: str) -> datetime | None:
 
 def query_model_job_rows(
     database_url: str, window_start: datetime, window_end: datetime
-) -> tuple[list[SpendRow], list[str]]:
+) -> tuple[list[SpendRow], list[str], float]:
     """Settled per-job model dollars for jobs finished in ``[window_start, window_end)``.
 
     Finish time is resolved in UTC:
     1. From ``lab_metadata["finished_at"]`` (Harbor's aware UTC finish time).
-    2. Fallback: ``jobs.finished_at`` (Harbor's naive local timestamp).
-       Explicit documented rule: naive local timestamps are recorded in the
-       host timezone (``America/New_York``), converted here to aware UTC.
+    2. Fallback: ``jobs.finished_at``. Strings with explicit UTC offsets
+       (including negative offsets like -07:00) are converted to UTC directly;
+       only truly naive datetimes receive the historical host timezone
+       (``America/New_York``) fallback.
     Jobs whose finish time cannot be established in UTC are counted as
     unfinished/unattributable. Settled proxy ledgers attribute whole to the
     job finish time (they are not split across windows).
+
+    Returns ``(spend_rows, notes, unresolved_model_usd)``.
     """
     import psycopg
 
@@ -580,6 +649,7 @@ def query_model_job_rows(
             """
         ).fetchall()
     spend_rows: list[SpendRow] = []
+    unresolved_model_usd = 0.0
     without_settled = 0
     selfhosted_zero = 0
     unfinished = 0
@@ -588,19 +658,31 @@ def query_model_job_rows(
         if isinstance(lab_metadata, dict) and lab_metadata.get("finished_at"):
             finished = parse_dt(lab_metadata.get("finished_at"))
         if finished is None and finished_at_raw:
-            if isinstance(finished_at_raw, str) and not (
-                "+" in finished_at_raw or finished_at_raw.endswith("Z")
-            ):
+            parsed = None
+            if isinstance(finished_at_raw, str):
                 try:
-                    import zoneinfo
-
-                    tz = zoneinfo.ZoneInfo("America/New_York")
-                    naive = datetime.fromisoformat(finished_at_raw.strip())
-                    finished = naive.replace(tzinfo=tz).astimezone(UTC)
-                except Exception:
-                    finished = parse_dt(finished_at_raw)
+                    text = finished_at_raw.strip()
+                    parsed = datetime.fromisoformat(text.removesuffix("Z"))
+                    if text.endswith("Z"):
+                        parsed = parsed.replace(tzinfo=UTC)
+                except ValueError:
+                    parsed = parse_dt(finished_at_raw)
+            elif isinstance(finished_at_raw, datetime):
+                parsed = finished_at_raw
             else:
-                finished = parse_dt(finished_at_raw)
+                parsed = parse_dt(finished_at_raw)
+
+            if parsed is not None:
+                if parsed.tzinfo is None:
+                    try:
+                        import zoneinfo
+
+                        tz = zoneinfo.ZoneInfo("America/New_York")
+                        finished = parsed.replace(tzinfo=tz).astimezone(UTC)
+                    except Exception:
+                        finished = parsed.replace(tzinfo=UTC)
+                else:
+                    finished = parsed.astimezone(UTC)
         if finished is None:
             unfinished += 1
             continue
@@ -609,8 +691,21 @@ def query_model_job_rows(
         provider_usage = (
             lab_metadata.get("provider_usage") if isinstance(lab_metadata, dict) else None
         )
-        usd, reason = model_usd_from_provider_usage(provider_usage)
-        if usd is None:
+        used_usd, attempted_usd, reason = model_usage_from_provider_usage(provider_usage)
+        if isinstance(provider_usage, Mapping):
+            unresolved_requests = provider_usage.get("unresolved_requests", 0)
+            if unresolved_requests and attempted_usd is None:
+                raise SpendUnverified(
+                    REASON_CAP_UNVERIFIED,
+                    f"finished job {job_name} has {unresolved_requests} unresolved provider call(s) "
+                    "with no pricing; cost ceiling cannot be verified",
+                )
+        if attempted_usd is not None and used_usd is not None and attempted_usd > used_usd:
+            unresolved_model_usd += attempted_usd - used_usd
+        elif attempted_usd is not None and used_usd is None and attempted_usd > 0:
+            unresolved_model_usd += attempted_usd
+
+        if used_usd is None:
             without_settled += 1
             if "self-hosted" in reason:
                 selfhosted_zero += 1
@@ -620,7 +715,7 @@ def query_model_job_rows(
                 source="model",
                 card=card_for_job(job_name if isinstance(job_name, str) else None),
                 job=job_name if isinstance(job_name, str) else str(job_id),
-                usd=usd,
+                usd=used_usd,
                 basis=BASIS_LEDGER,
                 evidence=(
                     evidence_path
@@ -634,9 +729,13 @@ def query_model_job_rows(
         f"{without_settled} finished jobs carry none "
         f"({selfhosted_zero} zero-priced self-hosted, $0 at the proxy)"
     ]
+    if unresolved_model_usd > 0:
+        notes.append(
+            f"model: ${unresolved_model_usd:.4f} unresolved attempted charges from finished jobs"
+        )
     if unfinished:
         notes.append(f"model: {unfinished} jobs lack finished_at; unattributable")
-    return spend_rows, notes
+    return spend_rows, notes, unresolved_model_usd
 
 
 def _spend_jsonl_files(roots: Iterable[Path]) -> list[Path]:
@@ -991,7 +1090,9 @@ def build_window_ledger(
                     f"{age_hours:.1f}h old vs now); modal rows lag, so settled spend "
                     "may undercount tonight"
                 )
-    model_job_rows, model_notes = query_model_job_rows(database_url, window_start, window_end)
+    model_job_rows, model_notes, unresolved_model_usd = query_model_job_rows(
+        database_url, window_start, window_end
+    )
     rows.extend(model_job_rows)
     notes.extend(model_notes)
     jsonl_rows, jsonl_notes = collect_spend_jsonl_rows(
@@ -1002,7 +1103,14 @@ def build_window_ledger(
     daytona_rows, daytona_notes = query_daytona_rows(database_url, window_start, window_end)
     rows.extend(daytona_rows)
     notes.extend(daytona_notes)
-    return summarize_window(window_start, window_end, rows, cap_usd=cap_usd, notes=notes)
+    return summarize_window(
+        window_start,
+        window_end,
+        rows,
+        cap_usd=cap_usd,
+        notes=notes,
+        unresolved_model_usd=unresolved_model_usd,
+    )
 
 
 def build_day_ledger(
@@ -1029,7 +1137,13 @@ def build_day_ledger(
         label=day.isoformat(),
         include_window_preamble=False,
     )
-    return summarize_day(day, window.rows, cap_usd=cap_usd, notes=window.notes)
+    return summarize_day(
+        day,
+        window.rows,
+        cap_usd=cap_usd,
+        notes=window.notes,
+        unresolved_model_usd=window.unresolved_model_usd,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1052,7 +1166,9 @@ REASON_CAP_UNVERIFIED = "daily_cap_unverified"
 REASON_UNRATABLE_SPEC = "unratable_cost_spec"
 
 #: Queue states whose specs hold reserved spend against the cap.
-IN_FLIGHT_STATES = ("running", "approved")
+#: Approved is scanned before running so an approved->running transition
+#: is never missed between directory reads.
+IN_FLIGHT_STATES = ("approved", "running")
 
 
 class SpendUnverified(Exception):
@@ -1106,6 +1222,7 @@ class LaunchDecision:
     committed_usd: float
     cap_usd: float
     headroom_usd: float
+    unresolved_jobs_usd: float = 0.0
     notes: tuple[str, ...] = field(default_factory=tuple)
 
 
@@ -1172,8 +1289,8 @@ def collect_in_flight(
     if not Path(queue_root).is_dir():
         return [], [], [f"in-flight: no queue directory at {queue_root}; reserving $0"]
     queue = DirectoryQueue(Path(queue_root), create=False)
-    items: list[InFlightItem] = []
-    unratable: list[UnratableSpec] = []
+    seen_specs: dict[str, InFlightItem] = {}
+    unratable_specs: dict[str, UnratableSpec] = {}
     notes: list[str] = []
     for state in IN_FLIGHT_STATES:
         try:
@@ -1184,6 +1301,7 @@ def collect_in_flight(
                 f"in-flight: cannot list queue/{state}: {type(exc).__name__}: {exc}",
             ) from exc
         for path, spec in records:
+            spec_key = str(getattr(spec, "spec_id", None) or path.name)
             try:
                 reservation = reservation_for_spec(spec)
             except Exception as exc:
@@ -1194,29 +1312,29 @@ def collect_in_flight(
             est = getattr(spec, "est_cost_usd", 0.0)
             est_ok = isinstance(est, (int, float)) and not isinstance(est, bool) and est > 0
             if is_cloud_environment(getattr(spec, "environment", "docker")) and not est_ok:
-                unratable.append(
-                    UnratableSpec(
-                        spec_id=getattr(spec, "spec_id", None),
-                        name=getattr(spec, "name", path.stem),
-                        state=state,
-                        environment=str(getattr(spec, "environment", "docker")),
-                        reason=(
-                            "cloud spec records no positive est_cost_usd; "
-                            "its infrastructure cost is unknown, not free"
-                        ),
-                    )
-                )
-            items.append(
-                InFlightItem(
+                unratable_specs[spec_key] = UnratableSpec(
                     spec_id=getattr(spec, "spec_id", None),
                     name=getattr(spec, "name", path.stem),
                     state=state,
                     environment=str(getattr(spec, "environment", "docker")),
-                    est_cost_usd=float(est) if isinstance(est, (int, float)) else 0.0,
-                    cost_limit_usd=getattr(spec, "cost_limit_usd", None),
-                    reservation_usd=reservation,
+                    reason=(
+                        "cloud spec records no positive est_cost_usd; "
+                        "its infrastructure cost is unknown, not free"
+                    ),
                 )
+            else:
+                unratable_specs.pop(spec_key, None)
+            seen_specs[spec_key] = InFlightItem(
+                spec_id=getattr(spec, "spec_id", None),
+                name=getattr(spec, "name", path.stem),
+                state=state,
+                environment=str(getattr(spec, "environment", "docker")),
+                est_cost_usd=float(est) if isinstance(est, (int, float)) else 0.0,
+                cost_limit_usd=getattr(spec, "cost_limit_usd", None),
+                reservation_usd=reservation,
             )
+    items = list(seen_specs.values())
+    unratable = list(unratable_specs.values())
     notes.append(
         f"in-flight: {len(items)} queued spec(s) in running/approved reserve "
         f"${sum(item.reservation_usd for item in items):.4f}"
@@ -1235,21 +1353,26 @@ def decide_launch(
     in_flight_count: int = 0,
     in_flight: Iterable[InFlightItem] = (),
     unratable: Iterable[UnratableSpec] = (),
+    unresolved_jobs_usd: float = 0.0,
     candidate_usd: float = 0.0,
     cap_usd: float = DEFAULT_CAP_USD,
     notes: Iterable[str] = (),
 ) -> LaunchDecision:
-    """Pure commit-vs-cap verdict: ``settled + in-flight + candidate``.
+    """Pure commit-vs-cap verdict: ``settled + in-flight + unresolved-jobs + candidate``.
 
     Refusal is strict: a committed total *greater than* the cap refuses
     with ``daily_cost_ceiling_exceeded``; exactly-at-cap allows (the cap
     is a ceiling to stay within, not below).
     """
-    if candidate_usd < 0:
-        raise ValueError(f"candidate_usd must be >= 0, got {candidate_usd!r}")
+    if not math.isfinite(candidate_usd) or candidate_usd < 0:
+        raise ValueError(
+            f"candidate_usd must be a finite non-negative number, got {candidate_usd!r}"
+        )
+    if not math.isfinite(cap_usd) or cap_usd <= 0:
+        raise ValueError(f"cap_usd must be a finite positive number, got {cap_usd!r}")
     flight = tuple(in_flight)
     bad = tuple(unratable)
-    committed = settled_usd + in_flight_usd + candidate_usd
+    committed = settled_usd + in_flight_usd + unresolved_jobs_usd + candidate_usd
     over, _, headroom = cap_status(committed, cap_usd)
     return LaunchDecision(
         allowed=not over,
@@ -1267,6 +1390,7 @@ def decide_launch(
         committed_usd=committed,
         cap_usd=cap_usd,
         headroom_usd=headroom,
+        unresolved_jobs_usd=unresolved_jobs_usd,
         notes=tuple(notes),
     )
 
@@ -1286,9 +1410,13 @@ def unverified_decision(
     in_flight_count: int = 0,
     in_flight: Iterable[InFlightItem] = (),
     unratable: Iterable[UnratableSpec] = (),
+    unresolved_jobs_usd: float = 0.0,
     notes: Iterable[str] = (),
 ) -> LaunchDecision:
     """Fail-closed verdict: never allowed, never assumed $0."""
+    cand = candidate_usd if math.isfinite(candidate_usd) and candidate_usd >= 0 else 0.0
+    cap = cap_usd if math.isfinite(cap_usd) and cap_usd > 0 else DEFAULT_CAP_USD
+    committed = settled_usd + in_flight_usd + unresolved_jobs_usd + cand
     return LaunchDecision(
         allowed=False,
         reason_code=reason_code,
@@ -1301,10 +1429,11 @@ def unverified_decision(
         in_flight_count=in_flight_count,
         in_flight=tuple(in_flight),
         unratable=tuple(unratable),
-        candidate_usd=candidate_usd,
-        committed_usd=settled_usd + in_flight_usd + candidate_usd,
-        cap_usd=cap_usd,
-        headroom_usd=cap_usd - (settled_usd + in_flight_usd + candidate_usd),
+        candidate_usd=cand,
+        committed_usd=committed,
+        cap_usd=cap,
+        headroom_usd=cap - committed,
+        unresolved_jobs_usd=unresolved_jobs_usd,
         notes=(message, *tuple(notes)),
     )
 
@@ -1334,8 +1463,30 @@ def check_launch(
     - ``stale_modal_billing`` when the latest stored Modal interval is stale (>4h)
       and the window extends past it, unless ``allow_stale_modal=True``.
     """
-    if candidate_usd < 0:
-        raise ValueError(f"candidate_usd must be >= 0, got {candidate_usd!r}")
+    if not math.isfinite(candidate_usd) or candidate_usd < 0:
+        return unverified_decision(
+            reason_code=REASON_CAP_UNVERIFIED,
+            message=(
+                f"REFUSAL: {REASON_CAP_UNVERIFIED} (invalid candidate_usd: "
+                f"{candidate_usd!r}; must be a finite non-negative number)"
+            ),
+            window_start=window_start,
+            window_end=window_end,
+            candidate_usd=0.0,
+            cap_usd=cap_usd if math.isfinite(cap_usd) else DEFAULT_CAP_USD,
+        )
+    if not math.isfinite(cap_usd) or cap_usd <= 0:
+        return unverified_decision(
+            reason_code=REASON_CAP_UNVERIFIED,
+            message=(
+                f"REFUSAL: {REASON_CAP_UNVERIFIED} (invalid cap_usd: "
+                f"{cap_usd!r}; must be a finite positive number)"
+            ),
+            window_start=window_start,
+            window_end=window_end,
+            candidate_usd=candidate_usd,
+            cap_usd=DEFAULT_CAP_USD,
+        )
     window_start = _coerce_utc(window_start)
     window_end = _coerce_utc(window_end)
     effective_now = _coerce_utc(now) if now is not None else datetime.now(UTC)
@@ -1353,12 +1504,24 @@ def check_launch(
     flight_usd = sum(item.reservation_usd for item in flight)
 
     # -----------------------------------------------------------------------
-    # Modal freshness: check whether the catalog's newest billing interval is
-    # older than MODAL_STALE_AFTER_HOURS (4h) while the requested window extends
-    # past it. If stale, refresh using the reconcile fetch path before computing.
+    # Modal coverage & freshness:
+    # 1. Intra-day window slices require hourly coverage for each intersecting date.
+    # 2. Window extending past the latest hour requires fresh rows (<=4h vs now).
     # -----------------------------------------------------------------------
+    start_date = window_start.date()
+    end_date = (window_end - timedelta(microseconds=1)).date()
+    intersecting_dates = [
+        start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)
+    ]
+
+    def _is_intraday(d: date) -> bool:
+        day_start = datetime.combine(d, time.min, tzinfo=UTC)
+        day_end = day_start + timedelta(days=1)
+        return window_start > day_start or window_end < day_end
+
     try:
         latest = query_modal_latest_interval(database_url)
+        hourly_covered = query_modal_dates_with_hourly_coverage(database_url, start_date, end_date)
     except Exception as exc:
         return unverified_decision(
             reason_code=REASON_CAP_UNVERIFIED,
@@ -1383,24 +1546,31 @@ def check_launch(
         or (effective_now - latest).total_seconds() / 3600.0 > MODAL_STALE_AFTER_HOURS
     ) and (latest is None or window_end > latest)
 
+    missing_hourly_slices = [
+        d for d in intersecting_dates if _is_intraday(d) and d not in hourly_covered
+    ]
+
     refresh_note: str | None = None
-    if modal_is_stale:
-        start_day = window_start.date()
-        end_day = (window_end - timedelta(microseconds=1)).date() + timedelta(days=1)
+    if modal_is_stale or missing_hourly_slices:
+        fetch_start = min([*missing_hourly_slices, start_date])
+        fetch_end = max([*missing_hourly_slices, end_date]) + timedelta(days=1)
         try:
             if modal_refresher is not None:
-                modal_refresher(start_day, end_day)
+                modal_refresher(fetch_start, fetch_end)
             else:
                 from evallab.modal_billing import refresh_modal_billing
 
                 refresh_modal_billing(
                     database_url,
-                    start=start_day,
-                    end=end_day,
+                    start=fetch_start,
+                    end=fetch_end,
                     repo_root=repo_root,
                     resolution="h",
                 )
             latest = query_modal_latest_interval(database_url)
+            hourly_covered = query_modal_dates_with_hourly_coverage(
+                database_url, start_date, end_date
+            )
         except Exception as exc:
             refresh_note = f"modal refresh failed ({type(exc).__name__}: {exc})"
 
@@ -1408,17 +1578,29 @@ def check_launch(
             latest is None
             or (effective_now - latest).total_seconds() / 3600.0 > MODAL_STALE_AFTER_HOURS
         ) and (latest is None or window_end > latest)
+        missing_hourly_slices = [
+            d for d in intersecting_dates if _is_intraday(d) and d not in hourly_covered
+        ]
 
     stale_warning: str | None = None
-    if modal_is_stale or refresh_note:
+    if modal_is_stale or missing_hourly_slices or refresh_note:
         stale_hour_str = latest.isoformat() if latest else "none"
         if not allow_stale_modal:
-            refusal_msg = (
-                f"REFUSAL: {REASON_STALE_MODAL} "
-                f"(latest Modal hour {stale_hour_str} is older than {MODAL_STALE_AFTER_HOURS:g}h vs now; "
-                "modal rows lag, so spend cannot be verified tonight; "
-                "pass --allow-stale-modal to override)"
-            )
+            if missing_hourly_slices:
+                missing_str = ", ".join(d.isoformat() for d in missing_hourly_slices)
+                refusal_msg = (
+                    f"REFUSAL: {REASON_STALE_MODAL} "
+                    f"(window [{window_start.isoformat()}..{window_end.isoformat()}) intersects {missing_str} "
+                    "as an intra-day slice, but only daily Modal billing rows exist; "
+                    "hourly data is required to determine settled spend; pass --allow-stale-modal to override)"
+                )
+            else:
+                refusal_msg = (
+                    f"REFUSAL: {REASON_STALE_MODAL} "
+                    f"(latest Modal hour {stale_hour_str} is older than {MODAL_STALE_AFTER_HOURS:g}h vs now; "
+                    "modal rows lag, so spend cannot be verified tonight; "
+                    "pass --allow-stale-modal to override)"
+                )
             extra_notes = list(flight_notes)
             if refresh_note:
                 extra_notes.append(f"modal: {refresh_note}")
@@ -1440,7 +1622,7 @@ def check_launch(
                 notes=extra_notes,
             )
         stale_warning = (
-            f"modal: billing rows are stale (latest hour {stale_hour_str}); "
+            f"modal: billing rows are stale or daily-only (latest hour {stale_hour_str}); "
             "allowed despite staleness (--allow-stale-modal recorded)"
         )
 
@@ -1452,6 +1634,20 @@ def check_launch(
             database_url=database_url,
             cap_usd=cap_usd,
             extra_roots=extra_roots,
+        )
+    except SpendUnverified as exc:
+        return unverified_decision(
+            reason_code=exc.reason_code,
+            message=f"REFUSAL: {exc.reason_code} ({exc})",
+            window_start=window_start,
+            window_end=window_end,
+            candidate_usd=candidate_usd,
+            cap_usd=cap_usd,
+            in_flight_usd=flight_usd,
+            in_flight_count=len(flight),
+            in_flight=flight,
+            unratable=unratable,
+            notes=flight_notes,
         )
     except Exception as exc:
         return unverified_decision(
@@ -1505,6 +1701,7 @@ def check_launch(
             in_flight_count=len(flight),
             in_flight=flight,
             unratable=unratable,
+            unresolved_jobs_usd=ledger.unresolved_model_usd,
             notes=notes,
         )
     return decide_launch(
@@ -1516,6 +1713,7 @@ def check_launch(
         in_flight_usd=flight_usd,
         in_flight_count=len(flight),
         in_flight=flight,
+        unresolved_jobs_usd=ledger.unresolved_model_usd,
         candidate_usd=candidate_usd,
         cap_usd=cap_usd,
         notes=notes,
@@ -1556,6 +1754,7 @@ def decision_to_dict(decision: LaunchDecision) -> dict[str, Any]:
             }
             for spec in decision.unratable
         ],
+        "unresolved_jobs_usd": decision.unresolved_jobs_usd,
         "candidate_usd": decision.candidate_usd,
         "committed_usd": decision.committed_usd,
         "cap_usd": decision.cap_usd,
@@ -1581,10 +1780,19 @@ def render_decision(decision: LaunchDecision) -> str:
             f"reservation ${item.reservation_usd:.4f} "
             f"(max(cost_limit {item.cost_limit_usd}, est {item.est_cost_usd:.4f}))"
         )
+    if decision.unresolved_jobs_usd > 0:
+        lines.append(
+            f"unresolved-jobs: ${decision.unresolved_jobs_usd:.4f} "
+            "(pending provider charges from finished jobs)"
+        )
     lines.append(f"candidate: ${decision.candidate_usd:.4f}")
     lines.append(f"cap: ${decision.cap_usd:.2f}")
+    eq_parts = ["settled", "in-flight"]
+    if decision.unresolved_jobs_usd > 0:
+        eq_parts.append("unresolved-jobs")
+    eq_parts.append("candidate")
     lines.append(
-        f"committed (settled + in-flight + candidate): ${decision.committed_usd:.4f} "
+        f"committed ({' + '.join(eq_parts)}): ${decision.committed_usd:.4f} "
         f"vs cap ${decision.cap_usd:.2f}: headroom ${decision.headroom_usd:.4f}"
     )
     if decision.allowed:

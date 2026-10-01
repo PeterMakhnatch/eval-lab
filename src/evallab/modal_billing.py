@@ -99,22 +99,23 @@ def aggregate_daily(rows: list[BillingRow]) -> dict[date, float]:
 def store_billing_rows(database_url: str, rows: list[BillingRow], *, resolution: str) -> int:
     """Upsert fetched rows into the catalog. Returns the row count.
 
-    When hourly rows are stored (``resolution="h"``), older day-level rows
-    (``resolution="d"``) covering the same UTC dates are removed first so
-    queries over hourly intervals never double-count against daily rows.
+    When rows of either resolution (``"h"`` or ``"d"``) are stored, any
+    existing rows of the opposing resolution covering the same UTC dates
+    are removed first so queries never double-count mixed resolutions.
     """
     with psycopg.connect(database_url) as connection:
         connection.execute(BILLING_TABLE_DDL)
-        if resolution == "h" and rows:
+        if rows:
             days = {row.interval_start.date() for row in rows}
+            opposing = "d" if resolution == "h" else "h"
             for target_day in days:
                 connection.execute(
                     """
                     DELETE FROM modal_billing_rows
-                    WHERE resolution = 'd'
+                    WHERE resolution = %s
                       AND (interval_start AT TIME ZONE 'UTC')::date = %s
                     """,
-                    (target_day,),
+                    (opposing, target_day),
                 )
         for row in rows:
             connection.execute(

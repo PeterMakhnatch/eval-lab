@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -513,47 +514,86 @@ def test_custom_output_dir_publishes_fresh_report_not_stale_processed(tmp_path: 
         assert still_published["summary"]["n_pass"] == 1
 
 
-def _allocation(*, daytona: float | None = 0.0399, total: float | None = 0.1164) -> dict:
-    return {
-        "schema": "evallab.session_spend_allocation/v1",
-        "session_id": "ap-test123",
-        "job_id": "job-1",
-        "spec_id": "spec-1",
-        "member_count": 2,
-        "modal_allocated_usd": 0.0765,
-        "daytona_estimate_usd": daytona,
-        "total_usd": total,
-        "billed_modal_usd": 1.53,
-        "trial_wall_seconds": 100.0,
-        "session_trial_wall_seconds": 2000.0,
-        "allocation_basis": "billed_modal_wall_time_share_plus_daytona_estimate",
-        "source_receipt_path": "receipt.json",
-        "source_receipt_sha256": "sha256:abc",
-        "billing_reported_at": "2026-10-01T02:23:10Z",
-        "reason": None if total is not None else "daytona_estimate_unknown",
+def _spend_job(root: Path, name: str = "har131-session") -> Path:
+    """Job whose native id/spec/commit bind it to the test session receipt."""
+    job = _job(root, name)
+    metadata = json.loads((job / "lab-metadata.json").read_text(encoding="utf-8"))
+    metadata["repository"]["commit"] = "abc123def456"
+    experiment = metadata.get("experiment") or {}
+    experiment["spec_id"] = "spec-A"
+    metadata["experiment"] = experiment
+    (job / "lab-metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
+    return job
+
+
+def _session_receipt(job: Path, receipt_path: Path, *, daytona_a: float | None = 0.1) -> Path:
+    """Two-member unequal-weight session receipt binding ``job`` as spec-A."""
+    metadata_sha = hashlib.sha256((job / "lab-metadata.json").read_bytes()).hexdigest()
+    receipt = {
+        "schema": "evallab.session_spend/v1",
+        "sessions": [
+            {
+                "session_id": "ap-test123",
+                "billing_rows": [
+                    {
+                        "object_id": "ap-test123",
+                        "description": "evallab-test-app",
+                        "environment": "main",
+                        "interval_start": "2026-10-01T00:00:00Z",
+                        "resource": "GPU",
+                        "cost_usd": 1.2,
+                        "resolution": "day",
+                        "reported_at": "2026-10-01T02:23:10Z",
+                    }
+                ],
+                "deployment": {"commit": "abc123def456", "time_deployed": "2026-10-01T00:01:27Z"},
+                "teardown": {
+                    "app": "evallab-test-app",
+                    "recorded_at": "2026-10-01T01:45:38Z",
+                    "completed_spec_ids": ["spec-A", "spec-B"],
+                },
+                "members": [
+                    {
+                        "job_id": "job-1",
+                        "job_name": job.name,
+                        "spec_id": "spec-A",
+                        "repository_commit": "abc123def456",
+                        "lab_metadata_sha256": metadata_sha,
+                        "trial_wall_seconds": 100.0,
+                        "daytona_estimate_usd": daytona_a,
+                    },
+                    {
+                        "job_id": "job-2",
+                        "job_name": "other-job",
+                        "spec_id": "spec-B",
+                        "repository_commit": "abc123def456",
+                        "lab_metadata_sha256": "0" * 64,
+                        "trial_wall_seconds": 300.0,
+                        "daytona_estimate_usd": 0.2,
+                    },
+                ],
+            }
+        ],
     }
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    return receipt_path
 
 
 def test_session_spend_allocation_replaces_legacy_spend_in_report_and_index(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> None:
-    """An explicit receipt stores the allocation and prefers it on pages + INDEX."""
-    import evallab.spend_day
+    """An explicit receipt stores the real allocation and prefers it on pages + INDEX."""
+    from evallab.spend_day import session_spend_for_job
 
-    job = _job(tmp_path, "har131-session")
+    job = _spend_job(tmp_path)
     home = tmp_path / "results"
-    receipt = tmp_path / "receipt.json"
-    receipt.write_text("{}", encoding="utf-8")
-    seen: dict[str, str] = {}
+    receipt = _session_receipt(job, tmp_path / "receipt.json")
+    expected = session_spend_for_job(job.resolve(), receipt)
+    assert expected["modal_allocated_usd"] == pytest.approx(0.3)
+    assert expected["daytona_estimate_usd"] == 0.1
+    assert expected["total_usd"] == pytest.approx(0.4)
 
-    def fake(job_dir: Path, receipt_path: Path) -> dict:
-        seen["job"] = str(job_dir)
-        seen["receipt"] = str(receipt_path)
-        if Path(receipt_path) != receipt:
-            raise ValueError("wrong receipt binding")
-        return _allocation()
-
-    monkeypatch.setattr(evallab.spend_day, "session_spend_for_job", fake, raising=False)
+    baseline = process_job(job, output_dir=tmp_path / "base-out", ingest=False, publish=False)
     report = process_job(
         job,
         ingest=False,
@@ -561,52 +601,50 @@ def test_session_spend_allocation_replaces_legacy_spend_in_report_and_index(
         results_home=home,
         session_spend=receipt,
     )
-    assert Path(seen["job"]) == job.resolve()
-    assert Path(seen["receipt"]) == receipt
-    assert report["summary"]["session_spend"]["total_usd"] == 0.1164
+    assert report["summary"]["session_spend"] == expected
+    # Settled proxy cost/tokens are untouched by the allocation.
+    assert report["summary"]["cost_usd"] == baseline["summary"]["cost_usd"]
+    assert report["summary"]["tokens_used"] == baseline["summary"]["tokens_used"]
     published = Path(str(report["results_home"]))
     saved = json.loads((published / "processed" / "job.json").read_text(encoding="utf-8"))
-    assert saved["summary"]["session_spend"]["modal_allocated_usd"] == 0.0765
-    assert saved["summary"]["session_spend"]["daytona_estimate_usd"] == 0.0399
+    assert saved["summary"]["session_spend"] == expected
     # Job-scope only: the allocation never becomes a per-trial GPU share.
     saved_trial = json.loads(
         (published / "processed" / "trial-trial-one.json").read_text(encoding="utf-8")
     )
     assert "session_spend" not in saved_trial
     markdown = (published / "processed" / "job.md").read_text(encoding="utf-8")
-    assert "$0.1164" in markdown
-    assert "$0.0765" in markdown
-    assert "$0.1164" in (home / "INDEX-all.md").read_text(encoding="utf-8")
+    assert "$0.4000" in markdown
+    assert "$0.3000" in markdown
+    assert "$0.4000" in (home / "INDEX-all.md").read_text(encoding="utf-8")
 
     # Unknown Daytona renders the GPU share plus unknown sandbox, never a
     # full total and never the legacy wall-time estimate.
-    def fake_unknown(job_dir: Path, receipt_path: Path) -> dict:
-        return _allocation(daytona=None, total=None)
-
-    monkeypatch.setattr(evallab.spend_day, "session_spend_for_job", fake_unknown, raising=False)
+    unknown_receipt = _session_receipt(job, tmp_path / "receipt-unknown.json", daytona_a=None)
     rerun = process_job(
         job,
         ingest=False,
         pr_lookup=lambda _commit: None,
         results_home=home,
-        session_spend=receipt,
+        session_spend=unknown_receipt,
     )
     assert rerun["summary"]["session_spend"]["total_usd"] is None
+    assert rerun["summary"]["session_spend"]["daytona_estimate_usd"] is None
+    assert rerun["summary"]["session_spend"]["reason"] is not None
     full = (home / "INDEX-all.md").read_text(encoding="utf-8")
-    assert "$0.0765 billed GPU share + sandbox unknown" in full
-    assert "$0.1164" not in full
+    row = next(line for line in full.splitlines() if "har131-session" in line)
+    assert "$0.3000" in row and "unknown" in row
+    assert "$0.4000" not in full
     remarked = (published / "processed" / "job.md").read_text(encoding="utf-8")
-    assert "$0.0765" in remarked
-    assert "$0.1164" not in remarked
+    assert "$0.3000" in remarked
+    assert "$0.4000" not in remarked
 
 
 def test_invalid_session_spend_receipt_preserves_existing_publication(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> None:
     """A stale receipt fails before the previous publication is replaced."""
-    import evallab.spend_day
-
-    job = _job(tmp_path, "har131-stale")
+    job = _spend_job(tmp_path, "har131-stale")
     home = tmp_path / "results"
     first = process_job(job, ingest=False, pr_lookup=lambda _commit: None, results_home=home)
     published = Path(str(first["results_home"]))
@@ -615,17 +653,17 @@ def test_invalid_session_spend_receipt_preserves_existing_publication(
     baseline_source = (job / "processed" / "job.json").read_bytes()
     assert "session_spend" not in json.loads(baseline_report.decode())["summary"]
 
-    def refusing(job_dir: Path, receipt_path: Path) -> dict:
-        raise ValueError("stale binding: receipt members do not match job")
-
-    monkeypatch.setattr(evallab.spend_day, "session_spend_for_job", refusing, raising=False)
-    with pytest.raises(ValueError, match="stale binding"):
+    stale = _session_receipt(job, tmp_path / "stale-receipt.json")
+    payload = json.loads(stale.read_text(encoding="utf-8"))
+    payload["sessions"][0]["members"][0]["repository_commit"] = "stale000commit"
+    stale.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError):
         process_job(
             job,
             ingest=False,
             pr_lookup=lambda _commit: None,
             results_home=home,
-            session_spend=tmp_path / "receipt.json",
+            session_spend=stale,
         )
     assert (published / "processed" / "job.json").read_bytes() == baseline_report
     assert (home / "INDEX-all.md").read_bytes() == baseline_index

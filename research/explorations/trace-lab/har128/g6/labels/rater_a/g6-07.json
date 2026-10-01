@@ -1,0 +1,47 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Now add the output-label decision logic. Let me insert it right after `_get_ct_info`:",
+      "ref": "head#46"
+    },
+    {
+      "quote": "return ContentTypeLabel.UNKNOWN, OverwriteReason.LOW_CONFIDENCE",
+      "ref": "head#46"
+    },
+    {
+      "quote": "medium_confidence    python        0.50 -> python       none",
+      "ref": "head#72"
+    },
+    {
+      "quote": "Analysis: All scenarios work correctly",
+      "ref": "head#73"
+    },
+    {
+      "quote": "Are you sure you want to mark the task as complete?",
+      "ref": "head#77"
+    },
+    {
+      "quote": "Analysis: All changes are in place and verified. The implementation is complete.",
+      "ref": "head#79"
+    }
+  ],
+  "first_failure": {
+    "quote": "return ContentTypeLabel.UNKNOWN, OverwriteReason.LOW_CONFIDENCE",
+    "ref": "head#46",
+    "what": "Inserted fallback logic returns LOW_CONFIDENCE even when the fallback label equals the raw label (unknown->unknown at 0.01 must be NONE); hidden test test_high_confidence_binary_fallback_and_same_label_reason fails on exactly this"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Reward 0 with 8/9 hidden tests passing; only failure is overwrite_reason low_confidence vs none for same-label fallback. mark_task_complete at head#77/79/80 is the harness two-step confirmation (claim, one re-check, confirm), not a loop. result_summary: no exception, n_episodes 79: model_finished. pass_copied null (fail); sft_cut null.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "model_finished",
+  "trial": "g6-07"
+}

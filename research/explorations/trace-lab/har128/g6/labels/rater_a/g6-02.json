@@ -1,0 +1,38 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "sed -n '20,130p' /testbed/piccolo/apps/migrations/auto/diffable_table.py",
+      "ref": "head#43"
+    },
+    {
+      "quote": "sed -n '25,130p' /testbed/piccolo/apps/migrations/auto/diffable_table.py",
+      "ref": "head#45"
+    },
+    {
+      "quote": "sed -n '25,130p' /testbed/piccolo/apps/migrations/auto/diffable_table.py",
+      "ref": "head#63"
+    }
+  ],
+  "first_failure": {
+    "quote": "sed -n '25,130p' /testbed/piccolo/apps/migrations/auto/diffable_table.py",
+    "ref": "head#45",
+    "what": "entered tight sed-viewing loop on diffable_table.py (same ranges, no edits; agent.diff empty) from which it never exited; loop-broke at 62"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#45",
+    "head#63"
+  ],
+  "notes": "LoopBreakStop (nudge call 47, stop call 62, 15-call grace). All rename-hint tests FAIL (feature never implemented); pre-existing differ tests pass. Harness correctly stopped a no-progress loop.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "g6-02"
+}

@@ -1,0 +1,42 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "python3 -m pytest tests/pipeline/nodes/dabble/ -q 2>&1 | tail -5",
+      "ref": "head#68"
+    },
+    {
+      "quote": "grep -E \"^E\" | sed -n 9p | cut -c1-400",
+      "ref": "head#86"
+    },
+    {
+      "quote": "grep -E \"^E\" | sed -n 10p | cut -c1-400",
+      "ref": "head#87"
+    },
+    {
+      "quote": "grep -E \"^E\" | sed -n 11p | cut -c1-400",
+      "ref": "head#88"
+    }
+  ],
+  "first_failure": {
+    "quote": "grep -E \"^E\" | sed -n 11p | cut -c1-400",
+    "ref": "head#88",
+    "what": "upstream provider 503 (ServiceUnavailableError) struck the next model call after step 88, ending the run before any grading (reward null, verifier empty)"
+  },
+  "first_failure_confidence": "low",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#74",
+    "head#88"
+  ],
+  "notes": "86 eps then litellm.ServiceUnavailableError 503; reward null, verifier dir empty so correctness unknowable. Nodes were built and self-tests passed (btm (120,160), zones, [2,2]) before ~15 turns fixating on unrelated pre-existing test_tracking failure with empty outputs.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "g6-10"
+}

@@ -1,0 +1,39 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "I'll create `pyalgotrade/dataseries/resampled.py` implementing the two classes. This matches the upstream pyalgotrade implementation.",
+      "ref": "head#12"
+    },
+    {
+      "quote": "TypeError: BasicBar.__init__() got an unexpected keyword argument 'open'",
+      "ref": "head#73"
+    },
+    {
+      "quote": "2 failed, 8 passed",
+      "ref": "head#101"
+    },
+    {
+      "quote": "the trial proxy refused a model call: trial budget exhausted",
+      "ref": "head#101"
+    }
+  ],
+  "first_failure": {
+    "quote": "I'll create `pyalgotrade/dataseries/resampled.py` implementing the two classes. This matches the upstream pyalgotrade implementation.",
+    "ref": "head#12",
+    "what": "created dataseries/resampled.py whose __buildBar calls BasicBar with keyword 'open' that BasicBar does not accept"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "TrialBudgetExhaustedError with 101 episodes and ~2.48M input; loop_break never fired. Late python -c probes are varied debugging hypotheses, not a 10-turn identical repeat. No upstream fetch.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-26"
+}

@@ -1,0 +1,983 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "ovn-g5-001355-stock__ZHNXfvD",
+    "trial_id": "cec9fc9e-34d2-46da-a6e7-41fd163d7c0d",
+    "task": "mimo-v2.6-rl/format-code-task-001355",
+    "job": "HAR-126-ovn-g5-001355-stock",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "5681d02d-040a-4286-a423-15cc064efc6f",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001355-stock/ovn-g5-001355-stock__ZHNXfvD"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "failed",
+    "reward": 0.0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "verifier_outcome": "fail",
+    "stop_reason": "trial_budget_exhausted",
+    "stop_detail": "agent metadata stop_reason; binding ceiling: input_tokens",
+    "completion": "Completion: never claimed; the run ended on step 99 (python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.find('\\ndef ', i) seg =...).",
+    "execution_problems": {
+      "parse_errors": 1,
+      "prose_completions": 0,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": "<tool_call><function=bash><parameter=command>python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.find('\\ndef ', i) seg = src[i-300:k] print(seg[6650:6710]) PYEOF</parameter><parameter=duration>0.1</parameter></txt> </function></tool_call>",
+    "verifier_files": [
+      "verifier/agent.diff",
+      "verifier/apply.log",
+      "verifier/reward.txt",
+      "verifier/test-stdout.txt",
+      "verifier/test_output.log"
+    ],
+    "first_failure": {
+      "step": 90,
+      "kind": "harness_rejection",
+      "evidence": "agent step with no executed tool call: <tool_call><function=bash><parameter=command>python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_ou...",
+      "confidence": "high"
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T14:36:48.990563+00:00",
+    "finished_at": "2026-10-01T14:47:33.471928+00:00",
+    "total_seconds": 644.481,
+    "phases": {
+      "environment_setup": {
+        "seconds": 1.333,
+        "starts_at_offset_seconds": 0.043
+      },
+      "agent_setup": {
+        "seconds": 7.207,
+        "starts_at_offset_seconds": 2.576
+      },
+      "agent_execution": {
+        "seconds": 630.321,
+        "starts_at_offset_seconds": 9.825
+      },
+      "verifier": {
+        "seconds": 2.332,
+        "starts_at_offset_seconds": 641.954
+      }
+    },
+    "unaccounted_seconds": 3.288,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": 3.852,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 99,
+    "agent_span_seconds": 593.408,
+    "step_gap_seconds": {
+      "count": 97,
+      "median": 4.204,
+      "p90": 4.667,
+      "max": 106.212,
+      "total": 589.903
+    },
+    "slowest_steps": [
+      {
+        "step": 46,
+        "seconds": 106.212,
+        "action": "bash_command: python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.fin..."
+      },
+      {
+        "step": 48,
+        "seconds": 67.929,
+        "action": "bash_command: python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.fin..."
+      },
+      {
+        "step": 59,
+        "seconds": 19.483,
+        "action": "bash_command: python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.fin..."
+      },
+      {
+        "step": 45,
+        "seconds": 18.29,
+        "action": "bash_command: python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.fin..."
+      },
+      {
+        "step": 7,
+        "seconds": 7.171,
+        "action": "bash_command: cat /workspace/repo/python/src/magika/magika.py"
+      }
+    ]
+  },
+  "tokens": {
+    "input": 2437929,
+    "cached_input": 0,
+    "uncached_input": 2437929,
+    "output": 8212,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 2446141,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 2437929,
+        "cached_input": 0,
+        "output": 8212,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 2437929,
+        "cached_input": 0,
+        "output": 8212,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": 2437929,
+        "cached_input": null,
+        "output": 8212,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 98,
+    "llm_steps_with_usage": 98,
+    "context": {
+      "first_prompt_tokens": 1149,
+      "peak_prompt_tokens": 42646,
+      "peak_step": 99,
+      "last_prompt_tokens": 42646
+    },
+    "top_steps": [
+      {
+        "step": 99,
+        "input": 42646,
+        "output": 98,
+        "cost_usd": null,
+        "action": "bash_command: python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.fin..."
+      },
+      {
+        "step": 98,
+        "input": 42364,
+        "output": 98,
+        "cost_usd": null,
+        "action": "bash_command: python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.fin..."
+      },
+      {
+        "step": 97,
+        "input": 42081,
+        "output": 98,
+        "cost_usd": null,
+        "action": "bash_command: python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.fin..."
+      },
+      {
+        "step": 96,
+        "input": 41800,
+        "output": 98,
+        "cost_usd": null,
+        "action": "bash_command: python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.fin..."
+      },
+      {
+        "step": 95,
+        "input": 41520,
+        "output": 98,
+        "cost_usd": null,
+        "action": "bash_command: python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.fin..."
+      }
+    ]
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 99,
+    "actions": 97,
+    "distinct_tools": 1,
+    "polls": 0,
+    "by_tool": [
+      {
+        "tool": "bash_command",
+        "calls": 99,
+        "ok": 0,
+        "errors": 0,
+        "unknown": 99,
+        "output_chars": 110580,
+        "first_step": 2,
+        "last_step": 99,
+        "judged": 0,
+        "error_rate": null
+      }
+    ],
+    "top_programs": [
+      {
+        "program": "python3",
+        "calls": 72
+      },
+      {
+        "program": "sed",
+        "calls": 13
+      },
+      {
+        "program": "cat",
+        "calls": 5
+      },
+      {
+        "program": "grep",
+        "calls": 2
+      },
+      {
+        "program": "find",
+        "calls": 1
+      },
+      {
+        "program": "ls",
+        "calls": 1
+      },
+      {
+        "program": "wc",
+        "calls": 1
+      },
+      {
+        "program": "awk",
+        "calls": 1
+      },
+      {
+        "program": "cp",
+        "calls": 1
+      }
+    ],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 97,
+    "distinct_actions": 96,
+    "repeated_actions": 1,
+    "repeat_rate": 0.0103,
+    "returns_to_earlier_action": 1,
+    "consecutive_repeats": 0,
+    "exact_revisits": 0,
+    "same_result_from_different_action": 5,
+    "repeated_errors": 0,
+    "longest_identical_run": {
+      "length": 1,
+      "steps": [
+        2
+      ],
+      "start_step": 2,
+      "end_step": 2
+    },
+    "longest_cycle": null,
+    "most_repeated": [
+      {
+        "tool": "bash_command",
+        "target": "cat /workspace/repo/python/src/magika/magika.py",
+        "count": 2,
+        "steps": [
+          5,
+          7
+        ],
+        "identical_results": 0
+      }
+    ],
+    "loop_suspicion": {
+      "detected": false,
+      "score": 0.0,
+      "reasons": []
+    },
+    "repeats_by_window": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "revisits_started": {
+      "repeat_rate_by_window": [
+        0.1111,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "median_repeat_rate": 0.0,
+      "status": "onset",
+      "reason": null,
+      "window": 0,
+      "steps": [
+        1,
+        10
+      ],
+      "repeat_rate": 0.1111
+    }
+  },
+  "subagents": {
+    "observability": "none_observed",
+    "reason": null,
+    "count": 0,
+    "delegated_count": 0,
+    "summarization_count": 0,
+    "delegation_calls": [],
+    "items": [],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": []
+  },
+  "errors": {
+    "tool_errors": 0,
+    "harness_signalled": 0,
+    "inferred_from_output": 0,
+    "status_unknown_calls": 99,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {},
+    "first_error": null,
+    "ended_in_error": false,
+    "examples": [],
+    "exception": {
+      "type": "TrialBudgetExhaustedError",
+      "message": "the trial proxy refused a model call: trial budget exhausted",
+      "occurred_at": "2026-10-01T14:47:29.139871Z"
+    }
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 0,
+    "items": []
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 99,
+    "shown_steps": 20,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 0.347,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      },
+      {
+        "step": 2,
+        "offset_seconds": 3.852,
+        "source": "agent",
+        "action": "bash_command: find /workspace/repo -type f -name \"*.py\" | head -50 && echo \"---\" && ls /workspace/repo ; cat /work...",
+        "status": "unknown",
+        "input_tokens": 1149,
+        "output_tokens": 131,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 3,
+        "offset_seconds": 7.728,
+        "source": "agent",
+        "action": "bash_command: ls /workspace/repo/python; echo \"---\"; find /workspace/repo/python/src -type f 2>/dev/null | head -6...",
+        "status": "unknown",
+        "input_tokens": 1912,
+        "output_tokens": 67,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 4,
+        "offset_seconds": 12.084,
+        "source": "agent",
+        "action": "bash_command: cat /workspace/repo/python/src/magika/__init__.py; echo \"=======\"; cat /workspace/repo/python/src/ma...",
+        "status": "unknown",
+        "input_tokens": 2454,
+        "output_tokens": 127,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 5,
+        "offset_seconds": 15.209,
+        "source": "agent",
+        "action": "bash_command: cat /workspace/repo/python/src/magika/magika.py",
+        "status": "unknown",
+        "input_tokens": 3170,
+        "output_tokens": 43,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 6,
+        "offset_seconds": 19.784,
+        "source": "agent",
+        "action": "bash_command: wc -l /workspace/repo/python/src/magika/magika.py /workspace/repo/python/src/magika/types/*.py /work...",
+        "status": "unknown",
+        "input_tokens": 3788,
+        "output_tokens": 127,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 7,
+        "offset_seconds": 26.955,
+        "source": "agent",
+        "action": "bash_command: cat /workspace/repo/python/src/magika/magika.py",
+        "status": "unknown",
+        "input_tokens": 4343,
+        "output_tokens": 43,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 8,
+        "offset_seconds": 30.654,
+        "source": "agent",
+        "action": "bash_command: cat /logs/agent/evallab-output/step-0004.txt 2>/dev/null | head -200",
+        "status": "unknown",
+        "input_tokens": 4840,
+        "output_tokens": 58,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 9,
+        "offset_seconds": 34.122,
+        "source": "agent",
+        "action": "bash_command: sed -n '1,200p' /workspace/repo/python/src/magika/magika.py",
+        "status": "unknown",
+        "input_tokens": 5338,
+        "output_tokens": 53,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 10,
+        "offset_seconds": 37.886,
+        "source": "agent",
+        "action": "bash_command: sed -n '1,120p' /workspace/repo/python/src/magika/magika.py > /tmp/m1.txt; cat /tmp/m1.txt",
+        "status": "unknown",
+        "input_tokens": 5832,
+        "output_tokens": 82,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "omitted_steps": [
+          11,
+          89
+        ]
+      },
+      {
+        "step": 90,
+        "offset_seconds": 552.6,
+        "source": "agent",
+        "action": null,
+        "status": null,
+        "input_tokens": 40249,
+        "output_tokens": 102,
+        "cost_usd": null,
+        "message": "<tool_call><function=bash><parameter=command>python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = sr...",
+        "flags": []
+      },
+      {
+        "step": 91,
+        "offset_seconds": 557.022,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.fin...",
+        "status": "unknown",
+        "input_tokens": 40395,
+        "output_tokens": 98,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 92,
+        "offset_seconds": 561.686,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.fin...",
+        "status": "unknown",
+        "input_tokens": 40675,
+        "output_tokens": 98,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 93,
+        "offset_seconds": 566.168,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.fin...",
+        "status": "unknown",
+        "input_tokens": 40958,
+        "output_tokens": 98,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 94,
+        "offset_seconds": 570.523,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.fin...",
+        "status": "unknown",
+        "input_tokens": 41241,
+        "output_tokens": 98,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 95,
+        "offset_seconds": 576.277,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.fin...",
+        "status": "unknown",
+        "input_tokens": 41520,
+        "output_tokens": 98,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 96,
+        "offset_seconds": 580.976,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.fin...",
+        "status": "unknown",
+        "input_tokens": 41800,
+        "output_tokens": 98,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 97,
+        "offset_seconds": 585.296,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.fin...",
+        "status": "unknown",
+        "input_tokens": 42081,
+        "output_tokens": 98,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 98,
+        "offset_seconds": 589.373,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.fin...",
+        "status": "unknown",
+        "input_tokens": 42364,
+        "output_tokens": 98,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 99,
+        "offset_seconds": 593.755,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' src = open('/tmp/magika.py').read() i = src.find('get_output_label') k = src.fin...",
+        "status": "unknown",
+        "input_tokens": 42646,
+        "output_tokens": 98,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      }
+    ],
+    "windows": [
+      {
+        "steps": [
+          1,
+          10
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 1,
+        "output_tokens": 731,
+        "cost_usd": null,
+        "seconds": 37.539,
+        "peak_prompt_tokens": 5832,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          11,
+          20
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 591,
+        "cost_usd": null,
+        "seconds": 31.655,
+        "peak_prompt_tokens": 10616,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          21,
+          30
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 611,
+        "cost_usd": null,
+        "seconds": 32.332,
+        "peak_prompt_tokens": 16274,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          31,
+          40
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 524,
+        "cost_usd": null,
+        "seconds": 31.801,
+        "peak_prompt_tokens": 21298,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          41,
+          50
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 944,
+        "cost_usd": null,
+        "seconds": 217.563,
+        "peak_prompt_tokens": 26873,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          51,
+          60
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 985,
+        "cost_usd": null,
+        "seconds": 54.024,
+        "peak_prompt_tokens": 31367,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          61,
+          70
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 980,
+        "cost_usd": null,
+        "seconds": 39.292,
+        "peak_prompt_tokens": 34198,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          71,
+          80
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 980,
+        "cost_usd": null,
+        "seconds": 39.561,
+        "peak_prompt_tokens": 37441,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          81,
+          90
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 984,
+        "cost_usd": null,
+        "seconds": 37.073,
+        "peak_prompt_tokens": 40249,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          91,
+          99
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 882,
+        "cost_usd": null,
+        "seconds": 36.733,
+        "peak_prompt_tokens": 42646,
+        "compactions": 0
+      }
+    ],
+    "time_windows": {
+      "status": "available",
+      "reason": null,
+      "origin": "2026-10-01T14:36:59.162724+00:00",
+      "span_seconds": 593.408,
+      "steps_without_timestamps": 0,
+      "windows": [
+        {
+          "steps": [
+            1,
+            16
+          ],
+          "tool_calls": 15,
+          "errors": 0,
+          "revisits": 1,
+          "output_tokens": 1078,
+          "cost_usd": null,
+          "peak_prompt_tokens": 8578,
+          "compactions": 0,
+          "starts_at_offset_seconds": 0.0,
+          "ends_at_offset_seconds": 59.341
+        },
+        {
+          "steps": [
+            17,
+            33
+          ],
+          "tool_calls": 17,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 999,
+          "cost_usd": null,
+          "peak_prompt_tokens": 17787,
+          "compactions": 0,
+          "starts_at_offset_seconds": 59.341,
+          "ends_at_offset_seconds": 118.682
+        },
+        {
+          "steps": [
+            34,
+            44
+          ],
+          "tool_calls": 11,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 724,
+          "cost_usd": null,
+          "peak_prompt_tokens": 23655,
+          "compactions": 0,
+          "starts_at_offset_seconds": 118.682,
+          "ends_at_offset_seconds": 178.022
+        },
+        {
+          "steps": [
+            45,
+            45
+          ],
+          "tool_calls": 1,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 106,
+          "cost_usd": null,
+          "peak_prompt_tokens": 24301,
+          "compactions": 0,
+          "starts_at_offset_seconds": 178.022,
+          "ends_at_offset_seconds": 237.363
+        },
+        {
+          "steps": [
+            46,
+            47
+          ],
+          "tool_calls": 2,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 200,
+          "cost_usd": null,
+          "peak_prompt_tokens": 25566,
+          "compactions": 0,
+          "starts_at_offset_seconds": 237.363,
+          "ends_at_offset_seconds": 296.704
+        },
+        {
+          "steps": [
+            48,
+            58
+          ],
+          "tool_calls": 11,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1083,
+          "cost_usd": null,
+          "peak_prompt_tokens": 30795,
+          "compactions": 0,
+          "starts_at_offset_seconds": 356.045,
+          "ends_at_offset_seconds": 415.386
+        },
+        {
+          "steps": [
+            59,
+            71
+          ],
+          "tool_calls": 13,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1274,
+          "cost_usd": null,
+          "peak_prompt_tokens": 34477,
+          "compactions": 0,
+          "starts_at_offset_seconds": 415.386,
+          "ends_at_offset_seconds": 474.726
+        },
+        {
+          "steps": [
+            72,
+            85
+          ],
+          "tool_calls": 14,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1372,
+          "cost_usd": null,
+          "peak_prompt_tokens": 38843,
+          "compactions": 0,
+          "starts_at_offset_seconds": 474.726,
+          "ends_at_offset_seconds": 534.067
+        },
+        {
+          "steps": [
+            86,
+            99
+          ],
+          "tool_calls": 13,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1376,
+          "cost_usd": null,
+          "peak_prompt_tokens": 42646,
+          "compactions": 0,
+          "starts_at_offset_seconds": 534.067,
+          "ends_at_offset_seconds": 593.408
+        }
+      ]
+    }
+  },
+  "data_quality": [
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B' has no pinned price-table entry",
+    "harness reports no per-call status (no exit codes or error flags): tool errors are only inferred from output text"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "d120acf98ac793ab3b423724938d413a5cb1a0c14e75beb693ae5dc0869a9653"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "22038928fe5eb8c794fecef5c63a596ddb5f3b52ed4f9dbcf6c026692de0ba20"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 98,
+    "recorded": 98,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 1,
+    "prose_completions": 0,
+    "executed_calls": 99,
+    "task_complete_turns": 0,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 0,
+    "continuations_missing": [],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 99,
+        "copied_steps": 0,
+        "session_id": "5681d02d-040a-4286-a423-15cc064efc6f"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 99,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": []
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B) failed (reward 0) on mimo-v2.6-rl/format-code-task-001355; in 10m44s wall (10m30s agent); 99 steps, 99 tool calls, 0 errors, 2.45M tokens, cost unavailable; 1 repeated action (0 exact revisits); no subagents observed."
+}

@@ -1,0 +1,38 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "cd /testbed && cat > /tmp/repro.py <<'EOF'",
+      "ref": "head#16"
+    },
+    {
+      "quote": "sqlite3.OperationalError: no such table: safedelete_author",
+      "ref": "head#40"
+    },
+    {
+      "quote": "cd /testbed && cat > /tmp/repro23.py <<'PYEOF'\nimport django, os\nos.environ['DJANGO_SETTINGS_MODULE'] = 'safedelete.tests.settings'",
+      "ref": "head#55"
+    }
+  ],
+  "first_failure": {
+    "quote": "cd /testbed && cat > /tmp/repro23.py <<'PYEOF'",
+    "ref": "head#55",
+    "what": "Last step before OpenAI upstream provider 503 error (ServiceUnavailableError)."
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#16",
+    "head#55"
+  ],
+  "notes": "Stop caused by LiteLLM ServiceUnavailableError (OpenAI 503 upstream provider error). Note: result_summary.json states task format-code-task-001833, but trajectory operated on Django safedelete (task 001626). Prior to the infra crash, the model spent 35+ turns repeatedly generating /tmp/repro*.py scripts failing on unmigrated test DB tables.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "g6-45"
+}

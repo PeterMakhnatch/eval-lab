@@ -1,0 +1,35 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "for x_coord, y_coord in point",
+      "ref": "head#68"
+    },
+    {
+      "quote": "The `_resolve_fractions` iterates `for point in zone` then `for x_coord, y_coord in point`",
+      "ref": "head#83"
+    },
+    {
+      "quote": "cd /workspace/repo && cat peekingduck/pipeline/nodes/draw/utils/zone.py",
+      "ref": "head#101"
+    }
+  ],
+  "first_failure": {
+    "quote": "for x_coord, y_coord in point",
+    "ref": "head#68",
+    "what": "wrote zone_count._resolve_fractions with double loop unpacking floats"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Budget exhausted at 99 eps/2.49M input; still debugging cv2 list-vs-array at head#101. No pip/curl/wget/clone; site-packages hit is import path only.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-09"
+}

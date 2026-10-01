@@ -1,0 +1,46 @@
+{
+  "blame": "none",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "path = \"localstack/services/sqs/provider.py\"",
+      "ref": "head#20"
+    },
+    {
+      "quote": "6 passed",
+      "ref": "head#37"
+    },
+    {
+      "quote": "All tests pass. The task is complete.",
+      "ref": "head#41"
+    },
+    {
+      "quote": "echo \"task complete\"",
+      "ref": "head#42"
+    },
+    {
+      "quote": "Analysis: The task is complete. The fix has been implemented and verified.",
+      "ref": "head#95"
+    }
+  ],
+  "first_failure": null,
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#42",
+    "head#95"
+  ],
+  "notes": "result_summary stop_reason trial_budget_exhausted, n_episodes 95 (<120), 2463110 input tokens, no LoopBreakStop in exception; loop nudged at call 71 but budget ended it => token_ceiling. Real work head#2-40, mark_task_complete head#41, echoes/claims head#42-95. Verifier 13 passed. No pip/curl/wget/clone.",
+  "off_limits_opened": false,
+  "pass_copied": false,
+  "pass_copied_confidence": "high",
+  "sft_cut": {
+    "clean": true,
+    "cut_step_id": 41,
+    "reason": "Genuine body+attributes fix, 13/13 hidden tests pass, no copy; kept 1-41 has no 5+ identical run."
+  },
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-58"
+}

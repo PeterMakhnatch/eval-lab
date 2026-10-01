@@ -1,0 +1,38 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "cd /workspace/repo && git status --short | head -20",
+      "ref": "head#13"
+    },
+    {
+      "quote": "sed -n '300,480p' /workspace/repo/pyftpdlib/authorizers.py",
+      "ref": "head#14"
+    },
+    {
+      "quote": "cd /workspace/repo && sed -n '300,480p' pyftpdlib/authorizers.py",
+      "ref": "head#105"
+    }
+  ],
+  "first_failure": {
+    "quote": "sed -n '300,480p' /workspace/repo/pyftpdlib/authorizers.py",
+    "ref": "head#14",
+    "what": "locked into a git-status/sed-300,480 alternation re-reading an already-read window; ran it to step 105 without ever writing code"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#13",
+    "head#105"
+  ],
+  "notes": "reward 0.0, agent.diff empty (zero code written; ImportError DummyAuthorizer at verify); TrialBudgetExhaustedError, n_episodes 105 (<120), n_input_tokens 2434593 -> token_ceiling; loop-break nudged at call 18 (8-command alternation) but stop_call null; commands eventually fuse into 'git status --short | head -20 | sed -n ...' per model_next. No completion claims, prose 0.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-03"
+}

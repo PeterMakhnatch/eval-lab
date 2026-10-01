@@ -1,0 +1,1296 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "ovn-g5-000568-stock__Ri7YYN5",
+    "trial_id": "31989353-06ec-40f1-b50e-9957a8093e67",
+    "task": "mimo-v2.6-rl/format-code-task-000568",
+    "job": "HAR-126-ovn-g5-000568-stock",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "407e8405-bbdc-4741-980f-3e8d83785f5e",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000568-stock/ovn-g5-000568-stock__Ri7YYN5"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "failed",
+    "reward": 0.0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "verifier_outcome": "fail",
+    "stop_reason": "trial_budget_exhausted",
+    "stop_detail": "agent metadata stop_reason; binding ceiling: input_tokens",
+    "completion": "Completion: never claimed; the run ended on step 96 (sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py).",
+    "execution_problems": {
+      "parse_errors": 0,
+      "prose_completions": 0,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": null,
+    "verifier_files": [
+      "verifier/agent.diff",
+      "verifier/apply.log",
+      "verifier/reward.txt",
+      "verifier/test-stdout.txt",
+      "verifier/test_output.log"
+    ],
+    "first_failure": {
+      "step": null,
+      "kind": null,
+      "evidence": null,
+      "confidence": null
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T14:36:49.384273+00:00",
+    "finished_at": "2026-10-01T14:52:31.313338+00:00",
+    "total_seconds": 941.929,
+    "phases": {
+      "environment_setup": {
+        "seconds": 1.555,
+        "starts_at_offset_seconds": 0.035
+      },
+      "agent_setup": {
+        "seconds": 10.233,
+        "starts_at_offset_seconds": 2.925
+      },
+      "agent_execution": {
+        "seconds": 922.864,
+        "starts_at_offset_seconds": 13.202
+      },
+      "verifier": {
+        "seconds": 3.676,
+        "starts_at_offset_seconds": 938.093
+      }
+    },
+    "unaccounted_seconds": 3.601,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": 6.427,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 96,
+    "agent_span_seconds": 885.581,
+    "step_gap_seconds": {
+      "count": 94,
+      "median": 4.89,
+      "p90": 19.278,
+      "max": 106.267,
+      "total": 879.776
+    },
+    "slowest_steps": [
+      {
+        "step": 31,
+        "seconds": 106.267,
+        "action": "bash_command: sed -n 2350,2420p /workspace/repo/youtube_dlc/extractor/youtube.py"
+      },
+      {
+        "step": 33,
+        "seconds": 67.645,
+        "action": "bash_command: grep -n \"class .*Playlist\\|def _real_extract\" /workspace/repo/youtube_dlc/extractor/youtube.py | hea..."
+      },
+      {
+        "step": 54,
+        "seconds": 63.65,
+        "action": "bash_command: sed -n 995,1000p /workspace/repo/youtube_dlc/YoutubeDL.py"
+      },
+      {
+        "step": 71,
+        "seconds": 54.611,
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py"
+      },
+      {
+        "step": 78,
+        "seconds": 48.769,
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py"
+      }
+    ]
+  },
+  "tokens": {
+    "input": 2438795,
+    "cached_input": 0,
+    "uncached_input": 2438795,
+    "output": 7503,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 2446298,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 2438795,
+        "cached_input": 0,
+        "output": 7503,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 2438795,
+        "cached_input": 0,
+        "output": 7503,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": 2438795,
+        "cached_input": null,
+        "output": 7503,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 95,
+    "llm_steps_with_usage": 95,
+    "context": {
+      "first_prompt_tokens": 1166,
+      "peak_prompt_tokens": 41617,
+      "peak_step": 96,
+      "last_prompt_tokens": 41617
+    },
+    "top_steps": [
+      {
+        "step": 96,
+        "input": 41617,
+        "output": 45,
+        "cost_usd": null,
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py"
+      },
+      {
+        "step": 95,
+        "input": 41394,
+        "output": 45,
+        "cost_usd": null,
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py"
+      },
+      {
+        "step": 94,
+        "input": 41171,
+        "output": 45,
+        "cost_usd": null,
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py"
+      },
+      {
+        "step": 93,
+        "input": 40948,
+        "output": 45,
+        "cost_usd": null,
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py"
+      },
+      {
+        "step": 92,
+        "input": 40725,
+        "output": 45,
+        "cost_usd": null,
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py"
+      }
+    ]
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 98,
+    "actions": 95,
+    "distinct_tools": 1,
+    "polls": 0,
+    "by_tool": [
+      {
+        "tool": "bash_command",
+        "calls": 98,
+        "ok": 0,
+        "errors": 0,
+        "unknown": 98,
+        "output_chars": 116722,
+        "first_step": 2,
+        "last_step": 96,
+        "judged": 0,
+        "error_rate": null
+      }
+    ],
+    "top_programs": [
+      {
+        "program": "sed",
+        "calls": 74
+      },
+      {
+        "program": "grep",
+        "calls": 20
+      },
+      {
+        "program": "ls",
+        "calls": 1
+      }
+    ],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 95,
+    "distinct_actions": 65,
+    "repeated_actions": 30,
+    "repeat_rate": 0.3158,
+    "returns_to_earlier_action": 1,
+    "consecutive_repeats": 29,
+    "exact_revisits": 27,
+    "same_result_from_different_action": 0,
+    "repeated_errors": 0,
+    "longest_identical_run": {
+      "length": 30,
+      "steps": [
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86
+      ],
+      "start_step": 67,
+      "end_step": 96
+    },
+    "longest_cycle": null,
+    "most_repeated": [
+      {
+        "tool": "bash_command",
+        "target": "sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "count": 31,
+        "steps": [
+          64,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75,
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83,
+          84,
+          85
+        ],
+        "identical_results": 27
+      }
+    ],
+    "loop_suspicion": {
+      "detected": true,
+      "score": 0.6,
+      "reasons": [
+        "repeated_consecutive_command: 'sed -n 1003,1004p /workspace/repo/youtub' (30\u00d7 consecutively, steps 67\u201396)"
+      ]
+    },
+    "repeats_by_window": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      9,
+      10,
+      9
+    ],
+    "revisits_started": {
+      "repeat_rate_by_window": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.2,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "median_repeat_rate": 0.0,
+      "status": "onset",
+      "reason": null,
+      "window": 6,
+      "steps": [
+        59,
+        68
+      ],
+      "repeat_rate": 0.2
+    }
+  },
+  "subagents": {
+    "observability": "none_observed",
+    "reason": null,
+    "count": 0,
+    "delegated_count": 0,
+    "summarization_count": 0,
+    "delegation_calls": [],
+    "items": [],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": []
+  },
+  "errors": {
+    "tool_errors": 0,
+    "harness_signalled": 0,
+    "inferred_from_output": 0,
+    "status_unknown_calls": 98,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {},
+    "first_error": null,
+    "ended_in_error": false,
+    "examples": [],
+    "exception": {
+      "type": "TrialBudgetExhaustedError",
+      "message": "the trial proxy refused a model call: trial budget exhausted",
+      "occurred_at": "2026-10-01T14:52:25.453321Z"
+    }
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 0,
+    "items": []
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 96,
+    "shown_steps": 40,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 0.623,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      },
+      {
+        "step": 2,
+        "offset_seconds": 6.427,
+        "source": "agent",
+        "action": "bash_command: ls /workspace/repo && git -C /workspace/repo log --oneline -3 ; grep -rn \"playlist-items\\|playlist_i...",
+        "status": "unknown",
+        "input_tokens": 1166,
+        "output_tokens": 87,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 3,
+        "offset_seconds": 11.492,
+        "source": "agent",
+        "action": "bash_command: grep -n \"playlist\" /workspace/repo/youtube_dlc/YoutubeDL.py | head -60 ; sed -n 780,890p /workspace/...",
+        "status": "unknown",
+        "input_tokens": 2033,
+        "output_tokens": 111,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 4,
+        "offset_seconds": 17.99,
+        "source": "agent",
+        "action": "bash_command: grep -n \"_download_playlist\\|_download_videos\\|playliststart\\|playlistend\\|playlistreverse\\|playlist...",
+        "status": "unknown",
+        "input_tokens": 2812,
+        "output_tokens": 186,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 5,
+        "offset_seconds": 22.918,
+        "source": "agent",
+        "action": "bash_command: sed -n 930,1060p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 3629,
+        "output_tokens": 44,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 6,
+        "offset_seconds": 26.735,
+        "source": "agent",
+        "action": "bash_command: grep -n \"def _download_playlist\\|def _download_videos\\|def _download_handle\\|def extract_info\\|def p...",
+        "status": "unknown",
+        "input_tokens": 4250,
+        "output_tokens": 68,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 7,
+        "offset_seconds": 30.167,
+        "source": "agent",
+        "action": "bash_command: sed -n 1060,1220p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 4530,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 8,
+        "offset_seconds": 33.568,
+        "source": "agent",
+        "action": "bash_command: grep -n \"def \" /workspace/repo/youtube_dlc/YoutubeDL.py | sed -n 1,80p",
+        "status": "unknown",
+        "input_tokens": 5185,
+        "output_tokens": 47,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 9,
+        "offset_seconds": 37.141,
+        "source": "agent",
+        "action": "bash_command: grep -n \"def \\|class \" /workspace/repo/youtube_dlc/YoutubeDL.py | awk -F: '$1>570 && $1<1000'",
+        "status": "unknown",
+        "input_tokens": 5978,
+        "output_tokens": 58,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 10,
+        "offset_seconds": 40.575,
+        "source": "agent",
+        "action": "bash_command: sed -n 896,930p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 6471,
+        "output_tokens": 43,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "omitted_steps": [
+          11,
+          66
+        ]
+      },
+      {
+        "step": 67,
+        "offset_seconds": 604.976,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 35148,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 68,
+        "offset_seconds": 609.424,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 35373,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 69,
+        "offset_seconds": 614.05,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 35596,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 70,
+        "offset_seconds": 618.548,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 35819,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 71,
+        "offset_seconds": 673.16,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 36042,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 72,
+        "offset_seconds": 699.914,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 36265,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 73,
+        "offset_seconds": 704.575,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 36488,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 74,
+        "offset_seconds": 709.266,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 36711,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 75,
+        "offset_seconds": 713.947,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 36934,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 76,
+        "offset_seconds": 718.961,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 37157,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 77,
+        "offset_seconds": 723.24,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 37380,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 78,
+        "offset_seconds": 772.009,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 37603,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 79,
+        "offset_seconds": 776.978,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 37826,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 80,
+        "offset_seconds": 781.919,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 38049,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 81,
+        "offset_seconds": 786.782,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 38272,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 82,
+        "offset_seconds": 791.673,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 38495,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 83,
+        "offset_seconds": 800.473,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 38718,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 84,
+        "offset_seconds": 805.346,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 38941,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 85,
+        "offset_seconds": 810.378,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 39164,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 86,
+        "offset_seconds": 815.51,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 39387,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 87,
+        "offset_seconds": 820.287,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 39610,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 88,
+        "offset_seconds": 825.066,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 39833,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 89,
+        "offset_seconds": 830.039,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 40056,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 90,
+        "offset_seconds": 834.981,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 40279,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 91,
+        "offset_seconds": 839.715,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 40502,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 92,
+        "offset_seconds": 844.61,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 40725,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 93,
+        "offset_seconds": 849.355,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 40948,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 94,
+        "offset_seconds": 854.056,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 41171,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 95,
+        "offset_seconds": 880.378,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 41394,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 96,
+        "offset_seconds": 886.204,
+        "source": "agent",
+        "action": "bash_command: sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+        "status": "unknown",
+        "input_tokens": 41617,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "steps": [
+          1,
+          10
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 689,
+        "cost_usd": null,
+        "seconds": 39.952,
+        "peak_prompt_tokens": 6471,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          11,
+          20
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 902,
+        "cost_usd": null,
+        "seconds": 37.199,
+        "peak_prompt_tokens": 12722,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          21,
+          29
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 2669,
+        "cost_usd": null,
+        "seconds": 69.375,
+        "peak_prompt_tokens": 17251,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          30,
+          39
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 607,
+        "cost_usd": null,
+        "seconds": 209.129,
+        "peak_prompt_tokens": 22462,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          40,
+          48
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 473,
+        "cost_usd": null,
+        "seconds": 65.436,
+        "peak_prompt_tokens": 28157,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          49,
+          58
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 444,
+        "cost_usd": null,
+        "seconds": 101.784,
+        "peak_prompt_tokens": 32497,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          59,
+          68
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 2,
+        "output_tokens": 459,
+        "cost_usd": null,
+        "seconds": 42.72,
+        "peak_prompt_tokens": 35373,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          69,
+          77
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 9,
+        "output_tokens": 405,
+        "cost_usd": null,
+        "seconds": 109.19,
+        "peak_prompt_tokens": 37380,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          78,
+          87
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 10,
+        "output_tokens": 450,
+        "cost_usd": null,
+        "seconds": 48.278,
+        "peak_prompt_tokens": 39610,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          88,
+          96
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 9,
+        "output_tokens": 405,
+        "cost_usd": null,
+        "seconds": 61.138,
+        "peak_prompt_tokens": 41617,
+        "compactions": 0
+      }
+    ],
+    "time_windows": {
+      "status": "available",
+      "reason": null,
+      "origin": "2026-10-01T14:37:03.209209+00:00",
+      "span_seconds": 885.581,
+      "steps_without_timestamps": 0,
+      "windows": [
+        {
+          "steps": [
+            1,
+            21
+          ],
+          "tool_calls": 20,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1661,
+          "cost_usd": null,
+          "peak_prompt_tokens": 13362,
+          "compactions": 0,
+          "starts_at_offset_seconds": 0.0,
+          "ends_at_offset_seconds": 88.558
+        },
+        {
+          "steps": [
+            22,
+            30
+          ],
+          "tool_calls": 9,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 2641,
+          "cost_usd": null,
+          "peak_prompt_tokens": 18050,
+          "compactions": 0,
+          "starts_at_offset_seconds": 88.558,
+          "ends_at_offset_seconds": 177.116
+        },
+        {
+          "steps": [
+            31,
+            33
+          ],
+          "tool_calls": 3,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 161,
+          "cost_usd": null,
+          "peak_prompt_tokens": 19493,
+          "compactions": 0,
+          "starts_at_offset_seconds": 265.674,
+          "ends_at_offset_seconds": 354.232
+        },
+        {
+          "steps": [
+            34,
+            46
+          ],
+          "tool_calls": 13,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 780,
+          "cost_usd": null,
+          "peak_prompt_tokens": 27030,
+          "compactions": 0,
+          "starts_at_offset_seconds": 354.232,
+          "ends_at_offset_seconds": 442.79
+        },
+        {
+          "steps": [
+            47,
+            53
+          ],
+          "tool_calls": 7,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 321,
+          "cost_usd": null,
+          "peak_prompt_tokens": 30720,
+          "compactions": 0,
+          "starts_at_offset_seconds": 442.79,
+          "ends_at_offset_seconds": 531.349
+        },
+        {
+          "steps": [
+            54,
+            70
+          ],
+          "tool_calls": 17,
+          "errors": 0,
+          "revisits": 4,
+          "output_tokens": 769,
+          "cost_usd": null,
+          "peak_prompt_tokens": 35819,
+          "compactions": 0,
+          "starts_at_offset_seconds": 531.349,
+          "ends_at_offset_seconds": 619.907
+        },
+        {
+          "steps": [
+            71,
+            73
+          ],
+          "tool_calls": 3,
+          "errors": 0,
+          "revisits": 3,
+          "output_tokens": 135,
+          "cost_usd": null,
+          "peak_prompt_tokens": 36488,
+          "compactions": 0,
+          "starts_at_offset_seconds": 619.907,
+          "ends_at_offset_seconds": 708.465
+        },
+        {
+          "steps": [
+            74,
+            82
+          ],
+          "tool_calls": 9,
+          "errors": 0,
+          "revisits": 9,
+          "output_tokens": 405,
+          "cost_usd": null,
+          "peak_prompt_tokens": 38495,
+          "compactions": 0,
+          "starts_at_offset_seconds": 708.465,
+          "ends_at_offset_seconds": 797.023
+        },
+        {
+          "steps": [
+            83,
+            96
+          ],
+          "tool_calls": 14,
+          "errors": 0,
+          "revisits": 14,
+          "output_tokens": 630,
+          "cost_usd": null,
+          "peak_prompt_tokens": 41617,
+          "compactions": 0,
+          "starts_at_offset_seconds": 797.023,
+          "ends_at_offset_seconds": 885.581
+        }
+      ]
+    }
+  },
+  "data_quality": [
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B' has no pinned price-table entry",
+    "harness reports no per-call status (no exit codes or error flags): tool errors are only inferred from output text"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "54aeb9e4e9c3452501dcd6b34342ef491202a497c68e2c82491c648652d79335"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "d02f046e6c9b78b505629fd1c32176bc08a387ce8798744b0c2643da8f885057"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 95,
+    "recorded": 95,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 0,
+    "prose_completions": 0,
+    "executed_calls": 98,
+    "task_complete_turns": 0,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 0,
+    "continuations_missing": [],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 96,
+        "copied_steps": 0,
+        "session_id": "407e8405-bbdc-4741-980f-3e8d83785f5e"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 96,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": []
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B) failed (reward 0) on mimo-v2.6-rl/format-code-task-000568; in 15m42s wall (15m23s agent); 96 steps, 98 tool calls, 0 errors, 2.45M tokens, cost unavailable; 30 repeated actions (27 exact revisits); no subagents observed."
+}

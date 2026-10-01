@@ -1,0 +1,38 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "ImportError cannot import name DummyAuthorizer",
+      "ref": "head#65"
+    },
+    {
+      "quote": "you are repeating change approach or finish",
+      "ref": "head#76"
+    },
+    {
+      "quote": "sed minus n 266 267p authorizers tail",
+      "ref": "head#91"
+    }
+  ],
+  "first_failure": {
+    "quote": "sed minus n 275 290p authorizers",
+    "ref": "head#77",
+    "what": "ignored nudge and kept shrinking sed reads instead of writing DummyAuthorizer"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#77",
+    "head#91"
+  ],
+  "notes": "Confirmed missing class then read UnixAuthorizer lines. pycache only. Nudge 75 stop 90. No copy.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "g6-53"
+}

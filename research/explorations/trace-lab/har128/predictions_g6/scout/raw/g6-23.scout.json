@@ -1,0 +1,97 @@
+{
+ "trial": "ovn-g5-001765-stock__Tigdd3B",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001765-stock/ovn-g5-001765-stock__Tigdd3B",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001765-stock",
+ "task": "mimo-v2.6-rl/format-code-task-001765",
+ "verifier": {
+  "scored": false,
+  "reward": null,
+  "source": "missing",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "unknown",
+  "exception_type": "DaytonaNotFoundError",
+  "exception_message": "Failed to get session command: not found: sandbox 87af8240-aad9-409d-a9fa-317278325d2b not found, it may have been deleted or stopped - inspect audit logs for more info",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 18,
+  "step_ref": "head#18",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#18",
+   "head#43"
+  ],
+  "note": "identical message repeated steps 18-43 with no change after errors"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 15,
+    "span": [
+     "head#2",
+     "head#16"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 26,
+    "span": [
+     "head#18",
+     "head#43"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 554047,
+   "completion": 10593,
+   "steps": 41,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 554047,
+   "completion": 10593,
+   "steps": 41,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 1974934,
+   "completion": 15194,
+   "steps": 82,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.2805,
+  "result_input_tokens": 2016738
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 82,
+  "states": {
+   "prompt": 82
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "b1619aa3e3f0bef20fd52cb8590c4203f7c27336"
+ },
+ "nop_runs_dir": null
+}

@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "self._validate_table_rename_hints(self.table_rename_hints)",
+      "ref": "head#60"
+    },
+    {
+      "quote": "AttributeError: 'SchemaDiffer' object has no attribute '_validate_table_rename_hints'",
+      "ref": "head#96"
+    },
+    {
+      "quote": "head -140 /testbed/piccolo/apps/migrations/auto/schema_differ.py > /tmp/a.txt; sed -n '1,140p' /tmp/a.txt",
+      "ref": "head#96"
+    },
+    {
+      "quote": "head -140 /testbed/piccolo/apps/migrations/auto/schema_differ.py > /tmp/a.txt; sed -n '1,140p' /tmp/a.txt",
+      "ref": "head#106"
+    }
+  ],
+  "first_failure": {
+    "quote": "self._validate_table_rename_hints(self.table_rename_hints)",
+    "ref": "head#60",
+    "what": "called undefined _validate_table/column_rename_hints from __post_init__"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#96",
+    "head#106"
+  ],
+  "notes": "n_ep 104<120, 2.47M input so token_ceiling despite late loop. Real rename-hint work then left AttributeError (11 errors) unfixed; ended with 11 identical head-140 reads. pip installs were deps only. Early nudge at call 22 was exploratory reads, not the terminal loop.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-31"
+}

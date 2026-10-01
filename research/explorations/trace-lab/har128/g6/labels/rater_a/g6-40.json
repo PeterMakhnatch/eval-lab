@@ -1,0 +1,38 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "python3 - <<'PYEOF'\nsrc = open('/tmp/magika.py').read()\ni = src.find('def _get_output_label_from_dl_label_and_score')\nprint(\"idx:\", i)\nprint(src[i-200:i+1500])\nPYEOF",
+      "ref": "head#40"
+    },
+    {
+      "quote": "print(seg[5000:6200])",
+      "ref": "head#51"
+    },
+    {
+      "quote": "print(seg[6250:6310])",
+      "ref": "head#99"
+    }
+  ],
+  "first_failure": {
+    "quote": "python3 - <<'PYEOF'\nsrc = open('/tmp/magika.py').read()\ni = src.find('def _get_output_label_from_dl_label_and_score')\nprint(\"idx:\", i)\nprint(src[i-200:i+1500])\nPYEOF",
+    "ref": "head#40",
+    "what": "After fully reading the file, began a ~60-turn run of near-identical sliding-window print commands over the same already-read function, writing no code; budget died with an empty diff"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#40",
+    "head#99"
+  ],
+  "notes": "99 episodes, 2.44M input tokens, TrialBudgetExhaustedError, no completion claim. Loop-break nudged at call 25 during an earlier shrinking-prefix print loop (steps 15-27 printed src[:N] with shrinking N, each a strict subset of the last) with no stop. agent.diff empty; verifier fails at collection ImportError (no PredictionMode). No edits and no upstream fetching of any kind.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-40"
+}

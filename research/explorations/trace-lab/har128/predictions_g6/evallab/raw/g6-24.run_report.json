@@ -1,0 +1,1019 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "ovn-g5-001797-gepa__W7cKEVT",
+    "trial_id": "6393fb14-6cec-45a7-a88e-d09801eebec3",
+    "task": "mimo-v2.6-rl/format-code-task-001797",
+    "job": "HAR-126-ovn-g5-001797-gepa",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "20a54a04-f591-445c-93be-abb87abda6d2",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001797-gepa/ovn-g5-001797-gepa__W7cKEVT"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "failed",
+    "reward": 0.0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "verifier_outcome": "fail",
+    "stop_reason": "trial_budget_exhausted",
+    "stop_detail": "agent metadata stop_reason; binding ceiling: input_tokens",
+    "completion": "Completion: never claimed; the run ended on step 87 (python3 - <<'PYEOF' p = \"/testbed/linodecli/configuration/config.py\" s = open(p).read() old = ''' if not any( x in [\"--s...).",
+    "execution_problems": {
+      "parse_errors": 0,
+      "prose_completions": 0,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": "Analysis: Now update the \"Using default values\" warning in config.update to use the config/env value instead of sys.argv, and add tests.",
+    "verifier_files": [
+      "verifier/agent.diff",
+      "verifier/apply.log",
+      "verifier/reward.txt",
+      "verifier/test-stdout.txt",
+      "verifier/test_output.log"
+    ],
+    "first_failure": {
+      "step": null,
+      "kind": null,
+      "evidence": null,
+      "confidence": null
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T13:01:41.362305+00:00",
+    "finished_at": "2026-10-01T13:16:13.710210+00:00",
+    "total_seconds": 872.348,
+    "phases": {
+      "environment_setup": {
+        "seconds": 32.037,
+        "starts_at_offset_seconds": 0.022
+      },
+      "agent_setup": {
+        "seconds": 8.096,
+        "starts_at_offset_seconds": 33.24
+      },
+      "agent_execution": {
+        "seconds": 826.68,
+        "starts_at_offset_seconds": 41.367
+      },
+      "verifier": {
+        "seconds": 2.33,
+        "starts_at_offset_seconds": 869.785
+      }
+    },
+    "unaccounted_seconds": 3.205,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": 3.572,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 87,
+    "agent_span_seconds": 789.542,
+    "step_gap_seconds": {
+      "count": 85,
+      "median": 4.595,
+      "p90": 14.282,
+      "max": 65.328,
+      "total": 786.29
+    },
+    "slowest_steps": [
+      {
+        "step": 73,
+        "seconds": 65.328,
+        "action": "bash_command: python3 - <<'PYEOF' p = \"/testbed/[hidden-path]/unit/test_configuration.py\" s = open(p).read() old =..."
+      },
+      {
+        "step": 69,
+        "seconds": 64.011,
+        "action": "bash_command: git -C /testbed stash; python3 -m pytest /testbed/[hidden-path]/unit -q 2>&1 | tail -6; git -C /test..."
+      },
+      {
+        "step": 67,
+        "seconds": 63.752,
+        "action": "bash_command: python3 -m pytest /testbed/[hidden-path]/unit/test_api_request.py -x -q 2>&1 | tail -15"
+      },
+      {
+        "step": 68,
+        "seconds": 63.354,
+        "action": "bash_command: python3 -m pytest /testbed/[hidden-path]/unit -q 2>&1 | tail -15"
+      },
+      {
+        "step": 66,
+        "seconds": 62.649,
+        "action": "bash_command: python3 -m pytest /testbed/[hidden-path]/unit/test_configuration.py -x -q 2>&1 | tail -15"
+      }
+    ]
+  },
+  "tokens": {
+    "input": 2447785,
+    "cached_input": 0,
+    "uncached_input": 2447785,
+    "output": 16039,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 2463824,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 2447785,
+        "cached_input": 0,
+        "output": 16039,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 2447785,
+        "cached_input": 0,
+        "output": 16039,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": 2447785,
+        "cached_input": null,
+        "output": 16039,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 86,
+    "llm_steps_with_usage": 86,
+    "context": {
+      "first_prompt_tokens": 1891,
+      "peak_prompt_tokens": 50654,
+      "peak_step": 87,
+      "last_prompt_tokens": 50654
+    },
+    "top_steps": [
+      {
+        "step": 87,
+        "input": 50654,
+        "output": 263,
+        "cost_usd": null,
+        "action": "bash_command: python3 - <<'PYEOF' p = \"/testbed/linodecli/configuration/config.py\" s = open(p).read() old = ''' if..."
+      },
+      {
+        "step": 86,
+        "input": 50089,
+        "output": 237,
+        "cost_usd": null,
+        "action": "bash_command: python3 - <<'PYEOF' p = \"/testbed/linodecli/help_pages.py\" s = open(p).read() old = ''' \"LINODE_CLI_..."
+      },
+      {
+        "step": 85,
+        "input": 49671,
+        "output": 179,
+        "cost_usd": null,
+        "action": "bash_command: python3 - <<'PYEOF' p = \"/testbed/linodecli/api_request.py\" s = open(p).read() old = '''def _attempt..."
+      },
+      {
+        "step": 84,
+        "input": 48405,
+        "output": 655,
+        "cost_usd": null,
+        "action": "bash_command: python3 - <<'PYEOF' p = \"/testbed/linodecli/configuration/config.py\" s = open(p).read() old = ''' de..."
+      },
+      {
+        "step": 83,
+        "input": 47486,
+        "output": 305,
+        "cost_usd": null,
+        "action": "bash_command: python3 - <<'PYEOF' p = \"/testbed/linodecli/cli.py\" s = open(p).read() old = ''' self.suppress_warni..."
+      }
+    ]
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 119,
+    "actions": 86,
+    "distinct_tools": 1,
+    "polls": 0,
+    "by_tool": [
+      {
+        "tool": "bash_command",
+        "calls": 119,
+        "ok": 0,
+        "errors": 0,
+        "unknown": 119,
+        "output_chars": 129373,
+        "first_step": 2,
+        "last_step": 87,
+        "judged": 0,
+        "error_rate": null
+      }
+    ],
+    "top_programs": [
+      {
+        "program": "sed",
+        "calls": 48
+      },
+      {
+        "program": "python3",
+        "calls": 22
+      },
+      {
+        "program": "grep",
+        "calls": 13
+      },
+      {
+        "program": "git",
+        "calls": 2
+      },
+      {
+        "program": "ls",
+        "calls": 1
+      }
+    ],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 86,
+    "distinct_actions": 84,
+    "repeated_actions": 2,
+    "repeat_rate": 0.0233,
+    "returns_to_earlier_action": 0,
+    "consecutive_repeats": 2,
+    "exact_revisits": 0,
+    "same_result_from_different_action": 0,
+    "repeated_errors": 0,
+    "longest_identical_run": {
+      "length": 3,
+      "steps": [
+        60,
+        61,
+        62
+      ],
+      "start_step": 60,
+      "end_step": 62
+    },
+    "longest_cycle": null,
+    "most_repeated": [
+      {
+        "tool": "bash_command",
+        "target": "sed -n 25,36p /testbed/[hidden-path]/unit/test_configuration.py",
+        "count": 3,
+        "steps": [
+          60,
+          61,
+          62
+        ],
+        "identical_results": 0
+      }
+    ],
+    "loop_suspicion": {
+      "detected": true,
+      "score": 0.5,
+      "reasons": [
+        "repeated_consecutive_command: 'sed -n 25,36p /testbed/tests/unit/test_c' (3\u00d7 consecutively, steps 60\u201362)"
+      ]
+    },
+    "repeats_by_window": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0
+    ],
+    "revisits_started": {
+      "repeat_rate_by_window": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.125,
+        0.1111,
+        0.0,
+        0.0
+      ],
+      "median_repeat_rate": 0.0,
+      "status": "onset",
+      "reason": null,
+      "window": 6,
+      "steps": [
+        54,
+        61
+      ],
+      "repeat_rate": 0.125
+    }
+  },
+  "subagents": {
+    "observability": "none_observed",
+    "reason": null,
+    "count": 0,
+    "delegated_count": 0,
+    "summarization_count": 0,
+    "delegation_calls": [],
+    "items": [],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": []
+  },
+  "errors": {
+    "tool_errors": 0,
+    "harness_signalled": 0,
+    "inferred_from_output": 0,
+    "status_unknown_calls": 119,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {},
+    "first_error": null,
+    "ended_in_error": false,
+    "examples": [],
+    "exception": {
+      "type": "TrialBudgetExhaustedError",
+      "message": "the trial proxy refused a model call: trial budget exhausted",
+      "occurred_at": "2026-10-01T13:16:09.412475Z"
+    }
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 0,
+    "items": []
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 87,
+    "shown_steps": 22,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 0.319,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      },
+      {
+        "step": 2,
+        "offset_seconds": 3.572,
+        "source": "agent",
+        "action": "bash_command: ls /testbed && git -C /testbed log --oneline -3 && git -C /testbed status ; grep -rn \"suppress\" /tes...",
+        "status": "unknown",
+        "input_tokens": 1891,
+        "output_tokens": 106,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 3,
+        "offset_seconds": 7.093,
+        "source": "agent",
+        "action": "bash_command: sed -n 280,330p /testbed/linodecli/api_request.py ; sed -n 1,120p /testbed/linodecli/configuration/_...",
+        "status": "unknown",
+        "input_tokens": 2726,
+        "output_tokens": 145,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 4,
+        "offset_seconds": 10.941,
+        "source": "agent",
+        "action": "bash_command: sed -n 300,345p /testbed/linodecli/api_request.py; echo ----; grep -n \"suppress\" /testbed/linodecli/...",
+        "status": "unknown",
+        "input_tokens": 3539,
+        "output_tokens": 168,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 5,
+        "offset_seconds": 14.516,
+        "source": "agent",
+        "action": "bash_command: sed -n 1,140p /testbed/linodecli/cli.py ; grep -n \"suppress\" -B5 -A10 /testbed/linodecli/output/outp...",
+        "status": "unknown",
+        "input_tokens": 4393,
+        "output_tokens": 166,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 6,
+        "offset_seconds": 19.135,
+        "source": "agent",
+        "action": "bash_command: grep -n \"suppress\" -B10 -A15 /testbed/linodecli/cli.py ; grep -rn \"suppress\" /testbed/linodecli/__in...",
+        "status": "unknown",
+        "input_tokens": 5198,
+        "output_tokens": 212,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 7,
+        "offset_seconds": 22.29,
+        "source": "agent",
+        "action": "bash_command: grep -n \"suppress\" -B10 -A15 /testbed/linodecli/__init__.py ; grep -n \"suppress\" -B10 -A15 /testbed/...",
+        "status": "unknown",
+        "input_tokens": 6114,
+        "output_tokens": 104,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 8,
+        "offset_seconds": 26.983,
+        "source": "agent",
+        "action": "bash_command: sed -n 1,140p /testbed/linodecli/configuration/config.py ; grep -n \"suppress\" -B10 -A15 /testbed/lin...",
+        "status": "unknown",
+        "input_tokens": 6995,
+        "output_tokens": 130,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 9,
+        "offset_seconds": 31.054,
+        "source": "agent",
+        "action": "bash_command: grep -n \"suppress\" /testbed/linodecli/configuration/config.py ; grep -n \"suppress\" -B10 -A15 /testbe...",
+        "status": "unknown",
+        "input_tokens": 7806,
+        "output_tokens": 96,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 10,
+        "offset_seconds": 36.282,
+        "source": "agent",
+        "action": "bash_command: sed -n 240,320p /testbed/linodecli/configuration/config.py ; grep -rn \"suppress\" /testbed/linodecli...",
+        "status": "unknown",
+        "input_tokens": 8142,
+        "output_tokens": 179,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "omitted_steps": [
+          11,
+          60
+        ]
+      },
+      {
+        "step": 61,
+        "offset_seconds": 352.01,
+        "source": "agent",
+        "action": "bash_command: sed -n 25,36p /testbed/[hidden-path]/unit/test_configuration.py",
+        "status": "unknown",
+        "input_tokens": 37846,
+        "output_tokens": 47,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 62,
+        "offset_seconds": 356.061,
+        "source": "agent",
+        "action": "bash_command: sed -n 25,36p /testbed/[hidden-path]/unit/test_configuration.py",
+        "status": "unknown",
+        "input_tokens": 38090,
+        "output_tokens": 47,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "omitted_steps": [
+          63,
+          77
+        ]
+      },
+      {
+        "step": 78,
+        "offset_seconds": 731.256,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' p = \"/testbed/linodecli/configuration/config.py\" s = open(p).read() old = ''' se...",
+        "status": "unknown",
+        "input_tokens": 44947,
+        "output_tokens": 304,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 79,
+        "offset_seconds": 736.272,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' p = \"/testbed/linodecli/__init__.py\" s = open(p).read() old = ''' cli.suppress_w...",
+        "status": "unknown",
+        "input_tokens": 45659,
+        "output_tokens": 160,
+        "cost_usd": null,
+        "message": "Analysis: Now wire the CLI's `--suppress-warnings` flag into the config so env/config values are honored, and add the version-specific overr...",
+        "flags": []
+      },
+      {
+        "step": 80,
+        "offset_seconds": 741.141,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' p = \"/testbed/linodecli/cli.py\" s = open(p).read() old = ''' self.suppress_warni...",
+        "status": "unknown",
+        "input_tokens": 46033,
+        "output_tokens": 126,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 81,
+        "offset_seconds": 746.509,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' p = \"/testbed/linodecli/cli.py\" s = open(p).read() old = ''' self.suppress_warni...",
+        "status": "unknown",
+        "input_tokens": 46369,
+        "output_tokens": 179,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 82,
+        "offset_seconds": 752.804,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' p = \"/testbed/linodecli/cli.py\" s = open(p).read() old = ''' self.suppress_warni...",
+        "status": "unknown",
+        "input_tokens": 46816,
+        "output_tokens": 229,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 83,
+        "offset_seconds": 759.988,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' p = \"/testbed/linodecli/cli.py\" s = open(p).read() old = ''' self.suppress_warni...",
+        "status": "unknown",
+        "input_tokens": 47486,
+        "output_tokens": 305,
+        "cost_usd": null,
+        "message": "Analysis: The `CLIConfig` is created after the attribute is read, so I need to reorder. Let me fix that.",
+        "flags": []
+      },
+      {
+        "step": 84,
+        "offset_seconds": 771.932,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' p = \"/testbed/linodecli/configuration/config.py\" s = open(p).read() old = ''' de...",
+        "status": "unknown",
+        "input_tokens": 48405,
+        "output_tokens": 655,
+        "cost_usd": null,
+        "message": "Analysis: Now add the config/env support to `CLIConfig.suppress_version_warning`.",
+        "flags": []
+      },
+      {
+        "step": 85,
+        "offset_seconds": 777.505,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' p = \"/testbed/linodecli/api_request.py\" s = open(p).read() old = '''def _attempt...",
+        "status": "unknown",
+        "input_tokens": 49671,
+        "output_tokens": 179,
+        "cost_usd": null,
+        "message": "Analysis: Now update `api_request._attempt_warn_old_version` to honor `suppress_version_warning`, and add the env vars to help docs.",
+        "flags": []
+      },
+      {
+        "step": 86,
+        "offset_seconds": 783.098,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' p = \"/testbed/linodecli/help_pages.py\" s = open(p).read() old = ''' \"LINODE_CLI_...",
+        "status": "unknown",
+        "input_tokens": 50089,
+        "output_tokens": 237,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 87,
+        "offset_seconds": 789.861,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'PYEOF' p = \"/testbed/linodecli/configuration/config.py\" s = open(p).read() old = ''' if...",
+        "status": "unknown",
+        "input_tokens": 50654,
+        "output_tokens": 263,
+        "cost_usd": null,
+        "message": "Analysis: Now update the \"Using default values\" warning in config.update to use the config/env value instead of sys.argv, and add tests.",
+        "flags": []
+      }
+    ],
+    "windows": [
+      {
+        "steps": [
+          1,
+          9
+        ],
+        "tool_calls": 8,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1127,
+        "cost_usd": null,
+        "seconds": 30.734,
+        "peak_prompt_tokens": 7806,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          10,
+          18
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 2047,
+        "cost_usd": null,
+        "seconds": 53.078,
+        "peak_prompt_tokens": 14348,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          19,
+          27
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1254,
+        "cost_usd": null,
+        "seconds": 37.705,
+        "peak_prompt_tokens": 20275,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          28,
+          35
+        ],
+        "tool_calls": 8,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 3066,
+        "cost_usd": null,
+        "seconds": 68.265,
+        "peak_prompt_tokens": 24981,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          36,
+          44
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 2953,
+        "cost_usd": null,
+        "seconds": 70.39,
+        "peak_prompt_tokens": 29222,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          45,
+          53
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 800,
+        "cost_usd": null,
+        "seconds": 36.587,
+        "peak_prompt_tokens": 34797,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          54,
+          61
+        ],
+        "tool_calls": 8,
+        "errors": 0,
+        "revisits": 1,
+        "output_tokens": 383,
+        "cost_usd": null,
+        "seconds": 25.961,
+        "peak_prompt_tokens": 37846,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          62,
+          70
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 1,
+        "output_tokens": 683,
+        "cost_usd": null,
+        "seconds": 271.556,
+        "peak_prompt_tokens": 41047,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          71,
+          79
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1553,
+        "cost_usd": null,
+        "seconds": 102.323,
+        "peak_prompt_tokens": 45659,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          80,
+          87
+        ],
+        "tool_calls": 8,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 2173,
+        "cost_usd": null,
+        "seconds": 48.72,
+        "peak_prompt_tokens": 50654,
+        "compactions": 0
+      }
+    ],
+    "time_windows": {
+      "status": "available",
+      "reason": null,
+      "origin": "2026-10-01T13:02:23.048470+00:00",
+      "span_seconds": 789.542,
+      "steps_without_timestamps": 0,
+      "windows": [
+        {
+          "steps": [
+            1,
+            15
+          ],
+          "tool_calls": 14,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 2954,
+          "cost_usd": null,
+          "peak_prompt_tokens": 12104,
+          "compactions": 0,
+          "starts_at_offset_seconds": 0.0,
+          "ends_at_offset_seconds": 78.954
+        },
+        {
+          "steps": [
+            16,
+            31
+          ],
+          "tool_calls": 16,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1928,
+          "cost_usd": null,
+          "peak_prompt_tokens": 23103,
+          "compactions": 0,
+          "starts_at_offset_seconds": 78.954,
+          "ends_at_offset_seconds": 157.908
+        },
+        {
+          "steps": [
+            32,
+            36
+          ],
+          "tool_calls": 5,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 2662,
+          "cost_usd": null,
+          "peak_prompt_tokens": 25366,
+          "compactions": 0,
+          "starts_at_offset_seconds": 157.908,
+          "ends_at_offset_seconds": 236.863
+        },
+        {
+          "steps": [
+            37,
+            51
+          ],
+          "tool_calls": 15,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 3527,
+          "cost_usd": null,
+          "peak_prompt_tokens": 33414,
+          "compactions": 0,
+          "starts_at_offset_seconds": 236.863,
+          "ends_at_offset_seconds": 315.817
+        },
+        {
+          "steps": [
+            52,
+            65
+          ],
+          "tool_calls": 14,
+          "errors": 0,
+          "revisits": 2,
+          "output_tokens": 956,
+          "cost_usd": null,
+          "peak_prompt_tokens": 39347,
+          "compactions": 0,
+          "starts_at_offset_seconds": 315.817,
+          "ends_at_offset_seconds": 394.771
+        },
+        {
+          "steps": [
+            66,
+            66
+          ],
+          "tool_calls": 1,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 57,
+          "cost_usd": null,
+          "peak_prompt_tokens": 39817,
+          "compactions": 0,
+          "starts_at_offset_seconds": 394.771,
+          "ends_at_offset_seconds": 473.725
+        },
+        {
+          "steps": [
+            67,
+            67
+          ],
+          "tool_calls": 1,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 58,
+          "cost_usd": null,
+          "peak_prompt_tokens": 40021,
+          "compactions": 0,
+          "starts_at_offset_seconds": 473.725,
+          "ends_at_offset_seconds": 552.68
+        },
+        {
+          "steps": [
+            68,
+            70
+          ],
+          "tool_calls": 3,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 171,
+          "cost_usd": null,
+          "peak_prompt_tokens": 41047,
+          "compactions": 0,
+          "starts_at_offset_seconds": 552.68,
+          "ends_at_offset_seconds": 631.634
+        },
+        {
+          "steps": [
+            71,
+            74
+          ],
+          "tool_calls": 4,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 716,
+          "cost_usd": null,
+          "peak_prompt_tokens": 43445,
+          "compactions": 0,
+          "starts_at_offset_seconds": 631.634,
+          "ends_at_offset_seconds": 710.588
+        },
+        {
+          "steps": [
+            75,
+            87
+          ],
+          "tool_calls": 13,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 3010,
+          "cost_usd": null,
+          "peak_prompt_tokens": 50654,
+          "compactions": 0,
+          "starts_at_offset_seconds": 710.588,
+          "ends_at_offset_seconds": 789.542
+        }
+      ]
+    }
+  },
+  "data_quality": [
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B' has no pinned price-table entry",
+    "harness reports no per-call status (no exit codes or error flags): tool errors are only inferred from output text"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "88f5ca791a934495ef2686cd7691763547eb322bdefb91a0f3a6073abdd526ee"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "2a2b2dc16385a5e11bd3d283ea6505eb3de7f6eacb6c4fa32d916708d10e745a"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 86,
+    "recorded": 86,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 0,
+    "prose_completions": 0,
+    "executed_calls": 119,
+    "task_complete_turns": 0,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 0,
+    "continuations_missing": [],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 87,
+        "copied_steps": 0,
+        "session_id": "20a54a04-f591-445c-93be-abb87abda6d2"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 87,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": []
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B) failed (reward 0) on mimo-v2.6-rl/format-code-task-001797; in 14m32s wall (13m47s agent); 87 steps, 119 tool calls, 0 errors, 2.46M tokens, cost unavailable; 2 repeated actions (0 exact revisits); no subagents observed."
+}

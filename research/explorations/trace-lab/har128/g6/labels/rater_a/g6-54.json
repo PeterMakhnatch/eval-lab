@@ -1,0 +1,39 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Failed to create session: not found: sandbox d9c53891-5513-4bd2-a475-cb97d6182c5e not found",
+      "ref": "head#32"
+    },
+    {
+      "quote": "reward null, n_episodes 32, loop_break fired false",
+      "ref": "head#32"
+    },
+    {
+      "quote": "Analysis: I keep pasting the same broken content. Let me stop and carefully design",
+      "ref": "head#31"
+    },
+    {
+      "quote": "cat > /workspace/repo/pyalgotrade/dataseries/resampled.py <<'PYEOF'",
+      "ref": "head#32"
+    }
+  ],
+  "first_failure": {
+    "quote": "Failed to create session: not found: sandbox d9c53891-5513-4bd2-a475-cb97d6182c5e not found",
+    "ref": "head#32",
+    "what": "sandbox lost (DaytonaNotFoundError) while writing resampled.py; model was making progress"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Sandbox deleted mid-run during active implementation; error surfaces in exception.txt after head#32. Only 2 similar cat writes, no 10-turn repeat, no completion claims.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "g6-54"
+}

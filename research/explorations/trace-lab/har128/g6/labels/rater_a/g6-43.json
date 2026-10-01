@@ -1,0 +1,35 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "purchase = Purchase(claim_id=txo.claim_id)",
+      "ref": "head#38"
+    },
+    {
+      "quote": "NameError: name 'Purchase' is not defined",
+      "ref": "head#107"
+    },
+    {
+      "quote": "cd /workspace/repo && awk 'NR>=295 && NR<=325' lbry/wallet/manager.py",
+      "ref": "head#91"
+    }
+  ],
+  "first_failure": {
+    "quote": "purchase = Purchase(claim_id=txo.claim_id)",
+    "ref": "head#38",
+    "what": "added create_purchase_transaction using bare Purchase() while the import edit was a no-op replace, so every purchase path raises NameError"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "low",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "107 episodes (<120), 2.49M input, one summarization; budget ended it. Many similar wallet-test heredocs vary in content (thrash, not a 10-turn identical loop). sft_cut null per assignment override.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-43"
+}

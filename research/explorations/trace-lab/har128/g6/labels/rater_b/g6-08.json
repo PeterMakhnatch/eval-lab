@@ -1,0 +1,35 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "class Report path reports analytics module",
+      "ref": "head#58"
+    },
+    {
+      "quote": "get_url returns youtube v3 base",
+      "ref": "head#61"
+    },
+    {
+      "quote": "verified Data API uris but never analytics URL",
+      "ref": "head#62"
+    }
+  ],
+  "first_failure": {
+    "quote": "class Report path reports analytics module",
+    "ref": "head#58",
+    "what": "created analytics Report with path reports under v3 parent giving wrong URL"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "7 of 10 pass. 3 analytics fail v3 reports vs analytics v1 reports. No loop. 92 under 120 budget out.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-08"
+}

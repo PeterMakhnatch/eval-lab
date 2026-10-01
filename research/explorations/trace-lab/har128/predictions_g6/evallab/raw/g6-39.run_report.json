@@ -1,0 +1,1135 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "ovn-g5-001809-tuned__AUVzrvM",
+    "trial_id": "1d958aa7-f4cb-43dd-80e8-16acfd1b9ee5",
+    "task": "mimo-v2.6-rl/format-code-task-001809",
+    "job": "HAR-126-ovn-g5-001809-tuned",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "16bd570f-4bc3-46cf-b742-8106cb3cf2b9",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001809-tuned/ovn-g5-001809-tuned__AUVzrvM"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "failed",
+    "reward": 0.0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "verifier_outcome": "fail",
+    "stop_reason": "trial_budget_exhausted",
+    "stop_detail": "agent metadata stop_reason; binding ceiling: input_tokens",
+    "completion": "Completion: never claimed; the run ended on step 84 (python3 - <<'EOF' import subprocess out = subprocess.run(['git','log','--all','--oneline','--','localstack/services/sqs/...).",
+    "execution_problems": {
+      "parse_errors": 0,
+      "prose_completions": 0,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": null,
+    "verifier_files": [
+      "verifier/agent.diff",
+      "verifier/apply.log",
+      "verifier/reward.txt",
+      "verifier/test-stdout.txt",
+      "verifier/test_output.log"
+    ],
+    "first_failure": {
+      "step": 63,
+      "kind": "upstream_fetch",
+      "evidence": "pip_download localstack==2.0.0 (read back at step 75)",
+      "confidence": "high"
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T15:36:04.993385+00:00",
+    "finished_at": "2026-10-01T15:58:39.683263+00:00",
+    "total_seconds": 1354.69,
+    "phases": {
+      "environment_setup": {
+        "seconds": 2.205,
+        "starts_at_offset_seconds": 0.053
+      },
+      "agent_setup": {
+        "seconds": 11.315,
+        "starts_at_offset_seconds": 3.788
+      },
+      "agent_execution": {
+        "seconds": 1332.509,
+        "starts_at_offset_seconds": 15.143
+      },
+      "verifier": {
+        "seconds": 4.245,
+        "starts_at_offset_seconds": 1350.249
+      }
+    },
+    "unaccounted_seconds": 4.416,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": 5.73,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 84,
+    "agent_span_seconds": 1277.956,
+    "step_gap_seconds": {
+      "count": 82,
+      "median": 5.959,
+      "p90": 32.782,
+      "max": 288.905,
+      "total": 1272.973
+    },
+    "slowest_steps": [
+      {
+        "step": 6,
+        "seconds": 288.905,
+        "action": "bash_command: sed -n 484,545p /testbed/localstack/services/sqs/provider.py"
+      },
+      {
+        "step": 8,
+        "seconds": 94.177,
+        "action": "bash_command: sed -n 830,880p /testbed/localstack/services/sqs/provider.py; echo ===; sed -n 1,80p /testbed/[hidde..."
+      },
+      {
+        "step": 5,
+        "seconds": 89.792,
+        "action": "bash_command: sed -n 105,125p /testbed/localstack/services/sqs/provider.py; echo ===; sed -n 484,540p /testbed/loc..."
+      },
+      {
+        "step": 43,
+        "seconds": 82.369,
+        "action": "bash_command: grep -rn \"def do_start_infra\" -A 40 /testbed/localstack/services/infra.py | sed -n 1,50p; grep -rn \"..."
+      },
+      {
+        "step": 63,
+        "seconds": 73.846,
+        "action": "bash_command: cd /testbed && git branch -a && git log --oneline --all | head -5 && git status --short | head ; pip..."
+      }
+    ]
+  },
+  "tokens": {
+    "input": 2453262,
+    "cached_input": 0,
+    "uncached_input": 2453262,
+    "output": 16430,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 2469692,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 2453262,
+        "cached_input": 0,
+        "output": 16430,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 2453262,
+        "cached_input": 0,
+        "output": 16430,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": 2394426,
+        "cached_input": null,
+        "output": 16158,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 83,
+    "llm_steps_with_usage": 83,
+    "context": {
+      "first_prompt_tokens": 1846,
+      "peak_prompt_tokens": 55810,
+      "peak_step": 84,
+      "last_prompt_tokens": 55810
+    },
+    "top_steps": [
+      {
+        "step": 84,
+        "input": 55810,
+        "output": 115,
+        "cost_usd": null,
+        "action": "bash_command: python3 - <<'EOF' import subprocess out = subprocess.run(['git','log','--all','--oneline','--','loca..."
+      },
+      {
+        "step": 83,
+        "input": 55370,
+        "output": 115,
+        "cost_usd": null,
+        "action": "bash_command: python3 - <<'EOF' import subprocess out = subprocess.run(['git','log','--all','--oneline','--','loca..."
+      },
+      {
+        "step": 82,
+        "input": 54930,
+        "output": 115,
+        "cost_usd": null,
+        "action": "bash_command: python3 - <<'EOF' import subprocess out = subprocess.run(['git','log','--all','--oneline','--','loca..."
+      },
+      {
+        "step": 81,
+        "input": 54486,
+        "output": 119,
+        "cost_usd": null,
+        "action": "bash_command: python3 - <<'EOF' import subprocess out = subprocess.run(['git','log','--all','--oneline','--','loca..."
+      },
+      {
+        "step": 80,
+        "input": 54088,
+        "output": 112,
+        "cost_usd": null,
+        "action": "bash_command: python3 - <<'EOF' import subprocess out = subprocess.run(['git','log','--all','--oneline','--','loca..."
+      }
+    ]
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 112,
+    "actions": 83,
+    "distinct_tools": 1,
+    "polls": 0,
+    "by_tool": [
+      {
+        "tool": "bash_command",
+        "calls": 112,
+        "ok": 0,
+        "errors": 0,
+        "unknown": 112,
+        "output_chars": 144692,
+        "first_step": 2,
+        "last_step": 84,
+        "judged": 0,
+        "error_rate": null
+      }
+    ],
+    "top_programs": [
+      {
+        "program": "grep",
+        "calls": 31
+      },
+      {
+        "program": "sed",
+        "calls": 28
+      },
+      {
+        "program": "git",
+        "calls": 13
+      },
+      {
+        "program": "python3",
+        "calls": 7
+      },
+      {
+        "program": "cat",
+        "calls": 3
+      },
+      {
+        "program": "ls",
+        "calls": 1
+      }
+    ],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 83,
+    "distinct_actions": 73,
+    "repeated_actions": 10,
+    "repeat_rate": 0.1205,
+    "returns_to_earlier_action": 0,
+    "consecutive_repeats": 10,
+    "exact_revisits": 7,
+    "same_result_from_different_action": 1,
+    "repeated_errors": 0,
+    "longest_identical_run": {
+      "length": 8,
+      "steps": [
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62
+      ],
+      "start_step": 55,
+      "end_step": 62
+    },
+    "longest_cycle": null,
+    "most_repeated": [
+      {
+        "tool": "bash_command",
+        "target": "grep -rn \"get_service_provider\\|get_provider\\|provider_config\\|override\\|legacy\\|env\\|config\" /testbed/localstack/services/providers.py | head -30; grep -rn \"de...",
+        "count": 8,
+        "steps": [
+          55,
+          56,
+          57,
+          58,
+          59,
+          60,
+          61,
+          62
+        ],
+        "identical_results": 4
+      },
+      {
+        "tool": "bash_command",
+        "target": "python3 - <<'EOF' import subprocess out = subprocess.run(['git','log','--all','--oneline','--','localstack/services/sqs/provider.py'],capture_output=True,text=T...",
+        "count": 3,
+        "steps": [
+          82,
+          83,
+          84
+        ],
+        "identical_results": 2
+      },
+      {
+        "tool": "bash_command",
+        "target": "python3 - <<'EOF' import subprocess out = subprocess.run(['git','log','--all','--oneline','--','localstack/services/sqs/provider.py'],capture_output=True,text=T...",
+        "count": 2,
+        "steps": [
+          79,
+          80
+        ],
+        "identical_results": 1
+      }
+    ],
+    "loop_suspicion": {
+      "detected": true,
+      "score": 0.6926,
+      "reasons": [
+        "repeated_consecutive_command: 'grep -rn \"get_service_provider\\\\|get_prov' (8\u00d7 consecutively, steps 55\u201362)",
+        "repeated_consecutive_command: \"python3 - <<'EOF'\\nimport subprocess\\nout \" (3\u00d7 consecutively, steps 82\u201384)"
+      ]
+    },
+    "repeats_by_window": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      4,
+      3,
+      0,
+      3
+    ],
+    "revisits_started": {
+      "repeat_rate_by_window": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.3333,
+        0.0,
+        0.375
+      ],
+      "median_repeat_rate": 0.0,
+      "status": "onset",
+      "reason": null,
+      "window": 6,
+      "steps": [
+        52,
+        59
+      ],
+      "repeat_rate": 0.5
+    }
+  },
+  "subagents": {
+    "observability": "none_observed",
+    "reason": null,
+    "count": 0,
+    "delegated_count": 0,
+    "summarization_count": 0,
+    "delegation_calls": [],
+    "items": [],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": []
+  },
+  "errors": {
+    "tool_errors": 0,
+    "harness_signalled": 0,
+    "inferred_from_output": 0,
+    "status_unknown_calls": 112,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {},
+    "first_error": null,
+    "ended_in_error": false,
+    "examples": [],
+    "exception": {
+      "type": "TrialBudgetExhaustedError",
+      "message": "the trial proxy refused a model call: trial budget exhausted",
+      "occurred_at": "2026-10-01T15:58:32.647538Z"
+    }
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 2,
+    "items": [
+      {
+        "step": 63,
+        "kind": "pip_download",
+        "command": "cd /testbed && git branch -a && git log --oneline --all | head -5 && git status --short | head ; pip download localstack==2.0.0 --no-deps -d /tmp/ls 2>&1 | tail...",
+        "target": "localstack==2.0.0",
+        "read_back_step": 75
+      },
+      {
+        "step": 64,
+        "kind": "pip_download",
+        "command": "cd /testbed && git log --all --oneline | wc -l && git log --all --oneline --grep=\"message size\\|attributes\" -i | head ; pip index versions localstack 2>&1 | hea...",
+        "target": "localstack",
+        "read_back_step": 75
+      }
+    ]
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 84,
+    "shown_steps": 27,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 0.747,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      },
+      {
+        "step": 2,
+        "offset_seconds": 5.73,
+        "source": "agent",
+        "action": "bash_command: ls /testbed && git -C /testbed log --oneline -3 ; grep -rn \"262144\\|262,144\\|Message must be shorter...",
+        "status": "unknown",
+        "input_tokens": 1846,
+        "output_tokens": 127,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 3,
+        "offset_seconds": 41.258,
+        "source": "agent",
+        "action": "bash_command: sed -n 80,140p /testbed/localstack/services/sqs/provider.py ; grep -n \"validate_message\\|def send_me...",
+        "status": "unknown",
+        "input_tokens": 2473,
+        "output_tokens": 120,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 4,
+        "offset_seconds": 65.729,
+        "source": "agent",
+        "action": "bash_command: sed -n 95,130p /testbed/localstack/services/sqs/provider.py; echo ---; sed -n 480,560p /testbed/loca...",
+        "status": "unknown",
+        "input_tokens": 3191,
+        "output_tokens": 140,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 5,
+        "offset_seconds": 155.521,
+        "source": "agent",
+        "action": "bash_command: sed -n 105,125p /testbed/localstack/services/sqs/provider.py; echo ===; sed -n 484,540p /testbed/loc...",
+        "status": "unknown",
+        "input_tokens": 3990,
+        "output_tokens": 122,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 6,
+        "offset_seconds": 444.426,
+        "source": "agent",
+        "action": "bash_command: sed -n 484,545p /testbed/localstack/services/sqs/provider.py",
+        "status": "unknown",
+        "input_tokens": 4696,
+        "output_tokens": 51,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 7,
+        "offset_seconds": 511.764,
+        "source": "agent",
+        "action": "bash_command: sed -n 860,960p /testbed/localstack/services/sqs/provider.py ; grep -rn \"check_message_size\" /testbe...",
+        "status": "unknown",
+        "input_tokens": 5287,
+        "output_tokens": 747,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 8,
+        "offset_seconds": 605.941,
+        "source": "agent",
+        "action": "bash_command: sed -n 830,880p /testbed/localstack/services/sqs/provider.py; echo ===; sed -n 1,80p /testbed/[hidde...",
+        "status": "unknown",
+        "input_tokens": 6015,
+        "output_tokens": 793,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 9,
+        "offset_seconds": 610.69,
+        "source": "agent",
+        "action": "bash_command: sed -n 40,75p /testbed/[hidden-path]/unit/test_sqs.py ; sed -n 1500,1560p /testbed/[hidden-path]/int...",
+        "status": "unknown",
+        "input_tokens": 6721,
+        "output_tokens": 98,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 10,
+        "offset_seconds": 615.975,
+        "source": "agent",
+        "action": "bash_command: sed -n 56,72p /testbed/[hidden-path]/unit/test_sqs.py ; grep -rn \"MaximumMessageSize\\|maximum_messag...",
+        "status": "unknown",
+        "input_tokens": 7474,
+        "output_tokens": 128,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "omitted_steps": [
+          11,
+          55
+        ]
+      },
+      {
+        "step": 56,
+        "offset_seconds": 1011.473,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"get_service_provider\\|get_provider\\|provider_config\\|override\\|legacy\\|env\\|config\" /testb...",
+        "status": "unknown",
+        "input_tokens": 36789,
+        "output_tokens": 119,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 57,
+        "offset_seconds": 1017.572,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"get_service_provider\\|get_provider\\|provider_config\\|override\\|legacy\\|env\\|config\" /testb...",
+        "status": "unknown",
+        "input_tokens": 37405,
+        "output_tokens": 119,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 58,
+        "offset_seconds": 1023.538,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"get_service_provider\\|get_provider\\|provider_config\\|override\\|legacy\\|env\\|config\" /testb...",
+        "status": "unknown",
+        "input_tokens": 38021,
+        "output_tokens": 119,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 59,
+        "offset_seconds": 1029.908,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"get_service_provider\\|get_provider\\|provider_config\\|override\\|legacy\\|env\\|config\" /testb...",
+        "status": "unknown",
+        "input_tokens": 38637,
+        "output_tokens": 119,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 60,
+        "offset_seconds": 1036.09,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"get_service_provider\\|get_provider\\|provider_config\\|override\\|legacy\\|env\\|config\" /testb...",
+        "status": "unknown",
+        "input_tokens": 39414,
+        "output_tokens": 119,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 61,
+        "offset_seconds": 1042.447,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"get_service_provider\\|get_provider\\|provider_config\\|override\\|legacy\\|env\\|config\" /testb...",
+        "status": "unknown",
+        "input_tokens": 40030,
+        "output_tokens": 119,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 62,
+        "offset_seconds": 1048.725,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"get_service_provider\\|get_provider\\|provider_config\\|override\\|legacy\\|env\\|config\" /testb...",
+        "status": "unknown",
+        "input_tokens": 40646,
+        "output_tokens": 119,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "omitted_steps": [
+          63,
+          74
+        ]
+      },
+      {
+        "step": 75,
+        "offset_seconds": 1228.712,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && git log --all --oneline -- localstack/services/sqs/provider.py | cat > /tmp/sqslog.tx...",
+        "status": "unknown",
+        "input_tokens": 50862,
+        "output_tokens": 76,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 76,
+        "offset_seconds": 1233.31,
+        "source": "agent",
+        "action": "bash_command: cat /tmp/sqslog.txt",
+        "status": "unknown",
+        "input_tokens": 51736,
+        "output_tokens": 36,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 77,
+        "offset_seconds": 1238.062,
+        "source": "agent",
+        "action": "bash_command: cat /tmp/sqslog.txt | head -45",
+        "status": "unknown",
+        "input_tokens": 52566,
+        "output_tokens": 41,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 78,
+        "offset_seconds": 1243.849,
+        "source": "agent",
+        "action": "bash_command: python3 -c \" import subprocess out = subprocess.run(['git','log','--all','--oneline','--','localstac...",
+        "status": "unknown",
+        "input_tokens": 53405,
+        "output_tokens": 109,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 79,
+        "offset_seconds": 1249.455,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'EOF' import subprocess out = subprocess.run(['git','log','--all','--oneline','--','loca...",
+        "status": "unknown",
+        "input_tokens": 53690,
+        "output_tokens": 112,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 80,
+        "offset_seconds": 1255.165,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'EOF' import subprocess out = subprocess.run(['git','log','--all','--oneline','--','loca...",
+        "status": "unknown",
+        "input_tokens": 54088,
+        "output_tokens": 112,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 81,
+        "offset_seconds": 1260.913,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'EOF' import subprocess out = subprocess.run(['git','log','--all','--oneline','--','loca...",
+        "status": "unknown",
+        "input_tokens": 54486,
+        "output_tokens": 119,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 82,
+        "offset_seconds": 1266.864,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'EOF' import subprocess out = subprocess.run(['git','log','--all','--oneline','--','loca...",
+        "status": "unknown",
+        "input_tokens": 54930,
+        "output_tokens": 115,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 83,
+        "offset_seconds": 1272.755,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'EOF' import subprocess out = subprocess.run(['git','log','--all','--oneline','--','loca...",
+        "status": "unknown",
+        "input_tokens": 55370,
+        "output_tokens": 115,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "step": 84,
+        "offset_seconds": 1278.703,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'EOF' import subprocess out = subprocess.run(['git','log','--all','--oneline','--','loca...",
+        "status": "unknown",
+        "input_tokens": 55810,
+        "output_tokens": 115,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "steps": [
+          1,
+          9
+        ],
+        "tool_calls": 8,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 2198,
+        "cost_usd": null,
+        "seconds": 609.943,
+        "peak_prompt_tokens": 6721,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          10,
+          17
+        ],
+        "tool_calls": 8,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 4149,
+        "cost_usd": null,
+        "seconds": 83.748,
+        "peak_prompt_tokens": 12585,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          18,
+          26
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 831,
+        "cost_usd": null,
+        "seconds": 43.482,
+        "peak_prompt_tokens": 17437,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          27,
+          34
+        ],
+        "tool_calls": 8,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1104,
+        "cost_usd": null,
+        "seconds": 47.155,
+        "peak_prompt_tokens": 23165,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          35,
+          42
+        ],
+        "tool_calls": 8,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1060,
+        "cost_usd": null,
+        "seconds": 41.859,
+        "peak_prompt_tokens": 27420,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          43,
+          51
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1209,
+        "cost_usd": null,
+        "seconds": 50.314,
+        "peak_prompt_tokens": 34115,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          52,
+          59
+        ],
+        "tool_calls": 8,
+        "errors": 0,
+        "revisits": 4,
+        "output_tokens": 955,
+        "cost_usd": null,
+        "seconds": 42.325,
+        "peak_prompt_tokens": 38637,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          60,
+          68
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 3,
+        "output_tokens": 3210,
+        "cost_usd": null,
+        "seconds": 150.139,
+        "peak_prompt_tokens": 45014,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          69,
+          76
+        ],
+        "tool_calls": 8,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 604,
+        "cost_usd": null,
+        "seconds": 40.186,
+        "peak_prompt_tokens": 51736,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          77,
+          84
+        ],
+        "tool_calls": 8,
+        "errors": 0,
+        "revisits": 3,
+        "output_tokens": 838,
+        "cost_usd": null,
+        "seconds": 40.641,
+        "peak_prompt_tokens": 55810,
+        "compactions": 0
+      }
+    ],
+    "time_windows": {
+      "status": "available",
+      "reason": null,
+      "origin": "2026-10-01T15:36:20.883366+00:00",
+      "span_seconds": 1277.956,
+      "steps_without_timestamps": 0,
+      "windows": [
+        {
+          "steps": [
+            1,
+            4
+          ],
+          "tool_calls": 3,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 387,
+          "cost_usd": null,
+          "peak_prompt_tokens": 3191,
+          "compactions": 0,
+          "starts_at_offset_seconds": 0.0,
+          "ends_at_offset_seconds": 127.796
+        },
+        {
+          "steps": [
+            5,
+            5
+          ],
+          "tool_calls": 1,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 122,
+          "cost_usd": null,
+          "peak_prompt_tokens": 3990,
+          "compactions": 0,
+          "starts_at_offset_seconds": 127.796,
+          "ends_at_offset_seconds": 255.591
+        },
+        {
+          "steps": [
+            6,
+            7
+          ],
+          "tool_calls": 2,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 798,
+          "cost_usd": null,
+          "peak_prompt_tokens": 5287,
+          "compactions": 0,
+          "starts_at_offset_seconds": 383.387,
+          "ends_at_offset_seconds": 511.182
+        },
+        {
+          "steps": [
+            8,
+            11
+          ],
+          "tool_calls": 4,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1904,
+          "cost_usd": null,
+          "peak_prompt_tokens": 8110,
+          "compactions": 0,
+          "starts_at_offset_seconds": 511.182,
+          "ends_at_offset_seconds": 638.978
+        },
+        {
+          "steps": [
+            12,
+            28
+          ],
+          "tool_calls": 17,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 4167,
+          "cost_usd": null,
+          "peak_prompt_tokens": 18800,
+          "compactions": 0,
+          "starts_at_offset_seconds": 638.978,
+          "ends_at_offset_seconds": 766.773
+        },
+        {
+          "steps": [
+            29,
+            42
+          ],
+          "tool_calls": 14,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1964,
+          "cost_usd": null,
+          "peak_prompt_tokens": 27420,
+          "compactions": 0,
+          "starts_at_offset_seconds": 766.773,
+          "ends_at_offset_seconds": 894.569
+        },
+        {
+          "steps": [
+            43,
+            57
+          ],
+          "tool_calls": 15,
+          "errors": 0,
+          "revisits": 2,
+          "output_tokens": 1926,
+          "cost_usd": null,
+          "peak_prompt_tokens": 37405,
+          "compactions": 0,
+          "starts_at_offset_seconds": 894.569,
+          "ends_at_offset_seconds": 1022.364
+        },
+        {
+          "steps": [
+            58,
+            63
+          ],
+          "tool_calls": 6,
+          "errors": 0,
+          "revisits": 5,
+          "output_tokens": 2989,
+          "cost_usd": null,
+          "peak_prompt_tokens": 41270,
+          "compactions": 0,
+          "starts_at_offset_seconds": 1022.364,
+          "ends_at_offset_seconds": 1150.16
+        },
+        {
+          "steps": [
+            64,
+            84
+          ],
+          "tool_calls": 21,
+          "errors": 0,
+          "revisits": 3,
+          "output_tokens": 1901,
+          "cost_usd": null,
+          "peak_prompt_tokens": 55810,
+          "compactions": 0,
+          "starts_at_offset_seconds": 1150.16,
+          "ends_at_offset_seconds": 1277.956
+        }
+      ]
+    }
+  },
+  "data_quality": [
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129' has no pinned price-table entry",
+    "harness reports no per-call status (no exit codes or error flags): tool errors are only inferred from output text"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "ffeeb9cd52a04524c2d2c9507ac65ff0bbac864cbc1a639e1128dfcde24d29f5"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "a30431e6f0f374bd31063a5680baff312c605049c88a2dfe538df69ab7301f84"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 83,
+    "recorded": 83,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 0,
+    "prose_completions": 0,
+    "executed_calls": 112,
+    "task_complete_turns": 0,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 1,
+    "continuations_missing": [
+      1
+    ],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 84,
+        "copied_steps": 0,
+        "session_id": "16bd570f-4bc3-46cf-b742-8106cb3cf2b9"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 84,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": [
+      "1 summarization attempt(s) left no continuation file: [1]"
+    ]
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129) failed (reward 0) on mimo-v2.6-rl/format-code-task-001809; in 22m35s wall (22m13s agent); 84 steps, 112 tool calls, 0 errors, 2.47M tokens, cost unavailable; 10 repeated actions (7 exact revisits); no subagents observed."
+}

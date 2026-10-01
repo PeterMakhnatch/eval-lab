@@ -1,0 +1,35 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "TrialBudgetExhaustedError: the trial proxy refused a model call: trial budget exhausted",
+      "ref": "head#104"
+    },
+    {
+      "quote": "serialize_param=lambda name, val: (name.replace('_', '-')",
+      "ref": "head#97"
+    },
+    {
+      "quote": "TypeError: Reports.get.<locals>.<lambda>() missing 1 required positional argument: 'val'",
+      "ref": "head#96"
+    }
+  ],
+  "first_failure": {
+    "quote": "serialize_param=lambda name, val: (name.replace('_', '-'",
+    "ref": "head#97",
+    "what": "kept 2-arg serialize_param lambda that base.get_params calls with 1 arg"
+  },
+  "first_failure_confidence": "low",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "n_ep 102<120 with 2.44M input tokens ~2.5M limit so token_ceiling. Final verifier shows analytics TypeError on Reports.get lambda. Lambda was already wrong before head#97; head#97 is where it was re-applied and never fixed before budget ran out.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-35"
+}

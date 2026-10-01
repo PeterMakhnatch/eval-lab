@@ -1,0 +1,136 @@
+{
+ "trial": "ovn-g5-001833-tuned__rNpMkcb",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001833-tuned/ovn-g5-001833-tuned__rNpMkcb",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001833-tuned",
+ "task": "mimo-v2.6-rl/format-code-task-001833",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "unknown",
+  "exception_type": "LoopBreakStop",
+  "exception_message": "loop break: the repetition was still going 76 calls in, 15 after the nudge at call 61",
+  "natural_completion": false,
+  "task_complete_refs": [
+   "head#42",
+   "head#44",
+   "head#47",
+   "head#52",
+   "head#54"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 49,
+  "step_ref": "head#49",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#49",
+   "head#77"
+  ],
+  "note": "identical message repeated steps 49-77 with no change after errors",
+  "secondary": "confirmation_with_call loop (recorded): first confirmation head#52, span head#52-head#77; attribution unclear (confirm vs continue ambiguous)"
+ },
+ "handshake": {
+  "first_prompt_ref": "head#42",
+  "prompts": 5,
+  "confirmed": false,
+  "turns_after_first_prompt": 35,
+  "prompt_tokens_after_first_prompt": 1143873,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 12,
+    "span": [
+     "head#2",
+     "head#13"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 29,
+    "span": [
+     "head#49",
+     "head#77"
+    ]
+   },
+   {
+    "kind": "confirmation",
+    "length": 26,
+    "span": [
+     "head#52",
+     "head#77"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 1038706,
+   "completion": 4349,
+   "steps": 41,
+   "steps_without_metrics": 0
+  },
+  "confirmation": {
+   "prompt": 897642,
+   "completion": 2658,
+   "steps": 26,
+   "steps_without_metrics": 0
+  },
+  "in_loops": {
+   "prompt": 1038706,
+   "completion": 4349,
+   "steps": 41,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 1694586,
+   "completion": 10854,
+   "steps": 76,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.613,
+  "result_input_tokens": 1694586
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 71,
+  "states": {
+   "prompt": 71
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": {
+  "rule_id": "R-COMP-04",
+  "detector": "recorded",
+  "first_confirmation_ref": "head#52",
+  "loop_span": [
+   "head#52",
+   "head#77"
+  ],
+  "steps_in_span": 26,
+  "suffix_claim_only": true,
+  "note": "confirmation_with_call loop (secondary): the harness asked 'Are you sure ...' and the model kept replying claim+call, which executed instead of confirming; attribution unclear (confirm vs continue ambiguous)"
+ },
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "b1619aa3e3f0bef20fd52cb8590c4203f7c27336"
+ },
+ "nop_runs_dir": null
+}

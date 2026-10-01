@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "address = txo.address",
+      "ref": "head#82"
+    },
+    {
+      "quote": "sed -n 549,700p /workspace/repo/lbry/wallet/transaction.py",
+      "ref": "head#35"
+    },
+    {
+      "quote": "sed -n 720,760p /workspace/repo/lbry/wallet/transaction.py",
+      "ref": "head#43"
+    },
+    {
+      "quote": "sed -n 690,706p /workspace/repo/lbry/wallet/transaction.py",
+      "ref": "head#47"
+    }
+  ],
+  "first_failure": {
+    "quote": "address = txo.address",
+    "ref": "head#82",
+    "what": "wrote create_purchase_transaction using txo.address (no such Output attribute) with untested fee logic; never ran any tests"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#35",
+    "head#47"
+  ],
+  "notes": "reward 0.0 (verifier/reward.txt 0); TrialBudgetExhaustedError, n_episodes 96 (<120-request limit), n_input_tokens 2432761 (~2.5M limit) -> token_ceiling; loop-break nudged at call 41 (model_next sed 720,760p matches head#43) but stop_call null. Verifier: 6/8 pass; AttributeError 'Output' has no attribute 'address' + max-fee message missing converted price. No network/upstream fetch; model never ran tests.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-18"
+}

@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "data = open('/testbed/linodecli/__init__.py').read()",
+      "ref": "head#57"
+    },
+    {
+      "quote": "awk 'NR>=300 && NR<=340' /testbed/linodecli/api_request.py; echo =====; awk 'NR>=147 && NR<=191' /testbed/linodecli/configuration/config.py",
+      "ref": "head#64"
+    },
+    {
+      "quote": "TrialBudgetExhaustedError: the trial proxy refused a model call: trial budget exhausted",
+      "ref": "head#89"
+    },
+    {
+      "quote": "assert 'newer than' not in 'The API res...inode-cli`'",
+      "ref": "head#89"
+    }
+  ],
+  "first_failure": {
+    "quote": "data = open('/testbed/linodecli/__init__.py').read()",
+    "ref": "head#57",
+    "what": "re-issued the identical failing file-read instead of implementing any fix; agent.diff stayed empty to the end"
+  },
+  "first_failure_confidence": "low",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#64",
+    "head#89"
+  ],
+  "notes": "89 episodes (<120) with 2.40M input tokens; loop-break nudged at call 57 (normalized_command_run) but run ended on budget. curl of upstream helpers.py returned empty (no code in). sft_cut null per assignment override.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-20"
+}

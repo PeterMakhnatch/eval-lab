@@ -1,0 +1,38 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "awk 'NR>=4600 && NR<=4610' dulwich/pack.py; wc -l dulwich/pack.py",
+      "ref": "head#56"
+    },
+    {
+      "quote": "cd /workspace/repo && awk 'NR>=3760 && NR<=3770' dulwich/pack.py",
+      "ref": "head#57"
+    },
+    {
+      "quote": "cd /workspace/repo && awk 'NR>=3774 && NR<=3779' dulwich/pack.py",
+      "ref": "head#76"
+    }
+  ],
+  "first_failure": {
+    "quote": "cd /workspace/repo && awk 'NR>=3774 && NR<=3779' dulwich/pack.py",
+    "ref": "head#76",
+    "what": "sandbox was lost (DaytonaNotFound, sandbox not found) while executing this command; no fix had been written and run never recovered"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#57",
+    "head#76"
+  ],
+  "notes": "reward null, verifier/ empty; DaytonaNotFoundError sandbox not found after head#76 (n_episodes 76); loop detector never fired but steps 57-76 are 20 near-identical 5-line sliding-window re-reads of already-read lines 3760+ with identical screens, no edits/tests; prose_completions 0, no completion claims. Per study directive sandbox-lost -> infra_error + infra.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "g6-38"
+}

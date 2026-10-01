@@ -1,0 +1,46 @@
+{
+  "blame": "none",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "No network. So I need to design the fix myself.",
+      "ref": "head#8"
+    },
+    {
+      "quote": "ERROR: Could not find a version that satisfies the requirement scikit-fem==4.1.0",
+      "ref": "head#7"
+    },
+    {
+      "quote": "cat > /tmp/test_pickle3.py",
+      "ref": "head#93"
+    },
+    {
+      "quote": "cat > /tmp/test_pickle14.py",
+      "ref": "head#104"
+    },
+    {
+      "quote": "6 passed, 11 deselected",
+      "ref": "head#104"
+    },
+    {
+      "quote": "the trial proxy refused a model call: trial budget exhausted",
+      "ref": "head#104"
+    }
+  ],
+  "first_failure": null,
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#93",
+    "head#104"
+  ],
+  "notes": "Earned pass: upstream download failed (no network) and the __reduce__/_rebuild_mapping fix is original. Tail heads 93-104 repeat the same pickle round-trip check ~12x with only the tmp filename changing; stop itself is budget exhaustion (102 episodes), not the loop-breaker.",
+  "off_limits_opened": false,
+  "pass_copied": false,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-55"
+}

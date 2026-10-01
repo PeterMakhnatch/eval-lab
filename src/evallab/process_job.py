@@ -180,7 +180,7 @@ def _taint_flags(
                 "guard_mutation_steps": writes,
             }
         )
-    flags.extend(assess_upstream_fetch(agent_seq, info))
+    flags.extend(assess_upstream_fetch(agent_seq, info, trial_dir=trial_dir))
     return flags
 
 

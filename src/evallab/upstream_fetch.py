@@ -28,6 +28,7 @@ loosen the separate, opt-in GEPA ``UPSTREAM_FETCH_ZERO`` attempt policy.
 from __future__ import annotations
 
 import fnmatch
+import hashlib
 import json
 import posixpath
 import re
@@ -604,22 +605,66 @@ def _pip_artifact(command: str, finding: Finding, lines: list[str]) -> tuple[str
     name, version = identity
     for line in lines:
         saved = line.startswith("Saved ")
-        observed = line[6:].strip() if saved else line
-        if not saved and not listing:
+        if line.startswith("Successfully downloaded "):
+            observed_artifacts = line.removeprefix("Successfully downloaded ").split()
+        elif saved or listing:
+            observed_artifacts = [line[6:].strip() if saved else line]
+        else:
             continue
-        artifact = _resolve_path(observed, cwd if saved else dest)
-        if posixpath.dirname(artifact) != dest:
-            continue
-        value = posixpath.basename(artifact)
-        wheel = re.fullmatch(r"([A-Za-z0-9_.]+)-([^-]+)-[^/ ]+\.whl", value)
-        archive = re.fullmatch(r"(.+)-([^-]+)\.(?:tar\.gz|tgz|zip)", value)
-        match = wheel or archive
-        if match and _normal_package(match[1]) == name and match[2] == version:
-            return artifact, line
+        for observed in observed_artifacts:
+            artifact = _resolve_path(observed, cwd if saved else dest)
+            if posixpath.dirname(artifact) != dest:
+                continue
+            value = posixpath.basename(artifact)
+            wheel = re.fullmatch(r"([A-Za-z0-9_.]+)-([^-]+)-[^/ ]+\.whl", value)
+            archive = re.fullmatch(r"(.+)-([^-]+)\.(?:tar\.gz|tgz|zip)", value)
+            match = wheel or archive
+            if match and _normal_package(match[1]) == name and match[2] == version:
+                return artifact, line
     return None
 
 
-def _call_observations(step: dict, call_id: str | None) -> list[dict]:
+_OUTPUT_SPILL_RE = re.compile(
+    r"\[\.\.\. output limited to (?P<limit>\d+) characters; \d+ characters omitted\. "
+    r"Full output: (?P<path>/logs/agent/evallab-output/(?P<file>step-\d{4,}\.txt)) "
+    r"— grep or read it there \.\.\.\]"
+)
+
+
+def _retained_output(content: str, trial_dir: Path | None) -> tuple[str, dict[str, str] | None]:
+    """Recover only an in-trial spill whose exact recap matches this observation."""
+    if trial_dir is None:
+        return content, None
+    matches = list(_OUTPUT_SPILL_RE.finditer(content))
+    if len(matches) != 1:
+        return content, None
+    from evallab.loopfix import cap_output
+
+    match = matches[0]
+    relative = Path("agent/evallab-output") / match["file"]
+    try:
+        source = trial_dir.resolve() / relative
+        # A marker cannot authorize a different file, even via an in-trial symlink.
+        if source.resolve() != source:
+            return content, None
+        raw = source.read_bytes()
+        full = raw.decode("utf-8")
+        limit = int(match["limit"])
+        if limit < 2 or cap_output(full, match["path"], limit=limit) != content:
+            return content, None
+    except (OSError, UnicodeError, ValueError, RuntimeError):
+        return content, None
+    return full, {"path": relative.as_posix(), "sha256": hashlib.sha256(raw).hexdigest()}
+
+
+def _retained_evidence(results: list[dict]) -> dict:
+    artifacts = [result["retained_output"] for result in results if result.get("retained_output")]
+    return {"retained_output": artifacts} if artifacts else {}
+
+
+def _call_observations(
+    step: dict, call_id: str | None, *, trial_dir: Path | None = None
+) -> list[dict]:
     """Bind by source_call_id or an explicit, unique recorded command window."""
     observation = step.get("observation")
     results = observation.get("results") if isinstance(observation, dict) else None
@@ -644,13 +689,20 @@ def _call_observations(step: dict, call_id: str | None) -> list[dict]:
             continue
         source = result.get("source_call_id")
         if source == call_id:
-            bound.append({**result, "binding": "source_call_id"})
+            binding = "source_call_id"
         elif source is None and isinstance(command, str) and same_commands == 1:
-            content = str(result.get("content") or "")
-            if any(marker in content for marker in ("New Terminal Output:", "Current Terminal Screen:")) and _output_lines(content, command):
-                # Do not manufacture a source_call_id: retain how this
-                # legacy terminal window was attributed.
-                bound.append({**result, "binding": "terminal-command-window"})
+            binding = "terminal-command-window"
+        else:
+            continue
+        content, retained = _retained_output(str(result.get("content") or ""), trial_dir)
+        if binding == "terminal-command-window" and not (
+            isinstance(command, str)
+            and any(marker in content for marker in ("New Terminal Output:", "Current Terminal Screen:"))
+            and _output_lines(content, command)
+        ):
+            continue
+        # Do not manufacture a source_call_id for a legacy terminal window.
+        bound.append({**result, "content": content, "binding": binding, "retained_output": retained})
     return bound
 
 
@@ -741,8 +793,15 @@ def _and_follows(command: str, before: list[str], after: list[str]) -> bool:
     return True
 
 
-def _source_observed(lines: list[str]) -> bool:
-    return any(re.match(r"(?:\d+:)?\s*(?:def |class |from |import |self\.)", line) for line in lines)
+def _source_observed(lines: list[str], source_root: str | None = None) -> bool:
+    for line in lines:
+        if source_root and source_root.startswith("/"):
+            filename, separator, body = line.partition(":")
+            if separator and _resolve_path(filename, None).startswith(source_root.rstrip("/") + "/"):
+                line = body
+        if re.match(r"(?:\d+:)?\s*(?:def |class |from |import |self\.)", line):
+            return True
+    return False
 
 
 def _artifact_extraction(artifact: str, command: str, lines: list[str]) -> tuple[str | None, bool] | None:
@@ -774,7 +833,7 @@ def _artifact_extraction(artifact: str, command: str, lines: list[str]) -> tuple
         if not target:
             continue
         destination = _resolve_path(target, cwd)
-        read = _source_observed(lines) and any(
+        read = _source_observed(lines, source_root=destination) and any(
             args[0].rsplit("/", 1)[-1] in {"cat", "sed", "head", "tail", "grep", "awk", "zcat"}
             and any(_resolve_path(value, working_dir).startswith(destination.rstrip("/") + "/") for value in args[1:])
             and _and_follows(command, argv, args)
@@ -839,13 +898,16 @@ def _observed_outcome(finding: Finding, command: str, results: list[dict]) -> tu
     return "unknown", None, "no bound saved/listed artifact plus observed unpack/read proof"
 
 
-def assess_upstream_fetch(agent_seq: Sequence[tuple[str, dict]], info: dict) -> list[dict]:
+def assess_upstream_fetch(
+    agent_seq: Sequence[tuple[str, dict]], info: dict, *, trial_dir: Path | None = None
+) -> list[dict]:
     """Attempt facts plus confirmed acquisition evidence for process-job.
 
     IDs are local to document, step and call. Terminal windows may contain
     delayed output: we never promote another call's success just because its
-    numeric ID or package name matches. Truncated pip downloads can instead
-    be proven by an exact destination listing AND observed artifact use.
+    numeric ID or package name matches. Retained output is usable only when
+    re-capping its bytes exactly reproduces the recorded observation; command
+    and fresh-unpack guards still apply. A preexisting directory is never proof.
     """
     from collections import Counter
 
@@ -865,8 +927,11 @@ def assess_upstream_fetch(agent_seq: Sequence[tuple[str, dict]], info: dict) -> 
         sid = step.get("step_id")
         layer = layer_for(doc, step)
         for call_id, command in _executed_calls(step, layer):
-            results = _call_observations(step, call_id)
-            for finding in detect_upstream_fetch([(sid if type(sid) is int else -1, command)]):
+            findings = detect_upstream_fetch([(sid if type(sid) is int else -1, command)])
+            if not findings:
+                continue
+            results = _call_observations(step, call_id, trial_dir=trial_dir)
+            for finding in findings:
                 outcome, excerpt, reason = _observed_outcome(finding, command, results)
                 evidence = []
                 if excerpt:
@@ -874,6 +939,7 @@ def assess_upstream_fetch(agent_seq: Sequence[tuple[str, dict]], info: dict) -> 
                         "document": doc, "step": sid, "call_id": call_id,
                         "target": finding.target, "excerpt": excerpt,
                         "observation_binding": sorted({result["binding"] for result in results}),
+                        **_retained_evidence(results),
                     })
                 lines = [line for result in results for line in _output_lines(str(result.get("content") or ""), command)]
                 candidate = _pip_artifact(command, finding, lines) if outcome == "unknown" else None
@@ -884,6 +950,7 @@ def assess_upstream_fetch(agent_seq: Sequence[tuple[str, dict]], info: dict) -> 
                         "target": finding.target, "artifact": artifact,
                         "excerpt": artifact_excerpt,
                         "observation_binding": sorted({result["binding"] for result in results}),
+                        **_retained_evidence(results),
                     }]
                     for later_doc, later_step in agent_seq[position + 1 :]:
                         if later_doc != doc:
@@ -900,7 +967,7 @@ def assess_upstream_fetch(agent_seq: Sequence[tuple[str, dict]], info: dict) -> 
                         ):
                             break
                         for later_id, text in later_calls:
-                            later_results = _call_observations(later_step, later_id)
+                            later_results = _call_observations(later_step, later_id, trial_dir=trial_dir)
                             observed = [
                                 line for result in later_results
                                 for line in _output_lines(str(result.get("content") or ""), text)
@@ -915,6 +982,7 @@ def assess_upstream_fetch(agent_seq: Sequence[tuple[str, dict]], info: dict) -> 
                                     "acquisition_proof": "artifact_read" if read else "artifact_unpack",
                                     "excerpt": "\n".join(observed)[:400],
                                     "observation_binding": sorted({result["binding"] for result in later_results}),
+                                    **_retained_evidence(later_results),
                                 })
                                 outcome, reason = "succeeded", "exact saved/listed artifact observed being unpacked or read"
                                 evidence = chain

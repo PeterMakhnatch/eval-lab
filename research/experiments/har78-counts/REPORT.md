@@ -74,6 +74,29 @@ another attempt for the same normalized package/target or a document boundary.
 Another package, path, episode, continuation, or reused numeric step ID cannot
 supply the proof.
 
+The prospective post-G5 evidence reader also accepts pip's
+`Successfully downloaded` line when it names the **exact pinned artifact
+filename**, not merely the package name. It resolves that filename in the
+normalized download destination and still requires bound unpack/read proof.
+A successful download with no observed use, a package-only summary, a wrong
+artifact/version, or a target-bound failure does not become an exclusion.
+
+A capped observation may recover its retained full terminal output only from
+the exact in-trial `agent/evallab-output/step-NNNN.txt` file. Reapplying the
+producer's `cap_output` must reproduce the recorded observation exactly,
+including the omitted length; symlink redirects and other paths are refused.
+Evidence records the relative file path and raw-byte SHA-256. Recovery does
+not waive current-command, call, document, acquisition-episode, or fresh-unpack
+guards. Filename-qualified `grep` source lines must resolve inside the
+successfully unpacked destination. Merely reading a preexisting directory,
+including after an earlier unproven quiet-unpack call, remains non-deciding.
+
+Research-Harbor's final **2026-10-01 17:48Z** disposition supersedes its
+17:32Z correction request: this reader enhancement is **forward-looking**.
+The original G5 primary counts remain bound to audit `666556cb…`; prospective
+G2/G5 replays are isolated sensitivity evidence, not a replacement primary
+table. A blind copied-fix judgment is not silently substituted for counts.
+
 Artifact proof spans saved/listed artifact → observed unpack or source read.
 Other output-producing commands in a fetch call do not invalidate an observed
 exact saved artifact **when** its subsequent use proves the chain. Unpack proof

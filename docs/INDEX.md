@@ -9,7 +9,7 @@ inputs:
   - path: docs/ACTIVE-VS-HISTORICAL.md
     digest: sha256:be0eb686a7c6956c7c53fe435c5a7fbe1ef5d24e885102b174e4e53a0a7761ca
   - path: docs/GENERATED-CACHE-POLICY.md
-    digest: sha256:4d70e54cef4c3ace6add3d1d8bf3eb1fc4faacc4c33dc1a18d73df847ea21b58
+    digest: sha256:cdeea9c91f9a47bae7895e5cd67c243611f62011625c8f7724391dc7bcb2ed32
   - path: docs/GLOSSARY.md
     digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
   - path: docs/NOW.md
@@ -47,11 +47,11 @@ inputs:
   - path: docs/contracts.md
     digest: sha256:bdf914f6d4c14bea8986517dd12fffcf4119a00a3c42f09eaace284ce9b438ff
   - path: docs/craft.md
-    digest: sha256:ee111e3a975bfb4ed3390c58bc2e86b666299e94964cf985b0a52f90edfa4424
+    digest: sha256:4d295bd538f11e7e30dbf8d6c6c3213107df0769bf2a293aa8e2a7fc65cac7e8
   - path: docs/dashboard.md
     digest: sha256:ee56108fa8961f0e0bb6d6f7f2174973bfce4fd15337bfe2c9e3b9c8af61c42a
   - path: docs/data-architecture.md
-    digest: sha256:3da92ed792d6c995bc79be4d078f62af534b020ecaa3c52885d6d4ec677777fe
+    digest: sha256:09cec6d972ee99c3e38507b8b085cbd09d189d786ad839e3ca3bd9a067cb796a
   - path: docs/deepseek-v4-flash-lane.md
     digest: sha256:efe12fcfc333012d835c097f02b64535305bf108e7f9d820c97327d1072d3633
   - path: docs/engineering.md
@@ -81,9 +81,9 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:753eb131338d4b0c1a26c25d966990ac06176354382d99ec8ad5d9467c39a5c0
+    digest: sha256:d4dece7af76e0a7269d82d894c8635d371645977a704b885d8afd0343addac76
   - path: docs/parquet-compaction.md
-    digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
+    digest: sha256:3182393883fd70bd7cb745ffd6b7671553a47415de5db39cf46428f2264d2e98
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md
@@ -111,7 +111,7 @@ inputs:
   - path: docs/storm-alarms.md
     digest: sha256:0bc85e698e48423c3a23b2462ca7eb6187578a0cb94e9dc6f346d4a1f3363692
   - path: docs/surfaces.md
-    digest: sha256:599c3ae6f22cf2696bc2f7bdc17f6c207f0366ae4e8e5592a28c6fe7bfe2b064
+    digest: sha256:0cb18fe2ad8bfbef48b20767c3bcb9810e723777a21e8d280196ea8ac14ea20e
   - path: docs/task-provenance.md
     digest: sha256:3f34b7469d329d51d4dac9356f9655e03b5dd0a155494ddf380caff3dedc6e56
   - path: docs/task-quality.md

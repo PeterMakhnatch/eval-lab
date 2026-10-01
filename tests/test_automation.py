@@ -75,13 +75,13 @@ def _setup_cycle(
         drift_loader=lambda day: [],
         preflight_loader=lambda day: None,
         storm_loader=lambda day: [],
+        output_dir=tmp_path / "digests",
     )
     doc = doctor or StaticDoctor()
     cycle_kwargs: dict[str, Any] = {
         "doctor": doc,
         "executor": service,
         "renderer": renderer,
-        "committer": lambda p: True,
         "status_updater": lambda day: tmp_path / "STATUS.md",
         "compactor": lambda day: {"compacted": True, "dt": day.isoformat()},
         "lessons_generator": lambda day: tmp_path / "research/lessons.md",

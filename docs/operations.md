@@ -816,9 +816,9 @@ Steps run in the exact order below:
 | 6 | `canary_enqueue` | 60s | `abort` | No | Enqueue version-pinned canary evaluation specs for the day |
 | 7 | `dispatch` | 600s | `abort` | No | Execute approved queue specs via `Executor.tick()` |
 | 8 | `researcher_pass` | 300s | `continue` | No | Run unattended researcher loop iterations if budget and credentials allow |
-| 9 | `lessons` | 120s | `continue` | Yes | Materialize statistical lesson views and regenerate `research/lessons.md` |
-| 10 | `digest` | 60s | `abort` | Yes | Render, enrich with fleet telemetry, and commit the daily Markdown digest |
-| 11 | `status_update` | 30s | `continue` | Yes | Generate and update the `STATUS.md` operator surface |
+| 9 | `lessons` | 120s | `continue` | Yes | Materialize statistical lesson views to external runtime `reports/lessons.md` (explicit output promotes `research/lessons.md`) |
+| 10 | `digest` | 60s | `abort` | Yes | Render and enrich daily Markdown digest to external runtime `reports/` (no source commit) |
+| 11 | `status_update` | 30s | `continue` | Yes | Generate live STATUS report to external runtime `reports/STATUS.md` (explicit output promotes `docs/STATUS.md`) |
 
 ### `on_fail` policy semantics
 
@@ -977,18 +977,18 @@ non-secret force-auth-file switch is set by the executor. Claude runs through
 force-OAuth switches in the immediate Harbor child; it never aliases OAuth to
 an API-key variable.
 
-Render a digest on demand (the file date is the morning/report date; its primary
-reporting period is the preceding catalog day):
+Render a digest on demand to the external runtime reports home (the file date is
+the morning/report date; its primary reporting period is the preceding catalog day):
 
 ```bash
 uv run evallab digest --date 2026-08-14
 ```
 
-The nightly command additionally commits only `digests/YYYY-MM-DD.md`; unrelated
-working-tree changes are never staged:
+Digest rendering and the nightly report steps do not commit or overwrite reviewed
+source snapshots by default. Promote a curated digest explicitly:
 
 ```bash
-uv run evallab nightly
+uv run evallab digest --date 2026-08-14 -o digests/2026-08-14.md
 ```
 
 Before canary dispatch, a healthy nightly cycle runs the Compose PostgreSQL
@@ -1129,16 +1129,15 @@ hashing without changing table schemas, source digests, or the
 catalog-before-Parquet failure boundary.
 
 PostgreSQL is shared across linked Git worktrees, so Parquet must be shared too.
-By default, every worktree resolves `derived/parquet` against the repository's
-primary checkout, not against the invoking worktree. `.env.example` records the
-equivalent explicit setting:
-
-```dotenv
-EVALLAB_DERIVED_ROOT=derived/parquet
-```
+By default, every worktree resolves the live derived root outside source under the
+shared runtime state directory (`<primary>-state/derived/parquet`), not against the
+invoking worktree. `.env.example` leaves `EVALLAB_DERIVED_ROOT` unset so copying
+the template retains this default. Set it only to select a deliberate override.
 
 A relative value is resolved against the primary checkout; an absolute value
-may instead select a shared volume. The `ingest --derived-dir` and
+may instead select a shared volume. The default live status, lessons, and digest
+reports resolve to the same external state under `reports/` (`STATUS.md`,
+`lessons.md`, `<YYYY-MM-DD>.md`). The `ingest --derived-dir` and
 `trajectories --export --output-dir` flags are deliberate one-command overrides and
 remain relative to the invoking checkout. `report family` also reads the shared
 root by default; its `--parquet-dir` is an explicit local override. Both
@@ -1148,36 +1147,38 @@ This setting is storage topology, not authentication: model access remains
 subscription-only through Keychain or the agent's auth file, and API-key
 variables do not belong in this lab's `.env`.
 
-To migrate an older worktree-local store, stop dispatch, copy each complete
-`job_id=<uuid>` directory into the configured shared root without overwriting an
-existing UUID, and run `uv run evallab doctor`. If the catalog contains a job
-whose raw evidence was intentionally discarded, remove only that exact derived
-catalog row; never drop or recreate the shared database to repair one stale job.
-Once doctor reports equal catalog and projected counts, reinstall the schedule
-and resume dispatch.
+Before adopting this default on an existing installation, keep projection writers
+quiescent and preserve the **complete** previous live store, not just hot `job_id=`
+partitions: cold partitions, quality ledgers and other evidence matter too. Copy
+to an empty external destination under the existing Parquet publication lock and
+verify bytes and metadata before restoring reviewed source snapshots. Retain the
+originals and restoration instructions; do not overwrite a colliding store or
+delete catalog rows to hide discrepancies.
+
+An older `.env` containing `EVALLAB_DERIVED_ROOT=derived/parquet` still explicitly
+selects the in-source store. After verified migration, remove that override to
+use the new default, or set the intended external absolute path. Code pinned to
+an older revision needs that explicit external override; changing current source
+does not repin it. Do not restart active experiments or reinstall schedules as
+an incidental data-migration step; runtime adoption requires its own approval.
 
 Because that store is shared across worktrees, doctor's `catalog-parquet` line
 ends with `db=<host>:<port>/<dbname>` — the database it actually inspected,
 never a credential. Two shells with different `DATABASE_URL` values otherwise
 print the same green line for different catalogs.
 
-Sharing is kept, but it is never silent (F-13). When a command run inside a
-linked worktree inherits another checkout's derived root, `evallab` writes one
-line to stderr naming the owner before doing anything with it:
+Sharing is kept, but it is never silent (F-13). When a command resolves a derived
+root outside the invoking checkout without anybody naming it, `evallab` writes one
+line to stderr naming the shared runtime state before doing anything with it:
 
 ```
-evallab: derived root /Users/you/Developer/eval-lab/derived/parquet belongs to
-/Users/you/Developer/eval-lab, not to this checkout
-/Users/you/Developer/eval-lab/.worktrees/role, set EVALLAB_DERIVED_ROOT to an
-absolute path to choose another.
+evallab: derived root /Users/you/Developer/eval-lab-state/derived/parquet is shared runtime state outside source (derived from /Users/you/Developer/eval-lab); set EVALLAB_DERIVED_ROOT to an absolute path to choose another.
 ```
 
 The notice appears once per invoking tree and resolved root, so an interactive
 command says it and the nightly loop does not repeat it. It is emitted only for
 a resolution nobody named: a `--derived-dir` argument and an absolute
-`EVALLAB_DERIVED_ROOT` are deliberate choices and stay quiet. Before this,
-`evallab status` inside a worktree reported the primary checkout's
-`derived/parquet` with nothing to distinguish it from the worktree's own.
+`EVALLAB_DERIVED_ROOT` are deliberate choices and stay quiet.
 
 Analysis sidecars follow the same "the catalog is derived" rule. `analyze review`
 appends a durable human decision under `derived/analyses/<analysis_id>/reviews/`

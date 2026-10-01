@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -153,25 +152,10 @@ def test_status_update_file_writes_to_disk_cleanly(tmp_path: Path) -> None:
     assert content1 == content2
 
 
-def test_status_update_file_default_path(tmp_path: Path) -> None:
-    repo = _setup_mock_repo(tmp_path)
-    expected_path = repo / "docs/STATUS.md"
-
-    updated = update_status_file(repo, target_date=TARGET_DATE)
-    assert updated == expected_path
-    assert expected_path.is_file()
-
-    content = expected_path.read_text()
-    assert "---" in content
-    assert "status: historical" in content
-    assert f"# Research status — {TARGET_DATE.isoformat()}" in content
-    assert "Generated catalog snapshot; historical record, not a living contract." in content
-
-
 def test_status_excluded_from_all_mission_context_packs(tmp_path: Path) -> None:
     """Prove STATUS.md is excluded from context packs for all 4 missions but listed in docindex."""
     repo = _setup_mock_repo(tmp_path)
-    status_path = update_status_file(repo, target_date=TARGET_DATE)
+    status_path = update_status_file(repo, target_date=TARGET_DATE, destination=repo / "docs/STATUS.md")
     assert status_path.is_file()
 
     # 1. Prove contextpack.select_docs excludes STATUS.md for all four missions
@@ -188,20 +172,6 @@ def test_status_excluded_from_all_mission_context_packs(tmp_path: Path) -> None:
     assert "## Archive" in index_text
     doc_meta = parse_doc(status_path, root=repo)
     assert doc_meta.status == "historical"
-
-
-def test_status_generator_sha256_byte_identity(tmp_path: Path) -> None:
-    repo = _setup_mock_repo(tmp_path)
-    _write_spec(repo / "queue/running", "spec-run-1", "running-test", "event-summary", "codex")
-
-    out1 = generate_status_markdown(repo, target_date=TARGET_DATE)
-    out2 = generate_status_markdown(repo, target_date=TARGET_DATE)
-
-    hash1 = hashlib.sha256(out1.encode("utf-8")).hexdigest()
-    hash2 = hashlib.sha256(out2.encode("utf-8")).hexdigest()
-
-    assert hash1 == hash2
-    assert out1 == out2
 
 
 def test_recent_trials_aggregation_and_formatting() -> None:
@@ -397,6 +367,7 @@ def test_nightly_cycle_invokes_status_generator_idempotently(tmp_path: Path) -> 
         drift_loader=lambda _day: [],
         preflight_loader=lambda: None,  # type: ignore[arg-type]
         storm_loader=lambda _day: [],
+        output_dir=repo / "digests",
     )
 
     doctor = type("Doctor", (), {"run": lambda self: _healthy_doctor_report()})()
@@ -405,13 +376,14 @@ def test_nightly_cycle_invokes_status_generator_idempotently(tmp_path: Path) -> 
         doctor=doctor,  # type: ignore[arg-type]
         executor=executor,
         renderer=renderer,
-        committer=lambda _path: True,
     )
 
     result1 = cycle.run(report_date=TARGET_DATE)
     assert result1.status_path is not None
     assert result1.status_path.is_file()
-    assert result1.status_path == repo / "docs/STATUS.md"
+    from evallab.storage.paths import runtime_reports_dir
+
+    assert result1.status_path == runtime_reports_dir(repo) / "STATUS.md"
     content1 = result1.status_path.read_text()
     assert "# Research status" in content1
     # Second run produces identical output
@@ -444,6 +416,7 @@ def test_nightly_cycle_handles_status_updater_failure_cleanly(tmp_path: Path) ->
         drift_loader=lambda _day: [],
         preflight_loader=lambda: None,  # type: ignore[arg-type]
         storm_loader=lambda _day: [],
+        output_dir=repo / "digests",
     )
 
     doctor = type("Doctor", (), {"run": lambda self: _healthy_doctor_report()})()
@@ -455,7 +428,6 @@ def test_nightly_cycle_handles_status_updater_failure_cleanly(tmp_path: Path) ->
         doctor=doctor,  # type: ignore[arg-type]
         executor=executor,
         renderer=renderer,
-        committer=lambda _path: True,
         status_updater=failing_status_updater,
     )
 

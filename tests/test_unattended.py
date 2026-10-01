@@ -10,7 +10,6 @@ import pytest
 import yaml
 
 import evallab.cli as cli_module
-import evallab.digest as digest_module
 from evallab.automation import (
     GuardedTick,
     HeadlessDoctor,
@@ -19,7 +18,7 @@ from evallab.automation import (
 )
 from evallab.canary import CanaryEnqueuer, task_directory_digest
 from evallab.cli import run_cli
-from evallab.digest import DigestRenderer, DigestTrial, commit_digest
+from evallab.digest import DigestRenderer, DigestTrial
 from evallab.queue import DirectoryQueue, Executor, load_events
 from evallab.researchers import (
     CallLedger,
@@ -313,7 +312,6 @@ def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Pa
             )
         ]
 
-    committed: list[Path] = []
     backups: list[date] = []
     backup_path = tmp_path / "backups/postgres/test.dump"
     result = NightlyCycle(
@@ -325,13 +323,11 @@ def test_healthy_nightly_dispatches_control_and_renders_catalog_job(tmp_path: Pa
             policy=policy(),
             trial_loader=load_trials,
         ),
-        committer=lambda path: committed.append(path) or True,
         database_backup=lambda day: backups.append(day) or backup_path,
     ).run(report_date=report_date)
 
     assert result.dispatched == 1
     assert len(ingested) == 1
-    assert committed == [result.digest_path]
     assert backups == [report_date]
     assert result.backup_path == backup_path
     assert any(
@@ -404,7 +400,6 @@ def test_nightly_researcher_defers_while_running_job_is_unresolved(
             policy=policy(),
             trial_loader=lambda _day: [],
         ),
-        committer=lambda _path: False,
         researcher_pass=lambda day: researcher_calls.append(day) or 1,
     ).run(report_date=report_date)
 
@@ -473,7 +468,6 @@ def test_nightly_backup_failure_quarantines_before_dispatch(
             policy=policy(),
             trial_loader=lambda _day: [],
         ),
-        committer=lambda _path: False,
         database_backup=lambda _day: (_ for _ in ()).throw(failure),
     ).run(report_date=date(2026, 8, 14))
 
@@ -524,12 +518,10 @@ def test_digest_enrichment_failure_rerenders_a_quarantined_digest(
             policy=policy(),
             trial_loader=lambda _day: [],
         ),
-        committer=lambda _path: True,
         digest_enricher=partial_enrichment,
     ).run(report_date=date(2026, 8, 14))
 
     assert result.quarantined is True
-    assert result.committed is True
     content = result.digest_path.read_text()
     assert "Quarantined: yes" in content
     assert "Failed readiness checks: fleet_digest_failed:RuntimeError" in content
@@ -700,7 +692,6 @@ def test_locked_keychain_still_dispatches_credentialless_nightly_control(
             policy=policy(),
             trial_loader=lambda day: [],
         ),
-        committer=lambda path: True,
     ).run(report_date=date.today())
 
     assert result.dispatched == 1
@@ -851,60 +842,6 @@ def test_digest_keeps_a_failed_smoke_run_visible(tmp_path: Path) -> None:
     assert any("smoke-oracle-06jyeb02basb" in row for row in rows)
     assert not any("smoke-oracle-036m0fqpzzz0" in row for row in rows)
     assert "harness_failure=1" in text
-
-
-def test_commit_digest_commits_only_the_digest(tmp_path: Path) -> None:
-    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_path, check=True)
-    digest = tmp_path / "digests/2026-08-13.md"
-    digest.parent.mkdir()
-    digest.write_text("daily\n")
-    unrelated = tmp_path / "unrelated.txt"
-    unrelated.write_text("do not commit\n")
-
-    assert commit_digest(digest) is True
-
-    tracked = subprocess.run(
-        ["git", "show", "--pretty=", "--name-only", "HEAD"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.splitlines()
-    assert tracked == ["digests/2026-08-13.md"]
-    assert unrelated.exists()
-
-
-def test_commit_digest_bounds_every_noninteractive_git_command(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    digest = tmp_path / "digests/2026-08-14.md"
-    digest.parent.mkdir()
-    digest.write_text("daily\n")
-    calls: list[tuple[list[str], dict[str, object]]] = []
-
-    def run(command: list[str], **kwargs):
-        calls.append((command, kwargs))
-        if "diff" in command:
-            return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
-        if "commit" in command:
-            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
-        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
-
-    monkeypatch.setattr(digest_module.subprocess, "run", run)
-
-    with pytest.raises(RuntimeError, match="bounded digest Git command failed"):
-        commit_digest(digest)
-
-    assert len(calls) == 3
-    assert all(
-        kwargs["timeout"] == digest_module.SUPPORT_COMMAND_TIMEOUT_SECONDS for _, kwargs in calls
-    )
-    assert all(kwargs["stdin"] is subprocess.DEVNULL for _, kwargs in calls)
-    assert all(kwargs["capture_output"] is True for _, kwargs in calls)
-    assert all(kwargs["env"]["GIT_TERMINAL_PROMPT"] == "0" for _, kwargs in calls)
 
 
 def test_doctor_codex_only_night_is_healthy(tmp_path: Path) -> None:

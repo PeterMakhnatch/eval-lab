@@ -14,6 +14,23 @@ Notifier = Callable[[str], None]
 _ANNOUNCED: set[tuple[str, str]] = set()
 
 
+def runtime_output_root(repo_root: Path) -> Path:
+    """Return the shared external runtime state directory for a checkout.
+
+    Default Parquet and report writes stay outside source. Linked worktrees
+    share the primary checkout's live store; location alone never authorizes
+    deletion of retained evidence or judgments. Explicit paths and existing
+    ``EVALLAB_DERIVED_ROOT`` overrides retain precedence.
+    """
+    shared = shared_checkout_root(repo_root)
+    return shared.parent / f"{shared.name}-state"
+
+
+def runtime_reports_dir(repo_root: Path) -> Path:
+    """Return the external default directory for generated status/lessons/digest."""
+    return runtime_output_root(repo_root) / "reports"
+
+
 def shared_checkout_root(repo_root: Path) -> Path:
     """Return the primary checkout for a repository or linked worktree."""
     root = repo_root.resolve()
@@ -73,12 +90,11 @@ def resolve_runs_roots(repo_root: Path, runs_root: Path | None = None) -> list[P
 class DerivedRootResolution:
     """Where the derived Parquet root came from, and whose tree it belongs to.
 
-    The lab keeps one derived store per machine because it is a rebuildable
-    projection of the single PostgreSQL catalog: a per-worktree copy would
-    disagree with the catalog every worktree shares. Sharing is therefore kept,
-    but it is never implied — `implicit` marks a resolution that crossed into
-    another checkout without anybody naming it, and `describe()` is the line an
-    operator reads instead of guessing.
+    Linked worktrees share a default store rather than silently creating
+    divergent projections. That store can also contain retained judgments;
+    it is not a blanket disposable cache. ``implicit`` marks a resolution
+    outside the invoking checkout without an absolute path being selected,
+    and ``describe()`` explains the resolved location.
     """
 
     path: Path
@@ -95,15 +111,25 @@ class DerivedRootResolution:
     def describe(self) -> str:
         if not self.is_foreign:
             return f"{self.path} (this checkout, {self.origin})"
-        return f"{self.path} (shared, owned by {self.base_root}, {self.origin})"
+        if not self.implicit:
+            return f"{self.path} (outside this checkout, {self.origin})"
+        if self.path.is_relative_to(self.base_root):
+            return f"{self.path} (shared, owned by {self.base_root}, {self.origin})"
+        return f"{self.path} (shared runtime state derived from {self.base_root}, {self.origin})"
 
     def notice(self) -> str | None:
-        """The operator-facing line for an unnamed cross-checkout resolution."""
+        """The operator-facing line for an unnamed out-of-checkout resolution."""
         if not (self.is_foreign and self.implicit):
             return None
+        if self.path.is_relative_to(self.base_root):
+            return (
+                f"evallab: derived root {self.path} belongs to {self.base_root}, "
+                f"not to this checkout {self.invoking_root}; "
+                f"set {DERIVED_ROOT_ENV} to an absolute path to choose another."
+            )
         return (
-            f"evallab: derived root {self.path} belongs to {self.base_root}, "
-            f"not to this checkout {self.invoking_root}; "
+            f"evallab: derived root {self.path} is shared runtime state outside source "
+            f"(derived from {self.base_root}); "
             f"set {DERIVED_ROOT_ENV} to an absolute path to choose another."
         )
 
@@ -117,10 +143,11 @@ def resolve_derived_root(
     """Resolve the derived Parquet root and record how the answer was reached.
 
     Pure: it reads the environment mapping and the worktree's Git markers, and
-    reports. Explicit caller paths stay relative to the invoking checkout; the
-    environment override and the default are relative to the primary checkout
-    so every linked worktree observes the same derived store as the shared
-    PostgreSQL catalog.
+    reports. Explicit caller paths stay relative to the invoking checkout; a
+    relative environment override resolves relative to the primary checkout so
+    every linked worktree observes the same derived store as the shared
+    PostgreSQL catalog. The default lives outside source under the shared
+    runtime state directory so ordinary runs never dirty the tracked tree.
     """
     root = repo_root.resolve()
     if explicit is not None:
@@ -154,7 +181,7 @@ def resolve_derived_root(
             implicit=True,
         )
     return DerivedRootResolution(
-        path=(shared_root / "derived/parquet").resolve(),
+        path=(runtime_output_root(root) / "derived/parquet"),
         origin="default",
         invoking_root=root,
         base_root=shared_root,

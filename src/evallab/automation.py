@@ -16,7 +16,7 @@ from typing import Any, Literal
 from evallab import credentials as credentials_module
 from evallab import database
 from evallab.canary import load_canary_suite
-from evallab.digest import DigestRenderer, commit_digest
+from evallab.digest import DigestRenderer
 from evallab.evidence.atif import IngestProjectionResult
 from evallab.lessons import generate_lessons_file
 from evallab.queue import (
@@ -41,7 +41,6 @@ KEYCHAIN_SERVICE = credentials_module.KEYCHAIN_SERVICE
 
 BooleanProbe = Callable[[], bool]
 LaunchctlRunner = Callable[[list[str], bool], subprocess.CompletedProcess[str]]
-DigestCommitter = Callable[[Path], bool]
 CanaryEnqueuer = Callable[[date], int]
 ResearcherPass = Callable[[date], int]
 DigestEnricher = Callable[[Path, date], None]
@@ -69,7 +68,6 @@ class NightlyContext:
     doctor: HeadlessDoctor
     executor: Executor
     renderer: DigestRenderer
-    committer: DigestCommitter
     canary_enqueuer: CanaryEnqueuer | None = None
     researcher_pass: ResearcherPass | None = None
     digest_enricher: DigestEnricher | None = None
@@ -89,7 +87,6 @@ class NightlyContext:
     backup_path: Path | None = None
     status_path: Path | None = None
     digest_path: Path | None = None
-    committed: bool = False
     lessons_path: Path | None = None
     compaction_result: Any = None
     step_outcomes: list[StepOutcome] = field(default_factory=list)
@@ -358,7 +355,6 @@ def _step_digest(context: NightlyContext) -> None:
                 dispatched=context.dispatched,
             )
     context.digest_path = digest_path
-    context.committed = context.committer(digest_path)
 
 
 def _step_status_update(context: NightlyContext) -> None:
@@ -451,7 +447,7 @@ DEFAULT_NIGHTLY_STEPS: tuple[NightlyStep, ...] = (
         fn=_step_lessons,
         timeout=120.0,
         on_fail="continue",
-        description="Materialize statistical lesson aggregation views and research/lessons.md",
+        description="Materialize statistical lesson views to external runtime reports home",
         idempotent=True,
     ),
     NightlyStep(
@@ -459,7 +455,7 @@ DEFAULT_NIGHTLY_STEPS: tuple[NightlyStep, ...] = (
         fn=_step_digest,
         timeout=60.0,
         on_fail="abort",
-        description="Render, enrich, and commit daily markdown digest",
+        description="Render and enrich daily markdown digest to external runtime reports home",
         idempotent=True,
     ),
     NightlyStep(
@@ -467,7 +463,7 @@ DEFAULT_NIGHTLY_STEPS: tuple[NightlyStep, ...] = (
         fn=_step_status_update,
         timeout=30.0,
         on_fail="continue",
-        description="Generate and update STATUS.md operator surface",
+        description="Generate live STATUS report to external runtime reports home",
         idempotent=True,
     ),
 )
@@ -742,7 +738,6 @@ class NightlyResult:
     enqueued: int
     dispatched: int
     digest_path: Path
-    committed: bool
     researcher_invocations: int = 0
     backup_path: Path | None = None
     status_path: Path | None = None
@@ -780,7 +775,6 @@ class NightlyCycle:
         doctor: HeadlessDoctor,
         executor: Executor,
         renderer: DigestRenderer,
-        committer: DigestCommitter = commit_digest,
         canary_enqueuer: CanaryEnqueuer | None = None,
         researcher_pass: ResearcherPass | None = None,
         digest_enricher: DigestEnricher | None = None,
@@ -795,7 +789,6 @@ class NightlyCycle:
         self.doctor = doctor
         self.executor = executor
         self.renderer = renderer
-        self.committer = committer
         self.canary_enqueuer = canary_enqueuer
         self.researcher_pass = researcher_pass
         self.digest_enricher = digest_enricher
@@ -836,7 +829,6 @@ class NightlyCycle:
             doctor=self.doctor,
             executor=self.executor,
             renderer=self.renderer,
-            committer=self.committer,
             canary_enqueuer=self.canary_enqueuer,
             researcher_pass=self.researcher_pass,
             digest_enricher=self.digest_enricher,
@@ -929,7 +921,6 @@ class NightlyCycle:
             enqueued=context.enqueued,
             dispatched=context.dispatched,
             digest_path=digest_path,
-            committed=context.committed,
             researcher_invocations=context.researcher_invocations,
             backup_path=context.backup_path,
             status_path=context.status_path,

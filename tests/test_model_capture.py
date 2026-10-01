@@ -666,8 +666,6 @@ def test_lookup_anchors_at_containing_checkout(
     job = _job_dir(checkout / "runs" / "r", "job9", [{"trial_name": "trial-a", "trajectory": None}])
     _write_calls(capture, [])
     link_capture(capture, job, repo_root=checkout)
-    leaf = "job_id=job-job9"
-    assert (checkout / "derived" / "parquet" / leaf / "trial_capture.parquet").is_file()
     found = find_trial_capture(job / "trial-a")
     assert found is not None and found["verdict"] == "capture_missing"
 

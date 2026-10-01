@@ -6,12 +6,12 @@ digest captures fleet state, trial completions, discovered anomalies, and schedu
 garbage collection plans.
 
 ## What lives here / entry points
-- `digests/2026-09-05.md`: Example daily digest report for operator review.
+- `digests/2026-09-05.md`: Example promoted digest snapshot for operator review.
 - `digests/DISCOVERIES.md`: Curated registry of verified research findings and evidence links.
-- Render command: `uv run evallab digest` (renders today's digest).
+- Render command: `uv run evallab digest` (writes today's digest to the external reports home, `<primary>-state/reports/<YYYY-MM-DD>.md`); promote a reviewed copy here with `--output digests/<YYYY-MM-DD>.md`. Rendering never commits.
 
 ## Invariants or rules
-- Committed one-pager: Daily digests are committed derived reports curated for human review (cited in `agents/STRUCTURE.md` and `AGENTS.md`).
+- Promoted snapshots: `digests/<YYYY-MM-DD>.md` files are reviewed snapshots deliberately promoted with an explicit output path, not live write targets (see `docs/SYSTEM.md`). Daily digests remain one-pagers curated for human review (cited in `agents/STRUCTURE.md` and `AGENTS.md`).
 - Truthful fleet state: Digest generation names only files that exist, and never reports finished missions as active fleet state (cited in `tests/test_unattended.py`).
 - Garbage collection integration: Daily digests append the nightly garbage collection plan (cited in `src/evallab/cli.py` and `tests/test_gc.py`).
 

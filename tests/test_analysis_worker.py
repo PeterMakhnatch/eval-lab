@@ -455,7 +455,6 @@ def _nightly(tmp_path, *, stager, ingester):
         doctor=StaticDoctor(),  # type: ignore[arg-type]
         executor=service,
         renderer=renderer,
-        committer=lambda path: True,
         completed_job_ingester=ingester,
         analysis_stager=stager,
     )

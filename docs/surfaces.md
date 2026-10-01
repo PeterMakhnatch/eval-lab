@@ -6,8 +6,7 @@ audience:
 ---
 # Operating Surfaces: Digest, Storm Alarms, and STATUS.md
 
-This document defines the contracts, rendering order, and lifecycle of the operator surfaces in Eval Lab: the nightly digest (`digests/YYYY-MM-DD.md`), storm alarm banners, and the deterministic status projection (`research/experiments/STATUS.md`).
-
+This document defines the contracts, rendering order, and lifecycle of the operator surfaces in Eval Lab: the nightly digest (external runtime `reports/<YYYY-MM-DD>.md` by default; `digests/YYYY-MM-DD.md` only by explicit promotion), storm alarm banners, and the deterministic status projection (external runtime `reports/STATUS.md` by default; `docs/STATUS.md` only by explicit promotion).
 ## 1. Nightly Digest Section Ordering
 
 The nightly digest (`src/evallab/digest.py`) renders a deterministic snapshot for each UTC catalog day. The section ordering is fixed per platform architecture §9:
@@ -63,16 +62,16 @@ When an event storm is detected, a table is rendered with severity levels, reaso
 | CRITICAL | `subscription_quota_exhausted` | 8 (threshold > 5) | 12:00:00 – 12:45:00 UTC | Provider reports subscription allowance exhausted. Suspend dispatch or switch to approved provider/tier. |
 ```
 
-Active alarms also project a visible blockquote banner into `research/experiments/STATUS.md` and surface `review-needed` status items in `evallab status`.
+Active alarms also project a visible blockquote banner into the live STATUS report and surface `review-needed` status items in `evallab status`.
 
 ## 3. STATUS.md Lifecycle and Regeneration
 
-`research/experiments/STATUS.md` (`src/evallab/status_generator.py`) provides an idempotent, human-readable answer to "what happened yesterday and what is running now" without requiring terminal access.
+`docs/STATUS.md` is the committed snapshot; ordinary runs write the live report to the external runtime reports home (`src/evallab/status_generator.py` provides an idempotent, human-readable answer to "what happened yesterday and what is running now" without requiring terminal access).
 
-### When STATUS.md is Generated:
+### When the live report is generated:
 
-1. **Nightly Cycle**: `NightlyCycle.run` in `src/evallab/automation.py` executes status file generation as an ordered step after ingest, dispatch, researcher passes, and digest rendering.
-2. **Direct CLI / Module Invocations**: Via `update_status_file(repo_root)` or `generate_status_markdown(repo_root)`.
+1. **Nightly Cycle**: `NightlyCycle.run` in `src/evallab/automation.py` executes live status generation as an ordered step after ingest, dispatch, researcher passes, and digest rendering. It writes outside source by default and never commits.
+2. **Direct CLI / Module Invocations**: Via `update_status_file(repo_root)` (external default; pass `destination=repo / "docs/STATUS.md"` to promote) or `generate_status_markdown(repo_root)` (stdout).
 
 ### Idempotency Guarantee:
 

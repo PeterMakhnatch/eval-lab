@@ -139,7 +139,6 @@ def test_canaries_are_staged_two_consecutive_nights_and_never_self_dispatch(
         doctor=StaticDoctor(),  # type: ignore[arg-type]
         executor=service,
         renderer=renderer,
-        committer=lambda path: True,
         canary_enqueuer=enqueuer.enqueue,
     )
     first_date = date(2026, 8, 12)
@@ -189,7 +188,6 @@ def test_mutated_pinned_task_quarantines_nightly_before_dispatch(tmp_path: Path)
             trial_loader=lambda day: [],
             drift_loader=lambda day: [],
         ),
-        committer=lambda path: True,
         canary_enqueuer=enqueuer.enqueue,
     )
 

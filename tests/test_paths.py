@@ -5,6 +5,8 @@ from evallab.storage.paths import (
     derived_root_from_environment,
     discover_parquet_partitions,
     resolve_derived_root,
+    runtime_output_root,
+    runtime_reports_dir,
     shared_checkout_root,
 )
 
@@ -21,15 +23,23 @@ def linked_worktree(tmp_path: Path) -> tuple[Path, Path]:
     return primary, worktree
 
 
-def test_primary_checkout_uses_its_derived_root(tmp_path: Path) -> None:
+def test_primary_checkout_uses_external_shared_runtime_root(tmp_path: Path) -> None:
     (tmp_path / ".git").mkdir()
 
     assert shared_checkout_root(tmp_path) == tmp_path
+    assert runtime_output_root(tmp_path) == tmp_path.parent / f"{tmp_path.name}-state"
+    assert runtime_reports_dir(tmp_path) == runtime_output_root(tmp_path) / "reports"
     resolution = resolve_derived_root(tmp_path, environ={})
 
-    assert resolution.path == tmp_path / "derived/parquet"
-    assert not resolution.is_foreign
-    assert resolution.notice() is None
+    assert resolution.path == runtime_output_root(tmp_path) / "derived/parquet"
+    assert resolution.is_foreign
+    assert resolution.base_root == tmp_path.resolve()
+    assert "shared runtime state" in resolution.describe()
+    assert "belongs to" not in resolution.describe()
+    notice = resolution.notice()
+    assert notice is not None
+    assert "shared runtime state outside source" in notice
+    assert str(resolution.path) in notice
 
 
 def test_linked_worktree_never_resolves_a_foreign_derived_root_silently(
@@ -49,15 +59,17 @@ def test_linked_worktree_never_resolves_a_foreign_derived_root_silently(
     assert str(root) in announced[0]
 
 
-def test_shared_derived_root_names_the_checkout_that_owns_it(tmp_path: Path) -> None:
+def test_linked_worktrees_share_one_external_runtime_root(tmp_path: Path) -> None:
     primary, worktree = linked_worktree(tmp_path)
 
+    assert runtime_output_root(worktree) == runtime_output_root(primary)
     resolution = resolve_derived_root(worktree, environ={})
 
-    assert resolution.path == primary / "derived/parquet"
+    assert resolution.path == runtime_output_root(primary) / "derived/parquet"
     assert resolution.is_foreign
-    assert resolution.base_root == primary
-    assert str(primary) in resolution.describe()
+    assert resolution.base_root == primary.resolve()
+    assert str(primary.resolve()) in resolution.describe()
+    assert "shared runtime state" in resolution.describe()
 
 
 def test_relative_environment_override_is_shared_and_announced(tmp_path: Path) -> None:

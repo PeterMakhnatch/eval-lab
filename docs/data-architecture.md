@@ -31,19 +31,23 @@ select from Zones 01 and 02, but it must retain every selected parent's digest.
 
 ## Storage boundaries
 
+Parquet paths below are logical layout under the resolved live root (default
+`<primary>-state/derived/parquet` via `storage.paths`; `$EVALLAB_DERIVED_ROOT`
+and explicit flags override). Checked-in `derived/parquet/` copies are reviewed
+snapshots, not live write targets. See [SYSTEM.md](SYSTEM.md#source-and-runtime-boundary).
 ```text
 library/benchmarks/_trajectories/    Zone 01 immutable snapshots
 runs/ and research/evidence/runs/    Zone 02 immutable raw jobs
 library/synthetic/                   Zone 03 generated task sources
-derived/parquet/external/            Zone 01 query projection
-derived/parquet/external/task_catalog/  Zone 01 pinned task catalog (task_sources,
+<live-parquet-root>/external/            Zone 01 query projection
+<live-parquet-root>/external/task_catalog/  Zone 01 pinned task catalog (task_sources,
                                       task_versions, task_findings, task_lineage,
                                       task_stability, task_exploits,
                                       task_qualification;
                                       see docs/mimo-task-catalog.md)
 derived/task-store/hf/                Zone 01 pinned dataset snapshots, read-only
                                       (<org>__<repo>@<rev12>/ + provenance.json)
-derived/parquet/job_id=*/            Zone 02 query projection
+<live-parquet-root>/job_id=*/            Zone 02 query projection
 library/task-variants/                Zone 03 lineage records for derived task variants
 derived/task-store/variants/          Zone 03 materialized task variants (rebuildable from lineage records)
 derived/captures/<name>/             Zone 02 independent model-call record (calls.jsonl + manifest + digest)
@@ -51,15 +55,17 @@ derived/synthetic/                   Zone 03 generated projections
 derived/curated/                     Zone 04 exports
 ```
 
-`derived/` is rebuildable and ignored by Git. Raw snapshots and raw jobs are
-never edited to make a parser succeed. A parser fix creates a new projection;
-a transform creates a new item with a new digest and a parent link.
+`derived/` includes ignored runtime products and explicitly tracked reviewed
+snapshots. Ignoring a path never authorizes deletion: captures, judgments and
+other evidence may not be reproducible. Raw snapshots and raw jobs are never
+edited to make a parser succeed. A parser fix creates a new projection; a
+transform creates a new item with a new digest and a parent link.
 
 External and local Parquet roots stay physically separate. Cross-zone analysis
 must name both roots and select a `zone`, preventing a broad glob from silently
 mixing published external runs with locally reproduced evidence.
 
-For daily partition consolidation and compaction lifecycle under `derived/parquet/compact/`, see [`docs/parquet-compaction.md`](parquet-compaction.md).
+For daily partition consolidation and compaction lifecycle under `<live-parquet-root>/compact/`, see [`docs/parquet-compaction.md`](parquet-compaction.md).
 For nearest-neighbour vector search over instructions and trajectory text in `derived/lance/`, see [`docs/lancedb.md`](lancedb.md).
 
 ## Provenance contract
@@ -92,7 +98,7 @@ For task origin taxonomy and classification rules across benchmark corpora, see 
 2. Fetch anonymously; gated or credential-dependent datasets are unsupported.
 3. Hash the material before parsing and record the declared license.
 4. Preserve invalid records and report parser failures by count and reason.
-5. Project only into `derived/parquet/external/`.
+5. Project only into `external/` under the live Parquet root.
 
 An external leaderboard score remains a reported upstream result. It can test
 our parser or motivate a hypothesis, but cannot be presented as reproduced.

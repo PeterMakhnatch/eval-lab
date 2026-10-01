@@ -48,6 +48,7 @@ def _make_renderer(
         preflight_loader=preflight_loader or (lambda: report),
         storm_loader=storm_loader,
         discoveries_loader=discoveries_loader,
+        output_dir=tmp_path / "digests",
     )
 
 

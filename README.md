@@ -106,7 +106,9 @@ queue recovery.
 | `research/analysis/` | Versioned SQL and notebook-ready queries |
 | `runs/` | Generated, local, ignored |
 | `derived/evidence-cas/` | Zone 1 durable content-addressed storage (ignored, immutable) |
-| `derived/parquet/` | Zone 3 rebuildable columnar lake (ignored, rebuildable) |
+| `<primary>-state/derived/parquet/` | Live columnar projections outside source; preserve non-reproducible judgments and their provenance |
+| `<primary>-state/reports/` | Generated status, lessons and daily digests; not source commits |
+| Tracked `derived/parquet/` files | Reviewed reproducibility snapshots, updated deliberately with dependent evidence |
 | `research/evidence/runs/` | Small reviewed controls only; versioned intentionally |
 | PostgreSQL volume | Local derived state; never versioned |
 | `.env` and credentials | Never versioned |
@@ -179,8 +181,9 @@ uv run evallab status --update
 ```
 
 `python -m evallab.repomap check` and `python -m evallab.docindex check` fail
-closed on a stale committed copy. `evallab status --generate` prints the same
-STATUS projection without writing `docs/STATUS.md`.
+closed on a stale committed copy. `evallab status --generate` prints the live
+projection; `--update` writes `<primary>-state/reports/STATUS.md` by default.
+An explicit output path is required to promote a new tracked status snapshot.
 
 ## Experimental interpretation
 
@@ -190,14 +193,18 @@ state does not pass. Neither result measures a real model. A model experiment
 becomes interpretable only after both controls are healthy and after the
 trajectory and verifier evidence have been inspected.
 
-## Feature-Unblocked Status
+## Availability and authorization
 
-Package 1 (Storage & Evidence Layer) and Package 2 (Interpretation & Judgment Engine) are stabilized and locked. Infrastructure migration is complete. Development is fully **FEATURE-UNBLOCKED** for active capability evaluations, difficulty screening, and automated feedback loops.
+Use [the system map](docs/SYSTEM.md), exact source revisions and the current
+Linear card to establish what is available. Implemented infrastructure is not
+blanket authorization for model calls, training, deployment or publication.
 
 ## Repository layout and agent workflow
 
-All work — human and agent — lives inside this one folder. Parallel agent
-worktrees are hidden under `.worktrees/` (gitignored). The multi-agent
-protocol is `agents/WORKFLOW.md`; lane ownership is in `agents/OWNERS.md`,
-with live claims on `research/inbox/board.md`; per-role handoffs are
-`agents/handoffs/`. Fleet state at any moment: `scripts/fleet-status.sh`.
+Source and reviewed evidence live here; linked development worktrees live under
+`.worktrees/`. Runtime reports/projections and published jobs have the separate
+homes described above and in [SYSTEM.md](docs/SYSTEM.md).
+The multi-agent protocol is `agents/WORKFLOW.md`; path ownership is in
+`agents/OWNERS.md`. Linear owns current assignments and blockers;
+`research/inbox/board.md` preserves historical claims. Use Git/PR metadata and
+`scripts/fleet-status.sh` for live checkout state, not a stale document roster.

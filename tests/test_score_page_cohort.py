@@ -184,16 +184,17 @@ def test_symlink_member_cannot_escape_frozen_root(tmp_path: Path) -> None:
 
 def test_named_cohorts_have_distinct_metadata() -> None:
     specs = score_page.PUBLISHED_COHORTS
-    assert set(specs) == {"har128-har116", "har128-g2-a1"}
+    assert set(specs) == {"har128-har116", "har128-g2-a1", "har128-g2-r2"}
     assert score_page.PUBLISHED_COHORT_DEFAULT == "har128-har116"
-    har116, g2 = specs["har128-har116"], specs["har128-g2-a1"]
-    assert har116["cohort"] != g2["cohort"]
-    assert har116["expected_manifest_sha256"] != g2["expected_manifest_sha256"]
-    assert len(har116["expected_manifest_sha256"]) == 64
-    assert len(g2["expected_manifest_sha256"]) == 64
-    assert har116["output"] != g2["output"]
+    har116, g2, r2 = specs["har128-har116"], specs["har128-g2-a1"], specs["har128-g2-r2"]
+    assert len({g["cohort"] for g in (har116, g2, r2)}) == 3
+    assert len({g["expected_manifest_sha256"] for g in (har116, g2, r2)}) == 3
+    for spec in (har116, g2, r2):
+        assert len(spec["expected_manifest_sha256"]) == 64
+    assert len({str(g["output"]) for g in (har116, g2, r2)}) == 3
     assert (har116["expected_files"], har116["expected_trials"]) == (80, 40)
     assert (g2["expected_files"], g2["expected_trials"]) == (40, 20)
+    assert (r2["expected_files"], r2["expected_trials"]) == (38, 19)
 
 
 def test_default_cohort_resolves_to_current_har116_behavior() -> None:

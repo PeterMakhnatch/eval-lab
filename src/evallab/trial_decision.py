@@ -148,6 +148,43 @@ PAGE_CALIBRATION = {
                 "never training reflection."
             ),
         },
+        {
+            "cohort": "HAR-128 G2 re-run: 19 HAR-120 trials",
+            "frozen_at": "2026-10-01T09:54:19Z",
+            "labels": "research/explorations/trace-lab/har128/labels_g2_r2",
+            "labels_manifest_sha256": "ddc1f2ad8bf52dc762067a367f7383b990164174b1732c108fb788167597f2ff",
+            "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+            "predictor_functions_sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae",
+            "in_sample": False,
+            "rater_agreement_loop_kind": {"agree": 16, "n": 19},
+            "excluded_rater_disagreement": 3,
+            "page_vs_agreed_loop_kind": {"agree": 10, "n": 16},
+            "abstentions": 0,
+            "loop_kind_confusion": {
+                "none": {"agree": 1, "n": 2},
+                "repetition": {"agree": 2, "n": 4},
+                "completion-claim": {"agree": 7, "n": 10},
+            },
+            "method": (
+                "research/explorations/trace-lab/har119/score_page.py --published-cohort "
+                "--cohort har128-g2-r2 --labels <labels_g2_r2> --results-home "
+                "<eval-lab-results> --output "
+                "research/experiments/har117-results-home/har131-page-calibration-g2-r2.json"
+            ),
+            "artifact": "research/experiments/har117-results-home/har131-page-calibration-g2-r2.json",
+            "heldout": (
+                "G2 re-run frozen cohort only: analysis and "
+                "calibration only, never training reflection"
+            ),
+            "limits": (
+                "Loop kind only: this cohort carries no first-failure/blame calibration. "
+                "Blind scout-agent raters A (G3A1-4) / B (G3B1-4), not human ground truth; "
+                "no reported off-limits openings. "
+                "Denominators stay per-cohort, never pooled. The artifact exports "
+                "scores and report hashes only, not trial content; inspection only, "
+                "never training reflection."
+            ),
+        },
     ],
     "grader_alignment": "opinion with no page-measured calibration on this cohort",
     "method": "research/explorations/trace-lab/har119/score_page.py",

@@ -35,8 +35,9 @@ Usage (cwd = repo root):
     --published-cohort --cohort har128-g2-a1 --results-home ~/Developer/eval-lab-results
 
 ``--cohort`` selects a named published study (``har128-har116`` by default,
-``har128-g2-a1`` for the G2 attempt-1 study); every cohort shares the same
-strict verification/scoring path with its own denominator.
+``har128-g2-a1`` for the G2 attempt-1 study, ``har128-g2-r2`` for the G2
+re-run); every cohort shares the same strict verification/scoring path
+with its own denominator.
 """
 from __future__ import annotations
 
@@ -354,6 +355,24 @@ G2_LIMIT = (
     "Scores and report hashes only, not trial content; inspection only, "
     "never training reflection."
 )
+G2R2_COHORT = "HAR-128 G2 re-run: 19 HAR-120 trials"
+G2R2_MANIFEST_SHA256 = "ddc1f2ad8bf52dc762067a367f7383b990164174b1732c108fb788167597f2ff"
+G2R2_LABELS_DEFAULT = REPO / "research/explorations/trace-lab/har128/labels_g2_r2"
+G2R2_OUTPUT_DEFAULT = REPO / "research/experiments/har117-results-home/har131-page-calibration-g2-r2.json"
+G2R2_EXPECTED_FILES = 38
+G2R2_EXPECTED_TRIALS = 19
+G2R2_HELDOUT = (
+    "G2 re-run frozen cohort only: analysis and "
+    "calibration only, never training reflection"
+)
+G2R2_LIMIT = (
+    "Actual published trial_decision/v3 predictions, no classifier tuning. Frozen blind "
+    "scout-agent annotations A (G3A1-4) / B (G3B1-4), not human ground truth; "
+    "no reported off-limits openings. Loop kind only: this cohort carries no "
+    "first-failure/blame calibration. Denominators stay per-cohort, never pooled. "
+    "Scores and report hashes only, not trial content; inspection only, "
+    "never training reflection."
+)
 #: Named published cohorts sharing one strict verification/scoring path.
 #: Each entry stands alone with its own denominator: never pooled, and no
 #: entry borrows other-field numbers it did not measure.
@@ -377,6 +396,16 @@ PUBLISHED_COHORTS = {
         "expected_manifest_sha256": G2_MANIFEST_SHA256,
         "heldout": G2_HELDOUT,
         "limit": G2_LIMIT,
+    },
+    "har128-g2-r2": {
+        "cohort": G2R2_COHORT,
+        "labels": G2R2_LABELS_DEFAULT,
+        "output": G2R2_OUTPUT_DEFAULT,
+        "expected_files": G2R2_EXPECTED_FILES,
+        "expected_trials": G2R2_EXPECTED_TRIALS,
+        "expected_manifest_sha256": G2R2_MANIFEST_SHA256,
+        "heldout": G2R2_HELDOUT,
+        "limit": G2R2_LIMIT,
     },
 }
 PUBLISHED_COHORT_DEFAULT = "har128-har116"

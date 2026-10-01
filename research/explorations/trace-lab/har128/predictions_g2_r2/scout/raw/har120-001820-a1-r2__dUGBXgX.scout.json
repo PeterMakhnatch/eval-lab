@@ -1,0 +1,143 @@
+{
+ "trial": "har120-001820-a1-r2__dUGBXgX",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001820-a1-r2/har120-001820-a1-r2__dUGBXgX",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001820-a1-r2",
+ "task": "mimo-v2.6-rl/format-code-task-001820",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "task_complete_confirmed",
+  "exception_type": null,
+  "exception_message": "",
+  "natural_completion": true,
+  "task_complete_refs": [
+   "head#32",
+   "head#33"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 32,
+  "step_ref": "head#32",
+  "tag": "completion",
+  "attribution": "model",
+  "rule_id": "R-COMP-02",
+  "evidence_step_refs": [
+   "head#32",
+   "head#33"
+  ],
+  "note": "harness-confirmed task_complete at head#32, head#33, but the verifier contradicts the claim (9/10 tests pass)",
+  "grader_note": "instruction.md not located; deliverable check skipped",
+  "confirmation_loop": {
+   "rule_id": "R-COMP-04",
+   "detector": "recorded",
+   "first_confirmation_ref": "head#32",
+   "loop_span": [
+    "head#32",
+    "head#33"
+   ],
+   "steps_in_span": 2,
+   "suffix_claim_only": true,
+   "note": "confirmation_with_call loop (secondary): the harness asked 'Are you sure ...' and the model kept replying claim+call, which executed instead of confirming; attribution unclear (confirm vs continue ambiguous)"
+  },
+  "secondary": "confirmation_with_call loop (recorded): first confirmation head#32, span head#32-head#33; attribution unclear (confirm vs continue ambiguous)",
+  "loop_token_cost": {
+   "prompt": 32292,
+   "completion": 314
+  }
+ },
+ "handshake": {
+  "first_prompt_ref": "head#32",
+  "prompts": 1,
+  "confirmed": true,
+  "turns_after_first_prompt": 1,
+  "prompt_tokens_after_first_prompt": 16297,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 12,
+    "span": [
+     "head#2",
+     "head#13"
+    ]
+   },
+   {
+    "kind": "confirmation",
+    "length": 2,
+    "span": [
+     "head#32",
+     "head#33"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 57984,
+   "completion": 2487,
+   "steps": 12,
+   "steps_without_metrics": 0
+  },
+  "confirmation": {
+   "prompt": 32292,
+   "completion": 314,
+   "steps": 2,
+   "steps_without_metrics": 0
+  },
+  "in_loops": {
+   "prompt": 90276,
+   "completion": 2801,
+   "steps": 14,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 315215,
+   "completion": 5016,
+   "steps": 32,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.2864,
+  "result_input_tokens": 315215
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 30,
+  "states": {
+   "pager": 3,
+   "prompt": 27
+  },
+  "stretches": [],
+  "short_stretches": 3
+ },
+ "confirmation_loop": {
+  "rule_id": "R-COMP-04",
+  "detector": "recorded",
+  "first_confirmation_ref": "head#32",
+  "loop_span": [
+   "head#32",
+   "head#33"
+  ],
+  "steps_in_span": 2,
+  "suffix_claim_only": true,
+  "note": "confirmation_with_call loop (secondary): the harness asked 'Are you sure ...' and the model kept replying claim+call, which executed instead of confirming; attribution unclear (confirm vs continue ambiguous)"
+ },
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "15d8b7087135ed81c8c4286ead63e067b90ae7da"
+ },
+ "nop_runs_dir": null
+}

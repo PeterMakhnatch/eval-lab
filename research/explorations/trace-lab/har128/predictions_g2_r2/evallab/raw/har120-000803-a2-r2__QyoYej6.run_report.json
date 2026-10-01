@@ -1,0 +1,1093 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "har120-000803-a2-r2__QyoYej6",
+    "trial_id": "aff56593-e873-48d7-b6b5-4dd8cfd16df0",
+    "task": "mimo-v2.6-rl/format-code-task-000803",
+    "job": "HAR-120-har120-000803-a2-r2",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "c2866112-fd2c-4704-b266-388a0622dbc8",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000803-a2-r2/har120-000803-a2-r2__QyoYej6"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "failed",
+    "reward": 0.0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "verifier_outcome": "fail",
+    "stop_reason": "trial_budget_exhausted",
+    "stop_detail": "agent metadata stop_reason; binding ceiling: input_tokens",
+    "completion": "Completion: never claimed; the run ended on step 108 (cd /testbed && python3 -c \" from mdutils.tools.Table import Table t = Table().create_table(columns=3, rows=14, text=['Te...).",
+    "execution_problems": {
+      "parse_errors": 0,
+      "prose_completions": 0,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": null,
+    "verifier_files": [
+      "verifier/agent.diff",
+      "verifier/apply.log",
+      "verifier/reward.txt",
+      "verifier/test-stdout.txt",
+      "verifier/test_output.log"
+    ],
+    "first_failure": {
+      "step": 8,
+      "kind": "bad_edit",
+      "evidence": "first repo edit (=1, =15, =45) with a tool error at step 10 or later",
+      "confidence": "medium"
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T09:23:31.356202+00:00",
+    "finished_at": "2026-10-01T09:34:39.380262+00:00",
+    "total_seconds": 668.024,
+    "phases": {
+      "environment_setup": {
+        "seconds": 21.814,
+        "starts_at_offset_seconds": 0.039
+      },
+      "agent_setup": {
+        "seconds": 7.532,
+        "starts_at_offset_seconds": 23.044
+      },
+      "agent_execution": {
+        "seconds": 633.691,
+        "starts_at_offset_seconds": 30.604
+      },
+      "verifier": {
+        "seconds": 2.161,
+        "starts_at_offset_seconds": 665.747
+      }
+    },
+    "unaccounted_seconds": 2.826,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": 4.107,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 108,
+    "agent_span_seconds": 597.311,
+    "step_gap_seconds": {
+      "count": 106,
+      "median": 4.395,
+      "p90": 5.196,
+      "max": 36.181,
+      "total": 593.548
+    },
+    "slowest_steps": [
+      {
+        "step": 17,
+        "seconds": 36.181,
+        "action": "bash_command: cd /testbed && python3 -m pytest tests -q 2>&1 | tail -20 ; cd /testbed && python3 -c \" from mdutils..."
+      },
+      {
+        "step": 24,
+        "seconds": 33.76,
+        "action": "bash_command: cd /testbed && python3 -m unittest discover tests 2>&1 | tail -5 && python3 -m doctest mdutils/tools..."
+      },
+      {
+        "step": 25,
+        "seconds": 33.287,
+        "action": "bash_command: cd /testbed && python3 -m unittest discover tests 2>&1 | grep -A 20 \"FAIL:\""
+      },
+      {
+        "step": 20,
+        "seconds": 32.28,
+        "action": "bash_command: cd /testbed && python3 -m unittest discover tests 2>&1 | tail -15"
+      },
+      {
+        "step": 15,
+        "seconds": 11.168,
+        "action": "bash_command: python3 - <<'EOF' p='/testbed/mdutils/tools/Table.py' s=open(p).read() s=s.replace(\"def create_table..."
+      }
+    ]
+  },
+  "tokens": {
+    "input": 2463424,
+    "cached_input": 0,
+    "uncached_input": 2463424,
+    "output": 11961,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 2475385,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 2463424,
+        "cached_input": 0,
+        "output": 11961,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 2463424,
+        "cached_input": 0,
+        "output": 11961,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": 2463424,
+        "cached_input": null,
+        "output": 11961,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 107,
+    "llm_steps_with_usage": 107,
+    "context": {
+      "first_prompt_tokens": 787,
+      "peak_prompt_tokens": 38673,
+      "peak_step": 108,
+      "last_prompt_tokens": 38673
+    },
+    "top_steps": [
+      {
+        "step": 108,
+        "input": 38673,
+        "output": 102,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && python3 -c \" from mdutils.tools.Table import Table t = Table().create_table(columns=3..."
+      },
+      {
+        "step": 107,
+        "input": 38394,
+        "output": 102,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && python3 -c \" from mdutils.tools.Table import Table t = Table().create_table(columns=3..."
+      },
+      {
+        "step": 106,
+        "input": 38117,
+        "output": 102,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && python3 -c \" from mdutils.tools.Table import Table t = Table().create_table(columns=3..."
+      },
+      {
+        "step": 105,
+        "input": 37836,
+        "output": 103,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && python3 -c \" from mdutils.tools.Table import Table t = Table().create_table(columns=3..."
+      },
+      {
+        "step": 104,
+        "input": 37559,
+        "output": 104,
+        "cost_usd": null,
+        "action": "bash_command: cd /testbed && python3 -c \" from mdutils.tools.Table import Table t = Table().create_table(columns=3..."
+      }
+    ]
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 117,
+    "actions": 107,
+    "distinct_tools": 1,
+    "polls": 0,
+    "by_tool": [
+      {
+        "tool": "bash_command",
+        "calls": 117,
+        "ok": 0,
+        "errors": 5,
+        "unknown": 112,
+        "output_chars": 68671,
+        "first_step": 2,
+        "last_step": 108,
+        "judged": 5,
+        "error_rate": 1.0
+      }
+    ],
+    "top_programs": [
+      {
+        "program": "python3",
+        "calls": 95
+      },
+      {
+        "program": "sed",
+        "calls": 5
+      },
+      {
+        "program": "cat",
+        "calls": 3
+      },
+      {
+        "program": "grep",
+        "calls": 2
+      },
+      {
+        "program": "ls",
+        "calls": 1
+      },
+      {
+        "program": "awk",
+        "calls": 1
+      }
+    ],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 107,
+    "distinct_actions": 107,
+    "repeated_actions": 0,
+    "repeat_rate": 0.0,
+    "returns_to_earlier_action": 0,
+    "consecutive_repeats": 0,
+    "exact_revisits": 0,
+    "same_result_from_different_action": 0,
+    "repeated_errors": 1,
+    "longest_identical_run": {
+      "length": 1,
+      "steps": [
+        2
+      ],
+      "start_step": 2,
+      "end_step": 2
+    },
+    "longest_cycle": null,
+    "most_repeated": [],
+    "loop_suspicion": {
+      "detected": false,
+      "score": 0.0,
+      "reasons": []
+    },
+    "repeats_by_window": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "revisits_started": {
+      "repeat_rate_by_window": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "median_repeat_rate": 0.0,
+      "status": "no_repeats",
+      "reason": "no repeated actions in the run",
+      "window": null,
+      "steps": null,
+      "repeat_rate": null
+    }
+  },
+  "subagents": {
+    "observability": "none_observed",
+    "reason": null,
+    "count": 0,
+    "delegated_count": 0,
+    "summarization_count": 0,
+    "delegation_calls": [],
+    "items": [],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": []
+  },
+  "errors": {
+    "tool_errors": 5,
+    "harness_signalled": 0,
+    "inferred_from_output": 5,
+    "status_unknown_calls": 112,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {
+      "inferred_from_output": 5
+    },
+    "first_error": {
+      "step": 10,
+      "offset_seconds": 42.05,
+      "evidence": "output_text"
+    },
+    "ended_in_error": true,
+    "examples": [
+      {
+        "step": 10,
+        "tool": "bash_command",
+        "target": "python3 - <<'EOF' import re p='/testbed/mdutils/tools/Table.py' s=open(p).read() old=''' column_align_string = '' if tex...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "rt old in s > s=s.replace(old,new) > open(p,'w').write(s) > print(\"done\") > EOF Traceback (most recent call last): File \"<stdin>\", line 38, in <module> AssertionError root@ea85f234-7ebc-4e3b-8355-bed58dd084c0:/testbed#"
+      },
+      {
+        "step": 17,
+        "tool": "bash_command",
+        "target": "cd /testbed && python3 -m pytest tests -q 2>&1 | tail -20 ; cd /testbed && python3 -c \" from mdutils import MdUtils md =...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "t(repr(md.new_table(columns=3, rows=3, text=text_list, text_align='left'))) > \" Traceback (most recent call last): File \"<string>\", line 5, in <module> File \"/testbed/mdutils/mdutils.py\", line 208, in new_table text_table = new_table.create..."
+      },
+      {
+        "step": 20,
+        "tool": "bash_command",
+        "target": "cd /testbed && python3 -m unittest discover tests 2>&1 | tail -15",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "stTable) ---------------------------------------------------------------------- Traceback (most recent call last): File \"/testbed/[hidden-path]/test_tools/test_table.py\", line 69, in test_create_table self.assertEqual(table.create_table(col..."
+      },
+      {
+        "step": 25,
+        "tool": "bash_command",
+        "target": "cd /testbed && python3 -m unittest discover tests 2>&1 | grep -A 20 \"FAIL:\"",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "stTable) ---------------------------------------------------------------------- Traceback (most recent call last): File \"/testbed/[hidden-path]/test_tools/test_table.py\", line 69, in test_create_table self.assertEqual(table.create_table(col..."
+      },
+      {
+        "step": 26,
+        "tool": "bash_command",
+        "target": "cd /testbed && python3 -c \" from mdutils.tools.Table import Table t = Table().create_table(columns=3, rows=14, text=['Te...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "aci\u00f3n correcta','<font color=\\\"green\\\">OK</font>']*4) > print(repr(t[:80])) > \" Traceback (most recent call last): File \"<string>\", line 3, in <module> File \"/testbed/mdutils/tools/Table.py\", line 106, in create_table raise ValueError(\"colu..."
+      }
+    ],
+    "exception": {
+      "type": "TrialBudgetExhaustedError",
+      "message": "the trial proxy refused a model call: trial budget exhausted",
+      "occurred_at": "2026-10-01T09:34:35.652844Z"
+    }
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 0,
+    "items": []
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 108,
+    "shown_steps": 24,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 0.345,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      },
+      {
+        "step": 2,
+        "offset_seconds": 4.107,
+        "source": "agent",
+        "action": "bash_command: ls /testbed && cat /testbed/README* 2>/dev/null | head -30 ; grep -rn \":---:\" /testbed --include=\"*....",
+        "status": "unknown",
+        "input_tokens": 787,
+        "output_tokens": 108,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 3,
+        "offset_seconds": 7.381,
+        "source": "agent",
+        "action": "bash_command: cat /testbed/mdutils/tools/Table.py ; cat /testbed/[hidden-path]/test_tools/test_table.py; grep -rn...",
+        "status": "unknown",
+        "input_tokens": 1663,
+        "output_tokens": 101,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 4,
+        "offset_seconds": 11.111,
+        "source": "agent",
+        "action": "bash_command: sed -n 20,115p /testbed/mdutils/tools/Table.py ; sed -n 180,210p /testbed/mdutils/mdutils.py; grep -...",
+        "status": "unknown",
+        "input_tokens": 2428,
+        "output_tokens": 112,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 5,
+        "offset_seconds": 16.017,
+        "source": "agent",
+        "action": "bash_command: cat -n /testbed/mdutils/tools/Table.py ; cat -n /testbed/[hidden-path]/test_tools/test_table.py; sed...",
+        "status": "unknown",
+        "input_tokens": 3162,
+        "output_tokens": 121,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 6,
+        "offset_seconds": 19.722,
+        "source": "agent",
+        "action": "bash_command: cat /testbed/mdutils/tools/Table.py ; grep -n \"new_table\" -A 40 /testbed/mdutils/mdutils.py | head -...",
+        "status": "unknown",
+        "input_tokens": 3999,
+        "output_tokens": 108,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 7,
+        "offset_seconds": 24.808,
+        "source": "agent",
+        "action": "bash_command: sed -n '1,120p' /testbed/mdutils/tools/Table.py ; grep -n \"new_table\" -B2 -A45 /testbed/mdutils/mdut...",
+        "status": "unknown",
+        "input_tokens": 4827,
+        "output_tokens": 106,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 8,
+        "offset_seconds": 30.342,
+        "source": "agent",
+        "action": "bash_command: awk 'NR>=15 && NR<=50' /testbed/mdutils/tools/Table.py ; awk 'NR>=45 && NR<=110' /testbed/mdutils/to...",
+        "status": "unknown",
+        "input_tokens": 5703,
+        "output_tokens": 154,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 9,
+        "offset_seconds": 33.699,
+        "source": "agent",
+        "action": "bash_command: python3 -c \"print(open('/testbed/mdutils/tools/Table.py').read())\"",
+        "status": "unknown",
+        "input_tokens": 6553,
+        "output_tokens": 57,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 10,
+        "offset_seconds": 42.05,
+        "source": "agent",
+        "action": "bash_command: python3 - <<'EOF' import re p='/testbed/mdutils/tools/Table.py' s=open(p).read() old=''' column_alig...",
+        "status": "error",
+        "input_tokens": 7193,
+        "output_tokens": 376,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          11,
+          16
+        ]
+      },
+      {
+        "step": 17,
+        "offset_seconds": 110.696,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 -m pytest tests -q 2>&1 | tail -20 ; cd /testbed && python3 -c \" from mdutils...",
+        "status": "error",
+        "input_tokens": 11446,
+        "output_tokens": 235,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          18,
+          19
+        ]
+      },
+      {
+        "step": 20,
+        "offset_seconds": 153.098,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 -m unittest discover tests 2>&1 | tail -15",
+        "status": "error",
+        "input_tokens": 13153,
+        "output_tokens": 51,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          21,
+          24
+        ]
+      },
+      {
+        "step": 25,
+        "offset_seconds": 231.761,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 -m unittest discover tests 2>&1 | grep -A 20 \"FAIL:\"",
+        "status": "error",
+        "input_tokens": 14858,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 26,
+        "offset_seconds": 235.829,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 -c \" from mdutils.tools.Table import Table t = Table().create_table(columns=3...",
+        "status": "error",
+        "input_tokens": 15211,
+        "output_tokens": 98,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          27,
+          98
+        ]
+      },
+      {
+        "step": 99,
+        "offset_seconds": 558.392,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 -c \" from mdutils.tools.Table import Table t = Table().create_table(columns=3...",
+        "status": "unknown",
+        "input_tokens": 36159,
+        "output_tokens": 104,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 100,
+        "offset_seconds": 563.756,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 -c \" from mdutils.tools.Table import Table t = Table().create_table(columns=3...",
+        "status": "unknown",
+        "input_tokens": 36435,
+        "output_tokens": 104,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 101,
+        "offset_seconds": 568.348,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 -c \" from mdutils.tools.Table import Table t = Table().create_table(columns=3...",
+        "status": "unknown",
+        "input_tokens": 36718,
+        "output_tokens": 104,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 102,
+        "offset_seconds": 572.788,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 -c \" from mdutils.tools.Table import Table t = Table().create_table(columns=3...",
+        "status": "unknown",
+        "input_tokens": 37001,
+        "output_tokens": 104,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 103,
+        "offset_seconds": 576.902,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 -c \" from mdutils.tools.Table import Table t = Table().create_table(columns=3...",
+        "status": "unknown",
+        "input_tokens": 37280,
+        "output_tokens": 104,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 104,
+        "offset_seconds": 580.741,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 -c \" from mdutils.tools.Table import Table t = Table().create_table(columns=3...",
+        "status": "unknown",
+        "input_tokens": 37559,
+        "output_tokens": 104,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 105,
+        "offset_seconds": 584.804,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 -c \" from mdutils.tools.Table import Table t = Table().create_table(columns=3...",
+        "status": "unknown",
+        "input_tokens": 37836,
+        "output_tokens": 103,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 106,
+        "offset_seconds": 589.282,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 -c \" from mdutils.tools.Table import Table t = Table().create_table(columns=3...",
+        "status": "unknown",
+        "input_tokens": 38117,
+        "output_tokens": 102,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 107,
+        "offset_seconds": 593.305,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 -c \" from mdutils.tools.Table import Table t = Table().create_table(columns=3...",
+        "status": "unknown",
+        "input_tokens": 38394,
+        "output_tokens": 102,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 108,
+        "offset_seconds": 597.655,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && python3 -c \" from mdutils.tools.Table import Table t = Table().create_table(columns=3...",
+        "status": "unknown",
+        "input_tokens": 38673,
+        "output_tokens": 102,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      }
+    ],
+    "windows": [
+      {
+        "steps": [
+          1,
+          11
+        ],
+        "tool_calls": 10,
+        "errors": 1,
+        "revisits": 0,
+        "output_tokens": 1325,
+        "cost_usd": null,
+        "seconds": 45.597,
+        "peak_prompt_tokens": 8085,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          12,
+          22
+        ],
+        "tool_calls": 11,
+        "errors": 2,
+        "revisits": 0,
+        "output_tokens": 1709,
+        "cost_usd": null,
+        "seconds": 110.521,
+        "peak_prompt_tokens": 14063,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          23,
+          33
+        ],
+        "tool_calls": 11,
+        "errors": 2,
+        "revisits": 0,
+        "output_tokens": 1129,
+        "cost_usd": null,
+        "seconds": 101.644,
+        "peak_prompt_tokens": 17373,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          34,
+          44
+        ],
+        "tool_calls": 11,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1149,
+        "cost_usd": null,
+        "seconds": 45.638,
+        "peak_prompt_tokens": 20683,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          45,
+          54
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1040,
+        "cost_usd": null,
+        "seconds": 38.491,
+        "peak_prompt_tokens": 23569,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          55,
+          65
+        ],
+        "tool_calls": 11,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1144,
+        "cost_usd": null,
+        "seconds": 44.24,
+        "peak_prompt_tokens": 26643,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          66,
+          76
+        ],
+        "tool_calls": 11,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1144,
+        "cost_usd": null,
+        "seconds": 44.097,
+        "peak_prompt_tokens": 29720,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          77,
+          87
+        ],
+        "tool_calls": 11,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1144,
+        "cost_usd": null,
+        "seconds": 45.24,
+        "peak_prompt_tokens": 32802,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          88,
+          98
+        ],
+        "tool_calls": 11,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1144,
+        "cost_usd": null,
+        "seconds": 43.134,
+        "peak_prompt_tokens": 35880,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          99,
+          108
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 1033,
+        "cost_usd": null,
+        "seconds": 39.263,
+        "peak_prompt_tokens": 38673,
+        "compactions": 0
+      }
+    ],
+    "time_windows": {
+      "status": "available",
+      "reason": null,
+      "origin": "2026-10-01T09:24:02.304672+00:00",
+      "span_seconds": 597.311,
+      "steps_without_timestamps": 0,
+      "windows": [
+        {
+          "steps": [
+            1,
+            14
+          ],
+          "tool_calls": 13,
+          "errors": 1,
+          "revisits": 0,
+          "output_tokens": 1555,
+          "cost_usd": null,
+          "peak_prompt_tokens": 9011,
+          "compactions": 0,
+          "starts_at_offset_seconds": 0.0,
+          "ends_at_offset_seconds": 59.731
+        },
+        {
+          "steps": [
+            15,
+            18
+          ],
+          "tool_calls": 4,
+          "errors": 1,
+          "revisits": 0,
+          "output_tokens": 1146,
+          "cost_usd": null,
+          "peak_prompt_tokens": 12173,
+          "compactions": 0,
+          "starts_at_offset_seconds": 59.731,
+          "ends_at_offset_seconds": 119.462
+        },
+        {
+          "steps": [
+            19,
+            23
+          ],
+          "tool_calls": 5,
+          "errors": 1,
+          "revisits": 0,
+          "output_tokens": 482,
+          "cost_usd": null,
+          "peak_prompt_tokens": 14249,
+          "compactions": 0,
+          "starts_at_offset_seconds": 119.462,
+          "ends_at_offset_seconds": 179.193
+        },
+        {
+          "steps": [
+            24,
+            26
+          ],
+          "tool_calls": 3,
+          "errors": 2,
+          "revisits": 0,
+          "output_tokens": 226,
+          "cost_usd": null,
+          "peak_prompt_tokens": 15211,
+          "compactions": 0,
+          "starts_at_offset_seconds": 179.193,
+          "ends_at_offset_seconds": 238.924
+        },
+        {
+          "steps": [
+            27,
+            40
+          ],
+          "tool_calls": 14,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1482,
+          "cost_usd": null,
+          "peak_prompt_tokens": 19495,
+          "compactions": 0,
+          "starts_at_offset_seconds": 238.924,
+          "ends_at_offset_seconds": 298.655
+        },
+        {
+          "steps": [
+            41,
+            53
+          ],
+          "tool_calls": 13,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1357,
+          "cost_usd": null,
+          "peak_prompt_tokens": 23279,
+          "compactions": 0,
+          "starts_at_offset_seconds": 298.655,
+          "ends_at_offset_seconds": 358.386
+        },
+        {
+          "steps": [
+            54,
+            67
+          ],
+          "tool_calls": 14,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1456,
+          "cost_usd": null,
+          "peak_prompt_tokens": 27198,
+          "compactions": 0,
+          "starts_at_offset_seconds": 358.386,
+          "ends_at_offset_seconds": 418.117
+        },
+        {
+          "steps": [
+            68,
+            80
+          ],
+          "tool_calls": 13,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1352,
+          "cost_usd": null,
+          "peak_prompt_tokens": 30842,
+          "compactions": 0,
+          "starts_at_offset_seconds": 418.117,
+          "ends_at_offset_seconds": 477.848
+        },
+        {
+          "steps": [
+            81,
+            94
+          ],
+          "tool_calls": 14,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1456,
+          "cost_usd": null,
+          "peak_prompt_tokens": 34763,
+          "compactions": 0,
+          "starts_at_offset_seconds": 477.848,
+          "ends_at_offset_seconds": 537.579
+        },
+        {
+          "steps": [
+            95,
+            108
+          ],
+          "tool_calls": 14,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 1449,
+          "cost_usd": null,
+          "peak_prompt_tokens": 38673,
+          "compactions": 0,
+          "starts_at_offset_seconds": 537.579,
+          "ends_at_offset_seconds": 597.311
+        }
+      ]
+    }
+  },
+  "data_quality": [
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B' has no pinned price-table entry",
+    "harness reports no per-call status (no exit codes or error flags): tool errors are only inferred from output text"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "07410c615fa58b4f0e011fb4126dfd6abecd3fde3bfe9840f7a31c24d3298469"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "2a7c63a14c28af46889eb77398ef8239741db5c024ae6ef2f3eba497880cee7e"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 107,
+    "recorded": 107,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 0,
+    "prose_completions": 0,
+    "executed_calls": 117,
+    "task_complete_turns": 0,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 0,
+    "continuations_missing": [],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 108,
+        "copied_steps": 0,
+        "session_id": "c2866112-fd2c-4704-b266-388a0622dbc8"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 108,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": []
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B) failed (reward 0) on mimo-v2.6-rl/format-code-task-000803; in 11m08s wall (10m34s agent); 108 steps, 117 tool calls, 5 errors, 2.48M tokens, cost unavailable; 0 repeated actions (0 exact revisits); no subagents observed."
+}

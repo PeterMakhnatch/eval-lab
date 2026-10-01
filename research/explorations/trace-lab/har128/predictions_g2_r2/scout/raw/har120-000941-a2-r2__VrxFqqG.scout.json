@@ -1,0 +1,120 @@
+{
+ "trial": "har120-000941-a2-r2__VrxFqqG",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000941-a2-r2/har120-000941-a2-r2__VrxFqqG",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000941-a2-r2",
+ "task": "mimo-v2.6-rl/format-code-task-000941",
+ "verifier": {
+  "scored": true,
+  "reward": 1.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "unknown",
+  "exception_type": "LoopBreakStop",
+  "exception_message": "loop break: the repetition was still going 73 calls in, 15 after the nudge at call 58",
+  "natural_completion": false,
+  "task_complete_refs": [
+   "head#33"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "none",
+  "attribution": "n/a",
+  "rule_id": "R-NONE-01",
+  "evidence_step_refs": [
+   "head#61",
+   "head#74"
+  ],
+  "note": "scored pass with no outcome-relevant failure",
+  "secondary": "error_recovery/model secondary: identical run head#61-head#74",
+  "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): pager after head#50 (`cd /testbed && git diff -- pooch/utils.py`), 24 turns head#51-head#74 with no interrupt, until run end"
+ },
+ "handshake": {
+  "first_prompt_ref": "head#33",
+  "prompts": 1,
+  "confirmed": false,
+  "turns_after_first_prompt": 41,
+  "prompt_tokens_after_first_prompt": 1067099,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 14,
+    "span": [
+     "head#61",
+     "head#74"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 424067,
+   "completion": 3178,
+   "steps": 14,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 424067,
+   "completion": 3178,
+   "steps": 14,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 1370554,
+   "completion": 13619,
+   "steps": 73,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.3094,
+  "result_input_tokens": 1370554
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 72,
+  "states": {
+   "continuation": 23,
+   "no_prompt": 5,
+   "pager": 4,
+   "prompt": 40
+  },
+  "stretches": [
+   {
+    "trigger_ref": "head#50",
+    "trigger_command": "cd /testbed && git diff -- pooch/utils.py",
+    "cause": "pager",
+    "screen": "--More--",
+    "start_ref": "head#51",
+    "end_ref": "head#74",
+    "turns": 24,
+    "interrupt_ref": null,
+    "interrupt_keys": null,
+    "prompt_returned": false,
+    "until_run_end": true,
+    "prompt_tokens": 695030,
+    "steps_without_metrics": 0
+   }
+  ],
+  "short_stretches": 2
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "15d8b7087135ed81c8c4286ead63e067b90ae7da"
+ },
+ "nop_runs_dir": null
+}

@@ -1,0 +1,38 @@
+{
+  "blame": "none",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Analysis: The implementation is complete and all tests pass. Let me summarize what I did.",
+      "ref": "head#41"
+    },
+    {
+      "quote": "cd /workspace/repo && python3 /tmp/test_send.py 2>&1 | tail -3",
+      "ref": "head#66"
+    },
+    {
+      "quote": "python3 /tmp/test_send.py",
+      "ref": "head#39"
+    }
+  ],
+  "first_failure": null,
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#41",
+    "head#66"
+  ],
+  "notes": "reward 1.0; verifier 12/12 pass. Implementation authored in-run via heredocs with own /tmp/test_send.py harness; no pip/curl/wget/clone; no git repo (no history to copy). Harness nudged 'you are repeating; change approach or finish' before LoopBreakStop.",
+  "off_limits_opened": false,
+  "pass_copied": false,
+  "pass_copied_confidence": "high",
+  "sft_cut": {
+    "clean": true,
+    "cut_step_id": 41,
+    "reason": "genuine earned pass; steps 1-41 show varied implementation work with no 5+ identical-action run; drop post-claim re-verification loop"
+  },
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har120-002555-a1-r2__Uki9j6d"
+}

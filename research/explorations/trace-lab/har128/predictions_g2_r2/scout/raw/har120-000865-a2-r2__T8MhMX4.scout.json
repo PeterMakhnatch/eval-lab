@@ -1,0 +1,153 @@
+{
+ "trial": "har120-000865-a2-r2__T8MhMX4",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000865-a2-r2/har120-000865-a2-r2__T8MhMX4",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000865-a2-r2",
+ "task": "mimo-v2.6-rl/format-code-task-000865",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "unknown",
+  "exception_type": "LoopBreakStop",
+  "exception_message": "loop break: the repetition was still going 66 calls in, 15 after the nudge at call 51",
+  "natural_completion": false,
+  "task_complete_refs": [
+   "head#36",
+   "head#42",
+   "head#44"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 44,
+  "step_ref": "head#44",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#44",
+   "head#67"
+  ],
+  "note": "identical message repeated steps 44-67 with no change after errors",
+  "secondary": "confirmation_with_call loop (recorded): first confirmation head#42, span head#42-head#67; attribution unclear (confirm vs continue ambiguous)",
+  "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): pager after head#38 (`cd /testbed && git diff --stat`), 27 turns head#39-head#67 with no interrupt, until run end"
+ },
+ "handshake": {
+  "first_prompt_ref": "head#36",
+  "prompts": 3,
+  "confirmed": false,
+  "turns_after_first_prompt": 31,
+  "prompt_tokens_after_first_prompt": 641598,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 13,
+    "span": [
+     "head#2",
+     "head#14"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 24,
+    "span": [
+     "head#44",
+     "head#67"
+    ]
+   },
+   {
+    "kind": "confirmation",
+    "length": 26,
+    "span": [
+     "head#42",
+     "head#67"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 551241,
+   "completion": 3400,
+   "steps": 37,
+   "steps_without_metrics": 0
+  },
+  "confirmation": {
+   "prompt": 545908,
+   "completion": 2323,
+   "steps": 26,
+   "steps_without_metrics": 0
+  },
+  "in_loops": {
+   "prompt": 590591,
+   "completion": 3569,
+   "steps": 39,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 970269,
+   "completion": 7003,
+   "steps": 66,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.6087,
+  "result_input_tokens": 970269
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 63,
+  "states": {
+   "no_prompt": 1,
+   "pager": 28,
+   "prompt": 34
+  },
+  "stretches": [
+   {
+    "trigger_ref": "head#38",
+    "trigger_command": "cd /testbed && git diff --stat",
+    "cause": "pager",
+    "screen": "(END)",
+    "start_ref": "head#39",
+    "end_ref": "head#67",
+    "turns": 27,
+    "interrupt_ref": null,
+    "interrupt_keys": null,
+    "prompt_returned": false,
+    "until_run_end": true,
+    "prompt_tokens": 603800,
+    "steps_without_metrics": 0
+   }
+  ],
+  "short_stretches": 1
+ },
+ "confirmation_loop": {
+  "rule_id": "R-COMP-04",
+  "detector": "recorded",
+  "first_confirmation_ref": "head#42",
+  "loop_span": [
+   "head#42",
+   "head#67"
+  ],
+  "steps_in_span": 26,
+  "suffix_claim_only": true,
+  "note": "confirmation_with_call loop (secondary): the harness asked 'Are you sure ...' and the model kept replying claim+call, which executed instead of confirming; attribution unclear (confirm vs continue ambiguous)"
+ },
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "15d8b7087135ed81c8c4286ead63e067b90ae7da"
+ },
+ "nop_runs_dir": null
+}

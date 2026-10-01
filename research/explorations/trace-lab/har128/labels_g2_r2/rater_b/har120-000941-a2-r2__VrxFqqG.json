@@ -1,0 +1,50 @@
+{
+  "blame": "none",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "matches = new_hash == known_hash.split(\":\")[-1].lower()",
+      "ref": "head#8"
+    },
+    {
+      "quote": "\"task_complete\": true",
+      "ref": "head#31"
+    },
+    {
+      "quote": "cd /testbed && git diff",
+      "ref": "head#33"
+    },
+    {
+      "quote": "echo \"task complete\"",
+      "ref": "head#34"
+    },
+    {
+      "quote": "you are repeating; change approach or finish",
+      "ref": "head#57"
+    },
+    {
+      "quote": "echo \"task_complete\"",
+      "ref": "head#73"
+    }
+  ],
+  "first_failure": null,
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#31",
+    "head#73"
+  ],
+  "notes": "Earned pass resolving hash case insensitivity. No code copied. Following completion declaration and diff verification at step 33, model repeated echo completion commands until stopped by loop_break.",
+  "off_limits_opened": false,
+  "pass_copied": false,
+  "pass_copied_confidence": "high",
+  "sft_cut": {
+    "clean": true,
+    "cut_step_id": 33,
+    "reason": "Clean earned pass; cut at step 33 following git diff verification before repeated echo completion loop."
+  },
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har120-000941-a2-r2__VrxFqqG"
+}

@@ -36,7 +36,7 @@ evallab spend check --since <window start, e.g. 2026-10-01T04:00:00Z> --cap-usd 
 uv run --project tools/modal-mimo-sft --locked python tools/modal-mimo-sft/sft.py dry-run --data <export> --epochs 1
 ```
 
-The output shows tokens per row, trained tokens, truncation and a cost estimate. The default `max_length` is 65,536, the served context, so expect no truncation. Post the totals line and the manifest sha256 before training.
+The output shows tokens per row, trained tokens, the longest row and a cost estimate. A row longer than `max_length` (default 65,536, the served context) is refused by label, never truncated. Post the totals line and the manifest sha256 before training.
 
 ## 2. Train (Modal, one A100-80GB)
 
@@ -45,7 +45,7 @@ uv run --project tools/modal-mimo-sft --locked python tools/modal-mimo-sft/sft.p
   --data <export> --run-name <run> --rank 16 --alpha 32 --lr 5e-5 --epochs 1 --confirm-spend
 ```
 
-These are the HAR-129 G4 settings. The script defaults differ only in `--lr`, which defaults to 1e-4.
+These are the HAR-129 G4 settings, and also the script defaults.
 
 The command prints the estimate, then refuses unless `--confirm-spend` is passed. It then:
 1. uploads the export to the `evallab-mimo-v26-9b-sft` volume;

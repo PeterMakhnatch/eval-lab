@@ -37,7 +37,7 @@ from evallab.schemas import (
 from evallab.storage.attach import attach
 from evallab.storage.paths import (
     derived_root_from_environment,
-    shared_checkout_root,
+    resolve_runs_roots,
 )
 
 ANALYSIS_DIR_NAME = "research/analysis"
@@ -746,34 +746,6 @@ def run_trajectory_judge(
     return tuple(runs), disagreement
 
 
-def _resolve_runs_roots(repo_root: Path, runs_root: Path | None = None) -> list[Path]:
-    """Resolve ordered candidate roots for locating raw trial runs."""
-    if runs_root is not None:
-        return [runs_root.resolve()]
-    env = os.environ.get("EVALLAB_RUNS_ROOT")
-    if env:
-        return [Path(env).resolve()]
-    primary = shared_checkout_root(repo_root)
-    candidates = [
-        repo_root / "runs",
-        repo_root / "research/evidence/runs",
-        repo_root / "evidence/runs",
-        primary / "runs",
-        primary / "research/evidence/runs",
-        primary / "evidence/runs",
-    ]
-    seen: set[Path] = set()
-    roots: list[Path] = []
-    for c in candidates:
-        rc = c.resolve()
-        if rc not in seen and rc.exists():
-            seen.add(rc)
-            roots.append(c)
-    if not roots:
-        roots = [repo_root / "runs", primary / "runs"]
-    return roots
-
-
 def _load_trajectory_steps(path: Path) -> list[dict[str, Any]]:
     """Load raw trajectory steps from a trajectory.json file if present."""
     if not path.is_file():
@@ -941,7 +913,7 @@ def resolve_trial(
     finally:
         att.connection.close()
 
-    candidate_roots = _resolve_runs_roots(repo_root, runs_root)
+    candidate_roots = resolve_runs_roots(repo_root, runs_root)
     found_trial_dir: Path | None = None
     found_traj: Path | None = None
     found_result: Path | None = None

@@ -435,7 +435,7 @@ def _session_spend_fixture(
         "interval_start": "2026-10-01T00:00:00Z",
         "resource": resource,
         "cost_usd": cost,
-        "resolution": "day",
+        "resolution": "d",
         "reported_at": "2026-10-01T02:23:10Z",
     } for resource, cost in (("GPU", 1.1), ("CPU", 0.1))]
     payload = {
@@ -573,7 +573,7 @@ def test_session_spend_rejects_duplicate_billing_identity(
 ) -> None:
     jobs, receipt, payload = _session_spend_fixture(tmp_path)
     rows = payload["sessions"][0]["billing_rows"]
-    rows.append(dict(rows[0], interval_start=interval, resolution="hour", cost_usd=2.0))
+    rows.append(dict(rows[0], interval_start=interval, resolution="h", cost_usd=2.0))
     receipt.write_text(json.dumps(payload))
     with pytest.raises(ValueError):
         session_spend_for_job(jobs[0], receipt)
@@ -597,6 +597,9 @@ def test_session_spend_disjoint_pools_and_full_receipt_rejection(tmp_path: Path)
     jobs_a, receipt, payload_a = _session_spend_fixture(tmp_path, name="a")
     jobs_b, _, payload_b = _session_spend_fixture(tmp_path, name="b")
     session_b = payload_b["sessions"][0]
+    session_b["teardown"]["app"] = payload_a["sessions"][0]["teardown"]["app"]
+    for row in session_b["billing_rows"]:
+        row["description"] = session_b["teardown"]["app"]
     session_b["billing_rows"][0]["cost_usd"] = 2.3
     payload_a["sessions"].append(session_b)
     receipt.write_text(json.dumps(payload_a))
@@ -735,3 +738,52 @@ def test_session_spend_rejects_ambiguous_json_fields(tmp_path: Path) -> None:
     )
     with pytest.raises(ValueError):
         session_spend_for_job(jobs[0], receipt)
+
+
+@pytest.mark.parametrize("hour_start", [
+    "2026-10-01T01:00:00Z",
+    "2026-10-02T00:00:00+02:00",
+])
+@pytest.mark.parametrize("hour_first", [False, True])
+def test_session_spend_rejects_daily_hourly_billing_overlap(
+    tmp_path: Path, hour_start: str, hour_first: bool
+) -> None:
+    jobs, receipt, payload = _session_spend_fixture(tmp_path)
+    rows = payload["sessions"][0]["billing_rows"]
+    hourly = dict(rows[0], resolution="h", interval_start=hour_start, cost_usd=0.2)
+    rows.insert(0 if hour_first else len(rows), hourly)
+    receipt.write_text(json.dumps(payload))
+    with pytest.raises(ValueError):
+        session_spend_for_job(jobs[0], receipt)
+
+
+@pytest.mark.parametrize("first_resolution,first_start,second_resolution,second_start", [
+    ("h", "2026-10-01T01:00:00Z", "h", "2026-10-01T02:00:00Z"),
+    ("d", "2026-10-01T00:00:00Z", "h", "2026-10-02T00:00:00Z"),
+])
+def test_session_spend_accepts_adjacent_nonoverlapping_billing_intervals(
+    tmp_path: Path,
+    first_resolution: str,
+    first_start: str,
+    second_resolution: str,
+    second_start: str,
+) -> None:
+    jobs, receipt, payload = _session_spend_fixture(tmp_path)
+    rows = payload["sessions"][0]["billing_rows"]
+    rows[0].update(resolution=first_resolution, interval_start=first_start)
+    rows[1].update(
+        resource=rows[0]["resource"], resolution=second_resolution, interval_start=second_start
+    )
+    receipt.write_text(json.dumps(payload))
+    allocations = [session_spend_for_job(job, receipt) for job in jobs]
+    assert math.fsum(a["modal_allocated_usd"] for a in allocations) == pytest.approx(1.2)
+    assert allocations[0]["modal_allocated_usd"] == pytest.approx(0.12)
+
+
+def test_session_spend_overlapping_times_on_different_resources_remain_additive(tmp_path: Path) -> None:
+    jobs, receipt, payload = _session_spend_fixture(tmp_path)
+    payload["sessions"][0]["billing_rows"][1].update(
+        resolution="h", interval_start="2026-10-01T01:00:00Z"
+    )
+    receipt.write_text(json.dumps(payload))
+    assert session_spend_for_job(jobs[0], receipt)["modal_allocated_usd"] == pytest.approx(0.12)

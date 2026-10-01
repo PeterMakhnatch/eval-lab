@@ -58,7 +58,7 @@ import math
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -872,6 +872,7 @@ def _validate_spend_session(entry: Any, index: int) -> dict[str, Any]:
     if not isinstance(rows, list) or not rows:
         raise ValueError(f"{label} requires billing_rows")
     identities: set[tuple[str, datetime, str]] = set()
+    intervals: dict[str, list[tuple[datetime, datetime]]] = {}
     reported: list[tuple[datetime, str]] = []
     costs: list[float] = []
     interval_aware: bool | None = None
@@ -884,7 +885,9 @@ def _validate_spend_session(entry: Any, index: int) -> dict[str, Any]:
         for key in ("environment", "resource"):
             if not isinstance(row.get(key), str):
                 raise ValueError(f"{row_label} requires string {key}")
-        _session_text(row, "resolution", row_label)
+        resolution = _session_text(row, "resolution", row_label)
+        if resolution not in {"d", "h"}:
+            raise ValueError(f"{row_label} requires billing resolution 'd' or 'h'")
         interval = _session_timestamp(row, "interval_start", row_label)
         aware = interval.utcoffset() is not None
         if interval_aware is not None and interval_aware != aware:
@@ -894,6 +897,20 @@ def _validate_spend_session(entry: Any, index: int) -> dict[str, Any]:
         if identity in identities:
             raise ValueError(f"{label} repeats a billing row")
         identities.add(identity)
+        try:
+            interval_end = interval + timedelta(hours=24 if resolution == "d" else 1)
+        except OverflowError as exc:
+            raise ValueError(f"{row_label} billing interval end is out of range") from exc
+        resource_intervals = intervals.setdefault(row["resource"], [])
+        if any(
+            interval < prior_end and prior_start < interval_end
+            for prior_start, prior_end in resource_intervals
+        ):
+            raise ValueError(
+                f"{row_label} overlaps another billing interval for the same app/resource; "
+                "supply non-overlapping billing rows"
+            )
+        resource_intervals.append((interval, interval_end))
         reported.append(
             (_session_timestamp(row, "reported_at", row_label), row["reported_at"])
         )
@@ -964,6 +981,8 @@ def session_spend_for_job(job_dir: Path, receipt_path: Path) -> dict[str, Any]:
     estimate, preserving unknowns. Validate every declared session before any
     allocation. Bind the target to its native result ID, spec, exact recorded
     revision and lab-metadata byte hash, never its directory name.
+    Native billing resolutions ``d``/``h`` must not overlap for the same app
+    object/resource; daily and hourly reports are not additive alternatives.
 
     Receipt/source bytes are read afresh without writes, queries or pricing.
     ``billing_reported_at`` retains the latest row's original timestamp string.

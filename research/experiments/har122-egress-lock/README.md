@@ -89,16 +89,20 @@ It never touches `/testbed`.
 - Without the lock, a root agent undoes the blocklist with a two-line `/etc/hosts` edit
   (control column).
 
-**Jobs.** `runs/har122-probe-{000226,000927}-{lock,open}` in this worktree (gitignored).
-- The `-r1` copies are the first attempt. Its `/etc/hosts` edit used `sed -i`, which cannot
-  rename over the bind-mounted file, so the blocklist stayed in place and the rows above
-  could not be read from it.
-- The control arm downloaded anyway, because Debian's `multi on` returns both the
-  `0.0.0.0` line and the pinned address.
-- `-cancelled` is a control run my shell timeout interrupted during grading.
+**Jobs.** `runs/har122-probe-{000226,000927}-{lock,open}`, plus `runs/har122-probe-report.json`
+(the `report` output), in the locked worktree `.worktrees/har122-egress-evidence` (gitignored
+run data).
+- These jobs are a re-run from merged `main` (#585). They reproduced the table above exactly:
+  every probe line, the rewards, and the failing test ids.
+- Two earlier attempts on the PR branch were lost when that worktree was removed. In the
+  first, the probe's `/etc/hosts` edit used `sed -i`, which cannot rename over the
+  bind-mounted file, so the blocklist lines stayed in place. Its unlocked arm downloaded
+  anyway, because Debian's `multi on` returns both the `0.0.0.0` line and the pinned
+  address.
 
-**Spend.** About $0.04 of Daytona: 537 s of trial time at 2 vCPU / 8 GiB on the list-price
-rate card, plus about 15 s for the tier check. Cap $0.50. No model calls.
+**Spend.** About $0.05 of Daytona over the three attempts: 800 s of trial time at 2 vCPU /
+8 GiB on the list-price rate card, plus about 15 s for the tier check. Cap $0.50. No model
+calls.
 
 ## What the block cuts off
 

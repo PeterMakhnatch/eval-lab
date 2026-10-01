@@ -89,10 +89,17 @@ def call_tokens(manifest: dict) -> dict[str, list[tuple[int, int]]]:
 
 
 def kept_tokens(calls: dict[str, list[tuple[int, int]]], stride: int) -> int:
+    """Tokens the exporter keeps at ``stride``: it strides over each
+    conversation's eligible calls (the stride-1 rows, copied context already
+    left out) by position and always keeps the last one."""
     total = 0
     for turns in calls.values():
-        last = max(index for index, _ in turns)
-        total += sum(t for index, t in turns if index % stride == stride - 1 or index == last)
+        ordered = [tokens for _, tokens in sorted(turns)]
+        total += sum(
+            tokens
+            for position, tokens in enumerate(ordered)
+            if position % stride == stride - 1 or position == len(ordered) - 1
+        )
     return total
 
 

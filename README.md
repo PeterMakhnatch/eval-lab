@@ -33,6 +33,15 @@ terminology, [docs/WHERE-DOES-THIS-GO.md](docs/WHERE-DOES-THIS-GO.md) for file
 placement, and [docs/ACTIVE-VS-HISTORICAL.md](docs/ACTIVE-VS-HISTORICAL.md)
 for asset lifecycle.
 
+## Reef: continuous-improvement experiments
+
+The [Reef program](research/experiments/reef/README.md) tracks what we are building
+next, what has actually run, and how changes land in both Eval Lab and Reef.
+Reef owns learning recipes and versioned harness improvements; Eval Lab supplies
+controlled execution and evidence. Work stays in scoped PRs, not a separate platform.
+Model, cloud and training experiments still require explicit spending approval.
+
+
 ## Requirements
 
 - Python 3.12 or newer

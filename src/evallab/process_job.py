@@ -1008,9 +1008,11 @@ def process_job(
             "excluded_reasons": counts_summary["excluded_reasons"],
         },
     }
-    # The job report lands in processed/ BEFORE the publish copies the tree:
+    # The job report lands in out_dir BEFORE the publish copies the tree:
     # publish_job snapshots the source, so publishing first would copy a
     # processed/ without job.json and the INDEX row would read "unprocessed".
+    # With a custom output_dir the fresh out_dir pages are passed as the
+    # processed report root, so the published snapshot shows the new outcome.
     report["results_home"] = None
     (out_dir / "job.json").write_text(
         json.dumps(_jsonable(report), indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -1024,6 +1026,7 @@ def process_job(
             root=results_home,
             repo_root=Path(root).resolve() if root is not None else None,
             pr_lookup=pr_lookup,
+            processed_report_root=out_dir,
         )
         report["results_home"] = published["published"]
         (out_dir / "job.json").write_text(

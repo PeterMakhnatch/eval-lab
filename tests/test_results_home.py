@@ -436,3 +436,71 @@ def test_partial_counts_fields_stay_unknown(tmp_path: Path) -> None:
     )
     assert "counts unknown" in row
     assert "1 counted pass" not in row
+
+
+def test_custom_output_dir_publishes_fresh_report_not_stale_processed(tmp_path: Path) -> None:
+    """A custom output_dir + publish shows the new outcome, not stale source processed/."""
+    import shutil
+
+    job = _job(tmp_path, "har117-custom-out")
+    home = tmp_path / "results"
+
+    first = process_job(job, ingest=False, pr_lookup=lambda _commit: None, results_home=home)
+    assert Path(str(first["results_home"])) == home / "2026-09-30" / "HAR-117-har117-custom-out"
+    old_source = json.loads((job / "processed" / "job.json").read_text())
+    assert (old_source["summary"]["n_pass"], old_source["summary"]["n_fail"]) == (1, 0)
+
+    # New raw outcome: the trial now fails. No manual mirroring into processed/.
+    (job / "trial-one" / "result.json").write_text(
+        json.dumps({"trial_name": "trial-one", "verifier_result": {"rewards": {"reward": 0.0}}}),
+        encoding="utf-8",
+    )
+    custom = tmp_path / "custom-out"
+    custom.mkdir()
+    (custom / "scratch.txt").write_text("analyst scratch, not a report page", encoding="utf-8")
+    second = process_job(
+        job, output_dir=custom, ingest=False, pr_lookup=lambda _commit: None, results_home=home
+    )
+    published = Path(str(second["results_home"]))
+    assert published == Path(str(first["results_home"]))
+
+    fresh = json.loads((published / "processed" / "job.json").read_text())
+    assert (fresh["summary"]["n_pass"], fresh["summary"]["n_fail"]) == (0, 1)
+    assert "- trials: 1 (pass 0, fail 1, unscored 0)" in (
+        published / "processed" / "job.md"
+    ).read_text(encoding="utf-8")
+    fresh_trial = json.loads((published / "processed" / "trial-trial-one.json").read_text())
+    assert fresh_trial["reward"] == 0.0
+    assert "- reward: `0.0`" in (published / "processed" / "trial-trial-one.md").read_text(
+        encoding="utf-8"
+    )
+    assert "0 pass, 1 fail, 0 unscored" in (home / "INDEX-all.md").read_text(encoding="utf-8")
+
+    # The stale source processed/ is untouched, raw inputs are byte-identical,
+    # and unrelated out-dir contents never reach the published tree.
+    stale = json.loads((job / "processed" / "job.json").read_text())
+    assert (stale["summary"]["n_pass"], stale["summary"]["n_fail"]) == (1, 0)
+    assert (published / "result.json").read_bytes() == (job / "result.json").read_bytes()
+    assert not (published / "processed" / "scratch.txt").exists()
+    assert not (published / "scratch.txt").exists()
+
+    # Without any source processed/, the fresh custom report still publishes.
+    shutil.rmtree(job / "processed")
+    (job / "trial-one" / "result.json").write_text(
+        json.dumps({"trial_name": "trial-one", "verifier_result": {"rewards": {"reward": 1.0}}}),
+        encoding="utf-8",
+    )
+    third = process_job(
+        job,
+        output_dir=tmp_path / "custom-out-2",
+        ingest=False,
+        pr_lookup=lambda _commit: None,
+        results_home=home,
+    )
+    republished = Path(str(third["results_home"]))
+    assert republished == published
+    latest = json.loads((republished / "processed" / "job.json").read_text())
+    assert (latest["summary"]["n_pass"], latest["summary"]["n_fail"]) == (1, 0)
+    full = (home / "INDEX-all.md").read_text(encoding="utf-8")
+    assert "1 pass, 0 fail, 0 unscored" in full
+    assert "0 pass, 1 fail, 0 unscored" not in full

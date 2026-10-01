@@ -72,7 +72,11 @@ path, the uncommitted diff and its sha256, and the names of untracked files.
 Commit and diff have to be taken when the job runs. A later publish reads a
 checkout that has moved on, so it cannot reconstruct them. The runner now
 saves that snapshot into `lab-metadata.json` and `repository-provenance/`
-inside the job directory. Publish copies it verbatim.
+inside the job directory. Publish copies it verbatim. When process-job writes
+its reports to a custom `output_dir`, publish still snapshots the raw job
+directory but overlays exactly the freshly written `job`/`trial` report pages
+onto the published `processed/` copy, so the published tree and INDEX show the
+new outcome instead of a stale source `processed/`.
 
 ## Publish-time only
 

@@ -428,6 +428,13 @@ def _destination(home: Path, day: str, card: str, source: Path) -> tuple[Path, s
     return own, other
 
 
+def _is_processed_report_file(name: str) -> bool:
+    """Report pages process-job writes, never unrelated out-dir contents."""
+    if name in ("job.json", "job.md"):
+        return True
+    return name.startswith("trial-") and (name.endswith(".json") or name.endswith(".md"))
+
+
 def publish_job(
     job_dir: str | Path,
     *,
@@ -437,12 +444,21 @@ def publish_job(
     capture: str = "run-time",
     primary_checkout: Path | None = None,
     rewrite_index: bool = True,
+    processed_report_root: str | Path | None = None,
 ) -> dict[str, Any]:
     """Publish one job into the results home. Idempotent.
 
     A second call with the same provenance replaces the published tree with
     an identical one and rewrites the index, so a retried process-job does
     not duplicate or drift.
+
+    ``processed_report_root`` points at the freshly written report directory
+    when process-job used a custom ``output_dir``: those report pages
+    replace the snapshotted ``processed/`` copy, so the published tree shows
+    the new outcome instead of the stale source ``processed/``. Only
+    ``job.json``/``job.md`` and ``trial-*.json``/``trial-*.md`` pages are
+    overlaid; nothing else is taken from that directory. Raw job inputs and
+    provenance still come from ``job_dir``.
     """
     source = Path(job_dir).resolve()
     if not source.is_dir():
@@ -458,6 +474,18 @@ def publish_job(
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
     copied = _copy_tree(source, dest)
+    if processed_report_root is not None:
+        report_root = Path(processed_report_root)
+        if report_root.is_dir():
+            processed_dest = dest / "processed"
+            processed_dest.mkdir(parents=True, exist_ok=True)
+            for child in sorted(report_root.iterdir()):
+                if child.is_symlink() or not child.is_file():
+                    continue
+                if not _is_processed_report_file(child.name):
+                    continue
+                _copy_file(child, processed_dest / child.name)
+                copied += 1
     (dest / "provenance.json").write_text(
         json.dumps(provenance, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )

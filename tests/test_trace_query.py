@@ -334,3 +334,124 @@ def test_cli_attach_trace_mode(tmp_path: Path) -> None:
         workspace=tmp_path,
     )
     assert code_query == 0
+
+
+def test_manifest_prefix_matching(tmp_path: Path) -> None:
+    """CARD-prefixed published dirs resolve arm/split from bare manifest job names."""
+    manifest_dir = tmp_path / "research" / "experiments" / "har110-python-gepa"
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    (manifest_dir / "results-v2-trials.jsonl").write_text(
+        json.dumps({"job": "bare-job", "arm": "plain", "split": "heldout", "task": "0001"}) + "\n",
+        encoding="utf-8",
+    )
+    job = tmp_path / "HAR-99-bare-job"
+    _create_minimal_trial(job, "trial_prefixed")
+
+    con, coverage = connect_trace_query(
+        repo_root=tmp_path,
+        job_dirs=[job],
+    )
+    try:
+        row = con.execute("SELECT arm, split FROM v_trace_trials").fetchone()
+        assert row[0] == "plain"
+        assert row[1] == "heldout"
+        assert coverage["by_arm"].get("plain") == 1
+    finally:
+        con.close()
+
+
+def test_continuation_stitch_dedup(tmp_path: Path) -> None:
+    """Restated continuation prefixes count once; copied replays stay flagged."""
+    job = tmp_path / "job_stitch"
+    trial_dir = _create_minimal_trial(
+        job, "trial_stitch", reward=0.0, n_steps=3, with_processed=False
+    )
+    agent_dir = trial_dir / "agent"
+    head_steps = json.loads((agent_dir / "trajectory.json").read_text(encoding="utf-8"))["steps"]
+    cont_steps = [dict(step) for step in head_steps]
+    cont_steps.append(
+        {
+            "step_id": 4,
+            "source": "agent",
+            "timestamp": "2026-10-01T00:04:00Z",
+            "tool_calls": [
+                {"function_name": "bash_command", "arguments": {"keystrokes": "echo new"}}
+            ],
+            "observation": {"results": [{"content": "new output"}]},
+        }
+    )
+    (agent_dir / "trajectory.cont-1.json").write_text(
+        json.dumps({"steps": cont_steps}), encoding="utf-8"
+    )
+
+    con, coverage = connect_trace_query(
+        repo_root=tmp_path,
+        job_dirs=[job],
+    )
+    try:
+        step_count = con.execute(
+            "SELECT COUNT(*) FROM v_trace_steps WHERE step_id >= 0"
+        ).fetchone()[0]
+        assert step_count == 4
+        assert coverage["stitched_duplicated_steps"] == 3
+    finally:
+        con.close()
+
+
+def test_label_freeze_drift_excluded(tmp_path: Path) -> None:
+    """Label files failing manifest verification are excluded, never ingested."""
+    labels_base = tmp_path / "research" / "explorations" / "trace-lab" / "har119" / "labels"
+    rater_a = labels_base / "rater_a"
+    rater_a.mkdir(parents=True, exist_ok=True)
+    label_file = rater_a / "trial_drift.json"
+    label_file.write_text(json.dumps({"loop_kind": "repetition"}), encoding="utf-8")
+    (labels_base / "MANIFEST.sha256").write_text(
+        "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef  rater_a/trial_drift.json\n",
+        encoding="utf-8",
+    )
+    job = tmp_path / "job_drift"
+    _create_minimal_trial(job, "trial_drift")
+
+    con, coverage = connect_trace_query(
+        repo_root=tmp_path,
+        job_dirs=[job],
+    )
+    try:
+        labels_json = con.execute("SELECT labels_json FROM v_trace_trials").fetchone()[0]
+        assert labels_json == "[]"
+        report = coverage["label_verification"]["har119"]
+        assert report["verified"] == 0
+        assert "rater_a/trial_drift.json" in report["failed"]
+    finally:
+        con.close()
+
+
+def test_parquet_cold_hot_precedence(tmp_path: Path) -> None:
+    """Cold-day Parquet rows win over hot duplicates on the same native IDs."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    derived = tmp_path / "derived"
+    hot_dir = derived / "job_id=j1" / "trial_id=t1"
+    hot_dir.mkdir(parents=True, exist_ok=True)
+    pq.write_table(
+        pa.Table.from_pylist([{"job_id": "j1", "trial_id": "t1", "task_digest": "hot-digest"}]),
+        hot_dir / "trial_facts.parquet",
+    )
+    cold_dir = derived / "compact" / "dt=2026-09-01"
+    cold_dir.mkdir(parents=True, exist_ok=True)
+    pq.write_table(
+        pa.Table.from_pylist([{"job_id": "j1", "trial_id": "t1", "task_digest": "cold-digest"}]),
+        cold_dir / "trial_facts.parquet",
+    )
+
+    con, _ = connect_trace_query(
+        repo_root=tmp_path,
+        derived_root=derived,
+        job_dirs=[],
+    )
+    try:
+        rows = con.execute("SELECT task_digest FROM trial_facts").fetchall()
+        assert rows == [("cold-digest",)]
+    finally:
+        con.close()

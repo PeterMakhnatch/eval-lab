@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -138,8 +139,8 @@ def _file_sha256(path: Path) -> str:
 # --------------------------------------------------------------------------- #
 
 
-def _load_experiment_manifests(repo_root: Path) -> dict[str, dict[str, Any]]:
-    """Load authoritative experiment manifests mapping job/trial to arm & split."""
+def _load_experiment_manifests(repo_root: Path) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Load authoritative experiment manifests: job map and trial map for arm & split."""
     manifests: dict[str, dict[str, Any]] = {}
 
     # 1. HAR-110 Python GEPA split-v2
@@ -217,30 +218,115 @@ def _load_experiment_manifests(repo_root: Path) -> dict[str, dict[str, Any]]:
         except Exception:
             pass
 
-    return manifests
+    # 4. HAR-119 part-2 trial-level selection (trial_name -> arm/split)
+    selection_path = (
+        repo_root
+        / "research"
+        / "explorations"
+        / "trace-lab"
+        / "har119"
+        / "selection.json"
+    )
+    trial_manifests: dict[str, dict[str, Any]] = {}
+    if selection_path.is_file():
+        try:
+            selection = json.loads(selection_path.read_text(encoding="utf-8"))
+            runs = selection.get("runs") if isinstance(selection, dict) else None
+            if isinstance(runs, list):
+                for run in runs:
+                    if not isinstance(run, dict):
+                        continue
+                    trial = run.get("trial")
+                    if trial:
+                        trial_manifests[str(trial)] = {
+                            "arm": run.get("arm"),
+                            "split": run.get("split"),
+                            "task": run.get("task"),
+                            "job": run.get("job"),
+                        }
+        except Exception:
+            pass
+
+    return manifests, trial_manifests
+
+
+def _manifest_job_candidates(published_dir_name: str, provenance: dict[str, Any]) -> list[str]:
+    """Recorded job-name candidates for manifest lookup, no suffix guessing.
+
+    Published directories carry a ``<CARD>-<job>`` prefix (e.g.
+    ``HAR-116-har116-a-000383-baseline``) while experiment manifests key the
+    bare job name (``har116-a-000383-baseline``). The provenance
+    ``job_name`` field records the bare name directly; otherwise the leading
+    ``HAR-<digits>-`` card prefix is stripped. Nothing else is rewritten.
+    """
+    candidates: list[str] = []
+    recorded = provenance.get("job_name")
+    if isinstance(recorded, str) and recorded:
+        candidates.append(recorded)
+    stripped = re.sub(r"^HAR-\d+-", "", published_dir_name, flags=re.IGNORECASE)
+    if stripped and stripped not in candidates:
+        candidates.append(stripped)
+    if published_dir_name not in candidates:
+        candidates.append(published_dir_name)
+    return candidates
+
+def _parse_sha_manifest(manifest_path: Path) -> dict[str, str]:
+    """Parse ``<sha256>  <relpath>`` manifest lines into {relpath: sha256}."""
+    entries: dict[str, str] = {}
+    try:
+        for line in manifest_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split()
+            if len(parts) >= 2:
+                entries[parts[1]] = parts[0]
+    except OSError:
+        pass
+    return entries
 
 
 def _load_frozen_labels(
     repo_root: Path, derived_root: Path | None
-) -> tuple[dict[str, list[dict[str, Any]]], dict[str, str]]:
-    """Load frozen rater and hand labels. Never fill unobserved with guesses."""
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, str], dict[str, Any]]:
+    """Load frozen rater and hand labels verified against their manifests.
+
+    Only files whose sha256 matches the manifest entry are ingested; tampered,
+    truncated, or rotated files are excluded and reported in the verification
+    record. Heuristic ``behavior_labels`` parquet rows are NEVER merged here:
+    ``labels_json`` carries frozen rater entries only (the parquet stays
+    independently queryable via the attached z3 views).
+    """
+    del derived_root
     labels_by_trial: dict[str, list[dict[str, Any]]] = {}
     manifest_hashes: dict[str, str] = {}
+    verification: dict[str, Any] = {}
 
     # 1. HAR-119 Part 2 rater labels
     har119_dir = repo_root / "research" / "explorations" / "trace-lab" / "har119"
     har119_manifest = har119_dir / "labels" / "MANIFEST.sha256"
+    har119_report: dict[str, Any] = {"verified": 0, "failed": [], "manifest": None}
     if har119_manifest.is_file():
         manifest_hashes["har119"] = _file_sha256(har119_manifest)
+        har119_report["manifest"] = str(har119_manifest.relative_to(repo_root))
+        expected = _parse_sha_manifest(har119_manifest)
+        labels_base = har119_dir / "labels"
         for rater in ("rater_a", "rater_b"):
-            rater_dir = har119_dir / "labels" / rater
+            rater_dir = labels_base / rater
             if not rater_dir.is_dir():
                 continue
             for label_file in sorted(rater_dir.glob("*.json")):
+                rel = f"{rater}/{label_file.name}"
+                digest = _file_sha256(label_file)
+                if expected.get(rel) != digest:
+                    har119_report["failed"].append(rel)
+                    continue
                 trial_name = label_file.stem
                 data = _safe_read_json(label_file)
                 if not data:
+                    har119_report["failed"].append(rel)
                     continue
+                har119_report["verified"] += 1
                 entry = {
                     "cohort": "har119",
                     "rater": rater,
@@ -253,13 +339,17 @@ def _load_frozen_labels(
                     "pass_copied": data.get("pass_copied"),
                     "provenance": "agent_rater",
                     "source_file": str(label_file.relative_to(repo_root)),
-                    "source_sha256": _file_sha256(label_file),
+                    "source_sha256": digest,
                 }
                 labels_by_trial.setdefault(trial_name, []).append(entry)
+    else:
+        har119_report["manifest"] = "missing"
+    verification["har119"] = har119_report
 
     # 2. HAR-109 hand labels
     har109_dir = repo_root / "research" / "explorations" / "trace-lab" / "har109"
     har109_manifest = har109_dir / "hand_labels.sha256"
+    har109_report: dict[str, Any] = {"verified": 0, "failed": [], "manifest": None}
     errata_file = har109_dir / "hand_errata.json"
     errata_by_trial: dict[str, dict[str, Any]] = {}
     if errata_file.is_file():
@@ -274,13 +364,22 @@ def _load_frozen_labels(
 
     if har109_manifest.is_file():
         manifest_hashes["har109"] = _file_sha256(har109_manifest)
+        har109_report["manifest"] = str(har109_manifest.relative_to(repo_root))
+        expected = _parse_sha_manifest(har109_manifest)
         hand_dir = har109_dir / "hand"
         if hand_dir.is_dir():
             for label_file in sorted(hand_dir.glob("*.json")):
+                rel = label_file.name
+                digest = _file_sha256(label_file)
+                if expected.get(rel) != digest:
+                    har109_report["failed"].append(rel)
+                    continue
                 trial_name = label_file.stem
                 data = _safe_read_json(label_file)
                 if not data:
+                    har109_report["failed"].append(rel)
                     continue
+                har109_report["verified"] += 1
                 erratum = errata_by_trial.get(trial_name)
                 completion_confirmed = data.get("completion_confirmed")
                 if erratum and erratum.get("field") == "completion_confirmed":
@@ -300,38 +399,14 @@ def _load_frozen_labels(
                     "provenance": "human_hand",
                     "has_erratum": bool(erratum),
                     "source_file": str(label_file.relative_to(repo_root)),
-                    "source_sha256": _file_sha256(label_file),
+                    "source_sha256": digest,
                 }
                 labels_by_trial.setdefault(trial_name, []).append(entry)
+    else:
+        har109_report["manifest"] = "missing"
+    verification["har109"] = har109_report
 
-    # 3. Parquet behavior_labels if present
-    if derived_root:
-        parquet_path = derived_root / "behavior_labels" / "behavior_labels.parquet"
-        if parquet_path.is_file():
-            try:
-                import pyarrow.parquet as pq
-
-                table = pq.read_table(
-                    parquet_path,
-                    columns=["trial_name", "label", "taxonomy", "provenance", "author"],
-                )
-                for row in table.to_pylist():
-                    tname = row.get("trial_name")
-                    if tname:
-                        labels_by_trial.setdefault(str(tname), []).append(
-                            {
-                                "cohort": "behavior_labels_parquet",
-                                "rater": row.get("author") or "heuristic",
-                                "trial_name": tname,
-                                "label": row.get("label"),
-                                "taxonomy": row.get("taxonomy"),
-                                "provenance": row.get("provenance") or "derived_parquet",
-                            }
-                        )
-            except Exception:
-                pass
-
-    return labels_by_trial, manifest_hashes
+    return labels_by_trial, manifest_hashes, verification
 
 
 # --------------------------------------------------------------------------- #
@@ -339,83 +414,116 @@ def _load_frozen_labels(
 # --------------------------------------------------------------------------- #
 
 
-def _extract_commands_from_step(step: dict[str, Any]) -> tuple[str | None, str | None]:
-    """Extract (command_text, command_provenance) for one step."""
-    native_calls = step.get("tool_calls")
-    if isinstance(native_calls, list) and native_calls:
-        cmds: list[str] = []
-        for call in native_calls:
-            if not isinstance(call, dict):
-                continue
-            fname = call.get("function_name")
-            args = call.get("arguments") or {}
-            if isinstance(args, str):
-                try:
-                    args = json.loads(args)
-                except Exception:
-                    args = {}
-            if fname in ("bash_command", "bash", "execute_command"):
-                cmd = args.get("keystrokes") or args.get("command")
-                if cmd:
-                    cmds.append(str(cmd).strip())
-            elif fname == "mark_task_complete":
-                cmds.append("mark_task_complete")
-            elif fname:
-                cmds.append(str(fname))
-        if cmds:
-            return "; ".join(cmds), "recorded"
+def _extract_commands_from_step(step: dict[str, Any]) -> tuple[str | None, str | None, int]:
+    """Return (command_text, command_provenance, recorded_call_count) for one step.
 
-    # Check synthesized layers in extra
-    extra = step.get("extra")
-    if isinstance(extra, dict) and "step_layers" in extra:
-        layers = extra.get("step_layers") or {}
-        accepted = layers.get("accepted") or {}
-        prov = layers.get("provenance") or "reconstructed"
-        calls = accepted.get("calls") or []
-        cmds = []
-        for call in calls:
-            if isinstance(call, dict):
+    Canonical precedence, mirroring ``evallab.probe03``:
+    1. Harness-recorded executed keystrokes (``layer_status``) -> ``recorded``.
+    2. Native ``tool_calls`` / recorded accepted layer calls -> ``recorded``.
+    3. Model-proposed commands parsed from message text -> ``reconstructed``.
+    4. Otherwise (None, None, 0): no command content, honestly absent.
+    """
+    from evallab.probe03 import _proposed_commands, layer_status
+
+    layer = layer_status(step)
+    if layer is not None:
+        sent = [line for line in (layer.get("keystrokes_sent") or []) if str(line).strip()]
+        if sent:
+            return "\n".join(str(line) for line in sent), "recorded", len(sent)
+        calls = layer.get("calls") or []
+        recorded = [
+            call for call in calls
+            if isinstance(call, dict) and ("keystrokes" in call or "command" in call or call.get("task_complete"))
+        ]
+        if recorded:
+            texts: list[str] = []
+            for call in recorded:
                 if call.get("task_complete"):
-                    cmds.append("mark_task_complete")
-                elif "keystrokes" in call:
-                    cmds.append(str(call["keystrokes"]).strip())
-        if cmds:
-            return "; ".join(cmds), prov
+                    texts.append("mark_task_complete")
+                else:
+                    texts.append(str(call.get("keystrokes") or call.get("command") or "").strip())
+            texts = [text for text in texts if text]
+            if texts:
+                return "; ".join(texts), "recorded", len(recorded)
+        if layer.get("task_complete"):
+            return "mark_task_complete", "recorded", 1
+        return None, None, 0
 
-    return None, None
+    native_calls = step.get("tool_calls")
+    if isinstance(native_calls, list):
+        calls = [call for call in native_calls if isinstance(call, dict)]
+        if calls:
+            cmds: list[str] = []
+            for call in calls:
+                fname = call.get("function_name")
+                args = call.get("arguments") or {}
+                if isinstance(args, str):
+                    try:
+                        args = json.loads(args)
+                    except Exception:
+                        args = {}
+                if not isinstance(args, dict):
+                    args = {}
+                if fname in ("bash_command", "bash", "execute_command", "exec", "exec_command"):
+                    cmd = args.get("keystrokes") or args.get("command")
+                    if cmd:
+                        cmds.append(str(cmd).strip())
+                elif fname == "mark_task_complete":
+                    cmds.append("mark_task_complete")
+                elif fname:
+                    cmds.append(str(fname))
+            cmds = [cmd for cmd in cmds if cmd]
+            if cmds:
+                return "; ".join(cmds), "recorded", len(calls)
+            return None, None, 0
+
+    proposed = _proposed_commands(str(step.get("message") or ""))
+    proposed = [cmd.strip() for cmd in proposed if str(cmd).strip()]
+    if proposed:
+        return "; ".join(proposed), "reconstructed", 0
+    return None, None, 0
 
 
 def _extract_observation_excerpt(step: dict[str, Any]) -> str | None:
-    obs = step.get("observation")
-    if not isinstance(obs, dict):
+    """Return truncated observation content via the canonical ``obs_content`` reader."""
+    from evallab.probe03 import layer_status, obs_content
+
+    text = obs_content(step)
+    if not text:
+        layer = layer_status(step)
+        if layer is not None and str(layer.get("observed_output") or "").strip():
+            text = str(layer["observed_output"])
+    if not text:
         return None
-    results = obs.get("results")
-    if isinstance(results, list) and results:
-        contents = []
-        for res in results:
-            if isinstance(res, dict) and "content" in res:
-                c = res["content"]
-                if isinstance(c, str):
-                    contents.append(c)
-                elif isinstance(c, bytes):
-                    contents.append(c.decode("utf-8", errors="replace"))
-        if contents:
-            full = "\n".join(contents).strip()
-            return full[:300] if len(full) > 300 else full
-    return None
+    text = text.strip()
+    return text[:300] if len(text) > 300 else text
 
 
 def _resolve_arm_and_split(
     job_name: str,
-    manifest_info: dict[str, Any] | None,
+    trial_name: str,
+    manifest_map: dict[str, dict[str, Any]],
+    trial_manifest_map: dict[str, dict[str, Any]],
     spec_data: dict[str, Any] | None,
+    provenance_data: dict[str, Any],
 ) -> tuple[str | None, str | None]:
-    """Resolve arm and split from recorded manifests, never guessing."""
-    if manifest_info:
-        arm = manifest_info.get("arm")
-        split = manifest_info.get("split")
-        if arm is not None:
-            return str(arm), str(split) if split else None
+    """Resolve arm and split from recorded manifests, never guessing.
+
+    Precedence: trial-level selection manifest (exact trial_name) >
+    job-level experiment manifests (via recorded ``CARD-``-prefix-tolerant
+    candidates) > per-job ``experiment-spec.json`` hypothesis >
+    explicit NULL.
+    """
+    trial_info = trial_manifest_map.get(trial_name)
+    if trial_info and trial_info.get("arm") is not None:
+        split = trial_info.get("split")
+        return str(trial_info["arm"]), str(split) if split else None
+
+    for candidate in _manifest_job_candidates(job_name, provenance_data):
+        manifest_info = manifest_map.get(candidate)
+        if manifest_info and manifest_info.get("arm") is not None:
+            split = manifest_info.get("split")
+            return str(manifest_info["arm"]), str(split) if split else None
 
     if spec_data:
         # Check hypothesis e.g. "arm=original" or "arm=loopfix"
@@ -447,10 +555,11 @@ def _build_trial_row(
     job_data: dict[str, Any],
     provenance_data: dict[str, Any],
     spec_data: dict[str, Any] | None,
-    manifest_info: dict[str, Any] | None,
+    manifest_map: dict[str, dict[str, Any]],
+    trial_manifest_map: dict[str, dict[str, Any]],
     labels: list[dict[str, Any]],
-) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """Build one v_trace_trials row and its associated v_trace_steps rows."""
+) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, int]]:
+    """Build one v_trace_trials row, its v_trace_steps rows, and stitch stats."""
     trial_name = trial_dir.name
     job_name = job_dir.name
     card = (
@@ -477,7 +586,9 @@ def _build_trial_row(
         model_name = str(model_name)
 
     # Arm and split
-    arm, split = _resolve_arm_and_split(job_name, manifest_info, spec_data)
+    arm, split = _resolve_arm_and_split(
+        job_name, trial_name, manifest_map, trial_manifest_map, spec_data, provenance_data
+    )
 
     # Task package digest
     task_package_digest = None
@@ -670,70 +781,122 @@ def _build_trial_row(
             if isinstance(ol, dict) and isinstance(ol.get("step_to_first_edit"), int):
                 first_edit_step = ol["step_to_first_edit"]
 
-    # 3. Trajectory and steps extraction
+    # 3. Trajectory and steps extraction via canonical stitching.
+    # stitch_steps merges continuation parts into unique steps without
+    # double-counting; copied-context replays are appended as explicit flagged
+    # coverage rows (never silently dropped, never mixed into live counts).
+    from evallab.step_layers import stitch_steps
+
     steps_rows: list[dict[str, Any]] = []
+    stitch_stats = {"unique_steps": 0, "duplicated_steps": 0, "copied_context_steps": 0}
     agent_dir = trial_dir / "agent"
     traj_path = agent_dir / "trajectory.json"
     trajectory_available = traj_path.is_file()
-    step_evidence_source = "atif_projection" if trajectory_available else "none"
+
+    def _emit_step_row(
+        raw_step: dict[str, Any],
+        doc_name: str,
+        doc_sha: str,
+        doc_id: str,
+        is_copied: bool,
+    ) -> None:
+        step_id = raw_step.get("step_id")
+        if not isinstance(step_id, int):
+            return
+        source = str(raw_step.get("source") or "")
+        timestamp = raw_step.get("timestamp")
+        metrics = raw_step.get("metrics")
+        metrics = metrics if isinstance(metrics, dict) else {}
+        prompt_toks = metrics.get("prompt_tokens")
+        comp_toks = metrics.get("completion_tokens")
+        cmd_text, cmd_prov, recorded_calls = _extract_commands_from_step(raw_step)
+        obs_snippet = _extract_observation_excerpt(raw_step)
+        doc_label = "head" if doc_name == "trajectory.json" else doc_name
+        steps_rows.append(
+            {
+                "job_id": job_id,
+                "trial_id": trial_id,
+                "document_id": doc_id,
+                "step_id": step_id,
+                "source_path": f"agent/{doc_name}",
+                "source_sha256": f"sha256:{doc_sha}",
+                "source": source,
+                "timestamp": str(timestamp) if timestamp else None,
+                "is_copied_context": is_copied,
+                "prompt_tokens": prompt_toks if isinstance(prompt_toks, int) else None,
+                "completion_tokens": comp_toks if isinstance(comp_toks, int) else None,
+                "tool_call_count": recorded_calls,
+                "command_text": cmd_text,
+                "command_provenance": cmd_prov,
+                "observation_excerpt": obs_snippet,
+                "step_ref": f"{doc_label}#{step_id}",
+            }
+        )
 
     if trajectory_available:
-        # Collect head and all continuations
-        part_paths = [traj_path]
-        for cont_path in sorted(agent_dir.glob("trajectory.cont-*.json")):
-            part_paths.append(cont_path)
-
+        part_paths = [traj_path] + sorted(agent_dir.glob("trajectory.cont-*.json"))
+        docs: list[dict[str, Any]] = []
+        doc_names: list[str] = []
+        doc_shas: list[str] = []
         for ppath in part_paths:
             p_data = _safe_read_json(ppath)
-            if not p_data:
+            if not isinstance(p_data, dict):
                 continue
-            doc_name = ppath.name
-            doc_sha = _file_sha256(ppath)
+            docs.append(p_data)
+            doc_names.append(ppath.name)
+            doc_shas.append(_file_sha256(ppath))
+        # Origin map: stitch_steps returns the identical step objects, so
+        # identity keys each unique step back to its first-seen document.
+        origin: dict[int, int] = {}
+        for index, doc in enumerate(docs):
+            for raw_step in doc.get("steps") or []:
+                if isinstance(raw_step, dict):
+                    origin.setdefault(id(raw_step), index)
+        unique_steps, stats = stitch_steps(docs)
+        stitch_stats = {
+            "unique_steps": stats.unique_steps,
+            "duplicated_steps": stats.duplicated_steps,
+            "copied_context_steps": stats.copied_context_steps,
+        }
+        for raw_step in unique_steps:
+            if not isinstance(raw_step, dict):
+                continue
+            part_index = origin.get(id(raw_step), 0)
+            doc_name = doc_names[part_index]
+            source_path = f"agent/{doc_name}"
             doc_id = hashlib.sha256(
-                f"{trial_id}\0{doc_name}".encode()
+                "\0".join([trial_id, source_path, "root"]).encode()
             ).hexdigest()
-
-            steps_list = p_data.get("steps") or []
-            for raw_step in steps_list:
-                if not isinstance(raw_step, dict):
+            _emit_step_row(raw_step, doc_name, doc_shas[part_index], doc_id, False)
+        # Copied-context replays: explicit flagged coverage rows, deduplicated
+        # across parts by step identity so re-stated history counts once.
+        seen_copied: set[str] = set()
+        for part_index, doc in enumerate(docs):
+            doc_name = doc_names[part_index]
+            source_path = f"agent/{doc_name}"
+            doc_id = hashlib.sha256(
+                "\0".join([trial_id, source_path, "root"]).encode()
+            ).hexdigest()
+            for raw_step in doc.get("steps") or []:
+                if not (isinstance(raw_step, dict) and raw_step.get("is_copied_context")):
                     continue
-                step_id = raw_step.get("step_id")
-                if not isinstance(step_id, int):
+                copy_key = repr((
+                    raw_step.get("step_id"),
+                    raw_step.get("source"),
+                    raw_step.get("timestamp"),
+                    raw_step.get("message"),
+                    raw_step.get("reasoning_content"),
+                ))
+                if copy_key in seen_copied:
                     continue
-                source = str(raw_step.get("source") or "")
-                timestamp = raw_step.get("timestamp")
-                is_copied = bool(raw_step.get("is_copied_context", False))
-                metrics = raw_step.get("metrics") or {}
-                prompt_toks = metrics.get("prompt_tokens")
-                comp_toks = metrics.get("completion_tokens")
+                seen_copied.add(copy_key)
+                _emit_step_row(raw_step, doc_name, doc_shas[part_index], doc_id, True)
 
-                cmd_text, cmd_prov = _extract_commands_from_step(raw_step)
-                obs_snippet = _extract_observation_excerpt(raw_step)
-                step_ref = f"{'head' if doc_name == 'trajectory.json' else doc_name}#{step_id}"
+    step_evidence_source = "none"
+    if trajectory_available:
+        step_evidence_source = "stitched"
 
-                tool_count = len(raw_step.get("tool_calls") or [])
-
-                steps_rows.append(
-                    {
-                        "job_id": job_id,
-                        "trial_id": trial_id,
-                        "document_id": doc_id,
-                        "step_id": step_id,
-                        "source_path": f"agent/{doc_name}",
-                        "source_sha256": f"sha256:{doc_sha}",
-                        "source": source,
-                        "timestamp": str(timestamp) if timestamp else None,
-                        "is_copied_context": is_copied,
-                        "prompt_tokens": prompt_toks if isinstance(prompt_toks, int) else None,
-                        "completion_tokens": comp_toks if isinstance(comp_toks, int) else None,
-                        "tool_call_count": tool_count,
-                        "command_text": cmd_text,
-                        "command_provenance": cmd_prov,
-                        "observation_excerpt": obs_snippet,
-                        "step_ref": step_ref,
-                    }
-                )
-    else:
+    if not steps_rows:
         # Sentinel trial-only no-step marker row
         steps_rows.append(
             {
@@ -807,7 +970,7 @@ def _build_trial_row(
         "labels_json": json.dumps(labels),
     }
 
-    return trial_row, steps_rows
+    return trial_row, steps_rows, stitch_stats
 
 
 # --------------------------------------------------------------------------- #
@@ -834,8 +997,8 @@ def connect_trace_query(
         else derived_root_from_environment(root)
     )
 
-    manifest_map = _load_experiment_manifests(root)
-    labels_map, manifest_hashes = _load_frozen_labels(root, droot)
+    manifest_map, trial_manifest_map = _load_experiment_manifests(root)
+    labels_map, manifest_hashes, label_verification = _load_frozen_labels(root, droot)
 
     # Discovery
     discovered_jobs: list[tuple[Path, dict[str, Any], Path | None]] = []
@@ -857,6 +1020,7 @@ def connect_trace_query(
     # Build trial & step rows with deduplication
     trials_by_id: dict[tuple[str, str], dict[str, Any]] = {}
     steps_by_trial_id: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    stitch_by_trial_id: dict[tuple[str, str], dict[str, int]] = {}
 
     missing_processed = 0
     missing_counts = 0
@@ -871,7 +1035,6 @@ def connect_trace_query(
         job_result = _safe_read_json(job_path / "result.json") or {}
         spec_data = _safe_read_json(job_path / "experiment-spec.json")
         job_name = job_path.name
-        manifest_info = manifest_map.get(job_name)
 
         # Iterate trial directories
         trial_candidates: list[Path] = []
@@ -889,14 +1052,15 @@ def connect_trace_query(
         for t_dir in trial_candidates:
             trial_name = t_dir.name
             trial_labels = labels_map.get(trial_name) or []
-            t_row, s_rows = _build_trial_row(
+            t_row, s_rows, stitch = _build_trial_row(
                 job_path,
                 t_dir,
                 pub_path,
                 job_result,
                 prov,
                 spec_data,
-                manifest_info,
+                manifest_map,
+                trial_manifest_map,
                 trial_labels,
             )
 
@@ -920,6 +1084,7 @@ def connect_trace_query(
 
             trials_by_id[key] = t_row
             steps_by_trial_id[key] = s_rows
+            stitch_by_trial_id[key] = stitch
 
     # Coverage metrics calculation over deduplicated corpus
     all_trial_rows = list(trials_by_id.values())
@@ -943,18 +1108,23 @@ def connect_trace_query(
         by_arm[arm_key] = by_arm.get(arm_key, 0) + 1
 
         corpus_hasher.update(
-            f"{r['job_id']}:{r['trial_id']}:{r['raw_reward']}:{r['stop_reason']}\n".encode()
+            f"{r['job_id']}:{r['trial_id']}:{r['raw_reward']}:{r['stop_reason']}:{r['counts_verdict']}:{r['counts_reasons_json']}:{r['labels_json']}\n".encode()
         )
 
+    total_duplicated = sum(st.get("duplicated_steps", 0) for st in stitch_by_trial_id.values())
+    total_copied = sum(st.get("copied_context_steps", 0) for st in stitch_by_trial_id.values())
     coverage = {
         "discovered_jobs": len(discovered_jobs),
         "discovered_trials": len(all_trial_rows),
         "discovered_steps": len(all_step_rows),
+        "stitched_duplicated_steps": total_duplicated,
+        "copied_context_steps": total_copied,
         "missing_processed": missing_processed,
         "missing_counts": missing_counts,
         "missing_atif": missing_atif,
         "projections_skipped": projections_skipped,
         "label_manifest_hashes": manifest_hashes,
+        "label_verification": label_verification,
         "corpus_digest": f"sha256:{corpus_hasher.hexdigest()}",
         "by_card": by_card,
         "by_arm": by_arm,
@@ -970,6 +1140,26 @@ def connect_trace_query(
 
     try:
         _attach_z3(conn, droot)
+    except Exception:
+        pass
+
+    # Prefer recorded Parquet trial_facts task digests where the job sources
+    # carry none (arm_id is NULL throughout the shared store, so only the
+    # digest is borrowed, keyed strictly by native job_id/trial_id).
+    try:
+        parquet_digests = conn.execute(
+            "SELECT job_id, trial_id, task_digest FROM trial_facts"
+        ).fetchall()
+        digest_by_id = {
+            (str(job_id), str(trial_id)): task_digest
+            for job_id, trial_id, task_digest in parquet_digests
+            if task_digest
+        }
+        for row in all_trial_rows:
+            if not row.get("task_package_digest"):
+                borrowed = digest_by_id.get((row["job_id"], row["trial_id"]))
+                if borrowed:
+                    row["task_package_digest"] = str(borrowed)
     except Exception:
         pass
 
@@ -1009,12 +1199,10 @@ def connect_trace_query(
         """
     )
 
-    # Load canonical queries into views
+    # Load canonical queries into views (fail loudly: this SQL ships with the module)
     queries_sql_path = root / "sql" / "trace_queries.sql"
-    if queries_sql_path.is_file():
-        try:
-            conn.execute(queries_sql_path.read_text(encoding="utf-8"))
-        except Exception:
-            pass
+    if not queries_sql_path.is_file():
+        raise FileNotFoundError(f"canonical trace queries missing: {queries_sql_path}")
+    conn.execute(queries_sql_path.read_text(encoding="utf-8"))
 
     return conn, coverage

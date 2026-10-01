@@ -468,22 +468,35 @@ def confirmed_fetch(flag: dict) -> bool:
         or not flag.get("target")
         or not flag.get("document")
         or not flag.get("call_id")
+        or len(evidence) < 2
     ):
         return False
-    return all(
+    if not all(
         isinstance(item, dict)
         and item.get("target") == flag["target"]
         and item.get("document") == flag["document"]
         for item in evidence
-    ) and any(
-        item.get("step") == flag.get("step") and item.get("call_id") == flag["call_id"]
-        for item in evidence
+    ):
+        return False
+    origin = evidence[0]
+    artifact = origin.get("artifact")
+    return (
+        isinstance(artifact, str)
+        and artifact.startswith("/")
+        and origin.get("step") == flag.get("step")
+        and origin.get("call_id") == flag["call_id"]
+        and any(
+            item.get("artifact") == artifact
+            and bool(item.get("call_id"))
+            and item.get("step") is not None
+            and item.get("acquisition_proof") in {"artifact_unpack", "artifact_read"}
+            for item in evidence[1:]
+        )
     )
 
 
 _ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 _PROMPT = re.compile(r"^(?:\S+@\S+:[^\n]*[#$]|[#$])(?:\s|$)")
-_PACKAGE_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 
 
 def _output_lines(content: str, command: str) -> list[str]:
@@ -564,45 +577,45 @@ def _option(argv: list[str], names: set[str]) -> str | None:
         for name in names:
             if token.startswith(name + "="):
                 return token[len(name) + 1 :]
+            if len(name) == 2 and token.startswith(name) and len(token) > 2:
+                return token[2:]
     return None
 
 
 def _pip_artifact(command: str, finding: Finding, lines: list[str]) -> tuple[str, str] | None:
-    """Exact saved artifact or package/version listing in the destination.
-
-    A listing alone is insufficient: the caller also requires observed use of
-    this artifact in the same document, before a new attempt at this target.
-    """
+    """Exact saved/listed pinned artifact in a lexically normalized directory."""
     identity = _package_identity(finding.target)
     segment = _fetch_segment(command, finding)
     if not identity or not identity[1] or not segment:
         return None
     argv = _argv(segment) or []
-    dest = _option(argv, {"-d", "--dest", "--destination", "--wheel-dir", "-w"})
-    if not dest or not dest.startswith("/"):
+    cwd = next((cwd for args, cwd in _command_paths(command) if args == argv), None)
+    destination = _option(argv, {"-d", "--dest", "--destination", "--wheel-dir", "-w"})
+    if not destination:
+        return None
+    dest = _resolve_path(destination, cwd)
+    if not dest.startswith("/"):
         return None
     listing = any(
-        (args := _argv(part))
-        and args[0].rsplit("/", 1)[-1] in {"ls", "find"}
-        and dest in args
-        for part in _segments(command)
+        args[0].rsplit("/", 1)[-1] in {"ls", "find"}
+        and any(_resolve_path(value, working_dir) == dest for value in args[1:])
+        for args, working_dir in _command_paths(command)
     )
     name, version = identity
     for line in lines:
-        # A saved path can supply the artifact candidate even when another
-        # output producer makes a standalone success summary ambiguous.
         saved = line.startswith("Saved ")
         observed = line[6:].strip() if saved else line
-        if saved and not observed.startswith(dest.rstrip("/") + "/"):
-            continue
         if not saved and not listing:
             continue
-        value = observed.removeprefix(dest.rstrip("/") + "/")
+        artifact = _resolve_path(observed, cwd if saved else dest)
+        if posixpath.dirname(artifact) != dest:
+            continue
+        value = posixpath.basename(artifact)
         wheel = re.fullmatch(r"([A-Za-z0-9_.]+)-([^-]+)-[^/ ]+\.whl", value)
         archive = re.fullmatch(r"(.+)-([^-]+)\.(?:tar\.gz|tgz|zip)", value)
         match = wheel or archive
         if match and _normal_package(match[1]) == name and match[2] == version:
-            return dest.rstrip("/") + "/" + value, line
+            return artifact, line
     return None
 
 
@@ -710,24 +723,33 @@ def _artifact_operand(artifact: str, operand: str, cwd: str | None) -> bool:
     return pattern.startswith(prefix) and fnmatch.fnmatchcase(filename, pattern)
 
 
+def _and_follows(command: str, before: list[str], after: list[str]) -> bool:
+    """The observed follow-up is gated by this extraction's success."""
+    parts = _segments(command)
+    indices_before = [index for index, part in enumerate(parts) if _argv(part) == before]
+    indices_after = [index for index, part in enumerate(parts) if _argv(part) == after]
+    if len(indices_before) != 1 or len(indices_after) != 1 or indices_after[0] <= indices_before[0]:
+        return False
+    cursor = 0
+    for index, part in enumerate(parts):
+        start = command.find(part, cursor)
+        if start < 0:
+            return False
+        cursor = start + len(part)
+        if indices_before[0] <= index < indices_after[0] and not command[cursor:].lstrip().startswith("&&"):
+            return False
+    return True
+
+
 def _source_observed(lines: list[str]) -> bool:
     return any(re.match(r"(?:\d+:)?\s*(?:def |class |from |import |self\.)", line) for line in lines)
 
 
-def _artifact_read(destination: str, command: str, lines: list[str]) -> bool:
-    prefix = destination.rstrip("/") + "/"
-    return _source_observed(lines) and any(
-        argv[0].rsplit("/", 1)[-1] in {"cat", "sed", "head", "tail", "grep", "awk", "zcat"}
-        and any(_resolve_path(value, cwd).startswith(prefix) for value in argv[1:])
-        for argv, cwd in _command_paths(command)
-    )
-
-
 def _artifact_extraction(artifact: str, command: str, lines: list[str]) -> tuple[str | None, bool] | None:
-    """Observed exact-artifact extraction, optionally with source readback.
+    """Observed unpack or source read of the saved/listed artifact.
 
-    The extraction and read can occur in separate calls. A mere proposed
-    unzip or a later read of an unrelated/preexisting directory is not proof.
+    Quiet extraction needs a success-conditioned listing/read of its destination.
+    Merely listing an archive or reading a preexisting directory is not proof.
     """
     if any(re.search(r"(?i)^(?:unzip:|tar:)|cannot find or open|End-of-central-directory", line) for line in lines):
         return None
@@ -738,13 +760,29 @@ def _artifact_extraction(artifact: str, command: str, lines: list[str]) -> tuple
             continue
         if tool == "unzip" and "-p" in argv and _source_observed(lines):
             return None, True
+        if tool == "unzip" and any(
+            value.startswith("-") and not value.startswith("-d") and re.search(r"[ltvZzT]", value[1:])
+            for value in argv[1:]
+        ):
+            continue
+        if tool == "tar" and not any(
+            value in {"--extract", "--get"} or re.fullmatch(r"-?[vzjhJ]*x[vzjhJ]*f?", value)
+            for value in argv[1:]
+        ):
+            continue
         target = _option(argv, {"-d"} if tool == "unzip" else {"-C", "--directory"})
         if not target:
             continue
         destination = _resolve_path(target, cwd)
-        read = _artifact_read(destination, command, lines)
+        read = _source_observed(lines) and any(
+            args[0].rsplit("/", 1)[-1] in {"cat", "sed", "head", "tail", "grep", "awk", "zcat"}
+            and any(_resolve_path(value, working_dir).startswith(destination.rstrip("/") + "/") for value in args[1:])
+            and _and_follows(command, argv, args)
+            for args, working_dir in paths
+        )
         listing = any(
             args[0].rsplit("/", 1)[-1] in {"ls", "find"}
+            and _and_follows(command, argv, args)
             and any(
                 _resolve_path(value, working_dir) == destination
                 or _resolve_path(value, working_dir).startswith(destination.rstrip("/") + "/")
@@ -783,24 +821,6 @@ def _observed_outcome(finding: Finding, command: str, results: list[dict]) -> tu
             for part in other_segments
         ):
             return "unknown", None, "output-producing companion command cannot prove acquisition"
-        for line in lines:
-            if line.startswith(("Successfully downloaded ", "Successfully installed ")):
-                tokens = _PACKAGE_TOKEN.findall(line.split(" ", 2)[-1])
-                for token in tokens:
-                    normalized = _normal_package(token)
-                    installed = re.fullmatch(r"(.+)-(\d[^ ]*)", normalized)
-                    if normalized == name or (
-                        installed and installed[1] == name
-                        and (_version is None or installed[2] == _normal_package(_version))
-                    ):
-                        return "succeeded", line, "target-bound package acquisition summary"
-            elif line.startswith("Saved "):
-                filename = line[6:].strip().rsplit("/", 1)[-1]
-                archive = re.fullmatch(r"(.+?)-([^-]+)(?:-[^/ ]+\.whl|\.(?:tar\.gz|tgz|zip))", filename)
-                if archive and _normal_package(archive[1]) == name and (
-                    _version is None or archive[2] == _version
-                ):
-                    return "succeeded", line, "target-bound saved package artifact"
     segment = _fetch_segment(command, finding)
     # Exit status is meaningful only for the fetch itself, not `tail`, `ls`,
     # echo, || true, a multi-target script, or git remote-add / index queries.
@@ -814,19 +834,9 @@ def _observed_outcome(finding: Finding, command: str, results: list[dict]) -> tu
     if acquisition_kind and segment and command.strip() == segment.strip() and len(detect_upstream_fetch([command])) == 1:
         for result in results:
             code = result.get("exit_code")
-            if type(code) is int:
-                return (
-                    "succeeded" if code == 0 else "failed",
-                    f"fetch exit_code={code}",
-                    "recorded status of the isolated fetch command",
-                )
-    # wget explicitly records the URL and saved artifact; no generic "saved"
-    # or success string from another command/package is sufficient.
-    if finding.kind == "wget-remote-url" and any(finding.target in line for line in lines):
-        saved = next((line for line in lines if re.search(r"\bsaved \[\d+/\d+\]", line)), None)
-        if saved:
-            return "succeeded", saved, "URL-bound wget acquisition"
-    return "unknown", None, "no positive outcome bound to this fetch call/target"
+            if type(code) is int and code != 0:
+                return "failed", f"fetch exit_code={code}", "recorded failure of the isolated fetch command"
+    return "unknown", None, "no bound saved/listed artifact plus observed unpack/read proof"
 
 
 def assess_upstream_fetch(agent_seq: Sequence[tuple[str, dict]], info: dict) -> list[dict]:
@@ -869,7 +879,6 @@ def assess_upstream_fetch(agent_seq: Sequence[tuple[str, dict]], info: dict) -> 
                 candidate = _pip_artifact(command, finding, lines) if outcome == "unknown" else None
                 if candidate:
                     artifact, artifact_excerpt = candidate
-                    destination = None
                     chain = [{
                         "document": doc, "step": sid, "call_id": call_id,
                         "target": finding.target, "artifact": artifact,
@@ -897,36 +906,17 @@ def assess_upstream_fetch(agent_seq: Sequence[tuple[str, dict]], info: dict) -> 
                                 for line in _output_lines(str(result.get("content") or ""), text)
                             ]
                             extraction = _artifact_extraction(artifact, text, observed)
-                            read = False
                             if extraction is not None:
                                 destination, read = extraction
-                                chain = chain[:1]
-                            elif destination:
-                                # A different archive replacing this directory
-                                # starts another artifact episode, not a read
-                                # of the earlier acquisition.
-                                replaced = any(
-                                    argv[0].rsplit("/", 1)[-1] in {"unzip", "tar"}
-                                    and (target := _option(argv, {"-d", "-C", "--directory"}))
-                                    and _resolve_path(target, cwd) == destination
-                                    and not any(_artifact_operand(artifact, value, cwd) for value in argv[1:])
-                                    for argv, cwd in _command_paths(text)
-                                )
-                                if replaced:
-                                    destination = None
-                                    chain = chain[:1]
-                                else:
-                                    read = _artifact_read(destination, text, observed)
-                            if extraction is not None or read:
                                 chain.append({
                                     "document": later_doc, "step": later_sid, "call_id": later_id,
                                     "target": finding.target, "artifact": artifact,
                                     "extracted_to": destination,
+                                    "acquisition_proof": "artifact_read" if read else "artifact_unpack",
                                     "excerpt": "\n".join(observed)[:400],
                                     "observation_binding": sorted({result["binding"] for result in later_results}),
                                 })
-                            if read:
-                                outcome, reason = "succeeded", "exact destination artifact acquired, extracted, and observed in use"
+                                outcome, reason = "succeeded", "exact saved/listed artifact observed being unpacked or read"
                                 evidence = chain
                                 break
                         if outcome == "succeeded":

@@ -252,9 +252,12 @@ Set `"score_rules": ["counted_verdict"]` to score authoritative
 unavailable, with a persisted null score; they are never fabricated failures.
 The raw reward, canonical counts, report path and byte digest remain in the
 evaluation receipt. Do not combine this rule with `upstream_fetch_zero`:
-canonical counts exclude fetch-based passes only after confirmed successful
-acquisition with recorded, target-bound evidence. Failed or unknown attempts
-remain visible as non-deciding flags, even on a native pass. The legacy opt-in
+canonical counts exclude fetch-based passes only after an exact upstream
+artifact is saved/listed and then observed unpacked or read, with recorded,
+target-bound evidence. Bare success summaries and exit code 0 do not suffice.
+Directory spelling is normalized; failed or unknown attempts remain visible
+as non-deciding flags, even on a native pass. Preexisting local image mirrors
+are addressed by task/variant usability, not successful-fetch counts. The legacy opt-in
 `upstream_fetch_zero` objective deliberately retains its separate **any-attempt**
 policy; an attempted fetch still zeros that objective regardless of outcome.
 

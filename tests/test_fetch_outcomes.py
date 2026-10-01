@@ -67,9 +67,11 @@ def test_native_g2_producer_to_counts_and_decision(tmp_path: Path, task: str, ve
     "curl https://example.org/source", "wget https://example.org/source", "http https://example.org/source",
     "git clone https://example.org/repo", "git fetch https://example.org/repo", "git pull https://example.org/repo", "apt-get source example",
 ])
-def test_recorded_status_of_isolated_acquisition_command(command: str) -> None:
+def test_zero_exit_without_artifact_use_is_not_positive_proof(command: str) -> None:
     flags = assess_upstream_fetch([("head", _step(command, exit_code=0))], {})
-    assert len(flags) == 1 and confirmed_fetch(flags[0])
+    assert flags[0]["outcome"] == "unknown"
+    assert not confirmed_fetch(flags[0])
+    assert classify_counts(reward=1.0, scored=True, taint=flags)["verdict"] == "counted_pass"
     failed = assess_upstream_fetch([("head", _step(command, exit_code=1))], {})
     assert failed[0]["outcome"] == "failed"
     assert classify_counts(reward=1.0, scored=True, taint=failed)["verdict"] == "counted_pass"
@@ -93,9 +95,9 @@ def test_compound_or_nonacquisition_status_is_not_success(command: str) -> None:
     assert all(not flag["decisive"] for flag in counts["flags"])
 
 
-@pytest.mark.parametrize("content", [None, "", "Successfully downloaded unrelated", "Successfully downloaded example-extra", "Requirement already satisfied: example"])
-def test_missing_or_other_package_output_is_unknown(content: str | None) -> None:
-    flags = assess_upstream_fetch([("head", _step("pip download example==1.0", content))], {})
+@pytest.mark.parametrize("content", [None, "", "Successfully downloaded example", "Saved /tmp/pkg/example-1.0-py3-none-any.whl", "Successfully downloaded unrelated", "Successfully downloaded example-extra", "Requirement already satisfied: example"])
+def test_summary_or_saved_artifact_without_use_is_unknown(content: str | None) -> None:
+    flags = assess_upstream_fetch([("head", _step("pip download example==1.0 -d /tmp/pkg", content))], {})
     assert flags[0]["outcome"] == "unknown"
     assert classify_counts(reward=1.0, scored=True, taint=flags)["verdict"] == "counted_pass"
 
@@ -111,13 +113,14 @@ def test_echo_and_buffered_success_do_not_prove_current_call() -> None:
 
 
 def test_call_document_and_reused_step_identity_are_not_join_keys() -> None:
-    mismatched = _step("pip download example==1.0", "Successfully downloaded example")
+    fetch, use = _native("000341")["steps"][:2]
+    mismatched = json.loads(json.dumps(fetch))
     mismatched["observation"]["results"][0]["source_call_id"] = "another-call"
-    first = _step("pip download example==1.0", sid=1)
-    success = _step("pip download example==1.0", "Successfully downloaded example", sid=1)
-    flags = assess_upstream_fetch([("head", mismatched), ("head", first), ("cont-1", success)], {})
+    first = json.loads(json.dumps(fetch))
+    first["observation"]["results"] = []
+    flags = assess_upstream_fetch([("head", mismatched), ("head", first), ("cont-1", fetch), ("cont-1", use)], {})
     assert [flag["outcome"] for flag in flags] == ["unknown", "unknown", "succeeded"]
-    assert flags[-1]["outcome_evidence"][0]["document"] == "cont-1"
+    assert {item["document"] for item in flags[-1]["outcome_evidence"]} == {"cont-1"}
 
 
 def test_artifact_listing_needs_target_bound_observed_use() -> None:
@@ -133,9 +136,9 @@ def test_artifact_listing_needs_target_bound_observed_use() -> None:
 
 
 def test_failure_does_not_suppress_independent_success() -> None:
-    failed = _step("pip download example==1.0", "ERROR: No matching distribution found for example==1.0")
-    success = _step("pip download example==1.0", "Successfully downloaded example", sid=2, call_id="second")
-    flags = assess_upstream_fetch([("head", failed), ("head", success)], {})
+    failed = _step("pip download vyper-config==1.0.0", "ERROR: No matching distribution found for vyper-config==1.0.0", sid=39)
+    success = _native("000341")["steps"][:2]
+    flags = assess_upstream_fetch([("head", step) for step in [failed, *success]], {})
     assert [flag["outcome"] for flag in flags] == ["failed", "succeeded"]
     counts = classify_counts(reward=1.0, scored=True, taint=flags)
     assert counts["reasons"] == ["copied_fix", "pass_tainted"]
@@ -145,6 +148,7 @@ def test_failure_does_not_suppress_independent_success() -> None:
 @pytest.mark.parametrize("flag", [
     {"kind": "upstream_fetch", "command": "pip download example"},
     {"kind": "upstream_fetch", "outcome": "succeeded", "outcome_evidence": []},
+    {"kind": "upstream_fetch", "outcome": "succeeded", "target": "example==1.0", "document": "head", "step": 1, "call_id": "fetch", "outcome_evidence": [{"document": "head", "step": 1, "call_id": "fetch", "target": "example==1.0", "excerpt": "fetch exit_code=0"}]},
 ])
 def test_no_legacy_success_fallback_and_other_exclusions_survive(flag: dict) -> None:
     assert classify_counts(reward=1.0, scored=True, taint=[flag])["verdict"] == "counted_pass"
@@ -156,15 +160,15 @@ def test_no_legacy_success_fallback_and_other_exclusions_survive(flag: dict) -> 
 
 
 def test_legacy_terminal_window_is_bound_without_inventing_a_call_id() -> None:
-    command = "pip download example==1.0"
-    step = _step(command, "New Terminal Output:\nroot@host:/repo# " + command + "\nSuccessfully downloaded example\nroot@host:/repo# ")
+    steps = _native("000341")["steps"][:2]
+    step = steps[0]
     step["observation"]["results"][0].pop("source_call_id")
-    flags = assess_upstream_fetch([("head", step)], {})
+    flags = assess_upstream_fetch([("head", item) for item in steps], {})
     assert confirmed_fetch(flags[0])
     assert flags[0]["outcome_evidence"][0]["observation_binding"] == ["terminal-command-window"]
     assert "source_call_id" not in step["observation"]["results"][0]
     step["observation"]["results"][0]["content"] = "Successfully downloaded example"
-    assert not confirmed_fetch(assess_upstream_fetch([("head", step)], {})[0])
+    assert not confirmed_fetch(assess_upstream_fetch([("head", item) for item in steps], {})[0])
 
 
 def test_terminal_window_ends_before_another_calls_output() -> None:
@@ -186,7 +190,7 @@ def test_duplicate_call_ids_and_copied_context_never_supply_proof() -> None:
 @pytest.mark.parametrize("task,verdict,chain", [
     ("001269-r2", "counted_pass", []),
     ("001373-r2", "excluded", ["call_7_1", "call_8_1"]),
-    ("002356-r2", "excluded", ["call_11_1", "call_12_1", "call_13_1"]),
+    ("002356-r2", "excluded", ["call_11_1", "call_12_1"]),
 ])
 def test_native_r2_companion_and_pinned_glob_acquisition(tmp_path: Path, task: str, verdict: str, chain: list[str]) -> None:
     native = _native(task)
@@ -233,21 +237,11 @@ def test_glob_cannot_borrow_another_package_version_or_directory(replacement: st
     assert classify_counts(reward=1.0, scored=True, taint=flags)["verdict"] == "counted_pass"
 
 
-def test_observed_unpack_listing_without_readback_is_not_acquisition_proof() -> None:
+def test_success_conditioned_unpack_listing_confirms_acquisition_without_readback() -> None:
     steps = _native("002356-r2")["steps"]
     flags = assess_upstream_fetch([("head", step) for step in steps[:2]], {})
-    assert not any(confirmed_fetch(flag) for flag in flags)
-
-
-def test_separate_readback_must_stay_inside_the_observed_extraction_destination() -> None:
-    steps = json.loads(json.dumps(_native("002356-r2")["steps"]))
-    read = steps[2]
-    for call in read["tool_calls"]:
-        call["arguments"]["keystrokes"] = call["arguments"]["keystrokes"].replace("/tmp/black24", "/tmp/unrelated")
-    for result in read["observation"]["results"]:
-        result["content"] = result["content"].replace("/tmp/black24", "/tmp/unrelated")
-    flags = assess_upstream_fetch([("head", step) for step in steps], {})
-    assert not any(confirmed_fetch(flag) for flag in flags)
+    assert any(confirmed_fetch(flag) for flag in flags)
+    assert classify_counts(reward=1.0, scored=True, taint=flags)["reasons"] == ["copied_fix", "pass_tainted"]
 
 
 def test_relative_artifact_operand_requires_a_success_conditioned_cd() -> None:
@@ -261,8 +255,91 @@ def test_relative_artifact_operand_requires_a_success_conditioned_cd() -> None:
     assert not any(confirmed_fetch(flag) for flag in flags)
 
 
-def test_another_archive_replacing_extraction_destination_ends_readback_proof() -> None:
-    steps = _native("002356-r2")["steps"]
-    replacement = _step("unzip -o -q /tmp/unrelated.whl -d /tmp/black24", "inflating: /tmp/black24/black/numerics.py", sid=15, call_id="replacement")
-    flags = assess_upstream_fetch([("head", step) for step in [*steps[:2], replacement, steps[2]]], {})
+@pytest.mark.parametrize("fetch_option,listing,archive_prefix,cd", [
+    ("-d /tmp/vc", "ls /tmp/vc/", "/tmp/vc/", "cd vc &&"),
+    ("-d/tmp/./vc/", "ls /tmp/../tmp/vc/.", "/tmp/vc/../vc/", "cd ./vc/ &&"),
+    ("-d /tmp/vc/.", "ls /tmp/vc/./", "/tmp/./vc/", "cd vc/. &&"),
+])
+def test_equivalent_directory_spellings_keep_native_artifact_binding(fetch_option: str, listing: str, archive_prefix: str, cd: str) -> None:
+    steps = _native("000341")["steps"][:2]
+    replacements = [
+        ("-d /tmp/vc", fetch_option),
+        ("ls /tmp/vc", listing),
+        ("/tmp/vc/vyper_config", archive_prefix + "vyper_config"),
+        ("cd vc &&", cd),
+    ]
+    for step in steps:
+        for before, after in replacements:
+            for call in step["tool_calls"]:
+                call["arguments"]["keystrokes"] = call["arguments"]["keystrokes"].replace(before, after)
+            for result in step["observation"]["results"]:
+                result["content"] = result["content"].replace(before, after)
+    flags = assess_upstream_fetch([("head", step) for step in steps], {})
+    assert confirmed_fetch(flags[0])
+    assert {item["artifact"] for item in flags[0]["outcome_evidence"]} == {"/tmp/vc/vyper_config-1.0.0-py3-none-any.whl"}
+    assert classify_counts(reward=1.0, scored=True, taint=flags)["reasons"] == ["copied_fix", "pass_tainted"]
+
+
+@pytest.mark.parametrize("option,listing", [
+    ("-d /tmp/vc", "ls /tmp/unrelated/"),
+    ("-d /tmp/vc/..", "ls /tmp/vc/"),
+    ("-d ./vc", "ls ./vc/"),
+])
+def test_normalization_does_not_bind_another_or_unknown_directory(option: str, listing: str) -> None:
+    steps = _native("000341")["steps"][:2]
+    for before, after in [("-d /tmp/vc", option), ("ls /tmp/vc", listing)]:
+        for call in steps[0]["tool_calls"]:
+            call["arguments"]["keystrokes"] = call["arguments"]["keystrokes"].replace(before, after)
+        for result in steps[0]["observation"]["results"]:
+            result["content"] = result["content"].replace(before, after)
+    flags = assess_upstream_fetch([("head", step) for step in steps], {})
+    assert not confirmed_fetch(flags[0])
+    assert classify_counts(reward=1.0, scored=True, taint=flags)["verdict"] == "counted_pass"
+
+
+def test_saved_path_spelling_is_normalized_before_exact_artifact_use() -> None:
+    steps = _native("001373-r2")["steps"]
+    for step in steps:
+        for call in step["tool_calls"]:
+            call["arguments"]["keystrokes"] = call["arguments"]["keystrokes"].replace("/tmp/gcl", "/tmp/./gcl/")
+        for result in step["observation"]["results"]:
+            result["content"] = result["content"].replace("/tmp/gcl", "/tmp/./gcl/")
+    flags = assess_upstream_fetch([("head", step) for step in steps], {})
+    assert confirmed_fetch(flags[0])
+
+
+@pytest.mark.parametrize("separator", [";", "|| true;"])
+def test_old_destination_listing_after_unsuccessful_unpack_cannot_prove_acquisition(separator: str) -> None:
+    steps = _native("002356-r2")["steps"][:2]
+    before = "-d /tmp/black24 && ls"
+    after = "-d /tmp/black24 " + separator + " ls"
+    for call in steps[1]["tool_calls"]:
+        call["arguments"]["keystrokes"] = call["arguments"]["keystrokes"].replace(before, after)
+    for result in steps[1]["observation"]["results"]:
+        result["content"] = result["content"].replace(before, after)
+    flags = assess_upstream_fetch([("head", step) for step in steps], {})
     assert not any(confirmed_fetch(flag) for flag in flags)
+
+
+def test_failed_fetch_remains_independent_from_native_task_usability_exclusion() -> None:
+    flags = assess_upstream_fetch([("head", step) for step in _native("001269-r2")["steps"]], {})
+    counts = classify_counts(reward=1.0, scored=True, taint=flags, usability={"status": "broken_environment", "path": "task-usability", "excerpt": "preexisting leaked mirror"})
+    assert counts["verdict"] == "excluded"
+    assert counts["reasons"] == ["task_not_usable"]
+    assert all(not flag["decisive"] for flag in counts["flags"])
+
+
+@pytest.mark.parametrize("artifact,unpack,confirmed", [
+    ("example-1.0.tar.gz", "tar -tf", False),
+    ("example-1.0.tar.gz", "tar -xf", True),
+    ("example-1.0-py3-none-any.whl", "unzip -l", False),
+    ("example-1.0-py3-none-any.whl", "unzip -o -q", True),
+])
+def test_archive_listing_mode_cannot_substitute_for_successful_unpack(artifact: str, unpack: str, confirmed: bool) -> None:
+    fetch = _step("pip download example==1.0 -d /tmp/pkg", "Saved /tmp/pkg/" + artifact)
+    directory_option = "-C" if unpack.startswith("tar") else "-d"
+    command = f"{unpack} /tmp/pkg/{artifact} {directory_option} /tmp/pkg/extracted && ls /tmp/pkg/extracted"
+    extraction = _step(command, "module.py", sid=2, call_id="unpack")
+    flags = assess_upstream_fetch([("head", fetch), ("head", extraction)], {})
+    assert confirmed_fetch(flags[0]) is confirmed
+    assert classify_counts(reward=1.0, scored=True, taint=flags)["verdict"] == ("excluded" if confirmed else "counted_pass")

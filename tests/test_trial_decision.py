@@ -104,11 +104,11 @@ def test_page_keeps_grader_alignment_as_opinion(tmp_path: Path) -> None:
     assert "deliverable_not_in_instruction" in decision["facts"]["grader_gap"]
     assert decision["asked"]["grader_tests_asked"] == "no"
     assert decision["asked"]["excerpt"].startswith("You are a security researcher")
-    # A fetch command is a signal, never proof the fix was fetched.
-    assert decision["fetched_fix"]["fetched"] is True
-    assert decision["fetched_fix"]["command"] == FETCH
-    assert decision["fetched_fix"]["step"] == "head#4"
-    assert "unjudged" in (decision["fetched_fix"]["note"] or "")
+    # Legacy string output has no source_call_id: keep the attempt, but do
+    # not turn an unbound observation into acquisition evidence.
+    assert decision["fetched_fix"]["fetched"] is False
+    assert decision["facts"]["fetches"][0]["command"] == FETCH
+    assert decision["facts"]["fetches"][0]["outcome"] == "unknown"
     assert decision["pass_tainted"]["flagged"] is False
     assert decision["pass_tainted"]["status"] == "not_a_pass"
     # Verifier output alone says nothing about an unobserved nop control.
@@ -127,7 +127,7 @@ def test_page_keeps_grader_alignment_as_opinion(tmp_path: Path) -> None:
     assert "### Counts" in lines
 
 
-def test_pass_with_fetch_is_a_candidate_not_a_ruling() -> None:
+def test_pass_with_command_only_fetch_is_not_a_taint_candidate() -> None:
     decision = build_decision(
         Path("/tmp/does-not-need-to-exist"),
         reward=1.0,
@@ -151,7 +151,8 @@ def test_pass_with_fetch_is_a_candidate_not_a_ruling() -> None:
         token_flow={"last_useful_edit": {"step_id": 8, "command_excerpt": "apply_patch parser.py"}},
     )
     assert decision["whose"] == "none"
-    assert decision["pass_tainted"]["flagged"] is True
+    assert decision["pass_tainted"]["flagged"] is False
+    assert decision["fetched_fix"]["fetched"] is False
     assert decision["counts"]["status"] == "pending"
     assert decision["counts"]["verdict"] is None
     assert decision["counts"]["task_ledger"]["status"] == "unavailable"

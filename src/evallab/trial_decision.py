@@ -20,6 +20,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from evallab.upstream_fetch import confirmed_fetch
+
 DECISION_SCHEMA = "trial_decision/v3"
 _EXCERPT_CHARS = 400
 #: HAR-119 published rule: 10 turns after the first confirm prompt, and at
@@ -257,7 +259,8 @@ def build_decision(
     grader_gap, grader_tests = _grader_gap(
         trial, instruction, grader_evidence if isinstance(grader_evidence, dict) else None
     )
-    fetches = [flag for flag in flags if flag.get("kind") == "upstream_fetch"]
+    attempts = [flag for flag in flags if flag.get("kind") == "upstream_fetch"]
+    fetches = [flag for flag in attempts if confirmed_fetch(flag)]
     guards = [flag for flag in flags if flag.get("kind") == "guard_reject"]
     passed = scored and isinstance(reward, (int, float)) and float(reward) >= 1.0
     if passed and (fetches or guards):
@@ -288,8 +291,16 @@ def build_decision(
             "calls": calls,
             "tokens": tokens,
             "fetches": [
-                {"step": flag.get("evidence"), "command": flag.get("command")}
-                for flag in fetches
+                {
+                    "step": flag.get("evidence"),
+                    "command": flag.get("command"),
+                    "target": flag.get("target"),
+                    "document": flag.get("document"),
+                    "call_id": flag.get("call_id"),
+                    "outcome": flag.get("outcome", "unknown"),
+                    "outcome_evidence": flag.get("outcome_evidence") or [],
+                }
+                for flag in attempts
             ],
             "verifier_message": _verifier_message(trial),
             "nop_same_crash": nop,
@@ -515,7 +526,10 @@ def render_decision_markdown(decision: dict[str, Any] | None) -> list[str]:
     fetch = decision.get("fetched_fix") or {}
     ledger = counts.get("task_ledger") or {}
     fetch_line = (
-        "; ".join(f"`{item.get('step')}` `{item.get('command')}`" for item in fetches)
+        "; ".join(
+            f"`{item.get('step')}` `{item.get('command')}` — `{item.get('outcome', 'unknown')}`"
+            for item in fetches
+        )
         or "no fetch command observed"
     )
     lines = [
@@ -590,10 +604,10 @@ def render_decision_markdown(decision: dict[str, Any] | None) -> list[str]:
             "Opinion: a nonzero test count alone never means the grader tests the instruction."
         ),
         (
-            f"- Upstream fetch: command observed at `{fetch.get('step')}`. "
-            "Whether it supplied the graded fix is unjudged: a fetch is a signal, not proof."
+            f"- Upstream acquisition: confirmed at `{fetch.get('step')}`. "
+            "Whether it supplied the graded fix is unjudged."
             if fetch.get("fetched")
-            else "- Upstream fetch: no fetch command observed."
+            else "- Upstream acquisition: not confirmed; failed/unknown attempts are non-deciding."
         ),
         (
             f"- Pass taint: `{tainted.get('status')}` "
@@ -841,9 +855,11 @@ def _fetched_fix(fetches: list[dict[str, Any]]) -> dict[str, Any]:
         "step": first.get("evidence"),
         "command": first.get("command"),
         "kind": first.get("rule"),
+        "target": first.get("target"),
+        "outcome_evidence": first.get("outcome_evidence"),
         "note": (
-            "A fetch command was observed. Whether it supplied the graded fix is unjudged: "
-            "a fetch is a signal, not proof."
+            "Upstream acquisition was confirmed. Whether it supplied the graded fix is unjudged: "
+            "acquisition is a signal, not proof of copied code."
         ),
     }
 

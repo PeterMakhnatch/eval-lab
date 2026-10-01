@@ -15,9 +15,9 @@ inputs:
   - path: src/evallab/analysis_statistics.py
     digest: sha256:8383487abae3e5c62104b785320bfda2df378a3fc877355a34cea47a2258830e
   - path: src/evallab/analysis_worker.py
-    digest: sha256:05cd979298f5a8f059a925a647b04200ea8c32d61da83e8d9807fad32cdb05c2
+    digest: sha256:7f3b2a071c04d216bceb220bf08fc74cd75e23436935dde99e5db57cb7a9cd99
   - path: src/evallab/analyst.py
-    digest: sha256:5d4904213da512d9f5455eb81b122219ddec080c46ab4940b7e384d8936316c9
+    digest: sha256:501be279f4fb8cc54ee9cb370688c0c11d65895f0f7c61bb776faa9633d61769
   - path: src/evallab/antigravity.py
     digest: sha256:1407365175bd5ee8d6565a0e4ce68793062ead3cee0784851d57f3fa3e352eea
   - path: src/evallab/authoring.py
@@ -41,7 +41,7 @@ inputs:
   - path: src/evallab/campaigns.py
     digest: sha256:843db6ca4a0aae87431c783d77bd3abe3824c4e318e592ae340abb9144c674f1
   - path: src/evallab/canary.py
-    digest: sha256:b38b276fec6cc4310cd735096ab3d18618c23711c5a44f33e37910fb0223dbf0
+    digest: sha256:9418394fbce95588758102631c1d80ff311189fd43847c9577abb67111714213
   - path: src/evallab/capability_contract.py
     digest: sha256:1d7bee49cf50e163f73043ccc538d60e066dd83dc03fa53adeaab47ca8044091
   - path: src/evallab/cards.py
@@ -69,11 +69,9 @@ inputs:
   - path: src/evallab/devloop.py
     digest: sha256:4683621e2f3a68c9486edca0593d0c919723449bee20fa4d57d64dbde7edbaf1
   - path: src/evallab/digest.py
-    digest: sha256:af1fe9201c3e148049cd4ffff2084ca6982a52e7a5a4363d94cb968fee961101
+    digest: sha256:5fb598fe93b5168d0b5f9c6fd0e81a9fa67712235730cc4f70004a8d8c1a0561
   - path: src/evallab/docindex.py
     digest: sha256:c57bd3db7a2bea5b3aa756f4481a9432510ee15fb77127bd603f91651b4781b4
-  - path: src/evallab/dsh.py
-    digest: sha256:6770c089900bb7295a6d6257d04d61b2e7de0f708c08813dcea0505d1ee5d10d
   - path: src/evallab/edit_signals.py
     digest: sha256:c24204d47a6cc1149de78f122b472041e443580144e6ee803dd67f397458713a
   - path: src/evallab/eventlog.py
@@ -117,7 +115,7 @@ inputs:
   - path: src/evallab/gepa_optimizer/composition.py
     digest: sha256:8cee253a03e935db6d30b97a96480928270cc015782c502429ac07f5dcd69195
   - path: src/evallab/gepa_optimizer/evaluator.py
-    digest: sha256:05cd7d49363904ef1ddac99bf3a4850cf11ddafe0c3c6292a689d3c0e4899f50
+    digest: sha256:3d3ca7248285f99ffbc0bb022c01013322689dea5cf1bc76c72f4dd1bf3a17c5
   - path: src/evallab/gepa_optimizer/feedback.py
     digest: sha256:69993d3d936918ac3641cf2e8c4ebb9a90476c07329c67c000e1092d95587ef5
   - path: src/evallab/gepa_optimizer/intake.py
@@ -133,7 +131,7 @@ inputs:
   - path: src/evallab/gepa_optimizer/release.py
     digest: sha256:64f8d2c60bcedcc8da4e75c6dd354993897967abdec14abf879d65a956fab214
   - path: src/evallab/gepa_optimizer/workflow.py
-    digest: sha256:86ec360239f1ba44e71701ed1c342c06031ae6c89a276186f603a1c6c4cfe49e
+    digest: sha256:54e886855a9caa7fdf081e24e359085f30aff7e6320569a1c8bc2494c976057d
   - path: src/evallab/governance.py
     digest: sha256:ae2a14127f4be7f73748c01aa694858a8015ef1173b1e76019b91212c5e61ddc
   - path: src/evallab/harbor_antigravity.py
@@ -268,8 +266,6 @@ inputs:
     digest: sha256:982bd501900765fc8eb5f32d604e63b27206c94f2a1cbfa5c822892c0cf84758
   - path: src/evallab/lineage.py
     digest: sha256:d4cb657bc9ed6d0f7f951490126175cccde655ed869cd179d0621e74b3b0679d
-  - path: src/evallab/loader_shims.py
-    digest: sha256:91950400d0b70eff5f253e8c8c645840ce828d46b64789d00d0c1020eb688c06
   - path: src/evallab/loopfix.py
     digest: sha256:c3b84df9b0f7d904d7298f58626b045c5793937dfecb3d54b8a478e6c3b0843f
   - path: src/evallab/mcp_substrate.py
@@ -293,7 +289,7 @@ inputs:
   - path: src/evallab/operational_restraint.py
     digest: sha256:eeda8c22120847704001b1267933b017a261f4a5cf1e3046f3357913cc55517a
   - path: src/evallab/ops_continuous.py
-    digest: sha256:b79eb252bb5a40286496ab5a338fe4ebcb8634d4e1ff09a097983308daff20d6
+    digest: sha256:058611c54aefb8680ea0377b9d07c4df39611f970c8ea695dd2bdcd8d506fd91
   - path: src/evallab/phoenix_annotations.py
     digest: sha256:c0519de2a19c9968851d06715d0a900b8481782dfb28d15c519cac4237330c1b
   - path: src/evallab/power.py
@@ -311,7 +307,7 @@ inputs:
   - path: src/evallab/quality_audit.py
     digest: sha256:a6c4c575c999c1eb58dd5ebc2059204a80a778f8f1014985a0a8a3e112d9a997
   - path: src/evallab/queue.py
-    digest: sha256:7be854f9b8510281ef08a8cce99e569e2a22225c9b91055d8002bb0915957a11
+    digest: sha256:2d34db2337c3f91a34a9e95565ca54344727b9e835f3a09ed7239b5ccc713246
   - path: src/evallab/quota.py
     digest: sha256:34c4352fb1448b3ab5ae2388157bd80120f0684b5925917735923c61143f5043
   - path: src/evallab/recovery/__init__.py
@@ -333,7 +329,7 @@ inputs:
   - path: src/evallab/report.py
     digest: sha256:c4157c3c9c880b3ac42fc4469a6bc75677e640432ecbeb1806ba7d420b3e945b
   - path: src/evallab/researchers.py
-    digest: sha256:e94a9713cbc182222180e3bccb32736eed7f1c4a68df9e3be49fa56f861e3a6f
+    digest: sha256:24a42ba182ace517c07a8b2b202fa6c77aff8c8793b61b6a0191c6d11d63e276
   - path: src/evallab/restraint_canary.py
     digest: sha256:5bb9bf0ad75b7da3bf0285feacd39280cc1829df99dcd586ff1d81d310175f52
   - path: src/evallab/results.py
@@ -371,7 +367,7 @@ inputs:
   - path: src/evallab/runner.py
     digest: sha256:7dbaf170a7139fc8219453172e1c21f8f5acb8cdc07b2f2e6ed84b9a83a02124
   - path: src/evallab/schemas/__init__.py
-    digest: sha256:b6e0a6aea01d7ee73e8555adbc046e63c1cd5d343a08e1d15090bb9e90720294
+    digest: sha256:679c97b042370ac0f83c4ed5ff44d803ca37846988f1d09d51d2301f87cd10fb
   - path: src/evallab/screen.py
     digest: sha256:2b73a0dabcdc25ee596d9068a23935b2d9f7deaad60cca6322cd8be1061620ef
   - path: src/evallab/semantic_facts.py
@@ -405,7 +401,7 @@ inputs:
   - path: src/evallab/storage/__init__.py
     digest: sha256:7276bb505f87769117c2c3e16f7e2c83dbd33806fc791adbdfc6353dd6fc0b11
   - path: src/evallab/storage/attach.py
-    digest: sha256:1193f3bc72f6872519ea85273fcedc46c8655a160d0ba09c0882f36f43644cd8
+    digest: sha256:ab1a4a8297c65c8846807c3dd9d42f3aa373a1a3b87196786e7b239ef5e06235
   - path: src/evallab/storage/data_backfill.py
     digest: sha256:560b90d83d6bdb51af8172a6321005d036413102960cc4657e1446b303187f62
   - path: src/evallab/storage/fs.py
@@ -477,7 +473,7 @@ inputs:
   - path: src/evallab/upstream_fetch.py
     digest: sha256:291991788cde37961010f60b81ce332935d3f9cfb54b5047f6c92b9ac226645b
   - path: src/evallab/verdicts.py
-    digest: sha256:4642bab826f0c93a954d66770f93a403c85ccb384b8c08cfb6973f97636b8846
+    digest: sha256:31d4d5d3dbcd6fd83bff63b955f33536242fc273ae15a12a0310900e4c9d8437
   - path: src/evallab/zai_analysis.py
     digest: sha256:6eb68ccfdf101d8c1372f2cb0e6f7296a7df5f5d3711525a6ab910ddb64f6bf5
   - path: src/evallab/zai_campaign.py
@@ -531,7 +527,6 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `devloop` | 400 | Developer fast-loop command: map changed files to affected test modules. | — |
 | `digest` | 900 | True for a run the lab generated to test itself rather than a model. | — |
 | `docindex` | 400 | Documentation index generator and archive sweep (WS-E item 7). | `python -m evallab.docindex generate`, `python -m evallab.docindex check` |
-| `dsh` | 500 | Read DeepSeek Harness sessions as ATIF. | — |
 | `edit_signals` | 100 | Shared edit detectors: tool names and command patterns (HAR-116 fix). | — |
 | `eventlog` | 100 | Serialize event-log operations across both threads and processes. | — |
 | `evidence` | 100 | Canonical evidence projection package. | — |
@@ -553,7 +548,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `gepa_optimizer.budget` | 300 | Durable reservations shared by optimizer stages and independent native repeats. | — |
 | `gepa_optimizer.codex_transport` | 500 | One text-only GEPA reflection through an authenticated Codex subscription. | — |
 | `gepa_optimizer.composition` | 400 | Pinned Omni recipe: three genuine engines, common scoring, fresh continuation. | — |
-| `gepa_optimizer.evaluator` | 1400 | LabEvaluator integration for GEPA optimize_anything and MetaHarnessEngine. | — |
+| `gepa_optimizer.evaluator` | 1800 | LabEvaluator integration for GEPA optimize_anything and MetaHarnessEngine. | — |
 | `gepa_optimizer.feedback` | 1100 | Feedback builder for GEPA prompt optimizer and reflection. | — |
 | `gepa_optimizer.intake` | 200 | Replay retained Harbor specs while changing one pinned candidate artifact. | — |
 | `gepa_optimizer.meta_engine` | 600 | MetaHarnessEngine qualification and configuration for Eval Lab. | — |
@@ -629,7 +624,6 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `lego_capture` | 400 | Read-only structural assessment of saved LEGO-RL ``proxy_capture`` JSON. | — |
 | `lessons` | 1300 | Statistical lesson aggregation views and findings engine (WS-D). | — |
 | `lineage` | 600 | Lineage walker for generated artifacts (E14). | `lineage` |
-| `loader_shims` | 100 | Harbor task loader shims for external task packs (TW, FACET). | — |
 | `loopfix` | 300 | HAR-116 loop break and output cap, shared by replay and the live agent. | — |
 | `mcp_substrate` | 1900 | Shared FastMCP multi-container task-authoring substrate and runtime middleware. | — |
 | `mimo_exploit` | 400 | MiMo hack-probe exploit detector (HAR-83). | — |
@@ -680,7 +674,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `run_preflight` | 700 | Secret-safe preflight for Z.ai / TB4 overnight campaigns. | — |
 | `run_telemetry` | 600 | Per-round run telemetry: live sampler + post-hoc extractor (HAR-126). | — |
 | `runner` | 2900 | Return only containers proven by labels to belong to Harbor for this task. | `dashboard`, `run`, `matrix` |
-| `schemas` | 2500 | Strict base for durable lab contracts. | — |
+| `schemas` | 2600 | Strict base for durable lab contracts. | — |
 | `screen` | 1100 | Difficulty screening and follow-up generation for eval-lab (v2 §4). | — |
 | `semantic_facts` | 500 | Typed, provenance-preserving semantic facts for benchmark analysis. | — |
 | `seqgen` | 1500 | Deterministic, sequence-first synthetic Harbor-task generator (SEQGEN v0). | — |

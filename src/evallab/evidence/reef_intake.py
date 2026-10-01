@@ -62,8 +62,8 @@ from typing import Any
 #: as unsupported, and these are evaluated agent episodes.
 REEF_AGENT_NAME = "reef-harness"
 
-#: Newest ATIF version ``evidence/atif`` accepts; kept in sync with
-#: ``evallab.dsh.DEFAULT_SCHEMA_VERSION``.
+#: Newest ATIF version ``evidence/atif`` accepts.
+
 DEFAULT_SCHEMA_VERSION = "ATIF-v1.7"
 
 #: Default Reef commit whose record format this module mirrors. Recorded per
@@ -210,8 +210,7 @@ def parse_reef_gate_episode(
         atif_steps.append({"step_id": 1, "source": "user", "message": task})
 
     # Fold native events onto their Reef step coordinate so a step that
-    # calls a tool and observes its result stays one ATIF step, mirroring
-    # the (turn, step) folding in ``evallab.dsh.parse_session_to_atif``.
+    # calls a tool and observes its result stays one ATIF step.
     # ATIF requires an observation's source_call_id to name a tool call in
     # the same step, so tool calls and results must share the step.
     buckets: dict[tuple[int, int], JsonObject] = {}

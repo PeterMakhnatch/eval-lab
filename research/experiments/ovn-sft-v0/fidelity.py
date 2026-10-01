@@ -43,16 +43,23 @@ def capture_verdict(history: list[dict], target: dict, calls: list[dict]) -> str
 
     ``calls`` holds only the row's trial (bound by ``--capture TRIAL=PATH``),
     so two trials with identical prompts can never borrow each other's call.
-    The row's call is the one whose request carries exactly
-    ``len(history)`` messages; none is ``missing``, more than one is
+    The row's call is the one delivered call (status 200, no recorded
+    ``error`` such as ``client_disconnect``) whose request carries exactly
+    ``len(history)`` messages; none is ``missing`` (``undelivered`` when
+    calls at that position exist but none was delivered), more than one is
     ``ambiguous`` (a retried call: the export cannot say which was trained).
     Then the history must equal the request ``messages`` (role and content,
     byte for byte) and the target must equal choice 0's ``content`` and
     ``reasoning_content``.
     """
-    matches = [call for call in calls if len(_messages(call) or []) == len(history)]
+    at_position = [call for call in calls if len(_messages(call) or []) == len(history)]
+    matches = [
+        call
+        for call in at_position
+        if call.get("error") is None and call.get("response_status") == 200
+    ]
     if not matches:
-        return "missing"
+        return "undelivered" if at_position else "missing"
     if len(matches) > 1:
         return "ambiguous"
     sent = _messages(matches[0]) or []

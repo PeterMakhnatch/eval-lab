@@ -136,6 +136,11 @@ for position, names in sorted(waves.items()):
 EOF
 WAVE_NAMES=$(ls "$OUT"/wave-*.names | sort)
 [ -n "$WAVE_NAMES" ] || die "no position waves planned"
+for names in $WAVE_NAMES; do
+  while read -r name; do
+    [ ! -e "runs/$name" ] || die "runs/$name already exists; G5 job names must be fresh"
+  done <"$names"
+done
 
 if [ "$DRY_RUN" = 1 ]; then
   log "dry run: preflight, reconcile, spend check and wave plan passed; nothing submitted, deployed or ticked"
@@ -246,45 +251,29 @@ for wave in $WAVES; do
     warm "$position" || die "server unhealthy before $position and warm smoke failed"
   fi
   args=()
+  count=0
   while read -r name id; do
     "$EVALLAB" approve "$id" --actor "$ACTOR" </dev/null >/dev/null 2>&1 || die "approve failed for $name"
     args+=(--spec-id "$id")
+    count=$((count + 1))
   done <"$wave"
   started=$(date -u +%FT%TZ)
-  log "$position: tick ${#args[@]} specs at parallel $PARALLEL"
+  log "$position: tick $count specs at parallel $PARALLEL"
+  tick_status=0
   EVALLAB_MIMO_SELFHOSTED_UPSTREAM="http://127.0.0.1:$PORT" EVALLAB_MODEL_CAPTURE=1 MIMO_SELFHOSTED_API_KEY="$KEY" \
-    "$EVALLAB" tick --parallel "$PARALLEL" "${args[@]}" >>"$OUT/$position-tick.log" 2>&1 || log "$position: tick exited nonzero"
+    "$EVALLAB" tick --parallel "$PARALLEL" "${args[@]}" >>"$OUT/$position-tick.log" 2>&1 || tick_status=$?
   finished=$(date -u +%FT%TZ)
-  "$PY" - "$wave" "$started" >"$OUT/$position-outcome.json" <<'EOF'
-import glob, json, sys
-names = [line.split()[0] for line in open(sys.argv[1]) if line.strip()]
-infra = {"ServiceUnavailableError", "APIConnectionError", "InternalServerError", "Timeout"}
-failures, refused, not_terminal = [], set(), []
-for name in names:
-    results = glob.glob(f"runs/{name}/*/result.json")
-    if not results:
-        not_terminal.append(name)
-    for path in results:
-        exc = (json.load(open(path)).get("exception_info") or {}).get("exception_type")
-        if exc in infra:
-            failures.append(name)
-for line in open("queue/events.jsonl"):
-    event = json.loads(line)
-    if (
-        event.get("event") == "dispatch_refused"
-        and event.get("job_name") in names
-        and event.get("occurred_at", "")[:19] >= sys.argv[2][:19]
-    ):
-        refused.add(f"{event['job_name']}:{event.get('reason_code')}")
-print(json.dumps({"infra_failures": failures, "refused": sorted(refused), "not_terminal": not_terminal}))
-EOF
+  # Advance only when every spec of this wave has a result.json written during
+  # this wave (stale results do not count), fewer than 3 infra failures (no
+  # verifier reward and an exception outside AGENT_STOP_EXCEPTIONS) and no
+  # refusal: PREREG's serial-per-task order. A nonzero tick also stops the round.
+  advance=0
+  "$PY" research/experiments/ovn-sft-v0/g5_wave_outcome.py "$wave" "$started" >"$OUT/$position-outcome.json" || advance=$?
   verdict=$(cat "$OUT/$position-outcome.json")
-  manifest "$position" "{\"started\": \"$started\", \"finished\": \"$finished\", \"specs\": ${#args[@]}, \"outcome\": $verdict}"
-  log "$position done: $verdict"
-  # Advance only when every spec of this wave has a result.json (a refusal also
-  # leaves no result, so it stops the round too): PREREG's serial-per-task order.
-  "$PY" -c "import json,sys; d=json.loads(sys.argv[1]); sys.exit(0 if len(d['infra_failures'])<3 and not d['refused'] and not d['not_terminal'] else 1)" "$verdict" \
-    || die "$position: not every spec is terminal, or 3+ infra failures, or a dispatch refusal; later waves not ticked"
+  manifest "$position" "{\"started\": \"$started\", \"finished\": \"$finished\", \"tick_status\": $tick_status, \"outcome\": $verdict}"
+  log "$position done (tick exit $tick_status): $verdict"
+  [ "$tick_status" = 0 ] || die "$position: tick exited $tick_status; later waves not ticked"
+  [ "$advance" = 0 ] || die "$position: not every spec is terminal, or 3+ infra failures, or a dispatch refusal; later waves not ticked"
 done
 
 # ---- 10. link, freeze, reconcile ------------------------------------------------------

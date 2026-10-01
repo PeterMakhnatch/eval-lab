@@ -56,11 +56,20 @@ def _write_labels(root: Path, kinds: dict[str, tuple[str, str]]) -> Path:
     return root
 
 
-def _write_report(home: Path, trial: str, kind) -> Path:
+def _manifest_sha(labels: Path) -> str:
+    return hashlib.sha256((labels / "MANIFEST.sha256").read_bytes()).hexdigest()
+
+
+def _write_report(home: Path, trial: str, kind, name: str | None = None) -> Path:
     home.mkdir(parents=True, exist_ok=True)
     path = home / f"trial-{trial}.json"
     path.write_text(
-        json.dumps({"decision": {"judgments": {"loop_kind": {"kind": kind}}}}),
+        json.dumps(
+            {
+                "trial_name": trial if name is None else name,
+                "decision": {"judgments": {"loop_kind": {"kind": kind}}},
+            }
+        ),
         encoding="utf-8",
     )
     return path
@@ -73,6 +82,7 @@ def _score(*, labels: Path, home: Path, out: Path, trials: int):
         output=out,
         expected_files=2 * trials,
         expected_trials=trials,
+        expected_manifest_sha256=_manifest_sha(labels),
     )
 
 
@@ -116,10 +126,35 @@ def test_missing_or_unknown_page_is_an_abstention_not_none(tmp_path: Path) -> No
     _write_report(home, "weird", "something-else")
     payload = _score(labels=labels, home=home, out=tmp_path / "o.json", trials=2)
     assert payload["page_abstentions"] == 2
-    assert payload["page_vs_agreed"] == {"agree": 0, "n": 0}
+    assert payload["page_vs_agreed"] == {"agree": 0, "n": 2}
     by_trial = {row["trial"]: row for row in payload["rows"]}
     assert by_trial["gone"]["page"] is None
     assert by_trial["gone"]["abstention_reason"]
     assert by_trial["weird"]["page"] is None
     assert by_trial["weird"]["abstention_reason"]
     assert all(row["page"] != "none" or row["page_matches"] for row in payload["rows"])
+
+
+def test_wrong_manifest_sha_rejects_before_writing(tmp_path: Path) -> None:
+    labels = _write_labels(tmp_path / "labels", {"t1": ("none", "none")})
+    home = tmp_path / "home"
+    _write_report(home, "t1", "none")
+    out = tmp_path / "o.json"
+    with pytest.raises(SystemExit):
+        score_page.score_published_cohort(
+            labels_root=labels,
+            results_home=home,
+            output=out,
+            expected_files=2,
+            expected_trials=1,
+            expected_manifest_sha256="0" * 64,
+        )
+    assert not out.exists()
+
+
+def test_report_for_another_trial_aborts(tmp_path: Path) -> None:
+    labels = _write_labels(tmp_path / "labels", {"t1": ("none", "none")})
+    home = tmp_path / "home"
+    _write_report(home, "t1", "none", name="someone-else")
+    with pytest.raises(SystemExit):
+        _score(labels=labels, home=home, out=tmp_path / "o.json", trials=1)

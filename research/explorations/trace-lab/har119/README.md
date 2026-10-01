@@ -143,10 +143,15 @@ The same script scores already-published `trial_decision/v3` pages without
 re-running any classifier: it reads each published report's
 `decision.judgments.loop_kind.kind` and compares it to the agreed frozen
 rater cells. The freeze (80 files) and the 40 unique trial IDs shared by
-both raters are verified before any page is read. A missing report or an
+both raters are verified before any page is read, and the expected manifest
+sha is rejected before anything is scored or written. A missing report or an
 unknown page kind is an explicit abstention, never `none` and never
 silently dropped; a corrupt label or report aborts, and ambiguous duplicate
-reports abort rather than pick one.
+reports abort rather than pick one. Manifest members must be unique in-root
+`rater_[ab]` paths equal to exactly the files scored, each label's `trial`
+must match its filename, each report's `trial_name` must match the expected
+trial, and the denominator stays the full rater-agreed count (abstentions
+add no hit without shrinking `n`).
 
 ```
 uv run python research/explorations/trace-lab/har119/score_page.py \

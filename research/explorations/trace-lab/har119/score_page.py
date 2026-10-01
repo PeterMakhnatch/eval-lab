@@ -313,6 +313,7 @@ def main(argv: list[str] | None = None) -> int:
 COHORT_SCHEMA = "har131.page_loop_calibration/v1"
 PUBLISHED_LOOP_KINDS = ("none", "repetition", "completion-claim")
 HAR128_COHORT = "HAR-128 part 2: 40 HAR-116 trials"
+HAR128_MANIFEST_SHA256 = "24b91001adf5707ebb65756e575a9acbc39a816173ee16a5da88cf989e99513d"
 HAR128_LABELS_DEFAULT = REPO / "research/explorations/trace-lab/har128/labels_har116"
 HAR128_OUTPUT_DEFAULT = REPO / "research/experiments/har117-results-home/har131-page-calibration-har116.json"
 HAR128_EXPECTED_FILES = 80
@@ -343,7 +344,36 @@ def _parse_args(argv: list[str] | None):
                         help="receipt path (default: har117-results-home/har131-page-calibration-har116.json)")
     parser.add_argument("--expected-files", type=int, default=HAR128_EXPECTED_FILES)
     parser.add_argument("--expected-trials", type=int, default=HAR128_EXPECTED_TRIALS)
+    parser.add_argument("--expected-manifest-sha256", default=HAR128_MANIFEST_SHA256,
+                        help="reject the label freeze before scoring unless its manifest matches")
     return parser.parse_args(argv)
+
+
+def _canonical_member(name: str) -> str:
+    """A manifest path must stay in-root and be shaped rater_[ab]/<trial>.json."""
+    from pathlib import PurePosixPath
+
+    member = PurePosixPath(name)
+    if member.is_absolute() or ".." in member.parts or len(member.parts) != 2:
+        raise SystemExit(f"manifest declares out-of-root path {name!r}; refusing to score")
+    rater, filename = member.parts
+    if rater not in ("rater_a", "rater_b") or not filename.endswith(".json"):
+        raise SystemExit(f"manifest declares unexpected member {name!r}; refusing to score")
+    return f"{rater}/{filename}"
+
+
+def manifest_label_paths(manifest: str) -> list[str]:
+    """Unique canonical rater files the freeze declares; aborts on dupes or escapes."""
+    members = []
+    for line in manifest.splitlines():
+        if not line.strip():
+            continue
+        if len(line.split()) != 2:
+            raise SystemExit("manifest has a malformed line; refusing to score")
+        members.append(_canonical_member(line.split(maxsplit=1)[1]))
+    if len(set(members)) != len(members):
+        raise SystemExit("manifest declares a label file twice; refusing to score")
+    return sorted(members)
 
 
 def verify_published_freeze(labels_root: Path, expected_files: int) -> str:
@@ -352,21 +382,31 @@ def verify_published_freeze(labels_root: Path, expected_files: int) -> str:
     if not manifest_path.is_file():
         raise SystemExit(f"no MANIFEST.sha256 in {labels_root}")
     manifest = manifest_path.read_text()
-    lines = [line for line in manifest.splitlines() if line.strip()]
-    if len(lines) != expected_files:
-        raise SystemExit(f"expected {expected_files} frozen label files, manifest lists {len(lines)}")
-    for line in lines:
-        digest, name = line.split(maxsplit=1)
+    members = manifest_label_paths(manifest)
+    if len(members) != expected_files:
+        raise SystemExit(f"expected {expected_files} frozen label files, manifest lists {len(members)}")
+    digests = {}
+    for line in manifest.splitlines():
+        if line.strip():
+            digest, name = line.split(maxsplit=1)
+            digests[_canonical_member(name)] = digest
+    for name in members:
         target = labels_root / name
         if not target.is_file():
             raise SystemExit(f"label {name} listed in the freeze is missing")
-        if hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+        if hashlib.sha256(target.read_bytes()).hexdigest() != digests[name]:
             raise SystemExit(f"label {name} changed after the freeze")
     return manifest
 
 
-def published_trial_ids(labels_root: Path, expected_trials: int) -> list[str]:
-    """Unique trial IDs shared by both raters; abort on mismatch."""
+def published_trial_ids(
+    labels_root: Path, expected_trials: int, members: list[str] | None = None
+) -> list[str]:
+    """Unique trial IDs shared by both raters; abort on mismatch.
+
+    When the manifest's declared members are given, they must be exactly the
+    rater files scored: no unscored-but-verified label, no scored-but-unverified one.
+    """
     a_ids = {path.stem for path in (labels_root / "rater_a").glob("*.json")}
     b_ids = {path.stem for path in (labels_root / "rater_b").glob("*.json")}
     if not a_ids or a_ids != b_ids:
@@ -376,36 +416,57 @@ def published_trial_ids(labels_root: Path, expected_trials: int) -> list[str]:
         )
     if len(a_ids) != expected_trials:
         raise SystemExit(f"expected {expected_trials} trials, found {len(a_ids)}")
+    if members is not None:
+        scored = sorted([f"rater_a/{trial}.json" for trial in a_ids]
+                        + [f"rater_b/{trial}.json" for trial in a_ids])
+        if sorted(members) != scored:
+            raise SystemExit("manifest members differ from the rater files scored; refusing to score")
     return sorted(a_ids)
 
 
 def read_rater_kind(path: Path) -> str:
-    """One rater's loop kind; a corrupt or unknown label aborts, never guesses."""
+    """One rater's loop kind; a corrupt, mislabeled or unknown label aborts, never guesses."""
     try:
         row = json.loads(path.read_text())
     except (OSError, ValueError) as exc:
         raise SystemExit(f"label {path} is unreadable: {exc}") from exc
-    kind = har119_score.rater_view(row)["loop_kind"] if isinstance(row, dict) else None
+    if not isinstance(row, dict) or row.get("trial") != path.stem:
+        raise SystemExit(f"label {path} is not the trial its filename claims; refusing to guess")
+    kind = har119_score.rater_view(row)["loop_kind"]
     if kind not in PUBLISHED_LOOP_KINDS:
         raise SystemExit(f"label {path} has unknown loop_kind {kind!r}; refusing to guess")
     return kind
 
 
-def find_published_report(results_home: Path, trial: str) -> Path | None:
+def index_published_reports(results_home: Path) -> dict[str, list[str]]:
+    """Map each published trial report name to its paths with a single scan."""
+    index: dict[str, list[str]] = {}
+    for path in sorted(results_home.rglob("trial-*.json")):
+        trial = path.name[len("trial-"):-len(".json")]
+        index.setdefault(trial, []).append(str(path))
+    return index
+
+
+def find_published_report(index: dict[str, list[str]], trial: str) -> Path | None:
     """The single published report for a trial; ambiguity aborts, absence abstains."""
-    hits = sorted(results_home.rglob(f"trial-{trial}.json"))
+    hits = index.get(trial, [])
     if len(hits) > 1:
         raise SystemExit(f"trial {trial}: {len(hits)} published reports; refusing to pick one")
-    return hits[0] if hits else None
+    return Path(hits[0]) if hits else None
 
 
-def read_page_kind(report_path: Path) -> tuple[str | None, str | None, str]:
-    """A published page's loop kind. Missing/unknown is an abstention, never none."""
+def read_page_kind(report_path: Path, trial: str) -> tuple[str | None, str | None, str]:
+    """A published page's loop kind, bound to the expected trial identity.
+
+    A report for another trial aborts; a missing/unknown kind is an abstention, never none.
+    """
     digest = _sha256(report_path)
     try:
         report = json.loads(report_path.read_text())
     except (OSError, ValueError) as exc:
         raise SystemExit(f"report {report_path} is corrupt: {exc}") from exc
+    if not isinstance(report, dict) or report.get("trial_name") != trial:
+        raise SystemExit(f"report {report_path} is not trial {trial}; refusing to score it")
     decision = report.get("decision") if isinstance(report, dict) else None
     judgments = decision.get("judgments") if isinstance(decision, dict) else None
     loop = judgments.get("loop_kind") if isinstance(judgments, dict) else None
@@ -439,10 +500,22 @@ def score_published_cohort(
     output: Path,
     expected_files: int = HAR128_EXPECTED_FILES,
     expected_trials: int = HAR128_EXPECTED_TRIALS,
+    expected_manifest_sha256: str = HAR128_MANIFEST_SHA256,
 ) -> dict:
-    """Score published pages against frozen labels; write the durable receipt."""
+    """Score published pages against frozen labels; write the durable receipt.
+
+    The manifest identity is rejected before anything is scored or written.
+    ``page_vs_agreed.n`` stays the full rater-agreed denominator: an
+    abstaining page counts as an abstention with no hit, never shrinks n.
+    """
     manifest = verify_published_freeze(labels_root, expected_files)
-    trials = published_trial_ids(labels_root, expected_trials)
+    manifest_sha256 = hashlib.sha256(manifest.encode()).hexdigest()
+    if manifest_sha256 != expected_manifest_sha256:
+        raise SystemExit(
+            f"unexpected label freeze {manifest_sha256}; refusing to score or write a receipt"
+        )
+    trials = published_trial_ids(labels_root, expected_trials, manifest_label_paths(manifest))
+    index = index_published_reports(results_home)
     frozen_path = labels_root / "FROZEN_AT"
     frozen_at = frozen_path.read_text().splitlines()[0] if frozen_path.is_file() else "unknown"
     names, functions_sha = predictor_functions_sha()
@@ -454,18 +527,18 @@ def score_published_cohort(
         rater_a = read_rater_kind(labels_root / "rater_a" / f"{trial}.json")
         rater_b = read_rater_kind(labels_root / "rater_b" / f"{trial}.json")
         rater_agreed = rater_a == rater_b
-        report_path = find_published_report(results_home, trial)
+        report_path = find_published_report(index, trial)
         if report_path is None:
             page, reason, digest = None, "published report missing", None
         else:
-            page, reason, digest = read_page_kind(report_path)
+            page, reason, digest = read_page_kind(report_path, trial)
         match: bool | None = None
         if rater_agreed:
+            agreed += 1
             confusion[rater_a]["n"] += 1
             if page is None:
                 abstentions += 1
             else:
-                agreed += 1
                 match = page == rater_a
                 hits += match
                 confusion[rater_a]["agree"] += match
@@ -550,6 +623,7 @@ def _main_published_cohort(args) -> int:
         output=output,
         expected_files=args.expected_files,
         expected_trials=args.expected_trials,
+        expected_manifest_sha256=args.expected_manifest_sha256,
     )
     kind, rater = payload["page_vs_agreed"], payload["rater_agreement"]
     print(

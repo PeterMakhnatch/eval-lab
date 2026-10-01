@@ -316,12 +316,13 @@ ORDER BY card, model_name;
 
 -- 8. Freeze verification belongs to connect_trace_query. Agreement is partitioned
 -- per native trial and admitted cohort (har119, har128-har116, har128-g2-a1,
--- har128-g2-r2), requiring >= 2 distinct raters in that cohort to agree.
+-- har128-g2-r2, har128-g2-tail), requiring >= 2 distinct raters in that cohort to agree.
 -- Conflicting duplicate votes are disagreement, and same-rater duplicate votes
 -- do not create another rater. Rows are non-additive per-cohort study results:
 -- cross-cohort disagreements are reported separately, never pooled into
 -- cross-cohort votes. SFT-pass and hand labels remain coverage-only, strictly
--- excluded from loop voting.
+-- excluded from loop voting. n_total is the selected card's native population,
+-- not the frozen study size; n_agreed/eligibleN are the alignment denominators.
 CREATE OR REPLACE VIEW _trace_label_entries AS
 SELECT t.job_id, t.trial_id, e.key AS entry_index,
     json_extract_string(e.value, '$.cohort') AS cohort,
@@ -340,11 +341,11 @@ CREATE OR REPLACE VIEW _trace_label_consensus AS
 WITH admitted_cohorts AS (
     SELECT DISTINCT cohort
     FROM _trace_label_entries
-    WHERE cohort IN ('har119', 'har128-har116', 'har128-g2-a1', 'har128-g2-r2')
+    WHERE cohort IN ('har119', 'har128-har116', 'har128-g2-a1', 'har128-g2-r2', 'har128-g2-tail')
     UNION
     SELECT 'har119'
     WHERE NOT EXISTS (
-        SELECT 1 FROM _trace_label_entries WHERE cohort IN ('har119', 'har128-har116', 'har128-g2-a1', 'har128-g2-r2')
+        SELECT 1 FROM _trace_label_entries WHERE cohort IN ('har119', 'har128-har116', 'har128-g2-a1', 'har128-g2-r2', 'har128-g2-tail')
     )
 ), trials_x_cohorts AS (
     SELECT t.*, ac.cohort
@@ -360,7 +361,7 @@ WITH admitted_cohorts AS (
     JOIN _trace_analysis_trials t ON t.job_id = e.job_id AND t.trial_id = e.trial_id
     WHERE COALESCE(e.cohort, '') <> 'har128-sft-pass'
       AND COALESCE(e.label_scope, '') <> 'sft_pass_cleanliness'
-      AND e.cohort IN ('har119', 'har128-har116', 'har128-g2-a1', 'har128-g2-r2')
+      AND e.cohort IN ('har119', 'har128-har116', 'har128-g2-a1', 'har128-g2-r2', 'har128-g2-tail')
 ), loop_summary AS (
     SELECT job_id, trial_id, cohort,
         COUNT(*) AS n_cohort_votes,
@@ -374,7 +375,7 @@ WITH admitted_cohorts AS (
     SELECT job_id, trial_id,
         COUNT(*) AS n_foreign_loop_entries
     FROM _trace_label_entries
-    WHERE COALESCE(cohort, '') NOT IN ('har119', 'har128-har116', 'har128-g2-a1', 'har128-g2-r2', 'har128-sft-pass', 'har109')
+    WHERE COALESCE(cohort, '') NOT IN ('har119', 'har128-har116', 'har128-g2-a1', 'har128-g2-r2', 'har128-g2-tail', 'har128-sft-pass', 'har109')
       AND (has_loop_field OR provenance = 'agent_rater')
     GROUP BY job_id, trial_id
 ), coverage AS (
@@ -422,7 +423,7 @@ SELECT COALESCE(card, 'unknown') AS card,
     COUNT(*) FILTER (WHERE label_state = 'agreed' AND loop_prediction = agreed_kind) AS n_match,
     ROUND(COUNT(*) FILTER (WHERE label_state = 'agreed' AND loop_prediction = agreed_kind) * 1.0
           / NULLIF(COUNT(*) FILTER (WHERE label_state = 'agreed' AND loop_prediction IS NOT NULL), 0), 4) AS accuracy,
-    'agreement uses valid top-level loop_kind votes from at least two distinct agent raters in an admitted cohort (har119, har128-har116, har128-g2-a1, har128-g2-r2), evaluated separately per cohort with non-additive rows, excludes within-cohort disagreement and missing labels, prediction abstentions are outside eligibleN, HAR-109 hand and HAR-128 cleanliness labels are coverage only, descriptive frozen-cohort alignment is not general calibration' AS agreement_limitation
+    'agreement uses valid top-level loop_kind votes from at least two distinct agent raters in an admitted cohort (har119, har128-har116, har128-g2-a1, har128-g2-r2, har128-g2-tail), evaluated separately per cohort with non-additive rows; n_total is card-wide coverage, not the study denominator; excludes within-cohort disagreement and missing labels, prediction abstentions are outside eligibleN, HAR-109 hand and HAR-128 cleanliness labels are coverage only, descriptive frozen-cohort alignment is not general calibration' AS agreement_limitation
 FROM _trace_label_consensus
 GROUP BY COALESCE(card, 'unknown'), cohort
 ORDER BY card, cohort;

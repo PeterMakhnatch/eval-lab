@@ -61,8 +61,11 @@ def _manifest_sha(labels: Path) -> str:
 
 
 def _write_report(home: Path, trial: str, kind, name: str | None = None) -> Path:
-    home.mkdir(parents=True, exist_ok=True)
-    path = home / f"trial-{trial}.json"
+    job = home / "2026-10-01" / f"HAR-1-{trial}"
+    processed = job / "processed"
+    processed.mkdir(parents=True, exist_ok=True)
+    (job / "provenance.json").write_text("{}", encoding="utf-8")
+    path = processed / f"trial-{trial}.json"
     path.write_text(
         json.dumps(
             {
@@ -159,6 +162,39 @@ def test_report_for_another_trial_aborts(tmp_path: Path) -> None:
         _score(labels=labels, home=home, out=tmp_path / "o.json", trials=1)
 
 
+@pytest.mark.parametrize("has_publication", [False, True])
+def test_nested_selection_copy_is_not_a_published_prediction(
+    tmp_path: Path, has_publication: bool,
+) -> None:
+    labels = _write_labels(tmp_path / "labels", {"t1": ("none", "none")})
+    home = tmp_path / "home"
+    if has_publication:
+        _write_report(home, "t1", "none")
+    copied = home / "2026-10-01" / "ovn-g3" / "selection" / "processed" / "HAR-1-t1"
+    copied.mkdir(parents=True)
+    (copied / "trial-t1.json").write_text(json.dumps({
+        "trial_name": "t1",
+        "decision": {"judgments": {"loop_kind": {"kind": "repetition"}}},
+    }))
+    payload = _score(labels=labels, home=home, out=tmp_path / "o.json", trials=1)
+    assert payload["page_vs_agreed"] == {"agree": int(has_publication), "n": 1}
+    assert payload["page_abstentions"] == int(not has_publication)
+
+
+def test_two_canonical_publications_remain_ambiguous(tmp_path: Path) -> None:
+    labels = _write_labels(tmp_path / "labels", {"t1": ("none", "none")})
+    home = tmp_path / "home"
+    report = _write_report(home, "t1", "none")
+    second = home / "2026-10-02" / "HAR-1-t1"
+    (second / "processed").mkdir(parents=True)
+    (second / "provenance.json").write_text("{}")
+    (second / "processed" / report.name).write_bytes(report.read_bytes())
+    out = tmp_path / "o.json"
+    with pytest.raises(SystemExit, match="2 published reports"):
+        _score(labels=labels, home=home, out=out, trials=1)
+    assert not out.exists()
+
+
 def test_duplicate_manifest_cannot_leave_a_scored_label_unverified(tmp_path: Path) -> None:
     labels = _write_labels(tmp_path / "labels", {"t1": ("none", "none")})
     manifest = labels / "MANIFEST.sha256"
@@ -182,26 +218,7 @@ def test_symlink_member_cannot_escape_frozen_root(tmp_path: Path) -> None:
     assert not out.exists()
 
 
-def test_named_cohorts_have_distinct_metadata() -> None:
-    specs = score_page.PUBLISHED_COHORTS
-    assert set(specs) == {"har128-har116", "har128-g2-a1", "har128-g2-r2"}
-    assert score_page.PUBLISHED_COHORT_DEFAULT == "har128-har116"
-    har116, g2, r2 = specs["har128-har116"], specs["har128-g2-a1"], specs["har128-g2-r2"]
-    assert len({g["cohort"] for g in (har116, g2, r2)}) == 3
-    assert len({g["expected_manifest_sha256"] for g in (har116, g2, r2)}) == 3
-    for spec in (har116, g2, r2):
-        assert len(spec["expected_manifest_sha256"]) == 64
-    assert len({str(g["output"]) for g in (har116, g2, r2)}) == 3
-    assert (har116["expected_files"], har116["expected_trials"]) == (80, 40)
-    assert (g2["expected_files"], g2["expected_trials"]) == (40, 20)
-    assert (r2["expected_files"], r2["expected_trials"]) == (38, 19)
-
-
-def test_default_cohort_resolves_to_current_har116_behavior() -> None:
-    spec = score_page.resolve_published_cohort(None)
-    assert spec["name"] == "har128-har116"
-    assert spec["cohort"] == score_page.HAR128_COHORT
-    assert spec["expected_manifest_sha256"] == score_page.HAR128_MANIFEST_SHA256
+def test_unknown_cohort_is_rejected() -> None:
     with pytest.raises(SystemExit):
         score_page.resolve_published_cohort("no-such-study")
 

@@ -35,9 +35,9 @@ Usage (cwd = repo root):
     --published-cohort --cohort har128-g2-a1 --results-home ~/Developer/eval-lab-results
 
 ``--cohort`` selects a named published study (``har128-har116`` by default,
-``har128-g2-a1`` for the G2 attempt-1 study, ``har128-g2-r2`` for the G2
-re-run); every cohort shares the same strict verification/scoring path
-with its own denominator.
+``har128-g2-a1`` for G2 attempt 1, ``har128-g2-r2`` for the first re-run
+freeze, ``har128-g2-tail`` for the last three re-runs); every cohort shares
+the same strict verification/scoring path with its own denominator.
 """
 from __future__ import annotations
 
@@ -373,6 +373,20 @@ G2R2_LIMIT = (
     "Scores and report hashes only, not trial content; inspection only, "
     "never training reflection."
 )
+G2TAIL_COHORT = "HAR-128 G2 tail: 3 HAR-120 trials"
+G2TAIL_MANIFEST_SHA256 = "3b88eb4c2450d76f4b58533c12fae7a0ed25f0816bb45d1b3baeb72a54cdbb50"
+G2TAIL_LABELS_DEFAULT = REPO / "research/explorations/trace-lab/har128/labels_g2_tail"
+G2TAIL_OUTPUT_DEFAULT = REPO / "research/experiments/har117-results-home/har131-page-calibration-g2-tail.json"
+G2TAIL_EXPECTED_FILES = 6
+G2TAIL_EXPECTED_TRIALS = 3
+G2TAIL_HELDOUT = "G2 tail freeze: analysis and calibration only, never training reflection"
+G2TAIL_LIMIT = (
+    "Actual published trial_decision/v3 predictions, no classifier tuning. Frozen blind "
+    "scout-agent raters G4A/G4B, not human ground truth; neither reports off-limits openings. "
+    "Loop kind only; no first-failure/blame calibration. Tiny cohort: three trials, "
+    "all agreed labels completion-claim. Denominators stay per-cohort, never pooled. "
+    "Scores and report hashes only, not trial content; never training reflection."
+)
 #: Named published cohorts sharing one strict verification/scoring path.
 #: Each entry stands alone with its own denominator: never pooled, and no
 #: entry borrows other-field numbers it did not measure.
@@ -406,6 +420,16 @@ PUBLISHED_COHORTS = {
         "expected_manifest_sha256": G2R2_MANIFEST_SHA256,
         "heldout": G2R2_HELDOUT,
         "limit": G2R2_LIMIT,
+    },
+    "har128-g2-tail": {
+        "cohort": G2TAIL_COHORT,
+        "labels": G2TAIL_LABELS_DEFAULT,
+        "output": G2TAIL_OUTPUT_DEFAULT,
+        "expected_files": G2TAIL_EXPECTED_FILES,
+        "expected_trials": G2TAIL_EXPECTED_TRIALS,
+        "expected_manifest_sha256": G2TAIL_MANIFEST_SHA256,
+        "heldout": G2TAIL_HELDOUT,
+        "limit": G2TAIL_LIMIT,
     },
 }
 PUBLISHED_COHORT_DEFAULT = "har128-har116"
@@ -533,11 +557,14 @@ def read_rater_kind(path: Path) -> str:
 
 
 def index_published_reports(results_home: Path) -> dict[str, list[str]]:
-    """Map each published trial report name to its paths with a single scan."""
+    """Index canonical publications, not nested training/selection copies."""
+    from evallab.results_home import _published_jobs
+
     index: dict[str, list[str]] = {}
-    for path in sorted(results_home.rglob("trial-*.json")):
-        trial = path.name[len("trial-"):-len(".json")]
-        index.setdefault(trial, []).append(str(path))
+    for job, _provenance in _published_jobs(results_home):
+        for path in sorted((job / "processed").glob("trial-*.json")):
+            trial = path.name[len("trial-"):-len(".json")]
+            index.setdefault(trial, []).append(str(path))
     return index
 
 

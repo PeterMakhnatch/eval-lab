@@ -185,6 +185,38 @@ PAGE_CALIBRATION = {
                 "never training reflection."
             ),
         },
+        {
+            "cohort": "HAR-128 G2 tail: 3 HAR-120 trials",
+            "frozen_at": "2026-10-01T10:21:18Z",
+            "labels": "research/explorations/trace-lab/har128/labels_g2_tail",
+            "labels_manifest_sha256": "3b88eb4c2450d76f4b58533c12fae7a0ed25f0816bb45d1b3baeb72a54cdbb50",
+            "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+            "predictor_functions_sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae",
+            "in_sample": False,
+            "rater_agreement_loop_kind": {"agree": 3, "n": 3},
+            "excluded_rater_disagreement": 0,
+            "page_vs_agreed_loop_kind": {"agree": 1, "n": 3},
+            "abstentions": 0,
+            "loop_kind_confusion": {
+                "none": {"agree": 0, "n": 0},
+                "repetition": {"agree": 0, "n": 0},
+                "completion-claim": {"agree": 1, "n": 3},
+            },
+            "method": (
+                "research/explorations/trace-lab/har119/score_page.py --published-cohort "
+                "--cohort har128-g2-tail --results-home <eval-lab-results> --output "
+                "research/experiments/har117-results-home/har131-page-calibration-g2-tail.json"
+            ),
+            "artifact": "research/experiments/har117-results-home/har131-page-calibration-g2-tail.json",
+            "heldout": "G2 tail freeze: analysis and calibration only, never training reflection",
+            "limits": (
+                "Loop kind only; no first-failure/blame calibration. Blind scout-agent "
+                "raters G4A/G4B, not human ground truth; neither reports off-limits openings. "
+                "Tiny cohort: three trials, all agreed labels completion-claim. "
+                "Denominators stay per-cohort, never pooled. Scores and report hashes only, "
+                "not trial content; never training reflection."
+            ),
+        },
     ],
     "grader_alignment": "opinion with no page-measured calibration on this cohort",
     "method": "research/explorations/trace-lab/har119/score_page.py",

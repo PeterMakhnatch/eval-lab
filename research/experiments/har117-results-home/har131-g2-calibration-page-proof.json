@@ -1,0 +1,17 @@
+{
+  "schema": "har131.g2_calibration_page_runtime/v1",
+  "trial": "har120-002555-a1-r2__Uki9j6d",
+  "output": "/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/har131-g2-cohort-page-amofyshd",
+  "verdict": "counted_pass",
+  "raw_reward": 1.0,
+  "stop_reason": "loop_break",
+  "raw_result_sha256": "5d40eeb23a68a77156554b3837cf28d1fd0540e8d2848c533207a60891338b4a",
+  "raw_metadata_sha256": "8bf1457a74d9e239de6aff9baf3bfe5d086eaf5cd1074628654ef38d7236a942",
+  "raw_trajectory_sha256": "68031852931ea1341f901f436a5713f6c3276e7a538a0ab251dd01f86c3bf6d8",
+  "result_and_metadata_match_prior_audit": true,
+  "trajectory_matches_retained_publication": true,
+  "tokens_match_prior_settled_audit": true,
+  "trial_md_sha256": "c27b3e88c7f95fd2e6c40809df441446e6700d64ea169828073ece59c09c41c6",
+  "trial_report_sha256": "11ad6ea96d0f918db3001886cdfa91473e944cc6e4199da590994fd537f53e5e",
+  "live_publication": false
+}

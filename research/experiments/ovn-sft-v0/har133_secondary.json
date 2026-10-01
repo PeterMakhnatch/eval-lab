@@ -1,0 +1,910 @@
+{
+  "schema": "har133.closed-g5-secondary/v1",
+  "source_report": {
+    "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-133-validity/g5-final-runtime-audit.json",
+    "sha256": "34edd59ad829d3e63487d170de7b9c5cc801f61f19d54943d217ad05d2156cc1"
+  },
+  "input_outcomes_sha256": "ea23e08a004c1050f3e39bf4e7beadb3bff2cae8342443f97eee001f10702af3",
+  "source": "Settled per-job provider_usage; successful-response raw captures reconciled. HTTP503 usage is unknown, never imputed. Both complete-pair tables exclude the two affected routes and have full successful-response usage coverage.",
+  "quantile_method": "For N16, median of lower8 and upper8; no percentile interpolation.",
+  "paired": {
+    "coverage": "settled per-job provider_usage cross checked to raw capture usage sums for every cell; no ATIF step sums and no Harbor agent summary totals used anywhere (both are known to undercount length-capped responses). Each contrast table covers only its own 16 complete pairs; both arms of every included pair have full HTTP 200 coverage with no 503s, which is why the paired request totals are unambiguous.",
+    "tuned_minus_stock_N16": {
+      "complete_tasks": [
+        "format-code-task-000169",
+        "format-code-task-000521",
+        "format-code-task-000568",
+        "format-code-task-000842",
+        "format-code-task-001136",
+        "format-code-task-001285",
+        "format-code-task-001355",
+        "format-code-task-001606",
+        "format-code-task-001695",
+        "format-code-task-001769",
+        "format-code-task-001797",
+        "format-code-task-001809",
+        "format-code-task-001833",
+        "format-code-task-002017",
+        "format-code-task-002302",
+        "format-code-task-002578"
+      ],
+      "settled_input": {
+        "label": "observed input tokens",
+        "source": "settled per-job provider_usage (proxy ledger), cross checked to raw capture usage sums; never ATIF step sums or Harbor agent summary totals",
+        "tuned": {
+          "n": 16,
+          "total": 34611239,
+          "min": 657811,
+          "max": 2490958,
+          "mean": 2163202.4375,
+          "median": 2430308.5,
+          "q1": 2130987.5,
+          "q3": 2464096.5
+        },
+        "stock": {
+          "n": 16,
+          "total": 33847421,
+          "min": 702831,
+          "max": 2477635,
+          "mean": 2115463.8125,
+          "median": 2438362,
+          "q1": 2025820,
+          "q3": 2455789.5
+        },
+        "paired_difference_X_minus_stock": {
+          "n": 16,
+          "total": 763818,
+          "min": -1363837,
+          "max": 1423399,
+          "mean": 47738.625,
+          "median": -7046.5,
+          "q1": -134689.5,
+          "q3": 46469.5
+        },
+        "per_task": [
+          {
+            "task_id": "format-code-task-000169",
+            "tuned": 2485435,
+            "stock": 2445420,
+            "difference": 40015
+          },
+          {
+            "task_id": "format-code-task-000521",
+            "tuned": 2473096,
+            "stock": 1167003,
+            "difference": 1306093
+          },
+          {
+            "task_id": "format-code-task-000568",
+            "tuned": 2434550,
+            "stock": 2438795,
+            "difference": -4245
+          },
+          {
+            "task_id": "format-code-task-000842",
+            "tuned": 1084632,
+            "stock": 2448469,
+            "difference": -1363837
+          },
+          {
+            "task_id": "format-code-task-001136",
+            "tuned": 2426067,
+            "stock": 2474394,
+            "difference": -48327
+          },
+          {
+            "task_id": "format-code-task-001285",
+            "tuned": 2434593,
+            "stock": 1647866,
+            "difference": 786727
+          },
+          {
+            "task_id": "format-code-task-001355",
+            "tuned": 2073294,
+            "stock": 2437929,
+            "difference": -364635
+          },
+          {
+            "task_id": "format-code-task-001606",
+            "tuned": 657811,
+            "stock": 702831,
+            "difference": -45020
+          },
+          {
+            "task_id": "format-code-task-001695",
+            "tuned": 2490958,
+            "stock": 2477635,
+            "difference": 13323
+          },
+          {
+            "task_id": "format-code-task-001769",
+            "tuned": 2408619,
+            "stock": 985220,
+            "difference": 1423399
+          },
+          {
+            "task_id": "format-code-task-001797",
+            "tuned": 2188681,
+            "stock": 2403774,
+            "difference": -215093
+          },
+          {
+            "task_id": "format-code-task-001809",
+            "tuned": 2453262,
+            "stock": 2463110,
+            "difference": -9848
+          },
+          {
+            "task_id": "format-code-task-001833",
+            "tuned": 1694586,
+            "stock": 2468802,
+            "difference": -774216
+          },
+          {
+            "task_id": "format-code-task-002017",
+            "tuned": 2460291,
+            "stock": 2439447,
+            "difference": 20844
+          },
+          {
+            "task_id": "format-code-task-002302",
+            "tuned": 2377462,
+            "stock": 2431748,
+            "difference": -54286
+          },
+          {
+            "task_id": "format-code-task-002578",
+            "tuned": 2467902,
+            "stock": 2414978,
+            "difference": 52924
+          }
+        ]
+      },
+      "settled_output": {
+        "label": "observed output tokens",
+        "source": "settled per-job provider_usage (proxy ledger), cross checked to raw capture usage sums; never ATIF step sums or Harbor agent summary totals",
+        "tuned": {
+          "n": 16,
+          "total": 237481,
+          "min": 4874,
+          "max": 27761,
+          "mean": 14842.5625,
+          "median": 15212,
+          "q1": 9191,
+          "q3": 18300
+        },
+        "stock": {
+          "n": 16,
+          "total": 226377,
+          "min": 5556,
+          "max": 35757,
+          "mean": 14148.5625,
+          "median": 10852,
+          "q1": 7373,
+          "q3": 18751
+        },
+        "paired_difference_X_minus_stock": {
+          "n": 16,
+          "total": 11104,
+          "min": -17283,
+          "max": 19184,
+          "mean": 694,
+          "median": 171,
+          "q1": -3028.5,
+          "q3": 6762.5
+        },
+        "per_task": [
+          {
+            "task_id": "format-code-task-000169",
+            "tuned": 19964,
+            "stock": 18352,
+            "difference": 1612
+          },
+          {
+            "task_id": "format-code-task-000521",
+            "tuned": 17102,
+            "stock": 5556,
+            "difference": 11546
+          },
+          {
+            "task_id": "format-code-task-000568",
+            "tuned": 17499,
+            "stock": 7503,
+            "difference": 9996
+          },
+          {
+            "task_id": "format-code-task-000842",
+            "tuned": 18474,
+            "stock": 35757,
+            "difference": -17283
+          },
+          {
+            "task_id": "format-code-task-001136",
+            "tuned": 4874,
+            "stock": 21269,
+            "difference": -16395
+          },
+          {
+            "task_id": "format-code-task-001285",
+            "tuned": 6441,
+            "stock": 6931,
+            "difference": -490
+          },
+          {
+            "task_id": "format-code-task-001355",
+            "tuned": 18126,
+            "stock": 8212,
+            "difference": 9914
+          },
+          {
+            "task_id": "format-code-task-001606",
+            "tuned": 13573,
+            "stock": 12770,
+            "difference": 803
+          },
+          {
+            "task_id": "format-code-task-001695",
+            "tuned": 25534,
+            "stock": 30499,
+            "difference": -4965
+          },
+          {
+            "task_id": "format-code-task-001769",
+            "tuned": 8473,
+            "stock": 8934,
+            "difference": -461
+          },
+          {
+            "task_id": "format-code-task-001797",
+            "tuned": 9475,
+            "stock": 12812,
+            "difference": -3337
+          },
+          {
+            "task_id": "format-code-task-001809",
+            "tuned": 16430,
+            "stock": 19150,
+            "difference": -2720
+          },
+          {
+            "task_id": "format-code-task-001833",
+            "tuned": 10854,
+            "stock": 7243,
+            "difference": 3611
+          },
+          {
+            "task_id": "format-code-task-002017",
+            "tuned": 8907,
+            "stock": 7167,
+            "difference": 1740
+          },
+          {
+            "task_id": "format-code-task-002302",
+            "tuned": 13994,
+            "stock": 15645,
+            "difference": -1651
+          },
+          {
+            "task_id": "format-code-task-002578",
+            "tuned": 27761,
+            "stock": 8577,
+            "difference": 19184
+          }
+        ]
+      },
+      "physical_requests": {
+        "label": "physical model request count (settled HTTP 200 records)",
+        "source": "settled per-job provider_usage reconciled to raw capture per-route HTTP 200 counts over the 16 complete pairs, all of which have full HTTP 200 coverage. For g5r2 503 attempts generally, provider usage is UNKNOWN and ledger settled zero is only recorded accounting.",
+        "tuned": {
+          "n": 16,
+          "total": 1439,
+          "min": 41,
+          "max": 120,
+          "mean": 89.9375,
+          "median": 92,
+          "q1": 82.5,
+          "q3": 102
+        },
+        "stock": {
+          "n": 16,
+          "total": 1402,
+          "min": 46,
+          "max": 111,
+          "mean": 87.625,
+          "median": 93.5,
+          "q1": 80,
+          "q3": 101
+        },
+        "paired_difference_X_minus_stock": {
+          "n": 16,
+          "total": 37,
+          "min": -52,
+          "max": 55,
+          "mean": 2.3125,
+          "median": -1,
+          "q1": -13,
+          "q3": 21.5
+        },
+        "per_task": [
+          {
+            "task_id": "format-code-task-000169",
+            "tuned": 100,
+            "stock": 87,
+            "difference": 13
+          },
+          {
+            "task_id": "format-code-task-000521",
+            "tuned": 110,
+            "stock": 55,
+            "difference": 55
+          },
+          {
+            "task_id": "format-code-task-000568",
+            "tuned": 89,
+            "stock": 95,
+            "difference": -6
+          },
+          {
+            "task_id": "format-code-task-000842",
+            "tuned": 52,
+            "stock": 104,
+            "difference": -52
+          },
+          {
+            "task_id": "format-code-task-001136",
+            "tuned": 89,
+            "stock": 106,
+            "difference": -17
+          },
+          {
+            "task_id": "format-code-task-001285",
+            "tuned": 104,
+            "stock": 73,
+            "difference": 31
+          },
+          {
+            "task_id": "format-code-task-001355",
+            "tuned": 80,
+            "stock": 98,
+            "difference": -18
+          },
+          {
+            "task_id": "format-code-task-001606",
+            "tuned": 41,
+            "stock": 46,
+            "difference": -5
+          },
+          {
+            "task_id": "format-code-task-001695",
+            "tuned": 120,
+            "stock": 104,
+            "difference": 16
+          },
+          {
+            "task_id": "format-code-task-001769",
+            "tuned": 95,
+            "stock": 62,
+            "difference": 33
+          },
+          {
+            "task_id": "format-code-task-001797",
+            "tuned": 94,
+            "stock": 88,
+            "difference": 6
+          },
+          {
+            "task_id": "format-code-task-001809",
+            "tuned": 85,
+            "stock": 94,
+            "difference": -9
+          },
+          {
+            "task_id": "format-code-task-001833",
+            "tuned": 76,
+            "stock": 111,
+            "difference": -35
+          },
+          {
+            "task_id": "format-code-task-002017",
+            "tuned": 94,
+            "stock": 96,
+            "difference": -2
+          },
+          {
+            "task_id": "format-code-task-002302",
+            "tuned": 90,
+            "stock": 90,
+            "difference": 0
+          },
+          {
+            "task_id": "format-code-task-002578",
+            "tuned": 120,
+            "stock": 93,
+            "difference": 27
+          }
+        ]
+      }
+    },
+    "gepa_minus_stock_N16": {
+      "complete_tasks": [
+        "format-code-task-000169",
+        "format-code-task-000332",
+        "format-code-task-000521",
+        "format-code-task-000568",
+        "format-code-task-000842",
+        "format-code-task-001136",
+        "format-code-task-001285",
+        "format-code-task-001355",
+        "format-code-task-001606",
+        "format-code-task-001695",
+        "format-code-task-001769",
+        "format-code-task-001797",
+        "format-code-task-001809",
+        "format-code-task-002017",
+        "format-code-task-002302",
+        "format-code-task-002578"
+      ],
+      "settled_input": {
+        "label": "observed input tokens",
+        "source": "settled per-job provider_usage (proxy ledger), cross checked to raw capture usage sums; never ATIF step sums or Harbor agent summary totals",
+        "gepa": {
+          "n": 16,
+          "total": 35298063,
+          "min": 395688,
+          "max": 2485774,
+          "mean": 2206128.9375,
+          "median": 2446735,
+          "q1": 2327662,
+          "q3": 2466211
+        },
+        "stock": {
+          "n": 16,
+          "total": 33870179,
+          "min": 702831,
+          "max": 2491560,
+          "mean": 2116886.1875,
+          "median": 2438362,
+          "q1": 2025820,
+          "q3": 2455789.5
+        },
+        "paired_difference_X_minus_stock": {
+          "n": 16,
+          "total": 1427884,
+          "min": -1397450,
+          "max": 1460075,
+          "mean": 89242.75,
+          "median": 12485,
+          "q1": -17082.5,
+          "q3": 46760.5
+        },
+        "per_task": [
+          {
+            "task_id": "format-code-task-000169",
+            "gepa": 2485774,
+            "stock": 2445420,
+            "difference": 40354
+          },
+          {
+            "task_id": "format-code-task-000332",
+            "gepa": 2114396,
+            "stock": 2491560,
+            "difference": -377164
+          },
+          {
+            "task_id": "format-code-task-000521",
+            "gepa": 2477226,
+            "stock": 1167003,
+            "difference": 1310223
+          },
+          {
+            "task_id": "format-code-task-000568",
+            "gepa": 2445685,
+            "stock": 2438795,
+            "difference": 6890
+          },
+          {
+            "task_id": "format-code-task-000842",
+            "gepa": 2428069,
+            "stock": 2448469,
+            "difference": -20400
+          },
+          {
+            "task_id": "format-code-task-001136",
+            "gepa": 1076944,
+            "stock": 2474394,
+            "difference": -1397450
+          },
+          {
+            "task_id": "format-code-task-001285",
+            "gepa": 2231160,
+            "stock": 1647866,
+            "difference": 583294
+          },
+          {
+            "task_id": "format-code-task-001355",
+            "gepa": 2424164,
+            "stock": 2437929,
+            "difference": -13765
+          },
+          {
+            "task_id": "format-code-task-001606",
+            "gepa": 395688,
+            "stock": 702831,
+            "difference": -307143
+          },
+          {
+            "task_id": "format-code-task-001695",
+            "gepa": 2485690,
+            "stock": 2477635,
+            "difference": 8055
+          },
+          {
+            "task_id": "format-code-task-001769",
+            "gepa": 2445295,
+            "stock": 985220,
+            "difference": 1460075
+          },
+          {
+            "task_id": "format-code-task-001797",
+            "gepa": 2447785,
+            "stock": 2403774,
+            "difference": 44011
+          },
+          {
+            "task_id": "format-code-task-001809",
+            "gepa": 2467934,
+            "stock": 2463110,
+            "difference": 4824
+          },
+          {
+            "task_id": "format-code-task-002017",
+            "gepa": 2459102,
+            "stock": 2439447,
+            "difference": 19655
+          },
+          {
+            "task_id": "format-code-task-002302",
+            "gepa": 2448663,
+            "stock": 2431748,
+            "difference": 16915
+          },
+          {
+            "task_id": "format-code-task-002578",
+            "gepa": 2464488,
+            "stock": 2414978,
+            "difference": 49510
+          }
+        ]
+      },
+      "settled_output": {
+        "label": "observed output tokens",
+        "source": "settled per-job provider_usage (proxy ledger), cross checked to raw capture usage sums; never ATIF step sums or Harbor agent summary totals",
+        "gepa": {
+          "n": 16,
+          "total": 193855,
+          "min": 4078,
+          "max": 23459,
+          "mean": 12115.9375,
+          "median": 11019,
+          "q1": 6590.5,
+          "q3": 16544.5
+        },
+        "stock": {
+          "n": 16,
+          "total": 239268,
+          "min": 5556,
+          "max": 35757,
+          "mean": 14954.25,
+          "median": 12791,
+          "q1": 7857.5,
+          "q3": 19642
+        },
+        "paired_difference_X_minus_stock": {
+          "n": 16,
+          "total": -45413,
+          "min": -18707,
+          "max": 13940,
+          "mean": -2838.3125,
+          "median": -2092.5,
+          "q1": -7909,
+          "q3": 3054.5
+        },
+        "per_task": [
+          {
+            "task_id": "format-code-task-000169",
+            "gepa": 23459,
+            "stock": 18352,
+            "difference": 5107
+          },
+          {
+            "task_id": "format-code-task-000332",
+            "gepa": 11535,
+            "stock": 20134,
+            "difference": -8599
+          },
+          {
+            "task_id": "format-code-task-000521",
+            "gepa": 8438,
+            "stock": 5556,
+            "difference": 2882
+          },
+          {
+            "task_id": "format-code-task-000568",
+            "gepa": 21443,
+            "stock": 7503,
+            "difference": 13940
+          },
+          {
+            "task_id": "format-code-task-000842",
+            "gepa": 17050,
+            "stock": 35757,
+            "difference": -18707
+          },
+          {
+            "task_id": "format-code-task-001136",
+            "gepa": 4078,
+            "stock": 21269,
+            "difference": -17191
+          },
+          {
+            "task_id": "format-code-task-001285",
+            "gepa": 6058,
+            "stock": 6931,
+            "difference": -873
+          },
+          {
+            "task_id": "format-code-task-001355",
+            "gepa": 6626,
+            "stock": 8212,
+            "difference": -1586
+          },
+          {
+            "task_id": "format-code-task-001606",
+            "gepa": 6555,
+            "stock": 12770,
+            "difference": -6215
+          },
+          {
+            "task_id": "format-code-task-001695",
+            "gepa": 22454,
+            "stock": 30499,
+            "difference": -8045
+          },
+          {
+            "task_id": "format-code-task-001769",
+            "gepa": 6335,
+            "stock": 8934,
+            "difference": -2599
+          },
+          {
+            "task_id": "format-code-task-001797",
+            "gepa": 16039,
+            "stock": 12812,
+            "difference": 3227
+          },
+          {
+            "task_id": "format-code-task-001809",
+            "gepa": 11377,
+            "stock": 19150,
+            "difference": -7773
+          },
+          {
+            "task_id": "format-code-task-002017",
+            "gepa": 10661,
+            "stock": 7167,
+            "difference": 3494
+          },
+          {
+            "task_id": "format-code-task-002302",
+            "gepa": 11674,
+            "stock": 15645,
+            "difference": -3971
+          },
+          {
+            "task_id": "format-code-task-002578",
+            "gepa": 10073,
+            "stock": 8577,
+            "difference": 1496
+          }
+        ]
+      },
+      "physical_requests": {
+        "label": "physical model request count (settled HTTP 200 records)",
+        "source": "settled per-job provider_usage reconciled to raw capture per-route HTTP 200 counts over the 16 complete pairs, all of which have full HTTP 200 coverage. For g5r2 503 attempts generally, provider usage is UNKNOWN and ledger settled zero is only recorded accounting.",
+        "gepa": {
+          "n": 16,
+          "total": 1445,
+          "min": 33,
+          "max": 117,
+          "mean": 90.3125,
+          "median": 95,
+          "q1": 85.5,
+          "q3": 101
+        },
+        "stock": {
+          "n": 16,
+          "total": 1392,
+          "min": 46,
+          "max": 106,
+          "mean": 87,
+          "median": 93.5,
+          "q1": 80,
+          "q3": 99.5
+        },
+        "paired_difference_X_minus_stock": {
+          "n": 16,
+          "total": 53,
+          "min": -44,
+          "max": 48,
+          "mean": 3.3125,
+          "median": 2,
+          "q1": -11.5,
+          "q3": 15.5
+        },
+        "per_task": [
+          {
+            "task_id": "format-code-task-000169",
+            "gepa": 101,
+            "stock": 87,
+            "difference": 14
+          },
+          {
+            "task_id": "format-code-task-000332",
+            "gepa": 79,
+            "stock": 101,
+            "difference": -22
+          },
+          {
+            "task_id": "format-code-task-000521",
+            "gepa": 103,
+            "stock": 55,
+            "difference": 48
+          },
+          {
+            "task_id": "format-code-task-000568",
+            "gepa": 85,
+            "stock": 95,
+            "difference": -10
+          },
+          {
+            "task_id": "format-code-task-000842",
+            "gepa": 91,
+            "stock": 104,
+            "difference": -13
+          },
+          {
+            "task_id": "format-code-task-001136",
+            "gepa": 62,
+            "stock": 106,
+            "difference": -44
+          },
+          {
+            "task_id": "format-code-task-001285",
+            "gepa": 90,
+            "stock": 73,
+            "difference": 17
+          },
+          {
+            "task_id": "format-code-task-001355",
+            "gepa": 95,
+            "stock": 98,
+            "difference": -3
+          },
+          {
+            "task_id": "format-code-task-001606",
+            "gepa": 33,
+            "stock": 46,
+            "difference": -13
+          },
+          {
+            "task_id": "format-code-task-001695",
+            "gepa": 113,
+            "stock": 104,
+            "difference": 9
+          },
+          {
+            "task_id": "format-code-task-001769",
+            "gepa": 101,
+            "stock": 62,
+            "difference": 39
+          },
+          {
+            "task_id": "format-code-task-001797",
+            "gepa": 86,
+            "stock": 88,
+            "difference": -2
+          },
+          {
+            "task_id": "format-code-task-001809",
+            "gepa": 117,
+            "stock": 94,
+            "difference": 23
+          },
+          {
+            "task_id": "format-code-task-002017",
+            "gepa": 95,
+            "stock": 96,
+            "difference": -1
+          },
+          {
+            "task_id": "format-code-task-002302",
+            "gepa": 95,
+            "stock": 90,
+            "difference": 5
+          },
+          {
+            "task_id": "format-code-task-002578",
+            "gepa": 99,
+            "stock": 93,
+            "difference": 6
+          }
+        ]
+      }
+    },
+    "quantile_method": "Quartiles are medians of halves (Tukey hinges for even N16: Q1 is the median of the lower 8 sorted values, Q3 the median of the upper 8); median is the mean of the 8th and 9th sorted values. No percentile interpolation is used."
+  },
+  "termination": {
+    "lf2_fixed_facts": "SecretSafeTerminus2 with loop_break true, loop_command_run_min 8, loop_grace_calls 15, loop_message_run_min 20, output_cap_chars 2000, llm max_tokens 4096 and top_p 0.95; stop_reason values come from processed trial records; loop_kind identical_loop is a display-only first-failure style judgment, never a counts input; G6 blind-to-arm review is pending",
+    "denominators": "counts below use all 20 planned tasks per arm as the denominator; infra unknown stop reasons are the 5 excluded cells",
+    "stop_reason_by_arm_planned20": {
+      "tuned": {
+        "task_complete_confirmed": 3,
+        "loop_break": 4,
+        "ceiling:input_tokens": 12,
+        "unknown": 1
+      },
+      "gepa": {
+        "loop_break": 3,
+        "ceiling:input_tokens": 15,
+        "unknown": 1,
+        "task_complete_confirmed": 1
+      },
+      "stock": {
+        "ceiling:input_tokens": 13,
+        "loop_break": 4,
+        "unknown": 3
+      }
+    },
+    "loop_kind_by_arm_planned20": {
+      "tuned": "identical_loop 20 of 20",
+      "gepa": "identical_loop 19 of 20, no label 1 of 20 (001606-gepa task_complete_confirmed)",
+      "stock": "identical_loop 20 of 20"
+    },
+    "reading_guidance": "termination reasons do not decide verifier results or counts: a ceiling or loop stop can accompany a pass (for example 000169-gepa is a counted pass with stop ceiling:input_tokens) or a failure; counts deterministic evidence decides. A shorter failed run is not necessarily better; no LLM labels were created and no G6 judgments are anticipated here."
+  },
+  "all_attempt_lifetimes": {
+    "rule": "all 5 infra cells and all 60 attempts retained; infra partial usage included; no imputation",
+    "per_arm_planned20": {
+      "tuned": {
+        "settled_input_tokens": 42525284,
+        "settled_output_tokens": 344625,
+        "physical_requests": 1802
+      },
+      "gepa": {
+        "settled_input_tokens": 43660270,
+        "settled_output_tokens": 280293,
+        "physical_requests": 1794
+      },
+      "stock": {
+        "settled_input_tokens": 40501833,
+        "settled_output_tokens": 298029,
+        "physical_requests": 1695
+      }
+    },
+    "grand_total_60_attempts": {
+      "settled_input_tokens": 126687387,
+      "settled_output_tokens": 922947,
+      "physical_requests": 5291
+    }
+  },
+  "limits": [
+    "queue.running counts files, not jobs",
+    "Modal and GPU census used a failed old CLI; no GPU utilization measured or inferred",
+    "503 bodies are empty text with null usage; no upstream cause in saved logs (g5r2 only; g5r3 has no 503s)",
+    "result.json top-level naive stamps are consumer display stamps, not physical wall time; physical intervals use lab aware stamps only",
+    "Harbor native token totals can exclude length-capped completions; proxy settled usage is authoritative for secondary metrics",
+    "ATIF step counts are Harbor-persisted agent steps and run below wire counts; never treated as usage",
+    "loop_kind and blame labels are display only; G6 judgments pending; no LLM labeling performed",
+    "infra 503 and Daytona usage ledger zeros are recorded accounting with UNKNOWN actual provider usage, not proven zero backend work or cost"
+  ]
+}

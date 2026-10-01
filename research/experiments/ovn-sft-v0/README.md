@@ -1,13 +1,17 @@
-# ovn-sft-v0: stock distill vs LoRA-SFT distill on held-out Python tasks
+# ovn-sft-v0: stock, LoRA-SFT and GEPA on held-out Python tasks
 
-The overnight experiment of 2026-10-01 (plan: `research-context/inbox/sft-overnight-20260918/OVERNIGHT-2026-10-01.md`; cards HAR-126 to HAR-134). This directory holds the data side (HAR-127).
+The overnight experiment of 2026-10-01 (plan: `research-context/inbox/sft-overnight-20260918/OVERNIGHT-2026-10-01.md`; cards HAR-126 to HAR-135). This directory holds the frozen data inputs and integrated results.
+
+Start with [RESULTS.md](RESULTS.md), the [one-page validity verdict](VALIDITY.md),
+or the [G5 execution record](G5-RUN.md). The primary analysis is reproducible
+with `uv run python research/experiments/ovn-sft-v0/har133_analysis.py`.
 
 ## G1: the frozen eval set
 
 [`eval_tasks.csv`](eval_tasks.csv)
 **sha256 `3b997fdcff048061fd8a05d446948d4d6425bf670eb0d6710989c50dcd0a9219`** (v2)
 
-- Frozen 2026-10-01, before any training data was selected. The list never changes after this.
+- Frozen before G2 and eval outcomes; unchanged through G5. Earlier dry-run sample selection at 04:08Z preceded the first eval commit at 04:09:33Z. Those samples were outside both cohorts and the dry-run adapter was deleted; [RESULTS section 8](RESULTS.md#8-dated-deviations-limitations-and-interpretation) records the chronology caveat rather than claiming that all selection followed the freeze.
 - **v2 supersedes v1** (`504b913a…`, PR #597), which was withdrawn before G2 started. Cdx 3's HAR-133 audit found that v1's 002209 is a pandas task: its tests patch `pandas/tests/io/test_parquet.py` and its instruction asks for `pandas.to_parquet`. The census filed it under fastparquet, and `project_modules` reports only fastparquet, which is a dependency. Pandas has training-split tasks (002208 and others), so v1 broke repository disjointness.
   - v2 adds check 3 below and re-runs the same selection.
   - The only change is 002209 → 001833 (safedelete, the next lightest qualifying task).

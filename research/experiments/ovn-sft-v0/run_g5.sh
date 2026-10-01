@@ -17,7 +17,8 @@
 #      per-app Modal spend watchdog
 #   9. tick position waves serially (all first arms, then seconds, then thirds),
 #      approving each wave just before its tick, at one pinned --parallel;
-#      between waves re-check /health; stop on 3+ infra failures or any refusal
+#      between waves re-check /health; a wave advances only when every spec of
+#      the previous wave has a result.json; stop on 3+ infra failures or any refusal
 #  10. capture link per job, freeze the capture file (sha256/bytes/lines),
 #      reconcile billing, write round-manifest.json
 #
@@ -195,12 +196,14 @@ warm() {
     ok=0
     for attempt in 1 2 3; do
       if MIMO_SELFHOSTED_API_KEY="$KEY" "$EVALLAB" capture smoke --upstream "$URL" --model "$selector" \
-          --out "$OUT/smoke-$1-$leg" >"$OUT/smoke-$1-$leg.txt" 2>&1; then ok=1; break; fi
-      log "warm smoke $leg attempt $attempt failed"
+          --out "$OUT/smoke-$1-$leg" >"$OUT/smoke-$1-$leg.txt" 2>&1 \
+        && "$PY" -c "import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d.get('status')==200 and d.get('model')==sys.argv[2].removeprefix('selfhosted/') else 1)" \
+          "$OUT/smoke-$1-$leg/smoke.json" "$selector"; then ok=1; break; fi
+      log "warm smoke $leg attempt $attempt failed (needs status 200 and echoed model ${selector#selfhosted/})"
       sleep 60
     done
     [ "$ok" = 1 ] || return 1
-    log "warm smoke $leg ok: $(grep -E 'status|model' "$OUT/smoke-$1-$leg.txt" | tr '\n' ' ')"
+    log "warm smoke $leg ok: $("$PY" -c "import json,sys; d=json.load(open(sys.argv[1])); print(d['status'], d['model'], d['route_token'])" "$OUT/smoke-$1-$leg/smoke.json")"
   done
 }
 warm initial || die "warm smoke failed; nothing approved or ticked"
@@ -256,9 +259,12 @@ for wave in $WAVES; do
 import glob, json, sys
 names = [line.split()[0] for line in open(sys.argv[1]) if line.strip()]
 infra = {"ServiceUnavailableError", "APIConnectionError", "InternalServerError", "Timeout"}
-failures, refused = [], set()
+failures, refused, not_terminal = [], set(), []
 for name in names:
-    for path in glob.glob(f"runs/{name}/*/result.json"):
+    results = glob.glob(f"runs/{name}/*/result.json")
+    if not results:
+        not_terminal.append(name)
+    for path in results:
         exc = (json.load(open(path)).get("exception_info") or {}).get("exception_type")
         if exc in infra:
             failures.append(name)
@@ -270,13 +276,15 @@ for line in open("queue/events.jsonl"):
         and event.get("occurred_at", "")[:19] >= sys.argv[2][:19]
     ):
         refused.add(f"{event['job_name']}:{event.get('reason_code')}")
-print(json.dumps({"infra_failures": failures, "refused": sorted(refused)}))
+print(json.dumps({"infra_failures": failures, "refused": sorted(refused), "not_terminal": not_terminal}))
 EOF
   verdict=$(cat "$OUT/$position-outcome.json")
   manifest "$position" "{\"started\": \"$started\", \"finished\": \"$finished\", \"specs\": ${#args[@]}, \"outcome\": $verdict}"
   log "$position done: $verdict"
-  "$PY" -c "import json,sys; d=json.loads(sys.argv[1]); sys.exit(0 if len(d['infra_failures'])<3 and not d['refused'] else 1)" "$verdict" \
-    || die "$position: 3+ infra failures or dispatch refusals; later waves not ticked"
+  # Advance only when every spec of this wave has a result.json (a refusal also
+  # leaves no result, so it stops the round too): PREREG's serial-per-task order.
+  "$PY" -c "import json,sys; d=json.loads(sys.argv[1]); sys.exit(0 if len(d['infra_failures'])<3 and not d['refused'] and not d['not_terminal'] else 1)" "$verdict" \
+    || die "$position: not every spec is terminal, or 3+ infra failures, or a dispatch refusal; later waves not ticked"
 done
 
 # ---- 10. link, freeze, reconcile ------------------------------------------------------

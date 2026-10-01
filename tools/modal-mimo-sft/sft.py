@@ -84,10 +84,9 @@ DEFAULT_MAX_LENGTH = 65536
 # Trained positions per lm_head chunk in the selected-token loss: 4096 x
 # 248320 fp32 logits is about 4 GiB, recomputed in backward.
 LOSS_CHUNK_TOKENS = 4096
-# Right-truncate (TRL SFTConfig truncation_mode="keep_start"); conversations
-# left with zero trained tokens after truncation are dropped, mirroring
-# SFTTrainer preparation. Recorded in every receipt.
-TRUNCATION_POLICY = "keep_start:right-truncate@max_length,drop-fully-masked"
+# A row longer than max_length is refused with its label, never truncated:
+# a cut row would train on a partial target. Recorded in every receipt.
+LENGTH_POLICY = "refuse rows longer than max_length; never truncate"
 
 # PEFT LoRA targets restricted to modules SGLang v0.5.20 serves for qwen3_5:
 # SUPPORTED_LORA_TARGET_MODULES (python/sglang/srt/utils/common.py) mapped
@@ -107,7 +106,7 @@ DEFAULTS = {
     "lora_rank": 16,
     "lora_alpha": 32,
     "lora_dropout": 0.05,
-    "learning_rate": 1e-4,
+    "learning_rate": 5e-5,
     "lr_scheduler": "cosine",
     "warmup_ratio": 0.03,
     "num_epochs": 1,
@@ -125,10 +124,14 @@ DEFAULTS = {
 # present on PyPI 2026-09-29. flash-linear-attention / fla-core 0.5.2 (pure
 # Triton wheels, PyPI 2026-07-27) give transformers the fused gated-delta-rule
 # kernels for the 24 linear-attention layers; without them it falls back to
-# a slow torch loop.
+# a slow torch loop. tokenizers and jinja2 match this project's uv.lock (the
+# qualified G3 reader), and train_remote refuses to start if the GPU image's
+# render stack differs from the stack that ran the dry run.
 TRAIN_IMAGE_PACKAGES = [
     "torch==2.14.0",
     "transformers==5.12.1",
+    "tokenizers==0.22.2",
+    "jinja2==3.1.6",
     "trl==1.14.0",
     "peft==0.21.0",
     "accelerate==1.15.0",
@@ -342,17 +345,10 @@ class Rendered:
     input_ids: list[int]
     mask: list[int]  # 1 = assistant-generated (trained), 0 = masked (-100)
     assistant_turns: int
-    tokens_before: int
-    truncated: bool
-    dropped: bool
 
     @property
-    def trained_before(self) -> int:
-        return sum(self.mask) if not self.truncated else -1
-
-    @property
-    def trained_after(self) -> int:
-        return 0 if self.dropped else sum(self.mask)
+    def trained(self) -> int:
+        return sum(self.mask)
 
 
 def render_and_mask(
@@ -436,20 +432,12 @@ def render_and_mask(
             raise SftError(f"{label}: template mask disagrees with prefix spans")
     if not any(mask):
         raise SftError(f"{label}: conversation has zero trainable tokens")
-
-    tokens_before = len(ids)
-    truncated = tokens_before > max_length
-    if truncated:
-        ids = ids[:max_length]
-        mask = mask[:max_length]
-    return Rendered(
-        input_ids=ids,
-        mask=mask,
-        assistant_turns=assistant_turns,
-        tokens_before=tokens_before,
-        truncated=truncated,
-        dropped=(sum(mask) == 0),
-    )
+    if len(ids) > max_length:
+        raise SftError(
+            f"{label}: {len(ids)} tokens exceeds max_length {max_length}; "
+            "over-length rows are refused, never truncated"
+        )
+    return Rendered(input_ids=ids, mask=mask, assistant_turns=assistant_turns)
 
 
 @dataclass
@@ -461,16 +449,12 @@ class DryRun:
     example_index: int
 
     @property
-    def kept(self) -> list[Rendered]:
-        return [item for item in self.renders if not item.dropped]
-
-    @property
     def trained_tokens(self) -> int:
-        return sum(item.trained_after for item in self.kept)
+        return sum(item.trained for item in self.renders)
 
     @property
     def total_tokens(self) -> int:
-        return sum(len(item.input_ids) for item in self.kept)
+        return sum(len(item.input_ids) for item in self.renders)
 
 
 def run_dry_run(
@@ -526,24 +510,17 @@ def print_dry_run(dry: DryRun, tokenizer: Any) -> None:
     print(f"  conversations: {len(dry.renders)}  max_length: {dry.max_length}")
     print("per-conversation:")
     for index, item in enumerate(dry.renders):
-        trained = item.trained_after
-        flag = "TRUNCATED" if item.truncated else ("DROPPED" if item.dropped else "ok")
         print(
             f"  [{index}] msgs={len(export.conversations[index].messages)} "
             f"loss={export.conversations[index].loss} "
             f"asst_turns={item.assistant_turns} "
-            f"tokens={item.tokens_before}->{len(item.input_ids)} "
-            f"trained={trained} {flag}"
+            f"tokens={len(item.input_ids)} trained={item.trained}"
         )
-    kept = len(dry.kept)
-    truncated = sum(1 for item in dry.renders if item.truncated)
-    dropped = sum(1 for item in dry.renders if item.dropped)
     print(
-        f"totals: kept={kept}/{len(dry.renders)} tokens={dry.total_tokens} "
-        f"trained={dry.trained_tokens} truncated={truncated} dropped={dropped}"
+        f"totals: rows={len(dry.renders)} tokens={dry.total_tokens} "
+        f"trained={dry.trained_tokens} longest={max(len(r.input_ids) for r in dry.renders)} "
+        f"over_length=0 (refused, never truncated)"
     )
-    if dropped:
-        print("  NOTE: dropped conversations contribute no loss (fully masked).")
 
     index = dry.example_index
     if index >= len(dry.renders):
@@ -588,6 +565,8 @@ def build_receipt(
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Training manifest: everything needed to reproduce or audit the run."""
+    import jinja2
+    import tokenizers
     import transformers
 
     total = dry.total_tokens * epochs
@@ -601,11 +580,12 @@ def build_receipt(
             "conversations_sha256": dry.export.conversations_sha256,
             "split_manifest_digest": dry.export.split_manifest_digest,
             "conversations": len(dry.renders),
-            "kept": len(dry.kept),
         },
         "render": {
             "template": "model-own chat_template.jinja via apply_chat_template",
             "transformers": transformers.__version__,
+            "tokenizers": tokenizers.__version__,
+            "jinja2": jinja2.__version__,
             "enable_thinking": True,
             "think_mapping": "<think> content prefix -> reasoning_content field",
             "tool_calls": "verbatim <tool_call><function=...> text in content",
@@ -623,7 +603,7 @@ def build_receipt(
             "loss = token-mean cross-entropy over assistant tokens, computed from "
             f"their hidden states in checkpointed lm_head chunks of {LOSS_CHUNK_TOKENS}",
             "max_length": dry.max_length,
-            "truncation": TRUNCATION_POLICY,
+            "length_policy": LENGTH_POLICY,
             "dtype": "bfloat16",
             "gradient_checkpointing": True,
             "packing": False,
@@ -641,6 +621,7 @@ def build_receipt(
                 "per_device_batch": DEFAULTS["per_device_batch"],
                 "grad_accum_steps": grad_accum_steps,
                 "seed": DEFAULTS["seed"],
+                "seed_applied": "transformers.set_seed before PEFT adapter init",
             },
             "image_packages": list(TRAIN_IMAGE_PACKAGES),
             "weights_volume": WEIGHTS_VOLUME,
@@ -649,8 +630,8 @@ def build_receipt(
         "dry_run": {
             "tokens": dry.total_tokens,
             "trained_tokens": dry.trained_tokens,
-            "truncated": sum(1 for item in dry.renders if item.truncated),
-            "dropped": sum(1 for item in dry.renders if item.dropped),
+            "longest": max(len(item.input_ids) for item in dry.renders),
+            "over_length": 0,
         },
         "cost_estimate": estimate_cost_usd(total),
         "serve_hint": {
@@ -724,7 +705,13 @@ def build_trainer(
     output_dir: Path,
     bf16: bool = True,
 ) -> Any:
-    """The exact trainer ``train_remote`` runs, from pre-rendered rows."""
+    """The exact trainer ``train_remote`` runs, from pre-rendered rows.
+
+    The configured seed is applied before the trainer builds the PEFT model:
+    TRL calls ``get_peft_model`` inside ``SFTTrainer.__init__``, before the
+    Trainer seeds itself, so LoRA_A would otherwise come from ambient RNG.
+    """
+    import transformers
     from datasets import Dataset
     from peft import LoraConfig, TaskType
     from trl import SFTConfig
@@ -756,6 +743,7 @@ def build_trainer(
         seed=int(config["seed"]),
         report_to="none",
     )
+    transformers.set_seed(int(config["seed"]))
     trainer = selected_token_loss_trainer_class()(
         model=model,
         args=args,
@@ -766,6 +754,35 @@ def build_trainer(
     # compute_loss already divides by the accumulated token count.
     trainer.model_accepts_loss_kwargs = True
     return trainer
+
+
+def lora_digest(model: Any, kind: str) -> dict[str, Any]:
+    """sha256 over every ``lora_<kind>`` tensor (name order) plus its max |value|.
+
+    PEFT initializes LoRA_B to zero, so a nonzero ``lora_B`` max after
+    training proves a real parameter update; the LoRA_A digest at init is
+    the seed-reproducibility witness.
+    """
+    digest = hashlib.sha256()
+    max_abs = 0.0
+    tensors = 0
+    for name, param in sorted(model.named_parameters(), key=lambda item: item[0]):
+        if f"lora_{kind}." not in name:
+            continue
+        data = param.detach().float().cpu().contiguous()
+        digest.update(name.encode())
+        digest.update(data.numpy().tobytes())
+        max_abs = max(max_abs, float(data.abs().max()))
+        tensors += 1
+    if not tensors:
+        raise RuntimeError(f"model has no lora_{kind} parameters")
+    return {"sha256": digest.hexdigest(), "max_abs": max_abs, "tensors": tensors}
+
+
+def optimizer_steps(rows: int, config: dict[str, Any]) -> int:
+    """Optimizer steps one run takes (TRL/Trainer, no packing, drop_last=False)."""
+    per_step = int(config["per_device_batch"]) * int(config["grad_accum_steps"])
+    return -(-rows // per_step) * int(config["num_epochs"])
 
 
 def collated_label_check(trainer: Any, rows: list[dict[str, Any]]) -> dict[str, int]:
@@ -807,12 +824,24 @@ def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict
     """LoRA SFT on one A100-80GB; writes adapter + receipt to the SFT volume."""
     import time
 
+    import jinja2
+    import tokenizers
     import torch
+    import transformers
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     started = time.monotonic()
 
     out_dir = Path(SFT_MOUNT) / run_name
+    render = config["receipt"]["render"]
+    stack = {
+        "transformers": transformers.__version__,
+        "tokenizers": tokenizers.__version__,
+        "jinja2": jinja2.__version__,
+    }
+    expected = {name: render[name] for name in stack}
+    if stack != expected:
+        raise RuntimeError(f"GPU render stack {stack} differs from the dry run's {expected}")
     if not Path(BASE_DIR, "config.json").is_file():
         raise RuntimeError(
             f"base weights missing at {BASE_DIR}; run "
@@ -833,11 +862,13 @@ def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict
             label=f"conversation {index}",
             loss=row.loss,
         )
-        if rendered.dropped:
-            continue
         rows.append({"input_ids": rendered.input_ids, "assistant_masks": rendered.mask})
-    if not rows:
-        raise RuntimeError("no trainable conversations after masking/truncation")
+    steps = optimizer_steps(len(rows), config)
+    if steps < 2:
+        raise RuntimeError(
+            f"{len(rows)} rows give {steps} optimizer step(s); the first warmup step "
+            "has learning rate 0, so at least 2 are needed for a real update"
+        )
 
     model, loading = AutoModelForCausalLM.from_pretrained(
         BASE_DIR,
@@ -851,11 +882,19 @@ def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict
         raise RuntimeError(f"base weights missing for {sorted(loading['missing_keys'])[:5]}")
     model.config.use_cache = False
     trainer = build_trainer(model, tokenizer, rows, config, output_dir=out_dir / "adapter")
+    lora_a_init = lora_digest(trainer.model, "A")
+    lora_b_init = lora_digest(trainer.model, "B")
     label_check = collated_label_check(trainer, rows)
     torch.cuda.reset_peak_memory_stats()
     train_started = time.monotonic()
     trainer.train()
     train_seconds = time.monotonic() - train_started
+    lora_b_final = lora_digest(trainer.model, "B")
+    learning_rates = [
+        float(entry["learning_rate"])
+        for entry in trainer.state.log_history
+        if "learning_rate" in entry
+    ]
     trainer.save_model(str(out_dir / "adapter"))
     adapter_files = {
         path.name: hashlib.sha256(path.read_bytes()).hexdigest()
@@ -869,6 +908,7 @@ def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict
         "adapter_files_sha256": adapter_files,
         "adapter_model_sha256": adapter_files.get("adapter_model.safetensors"),
         "torch": torch.__version__,
+        "render_stack": stack,
         "fla": _module_version("fla"),
         "train_seconds": round(train_seconds, 1),
         "wall_seconds": round(time.monotonic() - started, 1),
@@ -876,6 +916,13 @@ def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict
         "max_tokens": max(len(row["input_ids"]) for row in rows),
         "peak_gpu_memory_gib": round(torch.cuda.max_memory_allocated() / 2**30, 2),
         "collated_label_check": label_check,
+        "parameter_update": {
+            "optimizer_steps": trainer.state.global_step,
+            "learning_rates": learning_rates,
+            "lora_A_init": lora_a_init,
+            "lora_B_init_max_abs": lora_b_init["max_abs"],
+            "lora_B_final": lora_b_final,
+        },
         "log_history": trainer.state.log_history,
     }
     # Plain JSON both on the volume and over the wire: log_history can hold
@@ -883,6 +930,11 @@ def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict
     receipt = json.loads(json.dumps(receipt, default=float))
     (out_dir / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True))
     sft_volume.commit()
+    if not (lora_b_final["max_abs"] > 0.0 and max(learning_rates, default=0.0) > 0.0):
+        raise RuntimeError(
+            f"no parameter update: lora_B max |value| {lora_b_final['max_abs']}, "
+            f"learning rates {learning_rates}"
+        )
     return receipt
 
 
@@ -978,6 +1030,12 @@ def cmd_train(args: argparse.Namespace) -> int:
         tokenizer, export, max_length=args.max_length, epochs=args.epochs, example_index=0
     )
     params = _resolve_hparams(args)
+    steps = optimizer_steps(len(dry.renders), params)
+    if steps < 2:
+        raise SftError(
+            f"{len(dry.renders)} rows give {steps} optimizer step(s); the first warmup "
+            "step has learning rate 0, so at least 2 are needed for a real update"
+        )
     run_name = args.run_name or f"run-{export.manifest_sha256[7:15]}"
     receipt = build_receipt(
         dry,

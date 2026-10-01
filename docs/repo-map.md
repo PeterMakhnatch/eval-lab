@@ -299,7 +299,7 @@ inputs:
   - path: src/evallab/probe03.py
     digest: sha256:d3f3920af84322429833952efbb049a21de91693f8eb16df7b994095118ed9cc
   - path: src/evallab/process_job.py
-    digest: sha256:4627074b2bf5bb9b12e45a48913e03858aad70e7e2b253a329e6244c3ca19211
+    digest: sha256:b333e3bc75b4094f6bae1482effd901c2fd8ccb60de5400d18936e0cdb1d76e8
   - path: src/evallab/profiles.py
     digest: sha256:2a85f3a9d512135b9b90c86124eb92a1c1ed24c8c244274c6932438d8868e173
   - path: src/evallab/provenance.py
@@ -335,7 +335,7 @@ inputs:
   - path: src/evallab/results.py
     digest: sha256:4ba7d3de34e765fc5f9f1cc8e8b8cccfb4cab3503abbcab50eeecc6a66fb171d
   - path: src/evallab/results_home.py
-    digest: sha256:0146e94114fb06395d9e1c68874fb7c368ed8e767cfba27deb780fdac5f17388
+    digest: sha256:76ebe991a82073f9415ae27b7baf2e712fd07a714f8f09c7e7c975e3556c123d
   - path: src/evallab/rlm/__init__.py
     digest: sha256:72ec828d553f09b8218b61f95eee8873ec978e227c040adad6d5281fd8acfb45
   - path: src/evallab/rlm/bench/__init__.py

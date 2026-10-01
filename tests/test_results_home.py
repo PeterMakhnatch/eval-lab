@@ -72,6 +72,84 @@ def _job(
     return job
 
 
+def _uncarded_job(root: Path) -> Path:
+    job = _job(root, "ovn-g5-000169-stock", agent="terminus-2")
+    (job / "experiment-spec.json").write_text(
+        json.dumps({"question_ref": "ovn-g5"}), encoding="utf-8"
+    )
+    return job
+
+
+def test_explicit_card_rehomes_unknown_and_survives_reprocessing(tmp_path: Path) -> None:
+    job = _uncarded_job(tmp_path)
+    home = tmp_path / "results"
+    raw = {p.relative_to(job): p.read_bytes() for p in job.rglob("*") if p.is_file()}
+    original = process_job(job, ingest=False, results_home=home, pr_lookup=lambda _: None)
+    old = Path(original["results_home"])
+    assert old.name == "unknown-ovn-g5-000169-stock"
+    corrected = process_job(
+        job, ingest=False, results_home=home, pr_lookup=lambda _: None,
+        publication_card="HAR-126",
+    )
+    dest = Path(corrected["results_home"])
+    assert dest.name == "HAR-126-ovn-g5-000169-stock"
+    assert not old.exists()
+    provenance = json.loads((dest / "provenance.json").read_text())
+    assert provenance["card"] == "HAR-126"
+    assert provenance["card_assignment"] == {"source": "publication_argument", "card": "HAR-126"}
+    assert all((job / relative).read_bytes() == content for relative, content in raw.items())
+    assert all((dest / relative).read_bytes() == content for relative, content in raw.items())
+    assert original["trials"] == corrected["trials"]
+    assert str(old) not in (home / "INDEX-all.md").read_text()
+
+    again = process_job(job, ingest=False, results_home=home, pr_lookup=lambda _: None)
+    assert again["results_home"] == str(dest)
+    assert [p.name for p in dest.parent.iterdir()] == [dest.name]
+    before = (dest / "provenance.json").read_bytes()
+    with pytest.raises(ValueError, match="existing source-bound assignment"):
+        publish_job(job, root=home, pr_lookup=lambda _: None, publication_card="HAR-131")
+    assert (dest / "provenance.json").read_bytes() == before
+
+
+def test_card_rehome_keeps_same_name_from_another_source(tmp_path: Path) -> None:
+    first = _uncarded_job(tmp_path / ".worktrees" / "one")
+    second = _uncarded_job(tmp_path / ".worktrees" / "two")
+    (second / "result.json").write_text('{"id": "other-job"}', encoding="utf-8")
+    home = tmp_path / "results"
+    publish_job(first, root=home, pr_lookup=lambda _: None)
+    other = Path(publish_job(second, root=home, pr_lookup=lambda _: None)["published"])
+    corrected = Path(publish_job(
+        first, root=home, pr_lookup=lambda _: None, publication_card="HAR-126",
+    )["published"])
+    assert json.loads((other / "result.json").read_text())["id"] == "other-job"
+    assert json.loads((corrected / "result.json").read_text())["id"] == "job-1"
+    assert {p.name for p in other.parent.iterdir()} == {other.name, corrected.name}
+
+
+def test_failed_card_rehome_keeps_original_publication(tmp_path: Path, monkeypatch) -> None:
+    job = _uncarded_job(tmp_path)
+    home = tmp_path / "results"
+    old = Path(publish_job(job, root=home, pr_lookup=lambda _: None)["published"])
+    before = (old / "result.json").read_bytes()
+
+    def fail_copy(*args, **kwargs):
+        raise OSError("copy failed")
+
+    monkeypatch.setattr("evallab.results_home._copy_tree", fail_copy)
+    with pytest.raises(OSError, match="copy failed"):
+        publish_job(job, root=home, pr_lookup=lambda _: None, publication_card="HAR-126")
+    assert (old / "result.json").read_bytes() == before
+
+
+@pytest.mark.parametrize("card", ["../HAR-126", "HAR-126"])
+def test_explicit_card_cannot_escape_or_override_recorded_identity(tmp_path: Path, card: str) -> None:
+    job = _job(tmp_path)
+    home = tmp_path / "results"
+    with pytest.raises(ValueError, match="Publication card"):
+        publish_job(job, root=home, pr_lookup=lambda _: None, publication_card=card)
+    assert not home.exists()
+
+
 def test_publish_copies_bytes_and_marks_uncommitted_code(tmp_path: Path) -> None:
     job = _job(tmp_path)
     home = tmp_path / "results"
@@ -704,3 +782,19 @@ def test_process_job_without_receipt_leaves_spend_untouched(tmp_path: Path) -> N
     assert "session_spend" not in report["summary"]
     for path, content in zip(raw, before, strict=True):
         assert path.read_bytes() == content
+
+
+def test_corrupt_retained_card_cannot_escape_results_home(tmp_path: Path) -> None:
+    job = _uncarded_job(tmp_path)
+    home = tmp_path / "results"
+    published = Path(publish_job(
+        job, root=home, pr_lookup=lambda _: None, publication_card="HAR-126",
+    )["published"])
+    provenance_path = published / "provenance.json"
+    provenance = json.loads(provenance_path.read_text())
+    provenance["card"] = "../../outside"
+    provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
+    before = provenance_path.read_bytes()
+    with pytest.raises(ValueError, match="Invalid existing source-bound publication card"):
+        publish_job(job, root=home, pr_lookup=lambda _: None)
+    assert provenance_path.read_bytes() == before

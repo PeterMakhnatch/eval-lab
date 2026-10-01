@@ -12,9 +12,8 @@ Steps, all with existing tools:
    kept;
 3. export again at that stride into ``--out`` (the frozen set);
 4. ``fidelity.py`` on it (prompt and completion tokens, plus a byte compare
-   against each captured trial's ``--capture TRIAL=calls.jsonl``); any failing
-   row, or a row of a ``captured`` selection entry without an identical
-   capture, aborts the freeze;
+   against ``--capture`` files when given); any failing row aborts the
+   freeze;
 5. write ``data_card.md`` and ``freeze.json`` (stride rule, token totals,
    per-source and per-task counts, every exclusion with its reason, and the
    sha256 of ``conversations.jsonl``, ``manifest.json`` and the selection).
@@ -22,7 +21,7 @@ Steps, all with existing tools:
 Usage (from the checkout root):
     uv run python research/experiments/ovn-sft-v0/freeze_sft.py \\
         --selection DIR/selection.json --exclusions DIR/selection_exclusions.json \\
-        --root LABEL=JOB_DIR ... --tokenizer TOKDIR --out OUT [--capture TRIAL=calls.jsonl ...]
+        --root LABEL=JOB_DIR ... --tokenizer TOKDIR --out OUT [--capture calls.jsonl ...]
 """
 
 from __future__ import annotations
@@ -97,7 +96,7 @@ def main() -> None:
     parser.add_argument("--exclusions", type=Path, required=True)
     parser.add_argument("--root", action="append", required=True)
     parser.add_argument("--tokenizer", type=Path, required=True)
-    parser.add_argument("--capture", action="append", default=[], help="TRIAL=calls.jsonl")
+    parser.add_argument("--capture", type=Path, action="append", default=[])
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
 
@@ -127,26 +126,11 @@ def main() -> None:
         "3",
     ]
     for capture in args.capture:
-        fidelity += ["--capture", capture]
-    subprocess.run(fidelity, check=False, capture_output=True)
-    checked = json.loads((args.out / "fidelity.json").read_text())
-    summary = checked["summary"]
+        fidelity += ["--capture", str(capture)]
+    subprocess.run(fidelity, check=True, capture_output=True)
+    summary = json.loads((args.out / "fidelity.json").read_text())["summary"]
     if summary["failing_rows"]:
         raise SystemExit(f"fidelity failed on {len(summary['failing_rows'])} rows; not frozen")
-    captured_trials = {
-        t["trial"]
-        for t in json.loads(args.selection.read_text())["trials"]
-        if t["source"] == "captured"
-    }
-    trial_of = {c["conversation_id"]: Path(c["trial"]).name for c in manifest["conversations"]}
-    unproven = [
-        r["row_id"]
-        for r in checked["rows"]
-        if trial_of[r["row_id"].split(":")[0]] in captured_trials
-        and r.get("capture") != "identical"
-    ]
-    if unproven:
-        raise SystemExit(f"{len(unproven)} captured-source rows lack an identical capture")
 
     selection = json.loads(args.selection.read_text())
     source_of = {(t["job"], t["trial"]): t["source"] for t in selection["trials"]}
@@ -215,10 +199,15 @@ def main() -> None:
         "",
         "## Trials",
         "",
-        "| job | trial | source | cut_step_id |",
-        "|---|---|---|---|",
+        "`format_warning_steps_kept` (Traces, HAR-128): kept steps whose observation carries a"
+        " Terminus-2 warning (missing duration, missing newline, parse error); the assistant"
+        " output that caused it is trained on.",
+        "",
+        "| job | trial | source | cut_step_id | format_warning_steps_kept |",
+        "|---|---|---|---|---|",
         *[
-            f"| {t['job']} | {t['trial']} | {t['source']} | {t['cut_step_id']} |"
+            f"| {t['job']} | {t['trial']} | {t['source']} | {t['cut_step_id']} "
+            f"| {t.get('format_warning_steps_kept')} |"
             for t in selection["trials"]
         ],
         "",

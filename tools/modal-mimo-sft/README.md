@@ -47,10 +47,15 @@ The model loads as the text-only `Qwen3_5ForCausalLM`, and loading fails if any 
 
 ## Rendering choices
 
-- The template always wraps assistant turns as `<think>{reasoning_content}</think>{content}` (`chat_template.jinja`, pinned revision, assistant macro), identically for final and non-final turns — so the export's `<think>` prefix maps to `reasoning_content` on every assistant turn, and turns without it render `<think></think>`. Tool calls stay verbatim `<tool_call><function=...>` text in `content` (the export has no structured `tool_calls` field).
-- Training passes `enable_thinking=True`, matching the proxy-enforced serving route (`mimo_selfhosted` in `containers/zai_openapi_secret_proxy.py`). With no trailing generation prompt it changes no training token; it is passed for consistency and recorded.
-- **Masks** come from the template's `{% generation %}` markers, cross-checked against incremental prefix rendering with a verified prefix property. Any prefix break, mask disagreement or conversation with zero trainable tokens raises an error.
-- **Loss scope per row.** `"loss": "last"` keeps only the final assistant turn. This is the per-call shape: the history is exactly what the served model saw, with assistant turns carrying no reasoning, and the target is that call's full generation. Rows without the field train every assistant turn.
+- **Think blocks.** The template always wraps assistant turns as `<think>{reasoning_content}</think>{content}` (`chat_template.jinja`, pinned revision, assistant macro), the same way for final and non-final turns, with no newlines around the block. Turns without reasoning render `<think></think>`.
+  - An assistant message may carry its reasoning in an explicit `reasoning_content` field, exactly as the model emitted it. This is the preferred form; HAR-127 matched it to recorded `completion_tokens` on 217/217 calls.
+  - Otherwise a leading `<think>` block in `content` is split off.
+  - A message with both forms is rejected.
+  - Tool calls stay verbatim `<tool_call><function=...>` text in `content`; the export has no structured `tool_calls` field.
+- Training passes `enable_thinking=True`, matching the proxy-enforced serving route (`mimo_selfhosted` in `containers/zai_openapi_secret_proxy.py`). It is the flag the served prompt was rendered with, which matters for the `loss: "last"` prompt render.
+- **Masks for `loss: "all"`** (the default) come from the template's `{% generation %}` markers. They are cross-checked against incremental prefix rendering with a verified prefix property, and they include each turn's `<|im_start|>assistant\n` header.
+- **Masks for `loss: "last"`** cover exactly the tokens the served model generated for the final call. The served prompt is `messages[:-1]` rendered with `add_generation_prompt=True`, which includes the header. It must be a token prefix of the full render, every token after it must lie inside the template's assistant mask, and only those tokens train: `<think>{r}</think>{m}<|im_end|>`. This is the per-call shape: the history is exactly what the served model saw, with assistant turns carrying no reasoning.
+- Any prefix break, mask disagreement or conversation with zero trainable tokens raises an error.
 - **Truncation** mirrors TRL: right-truncate at `max_length`, keeping the start, and drop fully masked rows. The default `max_length` is 65,536, the served context, so no Terminus segment is truncated.
 - **LoRA defaults** (recorded in the receipt): rank 16, alpha 32, dropout 0.05, lr 1e-4 cosine, 1 epoch, batch 1 × 16 accumulation, bf16, gradient checkpointing, no packing. `--grad-accum` overrides the accumulation.
 

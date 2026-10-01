@@ -125,52 +125,29 @@ upstream from **`EVALLAB_MIMO_SELFHOSTED_UPSTREAM`**) → capture hop
 (strips the token, records byte-identical bodies) → Modal. Capture
 every arm identically.
 
-## 6. Operator steps for G5
+## 6. Operator round: run_g5.sh (PR #654)
 
-1. `evallab spend day`. Do not launch if G5 would breach the $30
-   overnight envelope (G5 cap $10 per the plan; HAR-126's description
-   says $8 — treat $8 as binding until Research-Harbor clarifies) or
-   the dated $35 UTC-day override state.
-2. Deploy/warm the LoRA app (Infra may own this): set
-   `EVALLAB_MIMO_LORA_ADAPTER=<run>/adapter` and
-   `EVALLAB_MIMO_LORA_NAME=har129`, `modal deploy
-   tools/modal-mimo-serve/serve_lora.py`, warm from zero, record the
-   app URL and the adapter sha256.
-3. Full-chain smoke for **both** model names. `evallab capture smoke`
-   takes **no model argument** (only `--upstream/--out/--key-env/--max-tokens`;
-   it sends one Terminus-shaped call as the base selector), so it
-   proves the base leg only:
-   `evallab capture smoke --upstream <LORA_URL>` → expect status 200
-   with echoed model `XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B`. Then probe
-   the adapter leg through the same proxy → capture → upstream chain
-   with `model: selfhosted/...:har129` and require status 200 with
-   echoed model `XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129` (an
-   adapter-arm reply echoing the base id fails the runner identity
-   check). Post both.
-4. `evallab capture serve --upstream <LORA_URL> --out
-   ~/Developer/eval-lab-results/har126-capture/g5/`; point the secret
-   proxy's upstream (`EVALLAB_MIMO_SELFHOSTED_UPSTREAM`) at the capture
-   address.
-5. Generate (section 4, real admitted candidate or two-arm fallback),
-   `--check`, `evallab submit` each spec (record queue IDs), and freeze
-   the arm-admission/family-size decision with its time **before the
-   first trial**.
-6. Tick in **position waves** at one pinned concurrency/scheduling
-   policy (all first arms, then seconds, then thirds), so each task's
-   next arm starts only after its predecessor finishes; task groups may
-   run concurrently. Preserve start/end times, per-call latency/queue
-   wait and telemetry (`2026-10-01/g5-telemetry.jsonl`).
-7. `evallab capture link` per job, `process-job` (counts verdict +
-   decision pages) on every job, publish to the results home, then
-   write `RESULTS.md` strictly per PREREG (paired tables, N/20, Holm,
-   missing-outcome bounds; tuned-vs-GEPA exploratory).
+```bash
+research/experiments/ovn-sft-v0/run_g5.sh --specs-dir DIR --adapter <volume-relative adapter dir> \
+  --candidate-usd <G5 cap> --actor "<approval text>" \
+  [--gepa-candidate P --gepa-sha256 S] [--parallel 20] [--dry-run]
+```
+
+One line per step (aborts the round on failure; nothing billable starts before the deploy):
+
+1. Preflight: clean checkout, spec `--check`, free capture port, key file — and requires `evallab capture smoke --model` (aborts without it).
+2. Billing reconcile for the UTC day plus the spend check for the candidate against the cap (stays inside the $30 overnight envelope; G5 cap $10 per the plan, $8 per HAR-126's description).
+3. ONE deploy of the LoRA app (the single cold start; Infra may own this), wait for `/health`, record the URL and adapter sha256.
+4. Warm smokes for **both** model names through secret proxy → capture → Modal: `evallab capture smoke --upstream <LORA_URL> --model selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` then `--model ...:har129` (retries, never a redeploy; abort unless both pass with the matching echoed model).
+5. Capture serve, telemetry sampler and per-app Modal spend watchdog (capture every arm identically).
+6. Tick position waves serially at one pinned `--parallel` (all first arms, then seconds, then thirds, approving each wave just before its tick), so each task's next arm starts only after its predecessor finishes; freeze the arm-admission/family-size decision with its time before the first trial.
+7. `capture link` per job, `process-job` (counts + decision pages) on every job, freeze the capture file, reconcile billing, write the round manifest, publish to the results home, then `RESULTS.md` strictly per PREREG.
+
+Teardown note: the lab's automatic drain teardown NEVER stops the LoRA app — `modal_ops.MODAL_APP_NAME` is hard-wired to `evallab-mimo-v26-9b` — so `run_g5.sh` stops `evallab-mimo-v26-9b-lora` itself on every exit path (EXIT trap). Production is never touched.
 
 ## 7. Capture-smoke coverage answer
 
-**No**: `evallab capture smoke` does not accept a model argument and
-covers the base name only. The `:har129` leg needs the manual probe in
-step 3 (plus Infra's parity record and the runner's identity check on
-the first tuned trial).
+**Yes**: `evallab capture smoke --model <selector>` smokes each leg through the same secret proxy (configured as the runner does for that selector, so the #604 adapter admission applies) → capture → upstream chain. It prints the echoed model and exits nonzero when the echo fails the runner's identity rule (an adapter request echoing the base id fails). With no `--model` it smokes the base selector.
 
 ## 8. PREREG requirements this prep does not meet (by design — no G5 ran)
 

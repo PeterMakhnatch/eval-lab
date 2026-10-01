@@ -133,7 +133,7 @@ research/experiments/ovn-sft-v0/run_g5.sh --specs-dir DIR --adapter <volume-rela
   [--gepa-candidate P --gepa-sha256 S] [--parallel 20] [--dry-run]
 ```
 
-One line per step (aborts the round on failure; nothing billable starts before the deploy):
+One line per step (failures abort, except a failed last-wave gate still finalizes evidence; nothing billable starts before the deploy):
 
 1. Preflight: clean checkout, spec `--check`, free capture port, key file — and requires `evallab capture smoke --model` (aborts without it).
 2. Billing reconcile for the UTC day plus the spend check for the candidate against the cap (stays inside the $30 overnight envelope; G5 cap $10 per the plan, $8 per HAR-126's description).
@@ -142,6 +142,14 @@ One line per step (aborts the round on failure; nothing billable starts before t
 5. Capture serve, telemetry sampler and per-app Modal spend watchdog (capture every arm identically).
 6. Tick position waves serially at one pinned `--parallel` (all first arms, then seconds, then thirds, approving each wave just before its tick), so each task's next arm starts only after its predecessor finishes; freeze the arm-admission/family-size decision with its time before the first trial.
 7. `capture link` per job, `process-job` (counts + decision pages) on every job, freeze the capture file, reconcile billing, write the round manifest, publish to the results home, then `RESULTS.md` strictly per PREREG.
+
+A failed wave gate (nonzero tick, non-terminal spec, 3+ infra failures,
+refusal, or unexpected captured model) is recorded in `round-manifest.json`
+as `gate_failure` and logged as `GATE FAILED`. Earlier waves still exit 3
+before the next wave is approved or ticked. On the **last** wave, step 10
+still links each job's capture, removes write permissions from `calls.jsonl`,
+records its SHA-256/bytes/lines, reconciles billing, and runs `spend day`.
+The round then exits 3, not success, and the EXIT trap still stops the app.
 
 Teardown note: the lab's automatic drain teardown NEVER stops the LoRA app — `modal_ops.MODAL_APP_NAME` is hard-wired to `evallab-mimo-v26-9b` — so `run_g5.sh` stops `evallab-mimo-v26-9b-lora` itself on every exit path (EXIT trap). Production is never touched.
 

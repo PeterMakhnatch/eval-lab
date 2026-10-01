@@ -87,6 +87,17 @@ inside the job directory. Publish copies it verbatim.
   `research/**` doc whose path contains the card slug. Absent when none
   matches.
 
+## INDEX reward columns
+
+Each INDEX row keeps two verdicts side by side. `Reward (raw)` is the
+verifier pass/fail/unscored from the job report and never changes. `Counted`
+is the `evallab.counts` verdict stored in the same report summary
+(`n_counted_pass` / `n_counted_fail` / `n_excluded` / `excluded_reasons`), so
+the INDEX matches the canonical report. A raw pass excluded as `copied_fix`
+reads as a raw pass and a counted exclusion on the same row. Reports that
+predate counts have none of those fields and render `counts unknown`, never
+`0`.
+
 ## Backfill
 
 Jobs that predate the run-time snapshot have `repository.commit` and

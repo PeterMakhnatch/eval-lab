@@ -1,9 +1,9 @@
 """Back-fill HAR-78 counts for landed HAR-81, HAR-104, and HAR-110 trials.
 
 Rollup matches RESULTS.md:
-- HAR-81: 44 ARVO cyber tasks (no ledger covers these tasks / unchecked)
+- HAR-81: 44 mixed-domain trials (no ledger covers these tasks / not checked)
 - HAR-104: 10 dev and v1 baseline plain runs
-- HAR-110: 27 real trials organized per round and arm:
+- HAR-110: 36 comparison cells (27 fresh trials + 9 retained HAR-104 trials):
     - development: plain (6), seed-addendum (6), gepa-candidate (6)
     - held-out: plain (4), seed-addendum (4), gepa-candidate (4)
     - v1-only (dropped): plain (3), seed-addendum (3)

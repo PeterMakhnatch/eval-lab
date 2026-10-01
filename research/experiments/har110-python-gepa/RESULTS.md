@@ -2,6 +2,10 @@
 
 Everything here is n=1 per task and arm, so read it as a first look, not evidence of an effect.
 Per-run rows, including tokens and stop reasons, are in `results-v2-trials.jsonl`.
+Those token columns are native Harbor `agent_result` totals, not settled
+proxy-ledger usage; the two can differ. HAR-132 replayed all 36 declared
+comparison cells from raw records with no reward, score, fetch, native-token,
+or stop-reason differences.
 
 **Score column.** The GEPA score is the verifier reward, except that a run which fetched upstream code (`upstream_fetch_zero`) scores 0.
 The "fetch" column is reported separately from reward, as Research-Harbor asked.
@@ -58,7 +62,7 @@ The "fetch" column is reported separately from reward, as Research-Harbor asked.
   - $0.074 for candidate cfe31418;
   - ≈ $0.001 of one-line probes.
   - Also, 4 requests went to the expired Coding Plan and were rejected with 429, so $0 is expected.
-- **Daytona:** None. Not measured, because the Daytona SDK is absent from the lab environment (`modal-teardown.json`: `daytona-sdk-not-installed`).
+- **Daytona:** Not measured in the original receipt because the SDK was absent (`modal-teardown.json`: `daytona-sdk-not-installed`). The later [HAR-122 backfill](../har122-spend-day/README.md) attributes **$0.6248** to HAR-110 on September 30 using trial wall times and a list-price rate card. That is an offline estimate, not a provider bill.
 
 ## What DSPy would add
 

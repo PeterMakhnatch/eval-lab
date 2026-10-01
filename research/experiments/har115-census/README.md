@@ -16,8 +16,19 @@ The scripts reuse HAR-113's toolbox in `../har113-variants/` (repair kinds,
 
 Census (`../har108-python-census/task_health.parquet`, [`SUMMARY.md`](../har108-python-census/SUMMARY.md)):
 sound 1040, broken_environment 135, grader_suspect 5, unknown 0 (was 870 / 107 / 5 / 198).
-The census labels original tasks; a repaired task's admissible version is its
-`validated` variant (HAR-113's 51 plus these 44).
+The census labels original tasks. There are **110 unique validated repair
+variants**: HAR-113's 51 plus HAR-115's **59** (44 initial + 15 round-four),
+with no task overlap. Validation here means nop-sound, not demonstrated
+solvability or automatic admission: the ledger places 92 repairs in usable,
+17 in review and 1 in discarded.
+
+HAR-132's read-only replay reproduced all 1,180 census labels and ledger
+statuses. `census_update.jobs()` now resolves HAR-115 through the same
+retained-worktree/archive rule as earlier cohorts, rather than silently
+looking in an empty analysis checkout's `runs/`. The October 1 retained
+snapshot yields 1,437 nop jobs, including all 265 HAR-115 jobs (199 nop,
+66 repair-nop). Reproducing discovery does not invoke `main()` or rewrite
+the shared catalog.
 
 ## 1. Repairs
 

@@ -1,0 +1,127 @@
+{
+ "trial": "har120-002416-a1-r2__ccd9JcE",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-002416-a1-r2/har120-002416-a1-r2__ccd9JcE",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-002416-a1-r2",
+ "task": "mimo-v2.6-rl/format-code-task-002416",
+ "verifier": {
+  "scored": true,
+  "reward": 1.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:requests",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [
+   "head#30",
+   "head#63",
+   "head#95"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "none",
+  "attribution": "n/a",
+  "rule_id": "R-NONE-01",
+  "evidence_step_refs": [
+   "head#32",
+   "head#62"
+  ],
+  "note": "scored pass with no outcome-relevant failure",
+  "secondary": "error_recovery/model secondary: identical run head#32-head#62"
+ },
+ "handshake": {
+  "first_prompt_ref": "head#30",
+  "prompts": 3,
+  "confirmed": false,
+  "turns_after_first_prompt": 91,
+  "prompt_tokens_after_first_prompt": 2022056,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 15,
+    "span": [
+     "head#2",
+     "head#16"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 31,
+    "span": [
+     "head#32",
+     "head#62"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 30,
+    "span": [
+     "head#65",
+     "head#94"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 25,
+    "span": [
+     "head#97",
+     "head#121"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 1985837,
+   "completion": 7050,
+   "steps": 101,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 1985837,
+   "completion": 7050,
+   "steps": 101,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2265118,
+   "completion": 13468,
+   "steps": 120,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.8767,
+  "result_input_tokens": 2265118
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 117,
+  "states": {
+   "pager": 2,
+   "prompt": 115
+  },
+  "stretches": [],
+  "short_stretches": 2
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "15d8b7087135ed81c8c4286ead63e067b90ae7da"
+ },
+ "nop_runs_dir": null
+}

@@ -1,0 +1,121 @@
+{
+ "trial": "har120-000552-a2-r2__ptsTP5m",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000552-a2-r2/har120-000552-a2-r2__ptsTP5m",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000552-a2-r2",
+ "task": "mimo-v2.6-rl/format-code-task-000552",
+ "verifier": {
+  "scored": true,
+  "reward": 1.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "unknown",
+  "exception_type": "LoopBreakStop",
+  "exception_message": "loop break: the repetition was still going 54 calls in, 15 after the nudge at call 39",
+  "natural_completion": false,
+  "task_complete_refs": [
+   "head#30"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": {
+  "step_id": 3,
+  "step_ref": "head#3",
+  "tag": "tool_use",
+  "attribution": "model",
+  "rule_id": "R-TOOL-02",
+  "evidence_step_refs": [
+   "head#3"
+  ],
+  "recovered": true,
+  "note": "model-emitted surface the normalizer declines (unknown_function:read); A-NON-NATIVE-MODEL; harness feedback: 'No valid JSON found in response' (names the problem: false)",
+  "harness_feedback": "No valid JSON found in response",
+  "feedback_names_problem": false
+ },
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "none",
+  "attribution": "n/a",
+  "rule_id": "R-NONE-01",
+  "evidence_step_refs": [
+   "head#5",
+   "head#19"
+  ],
+  "note": "scored pass with no outcome-relevant failure",
+  "secondary": "error_recovery/model secondary: identical run head#5-head#19"
+ },
+ "handshake": {
+  "first_prompt_ref": "head#30",
+  "prompts": 1,
+  "confirmed": false,
+  "turns_after_first_prompt": 25,
+  "prompt_tokens_after_first_prompt": 645935,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 15,
+    "span": [
+     "head#5",
+     "head#19"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 14,
+    "span": [
+     "head#42",
+     "head#55"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 477430,
+   "completion": 3496,
+   "steps": 29,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 477430,
+   "completion": 3496,
+   "steps": 29,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 947067,
+   "completion": 11032,
+   "steps": 54,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.5041,
+  "result_input_tokens": 947067
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 51,
+  "states": {
+   "prompt": 51
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "15d8b7087135ed81c8c4286ead63e067b90ae7da"
+ },
+ "nop_runs_dir": null
+}

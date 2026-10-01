@@ -1,0 +1,1050 @@
+{
+  "acceptance": {
+    "agreement": {
+      "agree_accept": 66,
+      "agree_reject": 0,
+      "disagree": 0,
+      "inferred_unknown": 0
+    },
+    "counts": {
+      "false": 0,
+      "true": 66,
+      "unknown": 0
+    },
+    "provenance": {
+      "inferred": 0,
+      "reconstructed": 0,
+      "recorded": 66
+    }
+  },
+  "agent_steps": 66,
+  "assembly_pattern": "single_head",
+  "claim_regime": {
+    "end": 67,
+    "end_doc": "head",
+    "start": 36,
+    "start_doc": "head",
+    "steps": 32
+  },
+  "completion_refs": [
+    "head#36",
+    "head#42",
+    "head#44"
+  ],
+  "confirmation_loop": {
+    "detector": "recorded",
+    "first_confirmation_ref": "head#42",
+    "loop_span": [
+      "head#42",
+      "head#67"
+    ],
+    "note": "confirmation_with_call loop (secondary): the harness asked 'Are you sure ...' and the model kept replying claim+call, which executed instead of confirming; attribution unclear (confirm vs continue ambiguous)",
+    "rule_id": "R-COMP-04",
+    "steps_in_span": 26,
+    "suffix_claim_only": true
+  },
+  "cost_attempted_usd": 0.0,
+  "cost_estimate_reason": "shared GPU, not additive; excludes sandbox and warm periods; see evallab spend day",
+  "cost_estimate_usd": 0.32448060878256,
+  "cost_reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+  "cost_source": "proxy_ledger_x_pinned_price",
+  "cost_usd": null,
+  "counts": {
+    "evidence": [],
+    "flags": [],
+    "judgments": [
+      {
+        "accuracy": null,
+        "accuracy_note": "display only; HAR-119 pending; never decides",
+        "attribution": "model",
+        "label": "blame",
+        "value": "R-REC-01"
+      },
+      {
+        "accuracy": null,
+        "accuracy_note": "display only; HAR-119 pending; never decides",
+        "attribution": null,
+        "label": "loop_kind",
+        "value": "identical_loop"
+      }
+    ],
+    "raw_reward": 0.0,
+    "reasons": [],
+    "schema": "evallab.counts/v1",
+    "scored": true,
+    "task_status": {
+      "digest_match": true,
+      "evidence": [
+        "research/experiments/har108-python-census/task_health.parquet#format-code-task-000865",
+        "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-000865"
+      ],
+      "ledger_status": "usable",
+      "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-000865",
+      "reason": "status=usable; nop sound",
+      "run_digest": "sha256:665cab7d069e32cff40fa2a7802011ac009508514953e391082c71caeed888e4",
+      "source": "python_task_ledger",
+      "source_sha256": "949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a",
+      "status": "usable",
+      "task_id": "format-code-task-000865",
+      "trial_digest": "sha256:665cab7d069e32cff40fa2a7802011ac009508514953e391082c71caeed888e4"
+    },
+    "verdict": "counted_fail"
+  },
+  "coverage": {
+    "complete": true,
+    "continuation_count": 0,
+    "continuation_indices": [],
+    "continuations_missing": [],
+    "copied_context_steps": 0,
+    "duplicate_segments": {},
+    "duplicated_steps": 0,
+    "gaps": [],
+    "malformed_steps": 0,
+    "notes": [],
+    "parts": [
+      {
+        "copied_steps": 0,
+        "index": 0,
+        "kind": "head",
+        "path": "trajectory.json",
+        "readable": true,
+        "session_id": "8137baeb-36e8-448a-897e-1066a2d214f7",
+        "steps": 67
+      }
+    ],
+    "summarization_count": 0,
+    "trajectory_head": true,
+    "unique_steps": 67
+  },
+  "decision": {
+    "asked": {
+      "excerpt": null,
+      "grader_gap": "instruction.md not located; deliverable check skipped",
+      "grader_tests_asked": "unknown",
+      "instruction_bytes": null,
+      "instruction_present": false
+    },
+    "attribution": "model",
+    "counts": {
+      "evidence": [],
+      "note": "Rendered from the HAR-78 counts field. Not computed here.",
+      "reasons": [],
+      "status": "rendered",
+      "task_ledger": {
+        "digest_match": true,
+        "evidence": [
+          "research/experiments/har108-python-census/task_health.parquet#format-code-task-000865",
+          "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-000865"
+        ],
+        "ledger_status": "usable",
+        "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-000865",
+        "reason": "status=usable; nop sound",
+        "run_digest": "sha256:665cab7d069e32cff40fa2a7802011ac009508514953e391082c71caeed888e4",
+        "source": "python_task_ledger",
+        "source_sha256": "949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a",
+        "status": "usable",
+        "task_id": "format-code-task-000865",
+        "trial_digest": "sha256:665cab7d069e32cff40fa2a7802011ac009508514953e391082c71caeed888e4"
+      },
+      "verdict": "counted_fail"
+    },
+    "did": {
+      "evidence_steps": [
+        "head#44",
+        "head#67"
+      ],
+      "last_edit_excerpt": "cd /testbed && python3 - <<'EOF'",
+      "last_edit_step": 25,
+      "note": "identical message repeated steps 44-67 with no change after errors",
+      "secondary": "confirmation_with_call loop (recorded): first confirmation head#42, span head#42-head#67; attribution unclear (confirm vs continue ambiguous)",
+      "step": "head#44"
+    },
+    "facts": {
+      "calls": 66,
+      "fetches": [],
+      "grader_gap": "instruction.md not located; deliverable check skipped",
+      "instruction_excerpt": null,
+      "nop_same_crash": {
+        "answer": "unknown",
+        "nop_trial": null,
+        "reason": "No same-task nop crash comparison was recorded."
+      },
+      "stop_reason": "unknown",
+      "tokens": {
+        "attribution": "single_trial",
+        "input_tokens": 970269,
+        "output_tokens": 7003,
+        "path": "lab-metadata.json#provider_usage",
+        "reason": null,
+        "scope": "job",
+        "source": "proxy_settled_ledger",
+        "total_tokens": 977272
+      },
+      "verifier_message": ""
+    },
+    "fetched_fix": {
+      "command": null,
+      "fetched": false,
+      "kind": null,
+      "note": null,
+      "step": null
+    },
+    "first_failure": null,
+    "judgments": {
+      "agreement": {
+        "abstentions": 0,
+        "additional_loop_calibrations": [
+          {
+            "abstentions": 0,
+            "artifact": "research/experiments/har117-results-home/har131-page-calibration-har116.json",
+            "cohort": "HAR-128 part 2: 40 HAR-116 trials",
+            "excluded_rater_disagreement": 5,
+            "frozen_at": "2026-10-01T07:57:30Z",
+            "heldout": "har116 001181 baseline/loopfix/loopfix-r2 (3 trials): analysis and calibration only, never training reflection",
+            "in_sample": false,
+            "labels": "research/explorations/trace-lab/har128/labels_har116",
+            "labels_manifest_sha256": "24b91001adf5707ebb65756e575a9acbc39a816173ee16a5da88cf989e99513d",
+            "limits": "Loop kind only: this cohort carries no first-failure/blame calibration. Blind scout-agent raters (L116A1-8/L116B1-8), not human ground truth; rater A on har116-a-000383-baseline__igrXg8R reports off_limits_opened (config.json seen via a broad grep, arm info unused). Denominators stay per-cohort, never pooled. The artifact exports scores and report hashes only, not trial content.",
+            "loop_kind_confusion": {
+              "completion-claim": {
+                "agree": 3,
+                "n": 3
+              },
+              "none": {
+                "agree": 17,
+                "n": 19
+              },
+              "repetition": {
+                "agree": 8,
+                "n": 13
+              }
+            },
+            "method": "research/explorations/trace-lab/har119/score_page.py --labels research/explorations/trace-lab/har128/labels_har116 --results-home <eval-lab-results> --output research/experiments/har117-results-home/har131-page-calibration-har116.json",
+            "page_vs_agreed_loop_kind": {
+              "agree": 28,
+              "n": 35
+            },
+            "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+            "predictor_functions_sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae",
+            "rater_agreement_loop_kind": {
+              "agree": 35,
+              "n": 40
+            }
+          }
+        ],
+        "artifact": "research/explorations/trace-lab/har119/page_scores.json",
+        "blame_abstentions": 0,
+        "cohort": "HAR-119 part 2: 12 HAR-110 split-v2 runs",
+        "eligible_n": 11,
+        "excluded_rater_disagreement": 1,
+        "first_failure_coverage": {
+          "abstentions": 11,
+          "expressed": 1,
+          "of": 12
+        },
+        "frozen_at": "2026-10-01T00:00:02Z",
+        "grader_alignment": "opinion with no page-measured calibration on this cohort",
+        "in_sample": false,
+        "limits": "Out-of-sample for the loop rule. Loop kind: n=11 agreed cells. First failure: n=9 agreed cells with page coverage 1/12 (11 abstentions). Blame 11/11 is uninformative on this cohort: the raters say model on every failure, so a constant prior scores the same. Grader alignment stays opinion.",
+        "method": "research/explorations/trace-lab/har119/score_page.py",
+        "page_vs_agreed_blame": {
+          "agree": 11,
+          "n": 11
+        },
+        "page_vs_agreed_first_failure": {
+          "agree": 1,
+          "n": 9
+        },
+        "page_vs_agreed_loop_kind": {
+          "agree": 7,
+          "n": 11
+        },
+        "page_vs_agreed_loop_present": {
+          "agree": 7,
+          "n": 11
+        },
+        "page_vs_loop_rule_kind": {
+          "agree": 12,
+          "n": 12
+        },
+        "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+        "predictor_functions": {
+          "names": [
+            "trial_decision.classify_loop_kind",
+            "trial_decision._claim_bearing",
+            "token_flow._loop_onset"
+          ],
+          "sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae"
+        },
+        "rater_agreement_blame": {
+          "agree": 11,
+          "n": 12
+        },
+        "rater_agreement_first_failure": {
+          "agree": 9,
+          "n": 12
+        },
+        "rater_agreement_loop_kind": {
+          "agree": 11,
+          "n": 12
+        },
+        "rater_agreement_loop_present": {
+          "agree": 11,
+          "n": 12
+        },
+        "selection_sha256": "941db9c064e34a2d6f9f7209df42a92cee13b20e776c8fd28c7cc72bc4de860f"
+      },
+      "blame": {
+        "attribution": "model",
+        "note": "identical message repeated steps 44-67 with no change after errors",
+        "rule_id": "R-REC-01",
+        "whose": "model"
+      },
+      "first_failure": null,
+      "grader_alignment": {
+        "answer": "unknown",
+        "why": "instruction.md not located; deliverable check skipped"
+      },
+      "label": "opinion",
+      "loop_kind": {
+        "claim_bearing_turns": 30,
+        "claim_fraction": 0.9677,
+        "first_prompt_step": 36,
+        "kind": "completion-claim",
+        "loop_onset_step": 44,
+        "rule": "HAR-119",
+        "stop_reason": "unknown",
+        "turns_after_prompt": 31
+      }
+    },
+    "nop_same_crash": {
+      "answer": "unknown",
+      "nop_trial": null,
+      "reason": "No same-task nop crash comparison was recorded."
+    },
+    "pass_tainted": {
+      "flagged": false,
+      "reasons": [],
+      "status": "not_a_pass"
+    },
+    "reward": 0.0,
+    "reward_why": "Reward `0.0`. Identical message repeated steps 44-67 with no change after errors.",
+    "rule_id": "R-REC-01",
+    "schema": "trial_decision/v3",
+    "scored": true,
+    "whose": "model"
+  },
+  "diagnosis": {
+    "exception_class": "LoopBreakStop",
+    "heuristic_label": "tool_use_loop",
+    "modes": [
+      {
+        "excerpt": "23x repeated: echo \"task complete\"",
+        "mode": "tool_use_loop",
+        "step_ids": [
+          "45",
+          "46",
+          "47"
+        ]
+      }
+    ],
+    "notices": [
+      "stop reason: error (exception LoopBreakStop)"
+    ],
+    "outcome": "scored",
+    "reward": 0.0
+  },
+  "errors": {
+    "analysis": null,
+    "decision": null,
+    "diagnosis": null,
+    "outline": null,
+    "token_flow": null
+  },
+  "first_failure": null,
+  "flags": [
+    "identical_loop:24x:head#44-head#67",
+    "completion_handshake:head#36:0x-echo",
+    "confirmation_loop:R-COMP-04:recorded",
+    "claim_regime:32-steps",
+    "wedged_terminal:1-stretches",
+    "outcome:R-REC-01:model",
+    "diagnosis:tool_use_loop",
+    "claimed_unconfirmed",
+    "post_edit_input_share:84%",
+    "loop_onset:step-44:identical_message_run",
+    "max_prompt:22340"
+  ],
+  "grader_evidence": null,
+  "handshake": {
+    "confirmed": false,
+    "echo_task_complete_turns": 0,
+    "first_prompt_ref": "head#36",
+    "prompt_tokens_after_first_prompt": 641598,
+    "prompts": 3,
+    "steps_without_metrics": 0,
+    "turns_after_first_prompt": 31
+  },
+  "identical_runs": [
+    {
+      "end": "head#14",
+      "length": 13,
+      "start": "head#2"
+    },
+    {
+      "end": "head#67",
+      "length": 24,
+      "start": "head#44"
+    }
+  ],
+  "loop_cost": {
+    "all_steps": {
+      "completion": 7003,
+      "prompt": 970269,
+      "steps": 66,
+      "steps_without_metrics": 0
+    },
+    "confirmation": {
+      "completion": 2323,
+      "prompt": 545908,
+      "steps": 26,
+      "steps_without_metrics": 0
+    },
+    "identical": {
+      "completion": 3400,
+      "prompt": 551241,
+      "steps": 37,
+      "steps_without_metrics": 0
+    },
+    "in_loops": {
+      "completion": 3569,
+      "prompt": 590591,
+      "steps": 39,
+      "steps_without_metrics": 0
+    },
+    "loop_prompt_share": 0.6087,
+    "result_input_tokens": 970269,
+    "spans": [
+      {
+        "kind": "identical",
+        "length": 13,
+        "span": [
+          "head#2",
+          "head#14"
+        ]
+      },
+      {
+        "kind": "identical",
+        "length": 24,
+        "span": [
+          "head#44",
+          "head#67"
+        ]
+      },
+      {
+        "kind": "confirmation",
+        "length": 26,
+        "span": [
+          "head#42",
+          "head#67"
+        ]
+      }
+    ]
+  },
+  "loop_suspicion": {
+    "cyclic_patterns_count": 0,
+    "detected": false,
+    "reasons": [],
+    "repeated_command_count": 0,
+    "repeated_error_count": 0,
+    "score": 0.0
+  },
+  "model_name": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+  "model_steps": 66,
+  "outcome_failure": {
+    "attribution": "model",
+    "evidence_step_refs": [
+      "head#44",
+      "head#67"
+    ],
+    "note": "identical message repeated steps 44-67 with no change after errors",
+    "rule_id": "R-REC-01",
+    "secondary": "confirmation_with_call loop (recorded): first confirmation head#42, span head#42-head#67; attribution unclear (confirm vs continue ambiguous)",
+    "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): pager after head#38 (`cd /testbed && git diff --stat`), 27 turns head#39-head#67 with no interrupt, until run end",
+    "step_id": 44,
+    "step_ref": "head#44",
+    "tag": "error_recovery"
+  },
+  "outline": {
+    "agent_steps": 0,
+    "exception_class": null,
+    "primary_reward": null,
+    "status": "accounted_unavailable",
+    "total_steps": 0
+  },
+  "rejection_causes": {},
+  "reward": 0.0,
+  "reward_source": "verifier_result",
+  "schema": "process_job/v1",
+  "scored": true,
+  "secondaries": [
+    "confirmation_with_call loop (recorded): first confirmation head#42, span head#42-head#67; attribution unclear (confirm vs continue ambiguous)"
+  ],
+  "shape_counts": {
+    "prose": 66
+  },
+  "stitched_steps": 67,
+  "stop_reason": "unknown",
+  "taint": [],
+  "task_name": "mimo-v2.6-rl/format-code-task-000865",
+  "task_package_digest": "sha256:665cab7d069e32cff40fa2a7802011ac009508514953e391082c71caeed888e4",
+  "token_flow": {
+    "last_useful_edit": {
+      "call_index": 24,
+      "command_excerpt": "cd /testbed && python3 - <<'EOF'",
+      "kind": "write-call",
+      "persistence_reason": "touched basename present in final diff",
+      "persists_in_final_diff": true,
+      "step_id": 25,
+      "touched_paths": [
+        "logstash/tests/logstash_test.py"
+      ]
+    },
+    "loop_onset": {
+      "call_index": 43,
+      "detail": "24x identical message",
+      "detector": "identical_message_run",
+      "step_id": 44
+    },
+    "prompt_series": [
+      {
+        "call_index": 1,
+        "completion_tokens": 107,
+        "prompt_tokens": 846,
+        "step_id": 2
+      },
+      {
+        "call_index": 2,
+        "completion_tokens": 120,
+        "prompt_tokens": 1241,
+        "step_id": 3
+      },
+      {
+        "call_index": 3,
+        "completion_tokens": 57,
+        "prompt_tokens": 1639,
+        "step_id": 4
+      },
+      {
+        "call_index": 4,
+        "completion_tokens": 71,
+        "prompt_tokens": 1832,
+        "step_id": 5
+      },
+      {
+        "call_index": 5,
+        "completion_tokens": 115,
+        "prompt_tokens": 2181,
+        "step_id": 6
+      },
+      {
+        "call_index": 6,
+        "completion_tokens": 40,
+        "prompt_tokens": 3029,
+        "step_id": 7
+      },
+      {
+        "call_index": 7,
+        "completion_tokens": 45,
+        "prompt_tokens": 3733,
+        "step_id": 8
+      },
+      {
+        "call_index": 8,
+        "completion_tokens": 116,
+        "prompt_tokens": 3912,
+        "step_id": 9
+      },
+      {
+        "call_index": 9,
+        "completion_tokens": 68,
+        "prompt_tokens": 4144,
+        "step_id": 10
+      },
+      {
+        "call_index": 10,
+        "completion_tokens": 49,
+        "prompt_tokens": 4674,
+        "step_id": 11
+      },
+      {
+        "call_index": 11,
+        "completion_tokens": 82,
+        "prompt_tokens": 5248,
+        "step_id": 12
+      },
+      {
+        "call_index": 12,
+        "completion_tokens": 185,
+        "prompt_tokens": 5813,
+        "step_id": 13
+      },
+      {
+        "call_index": 13,
+        "completion_tokens": 191,
+        "prompt_tokens": 6391,
+        "step_id": 14
+      },
+      {
+        "call_index": 14,
+        "completion_tokens": 232,
+        "prompt_tokens": 6903,
+        "step_id": 15
+      },
+      {
+        "call_index": 15,
+        "completion_tokens": 57,
+        "prompt_tokens": 7591,
+        "step_id": 16
+      },
+      {
+        "call_index": 16,
+        "completion_tokens": 109,
+        "prompt_tokens": 7766,
+        "step_id": 17
+      },
+      {
+        "call_index": 17,
+        "completion_tokens": 425,
+        "prompt_tokens": 8134,
+        "step_id": 18
+      },
+      {
+        "call_index": 18,
+        "completion_tokens": 72,
+        "prompt_tokens": 9076,
+        "step_id": 19
+      },
+      {
+        "call_index": 19,
+        "completion_tokens": 50,
+        "prompt_tokens": 9590,
+        "step_id": 20
+      },
+      {
+        "call_index": 20,
+        "completion_tokens": 79,
+        "prompt_tokens": 10331,
+        "step_id": 21
+      },
+      {
+        "call_index": 21,
+        "completion_tokens": 65,
+        "prompt_tokens": 11190,
+        "step_id": 22
+      },
+      {
+        "call_index": 22,
+        "completion_tokens": 56,
+        "prompt_tokens": 11971,
+        "step_id": 23
+      },
+      {
+        "call_index": 23,
+        "completion_tokens": 51,
+        "prompt_tokens": 12172,
+        "step_id": 24
+      },
+      {
+        "call_index": 24,
+        "completion_tokens": 524,
+        "prompt_tokens": 12792,
+        "step_id": 25
+      },
+      {
+        "call_index": 25,
+        "completion_tokens": 67,
+        "prompt_tokens": 13946,
+        "step_id": 26
+      },
+      {
+        "call_index": 26,
+        "completion_tokens": 80,
+        "prompt_tokens": 14356,
+        "step_id": 27
+      },
+      {
+        "call_index": 27,
+        "completion_tokens": 58,
+        "prompt_tokens": 14602,
+        "step_id": 28
+      },
+      {
+        "call_index": 28,
+        "completion_tokens": 73,
+        "prompt_tokens": 15325,
+        "step_id": 29
+      },
+      {
+        "call_index": 29,
+        "completion_tokens": 107,
+        "prompt_tokens": 15650,
+        "step_id": 30
+      },
+      {
+        "call_index": 30,
+        "completion_tokens": 134,
+        "prompt_tokens": 16001,
+        "step_id": 31
+      },
+      {
+        "call_index": 31,
+        "completion_tokens": 85,
+        "prompt_tokens": 16466,
+        "step_id": 32
+      },
+      {
+        "call_index": 32,
+        "completion_tokens": 96,
+        "prompt_tokens": 16737,
+        "step_id": 33
+      },
+      {
+        "call_index": 33,
+        "completion_tokens": 55,
+        "prompt_tokens": 17235,
+        "step_id": 34
+      },
+      {
+        "call_index": 34,
+        "completion_tokens": 54,
+        "prompt_tokens": 17812,
+        "step_id": 35
+      },
+      {
+        "call_index": 35,
+        "completion_tokens": 358,
+        "prompt_tokens": 18342,
+        "step_id": 36
+      },
+      {
+        "call_index": 36,
+        "completion_tokens": 101,
+        "prompt_tokens": 18803,
+        "step_id": 37
+      },
+      {
+        "call_index": 37,
+        "completion_tokens": 38,
+        "prompt_tokens": 18995,
+        "step_id": 38
+      },
+      {
+        "call_index": 38,
+        "completion_tokens": 169,
+        "prompt_tokens": 19140,
+        "step_id": 39
+      },
+      {
+        "call_index": 39,
+        "completion_tokens": 89,
+        "prompt_tokens": 19325,
+        "step_id": 40
+      },
+      {
+        "call_index": 40,
+        "completion_tokens": 150,
+        "prompt_tokens": 19427,
+        "step_id": 41
+      },
+      {
+        "call_index": 41,
+        "completion_tokens": 73,
+        "prompt_tokens": 19611,
+        "step_id": 42
+      },
+      {
+        "call_index": 42,
+        "completion_tokens": 96,
+        "prompt_tokens": 19739,
+        "step_id": 43
+      },
+      {
+        "call_index": 43,
+        "completion_tokens": 61,
+        "prompt_tokens": 19851,
+        "step_id": 44
+      },
+      {
+        "call_index": 44,
+        "completion_tokens": 91,
+        "prompt_tokens": 19979,
+        "step_id": 45
+      },
+      {
+        "call_index": 45,
+        "completion_tokens": 91,
+        "prompt_tokens": 20086,
+        "step_id": 46
+      },
+      {
+        "call_index": 46,
+        "completion_tokens": 91,
+        "prompt_tokens": 20193,
+        "step_id": 47
+      },
+      {
+        "call_index": 47,
+        "completion_tokens": 91,
+        "prompt_tokens": 20300,
+        "step_id": 48
+      },
+      {
+        "call_index": 48,
+        "completion_tokens": 91,
+        "prompt_tokens": 20407,
+        "step_id": 49
+      },
+      {
+        "call_index": 49,
+        "completion_tokens": 91,
+        "prompt_tokens": 20514,
+        "step_id": 50
+      },
+      {
+        "call_index": 50,
+        "completion_tokens": 91,
+        "prompt_tokens": 20621,
+        "step_id": 51
+      },
+      {
+        "call_index": 51,
+        "completion_tokens": 91,
+        "prompt_tokens": 20728,
+        "step_id": 52
+      },
+      {
+        "call_index": 52,
+        "completion_tokens": 91,
+        "prompt_tokens": 20843,
+        "step_id": 53
+      },
+      {
+        "call_index": 53,
+        "completion_tokens": 91,
+        "prompt_tokens": 20950,
+        "step_id": 54
+      },
+      {
+        "call_index": 54,
+        "completion_tokens": 91,
+        "prompt_tokens": 21057,
+        "step_id": 55
+      },
+      {
+        "call_index": 55,
+        "completion_tokens": 91,
+        "prompt_tokens": 21164,
+        "step_id": 56
+      },
+      {
+        "call_index": 56,
+        "completion_tokens": 91,
+        "prompt_tokens": 21271,
+        "step_id": 57
+      },
+      {
+        "call_index": 57,
+        "completion_tokens": 91,
+        "prompt_tokens": 21378,
+        "step_id": 58
+      },
+      {
+        "call_index": 58,
+        "completion_tokens": 91,
+        "prompt_tokens": 21485,
+        "step_id": 59
+      },
+      {
+        "call_index": 59,
+        "completion_tokens": 91,
+        "prompt_tokens": 21592,
+        "step_id": 60
+      },
+      {
+        "call_index": 60,
+        "completion_tokens": 91,
+        "prompt_tokens": 21699,
+        "step_id": 61
+      },
+      {
+        "call_index": 61,
+        "completion_tokens": 91,
+        "prompt_tokens": 21806,
+        "step_id": 62
+      },
+      {
+        "call_index": 62,
+        "completion_tokens": 91,
+        "prompt_tokens": 21913,
+        "step_id": 63
+      },
+      {
+        "call_index": 63,
+        "completion_tokens": 91,
+        "prompt_tokens": 22020,
+        "step_id": 64
+      },
+      {
+        "call_index": 64,
+        "completion_tokens": 91,
+        "prompt_tokens": 22127,
+        "step_id": 65
+      },
+      {
+        "call_index": 65,
+        "completion_tokens": 91,
+        "prompt_tokens": 22234,
+        "step_id": 66
+      },
+      {
+        "call_index": 66,
+        "completion_tokens": 91,
+        "prompt_tokens": 22340,
+        "step_id": 67
+      }
+    ],
+    "prompt_summary": {
+      "first": 846,
+      "max": 22340,
+      "max_step_id": 67,
+      "median": 17523.5,
+      "n_calls": 66,
+      "reason": null,
+      "slope_per_call": 348.4749608600355,
+      "steps_without_metrics": 0
+    },
+    "schema": "token_flow/v1",
+    "stop": {
+      "exception_type": "LoopBreakStop",
+      "metadata_stop_reason": "loop_break",
+      "reason": null,
+      "stop_reason": "loop_break"
+    },
+    "summarisations": {
+      "discrepancy": null,
+      "events": [],
+      "metadata_count": 0,
+      "metadata_reason": null
+    },
+    "tokens_after_last_edit": {
+      "input_tokens": 818070,
+      "note": null,
+      "output_tokens": 4037,
+      "share_input": 0.8431,
+      "share_output": 0.5765,
+      "totals_source": "agent_result"
+    },
+    "tokens_after_reason": null,
+    "top_terminal_outputs": [
+      {
+        "call_index": 5,
+        "chars": 2337,
+        "est_tokens": 584,
+        "next_prompt_tokens": 3029,
+        "step_id": 6
+      },
+      {
+        "call_index": 6,
+        "chars": 2149,
+        "est_tokens": 537,
+        "next_prompt_tokens": 3733,
+        "step_id": 7
+      },
+      {
+        "call_index": 19,
+        "chars": 2148,
+        "est_tokens": 537,
+        "next_prompt_tokens": 10331,
+        "step_id": 20
+      },
+      {
+        "call_index": 20,
+        "chars": 2148,
+        "est_tokens": 537,
+        "next_prompt_tokens": 11190,
+        "step_id": 21
+      },
+      {
+        "call_index": 21,
+        "chars": 2148,
+        "est_tokens": 537,
+        "next_prompt_tokens": 11971,
+        "step_id": 22
+      }
+    ],
+    "trajectory": {
+      "agent_steps_without_metrics": 0,
+      "n_agent_steps": 66,
+      "n_steps_stitched": 67
+    },
+    "trajectory_reason": null,
+    "trial_name": "har120-000865-a2-r2__T8MhMX4"
+  },
+  "tokens_attempted_proxy": 977272,
+  "tokens_native": {
+    "input_tokens": 970269,
+    "output_tokens": 7003,
+    "source": "result.json#agent_result"
+  },
+  "tokens_proxy": {
+    "attribution": "single_trial",
+    "input_tokens": 970269,
+    "output_tokens": 7003,
+    "path": "lab-metadata.json#provider_usage",
+    "reason": null,
+    "scope": "job",
+    "source": "proxy_settled_ledger",
+    "total_tokens": 977272
+  },
+  "tokens_steps": {
+    "agent_steps": 66,
+    "completion_tokens": 7003,
+    "metered_steps": 66,
+    "prompt_tokens": 970269,
+    "reason": null,
+    "total_tokens": 977272,
+    "unmetered_steps": 0
+  },
+  "trial_concurrency": 1,
+  "trial_name": "har120-000865-a2-r2__T8MhMX4",
+  "trial_wall_hours": 0.11527202583333333,
+  "trial_wall_reason": null,
+  "wedge": {
+    "executed_turns": 63,
+    "keystroke_source": "recorded",
+    "short_stretches": 1,
+    "states": {
+      "no_prompt": 1,
+      "pager": 28,
+      "prompt": 34
+    },
+    "stretches": [
+      {
+        "cause": "pager",
+        "end_ref": "head#67",
+        "interrupt_keys": null,
+        "interrupt_ref": null,
+        "prompt_returned": false,
+        "prompt_tokens": 603800,
+        "screen": "(END)",
+        "start_ref": "head#39",
+        "steps_without_metrics": 0,
+        "trigger_command": "cd /testbed && git diff --stat",
+        "trigger_ref": "head#38",
+        "turns": 27,
+        "until_run_end": true
+      }
+    ]
+  }
+}

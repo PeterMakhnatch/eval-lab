@@ -895,13 +895,13 @@
       ]
     },
     "first_failure": {
-      "agree": 11,
-      "n": 17,
+      "agree": 10,
+      "n": 16,
       "ci95": [
-        0.4129996672121182,
-        0.826905138560951
+        0.3864064709793481,
+        0.815190174452472
       ],
-      "not_expressed": 0,
+      "not_expressed": 1,
       "rows": [
         {
           "trial": "har120-000341-a1__MYkGYQZ",
@@ -968,12 +968,6 @@
           "rater": 65,
           "other": 61,
           "match": false
-        },
-        {
-          "trial": "har120-001647-a1__iqMRm5R",
-          "rater": null,
-          "other": null,
-          "match": true
         },
         {
           "trial": "har120-001661-a1__xdRDCYr",
@@ -1127,13 +1121,13 @@
       ]
     },
     "loop_present": {
-      "agree": 14,
-      "n": 17,
+      "agree": 13,
+      "n": 16,
       "ci95": [
-        0.5897007098262422,
-        0.9380898628745101
+        0.5699064013154177,
+        0.9340852122641324
       ],
-      "not_expressed": 0,
+      "not_expressed": 1,
       "rows": [
         {
           "trial": "har120-000227-a1__7WRBQ4u",
@@ -1199,12 +1193,6 @@
           "trial": "har120-001399-a1__fwLaw2U",
           "rater": true,
           "other": true,
-          "match": true
-        },
-        {
-          "trial": "har120-001647-a1__iqMRm5R",
-          "rater": false,
-          "other": false,
           "match": true
         },
         {

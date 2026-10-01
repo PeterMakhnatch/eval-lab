@@ -87,6 +87,9 @@ def rater_view(row: dict) -> dict:
 
 
 def tool_view(tool: str, row: dict) -> dict:
+    if tool == "docent_opus" and row.get("raw_error"):
+        # No reading for this run (quota, secret gate, no transcript): not expressed, never "both null".
+        return dict.fromkeys(FIELDS, NE)
     span = row.get("loop_span")
     step = row.get("first_failure_step")
     if tool == "evallab":

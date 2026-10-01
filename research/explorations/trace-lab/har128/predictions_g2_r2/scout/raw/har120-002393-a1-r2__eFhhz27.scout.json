@@ -1,0 +1,100 @@
+{
+ "trial": "har120-002393-a1-r2__eFhhz27",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-002393-a1-r2/har120-002393-a1-r2__eFhhz27",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-002393-a1-r2",
+ "task": "mimo-v2.6-rl/format-code-task-002393",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "unknown",
+  "exception_type": "LoopBreakStop",
+  "exception_message": "loop break: the repetition was still going 40 calls in, 15 after the nudge at call 25",
+  "natural_completion": false,
+  "task_complete_refs": [
+   "head#13"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 19,
+  "step_ref": "head#19",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#19",
+   "head#41"
+  ],
+  "note": "identical message repeated steps 19-41 with no change after errors"
+ },
+ "handshake": {
+  "first_prompt_ref": "head#13",
+  "prompts": 1,
+  "confirmed": false,
+  "turns_after_first_prompt": 28,
+  "prompt_tokens_after_first_prompt": 235276,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 23,
+    "span": [
+     "head#19",
+     "head#41"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 203946,
+   "completion": 1679,
+   "steps": 23,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 203946,
+   "completion": 1679,
+   "steps": 23,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 275421,
+   "completion": 3705,
+   "steps": 40,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.7405,
+  "result_input_tokens": 275421
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 39,
+  "states": {
+   "no_prompt": 2,
+   "prompt": 37
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "15d8b7087135ed81c8c4286ead63e067b90ae7da"
+ },
+ "nop_runs_dir": null
+}

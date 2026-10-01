@@ -15,9 +15,9 @@ either fix them or discard them... and move on").
 
 | split | usable | review | discarded | unchecked | total |
 |---|---|---|---|---|---|
-| train | 866 | 0 | 181 | 0 | 1047 |
-| heldout | 106 | 0 | 27 | 0 | 133 |
-| all | 972 | 0 | 208 | 0 | 1180 |
+| train | 866 | 141 | 40 | 0 | 1047 |
+| heldout | 106 | 24 | 3 | 0 | 133 |
+| all | 972 | 165 | 43 | 0 | 1180 |
 
 - **usable 972:**
   - 746 run the original;
@@ -25,9 +25,8 @@ either fix them or discard them... and move on").
   - 92 run a validated repair variant (HAR-113/HAR-115 repairs derive from the leak-closed variant where there is one).
   - 122 of the 224 variants are leak-closed `candidate`s: their nop evidence is the original's. The blocklist reaches `/etc/hosts` only through the agent harness, so a nop cannot tell the two apart.
   - 3 of the 972 left review in HAR-127 by majority: 000927, 001868 and 002757 (see [Review triage](#review-triage-har-127)).
-- **review 0:** the 174 review tasks were triaged in HAR-127.
-- **discarded 208:**
-  - 165 instruction gaps where the HAR-112 checker says broken (HAR-127 triage);
+- **review 165:** `checker_only_instruction_gap`, where the HAR-112 checker alone says broken. They stay in review because the checker alone doesn't decide soundness (Peter, HAR-139).
+- **discarded 43:**
   - 11 hand-labelled broken (8 by two raters, 3 by adjudication);
   - 2 where most of the judges say broken (HAR-127 triage: 002407, 002628);
   - 4 census `grader_suspect` whose grade cannot be confirmed (HAR-127 triage: 000124, 000183, 001146, 001150);
@@ -56,7 +55,7 @@ HAR-127 part 4: fix each `review` task with a known repair kind and re-nop it, o
 
 | review cause | count | decision |
 |---|---|---|
-| HAR-112 checker alone says broken | 165 | `discarded`. Every one has at least one `not_inferable` item; `reason` gives the checker's sample agreement (91 at 3/3, 73 at 2/3, 1 at 1/3), the not-inferable item kinds and one test. These are the candidates for a future instruction-disclosure repair. |
+| HAR-112 checker alone says broken | 165 | stays `review`, with the reason `checker_only_instruction_gap`. An LLM checker alone doesn't make a soundness call (Peter, HAR-139). Every one has at least one `not_inferable` item; `reason` gives the checker's sample agreement (91 at 3/3, 73 at 2/3, 1 at 1/3), the not-inferable item kinds and one test. These are the candidates for a future instruction-disclosure repair. |
 | one hand rater says broken | 5 | majority of the judges, meaning the hand raters plus the checker (`suspect` is not `broken`). 002407 (checker + rater 2) and 002628 (checker + rater 1) are `discarded`; 000927, 001868 and 002757 (1 of 3) become `usable`. |
 | census `grader_suspect`, no repair | 4 | `discarded`, because the grade cannot be confirmed. 000124 is missing Alembic tables; 000183 has a pytest segfault (exit 139); 001146 has no count line; in 001150 the tests import Python 2 source under Python 3.14. |
 

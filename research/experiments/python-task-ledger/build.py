@@ -26,9 +26,10 @@ either fix them or discard them... and move on"):
 * ``unchecked``: no census nop yet.
 
 ``triage`` then resolves the ``review`` rows (HAR-127 part 4): no known
-repair kind fixes one, so the checker-only and ``grader_suspect`` rows are
-discarded with a reason, and a one-rater row goes the way most of its judges
-(hand raters and checker) say.
+repair kind fixes one, so ``grader_suspect`` rows are discarded with a
+reason and a one-rater row goes the way most of its judges (hand raters and
+checker) say. Checker-only rows stay ``review`` (``checker_only_instruction_gap``):
+an LLM checker alone does not decide soundness (Peter, HAR-139).
 
 Then proposes 30 ``usable`` train tasks for HAR-120: one per repository,
 lightest image first, excluding held-out tasks and HAR-116's tasks. A task
@@ -167,8 +168,8 @@ def checker_gap(checker: dict) -> str:
     kinds = Counter(item["kind"] for item in items)
     broken = sum(label == "broken" for label in checker["sample_labels"])
     return (
-        f"instruction gap (HAR-112 checker, {broken}/{len(checker['sample_labels'])} samples "
-        "broken): the tests need "
+        f"checker_only_instruction_gap (HAR-112 checker, {broken}/"
+        f"{len(checker['sample_labels'])} samples broken): the tests need "
         + ", ".join(f"{kind} x{n}" for kind, n in sorted(kinds.items()))
         + f" the instruction does not state, e.g. {items[0]['test_ref']}"
     )
@@ -182,8 +183,9 @@ def triage(row: dict, checker: dict | None, hand: dict[str, str]) -> None:
     (``env-*``) or close a leak; none restates an instruction or confirms a
     grade, so none fixes a review row:
 
-    * checker alone says broken: discarded as an instruction gap, with the
-      checker's not-inferable item kinds and one test;
+    * checker alone says broken: stays ``review`` as
+      ``checker_only_instruction_gap``, with the checker's not-inferable item
+      kinds and one test (no soundness call from the LLM checker alone; HAR-139);
     * one hand rater says broken: the majority of the judges decides, the hand
       raters and the checker (``suspect`` is not ``broken``); discarded when
       most say broken, else usable;
@@ -194,7 +196,7 @@ def triage(row: dict, checker: dict | None, hand: dict[str, str]) -> None:
         return
     if row["reason"] == "HAR-112 checker says broken":
         assert checker is not None
-        row["status"], row["reason"] = "discarded", checker_gap(checker)
+        row["reason"] = checker_gap(checker)
     elif row["reason"] == "one hand rater says broken":
         judges = {rater: label for rater, label in hand.items() if rater != "adj"}
         if checker is not None:

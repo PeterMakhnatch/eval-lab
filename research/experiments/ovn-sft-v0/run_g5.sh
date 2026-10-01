@@ -40,7 +40,7 @@ usage() { sed -n '2,30p' "$0"; exit 2; }
 
 SPECS_DIR="" ADAPTER="" ADAPTER_NAME="har129" CANDIDATE_USD="" CAP_USD="35"
 PARALLEL="20" LABEL="g5" ACTOR="" MODAL_APP_DAY_LIMIT_USD="" GEPA_CANDIDATE="" GEPA_SHA256=""
-PORT="8472" DRY_RUN=0 ROUND_CAP_USD="" MODAL_RATE_USD_PER_H="2.8149"
+PORT="8472" DRY_RUN=0 ROUND_CAP_USD="" MODAL_RATE_USD_PER_H="2.8149" RESUME_NAMES=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --specs-dir) SPECS_DIR=$2; shift 2 ;;
@@ -57,6 +57,7 @@ while [ $# -gt 0 ]; do
     --gepa-sha256) GEPA_SHA256=$2; shift 2 ;;
     --port) PORT=$2; shift 2 ;;
     --round-cap-usd) ROUND_CAP_USD=$2; shift 2 ;;
+    --resume-names) RESUME_NAMES=$2; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage ;;
     *) echo "unknown argument: $1" >&2; usage ;;
@@ -107,6 +108,31 @@ CHECK_ARGS=(--check "$SPECS_DIR" --tree "$TREE" --tree-digest "$TREE_DIGEST")
 "$PY" research/experiments/ovn-sft-v0/make_g5_specs.py "${CHECK_ARGS[@]}" >"$OUT/spec-check.txt" 2>&1 || true
 cat "$OUT/spec-check.txt" >>"$LOG"
 grep -q '^check ok' "$OUT/spec-check.txt" || die "spec --check failed (see $OUT/spec-check.txt)"
+# Every spec's agent/model must resolve to a profile and pass its pin, exactly
+# as dispatch will check it (g5r wave 1: the tuned arm had no profile).
+"$PY" - "$SPECS_DIR" "$REPO" >"$OUT/profile-check.txt" 2>&1 <<'EOF' || die "profile preflight failed (see $OUT/profile-check.txt)"
+import json, sys
+from collections import Counter
+from pathlib import Path
+from evallab.profiles import validate_model_pin
+from evallab.runner import RunRequest, profile_for_request
+specs, repo = Path(sys.argv[1]), Path(sys.argv[2])
+resolved, failures = Counter(), []
+for path in sorted(specs.glob("ovn-g5-*.json")):
+    spec = json.loads(path.read_text())
+    try:
+        request = RunRequest(task=repo, agent=spec["agent"], model=spec.get("model"), name=spec["name"], jobs_dir=repo / "runs")
+        profile = profile_for_request(request)
+        validate_model_pin(profile, spec.get("model"))
+        resolved[(spec.get("model"), profile.profile_id)] += 1
+    except ValueError as exc:
+        failures.append(f"{path.name}: {exc}")
+for (model, profile_id), count in sorted(resolved.items()):
+    print(f"{count} specs: {model} -> {profile_id}")
+print("\n".join(failures))
+sys.exit(1 if failures else 0)
+EOF
+cat "$OUT/profile-check.txt" >>"$LOG"
 if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then die "capture port $PORT already has a listener"; fi
 SMOKE_HELP=$("$EVALLAB" capture smoke --help 2>/dev/null || true)
 case "$SMOKE_HELP" in *--model*) ;; *) die "evallab capture smoke has no --model; the adapter leg cannot be smoked" ;; esac
@@ -120,11 +146,19 @@ case "$SMOKE_HELP" in *--model*) ;; *) die "evallab capture smoke has no --model
 log "spend check allowed (candidate \$$CANDIDATE_USD, cap \$$CAP_USD)"
 
 # ---- 4. wave plan (by name), then submit -------------------------------------------
-"$PY" - "$SPECS_DIR" "$OUT" <<'EOF' | tee -a "$LOG" || die "wave plan failed"
+"$PY" - "$SPECS_DIR" "$OUT" "$RESUME_NAMES" <<'EOF' | tee -a "$LOG" || die "wave plan failed"
 import json, sys, pathlib
 specs, out = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 cohort = json.loads((specs / "cohort.json").read_text())["cohort"]
 files = {p.stem for p in specs.glob("ovn-g5-*.json")}
+# --resume-names: run only the listed specs; every cohort spec left out must
+# already have a result.json, so each task's arm order is still preserved.
+keep = None
+if sys.argv[3]:
+    keep = {line.strip() for line in open(sys.argv[3]) if line.strip()}
+    unknown = keep - files
+    if unknown:
+        sys.exit(f"--resume-names lists specs not in {specs}: {sorted(unknown)}")
 waves = {}
 for entry in cohort:
     short = entry["task_id"].removeprefix("format-code-task-")
@@ -132,8 +166,12 @@ for entry in cohort:
         name = f"ovn-g5-{short}-{arm}"
         if name not in files:
             sys.exit(f"cohort names {name} but {specs} has no {name}.json")
+        if keep is not None and name not in keep:
+            if not list(pathlib.Path("runs", name).glob("*/result.json")):
+                sys.exit(f"--resume-names leaves out {name}, which has no result.json")
+            continue
         waves.setdefault(position, []).append(name)
-if sum(len(v) for v in waves.values()) != len(files):
+if keep is None and sum(len(v) for v in waves.values()) != len(files):
     sys.exit("spec files and cohort waves disagree")
 for position, names in sorted(waves.items()):
     (out / f"wave-{position}.names").write_text("\n".join(names) + "\n")

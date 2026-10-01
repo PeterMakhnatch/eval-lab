@@ -2709,14 +2709,12 @@ def profile_for_request(request: RunRequest) -> AgentProfile:
         for profile in candidates:
             if profile.model == request.model:
                 return profile
-        if is_tinker_terminus_model(request.model):
-            # A fine-tuned checkpoint selector pins its base model's profile;
-            # parse_tinker_model has already validated its shape upstream.
-            spec = parse_tinker_model(request.model)
-            base_selector = f"tinker/{spec.base_model}"
-            for profile in candidates:
-                if profile.model == base_selector:
-                    return profile
+        # Fine-tuned weights on a pinned base (Tinker checkpoint, admitted
+        # self-hosted LoRA adapter) inherit the base model's profile.
+        pinned = profiles_module.pinned_model(request.model)
+        for profile in candidates:
+            if profile.model == pinned:
+                return profile
         raise ValueError(
             f"no profile pins model {request.model!r} for agent {request.agent!r}; "
             "add a profile instead of overriding a pin"

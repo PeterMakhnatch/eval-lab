@@ -151,7 +151,7 @@ def test_process_job_publishes_into_overridden_home(tmp_path: Path, monkeypatch)
     report = process_job(job, ingest=False, pr_lookup=lambda _commit: None)
     assert report["results_home"] == str(home / "2026-09-30" / "HAR-117-har117-sample")
     assert "HAR-117" in (home / "INDEX.md").read_text()
-    assert "None (no processed report)" in (home / "INDEX-all.md").read_text()
+    assert "1 pass, 0 fail, 0 unscored" in (home / "INDEX-all.md").read_text()
 
 
 def test_backfill_skips_executor_and_old_cards(tmp_path: Path) -> None:
@@ -289,3 +289,29 @@ def test_write_index_never_descends_into_jobs_or_checkout(tmp_path: Path, monkey
     text = (home / "INDEX.md").read_text()
     assert "har117-agent-1" in text
     assert "SUMMARY.md" in text
+
+
+def test_automatic_publish_shows_processed_reward_and_spend(tmp_path: Path) -> None:
+    """The executor's call shape publishes a processed INDEX row, not 'unprocessed'.
+
+    The tick calls ``process_job(job_dir, root=repo_root)`` with defaults, so
+    this test uses the same shape (default output dir, publishing on). The
+    job report must be written into ``processed/`` before the publish copies
+    the tree, otherwise the published copy has no ``job.json`` and the INDEX
+    row reads ``unprocessed | None (no processed report)`` (HAR-117 live:
+    20 HAR-116 round-2 jobs).
+    """
+    import os
+
+    from evallab.results_home import ENV_VAR
+
+    job = _job(tmp_path, "har117-auto")
+    report = process_job(job, root=tmp_path, ingest=False, pr_lookup=lambda _commit: None)
+    home = Path(os.environ[ENV_VAR])
+    published = Path(str(report["results_home"]))
+    assert published.is_relative_to(home)
+    assert (job / "processed" / "job.json").is_file()
+    assert (published / "processed" / "job.json").is_file()
+    full = (home / "INDEX-all.md").read_text()
+    assert "1 pass, 0 fail, 0 unscored" in full
+    assert "unprocessed" not in full

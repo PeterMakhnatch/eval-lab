@@ -531,7 +531,9 @@ def _process_trial(
             token_flow=token_flow if isinstance(token_flow, dict) else None,
             stop_reason=stop_reason,
             calls=record.get("agent_steps"),
-            tokens=record.get("tokens_proxy") if isinstance(record.get("tokens_proxy"), dict) else None,
+            tokens=record.get("tokens_proxy")
+            if isinstance(record.get("tokens_proxy"), dict)
+            else None,
             counts=record.get("counts") if isinstance(record.get("counts"), dict) else None,
         )
         decision_error = None
@@ -917,6 +919,14 @@ def process_job(
             "excluded_reasons": counts_summary["excluded_reasons"],
         },
     }
+    # The job report lands in processed/ BEFORE the publish copies the tree:
+    # publish_job snapshots the source, so publishing first would copy a
+    # processed/ without job.json and the INDEX row would read "unprocessed".
+    report["results_home"] = None
+    (out_dir / "job.json").write_text(
+        json.dumps(_jsonable(report), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    (out_dir / "job.md").write_text(_render_job_markdown(report), encoding="utf-8")
     if publish:
         from evallab.results_home import publish_job
 
@@ -927,10 +937,8 @@ def process_job(
             pr_lookup=pr_lookup,
         )
         report["results_home"] = published["published"]
-    else:
-        report["results_home"] = None
-    (out_dir / "job.json").write_text(
-        json.dumps(_jsonable(report), indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
-    (out_dir / "job.md").write_text(_render_job_markdown(report), encoding="utf-8")
+        (out_dir / "job.json").write_text(
+            json.dumps(_jsonable(report), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
     return report

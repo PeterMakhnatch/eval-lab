@@ -1,0 +1,554 @@
+{
+  "schema": "har135.training-context-audit/v1",
+  "source_root": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2",
+  "verified_source_rater_files": 68,
+  "verified_trial_pairs": 34,
+  "source_rater_body_forwarded": false,
+  "held_out_bodies_parsed": false,
+  "metadata_audit": {
+    "text": "{\n  \"actual_admitted_context\": {\n    \"atlas_eligible_forwarded\": 64,\n    \"atlas_eligible_forwarded_distinct_tasks\": 13,\n    \"campaign7_native\": 7,\n    \"campaign7_ledger\": \"all train+usable\",\n    \"har116_pairs\": 34,\n    \"har116_rater_entries\": 68,\n    \"har116_unique_tasks\": 13,\n    \"heldout20_overlap_pairs\": 0,\n    \"ledger_join_har116\": \"34/34 train+usable, matches htx task_ids set\"\n  },\n  \"atlas_correction\": {\n    \"charlie_67_breakdown\": \"64 non-HAR81 + 3 HAR81 (001645,002537,003011, all ledger train+usable so otherwise eligible)\",\n    \"child_denominators\": \"budget-stop 43/67; copied-pass 6/63; infra 9/63 (4 null excluded); others numerator-only\",\n    \"child_eligible_n\": 67,\n    \"counts_recomputed_not_copied\": true,\n    \"forwarded_64_non_har81\": true,\n    \"har81_excluded\": 3,\n    \"htx_denominators\": \"budget-stop 40/64 recomputed non-HAR81; copied-pass 6/null; infra 9/null; others null -- unavailable denominator stays null, no estimated rates\",\n    \"htx_eligible_n\": 64,\n    \"membership_delta\": \"budget-stop 43->40 (-3 HAR81); repetition 23->21; others unchanged numerators; no copied mixed rates\"\n  },\n  \"exclusions_absent_from_admitted\": {\n    \"001181\": \"absent from pairs, atlas eligible subjects, htx eligible ids; present only in excluded-metadata (har116 excluded, atlas excluded_by_task n=6 heldout/usable)\",\n    \"discarded_review\": \"har116 excluded lists 000383 review, 002259/002407 discarded; atlas excluded_by_task same + ledger-absent 000240/000434/001520; none in admitted pairs/subjects\",\n    \"heldout_body_inclusion\": \"none -- no heldout rater/trace body parsed; only metadata identities/hashes used\",\n    \"ledger_absent\": \"absent from admitted; counted only in excluded-metadata\"\n  },\n  \"heldout_repo_audit\": {\n    \"heldout20_projects_normalized\": [\n      \"deepdow,dulwich,hpccm,lbry,lenstronomy,libsaas,linode-cli,localstack,maestral,magika,napari,peekingduck,piccolo,powerline,pyabm,pyalgotrade,pyftpdlib,safedelete,scikit-fem,youtube_dlc\"\n    ],\n    \"method\": \"lowercase strip github.com/org, terminal segment + exact task ID\",\n    \"retained_13_projects_match\": \"none\",\n    \"retained_overlap\": \"none\"\n  },\n  \"limits_and_caveats\": {\n    \"bodies_not_forwarded\": true,\n    \"sha_mismatches\": \"none observed (no comparable bytes found); verification INCOMPLETE -- see missing\",\n    \"source_sha_unverifiable\": \"68/68 source files MISSING at both /Users/petermakhnatch/Developer/eval-lab/<source_path> and derived/trace-lab/har128/labels_har116/ mirror (derived/har128 contains only normalized/probe03/scout_raw/staging-har128, no labels_har116). Byte-hash check could not run; no mismatch confirmed or denied.\",\n    \"unknown_census_names\": \"explicit caveat retained in htx limits and atlas limitations; not claimed as repo-disjointness proof\"\n  },\n  \"membership_errors_or_defects\": [],\n  \"source_sha_mismatches\": []\n}",
+    "details": {
+      "totalLines": 46,
+      "displayContent": {
+        "text": "{\n  \"actual_admitted_context\": {\n    \"atlas_eligible_forwarded\": 64,\n    \"atlas_eligible_forwarded_distinct_tasks\": 13,\n    \"campaign7_native\": 7,\n    \"campaign7_ledger\": \"all train+usable\",\n    \"har116_pairs\": 34,\n    \"har116_rater_entries\": 68,\n    \"har116_unique_tasks\": 13,\n    \"heldout20_overlap_pairs\": 0,\n    \"ledger_join_har116\": \"34/34 train+usable, matches htx task_ids set\"\n  },\n  \"atlas_correction\": {\n    \"charlie_67_breakdown\": \"64 non-HAR81 + 3 HAR81 (001645,002537,003011, all ledger train+usable so otherwise eligible)\",\n    \"child_denominators\": \"budget-stop 43/67; copied-pass 6/63; infra 9/63 (4 null excluded); others numerator-only\",\n    \"child_eligible_n\": 67,\n    \"counts_recomputed_not_copied\": true,\n    \"forwarded_64_non_har81\": true,\n    \"har81_excluded\": 3,\n    \"htx_denominators\": \"budget-stop 40/64 recomputed non-HAR81; copied-pass 6/null; infra 9/null; others null -- unavailable denominator stays null, no estimated rates\",\n    \"htx_eligible_n\": 64,\n    \"membership_delta\": \"budget-stop 43->40 (-3 HAR81); repetition 23->21; others unchanged numerators; no copied mixed rates\"\n  },\n  \"exclusions_absent_from_admitted\": {\n    \"001181\": \"absent from pairs, atlas eligible subjects, htx eligible ids; present only in excluded-metadata (har116 excluded, atlas excluded_by_task n=6 heldout/usable)\",\n    \"discarded_review\": \"har116 excluded lists 000383 review, 002259/002407 discarded; atlas excluded_by_task same + ledger-absent 000240/000434/001520; none in admitted pairs/subjects\",\n    \"heldout_body_inclusion\": \"none -- no heldout rater/trace body parsed; only metadata identities/hashes used\",\n    \"ledger_absent\": \"absent from admitted; counted only in excluded-metadata\"\n  },\n  \"heldout_repo_audit\": {\n    \"heldout20_projects_normalized\": [\n      \"deepdow,dulwich,hpccm,lbry,lenstronomy,libsaas,linode-cli,localstack,maestral,magika,napari,peekingduck,piccolo,powerline,pyabm,pyalgotrade,pyftpdlib,safedelete,scikit-fem,youtube_dlc\"\n    ],\n    \"method\": \"lowercase strip github.com/org, terminal segment + exact task ID\",\n    \"retained_13_projects_match\": \"none\",\n    \"retained_overlap\": \"none\"\n  },\n  \"limits_and_caveats\": {\n    \"bodies_not_forwarded\": true,\n    \"sha_mismatches\": \"none observed (no comparable bytes found); verification INCOMPLETE -- see missing\",\n    \"source_sha_unverifiable\": \"68/68 source files MISSING at both /Users/petermakhnatch/Developer/eval-lab/<source_path> and derived/trace-lab/har128/labels_har116/ mirror (derived/har128 contains only normalized/probe03/scout_raw/staging-har128, no labels_har116). Byte-hash check could not run; no mismatch confirmed or denied.\",\n    \"unknown_census_names\": \"explicit caveat retained in htx limits and atlas limitations; not claimed as repo-disjointness proof\"\n  },\n  \"membership_errors_or_defects\": [],\n  \"source_sha_mismatches\": []\n}",
+        "startLine": 1,
+        "lineNumbers": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46
+        ]
+      },
+      "fileSize": 2843,
+      "meta": {
+        "source": {
+          "type": "internal",
+          "value": "agent://TrainingContextHashAudit"
+        }
+      },
+      "resolvedPath": "/Users/petermakhnatch/.omp/agent/sessions/--private-tmp--/2026-09-30T21-40-24-085Z_01a0f442-f595-710d-af1f-d38315d748d5/TrainingContextHashAudit.md",
+      "contentType": "text/markdown"
+    }
+  },
+  "worker_hash_limitation_disposition": "The worker used the primary root and could not find source files. Parent resolved the declared HAR128 part2 source root and independently SHA-verified all68 source bytes; metadata findings accepted, initial missing-root hash conclusion superseded.",
+  "source_rater_hashes": [
+    {
+      "trial": "har116-a-000495-baseline__DiGmEPC",
+      "task_id": "format-code-task-000495",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-000495-baseline__DiGmEPC.json",
+      "source_sha256": "sha256:307cc15485595de206d2a561ce7508de9faaba34c34bf6ccfd4f3bff9849c498"
+    },
+    {
+      "trial": "har116-a-000495-baseline__DiGmEPC",
+      "task_id": "format-code-task-000495",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-000495-baseline__DiGmEPC.json",
+      "source_sha256": "sha256:5458b4ec3b3d8b6621b688e6ec6e2887bcee4940e7a5b49add7076ef5dd7adc2"
+    },
+    {
+      "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+      "task_id": "format-code-task-000495",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-000495-loopfix-r2__42F3G5T.json",
+      "source_sha256": "sha256:41dfe80a7d211651c87cb8bbdf8e80dc64c4cbb311ab00c843a2591c93665161"
+    },
+    {
+      "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+      "task_id": "format-code-task-000495",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-000495-loopfix-r2__42F3G5T.json",
+      "source_sha256": "sha256:c63fe7c0efb1dfd94c1b0c0d597e515d272b29c62bf32cebeb0ef8dde0cff125"
+    },
+    {
+      "trial": "har116-a-000495-loopfix__rXR8je7",
+      "task_id": "format-code-task-000495",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-000495-loopfix__rXR8je7.json",
+      "source_sha256": "sha256:19ea22a61bc6bd076366fe5d122cdb1ab32fec31d7642c367d389f8001d31b09"
+    },
+    {
+      "trial": "har116-a-000495-loopfix__rXR8je7",
+      "task_id": "format-code-task-000495",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-000495-loopfix__rXR8je7.json",
+      "source_sha256": "sha256:3970393b8065cb6829d49ed6cf3d5ba03fc328bc32a888c9951c26fc1810399b"
+    },
+    {
+      "trial": "har116-a-000587-baseline__Vuxk2nX",
+      "task_id": "format-code-task-000587",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-000587-baseline__Vuxk2nX.json",
+      "source_sha256": "sha256:b5710747986159813d602a5be8bf157094467b81f49ef9d8f3c6297ba0f7476b"
+    },
+    {
+      "trial": "har116-a-000587-baseline__Vuxk2nX",
+      "task_id": "format-code-task-000587",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-000587-baseline__Vuxk2nX.json",
+      "source_sha256": "sha256:8fd6f1e68273343589f6b3a719a04427705f6f91e2e43d96c0a2d07ae28be1e4"
+    },
+    {
+      "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+      "task_id": "format-code-task-000587",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-000587-loopfix-r2__RmCmzbQ.json",
+      "source_sha256": "sha256:c879186d7fb6c322f1b453bcb10e37e817192f5bc6ae57f7a04342dbffaab58e"
+    },
+    {
+      "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+      "task_id": "format-code-task-000587",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-000587-loopfix-r2__RmCmzbQ.json",
+      "source_sha256": "sha256:dcd4ef0fbba7010010a78b5646c4774e9e2472674da6785db153e04a72fbf373"
+    },
+    {
+      "trial": "har116-a-000587-loopfix__X5SAhvg",
+      "task_id": "format-code-task-000587",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-000587-loopfix__X5SAhvg.json",
+      "source_sha256": "sha256:d5d4ca5dcc07167da46da28cb0b563eca70a657d372c111c348c31a7f8dac2d2"
+    },
+    {
+      "trial": "har116-a-000587-loopfix__X5SAhvg",
+      "task_id": "format-code-task-000587",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-000587-loopfix__X5SAhvg.json",
+      "source_sha256": "sha256:b548e3864997b6a965669626bc80dfd4d42531e8d5fb6106b2c9f94f3ce646ed"
+    },
+    {
+      "trial": "har116-a-001161-baseline__DwYZaia",
+      "task_id": "format-code-task-001161",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-001161-baseline__DwYZaia.json",
+      "source_sha256": "sha256:8bd0a742d10c63de6bf5c2184c8dec956e7343883285c667ff8b8f9b83ac2792"
+    },
+    {
+      "trial": "har116-a-001161-baseline__DwYZaia",
+      "task_id": "format-code-task-001161",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-001161-baseline__DwYZaia.json",
+      "source_sha256": "sha256:672a4ee7e4ea01590bf2403321b2b65febe719599f610ecb02ffa45c2071ca6c"
+    },
+    {
+      "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+      "task_id": "format-code-task-001161",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-001161-loopfix-r2__uo7QDVh.json",
+      "source_sha256": "sha256:54af3e7b168d4bd438403143ea8b0e060ab8c4c58d134b554e0bec5480838922"
+    },
+    {
+      "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+      "task_id": "format-code-task-001161",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-001161-loopfix-r2__uo7QDVh.json",
+      "source_sha256": "sha256:f827e15422658753f459e7d88fa0165e90d61815f4a5f4b724c7f6525b3b6982"
+    },
+    {
+      "trial": "har116-a-001161-loopfix__WxP98h8",
+      "task_id": "format-code-task-001161",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-001161-loopfix__WxP98h8.json",
+      "source_sha256": "sha256:b2d8f9d14711f2c9ac61bc3f5a37ffaff7c43c22c29546efe54eb92d978db376"
+    },
+    {
+      "trial": "har116-a-001161-loopfix__WxP98h8",
+      "task_id": "format-code-task-001161",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-001161-loopfix__WxP98h8.json",
+      "source_sha256": "sha256:05d1670e859fd925b0733e55267e79cd14781461734cf9704eb5e7be2b95f0e2"
+    },
+    {
+      "trial": "har116-a-001832-baseline__9jhqCTW",
+      "task_id": "format-code-task-001832",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-001832-baseline__9jhqCTW.json",
+      "source_sha256": "sha256:1d275240cc848ae0edc6f626c124d44532a101e3985763525fc26c19aa785605"
+    },
+    {
+      "trial": "har116-a-001832-baseline__9jhqCTW",
+      "task_id": "format-code-task-001832",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-001832-baseline__9jhqCTW.json",
+      "source_sha256": "sha256:96b31769e6173641ca55ab672afff1cbca2a01c8ee4636c8c9f68439ae92a9db"
+    },
+    {
+      "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+      "task_id": "format-code-task-001832",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-001832-loopfix-r2__RL4Q8AX.json",
+      "source_sha256": "sha256:8374e74f35029f7baa11ca8e5b4e403c04085ed4ebf514a3be869d24d9546c5c"
+    },
+    {
+      "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+      "task_id": "format-code-task-001832",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-001832-loopfix-r2__RL4Q8AX.json",
+      "source_sha256": "sha256:592f5a5504e07fb27c3600196c5a8a04eb476a3ddc1b82d02b09408624f96489"
+    },
+    {
+      "trial": "har116-a-001832-loopfix__rw7cJJ4",
+      "task_id": "format-code-task-001832",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-001832-loopfix__rw7cJJ4.json",
+      "source_sha256": "sha256:53822834b82ce7b74c97a5f4e606eef0932cb4f33eaa9b0426134afb369dec5e"
+    },
+    {
+      "trial": "har116-a-001832-loopfix__rw7cJJ4",
+      "task_id": "format-code-task-001832",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-001832-loopfix__rw7cJJ4.json",
+      "source_sha256": "sha256:b832bb3e591c5191993e3bde2f5659377d0856bf5fb24171b8428c77e3b0e47a"
+    },
+    {
+      "trial": "har116-a-001896-baseline__mBFMKax",
+      "task_id": "format-code-task-001896",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-001896-baseline__mBFMKax.json",
+      "source_sha256": "sha256:8f44375775b07d2a613919477c8df4631fe5c935d880cea068451733e9b63205"
+    },
+    {
+      "trial": "har116-a-001896-baseline__mBFMKax",
+      "task_id": "format-code-task-001896",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-001896-baseline__mBFMKax.json",
+      "source_sha256": "sha256:327271cc4805931a793a51d630979b2b92de7fd867ff4510efe6414719fdf447"
+    },
+    {
+      "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+      "task_id": "format-code-task-001896",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-001896-loopfix-r2__Wmwi4NK.json",
+      "source_sha256": "sha256:ff08c406bd921a95d5ff73654a65aed2a09129fa0e227b12e30eabbdce0052a6"
+    },
+    {
+      "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+      "task_id": "format-code-task-001896",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-001896-loopfix-r2__Wmwi4NK.json",
+      "source_sha256": "sha256:9c18ab2de05595ebfb77263bf2ce509277e2ca6ddb38622f176463944652c0e5"
+    },
+    {
+      "trial": "har116-a-001896-loopfix__n5p224u",
+      "task_id": "format-code-task-001896",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-001896-loopfix__n5p224u.json",
+      "source_sha256": "sha256:a3632cfe26df046e79f12d95b385b620450cadbb4aaa6ca525cf3af0abbcb6ae"
+    },
+    {
+      "trial": "har116-a-001896-loopfix__n5p224u",
+      "task_id": "format-code-task-001896",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-001896-loopfix__n5p224u.json",
+      "source_sha256": "sha256:bcdf47081a0a0660c077be72371f2b3dbe839b639247c9cf859709641214a66c"
+    },
+    {
+      "trial": "har116-a-002256-baseline__uRsPnvZ",
+      "task_id": "format-code-task-002256",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-002256-baseline__uRsPnvZ.json",
+      "source_sha256": "sha256:64d806037bb78d9bd4a7084ccccb840040d7a3aaf3d4629e3092f2059d2f8a7d"
+    },
+    {
+      "trial": "har116-a-002256-baseline__uRsPnvZ",
+      "task_id": "format-code-task-002256",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-002256-baseline__uRsPnvZ.json",
+      "source_sha256": "sha256:173d793f46b690b58c0870ddf08dae645cda8e0dec3c50d2769a63dacefb5229"
+    },
+    {
+      "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+      "task_id": "format-code-task-002256",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-002256-loopfix-r2__5oQwkeW.json",
+      "source_sha256": "sha256:3e02575d03ca540ba6e197dfaaef294015d63d01a94e36848bbaf0db5230f3f5"
+    },
+    {
+      "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+      "task_id": "format-code-task-002256",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-002256-loopfix-r2__5oQwkeW.json",
+      "source_sha256": "sha256:3ad61a6d08282cecbdb8434c294627d49dfc02d8301a30d8517ff159795d515f"
+    },
+    {
+      "trial": "har116-a-002256-loopfix__5Xu6dgc",
+      "task_id": "format-code-task-002256",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-002256-loopfix__5Xu6dgc.json",
+      "source_sha256": "sha256:f4084f70ae0705e019169ad5eebfb0d194fbd31b79190cfb542a54ce8e62f551"
+    },
+    {
+      "trial": "har116-a-002256-loopfix__5Xu6dgc",
+      "task_id": "format-code-task-002256",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-002256-loopfix__5Xu6dgc.json",
+      "source_sha256": "sha256:636af6cdd605fee1ec78360d1563910117a661296116e5f02e0cc9eb92f28f62"
+    },
+    {
+      "trial": "har116-a-002391-baseline__xZqrQkD",
+      "task_id": "format-code-task-002391",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-002391-baseline__xZqrQkD.json",
+      "source_sha256": "sha256:cb0afcbe25f610d1bb5f160e48a9727249c298cd5f84cdd8a4724658f06c45fb"
+    },
+    {
+      "trial": "har116-a-002391-baseline__xZqrQkD",
+      "task_id": "format-code-task-002391",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-002391-baseline__xZqrQkD.json",
+      "source_sha256": "sha256:ba6246ebb86d1f8497e54955e14fec7112a0196778b29465bd8806bdbd3c6235"
+    },
+    {
+      "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+      "task_id": "format-code-task-002391",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-002391-loopfix-r2__NvEfxbt.json",
+      "source_sha256": "sha256:54885b8e9b862e7f89890a23c5a2b5d1713749ea9d9ac76096d5e064d4923df7"
+    },
+    {
+      "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+      "task_id": "format-code-task-002391",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-002391-loopfix-r2__NvEfxbt.json",
+      "source_sha256": "sha256:ed9bee2f97df9897a326c627cdddc28fbc2ba0c598cc1731777fe8d8b07dda85"
+    },
+    {
+      "trial": "har116-a-002391-loopfix__KMAky2p",
+      "task_id": "format-code-task-002391",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-002391-loopfix__KMAky2p.json",
+      "source_sha256": "sha256:8cc1bf2616a417a9d155431d9ab2f2ae9bb45090ba213cfc79da03fe22296e78"
+    },
+    {
+      "trial": "har116-a-002391-loopfix__KMAky2p",
+      "task_id": "format-code-task-002391",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-002391-loopfix__KMAky2p.json",
+      "source_sha256": "sha256:95663318e7c74899a9826ea4f37ee43246fded1080b83c1245c412cb12fbddb6"
+    },
+    {
+      "trial": "har116-a-002864-baseline__LnaWDq6",
+      "task_id": "format-code-task-002864",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-002864-baseline__LnaWDq6.json",
+      "source_sha256": "sha256:682dcc3ce09d36ce4ce3632a4694cccff0a93e480adf001d6001db91b234e4c7"
+    },
+    {
+      "trial": "har116-a-002864-baseline__LnaWDq6",
+      "task_id": "format-code-task-002864",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-002864-baseline__LnaWDq6.json",
+      "source_sha256": "sha256:14046ec9a1c1b9801ba52113e4d8077e284fd2316fbdb36e705a0d860b63404e"
+    },
+    {
+      "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+      "task_id": "format-code-task-002864",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-002864-loopfix-r2__CWRe7mJ.json",
+      "source_sha256": "sha256:9337fc09f99f8095f99720cc41970d7e15117c61d2cde3617733c85501433aeb"
+    },
+    {
+      "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+      "task_id": "format-code-task-002864",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-002864-loopfix-r2__CWRe7mJ.json",
+      "source_sha256": "sha256:f8be3f4b67f6ed53daefd1817453c3c3975f2d43999b52178c3f969ee0b3706f"
+    },
+    {
+      "trial": "har116-a-002864-loopfix__oHC4HdZ",
+      "task_id": "format-code-task-002864",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-a-002864-loopfix__oHC4HdZ.json",
+      "source_sha256": "sha256:5b55479361710d96a4bf80fae9535a2dc45b011bd772951cca4dec4c94c4f5f7"
+    },
+    {
+      "trial": "har116-a-002864-loopfix__oHC4HdZ",
+      "task_id": "format-code-task-002864",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-a-002864-loopfix__oHC4HdZ.json",
+      "source_sha256": "sha256:29548342815fc722dd8d8994b682f818ca953560cf3648791a77fb11a853eb48"
+    },
+    {
+      "trial": "har116-b-000146-leakclosed__UsngzaQ",
+      "task_id": "format-code-task-000146",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-b-000146-leakclosed__UsngzaQ.json",
+      "source_sha256": "sha256:6d6ce82fa772c8f38a156e2bbb9af70d7df7e2f3c509ab36fd3f7bbed1fbad65"
+    },
+    {
+      "trial": "har116-b-000146-leakclosed__UsngzaQ",
+      "task_id": "format-code-task-000146",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-b-000146-leakclosed__UsngzaQ.json",
+      "source_sha256": "sha256:1e75502cc93568fea90d1a94b3f3249c1921e9c547010d1abee12321e77f6705"
+    },
+    {
+      "trial": "har116-b-000146-original__JT6tRiN",
+      "task_id": "format-code-task-000146",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-b-000146-original__JT6tRiN.json",
+      "source_sha256": "sha256:73fda0a37f8fbfe1b7b24835b7984069643d4081707ce1cff5eecd122c029e98"
+    },
+    {
+      "trial": "har116-b-000146-original__JT6tRiN",
+      "task_id": "format-code-task-000146",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-b-000146-original__JT6tRiN.json",
+      "source_sha256": "sha256:da19bc25e15cecf04dfc390cde3824fd2bd96764021eda84cc83702cc870c3af"
+    },
+    {
+      "trial": "har116-b-000226-leakclosed__K9ddjiP",
+      "task_id": "format-code-task-000226",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-b-000226-leakclosed__K9ddjiP.json",
+      "source_sha256": "sha256:73fd00646dd76394b032b9ba388cc66f6247b54898696bc5213257d8fad2ab62"
+    },
+    {
+      "trial": "har116-b-000226-leakclosed__K9ddjiP",
+      "task_id": "format-code-task-000226",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-b-000226-leakclosed__K9ddjiP.json",
+      "source_sha256": "sha256:92d801e2d2e2d396eef8428e90afcf77cfbd201e084e1aa79433bc415f0c47ea"
+    },
+    {
+      "trial": "har116-b-000226-original__JTEerfm",
+      "task_id": "format-code-task-000226",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-b-000226-original__JTEerfm.json",
+      "source_sha256": "sha256:17ecb77e8aeea0afa6e6f04e7d299b721a4b3a99a97ebb864d0b789f4d1d57ae"
+    },
+    {
+      "trial": "har116-b-000226-original__JTEerfm",
+      "task_id": "format-code-task-000226",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-b-000226-original__JTEerfm.json",
+      "source_sha256": "sha256:71c3ef7101c8c77e5d5e5e976cf131384f945e98d83d461d89c4731a1cd4f7a3"
+    },
+    {
+      "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+      "task_id": "format-code-task-000927",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-b-000927-leakclosed__Sj3aGEg.json",
+      "source_sha256": "sha256:321d0470822d27cea35735f9233a52c3ffc34c55f96f1ddc797d71ab046fbad6"
+    },
+    {
+      "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+      "task_id": "format-code-task-000927",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-b-000927-leakclosed__Sj3aGEg.json",
+      "source_sha256": "sha256:2ceff597e91d7fc45b9461ae8924a114dee630b34543505e7c7284da0c49bf1c"
+    },
+    {
+      "trial": "har116-b-000927-original__kvyP9fr",
+      "task_id": "format-code-task-000927",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-b-000927-original__kvyP9fr.json",
+      "source_sha256": "sha256:e14c5b8e24f2efa262b473b7b28ab6b0d78f46a1d8f5a16840f6c828b960759d"
+    },
+    {
+      "trial": "har116-b-000927-original__kvyP9fr",
+      "task_id": "format-code-task-000927",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-b-000927-original__kvyP9fr.json",
+      "source_sha256": "sha256:ef7fa9db50fdfd36c846d0d726f3bff18e5123f17cf5eff6fffac594f082fc74"
+    },
+    {
+      "trial": "har116-b-002308-leakclosed__idknFAu",
+      "task_id": "format-code-task-002308",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-b-002308-leakclosed__idknFAu.json",
+      "source_sha256": "sha256:073feb4102184e5b08d55b1a43bd753f38010d3e226f03da7e749a70e170c4be"
+    },
+    {
+      "trial": "har116-b-002308-leakclosed__idknFAu",
+      "task_id": "format-code-task-002308",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-b-002308-leakclosed__idknFAu.json",
+      "source_sha256": "sha256:295b59049e1df5d44598f1430dfa4ff7cddc435beaf7a1d3e0395b9ef07bae11"
+    },
+    {
+      "trial": "har116-b-002308-original__oYziU3z",
+      "task_id": "format-code-task-002308",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-b-002308-original__oYziU3z.json",
+      "source_sha256": "sha256:f7cce45041da06788634a05a82dc8424c7a4b30e274c09872f5b8dcff8162d8c"
+    },
+    {
+      "trial": "har116-b-002308-original__oYziU3z",
+      "task_id": "format-code-task-002308",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-b-002308-original__oYziU3z.json",
+      "source_sha256": "sha256:906bfb52b6e94558e8dca07cac39c51719a90ef2d20fe60efb441d29283ff65b"
+    },
+    {
+      "trial": "har116-b-002402-leakclosed__X7nGHNs",
+      "task_id": "format-code-task-002402",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-b-002402-leakclosed__X7nGHNs.json",
+      "source_sha256": "sha256:5fd5ba6da1d72ded7247e8a0480ad291322c81087d46bda26d81991268a2aacf"
+    },
+    {
+      "trial": "har116-b-002402-leakclosed__X7nGHNs",
+      "task_id": "format-code-task-002402",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-b-002402-leakclosed__X7nGHNs.json",
+      "source_sha256": "sha256:36b84663fcd2c625d75fb878c670484ddfcc9616166e426bdeef4af065c41371"
+    },
+    {
+      "trial": "har116-b-002402-original__PCgLbp7",
+      "task_id": "format-code-task-002402",
+      "rater": "rater_a",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_a/har116-b-002402-original__PCgLbp7.json",
+      "source_sha256": "sha256:5f5b771755b41c33c77a2d9075a5448f2cb79527ec2e4b66c089dbaf4da82e0e"
+    },
+    {
+      "trial": "har116-b-002402-original__PCgLbp7",
+      "task_id": "format-code-task-002402",
+      "rater": "rater_b",
+      "source_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116/rater_b/har116-b-002402-original__PCgLbp7.json",
+      "source_sha256": "sha256:17154aeb421b6b8e84c20018c2db2ba3f0acefe8cb9a336d961ef37c61604092"
+    }
+  ]
+}

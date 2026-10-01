@@ -1,0 +1,143 @@
+{
+  "baseline_repeat": 1,
+  "eval_tasks_sha256": "sha256:3b997fdcff048061fd8a05d446948d4d6425bf670eb0d6710989c50dcd0a9219",
+  "held_out_tasks": [
+    {
+      "project": "powerline",
+      "task_id": "format-code-task-002302"
+    },
+    {
+      "project": "github.com/kinnala/scikit-fem",
+      "task_id": "format-code-task-001695"
+    },
+    {
+      "project": "pyabm",
+      "task_id": "format-code-task-000521"
+    },
+    {
+      "project": "github.com/linode/linode-cli",
+      "task_id": "format-code-task-001797"
+    },
+    {
+      "project": "localstack",
+      "task_id": "format-code-task-001809"
+    },
+    {
+      "project": "lenstronomy",
+      "task_id": "format-code-task-001769"
+    },
+    {
+      "project": "pyftpdlib",
+      "task_id": "format-code-task-001285"
+    },
+    {
+      "project": "lbry",
+      "task_id": "format-code-task-001765"
+    },
+    {
+      "project": "youtube_dlc",
+      "task_id": "format-code-task-000568"
+    },
+    {
+      "project": "pyalgotrade",
+      "task_id": "format-code-task-001241"
+    },
+    {
+      "project": "maestral",
+      "task_id": "format-code-task-002578"
+    },
+    {
+      "project": "deepdow",
+      "task_id": "format-code-task-001606"
+    },
+    {
+      "project": "github.com/napari/napari",
+      "task_id": "format-code-task-002017"
+    },
+    {
+      "project": "dulwich",
+      "task_id": "format-code-task-001626"
+    },
+    {
+      "project": "magika",
+      "task_id": "format-code-task-001355"
+    },
+    {
+      "project": "peekingduck",
+      "task_id": "format-code-task-000332"
+    },
+    {
+      "project": "libsaas",
+      "task_id": "format-code-task-000842"
+    },
+    {
+      "project": "hpccm",
+      "task_id": "format-code-task-000169"
+    },
+    {
+      "project": "piccolo",
+      "task_id": "format-code-task-001136"
+    },
+    {
+      "project": "safedelete",
+      "task_id": "format-code-task-001833"
+    }
+  ],
+  "max_candidates": 2,
+  "max_gate_cost_usd": 2.0,
+  "proposal_sha256": "sha256:2795720c6cfc002396fe62a08b20949507cfa8e8a79cff5f5ec044b59a2ec563",
+  "schema_version": "har135.freeze/v1",
+  "selection_rule": "counted_pass_then_total_tokens",
+  "tasks": [
+    {
+      "project": "environ",
+      "task_id": "format-code-task-001647",
+      "task_package_digest": "sha256:e435a9443935f3397561497574b50833f709df41d56f5c0261b90e57fafdd21f"
+    },
+    {
+      "project": "mdutils",
+      "task_id": "format-code-task-000803",
+      "task_package_digest": "sha256:ac99a511015a2c31ae7cb56577154096de4df9ca2f40d655450f215cdcb4f740"
+    },
+    {
+      "project": "markdownify",
+      "task_id": "format-code-task-001870",
+      "task_package_digest": "sha256:be5cf80bcb8ff71e8f6212c7929e9a849b1aff95641fb115b92f1d1ce1d7f197"
+    },
+    {
+      "project": "vyper",
+      "task_id": "format-code-task-000341",
+      "task_package_digest": "sha256:303037d50d00ae5c7c57af92bc646ef54e397ec9f2cdd7c9afb0baa7506d4e4b"
+    },
+    {
+      "project": "linkpreview",
+      "task_id": "format-code-task-001897",
+      "task_package_digest": "sha256:e9f28b6db44e81fdd174c04c0a42e5535466c9d19176c4f63c8f510419e8b3cc"
+    },
+    {
+      "project": "krakenex",
+      "task_id": "format-code-task-002938",
+      "task_package_digest": "sha256:15d984ef5103c774496c8864b78a5b7068edf5c06ab90606dbaaa7d0a02bf562"
+    },
+    {
+      "project": "pbxproj",
+      "task_id": "format-code-task-001710",
+      "task_package_digest": "sha256:361303219639ff24b77317f1a21fa72999bd13e1e2013ba18024e9e16c2e3d91"
+    },
+    {
+      "project": "django_filters",
+      "task_id": "format-code-task-001399",
+      "task_package_digest": "sha256:f8ea9d7813ebe8488f5286188616463e195612abe2284e069f09951d3c8a9405"
+    },
+    {
+      "project": "sc3",
+      "task_id": "format-code-task-002680",
+      "task_package_digest": "sha256:205818a003ea443311e98770c8da6aeebfa5c04f71f4b72511f9f6d663cd6606"
+    },
+    {
+      "project": "friends",
+      "task_id": "format-code-task-001661",
+      "task_package_digest": "sha256:7281bec0244739c8c679d5ae2252ca13dcfd8d442b5993c4cb1347dbd7a78f7c"
+    }
+  ]
+}

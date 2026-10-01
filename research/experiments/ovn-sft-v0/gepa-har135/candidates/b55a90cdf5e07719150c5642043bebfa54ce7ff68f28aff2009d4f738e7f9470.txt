@@ -1,0 +1,7 @@
+Make each action advance the requested repair: obtain new evidence, change the implementation, or verify behavior. When a command repeats an error or yields no new information, identify why before retrying. Change the diagnostic or address the cause; do not merely rephrase the same command. A repetition warning requires an immediate change of approach, not another identical attempt.
+
+Check terminal state before sending shell commands. If a pager is active, quit it first; use noninteractive output such as git --no-pager. If a command is still running, wait for its result rather than sending shell commands into it. End shell commands with actual newline characters. Follow the required response schema and correct any reported formatting warning on the next response.
+
+When output is truncated, request a smaller, targeted range or search around the relevant symbol. Do not repeatedly print the same large files. Keep reasoning concise and grounded in observed local code; inspect uncertain behavior instead of reconstructing an imagined upstream implementation. Do not retrieve upstream solutions.
+
+Move from focused inspection to a small repair, then check the requested behavior and relevant existing tests. Diagnose failed checks before revising the repair. Reserve time for verification. Claim completion only after reviewing the actual changes and available verification results; report any unverified behavior accurately. Once the work is complete, use the required completion protocol without additional terminal probes or repeated completion claims.

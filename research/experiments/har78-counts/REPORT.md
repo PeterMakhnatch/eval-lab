@@ -40,14 +40,108 @@
 
 | Reason | Condition |
 |---|---|
-| `copied_fix` | `reward >= 1.0` and upstream package download detector fired |
-| `pass_tainted` | `reward >= 1.0` and upstream fetch or verifier guard reject |
+| `copied_fix` | `reward >= 1.0` and confirmed upstream acquisition with recorded, target-bound outcome evidence |
+| `pass_tainted` | `reward >= 1.0` and confirmed upstream acquisition or verifier guard reject |
 | `task_not_usable` | Digest-matched canonical ledger status `review`, `discarded` or `unchecked`; without a match, the legacy hand/census exclusion policy below |
 | `infra` | Not scored, verifier reward missing, or proxy 502 / bad gateway |
 
-- Upstream fetch on a failure stays `counted_fail` (flagged `upstream_fetch`, decisive=false).
+- Confirmed upstream acquisition on a verifier failure stays `counted_fail` (flagged `upstream_fetch`, decisive=false). Failed or unknown fetch attempts never decide counts, including on a native pass; they remain `upstream_fetch_attempt` flags.
 - A budget exhaustion on a scored trial stays `counted_fail`.
 - Diagnostic judgments (`first_failure`, blame, loops) carry `accuracy: null` and never exclude.
+
+### Successful acquisition evidence (HAR-131 correction)
+
+`upstream_fetch.detect_upstream_fetch` remains the canonical command-only
+**attempt** matcher. `process-job` now adds an outcome (`succeeded`, `failed`,
+or `unknown`) and source-bound evidence. Both copied-fix and fetch-based
+pass-taint exclusions require a saved/listed exact artifact followed by bound
+unpack or source-read proof. Command-only, bare-status, and summary-only flags
+have no successful-acquisition fallback. The separate
+opt-in GEPA `UPSTREAM_FETCH_ZERO` objective is deliberately unchanged: **any
+attempt** still zeros that objective. Do not substitute its policy for counts.
+
+The Research-Harbor 10:53Z frozen correction requires **successful upstream
+acquisition**: an exact pinned package/version artifact saved or listed in the
+fetch destination, then observed being unpacked **or** read. A package-specific
+summary or exit code 0 alone cannot decide counts. Call results must match the
+recorded call ID inside the same document and step. A legacy untagged result is usable only
+when an explicit, unique native-call command echo bounds its terminal window;
+the evidence records `terminal-command-window` attribution rather than
+inventing a `source_call_id`. Buffered text before the current command echo
+and output after the next prompt are not current-call stdout. Echoes and
+literal command content cannot prove success. Artifact-use proof stops at
+another attempt for the same normalized package/target or a document boundary.
+Another package, path, episode, continuation, or reused numeric step ID cannot
+supply the proof.
+
+Artifact proof spans saved/listed artifact → observed unpack or source read.
+Other output-producing commands in a fetch call do not invalidate an observed
+exact saved artifact **when** its subsequent use proves the chain. Unpack proof
+requires observed extracted Python files, with the matching listing gated by
+the exact extraction command's `&&` success; listing a preexisting destination
+after `;` or `|| true` is not proof. A source reader following extraction must
+likewise be success-conditioned. Relative paths require an explicit
+`cd ... &&` binding; directory spelling is normalized lexically (`/`, `./`,
+`..`) without probing the filesystem. A wheel glob may vary only after the
+complete observed package/version prefix, in the exact artifact directory;
+`*.whl`, wildcard versions, and other directories cannot supply proof.
+
+Missing/empty output, merely seeing a URL/filename, a successful local import,
+and no observed error remain **unknown**. Informational index queries, remote
+configuration, unparsed commands, and script fetches without bound acquisition
+proof are not promoted by a whole-script or isolated-fetch exit status.
+Recorded nonzero status can establish an isolated fetch's failure, not success.
+Conservative unknowns are exposed, not fabricated failures or successes.
+An independent guard reject, unusable-task decision, or infra exclusion still
+applies. Native rewards and experimental evidence remain immutable.
+
+Portable producer→counts regressions retain exact native excerpts under
+`tests/fixtures/upstream_fetch/`, with trajectory/result SHA-256 provenance:
+001870 (`0c82546a26b004d5e3e544deada7273a08c70ce2edc176d85ed88d52dd3c47b3`)
+has only unsuccessful/unconfirmed markdownify attempts and is no longer
+fetch-excluded; 000341
+(`9e03e80486254e608b921fccc52505c9a5a076f42a13d3425ca7e94b860e9209`)
+retains the step-40 exact wheel listing plus step-41 observed unpack/read
+proof and remains fetch-excluded. Both native rewards are 1.0. These statements
+concern the fetch exclusions, not independent task-usability/guard decisions.
+
+Native R2 boundary fixtures preserve additional exact excerpts:
+
+- 001373-a2-r2
+  (`5f39297af38303452ab9c6fdb75948393de6e12b79976c8bc8735389c30259e1`):
+  a preceding `git log` shares the fetch call, but the exact saved
+  google-cloud-logging artifact and its subsequent unzip/source read confirm
+  acquisition.
+- 002356-a1-r2
+  (`1ae12d27a0c5ad24967e8a839c1b91369d1b730c61d8ab64b9944af6fe8aa9ec`):
+  the exact black 24.4.2 wheel listing, pinned platform-suffix unzip glob,
+  and success-conditioned extracted-file listing form a two-call acquisition
+  proof. The separate native `numerics.py` read is retained but is not required
+  after observed successful unpack.
+- 001269-a2-r2
+  (`1ff9c912062f9b39a31c7d54a4a8566c0368e4c9fa66c18df7e13fbdbd1b3da4`):
+  the responses download attempt has no immediate output; the next local-read
+  window contains `Could not find a version` / `No matching distribution`
+  errors for that target. The fetch remains a visible, non-deciding
+  unknown-attribution attempt. This is **not** a clean-trial claim: the native
+  run separately reads a preexisting `build/lib` donor and lands its exact
+  changes. That independent local-copy evidence must not be represented as
+  successful pip acquisition. Under the frozen correction it is **not a counts
+  route**: Data's task/variant-usability downgrade must exclude the leaked image.
+  These fetch-scoped fixture results do not substitute for that usability
+  dependency or claim this native trial is counted.
+
+The [native runtime receipt](har131-native-fetch-proof.json) records 117 passing
+focused cases and an isolated reprocessing of all 64 G2 jobs: 001870 becomes
+counted, while 000341, 001373 and 002356 keep source-bound fetch exclusions.
+Data's merged #660 (`6e95a13e`) excludes all three physical 001269 jobs through
+the digest-matched discarded ledger row, without a local-copy detector or
+validated-variant bypass. The result is 8 counted passes, 28 counted failures
+and 28 exclusions. The receipt binds source hashes, each native result/metadata
+hash, unchanged reward/settled usage and verdict/reason diffs. It is an integrated
+candidate proof, not a live-publication or merged-amendment claim.
+
+
 
 ### Task-version binding (HAR-131)
 

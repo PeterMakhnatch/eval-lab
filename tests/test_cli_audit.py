@@ -44,6 +44,7 @@ TOP_LEVEL_COMMANDS = (
     "data",
     "db",
     "modal",
+    "spend",
     "lineage",
     "analyst",
     "card",

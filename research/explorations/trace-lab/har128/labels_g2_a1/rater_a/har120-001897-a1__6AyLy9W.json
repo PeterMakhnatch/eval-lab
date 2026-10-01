@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "I have everything I need. Now I'll implement the schema.org support.",
+      "ref": "head#13"
+    },
+    {
+      "quote": "The implementation is complete and all tests pass.",
+      "ref": "head#36"
+    },
+    {
+      "quote": "echo COMPLETE",
+      "ref": "head#36"
+    },
+    {
+      "quote": "echo task_complete",
+      "ref": "head#61"
+    }
+  ],
+  "first_failure": {
+    "quote": "cat > /workspace/repo/linkpreview/preview/schemaorg.py << 'PYEOF'",
+    "ref": "head#13",
+    "what": "initial schemaorg.py missed Organization site_name, thumbnailUrl->image mapping and microdata-first priority required by instruction; gaps never fixed (15/17 pass)"
+  },
+  "first_failure_confidence": "low",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#36",
+    "head#61"
+  ],
+  "notes": "reward 0.0; 15/17 hidden schema tests pass, failing test_organization_site_name_and_microdata_thumbnail_url_are_used and test_microdata_is_tried_before_jsonld_when_both_have_values (both behaviors explicit in instruction.md). LoopBreakStop at 60 calls, nudge call 45. Model falsely claimed all tests pass (never ran hidden tests) and tried to complete via shell echo (no mark_task_complete), so harness loop-broke the claim loop.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har120-001897-a1__6AyLy9W"
+}

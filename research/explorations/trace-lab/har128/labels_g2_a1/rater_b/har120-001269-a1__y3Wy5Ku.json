@@ -1,0 +1,47 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "I should temporarily override the flag on the mock instance. Let me refactor `get_wrapped` to use context-local override",
+      "ref": "head#35"
+    },
+    {
+      "quote": "print('DEBUG override start, flag:', old_flag, 'assert:', assert_all_requests_are_fired)",
+      "ref": "head#75"
+    },
+    {
+      "quote": "DEBUG override end, flag: True\nfn called\nflag: False",
+      "ref": "head#86"
+    },
+    {
+      "quote": "1042:def __getattr__(name)",
+      "ref": "head#92"
+    },
+    {
+      "quote": "Failed: DID NOT RAISE <class 'AssertionError'> (test_activate_strict_unfired_raises)",
+      "ref": "head#35"
+    },
+    {
+      "quote": "TrialBudgetExhaustedError: the trial proxy refused a model call: trial budget exhausted",
+      "ref": "head#92"
+    }
+  ],
+  "first_failure": {
+    "quote": "I should temporarily override the flag on the mock instance. Let me refactor `get_wrapped` to use context-local override",
+    "ref": "head#35",
+    "what": "Committed to a decoration-time flag toggle in get_wrapped (try/finally restores the flag before the wrapper ever runs) with no exit-time unfired assertion; spent remaining ~57 steps debugging that design."
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "92 episodes (<120 request limit) with ~2.42M input tokens (~2.5M cap): token_ceiling. Step 14 pip-downloaded upstream responses==0.25.0 for reading only; shipped code is home-grown and the run failed. DEBUG prints left in shipped source. Model found module-level __getattr__ at the final step but budget ran out before a fix.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har120-001269-a1__y3Wy5Ku"
+}

@@ -1,0 +1,46 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "matches = new_hash == known_hash.split(\":\")[-1].lower()",
+      "ref": "head#11"
+    },
+    {
+      "quote": "\"function_name\": \"mark_task_complete\"",
+      "ref": "head#38"
+    },
+    {
+      "quote": "cd /testbed && python -m pytest pooch/tests/test_utils.py -q 2>&1 | tail -2",
+      "ref": "head#39"
+    },
+    {
+      "quote": "\"function_name\": \"mark_task_complete\"",
+      "ref": "head#47"
+    },
+    {
+      "quote": "cd /testbed && python -m pytest pooch/tests/test_utils.py -q 2>&1 | tail -2",
+      "ref": "head#103"
+    }
+  ],
+  "first_failure": {
+    "quote": "matches = new_hash == known_hash.split(\":\")[-1].lower()",
+    "ref": "head#11",
+    "what": "Lowercased the hash value in hash_matches without lowercasing the algorithm name in hash_algorithm or handling uppercase prefixes in known_hash."
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#38",
+    "head#103"
+  ],
+  "notes": "Total episodes reached 103 with 2.46M input tokens, triggering TrialBudgetExhaustedError before request ceiling.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har120-000941-a1__arZdiNe"
+}

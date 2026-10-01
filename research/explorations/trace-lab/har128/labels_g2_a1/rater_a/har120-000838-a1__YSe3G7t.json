@@ -1,0 +1,46 @@
+{
+  "blame": "none",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "template = ('{prefix}\"Your command\" {result} in {:d}:{:02d} minutes{output}'",
+      "ref": "head#25"
+    },
+    {
+      "quote": "p='tests/test_cli.py'\ns=open(p).read()\ns=s.replace",
+      "ref": "head#49"
+    },
+    {
+      "quote": "Ran 15 tests in 0.008s\nOK",
+      "ref": "head#54"
+    },
+    {
+      "quote": "p='ntfy/cli.py'\ns=open(p).read()\ns=s.replace",
+      "ref": "head#55"
+    },
+    {
+      "quote": "p='ntfy/cli.py'\ns=open(p).read()\ns=s.replace",
+      "ref": "head#83"
+    }
+  ],
+  "first_failure": null,
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#55",
+    "head#83"
+  ],
+  "notes": "Passed reward 1.0. Upstream tests were adjusted to add the default hide_command parameter, which was cleaned/reconciled. Repetition after step 54 did not alter the working tree further.",
+  "off_limits_opened": false,
+  "pass_copied": false,
+  "pass_copied_confidence": "high",
+  "sft_cut": {
+    "clean": true,
+    "cut_step_id": 54,
+    "reason": "Earned pass passing all verifier tests; implementation completed and all unit tests passed at step 54 before repeated redundant patch/test cycles."
+  },
+  "stop_confidence": "high",
+  "stop_reason": "agent_timeout",
+  "trial": "har120-000838-a1__YSe3G7t"
+}

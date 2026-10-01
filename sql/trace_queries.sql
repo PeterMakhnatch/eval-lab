@@ -314,10 +314,13 @@ FROM _trace_parse_signals
 GROUP BY COALESCE(model_name, 'unknown'), COALESCE(card, 'unknown')
 ORDER BY card, model_name;
 
--- 8. Freeze verification belongs to connect_trace_query. This view extracts
--- ONLY top-level label fields, so notes, first_failure, and HAR-128 nested
--- cleanliness labels cannot become loop votes. Duplicate rater entries never
--- create another rater, and conflicting duplicate votes are disagreement.
+-- 8. Freeze verification belongs to connect_trace_query. Agreement is partitioned
+-- per native trial and admitted cohort (har119 and har128-har116), requiring
+-- >= 2 distinct raters in that cohort to agree. Conflicting duplicate votes are
+-- disagreement, and same-rater duplicate votes do not create another rater.
+-- Rows are non-additive per-cohort study results: cross-cohort disagreements
+-- are reported separately, never pooled into cross-cohort votes. SFT-pass and
+-- hand labels remain coverage-only, strictly excluded from loop voting.
 CREATE OR REPLACE VIEW _trace_label_entries AS
 SELECT t.job_id, t.trial_id, e.key AS entry_index,
     json_extract_string(e.value, '$.cohort') AS cohort,
@@ -333,24 +336,45 @@ LATERAL json_each(trace_array(t.labels)) e
 WHERE e.type = 'OBJECT';
 
 CREATE OR REPLACE VIEW _trace_label_consensus AS
-WITH loop_entries AS (
+WITH admitted_cohorts AS (
+    SELECT DISTINCT cohort
+    FROM _trace_label_entries
+    WHERE cohort IN ('har119', 'har128-har116')
+    UNION
+    SELECT 'har119'
+    WHERE NOT EXISTS (
+        SELECT 1 FROM _trace_label_entries WHERE cohort IN ('har119', 'har128-har116')
+    )
+), trials_x_cohorts AS (
+    SELECT t.*, ac.cohort
+    FROM _trace_analysis_trials t
+    CROSS JOIN admitted_cohorts ac
+), loop_entries AS (
     SELECT e.*, t.trial_name,
-        COALESCE(e.cohort = 'har119' AND e.provenance = 'agent_rater'
-                 AND NULLIF(e.rater, '') IS NOT NULL AND e.label_trial_name = t.trial_name
+        COALESCE(e.provenance = 'agent_rater'
+                 AND NULLIF(e.rater, '') IS NOT NULL
+                 AND e.label_trial_name = t.trial_name
                  AND e.label_loop_kind IN ('completion-claim', 'repetition', 'none'), false) AS vote_valid
     FROM _trace_label_entries e
     JOIN _trace_analysis_trials t ON t.job_id = e.job_id AND t.trial_id = e.trial_id
     WHERE COALESCE(e.cohort, '') <> 'har128-sft-pass'
       AND COALESCE(e.label_scope, '') <> 'sft_pass_cleanliness'
-      AND (e.cohort = 'har119' OR e.has_loop_field)
+      AND e.cohort IN ('har119', 'har128-har116')
 ), loop_summary AS (
-    SELECT job_id, trial_id,
-        COUNT(DISTINCT cohort) AS n_loop_cohorts,
+    SELECT job_id, trial_id, cohort,
+        COUNT(*) AS n_cohort_votes,
         COUNT(DISTINCT rater) FILTER (WHERE vote_valid) AS n_valid_raters,
         COUNT(*) FILTER (WHERE NOT vote_valid) AS n_invalid_votes,
         COUNT(DISTINCT label_loop_kind) FILTER (WHERE vote_valid) AS n_distinct_kinds,
         MIN(label_loop_kind) FILTER (WHERE vote_valid) AS agreed_candidate
     FROM loop_entries
+    GROUP BY job_id, trial_id, cohort
+), foreign_loop_votes AS (
+    SELECT job_id, trial_id,
+        COUNT(*) AS n_foreign_loop_entries
+    FROM _trace_label_entries
+    WHERE COALESCE(cohort, '') NOT IN ('har119', 'har128-har116', 'har128-sft-pass', 'har109')
+      AND (has_loop_field OR provenance = 'agent_rater')
     GROUP BY job_id, trial_id
 ), coverage AS (
     SELECT job_id, trial_id, COUNT(*) AS n_label_entries,
@@ -359,24 +383,26 @@ WITH loop_entries AS (
     FROM _trace_label_entries
     GROUP BY job_id, trial_id
 )
-SELECT t.job_id, t.trial_id, t.card, t.loop_prediction,
+SELECT tc.job_id, tc.trial_id, tc.card, tc.cohort, tc.loop_prediction,
     COALESCE(c.n_label_entries, 0) AS n_label_entries,
     COALESCE(c.n_hand_entries, 0) AS n_hand_entries,
     COALESCE(c.n_sft_entries, 0) AS n_sft_entries,
-    CASE WHEN NOT t.labels_readable THEN 'unknown_label_input'
-         WHEN s.n_loop_cohorts > 1 THEN 'ambiguous_cohort'
+    CASE WHEN NOT tc.labels_readable THEN 'unknown_label_input'
+         WHEN COALESCE(f.n_foreign_loop_entries, 0) > 0 THEN 'ambiguous_cohort'
+         WHEN s.n_cohort_votes IS NULL OR s.n_cohort_votes = 0 THEN 'missing_loop_labels'
          WHEN s.n_distinct_kinds > 1 THEN 'disagreement'
          WHEN s.n_valid_raters >= 2 AND s.n_invalid_votes = 0 AND s.n_distinct_kinds = 1 THEN 'agreed'
-         WHEN s.job_id IS NOT NULL THEN 'insufficient_or_invalid'
-         ELSE 'missing_loop_labels' END AS label_state,
-    CASE WHEN s.n_loop_cohorts = 1 AND s.n_valid_raters >= 2 AND s.n_invalid_votes = 0 AND s.n_distinct_kinds = 1
+         ELSE 'insufficient_or_invalid' END AS label_state,
+    CASE WHEN s.n_valid_raters >= 2 AND s.n_invalid_votes = 0 AND s.n_distinct_kinds = 1
          THEN s.agreed_candidate END AS agreed_kind
-FROM _trace_analysis_trials t
-LEFT JOIN loop_summary s ON s.job_id = t.job_id AND s.trial_id = t.trial_id
-LEFT JOIN coverage c ON c.job_id = t.job_id AND c.trial_id = t.trial_id;
+FROM trials_x_cohorts tc
+LEFT JOIN loop_summary s ON s.job_id = tc.job_id AND s.trial_id = tc.trial_id AND s.cohort = tc.cohort
+LEFT JOIN foreign_loop_votes f ON f.job_id = tc.job_id AND f.trial_id = tc.trial_id
+LEFT JOIN coverage c ON c.job_id = tc.job_id AND c.trial_id = tc.trial_id;
 
 CREATE OR REPLACE VIEW v_trace_frozen_label_agreement AS
 SELECT COALESCE(card, 'unknown') AS card,
+    cohort,
     COUNT(*) AS n_total,
     COUNT(*) FILTER (WHERE n_label_entries > 0) AS n_with_frozen_labels,
     COUNT(*) FILTER (WHERE n_hand_entries > 0) AS n_with_hand_labels,
@@ -395,11 +421,10 @@ SELECT COALESCE(card, 'unknown') AS card,
     COUNT(*) FILTER (WHERE label_state = 'agreed' AND loop_prediction = agreed_kind) AS n_match,
     ROUND(COUNT(*) FILTER (WHERE label_state = 'agreed' AND loop_prediction = agreed_kind) * 1.0
           / NULLIF(COUNT(*) FILTER (WHERE label_state = 'agreed' AND loop_prediction IS NOT NULL), 0), 4) AS accuracy,
-    'agreement uses valid top-level HAR-119 loop_kind votes from at least two distinct agent raters in one cohort, excludes disagreement and missing labels, prediction abstentions are outside eligibleN, HAR-109 hand and HAR-128 cleanliness labels are coverage only, descriptive frozen-cohort alignment is not general calibration' AS agreement_limitation
+    'agreement uses valid top-level loop_kind votes from at least two distinct agent raters in an admitted cohort (har119, har128-har116), evaluated separately per cohort with non-additive rows, excludes within-cohort disagreement and missing labels, prediction abstentions are outside eligibleN, HAR-109 hand and HAR-128 cleanliness labels are coverage only, descriptive frozen-cohort alignment is not general calibration' AS agreement_limitation
 FROM _trace_label_consensus
-GROUP BY COALESCE(card, 'unknown')
-ORDER BY card;
-
+GROUP BY COALESCE(card, 'unknown'), cohort
+ORDER BY card, cohort;
 -- 9. Category precedence is explicit, overlapping counts reasons are retained.
 -- Ordinary raw passes are never other_failure. task_not_usable is separate
 -- from pass_tainted. A first_failure judgment is an OPINION anchor. A link is
@@ -490,6 +515,12 @@ SELECT COALESCE(t.card, 'unknown') AS card, COUNT(*) AS n_trials,
     ROUND(COUNT(*) FILTER (WHERE t.processed_available) * 1.0 / COUNT(*), 4) AS processed_coverage_rate
 FROM _trace_analysis_trials t
 LEFT JOIN _trace_step_coverage s ON s.job_id = t.job_id AND s.trial_id = t.trial_id
-LEFT JOIN _trace_label_consensus l ON l.job_id = t.job_id AND l.trial_id = t.trial_id
+LEFT JOIN (
+    SELECT job_id, trial_id,
+        MAX(n_label_entries) AS n_label_entries,
+        MAX(n_sft_entries) AS n_sft_entries
+    FROM _trace_label_consensus
+    GROUP BY job_id, trial_id
+) l ON l.job_id = t.job_id AND l.trial_id = t.trial_id
 GROUP BY COALESCE(t.card, 'unknown')
 ORDER BY card;

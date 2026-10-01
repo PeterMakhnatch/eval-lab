@@ -310,6 +310,83 @@ def test_conflicting_duplicate_rater_or_incidental_nested_kind_never_forms_conse
     assert row["accuracy"] is None
 
 
+
+def test_two_valid_cohorts_reported_separately_without_pooling(query_surface):
+    """Two admitted cohorts on one native trial report distinct study results.
+
+    Conflicting internally agreed kinds must never pool into cross-cohort
+    disagreement or ambiguous_cohort, and each cohort must retain unknown and
+    duplicate-rater protections independently.
+    """
+    conn = query_surface([
+        _trial(
+            "shared-conflict",
+            loop_kind="none",
+            labels_json=json.dumps([
+                _vote("shared-conflict", "rater_a", "none", cohort="har119"),
+                _vote("shared-conflict", "rater_b", "none", cohort="har119"),
+                _vote("shared-conflict", "rater_a", "repetition", cohort="har128-har116"),
+                _vote("shared-conflict", "rater_b", "repetition", cohort="har128-har116"),
+            ]),
+        ),
+        _trial(
+            "har128-dup-rater",
+            loop_kind="none",
+            labels_json=json.dumps([
+                _vote("har128-dup-rater", "rater_a", "none", cohort="har128-har116"),
+                _vote("har128-dup-rater", "rater_a", "none", cohort="har128-har116"),
+            ]),
+        ),
+        _trial(
+            "har128-dup-conflict",
+            loop_kind="none",
+            labels_json=json.dumps([
+                _vote("har128-dup-conflict", "rater_a", "none", cohort="har128-har116"),
+                _vote("har128-dup-conflict", "rater_a", "repetition", cohort="har128-har116"),
+                _vote("har128-dup-conflict", "rater_b", "none", cohort="har128-har116"),
+            ]),
+        ),
+        _trial(
+            "har128-unknown-rater",
+            loop_kind="none",
+            labels_json=json.dumps([
+                _vote("har128-unknown-rater", "", "none", cohort="har128-har116"),
+                _vote("har128-unknown-rater", "rater_b", "none", cohort="har128-har116"),
+            ]),
+        ),
+    ])
+
+    rows = _rows(conn, "v_trace_frozen_label_agreement")
+    assert len(rows) == 2
+    by_cohort = {row["cohort"]: row for row in rows}
+    assert sorted(by_cohort.keys()) == ["har119", "har128-har116"]
+
+    assert by_cohort["har119"]["n_total"] == 4
+    assert by_cohort["har128-har116"]["n_total"] == 4
+
+    h119 = by_cohort["har119"]
+    assert h119["n_agreed"] == 1
+    assert h119["n_agreed_none"] == 1
+    assert h119["n_agreed_repetition"] == 0
+    assert h119["n_disagreement"] == 0
+    assert h119["n_ambiguous_cohort"] == 0
+    assert h119["n_missing_loop_labels"] == 3
+    assert h119["eligibleN"] == 1
+    assert h119["n_match"] == 1
+    assert h119["accuracy"] == pytest.approx(1.0)
+
+    h128 = by_cohort["har128-har116"]
+    assert h128["n_agreed"] == 1
+    assert h128["n_agreed_repetition"] == 1
+    assert h128["n_agreed_none"] == 0
+    assert h128["n_disagreement"] == 1
+    assert h128["n_insufficient_or_invalid_labels"] == 2
+    assert h128["n_ambiguous_cohort"] == 0
+    assert h128["n_missing_loop_labels"] == 0
+    assert h128["eligibleN"] == 1
+    assert h128["n_match"] == 0
+    assert h128["accuracy"] == pytest.approx(0.0)
+
 def test_exemplars_do_not_call_passes_failures_and_only_link_resolved_native_anchors(query_surface):
     conn = query_surface([
         _trial("ordinary", raw_reward=1.0, counts_available=True, counts_verdict="counted_pass", loop_kind="repetition"),

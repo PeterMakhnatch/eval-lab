@@ -231,6 +231,8 @@ def canonical_stop(row: dict) -> str:
 def counted_outcome(row: dict) -> str:
     """Display outcome: counted_pass / counted_fail / excluded:<reasons>."""
     if not row.get("finished"):
+        if row.get("status") == "refused":
+            return "not run (refused)"
         return "pending"
     if "infra" in (row.get("reasons") or []):
         return "infra"
@@ -461,6 +463,9 @@ def build_rows(cells, runs_dir: Path, derived_root: Path) -> list[dict]:
                 # r2 job (its original already finished in wave 1).
                 if which == "r2" and spec_r2 is None:
                     continue
+                # An r2 spec with no job dir means the tick refused it
+                # (r2: quiet_failure_rule, a lab defect fixed by #643).
+                status = "refused" if which == "r2" else "absent"
                 rows.append(
                     {
                         "task": task,
@@ -469,7 +474,7 @@ def build_rows(cells, runs_dir: Path, derived_root: Path) -> list[dict]:
                         "job": jd.name,
                         "job_path": str(jd),
                         "finished": False,
-                        "status": "absent",
+                        "status": status,
                         "spec": str(spec_r2 if which == "r2" else spec)
                         if (spec_r2 if which == "r2" else spec)
                         else None,
@@ -538,6 +543,28 @@ def render_results_md(
         f"{s['counted_pass']}/{s['n_counted']} = "
         f"{s['counted_pass'] / max(1, s['n_counted']):.1%}."
     )
+    q = ctx["r2"]
+    A(
+        f"r2 infra re-runs ({q['n_jobs']} of {ctx['n_r2_specs']} specs finished, {q['window']}): "
+        f"{q['counted_pass']} counted_pass, "
+        f"{q['counted_fail']} counted_fail, "
+        f"{q['excluded_taint']} excluded (taint), "
+        f"{q['infra']} infra."
+    )
+    A(
+        f"Settled tokens over r2 counted scope "
+        f"(pass + fail, {q['n_counted']} trials): "
+        f"{q['in_tokens']:,} in / {q['out_tokens']:,} out "
+        f"in {q['calls']:,} calls."
+    )
+    A(
+        f"{len(ctx['refused_r2'])} r2 specs not run (refused, lab defect): "
+        f"the tick refused them at 09:30:18–19Z with "
+        f"`dispatch_refused / quiet_failure_rule` because LoopBreakStop was "
+        f"missing from AGENT_STOP_EXCEPTIONS at ba8d8358 (fixed on main by "
+        f"#643). No job dirs exist; nothing is counted. "
+        f"Jobs: {', '.join(ctx['refused_r2'])}."
+    )
     A("")
     A("## 2. Per-task table")
     A("")
@@ -561,6 +588,8 @@ def render_results_md(
                 f"{rec.get('calls_assigned')}/"
                 f"{r.get('ledger_tokens', {}).get('requests')}"
             )
+        elif r.get("status") == "refused":
+            cap = "n/a (refused; lab defect, see section 1)"
         elif r.get("status") == "absent":
             cap = "pending (r2)" if r.get("which") == "r2" else "refused/absent"
         else:
@@ -921,23 +950,40 @@ def main(argv=None) -> int:
         and r.get("finished")
         and r.get("exception_class") != "ServiceUnavailableError"
     ]
-    counted = [r for r in wave1 if r.get("verdict", "").startswith("counted")]
-    ledgers = [r.get("ledger_tokens") or {} for r in counted]
-    in_tok = sum((t.get("input") or 0) for t in ledgers)
-    out_tok = sum((t.get("output") or 0) for t in ledgers)
-    calls = sum((t.get("requests") or 0) for t in ledgers)
-    for r in wave1:
-        meta = _load_json(Path(r["job_path"]) / "lab-metadata.json") or {}
-        r["started"] = meta.get("started_at")
-        r["ended"] = meta.get("finished_at")
-    starts = [_parse_ts(r.get("started")) for r in wave1]
-    ends = [_parse_ts(r.get("ended")) for r in wave1]
-    starts = [s for s in starts if s]
-    ends = [e for e in ends if e]
-    window = (
-        f"{min(starts).strftime('%H:%MZ')}–{max(ends).strftime('%H:%MZ')}"
-        if starts and ends
-        else "n/a"
+
+    def _summarize(jobs):
+        counted = [r for r in jobs if (r.get("verdict") or "").startswith("counted")]
+        ledgers = [r.get("ledger_tokens") or {} for r in counted]
+        for r in jobs:
+            meta = _load_json(Path(r["job_path"]) / "lab-metadata.json") or {}
+            r["started"] = meta.get("started_at")
+            r["ended"] = meta.get("finished_at")
+        starts = [s for s in (_parse_ts(r.get("started")) for r in jobs) if s]
+        ends = [e for e in (_parse_ts(r.get("ended")) for r in jobs) if e]
+        return {
+            "n_jobs": len(jobs),
+            "window": (
+                f"{min(starts).strftime('%H:%MZ')}–{max(ends).strftime('%H:%MZ')}"
+                if starts and ends
+                else "n/a"
+            ),
+            "counted_pass": sum(1 for r in jobs if r.get("verdict") == "counted_pass"),
+            "counted_fail": sum(1 for r in jobs if r.get("verdict") == "counted_fail"),
+            "excluded_taint": sum(
+                1
+                for r in jobs
+                if r.get("verdict") == "excluded" and "infra" not in (r.get("reasons") or [])
+            ),
+            "infra": sum(1 for r in jobs if "infra" in (r.get("reasons") or [])),
+            "n_counted": len(counted),
+            "in_tokens": sum((t.get("input") or 0) for t in ledgers),
+            "out_tokens": sum((t.get("output") or 0) for t in ledgers),
+            "calls": sum((t.get("requests") or 0) for t in ledgers),
+        }
+
+    r2jobs = [r for r in rows if r.get("which") == "r2" and r.get("finished")]
+    refused_r2 = sorted(
+        r["job"] for r in rows if r.get("which") == "r2" and r.get("status") == "refused"
     )
     ctx = {
         "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%MZ"),
@@ -949,22 +995,10 @@ def main(argv=None) -> int:
         "n_cells": len(cells),
         "n_finished": sum(1 for r in rows if r.get("finished")),
         "n_pending": sum(1 for r in rows if not r.get("finished")),
-        "wave1": {
-            "n_jobs": len(wave1),
-            "window": window,
-            "counted_pass": sum(1 for r in wave1 if r.get("verdict") == "counted_pass"),
-            "counted_fail": sum(1 for r in wave1 if r.get("verdict") == "counted_fail"),
-            "excluded_taint": sum(
-                1
-                for r in wave1
-                if r.get("verdict") == "excluded" and "infra" not in (r.get("reasons") or [])
-            ),
-            "infra": sum(1 for r in wave1 if "infra" in (r.get("reasons") or [])),
-            "n_counted": len(counted),
-            "in_tokens": in_tok,
-            "out_tokens": out_tok,
-            "calls": calls,
-        },
+        "wave1": _summarize(wave1),
+        "r2": _summarize(r2jobs),
+        "n_r2_specs": len(r2jobs) + len(refused_r2),
+        "refused_r2": refused_r2,
     }
 
     # GEPA seed receipt.

@@ -53,10 +53,22 @@ metadata never enters the JSONL: rows carry only ``messages`` with
 ``role``/``content`` keys. A ``--curation`` record flags individual trials
 (e.g. ``pass_tainted``: the pass relied on something the task forbids); a
 flagged trial is excluded as ``curation:<flag>`` with the flag's deciding
-source in the manifest, and its verifier reward is left as recorded.
+source in the manifest, and its verifier reward is left as recorded. A
+``--selection`` record chooses specific trials, optionally truncating at a
+``cut_step_id``. When agent steps record ``step_layers`` with provenance
+``recorded``, the raw model emission is recovered even when ``tool_calls``
+were parsed. ``--per-turn-stride N`` writes one row per kept model call
+(every Nth assistant turn plus each conversation's last), the call's exact
+history and its target: ``{"messages": [...history, {"role": "assistant",
+"content": message, "reasoning_content": reasoning}], "loss": "last"}``.
+History assistant turns carry no reasoning, as the harness never sent it
+back; the target's ``reasoning_content`` lets the model's chat template write
+``<think>{reasoning}</think>{message}<|im_end|>``, which on HAR-104/110/116
+trials equals the served prompt and completion token counts on every call.
 
 Run with ``python -m evallab.sft_terminus export --root LABEL=PATH ...
---split-manifest split.json --out DIR [--curation curation.json]``.
+--split-manifest split.json --out DIR [--curation curation.json]
+[--selection selection.json] [--per-turn-stride N]``.
 """
 
 from __future__ import annotations
@@ -97,6 +109,7 @@ TERMINUS_AGENT_NAMES = frozenset({"terminus-2", "terminus2"})
 _CONTINUATION_RE = re.compile(r"^trajectory\.cont-(\d+)\.json$")
 _SUMMARIZATION_RE = re.compile(r"^trajectory\.summarization-")
 CURATION_SCHEMA = "evallab.sft_curation/1"
+SELECTION_SCHEMA = "evallab.sft_selection/1"
 
 #: Roles the chat_sl renderer accepts; observations become ``user`` turns.
 ALLOWED_ROLES = frozenset({"system", "user", "assistant"})
@@ -134,6 +147,11 @@ class SegmentConversion:
     ignored_step_sources: list[str]
     #: Agent steps dropped from the segment's first Harbor stand-in reply on.
     fallback_truncated_agent_steps: int = 0
+    step_layers_raw_messages: int = 0
+    assistant_reasonings: list[str] = field(default_factory=list)
+    assistant_step_ids: list[int | None] = field(default_factory=list)
+    assistant_prompt_tokens: list[int | None] = field(default_factory=list)
+    assistant_completion_tokens: list[int | None] = field(default_factory=list)
 
     @property
     def agent_messages(self) -> int:
@@ -157,6 +175,9 @@ class SegmentConversation:
     trajectory_name: str
     trajectory_sha256: str
     conversion: SegmentConversion
+    cut_step_id: int | None = None
+    cut_file: str | None = None
+    selection_used: bool = False
 
     @property
     def messages(self) -> list[dict[str, Any]]:
@@ -170,7 +191,7 @@ class SegmentConversation:
         return {"messages": [dict(message) for message in self.messages]}
 
     def to_manifest_entry(self) -> dict[str, Any]:
-        return {
+        out = {
             "conversation_id": self.conversation_id,
             "root": self.root,
             "trial": self.trial,
@@ -187,7 +208,12 @@ class SegmentConversation:
             "character_count": self.character_count,
             "copied_context_messages": self.conversion.copied_context_messages,
             "fallback_truncated_agent_steps": self.conversion.fallback_truncated_agent_steps,
+            "step_layers_raw_messages": self.conversion.step_layers_raw_messages,
         }
+        if self.selection_used:
+            out["cut_step_id"] = self.cut_step_id
+            out["cut_file"] = self.cut_file
+        return out
 
 
 @dataclass
@@ -281,6 +307,69 @@ def load_curation(path: Path) -> Curation:
     return Curation(path=path, sha256=_sha256_file(path), flags=flags)
 
 
+@dataclass(frozen=True)
+class SelectionEntry:
+    job: str
+    trial: str
+    source: str
+    cut_step_id: int | None
+    cut_file: str | None
+
+
+@dataclass(frozen=True)
+class Selection:
+    path: Path
+    sha256: str
+    entries: dict[tuple[str, str], SelectionEntry]
+
+
+def load_selection(path: Path) -> Selection:
+    """Read a selection record; any malformed entry or duplicate refuses."""
+    payload = _read_json(path)
+    if not isinstance(payload, dict) or payload.get("schema") != SELECTION_SCHEMA:
+        raise TraceError(f"selection record {path} is not {SELECTION_SCHEMA}")
+    trials = payload.get("trials")
+    if not isinstance(trials, list):
+        raise TraceError(f"selection record {path} trials must be a list")
+    entries: dict[tuple[str, str], SelectionEntry] = {}
+    for entry in trials:
+        if not isinstance(entry, dict):
+            raise TraceError(f"selection entry {entry!r} in {path} is not an object")
+        fields: dict[str, str] = {}
+        for name in ("job", "trial", "source"):
+            value = entry.get(name)
+            if isinstance(value, str) and value:
+                fields[name] = value
+        missing = [n for n in ("job", "trial", "source") if n not in fields]
+        if missing:
+            raise TraceError(f"selection entry {entry!r} in {path} lacks {', '.join(missing)}")
+        cut_step_id = entry.get("cut_step_id")
+        if cut_step_id is not None and (
+            isinstance(cut_step_id, bool) or not isinstance(cut_step_id, int)
+        ):
+            raise TraceError(
+                f"selection entry {entry!r} in {path} cut_step_id must be int or null"
+            )
+        cut_file = entry.get("cut_file")
+        if cut_file is not None and not isinstance(cut_file, str):
+            raise TraceError(
+                f"selection entry {entry!r} in {path} cut_file must be str or null"
+            )
+        key = (fields["job"], fields["trial"])
+        if key in entries:
+            raise TraceError(
+                f"duplicate selection entry for ({key[0]!r}, {key[1]!r}) in {path}"
+            )
+        entries[key] = SelectionEntry(
+            job=fields["job"],
+            trial=fields["trial"],
+            source=fields["source"],
+            cut_step_id=cut_step_id,
+            cut_file=cut_file,
+        )
+    return Selection(path=path, sha256=_sha256_file(path), entries=entries)
+
+
 @dataclass
 class TerminusExportResult:
     dispositions: list[TrialDisposition]
@@ -293,6 +382,10 @@ class TerminusExportResult:
     curation: Curation | None = None
     #: Curation flags naming a trial that is not among the export's roots.
     curation_unmatched: list[dict[str, str]] = field(default_factory=list)
+    selection: Selection | None = None
+    #: Selection entries naming a trial that is not among the export's roots.
+    selection_unmatched: list[dict[str, Any]] = field(default_factory=list)
+    per_turn_stride: int | None = None
 
     @property
     def selected_trials(self) -> int:
@@ -396,6 +489,11 @@ def convert_segment(
     reasoning_messages = 0
     ignored: list[str] = []
     fallback_truncated = 0
+    step_layers_raw_messages = 0
+    assistant_reasonings: list[str] = []
+    assistant_step_ids: list[int | None] = []
+    assistant_prompt_tokens: list[int | None] = []
+    assistant_completion_tokens: list[int | None] = []
     for position, step in enumerate(steps):
         if not isinstance(step, dict):
             ignored.append("malformed_step")
@@ -414,10 +512,26 @@ def convert_segment(
                     continue
             items.append({"role": source, "content": text or ""})
         elif source == "agent":
-            if step.get("tool_calls"):
-                # Parsed mode: the raw model emission was not retained.
-                parsed_tool_calls = True
-            text, mm = _text_of(step.get("message"))
+            extra = step.get("extra")
+            extra = extra if isinstance(extra, dict) else {}
+            sl = extra.get("step_layers")
+            sl = sl if isinstance(sl, dict) else {}
+            proposed = sl.get("proposed")
+            proposed = proposed if isinstance(proposed, dict) else {}
+            prop_msg = proposed.get("message")
+            use_step_layers = sl.get("provenance") == "recorded" and isinstance(prop_msg, str)
+            if use_step_layers:
+                step_layers_raw_messages += 1
+                text = prop_msg
+                mm = False
+                reasoning = proposed.get("reasoning")
+            else:
+                if step.get("tool_calls"):
+                    # Parsed mode: the raw model emission was not retained.
+                    parsed_tool_calls = True
+                text, mm = _text_of(step.get("message"))
+                reasoning = step.get("reasoning_content")
+
             if mm:
                 multimodal = True
             if (text or "").strip() == HARBOR_FALLBACK_RESPONSE:
@@ -429,11 +543,22 @@ def convert_segment(
                 )
                 break
             content = text or ""
-            reasoning = step.get("reasoning_content")
             if keep_reasoning and isinstance(reasoning, str) and reasoning:
                 content = f"<think>\n{reasoning}\n</think>\n\n{content}"
                 reasoning_messages += 1
             block: list[dict[str, Any]] = [{"role": "assistant", "content": content}]
+            assistant_reasonings.append(reasoning if isinstance(reasoning, str) else "")
+            assistant_step_ids.append(
+                step.get("step_id") if isinstance(step.get("step_id"), int) else None
+            )
+            metrics = step.get("metrics")
+            metrics = metrics if isinstance(metrics, dict) else {}
+            prompt_tokens = metrics.get("prompt_tokens")
+            completion_tokens = metrics.get("completion_tokens")
+            assistant_prompt_tokens.append(prompt_tokens if isinstance(prompt_tokens, int) else None)
+            assistant_completion_tokens.append(
+                completion_tokens if isinstance(completion_tokens, int) else None
+            )
             observation = step.get("observation")
             results = observation.get("results") if isinstance(observation, dict) else None
             observation_texts: list[str] = []
@@ -474,6 +599,11 @@ def convert_segment(
         reasoning_messages=reasoning_messages,
         ignored_step_sources=ignored,
         fallback_truncated_agent_steps=fallback_truncated,
+        step_layers_raw_messages=step_layers_raw_messages,
+        assistant_reasonings=assistant_reasonings,
+        assistant_step_ids=assistant_step_ids,
+        assistant_prompt_tokens=assistant_prompt_tokens,
+        assistant_completion_tokens=assistant_completion_tokens,
     )
 
 
@@ -631,6 +761,8 @@ def export_conversations(
     keep_reasoning: bool = False,
     task_store_root: Path | None = None,
     curation: Curation | None = None,
+    selection: Selection | None = None,
+    per_turn_stride: int | None = None,
 ) -> TerminusExportResult:
     """Select and convert trials. Raises TraceError on held-out contamination.
 
@@ -644,6 +776,10 @@ def export_conversations(
     A trial flagged in ``curation`` is excluded as ``curation:<flag>`` after
     the held-out check (a flag never hides contamination); its reward stays.
     """
+    if keep_reasoning and per_turn_stride is not None:
+        raise TraceError("cannot specify both --keep-reasoning and --per-turn-stride")
+    if per_turn_stride is not None and per_turn_stride < 1:
+        raise TraceError(f"per-turn stride must be >= 1, got {per_turn_stride}")
     split_manifest = load_split(split_manifest_path)
     digest = split_manifest_digest_of(split_manifest)
     entries_by_name, entries_by_id = _split_task_entries(split_manifest)
@@ -760,6 +896,12 @@ def export_conversations(
                 }
             )
             continue
+        selection_entry: SelectionEntry | None = None
+        if selection is not None:
+            selection_entry = selection.entries.get((job, trial_dir.name))
+            if selection_entry is None:
+                _exclude(disposition, "not_selected")
+                continue
         if flags:
             for item in flags:
                 _exclude(disposition, f"curation:{item['flag']}")
@@ -772,6 +914,31 @@ def export_conversations(
         for segment in segments:
             payload = _read_json(segment.path)
             payloads[segment.name] = payload if isinstance(payload, dict) else {}
+        target_cut_file: str | None = None
+        cut_step_id: int | None = None
+        if selection_entry is not None:
+            target_cut_file = selection_entry.cut_file or "trajectory.json"
+            cut_step_id = selection_entry.cut_step_id
+            segment_names = [s.name for s in segments]
+            if target_cut_file not in segment_names:
+                raise TraceError(
+                    f"trial {trial.relative_path} (job {job}) cut_file {target_cut_file!r} "
+                    f"is not one of the trial's segments: {segment_names}"
+                )
+            if cut_step_id is not None:
+                cut_payload = payloads.get(target_cut_file) or {}
+                cut_steps = cut_payload.get("steps")
+                if not isinstance(cut_steps, list):
+                    raise TraceError(
+                        f"trial {trial.relative_path} (job {job}) cut_file {target_cut_file} "
+                        "has no valid steps list"
+                    )
+                cut_step_ids = {s.get("step_id") for s in cut_steps if isinstance(s, dict)}
+                if cut_step_id not in cut_step_ids:
+                    raise TraceError(
+                        f"trial {trial.relative_path} (job {job}) cut_step_id {cut_step_id} "
+                        f"is not present in {target_cut_file}"
+                    )
         attempts = _summarization_attempts(trial.result)
         splits = sum(
             1
@@ -792,7 +959,12 @@ def export_conversations(
         trial_conversations: list[SegmentConversation] = []
         trial_reasons: list[str] = []
         exported_steps: dict[str, str] = {}
+        cut_active = selection_entry is not None and cut_step_id is not None
+        cut_file_seen = False
         for segment in segments:
+            if cut_active and cut_file_seen:
+                disposition.skipped_segments[segment.name] = "after_cut"
+                continue
             payload = payloads[segment.name]
             if not payload:
                 trial_reasons.append("unparseable_trajectory_segment")
@@ -801,6 +973,16 @@ def export_conversations(
             if not isinstance(steps, list):
                 trial_reasons.append("unparseable_trajectory_segment")
                 continue
+            if cut_active and segment.name == target_cut_file:
+                assert cut_step_id is not None
+                steps = [
+                    s
+                    for s in steps
+                    if isinstance(s, dict)
+                    and isinstance(s.get("step_id"), int)
+                    and s["step_id"] <= cut_step_id
+                ]
+                cut_file_seen = True
             # Whole-segment identity from the shared stitching library
             # (same sha256-over-steps-array; see step_layers.segment_fingerprint).
             fingerprint = segment_fingerprint(steps)
@@ -849,6 +1031,9 @@ def export_conversations(
                     trajectory_name=segment.name,
                     trajectory_sha256=segment.sha256,
                     conversion=conversion,
+                    cut_step_id=cut_step_id if selection is not None else None,
+                    cut_file=target_cut_file if selection is not None else None,
+                    selection_used=selection is not None,
                 )
             )
         if trial_reasons:
@@ -901,6 +1086,21 @@ def export_conversations(
             if (job, trial) not in matched
             for item in items
         ],
+        selection=selection,
+        selection_unmatched=[
+            {
+                "job": entry.job,
+                "trial": entry.trial,
+                "source": entry.source,
+                "cut_step_id": entry.cut_step_id,
+                "cut_file": entry.cut_file,
+            }
+            for (job, trial_name), entry in sorted(
+                (selection.entries if selection else {}).items()
+            )
+            if (job, trial_name) not in matched
+        ],
+        per_turn_stride=per_turn_stride,
     )
 
 
@@ -912,17 +1112,96 @@ def write_export(
     split_manifest_path: Path,
     reward_threshold: float,
     keep_reasoning: bool,
+    per_turn_stride: int | None = None,
 ) -> dict[str, Any]:
     """Write ``conversations.jsonl`` and the manifest; refuses non-empty dirs."""
     if out_dir.exists() and any(out_dir.iterdir()):
         raise TraceError(f"output directory is not empty: {out_dir}")
     out_dir.mkdir(parents=True, exist_ok=True)
     conversations_path = out_dir / CONVERSATIONS_FILE
+    stride = per_turn_stride if per_turn_stride is not None else result.per_turn_stride
+    manifest_conversations: list[dict[str, Any]] = []
+    manifest_rows: list[dict[str, Any]] = []
+
     with conversations_path.open("w", encoding="utf-8") as handle:
         for conversation in result.conversations:
-            handle.write(
-                json.dumps(conversation.to_json_row(), ensure_ascii=False, sort_keys=True) + "\n"
-            )
+            conv_entry = conversation.to_manifest_entry()
+            if stride is not None:
+                asst_positions = [
+                    idx
+                    for idx, msg in enumerate(conversation.messages)
+                    if msg.get("role") == "assistant"
+                ]
+                total_asst = len(asst_positions)
+                kept_turn_indices = sorted(
+                    set(
+                        [i for i in range(total_asst) if i % stride == stride - 1]
+                        + ([total_asst - 1] if total_asst > 0 else [])
+                    )
+                )
+                conv_entry["turn_rows"] = kept_turn_indices
+
+                for k in kept_turn_indices:
+                    asst_pos = asst_positions[k]
+                    history_messages = conversation.messages[:asst_pos]
+                    content_k = conversation.messages[asst_pos]["content"]
+                    reasoning_k = (
+                        conversation.conversion.assistant_reasonings[k]
+                        if k < len(conversation.conversion.assistant_reasonings)
+                        else ""
+                    )
+                    # The model's chat template writes an assistant turn as
+                    # <think>{reasoning_content}</think>{content}<|im_end|>, which
+                    # equals the served completion token for token (217/217
+                    # recorded calls); a <think> block inside ``content`` would not.
+                    history_rows = [dict(m) for m in history_messages]
+                    _validate_conversation(history_rows)
+                    row_messages = history_rows + [
+                        {
+                            "role": "assistant",
+                            "content": content_k,
+                            "reasoning_content": reasoning_k,
+                        }
+                    ]
+                    row = {
+                        "messages": row_messages,
+                        "loss": "last",
+                    }
+                    handle.write(
+                        json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n"
+                    )
+
+                    step_id = (
+                        conversation.conversion.assistant_step_ids[k]
+                        if k < len(conversation.conversion.assistant_step_ids)
+                        else None
+                    )
+                    prompt_tokens = (
+                        conversation.conversion.assistant_prompt_tokens[k]
+                        if k < len(conversation.conversion.assistant_prompt_tokens)
+                        else None
+                    )
+                    completion_tokens = (
+                        conversation.conversion.assistant_completion_tokens[k]
+                        if k < len(conversation.conversion.assistant_completion_tokens)
+                        else None
+                    )
+                    manifest_rows.append(
+                        {
+                            "row_id": f"{conversation.conversation_id}:t{k}",
+                            "conversation_id": conversation.conversation_id,
+                            "turn_index": k,
+                            "step_id_of_target": step_id,
+                            "prompt_tokens_recorded": prompt_tokens,
+                            "completion_tokens_recorded": completion_tokens,
+                        }
+                    )
+            else:
+                handle.write(
+                    json.dumps(conversation.to_json_row(), ensure_ascii=False, sort_keys=True)
+                    + "\n"
+                )
+            manifest_conversations.append(conv_entry)
 
     models = sorted(
         {c.model_name for c in result.conversations if c.model_name is not None}
@@ -953,7 +1232,7 @@ def write_export(
         },
         "harness_tree_digests": dict(sorted(result.harness_trees.items())),
         "roots": [{"label": root.label, "path": root.path.as_posix()} for root in roots],
-        "conversations": [c.to_manifest_entry() for c in result.conversations],
+        "conversations": manifest_conversations,
         "duplicates": result.duplicates,
         "trials": [d.to_json() for d in result.dispositions],
         "curation": {
@@ -964,6 +1243,18 @@ def write_export(
         if result.curation is not None
         else None,
     }
+    if result.selection is not None:
+        manifest["selection"] = {
+            "path": result.selection.path.as_posix(),
+            "sha256": result.selection.sha256,
+        }
+        manifest["selection_unmatched"] = result.selection_unmatched
+    if stride is not None:
+        manifest["per_turn"] = {
+            "stride": stride,
+            "rows": len(manifest_rows),
+        }
+        manifest["rows"] = manifest_rows
     manifest["conversations_sha256"] = _sha256_file(conversations_path)
     (out_dir / MANIFEST_FILE).write_text(
         json.dumps(manifest, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
@@ -1015,7 +1306,26 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help=f"{CURATION_SCHEMA} record of flagged trials (e.g. pass_tainted) to exclude",
     )
+    export.add_argument(
+        "--selection",
+        type=Path,
+        default=None,
+        help=f"{SELECTION_SCHEMA} record of selected trials with optional cut steps",
+    )
+    export.add_argument(
+        "--per-turn-stride",
+        type=int,
+        default=None,
+        help="expand each selected conversation into per-turn trainer rows with stride N (>=1)",
+    )
     args = parser.parse_args(argv)
+    if args.keep_reasoning and args.per_turn_stride is not None:
+        print("error: cannot specify both --keep-reasoning and --per-turn-stride")
+        return 2
+    if args.per_turn_stride is not None and args.per_turn_stride < 1:
+        print(f"error: --per-turn-stride must be >= 1, got {args.per_turn_stride}")
+        return 2
+
     try:
         result = export_conversations(
             args.root,
@@ -1024,6 +1334,8 @@ def main(argv: list[str] | None = None) -> int:
             keep_reasoning=args.keep_reasoning,
             task_store_root=args.task_store_root,
             curation=load_curation(args.curation) if args.curation else None,
+            selection=load_selection(args.selection) if args.selection else None,
+            per_turn_stride=args.per_turn_stride,
         )
         manifest = write_export(
             result,
@@ -1032,6 +1344,7 @@ def main(argv: list[str] | None = None) -> int:
             split_manifest_path=args.split_manifest,
             reward_threshold=args.reward_threshold,
             keep_reasoning=args.keep_reasoning,
+            per_turn_stride=args.per_turn_stride,
         )
     except TraceError as exc:
         print(f"error: {exc}")

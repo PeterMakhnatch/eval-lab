@@ -88,10 +88,60 @@ def jaccard(a: frozenset, b: frozenset) -> float:
     return len(a & b) / len(a | b) if a and b else 0.0
 
 
+#: Top-level directories that name no package; ``usercase-test-coderl`` is
+#: the synthetic hidden-test directory 218 tasks share.
+GENERIC_ROOTS = frozenset(
+    {
+        "tests",
+        "test",
+        "testing",
+        "t",
+        "src",
+        "lib",
+        "docs",
+        "doc",
+        "examples",
+        "scripts",
+        "python",
+        "usercase_test_coderl",
+        "whole_repo_tests",
+        "api",
+        "app",
+        "apps",
+        "core",
+        "server",
+        "backend",
+        "packages",
+        "python_modules",
+        "all",
+    }
+)
+_DIFF_PATH = re.compile(r"^diff --git a/(\S+) b/", re.MULTILINE)
+
+
+def patch_roots(task_dir: Path) -> frozenset[str]:
+    """Package directories the hidden test patch's files live under.
+
+    002209's tests patch ``pandas/tests/io/test_parquet.py``: the task is
+    pandas, although its tests import only fastparquet (a dependency), which
+    ``project_modules`` reports. A root counts when the path has a directory
+    and the directory is not a generic one.
+    """
+    patch = (task_dir / "tests" / "test.patch").read_text(errors="replace")
+    roots = set()
+    for path in _DIFF_PATH.findall(patch):
+        parts = path.split("/")
+        root = parts[0].lower().replace("-", "_")
+        if len(parts) >= 2 and root not in GENERIC_ROOTS:
+            roots.add(root)
+    return frozenset(roots)
+
+
 def main() -> None:
     ledger = list(csv.DictReader(LEDGER.open()))
     census = {row["task_id"]: row for row in pq.read_table(CENSUS).to_pylist()}
     modules = {row["task_id"]: project_modules(SNAPSHOT / row["task_id"]) for row in ledger}
+    roots = {row["task_id"]: patch_roots(SNAPSHOT / row["task_id"]) for row in ledger}
     text = {
         row["task_id"]: shingles((SNAPSHOT / row["task_id"] / "instruction.md").read_text())
         for row in ledger
@@ -101,6 +151,7 @@ def main() -> None:
     train_projects = {row["project"] for row in train}
     train_groups = {census[row["task_id"]]["split_group"] for row in train}
     train_modules = set().union(*(modules[row["task_id"]] for row in train))
+    train_roots = set().union(*(roots[row["task_id"]] for row in train))
     train_source = {
         row["task_id"]: (SNAPSHOT / row["task_id"] / "instruction.md").read_text()
         + "\n"
@@ -134,10 +185,14 @@ def main() -> None:
             return f"repository {key} has training-split tasks"
         if census[task_id]["split_group"] in train_groups:
             return "split_group shared with the training split"
-        shared = modules[task_id] & (train_modules | train_keys)
-        if shared or key in train_modules:
+        shared = modules[task_id] & (train_modules | train_keys | train_roots)
+        if shared or key in train_modules or key in train_roots:
             return f"module shared with the training split: {sorted(shared) or key}"
-        users = sorted({task for module in modules[task_id] for task in used_in_training(module)})
+        shared_roots = roots[task_id] & (train_modules | train_keys | train_roots)
+        if shared_roots:
+            return f"test files live in a training-split package: {sorted(shared_roots)}"
+        identity = modules[task_id] | roots[task_id]
+        users = sorted({task for module in identity for task in used_in_training(module)})
         if users:
             return f"training-split tasks use its modules: {users}"
         return None

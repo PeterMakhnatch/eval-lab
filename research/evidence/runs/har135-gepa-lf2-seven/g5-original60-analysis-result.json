@@ -1,0 +1,1375 @@
+{
+  "all_cell_costs_UNKNOWN": true,
+  "all_physical_attempt_summary": {
+    "gepa": {
+      "Daytona_rate_card_estimate_usd": 1.41722973033265,
+      "USD_measured_per_trial": null,
+      "canonical_counted_pass_over_planned20": 0.15,
+      "capture_upstream_latency_sum_per_trial_s": {
+        "iqr": 378.12524999999994,
+        "median": 377.9865,
+        "n": 20,
+        "q1": 228.83725,
+        "q3": 606.9625,
+        "sum": 9161.98
+      },
+      "counted_fail": 16,
+      "counted_pass": 3,
+      "excluded_NULL": 1,
+      "latency_scope": "Across20 trials incl infra. Physical lifetime includes setup/tools/verifier; per-trial sum of upstream call latency is queue+HTTP+generation, not isolated GPU compute or pooled call quantiles.",
+      "observed_raw_reward_pass": 3,
+      "physical_attempts": 20,
+      "physical_trial_lifetime_s": {
+        "iqr": 716.67506675,
+        "median": 967.0400440000001,
+        "n": 20,
+        "q1": 594.65363075,
+        "q3": 1311.3286975,
+        "sum": 22092.435391
+      },
+      "provider_response_usage_UNKNOWN_error_records": 27,
+      "provider_response_usage_complete_trials": 19,
+      "scored_coverage_over_planned20": 0.95,
+      "stop_reason_counts_over_planned20": {
+        "ceiling:input_tokens": 15,
+        "loop_break": 3,
+        "task_complete_confirmed": 1,
+        "unknown": 1
+      },
+      "successful_response_usage_complete_trials": 20,
+      "usage_metrics_all_original_physical_attempts": {
+        "known_reported_input_tokens": {
+          "iqr": 84535.5,
+          "median": 2445490,
+          "n": 20,
+          "q1": 2375913,
+          "q3": 2460448.5,
+          "sum": 43660270
+        },
+        "known_reported_output_tokens_including_reasoning": {
+          "iqr": 8306.75,
+          "median": 11456,
+          "n": 20,
+          "q1": 7985,
+          "q3": 16291.75,
+          "sum": 280293
+        },
+        "physical_model_calls": {
+          "iqr": 15.25,
+          "median": 95,
+          "n": 20,
+          "q1": 85.75,
+          "q3": 101,
+          "sum": 1821
+        }
+      }
+    },
+    "stock": {
+      "Daytona_rate_card_estimate_usd": 1.3340481553298502,
+      "USD_measured_per_trial": null,
+      "canonical_counted_pass_over_planned20": 0.1,
+      "capture_upstream_latency_sum_per_trial_s": {
+        "iqr": 278.07649999999995,
+        "median": 376.10450000000003,
+        "n": 20,
+        "q1": 278.7915,
+        "q3": 556.8679999999999,
+        "sum": 8524.668
+      },
+      "counted_fail": 15,
+      "counted_pass": 2,
+      "excluded_NULL": 3,
+      "latency_scope": "Across20 trials incl infra. Physical lifetime includes setup/tools/verifier; per-trial sum of upstream call latency is queue+HTTP+generation, not isolated GPU compute or pooled call quantiles.",
+      "observed_raw_reward_pass": 2,
+      "physical_attempts": 20,
+      "physical_trial_lifetime_s": {
+        "iqr": 490.9441805,
+        "median": 907.632282,
+        "n": 20,
+        "q1": 619.32148275,
+        "q3": 1110.26566325,
+        "sum": 20795.762359
+      },
+      "provider_response_usage_UNKNOWN_error_records": 0,
+      "provider_response_usage_complete_trials": 20,
+      "scored_coverage_over_planned20": 0.85,
+      "stop_reason_counts_over_planned20": {
+        "ceiling:input_tokens": 13,
+        "loop_break": 4,
+        "unknown": 3
+      },
+      "successful_response_usage_complete_trials": 20,
+      "usage_metrics_all_original_physical_attempts": {
+        "known_reported_input_tokens": {
+          "iqr": 822599.25,
+          "median": 2434838.5,
+          "n": 20,
+          "q1": 1629530,
+          "q3": 2452129.25,
+          "sum": 40501833
+        },
+        "known_reported_output_tokens_including_reasoning": {
+          "iqr": 11958,
+          "median": 12791,
+          "n": 20,
+          "q1": 7438,
+          "q3": 19396,
+          "sum": 298029
+        },
+        "physical_model_calls": {
+          "iqr": 23.5,
+          "median": 91.5,
+          "n": 20,
+          "q1": 75.25,
+          "q3": 98.75,
+          "sum": 1695
+        }
+      }
+    },
+    "tuned": {
+      "Daytona_rate_card_estimate_usd": 1.69441195158055,
+      "USD_measured_per_trial": null,
+      "canonical_counted_pass_over_planned20": 0.05,
+      "capture_upstream_latency_sum_per_trial_s": {
+        "iqr": 599.6457499999999,
+        "median": 833.244,
+        "n": 20,
+        "q1": 355.61300000000006,
+        "q3": 955.25875,
+        "sum": 14594.421
+      },
+      "counted_fail": 18,
+      "counted_pass": 1,
+      "excluded_NULL": 1,
+      "latency_scope": "Across20 trials incl infra. Physical lifetime includes setup/tools/verifier; per-trial sum of upstream call latency is queue+HTTP+generation, not isolated GPU compute or pooled call quantiles.",
+      "observed_raw_reward_pass": 1,
+      "physical_attempts": 20,
+      "physical_trial_lifetime_s": {
+        "iqr": 716.7979727499999,
+        "median": 1273.0140175000001,
+        "n": 20,
+        "q1": 918.59027825,
+        "q3": 1635.3882509999999,
+        "sum": 26413.280617
+      },
+      "provider_response_usage_UNKNOWN_error_records": 27,
+      "provider_response_usage_complete_trials": 19,
+      "scored_coverage_over_planned20": 0.95,
+      "stop_reason_counts_over_planned20": {
+        "ceiling:input_tokens": 12,
+        "loop_break": 4,
+        "task_complete_confirmed": 3,
+        "unknown": 1
+      },
+      "successful_response_usage_complete_trials": 20,
+      "usage_metrics_all_original_physical_attempts": {
+        "known_reported_input_tokens": {
+          "iqr": 457394.5,
+          "median": 2430308.5,
+          "n": 20,
+          "q1": 2011806,
+          "q3": 2469200.5,
+          "sum": 42525284
+        },
+        "known_reported_output_tokens_including_reasoning": {
+          "iqr": 10097.25,
+          "median": 17300.5,
+          "n": 20,
+          "q1": 10509.25,
+          "q3": 20606.5,
+          "sum": 344625
+        },
+        "physical_model_calls": {
+          "iqr": 21.5,
+          "median": 94,
+          "n": 20,
+          "q1": 83.75,
+          "q3": 105.25,
+          "sum": 1829
+        }
+      }
+    }
+  },
+  "analysis_module": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/src/evallab/analysis_statistics.py",
+  "analysis_module_sha256": "sha256:7667177227de70d3c6fac3dce28503632cacf264cdece6289a762a7b9d888076",
+  "contrasts": {
+    "gepa_minus_stock": {
+      "api_result": {
+        "concordant_failure_a_b": 12,
+        "concordant_success_a_b": 1,
+        "design_floor_limited": true,
+        "design_floor_p_value": 0.000030517578125,
+        "discordant_a_only": 2,
+        "discordant_b_only": 1,
+        "exact_p_value": 1,
+        "is_design_floor": false,
+        "min_attainable_p_value": 0.25,
+        "n_discordant": 3,
+        "n_pairs": 16,
+        "refusal_code": null,
+        "result_digest": "sha256:5b487bf1c97f9a42165319776ac1b169c7badb7b6987e2d2575807b99fa9a168",
+        "risk_difference": 0.0625,
+        "risk_difference_interval_lower": -0.16729448721927126,
+        "risk_difference_interval_upper": 0.2943105900789005,
+        "status": "VALID"
+      },
+      "arm_a": "gepa",
+      "arm_a_paired_success_rate": 0.1875,
+      "arm_a_paired_successes": 3,
+      "arm_b": "stock",
+      "arm_b_paired_success_rate": 0.125,
+      "arm_b_paired_successes": 2,
+      "excluded_task_ids": [
+        "format-code-task-001765",
+        "format-code-task-001241",
+        "format-code-task-001626",
+        "format-code-task-001833"
+      ],
+      "gain_task_ids": [
+        "format-code-task-000332",
+        "format-code-task-000169"
+      ],
+      "holm_adjusted_p": 1,
+      "holm_reject_fwer_0_05": false,
+      "included_task_ids": [
+        "format-code-task-002302",
+        "format-code-task-001695",
+        "format-code-task-000521",
+        "format-code-task-001797",
+        "format-code-task-001809",
+        "format-code-task-001769",
+        "format-code-task-001285",
+        "format-code-task-000568",
+        "format-code-task-002578",
+        "format-code-task-001606",
+        "format-code-task-002017",
+        "format-code-task-001355",
+        "format-code-task-000332",
+        "format-code-task-000842",
+        "format-code-task-000169",
+        "format-code-task-001136"
+      ],
+      "loss_task_ids": [
+        "format-code-task-001695"
+      ],
+      "primary_family_member": true
+    },
+    "tuned_minus_gepa": {
+      "api_result": {
+        "concordant_failure_a_b": 16,
+        "concordant_success_a_b": 1,
+        "design_floor_limited": true,
+        "design_floor_p_value": 0.00000762939453125,
+        "discordant_a_only": 0,
+        "discordant_b_only": 1,
+        "exact_p_value": 1,
+        "is_design_floor": true,
+        "min_attainable_p_value": 1,
+        "n_discordant": 1,
+        "n_pairs": 18,
+        "refusal_code": null,
+        "result_digest": "sha256:1a27519cbfe7ca921f12f8e121bc1aaaf5516143676e28b41f252b1058bf07f9",
+        "risk_difference": -0.05555555555555555,
+        "risk_difference_interval_lower": -0.2440590019329325,
+        "risk_difference_interval_upper": 0.10264392552371601,
+        "status": "VALID"
+      },
+      "arm_a": "tuned",
+      "arm_a_paired_success_rate": 0.05555555555555555,
+      "arm_a_paired_successes": 1,
+      "arm_b": "gepa",
+      "arm_b_paired_success_rate": 0.1111111111111111,
+      "arm_b_paired_successes": 2,
+      "excluded_task_ids": [
+        "format-code-task-000332",
+        "format-code-task-001833"
+      ],
+      "gain_task_ids": [],
+      "holm_adjusted_p": null,
+      "holm_reject_fwer_0_05": null,
+      "included_task_ids": [
+        "format-code-task-002302",
+        "format-code-task-001695",
+        "format-code-task-000521",
+        "format-code-task-001797",
+        "format-code-task-001809",
+        "format-code-task-001769",
+        "format-code-task-001285",
+        "format-code-task-001765",
+        "format-code-task-000568",
+        "format-code-task-001241",
+        "format-code-task-002578",
+        "format-code-task-001606",
+        "format-code-task-002017",
+        "format-code-task-001626",
+        "format-code-task-001355",
+        "format-code-task-000842",
+        "format-code-task-000169",
+        "format-code-task-001136"
+      ],
+      "loss_task_ids": [
+        "format-code-task-001809"
+      ],
+      "primary_family_member": false
+    },
+    "tuned_minus_stock": {
+      "api_result": {
+        "concordant_failure_a_b": 13,
+        "concordant_success_a_b": 0,
+        "design_floor_limited": true,
+        "design_floor_p_value": 0.000030517578125,
+        "discordant_a_only": 1,
+        "discordant_b_only": 2,
+        "exact_p_value": 1,
+        "is_design_floor": false,
+        "min_attainable_p_value": 0.25,
+        "n_discordant": 3,
+        "n_pairs": 16,
+        "refusal_code": null,
+        "result_digest": "sha256:41f357e83f41b0ad1e43048762ea5ed9c24ebaa9acb96056e8e3522333e3afcb",
+        "risk_difference": -0.0625,
+        "risk_difference_interval_lower": -0.30812429323906376,
+        "risk_difference_interval_upper": 0.1839355569170716,
+        "status": "VALID"
+      },
+      "arm_a": "tuned",
+      "arm_a_paired_success_rate": 0.0625,
+      "arm_a_paired_successes": 1,
+      "arm_b": "stock",
+      "arm_b_paired_success_rate": 0.125,
+      "arm_b_paired_successes": 2,
+      "excluded_task_ids": [
+        "format-code-task-001765",
+        "format-code-task-001241",
+        "format-code-task-001626",
+        "format-code-task-000332"
+      ],
+      "gain_task_ids": [
+        "format-code-task-000169"
+      ],
+      "holm_adjusted_p": 1,
+      "holm_reject_fwer_0_05": false,
+      "included_task_ids": [
+        "format-code-task-002302",
+        "format-code-task-001695",
+        "format-code-task-000521",
+        "format-code-task-001797",
+        "format-code-task-001809",
+        "format-code-task-001769",
+        "format-code-task-001285",
+        "format-code-task-000568",
+        "format-code-task-002578",
+        "format-code-task-001606",
+        "format-code-task-002017",
+        "format-code-task-001355",
+        "format-code-task-000842",
+        "format-code-task-000169",
+        "format-code-task-001136",
+        "format-code-task-001833"
+      ],
+      "loss_task_ids": [
+        "format-code-task-001695",
+        "format-code-task-001809"
+      ],
+      "primary_family_member": true
+    }
+  },
+  "counts_schema": "evallab.counts/v1",
+  "input_path": "research/evidence/runs/har135-gepa-lf2-seven/g5-original60-analysis-input.json",
+  "input_sha256": "sha256:342cbed8efe0442f9d2b9fe1019af7debc836bfb97384846a898d4b1df78d9c6",
+  "known_reported_usage_is_not_complete_provider_total": true,
+  "blind_rater_copy_judgment": {
+    "canonical_primary_retained": true,
+    "genuine_pass_labels_are_separate_descriptive_outcome": true,
+    "source": "HAR-133 Research17:48 final disposition: both blind G6 agents judge copied; frozen consumer acquisition remains UNKNOWN under the preexisting-directory guard, no deterministic defect established; canonical primary remains unchanged",
+    "task_id": "format-code-task-000169"
+  },
+  "paired_secondary_usage": {
+    "gepa_minus_stock": {
+      "both_arms_provider_response_usage_complete": true,
+      "both_arms_successful_response_usage_complete": true,
+      "included_task_ids": [
+        "format-code-task-002302",
+        "format-code-task-001695",
+        "format-code-task-000521",
+        "format-code-task-001797",
+        "format-code-task-001809",
+        "format-code-task-001769",
+        "format-code-task-001285",
+        "format-code-task-000568",
+        "format-code-task-002578",
+        "format-code-task-001606",
+        "format-code-task-002017",
+        "format-code-task-001355",
+        "format-code-task-000332",
+        "format-code-task-000842",
+        "format-code-task-000169",
+        "format-code-task-001136"
+      ],
+      "metrics": {
+        "known_reported_input_tokens": {
+          "arm_a": {
+            "iqr": 89436.5,
+            "median": 2446735,
+            "n": 16,
+            "q1": 2375913,
+            "q3": 2465349.5,
+            "sum": 35298063
+          },
+          "arm_b": {
+            "iqr": 237332.25,
+            "median": 2438362,
+            "n": 16,
+            "q1": 2214797,
+            "q3": 2452129.25,
+            "sum": 33870179
+          },
+          "paired_difference_a_minus_b": {
+            "iqr": 60809.5,
+            "median": 12485,
+            "n": 16,
+            "q1": -15423.75,
+            "q3": 45385.75,
+            "sum": 1427884
+          },
+          "per_task_difference_a_minus_b": [
+            {
+              "difference": 16915,
+              "task_id": "format-code-task-002302"
+            },
+            {
+              "difference": 8055,
+              "task_id": "format-code-task-001695"
+            },
+            {
+              "difference": 1310223,
+              "task_id": "format-code-task-000521"
+            },
+            {
+              "difference": 44011,
+              "task_id": "format-code-task-001797"
+            },
+            {
+              "difference": 4824,
+              "task_id": "format-code-task-001809"
+            },
+            {
+              "difference": 1460075,
+              "task_id": "format-code-task-001769"
+            },
+            {
+              "difference": 583294,
+              "task_id": "format-code-task-001285"
+            },
+            {
+              "difference": 6890,
+              "task_id": "format-code-task-000568"
+            },
+            {
+              "difference": 49510,
+              "task_id": "format-code-task-002578"
+            },
+            {
+              "difference": -307143,
+              "task_id": "format-code-task-001606"
+            },
+            {
+              "difference": 19655,
+              "task_id": "format-code-task-002017"
+            },
+            {
+              "difference": -13765,
+              "task_id": "format-code-task-001355"
+            },
+            {
+              "difference": -377164,
+              "task_id": "format-code-task-000332"
+            },
+            {
+              "difference": -20400,
+              "task_id": "format-code-task-000842"
+            },
+            {
+              "difference": 40354,
+              "task_id": "format-code-task-000169"
+            },
+            {
+              "difference": -1397450,
+              "task_id": "format-code-task-001136"
+            }
+          ]
+        },
+        "known_reported_output_tokens_including_reasoning": {
+          "arm_a": {
+            "iqr": 9683.5,
+            "median": 11019,
+            "n": 16,
+            "q1": 6608.25,
+            "q3": 16291.75,
+            "sum": 193855
+          },
+          "arm_b": {
+            "iqr": 11361.25,
+            "median": 12791,
+            "n": 16,
+            "q1": 8034.75,
+            "q3": 19396,
+            "sum": 239268
+          },
+          "paired_difference_a_minus_b": {
+            "iqr": 10809.25,
+            "median": -2092.5,
+            "n": 16,
+            "q1": -7841,
+            "q3": 2968.25,
+            "sum": -45413
+          },
+          "per_task_difference_a_minus_b": [
+            {
+              "difference": -3971,
+              "task_id": "format-code-task-002302"
+            },
+            {
+              "difference": -8045,
+              "task_id": "format-code-task-001695"
+            },
+            {
+              "difference": 2882,
+              "task_id": "format-code-task-000521"
+            },
+            {
+              "difference": 3227,
+              "task_id": "format-code-task-001797"
+            },
+            {
+              "difference": -7773,
+              "task_id": "format-code-task-001809"
+            },
+            {
+              "difference": -2599,
+              "task_id": "format-code-task-001769"
+            },
+            {
+              "difference": -873,
+              "task_id": "format-code-task-001285"
+            },
+            {
+              "difference": 13940,
+              "task_id": "format-code-task-000568"
+            },
+            {
+              "difference": 1496,
+              "task_id": "format-code-task-002578"
+            },
+            {
+              "difference": -6215,
+              "task_id": "format-code-task-001606"
+            },
+            {
+              "difference": 3494,
+              "task_id": "format-code-task-002017"
+            },
+            {
+              "difference": -1586,
+              "task_id": "format-code-task-001355"
+            },
+            {
+              "difference": -8599,
+              "task_id": "format-code-task-000332"
+            },
+            {
+              "difference": -18707,
+              "task_id": "format-code-task-000842"
+            },
+            {
+              "difference": 5107,
+              "task_id": "format-code-task-000169"
+            },
+            {
+              "difference": -17191,
+              "task_id": "format-code-task-001136"
+            }
+          ]
+        },
+        "physical_model_calls": {
+          "arm_a": {
+            "iqr": 15.25,
+            "median": 95,
+            "n": 16,
+            "q1": 85.75,
+            "q3": 101,
+            "sum": 1445
+          },
+          "arm_b": {
+            "iqr": 15.25,
+            "median": 93.5,
+            "n": 16,
+            "q1": 83.5,
+            "q3": 98.75,
+            "sum": 1392
+          },
+          "paired_difference_a_minus_b": {
+            "iqr": 25.5,
+            "median": 2,
+            "n": 16,
+            "q1": -10.75,
+            "q3": 14.75,
+            "sum": 53
+          },
+          "per_task_difference_a_minus_b": [
+            {
+              "difference": 5,
+              "task_id": "format-code-task-002302"
+            },
+            {
+              "difference": 9,
+              "task_id": "format-code-task-001695"
+            },
+            {
+              "difference": 48,
+              "task_id": "format-code-task-000521"
+            },
+            {
+              "difference": -2,
+              "task_id": "format-code-task-001797"
+            },
+            {
+              "difference": 23,
+              "task_id": "format-code-task-001809"
+            },
+            {
+              "difference": 39,
+              "task_id": "format-code-task-001769"
+            },
+            {
+              "difference": 17,
+              "task_id": "format-code-task-001285"
+            },
+            {
+              "difference": -10,
+              "task_id": "format-code-task-000568"
+            },
+            {
+              "difference": 6,
+              "task_id": "format-code-task-002578"
+            },
+            {
+              "difference": -13,
+              "task_id": "format-code-task-001606"
+            },
+            {
+              "difference": -1,
+              "task_id": "format-code-task-002017"
+            },
+            {
+              "difference": -3,
+              "task_id": "format-code-task-001355"
+            },
+            {
+              "difference": -22,
+              "task_id": "format-code-task-000332"
+            },
+            {
+              "difference": -13,
+              "task_id": "format-code-task-000842"
+            },
+            {
+              "difference": 14,
+              "task_id": "format-code-task-000169"
+            },
+            {
+              "difference": -44,
+              "task_id": "format-code-task-001136"
+            }
+          ]
+        }
+      },
+      "paired_N": 16,
+      "quantiles": "inclusive linear (type7), median, Q1/Q3/IQR"
+    },
+    "tuned_minus_gepa": {
+      "both_arms_provider_response_usage_complete": true,
+      "both_arms_successful_response_usage_complete": true,
+      "included_task_ids": [
+        "format-code-task-002302",
+        "format-code-task-001695",
+        "format-code-task-000521",
+        "format-code-task-001797",
+        "format-code-task-001809",
+        "format-code-task-001769",
+        "format-code-task-001285",
+        "format-code-task-001765",
+        "format-code-task-000568",
+        "format-code-task-001241",
+        "format-code-task-002578",
+        "format-code-task-001606",
+        "format-code-task-002017",
+        "format-code-task-001626",
+        "format-code-task-001355",
+        "format-code-task-000842",
+        "format-code-task-000169",
+        "format-code-task-001136"
+      ],
+      "metrics": {
+        "known_reported_input_tokens": {
+          "arm_a": {
+            "iqr": 235921.25,
+            "median": 2434571.5,
+            "n": 18,
+            "q1": 2235876.25,
+            "q3": 2471797.5,
+            "sum": 39003356
+          },
+          "arm_b": {
+            "iqr": 35420.5,
+            "median": 2446735,
+            "n": 18,
+            "q1": 2427721,
+            "q3": 2463141.5,
+            "sum": 40492021
+          },
+          "paired_difference_a_minus_b": {
+            "iqr": 88433.5,
+            "median": -2234.5,
+            "n": 18,
+            "q1": -62569.75,
+            "q3": 25863.75,
+            "sum": -1488665
+          },
+          "per_task_difference_a_minus_b": [
+            {
+              "difference": -71201,
+              "task_id": "format-code-task-002302"
+            },
+            {
+              "difference": 5268,
+              "task_id": "format-code-task-001695"
+            },
+            {
+              "difference": -4130,
+              "task_id": "format-code-task-000521"
+            },
+            {
+              "difference": -259104,
+              "task_id": "format-code-task-001797"
+            },
+            {
+              "difference": -14672,
+              "task_id": "format-code-task-001809"
+            },
+            {
+              "difference": -36676,
+              "task_id": "format-code-task-001769"
+            },
+            {
+              "difference": 203433,
+              "task_id": "format-code-task-001285"
+            },
+            {
+              "difference": 57643,
+              "task_id": "format-code-task-001765"
+            },
+            {
+              "difference": -11135,
+              "task_id": "format-code-task-000568"
+            },
+            {
+              "difference": 32729,
+              "task_id": "format-code-task-001241"
+            },
+            {
+              "difference": 3414,
+              "task_id": "format-code-task-002578"
+            },
+            {
+              "difference": 262123,
+              "task_id": "format-code-task-001606"
+            },
+            {
+              "difference": 1189,
+              "task_id": "format-code-task-002017"
+            },
+            {
+              "difference": -1312023,
+              "task_id": "format-code-task-001626"
+            },
+            {
+              "difference": -350870,
+              "task_id": "format-code-task-001355"
+            },
+            {
+              "difference": -1343437,
+              "task_id": "format-code-task-000842"
+            },
+            {
+              "difference": -339,
+              "task_id": "format-code-task-000169"
+            },
+            {
+              "difference": 1349123,
+              "task_id": "format-code-task-001136"
+            }
+          ]
+        },
+        "known_reported_output_tokens_including_reasoning": {
+          "arm_a": {
+            "iqr": 9814.75,
+            "median": 17300.5,
+            "n": 18,
+            "q1": 10499.5,
+            "q3": 20314.25,
+            "sum": 300760
+          },
+          "arm_b": {
+            "iqr": 9718.25,
+            "median": 11019,
+            "n": 18,
+            "q1": 7079,
+            "q3": 16797.25,
+            "sum": 255067
+          },
+          "paired_difference_a_minus_b": {
+            "iqr": 9472.25,
+            "median": 2229,
+            "n": 18,
+            "q1": -1219.75,
+            "q3": 8252.5,
+            "sum": 45693
+          },
+          "per_task_difference_a_minus_b": [
+            {
+              "difference": 2320,
+              "task_id": "format-code-task-002302"
+            },
+            {
+              "difference": 3080,
+              "task_id": "format-code-task-001695"
+            },
+            {
+              "difference": 8664,
+              "task_id": "format-code-task-000521"
+            },
+            {
+              "difference": -6564,
+              "task_id": "format-code-task-001797"
+            },
+            {
+              "difference": 5053,
+              "task_id": "format-code-task-001809"
+            },
+            {
+              "difference": 2138,
+              "task_id": "format-code-task-001769"
+            },
+            {
+              "difference": 383,
+              "task_id": "format-code-task-001285"
+            },
+            {
+              "difference": 11844,
+              "task_id": "format-code-task-001765"
+            },
+            {
+              "difference": -3944,
+              "task_id": "format-code-task-000568"
+            },
+            {
+              "difference": 16728,
+              "task_id": "format-code-task-001241"
+            },
+            {
+              "difference": 17688,
+              "task_id": "format-code-task-002578"
+            },
+            {
+              "difference": 7018,
+              "task_id": "format-code-task-001606"
+            },
+            {
+              "difference": -1754,
+              "task_id": "format-code-task-002017"
+            },
+            {
+              "difference": -27186,
+              "task_id": "format-code-task-001626"
+            },
+            {
+              "difference": 11500,
+              "task_id": "format-code-task-001355"
+            },
+            {
+              "difference": 1424,
+              "task_id": "format-code-task-000842"
+            },
+            {
+              "difference": -3495,
+              "task_id": "format-code-task-000169"
+            },
+            {
+              "difference": 796,
+              "task_id": "format-code-task-001136"
+            }
+          ]
+        },
+        "physical_model_calls": {
+          "arm_a": {
+            "iqr": 17.75,
+            "median": 94,
+            "n": 18,
+            "q1": 86,
+            "q3": 103.75,
+            "sum": 1637
+          },
+          "arm_b": {
+            "iqr": 11,
+            "median": 95,
+            "n": 18,
+            "q1": 90,
+            "q3": 101,
+            "sum": 1661
+          },
+          "paired_difference_a_minus_b": {
+            "iqr": 17.5,
+            "median": 5.5,
+            "n": 18,
+            "q1": -5.75,
+            "q3": 11.75,
+            "sum": -24
+          },
+          "per_task_difference_a_minus_b": [
+            {
+              "difference": -5,
+              "task_id": "format-code-task-002302"
+            },
+            {
+              "difference": 7,
+              "task_id": "format-code-task-001695"
+            },
+            {
+              "difference": 7,
+              "task_id": "format-code-task-000521"
+            },
+            {
+              "difference": 8,
+              "task_id": "format-code-task-001797"
+            },
+            {
+              "difference": -32,
+              "task_id": "format-code-task-001809"
+            },
+            {
+              "difference": -6,
+              "task_id": "format-code-task-001769"
+            },
+            {
+              "difference": 14,
+              "task_id": "format-code-task-001285"
+            },
+            {
+              "difference": 14,
+              "task_id": "format-code-task-001765"
+            },
+            {
+              "difference": 4,
+              "task_id": "format-code-task-000568"
+            },
+            {
+              "difference": 13,
+              "task_id": "format-code-task-001241"
+            },
+            {
+              "difference": 21,
+              "task_id": "format-code-task-002578"
+            },
+            {
+              "difference": 8,
+              "task_id": "format-code-task-001606"
+            },
+            {
+              "difference": -1,
+              "task_id": "format-code-task-002017"
+            },
+            {
+              "difference": -48,
+              "task_id": "format-code-task-001626"
+            },
+            {
+              "difference": -15,
+              "task_id": "format-code-task-001355"
+            },
+            {
+              "difference": -39,
+              "task_id": "format-code-task-000842"
+            },
+            {
+              "difference": -1,
+              "task_id": "format-code-task-000169"
+            },
+            {
+              "difference": 27,
+              "task_id": "format-code-task-001136"
+            }
+          ]
+        }
+      },
+      "paired_N": 18,
+      "quantiles": "inclusive linear (type7), median, Q1/Q3/IQR"
+    },
+    "tuned_minus_stock": {
+      "both_arms_provider_response_usage_complete": true,
+      "both_arms_successful_response_usage_complete": true,
+      "included_task_ids": [
+        "format-code-task-002302",
+        "format-code-task-001695",
+        "format-code-task-000521",
+        "format-code-task-001797",
+        "format-code-task-001809",
+        "format-code-task-001769",
+        "format-code-task-001285",
+        "format-code-task-000568",
+        "format-code-task-002578",
+        "format-code-task-001606",
+        "format-code-task-002017",
+        "format-code-task-001355",
+        "format-code-task-000842",
+        "format-code-task-000169",
+        "format-code-task-001136",
+        "format-code-task-001833"
+      ],
+      "metrics": {
+        "known_reported_input_tokens": {
+          "arm_a": {
+            "iqr": 302359.5,
+            "median": 2430308.5,
+            "n": 16,
+            "q1": 2159834.25,
+            "q3": 2462193.75,
+            "sum": 34611239
+          },
+          "arm_b": {
+            "iqr": 237332.25,
+            "median": 2438362,
+            "n": 16,
+            "q1": 2214797,
+            "q3": 2452129.25,
+            "sum": 33847421
+          },
+          "paired_difference_a_minus_b": {
+            "iqr": 137730,
+            "median": -7046.5,
+            "n": 16,
+            "q1": -94487.75,
+            "q3": 43242.25,
+            "sum": 763818
+          },
+          "per_task_difference_a_minus_b": [
+            {
+              "difference": -54286,
+              "task_id": "format-code-task-002302"
+            },
+            {
+              "difference": 13323,
+              "task_id": "format-code-task-001695"
+            },
+            {
+              "difference": 1306093,
+              "task_id": "format-code-task-000521"
+            },
+            {
+              "difference": -215093,
+              "task_id": "format-code-task-001797"
+            },
+            {
+              "difference": -9848,
+              "task_id": "format-code-task-001809"
+            },
+            {
+              "difference": 1423399,
+              "task_id": "format-code-task-001769"
+            },
+            {
+              "difference": 786727,
+              "task_id": "format-code-task-001285"
+            },
+            {
+              "difference": -4245,
+              "task_id": "format-code-task-000568"
+            },
+            {
+              "difference": 52924,
+              "task_id": "format-code-task-002578"
+            },
+            {
+              "difference": -45020,
+              "task_id": "format-code-task-001606"
+            },
+            {
+              "difference": 20844,
+              "task_id": "format-code-task-002017"
+            },
+            {
+              "difference": -364635,
+              "task_id": "format-code-task-001355"
+            },
+            {
+              "difference": -1363837,
+              "task_id": "format-code-task-000842"
+            },
+            {
+              "difference": 40015,
+              "task_id": "format-code-task-000169"
+            },
+            {
+              "difference": -48327,
+              "task_id": "format-code-task-001136"
+            },
+            {
+              "difference": -774216,
+              "task_id": "format-code-task-001833"
+            }
+          ]
+        },
+        "known_reported_output_tokens_including_reasoning": {
+          "arm_a": {
+            "iqr": 8880,
+            "median": 15212,
+            "n": 16,
+            "q1": 9333,
+            "q3": 18213,
+            "sum": 237481
+          },
+          "arm_b": {
+            "iqr": 11113.5,
+            "median": 10852,
+            "n": 16,
+            "q1": 7438,
+            "q3": 18551.5,
+            "sum": 226377
+          },
+          "paired_difference_a_minus_b": {
+            "iqr": 8061,
+            "median": 171,
+            "n": 16,
+            "q1": -2874.25,
+            "q3": 5186.75,
+            "sum": 11104
+          },
+          "per_task_difference_a_minus_b": [
+            {
+              "difference": -1651,
+              "task_id": "format-code-task-002302"
+            },
+            {
+              "difference": -4965,
+              "task_id": "format-code-task-001695"
+            },
+            {
+              "difference": 11546,
+              "task_id": "format-code-task-000521"
+            },
+            {
+              "difference": -3337,
+              "task_id": "format-code-task-001797"
+            },
+            {
+              "difference": -2720,
+              "task_id": "format-code-task-001809"
+            },
+            {
+              "difference": -461,
+              "task_id": "format-code-task-001769"
+            },
+            {
+              "difference": -490,
+              "task_id": "format-code-task-001285"
+            },
+            {
+              "difference": 9996,
+              "task_id": "format-code-task-000568"
+            },
+            {
+              "difference": 19184,
+              "task_id": "format-code-task-002578"
+            },
+            {
+              "difference": 803,
+              "task_id": "format-code-task-001606"
+            },
+            {
+              "difference": 1740,
+              "task_id": "format-code-task-002017"
+            },
+            {
+              "difference": 9914,
+              "task_id": "format-code-task-001355"
+            },
+            {
+              "difference": -17283,
+              "task_id": "format-code-task-000842"
+            },
+            {
+              "difference": 1612,
+              "task_id": "format-code-task-000169"
+            },
+            {
+              "difference": -16395,
+              "task_id": "format-code-task-001136"
+            },
+            {
+              "difference": 3611,
+              "task_id": "format-code-task-001833"
+            }
+          ]
+        },
+        "physical_model_calls": {
+          "arm_a": {
+            "iqr": 17.25,
+            "median": 92,
+            "n": 16,
+            "q1": 83.75,
+            "q3": 101,
+            "sum": 1439
+          },
+          "arm_b": {
+            "iqr": 16,
+            "median": 93.5,
+            "n": 16,
+            "q1": 83.5,
+            "q3": 99.5,
+            "sum": 1402
+          },
+          "paired_difference_a_minus_b": {
+            "iqr": 29.75,
+            "median": -1,
+            "n": 16,
+            "q1": -11,
+            "q3": 18.75,
+            "sum": 37
+          },
+          "per_task_difference_a_minus_b": [
+            {
+              "difference": 0,
+              "task_id": "format-code-task-002302"
+            },
+            {
+              "difference": 16,
+              "task_id": "format-code-task-001695"
+            },
+            {
+              "difference": 55,
+              "task_id": "format-code-task-000521"
+            },
+            {
+              "difference": 6,
+              "task_id": "format-code-task-001797"
+            },
+            {
+              "difference": -9,
+              "task_id": "format-code-task-001809"
+            },
+            {
+              "difference": 33,
+              "task_id": "format-code-task-001769"
+            },
+            {
+              "difference": 31,
+              "task_id": "format-code-task-001285"
+            },
+            {
+              "difference": -6,
+              "task_id": "format-code-task-000568"
+            },
+            {
+              "difference": 27,
+              "task_id": "format-code-task-002578"
+            },
+            {
+              "difference": -5,
+              "task_id": "format-code-task-001606"
+            },
+            {
+              "difference": -2,
+              "task_id": "format-code-task-002017"
+            },
+            {
+              "difference": -18,
+              "task_id": "format-code-task-001355"
+            },
+            {
+              "difference": -52,
+              "task_id": "format-code-task-000842"
+            },
+            {
+              "difference": 13,
+              "task_id": "format-code-task-000169"
+            },
+            {
+              "difference": -17,
+              "task_id": "format-code-task-001136"
+            },
+            {
+              "difference": -35,
+              "task_id": "format-code-task-001833"
+            }
+          ]
+        }
+      },
+      "paired_N": 16,
+      "quantiles": "inclusive linear (type7), median, Q1/Q3/IQR"
+    }
+  },
+  "planned20_missing_outcome_sensitivities": {
+    "gepa_minus_stock": {
+      "all_missing_fail_RD": 0.05,
+      "all_missing_pass_RD": -0.05,
+      "enumerated_assignments": 16,
+      "missing_arm_outcomes_independently_varied": 4,
+      "planned_N": 20,
+      "scenarios_are_not_sharp_bounds": true,
+      "sensitivity_hypothesis_tests_run": false,
+      "sharp_RD_max": 0.1,
+      "sharp_RD_min": -0.1
+    },
+    "tuned_minus_gepa": {
+      "all_missing_fail_RD": -0.1,
+      "all_missing_pass_RD": -0.1,
+      "enumerated_assignments": 4,
+      "missing_arm_outcomes_independently_varied": 2,
+      "planned_N": 20,
+      "scenarios_are_not_sharp_bounds": true,
+      "sensitivity_hypothesis_tests_run": false,
+      "sharp_RD_max": -0.05,
+      "sharp_RD_min": -0.15
+    },
+    "tuned_minus_stock": {
+      "all_missing_fail_RD": -0.05,
+      "all_missing_pass_RD": -0.15,
+      "enumerated_assignments": 16,
+      "missing_arm_outcomes_independently_varied": 4,
+      "planned_N": 20,
+      "scenarios_are_not_sharp_bounds": true,
+      "sensitivity_hypothesis_tests_run": false,
+      "sharp_RD_max": 0,
+      "sharp_RD_min": -0.2
+    }
+  },
+  "posthoc_three_stock_losses_as_failures": {
+    "gepa_minus_stock": {
+      "N": 19,
+      "RD": 0.05263157894736842,
+      "hypothesis_test_run": false,
+      "posthoc_descriptive_only": true,
+      "primary_outcomes_unchanged": true
+    },
+    "tuned_minus_stock": {
+      "N": 19,
+      "RD": -0.05263157894736842,
+      "hypothesis_test_run": false,
+      "posthoc_descriptive_only": true,
+      "primary_outcomes_unchanged": true
+    }
+  },
+  "primary_family_size": 2,
+  "reasoning_already_in_completion": true,
+  "schema": "har135.g5-original60-analysis-result/v1"
+}

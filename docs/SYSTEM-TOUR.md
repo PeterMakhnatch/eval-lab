@@ -11,9 +11,13 @@ audience:
 
 Eval Lab is an evaluation workbench built around Harbor that enforces immutable evidence, verifiable provenance, and guarded execution feedback loops.
 
+For the current launch-to-training path, owners and artifacts, start with
+[SYSTEM.md](SYSTEM.md). This page explains the underlying layers, not a second
+execution checklist or a statement of current run approval.
+
 ---
 
-## 1. Canonical 7-Stage End-to-End Pipeline
+## 1. Foundational layers
 
 ```text
 [1. TASK & EXPERIMENT SPEC]
@@ -31,13 +35,13 @@ Eval Lab is an evaluation workbench built around Harbor that enforces immutable 
        │  • Direct Local Controls: evallab run --task library/tasks/... --agent oracle|nop
        ▼
 [4. RAW EVIDENCE IMMUTABILITY (Zone 1 & CAS)]
-       │  • Raw Trial Directory: runs/trial_jobs/<job_id>/<trial_id>/ (result.json, ATIF, logs)
+       │  • Raw Trial Directory: runs/<job>/<trial>/ (result.json, ATIF, logs)
        │  • Content-Addressed Storage: derived/evidence-cas/ (cas://sha256/<hex>)
        │  • Promoted Golden Evidence: research/evidence/runs/ (Permanent retention)
        ▼
 [5. METADATA CATALOG & DATA LAYER INGESTION (Zones 2 & 3)]
        │  • PostgreSQL Catalog (Z2): evallab ingest runs -> sql/schema.sql (jobs, trials, rewards, verdicts)
-       │  • Parquet Analytics Lake (Z3): derived/parquet/ (evallab.evidence.facts, evallab.storage.parquet_compaction)
+       │  • Live Parquet Lake (Z3): <primary>-state/derived/parquet/ (storage.paths)
        │  • Reconciliation / Backfill: evallab data backfill --all (disposition: ANALYSIS_READY vs HOLD)
        │  • Unified Query Surface: evallab db attach --zones (DuckDB across Z2+Z3+Z4)
        ▼
@@ -74,20 +78,22 @@ The code layout is strictly modularized across authoritative domain packages and
 ## 3. Four Provenance Zones & Storage Guarantees
 
 1. **Zone 1: Raw Durable Evidence & External Benchmarks**
-   - Locations: `runs/trial_jobs/`, `research/evidence/runs/`, `derived/evidence-cas/`, `library/benchmarks/_trajectories/`
+   - Locations: `runs/<job>/<trial>/`, `research/evidence/runs/`, `derived/evidence-cas/`, `library/benchmarks/_trajectories/`
    - Policy: Immutable, append-only, and protected from garbage collection.
 2. **Zone 2: Relational Metadata Catalog**
    - Locations: PostgreSQL database (`jobs`, `trials`, `verdicts`, `rewards`)
    - Policy: Fast operational queries and indexing; never stores heavy blob data.
 3. **Zone 3: Columnar Analytics Lake**
-   - Locations: `derived/parquet/`
-   - Policy: Deterministically rebuildable from Zone 1 evidence via `evallab.storage.parquet_compaction` and `evallab.evidence.facts`.
+   - Live location: `<primary>-state/derived/parquet/`; tracked `derived/parquet/` files are deliberate reproducibility snapshots.
+   - Policy: Deterministic facts can be rebuilt from retained source evidence. Preserve model judgments and other outputs whose exact regeneration is not established; see [generated/cache policy](GENERATED-CACHE-POLICY.md).
 4. **Zone 4: Curated Marts & Evaluation Artifacts**
    - Locations: `derived/curated/`, `derived/comparisons/`, capability curves, eval cards
    - Policy: Structured domain views produced by `evallab.interpretation` and `evallab curve`.
 
 ---
 
-## 4. Feature-Unblocked Status
+## 4. Availability and authorization
 
-Package 1 (Storage & Evidence Foundation) and Package 2 (Interpretation & Judgment Engine) are stabilized and locked. Infrastructure migration is complete. All current and future development is **FEATURE-UNBLOCKED** for active capability evaluations, difficulty screening, and automated feedback loops.
+Use the [system map](SYSTEM.md), exact source revisions and the current Linear
+card for availability and approval. A completed infrastructure migration is not
+blanket authorization for model calls, training, deployment or publication.

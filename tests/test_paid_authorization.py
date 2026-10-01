@@ -111,10 +111,13 @@ def executor(root: Path, requests: list) -> Executor:
 
 
 def reasons_for(queue: DirectoryQueue, spec_id: str) -> list[dict]:
-    return [
-        json.loads(path.read_text())
-        for path in sorted(queue.reasons_dir.glob(f"{spec_id}-*.json"))
+    """Same-millisecond ULIDs are not chronological; use recorded timestamps."""
+    loaded = [
+        (path.name, json.loads(path.read_text()))
+        for path in queue.reasons_dir.glob(f"{spec_id}-*.json")
     ]
+    loaded.sort(key=lambda item: (datetime.fromisoformat(item[1]["occurred_at"]), item[0]))
+    return [reason for _, reason in loaded]
 
 
 # --- 1. a billable spec with no authorisation is refused -------------------
@@ -175,7 +178,25 @@ def test_recorded_authorization_admits_and_dispatches_the_same_spec(tmp_path: Pa
     assert requests[0].provenance.policy_rule == "human-approval"
 
 
-def test_authorization_does_not_lift_the_per_job_cost_ceiling(tmp_path: Path) -> None:
+def test_authorization_does_not_lift_the_per_job_cost_ceiling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    microseconds = iter(range(1000))
+    random_parts = iter(range(1000, 0, -1))
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 9, 28, 20, 26, tzinfo=UTC) + timedelta(
+                microseconds=next(microseconds)
+            )
+            return instant if tz is not None else instant.replace(tzinfo=None)
+
+    monkeypatch.setattr("evallab.queue.datetime", Clock)
+    # Same ULID millisecond, reverse random-part order: HAR-89's refusal race.
+    monkeypatch.setattr(
+        "evallab.queue.new_ulid", lambda: f"01K0000000{next(random_parts):016d}"
+    )
     requests: list = []
     service = executor(tmp_path, requests)
     path, _ = service.submit(spec("expensive-codex", est_cost_usd=9.0))

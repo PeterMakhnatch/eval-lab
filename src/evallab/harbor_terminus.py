@@ -93,6 +93,7 @@ from evallab.execution_contracts import (
 from evallab.harbor_common import sanitize_native_trajectory
 from evallab.loopfix import (
     LOOP_BREAK_KEY,
+    LOOP_GRACE_CALLS,
     LOOP_NUDGE_MESSAGE,
     LOOP_STOP_REASON,
     OUTPUT_SPILL_PATH,
@@ -102,6 +103,7 @@ from evallab.loopfix import (
     loop_decision,
 )
 from evallab.mimo_tool_calls import MimoToolCallParser, has_native_completion
+from evallab.probe03 import LOOP_MIN_RUN
 from evallab.step_layers import (
     STEP_LAYERS_KEY,
     attach_layers,
@@ -109,6 +111,7 @@ from evallab.step_layers import (
     copied_layers,
 )
 from evallab.terminus_local import OllamaBinding, resolve_ollama_binding
+from evallab.token_flow import COMMAND_RUN_MIN
 
 __all__ = [
     "LoopBreakStop",
@@ -485,6 +488,9 @@ class SecretSafeTerminus2(Terminus2):
         loop_break: bool = False,
         output_cap_chars: int | None = None,
         completion_fix: bool = False,
+        loop_command_run_min: int | None = None,
+        loop_message_run_min: int | None = None,
+        loop_grace_calls: int | None = None,
         **kwargs: Any,
     ) -> None:
         if len(args) > 1:
@@ -502,9 +508,21 @@ class SecretSafeTerminus2(Terminus2):
             or output_cap_chars < 2
         ):
             raise ValueError("output_cap_chars must be an integer of at least 2, or null")
+        for knob_name, knob_value in (
+            ("loop_command_run_min", loop_command_run_min),
+            ("loop_message_run_min", loop_message_run_min),
+            ("loop_grace_calls", loop_grace_calls),
+        ):
+            if knob_value is not None and (
+                isinstance(knob_value, bool) or not isinstance(knob_value, int) or knob_value < 2
+            ):
+                raise ValueError(f"{knob_name} must be an integer of at least 2, or null")
         self._loop_break_enabled = loop_break
         self._completion_fix_enabled = completion_fix
         self._output_cap_chars = output_cap_chars
+        self._loop_command_run_min = loop_command_run_min or COMMAND_RUN_MIN
+        self._loop_message_run_min = loop_message_run_min or LOOP_MIN_RUN
+        self._loop_grace_calls = loop_grace_calls or LOOP_GRACE_CALLS
         self._loop_nudged_call: int | None = None
         self._loop_detector: str | None = None
         self._loop_stop_call: int | None = None
@@ -704,7 +722,9 @@ class SecretSafeTerminus2(Terminus2):
             # pending logic ends the episode from here.
             is_task_complete = True
             outcome = (commands, True, feedback, analysis, plan, llm_response)
-        self._pending_composed_message = self._composed_message(analysis, plan, llm_response)
+        self._pending_composed_message = self._recorded_message(
+            analysis, plan, llm_response, feedback
+        )
         parser = self._parser
         if isinstance(parser, MimoToolCallParser) and parser.last_prose_completion:
             # Upstream appends this turn's agent step later in the episode.
@@ -733,6 +753,9 @@ class SecretSafeTerminus2(Terminus2):
             "parse_error": parse_error,
             "exec": None,
         }
+        if self._is_parse_error_turn(feedback):
+            feedback = self._apply_loop_fix_to_parse_error(feedback, llm_response)
+            outcome = (commands, is_task_complete, feedback, analysis, plan, llm_response)
         return outcome
 
     async def _execute_commands(self, commands: Any, session: Any) -> Any:
@@ -779,7 +802,7 @@ class SecretSafeTerminus2(Terminus2):
         return timeout, output
 
     def _composed_message(self, analysis: Any, plan: Any, llm_response: Any) -> str:
-        """The message the trajectory step will carry, so live and replay agree."""
+        """The message a parsed turn's trajectory step will carry."""
         if getattr(self, "_save_raw_content_in_trajectory", False):
             content = getattr(llm_response, "content", None)
             return content if isinstance(content, str) else ""
@@ -789,6 +812,35 @@ class SecretSafeTerminus2(Terminus2):
         if isinstance(plan, str) and plan:
             parts.append(f"Plan: {plan}")
         return "\n".join(parts)
+
+    @staticmethod
+    def _is_parse_error_turn(feedback: Any) -> bool:
+        """Whether upstream records this turn as a parse error (raw message)."""
+        return isinstance(feedback, str) and "ERROR:" in feedback
+
+    def _recorded_message(self, analysis: Any, plan: Any, llm_response: Any, feedback: Any) -> str:
+        """The message upstream will record for this turn, so live and replay agree.
+
+        Upstream records the raw model response when parsing failed and the
+        composed analysis/plan otherwise (the raw response in raw-content
+        mode). The old code always used the composed text, so on parse-error
+        turns the live detector saw empty-or-varying text while the replay
+        saw the repeating raw markup (HAR-116 001896).
+        """
+        if self._is_parse_error_turn(feedback) and not getattr(
+            self, "_save_raw_content_in_trajectory", False
+        ):
+            content = getattr(llm_response, "content", None)
+            return content if isinstance(content, str) else ""
+        return self._composed_message(analysis, plan, llm_response)
+
+    def _loop_thresholds(self) -> dict[str, int]:
+        """The detector run lengths and grace window this agent runs."""
+        return {
+            "command_run_min": self._loop_command_run_min,
+            "message_run_min": self._loop_message_run_min,
+            "grace_calls": self._loop_grace_calls,
+        }
 
     def _current_step(self, commands: Any) -> dict[str, Any]:
         """This call as the detector sees it, before its step is appended."""
@@ -837,17 +889,49 @@ class SecretSafeTerminus2(Terminus2):
         if not self._loop_break_enabled or self._loop_stop_call is not None:
             return output
         steps = [*self._taken_steps(), self._current_step(commands)]
-        action = live_loop_action(steps)
+        action = live_loop_action(steps, **self._loop_thresholds())
         if self._loop_nudged_call is not None and self._loop_model_next is None:
             self._loop_model_next = self._describe_next(commands)
         if action == "nudge":
             self._loop_nudged_call = len(steps)
-            self._loop_detector = loop_decision(steps)["detector"]
+            self._loop_detector = loop_decision(steps, **self._loop_thresholds())["detector"]
             return output + "\n\n" + LOOP_NUDGE_MESSAGE
         if action == "stop" and not self._finishing():
             self._loop_stop_call = len(steps)
             self._loop_stop_pending = True
         return output
+
+    def _apply_loop_fix_to_parse_error(self, feedback: Any, llm_response: Any) -> Any:
+        """Nudge or stop a loop that only shows in unparsed responses.
+
+        Upstream records the raw model response as the step message on a
+        parse-error turn and never executes it, so ``_apply_loop_fix`` never
+        sees these turns — yet that is exactly where a parse-error loop
+        repeats (HAR-116 001896: dozens of identical raw ``<tool_call>``
+        markups the live detector missed while the replay fired). Run the
+        same rule over the to-be-recorded message; the nudge rides the
+        parse-error feedback upstream already feeds back on the next prompt.
+        """
+        if not self._loop_break_enabled or self._loop_stop_call is not None:
+            return feedback
+        content = getattr(llm_response, "content", None)
+        current = {
+            "source": "agent",
+            "message": content if isinstance(content, str) else "",
+            "tool_calls": [],
+        }
+        steps = [*self._taken_steps(), current]
+        action = live_loop_action(steps, **self._loop_thresholds())
+        if action == "nudge":
+            self._loop_nudged_call = len(steps)
+            self._loop_detector = loop_decision(steps, **self._loop_thresholds())["detector"]
+            if isinstance(feedback, str):
+                return feedback + "\n\n" + LOOP_NUDGE_MESSAGE
+            return feedback
+        if action == "stop" and not self._finishing():
+            self._loop_stop_call = len(steps)
+            self._loop_stop_pending = True
+        return feedback
 
     def _finishing(self) -> bool:
         """Whether this call confirms completion, so the loop ends on its own."""
@@ -1045,7 +1129,7 @@ class SecretSafeTerminus2(Terminus2):
             self._loop_stop_pending = False
             raise LoopBreakStop(
                 "loop break: the repetition was still going "
-                f"{self._loop_stop_call} calls in, five after the nudge at "
+                f"{self._loop_stop_call} calls in, {self._loop_grace_calls} after the nudge at "
                 f"call {self._loop_nudged_call}"
             )
 

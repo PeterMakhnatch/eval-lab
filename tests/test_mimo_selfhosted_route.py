@@ -28,16 +28,19 @@ import importlib.util
 import json
 import math
 import os
+import socket
 import subprocess
 import sys
 import threading
 import time
 import urllib.error
 import urllib.request
+from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import ModuleType
 from typing import Any
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -250,8 +253,6 @@ class _MimoUpstream(BaseHTTPRequestHandler):
     #: Scripted replies served before any success: (status, JSON body) or
     #: (status, raw bytes, content type) for non-JSON upstream errors.
     errors: list[Any] = []
-    #: Seconds each reply takes, standing in for generation time.
-    delay = 0.0
 
     def do_POST(self) -> None:  # noqa: N802
         if self.path != "/v1/chat/completions":
@@ -263,7 +264,6 @@ class _MimoUpstream(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(length))
         type(self).seen.append(body)
-        time.sleep(type(self).delay)
         if type(self).errors:
             scripted = type(self).errors.pop(0)
             if len(scripted) == 3:
@@ -300,7 +300,6 @@ class _MimoUpstream(BaseHTTPRequestHandler):
 def mimo_upstream() -> Any:
     _MimoUpstream.seen = []
     _MimoUpstream.errors = []
-    _MimoUpstream.delay = 0.0
     server = ThreadingHTTPServer(("127.0.0.1", 0), _MimoUpstream)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -723,29 +722,57 @@ def test_a_call_its_client_abandoned_settles_before_the_proxy_exits(
     # HAR-90 0036-f: Harbor cancelled the agent at its 900 s timeout with a
     # call in flight. Stopping the proxy killed that call's handler, so the
     # call stayed reserved and the runner failed a trial the verifier scored.
-    _MimoUpstream.delay = 1.0
+    admitted = threading.Event()
+    release_response = threading.Event()
+    original_reply = _MimoUpstream._reply
+
+    def held_reply(self, status, body, content_type="text/plain"):
+        admitted.set()
+        assert release_response.wait(30), "test did not release the upstream response"
+        original_reply(self, status, body, content_type)
+
+    monkeypatch.setattr(_MimoUpstream, "_reply", held_reply)
     process, url, usage_path = _launch_mimo_proxy(
         tmp_path, monkeypatch, mimo_upstream, CAPABILITY_SENTINEL, _proxy_limits()
     )
-    request = urllib.request.Request(
-        f"{url}/v1/chat/completions",
-        data=json.dumps(
-            {
-                "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
-                "messages": [{"role": "user", "content": "hi"}],
-                "max_tokens": 100,
-            }
-        ).encode(),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {CAPABILITY_SENTINEL}",
-        },
-    )
+    endpoint = urlsplit(url)
+    connection = HTTPConnection(endpoint.hostname, endpoint.port, timeout=10)
+    payload = json.dumps(
+        {
+            "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
+            "messages": [{"role": "user", "content": "hi"}],
+            "max_tokens": 100,
+        }
+    ).encode()
     try:
-        with pytest.raises(OSError):
-            urllib.request.urlopen(request, timeout=0.2)
+        connection.request(
+            "POST",
+            "/v1/chat/completions",
+            body=payload,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {CAPABILITY_SENTINEL}",
+            },
+        )
+        assert admitted.wait(10), "proxy did not forward the admitted request"
         assert json.loads(usage_path.read_text())["calls"][0]["state"] == "reserved"
+        connection.close()
+        process.terminate()
+        # Admission must close while the abandoned call is still held upstream.
+        deadline = time.monotonic() + 10
+        while True:
+            assert process.poll() is None, "proxy exited with a call still in flight"
+            try:
+                with socket.create_connection((endpoint.hostname, endpoint.port), timeout=0.1):
+                    pass
+            except ConnectionRefusedError:
+                break
+            if time.monotonic() >= deadline:
+                pytest.fail("proxy did not close its listener during shutdown")
+            release_response.wait(0.05)
     finally:
+        connection.close()
+        release_response.set()
         runner_module._stop_terminus_proxy(process)
 
     usage = runner_module._read_proxy_usage(

@@ -1,4 +1,4 @@
-"""Per-UTC-day lab spend ledger (HAR-122).
+"""UTC-day lab spend ledger (HAR-122) and billed-session allocation (HAR-131).
 
 One ledger per UTC day sums ALL lab spend broken down by source (Modal
 billed rows, Daytona sandbox estimates, model API ledgers), by card
@@ -51,6 +51,12 @@ per-job proxy ledgers count whole on the day their job finished.
 The pre-launch check (``check_launch``) additionally reads the queue's
 ``running``/``approved`` specs read-only to reserve in-flight spend;
 this module still never spends, never writes, and never launches.
+
+``session_spend_for_job`` reads an explicit post-session receipt, binds its
+complete declared membership to teardown, and shares billed Modal dollars by
+recorded trial wall seconds. It adds the supplied existing Daytona estimate;
+an unknown estimate leaves the combined total unknown. This allocation is an
+accounting policy, not measured per-job GPU usage or a new pricing model.
 """
 
 from __future__ import annotations
@@ -1867,3 +1873,282 @@ def render_decision(decision: LaunchDecision) -> str:
     for note in decision.notes:
         lines.append(f"note: {note}")
     return "\n".join(lines)
+
+
+def _session_json_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON field {key!r}")
+        result[key] = value
+    return result
+
+
+def _read_session_json(path: Path) -> tuple[dict[str, Any], bytes]:
+    try:
+        raw = path.read_bytes()
+        payload = json.loads(raw.decode("utf-8"), object_pairs_hook=_session_json_pairs)
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise ValueError(f"cannot read session spend input {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"session spend input must be a JSON object: {path}")
+    return payload, raw
+
+
+def _session_text(entry: Mapping[str, Any], key: str, label: str) -> str:
+    value = entry.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{label} has no nonempty {key}")
+    return value
+
+
+def _session_number(value: Any, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{label} must be a finite nonnegative number")
+    try:
+        number = float(value)
+    except OverflowError as exc:
+        raise ValueError(f"{label} must be finite") from exc
+    if not math.isfinite(number) or number < 0.0:
+        raise ValueError(f"{label} must be a finite nonnegative number")
+    return number
+
+
+def _session_timestamp(entry: Mapping[str, Any], key: str, label: str) -> datetime:
+    value = _session_text(entry, key, label)
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(f"{label} has invalid {key}: {value!r}") from exc
+
+
+def _session_commits_match(first: str, second: str) -> bool:
+    if first == second:
+        return True
+    short, long = (first, second) if len(first) < len(second) else (second, first)
+    return (
+        re.fullmatch(r"[0-9a-fA-F]{7,64}", short) is not None
+        and re.fullmatch(r"[0-9a-fA-F]{7,64}", long) is not None
+        and long.startswith(short)
+    )
+
+
+def _validate_spend_session(entry: Any, index: int) -> dict[str, Any]:
+    label = f"session {index}"
+    if not isinstance(entry, dict):
+        raise ValueError(f"{label} must be an object")
+    session_id = _session_text(entry, "session_id", label)
+    label = f"session {session_id!r}"
+    deployment, teardown = entry.get("deployment"), entry.get("teardown")
+    if not isinstance(deployment, dict) or not isinstance(teardown, dict):
+        raise ValueError(f"{label} requires deployment and teardown objects")
+    commit = _session_text(deployment, "commit", label)
+    deployed = _session_timestamp(deployment, "time_deployed", label)
+    recorded = _session_timestamp(teardown, "recorded_at", label)
+    try:
+        if deployed > recorded:
+            raise ValueError(f"{label} teardown precedes deployment")
+    except TypeError as exc:
+        raise ValueError(f"{label} deployment/teardown timezones are ambiguous") from exc
+    app = _session_text(teardown, "app", label)
+    completed = teardown.get("completed_spec_ids")
+    if (
+        not isinstance(completed, list)
+        or not completed
+        or any(not isinstance(spec, str) or not spec.strip() for spec in completed)
+        or len(set(completed)) != len(completed)
+    ):
+        raise ValueError(f"{label} requires unique completed_spec_ids")
+    rows = entry.get("billing_rows")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError(f"{label} requires billing_rows")
+    identities: set[tuple[str, datetime, str]] = set()
+    intervals: dict[str, list[tuple[datetime, datetime]]] = {}
+    reported: list[tuple[datetime, str]] = []
+    costs: list[float] = []
+    interval_aware: bool | None = None
+    for pos, row in enumerate(rows):
+        row_label = f"{label} billing row {pos}"
+        if not isinstance(row, dict):
+            raise ValueError(f"{row_label} must be an object")
+        if row.get("object_id") != session_id or row.get("description") != app:
+            raise ValueError(f"{row_label} object_id/description do not bind the session/app")
+        for key in ("environment", "resource"):
+            if not isinstance(row.get(key), str):
+                raise ValueError(f"{row_label} requires string {key}")
+        resolution = _session_text(row, "resolution", row_label)
+        if resolution not in {"d", "h"}:
+            raise ValueError(f"{row_label} requires billing resolution 'd' or 'h'")
+        interval = _session_timestamp(row, "interval_start", row_label)
+        aware = interval.utcoffset() is not None
+        if interval_aware is not None and interval_aware != aware:
+            raise ValueError(f"{label} billing interval timezones are ambiguous")
+        interval_aware = aware
+        identity = (session_id, interval, row["resource"])
+        if identity in identities:
+            raise ValueError(f"{label} repeats a billing row")
+        identities.add(identity)
+        try:
+            interval_end = interval + timedelta(hours=24 if resolution == "d" else 1)
+        except OverflowError as exc:
+            raise ValueError(f"{row_label} billing interval end is out of range") from exc
+        resource_intervals = intervals.setdefault(row["resource"], [])
+        if any(
+            interval < prior_end and prior_start < interval_end
+            for prior_start, prior_end in resource_intervals
+        ):
+            raise ValueError(
+                f"{row_label} overlaps another billing interval for the same app/resource; "
+                "supply non-overlapping billing rows"
+            )
+        resource_intervals.append((interval, interval_end))
+        reported.append(
+            (_session_timestamp(row, "reported_at", row_label), row["reported_at"])
+        )
+        costs.append(_session_number(row.get("cost_usd"), f"{row_label} cost_usd"))
+    raw_members = entry.get("members")
+    if not isinstance(raw_members, list) or not raw_members:
+        raise ValueError(f"{label} requires members")
+    members: list[dict[str, Any]] = []
+    job_ids: set[str] = set()
+    spec_ids: set[str] = set()
+    for pos, member in enumerate(raw_members):
+        member_label = f"{label} member {pos}"
+        if not isinstance(member, dict):
+            raise ValueError(f"{member_label} must be an object")
+        fields = {
+            key: _session_text(member, key, member_label)
+            for key in ("job_id", "job_name", "spec_id", "repository_commit", "lab_metadata_sha256")
+        }
+        if fields["job_id"] in job_ids or fields["spec_id"] in spec_ids:
+            raise ValueError(f"{label} repeats a member job_id or spec_id")
+        job_ids.add(fields["job_id"])
+        spec_ids.add(fields["spec_id"])
+        if re.fullmatch(r"[0-9a-f]{64}", fields["lab_metadata_sha256"]) is None:
+            raise ValueError(f"{member_label} requires a lab_metadata_sha256 hex digest")
+        if not _session_commits_match(commit, fields["repository_commit"]):
+            raise ValueError(f"{member_label} repository_commit does not bind deployment")
+        if "daytona_estimate_usd" not in member:
+            raise ValueError(f"{member_label} requires daytona_estimate_usd (null if unknown)")
+        daytona = member["daytona_estimate_usd"]
+        members.append({
+            **fields,
+            "trial_wall_seconds": _session_number(
+                member.get("trial_wall_seconds"), f"{member_label} trial_wall_seconds"
+            ),
+            "daytona_estimate_usd": None if daytona is None else _session_number(
+                daytona, f"{member_label} daytona_estimate_usd"
+            ),
+        })
+    if spec_ids != set(completed):
+        raise ValueError(f"{label} members do not exactly match teardown completed_spec_ids")
+    longest_commit = max((m["repository_commit"] for m in members), key=len)
+    if any(not _session_commits_match(longest_commit, m["repository_commit"]) for m in members):
+        raise ValueError(f"{label} deployment revision is ambiguous across members")
+    try:
+        billed = math.fsum(costs)
+        weight = math.fsum(m["trial_wall_seconds"] for m in members)
+        billing_reported_at = max(reported, key=lambda item: item[0])[1]
+    except OverflowError as exc:
+        raise ValueError(f"{label} billed pool or wall time total is not finite") from exc
+    except TypeError as exc:
+        raise ValueError(f"{label} billing reported_at timezones are ambiguous") from exc
+    if weight <= 0.0 or not math.isfinite(weight) or not math.isfinite(billed):
+        raise ValueError(f"{label} requires finite totals and positive trial wall time")
+    return {
+        "session_id": session_id,
+        "members": members,
+        "billed_modal_usd": billed,
+        "session_trial_wall_seconds": weight,
+        "billing_reported_at": billing_reported_at,
+    }
+
+
+def session_spend_for_job(job_dir: Path, receipt_path: Path) -> dict[str, Any]:
+    """Share a complete billed Modal pool by recorded trial wall seconds.
+
+    This is an accounting policy, not measured per-job GPU usage; warm/idle/
+    startup overhead stays in the pool. Add only the receipt's existing Daytona
+    estimate, preserving unknowns. Validate every declared session before any
+    allocation. Bind the target to its native result ID, spec, exact recorded
+    revision and lab-metadata byte hash, never its directory name.
+    Native billing resolutions ``d``/``h`` must not overlap for the same app
+    object/resource; daily and hourly reports are not additive alternatives.
+
+    Receipt/source bytes are read afresh without writes, queries or pricing.
+    ``billing_reported_at`` retains the latest row's original timestamp string.
+    Invalid, ambiguous or stale explicit inputs raise ``ValueError``.
+    """
+    receipt, raw_receipt = _read_session_json(receipt_path)
+    if receipt.get("schema") != "evallab.session_spend/v1":
+        raise ValueError(f"unsupported session spend receipt schema: {receipt_path}")
+    raw_sessions = receipt.get("sessions")
+    if not isinstance(raw_sessions, list) or not raw_sessions:
+        raise ValueError(f"session spend receipt requires sessions: {receipt_path}")
+    sessions = [_validate_spend_session(item, pos) for pos, item in enumerate(raw_sessions)]
+    seen_sessions: set[str] = set()
+    seen_jobs: set[str] = set()
+    for session in sessions:
+        if session["session_id"] in seen_sessions:
+            raise ValueError("session spend receipt repeats a session_id")
+        seen_sessions.add(session["session_id"])
+        for member in session["members"]:
+            if member["job_id"] in seen_jobs:
+                raise ValueError("session spend receipt declares a job in multiple sessions")
+            seen_jobs.add(member["job_id"])
+    result, _ = _read_session_json(job_dir / "result.json")
+    metadata, raw_metadata = _read_session_json(job_dir / "lab-metadata.json")
+    job_id = _session_text(result, "id", "job result")
+    experiment = metadata.get("experiment")
+    spec_id = experiment.get("spec_id") if isinstance(experiment, dict) else None
+    spec_path = job_dir / "experiment-spec.json"
+    if spec_id is None or spec_path.exists():
+        spec, _ = _read_session_json(spec_path)
+        saved_spec_id = _session_text(spec, "spec_id", "job experiment-spec")
+        if spec_id is not None and spec_id != saved_spec_id:
+            raise ValueError("job experiment spec bindings disagree")
+        spec_id = saved_spec_id
+    if not isinstance(spec_id, str) or not spec_id.strip():
+        raise ValueError("job lab-metadata has no usable experiment.spec_id")
+    repository = metadata.get("repository")
+    if not isinstance(repository, dict):
+        raise ValueError("job lab-metadata requires repository.commit")
+    commit = _session_text(repository, "commit", "job lab-metadata repository")
+    metadata_sha = hashlib.sha256(raw_metadata).hexdigest()
+    for session in sessions:
+        for member in session["members"]:
+            if member["job_id"] != job_id:
+                continue
+            if (
+                member["spec_id"] != spec_id
+                or member["repository_commit"] != commit
+                or member["lab_metadata_sha256"] != metadata_sha
+            ):
+                raise ValueError(f"job {job_id!r} has a stale session spend binding; rebuild receipt")
+            billed = session["billed_modal_usd"]
+            weight = member["trial_wall_seconds"]
+            session_weight = session["session_trial_wall_seconds"]
+            modal_share = billed * (weight / session_weight)
+            daytona = member["daytona_estimate_usd"]
+            total = None if daytona is None else _session_number(
+                modal_share + daytona, f"job {job_id!r} total_usd"
+            )
+            return {
+                "schema": "evallab.session_spend_allocation/v1",
+                "session_id": session["session_id"],
+                "job_id": job_id,
+                "spec_id": spec_id,
+                "member_count": len(session["members"]),
+                "modal_allocated_usd": modal_share,
+                "daytona_estimate_usd": daytona,
+                "total_usd": total,
+                "billed_modal_usd": billed,
+                "trial_wall_seconds": weight,
+                "session_trial_wall_seconds": session_weight,
+                "allocation_basis": "billed_modal_wall_time_share_plus_daytona_estimate",
+                "source_receipt_path": str(receipt_path),
+                "source_receipt_sha256": hashlib.sha256(raw_receipt).hexdigest(),
+                "billing_reported_at": session["billing_reported_at"],
+                "reason": None if daytona is not None else "daytona_estimate_unknown",
+            }
+    raise ValueError(f"job {job_id!r} is not a member of session spend receipt {receipt_path}")

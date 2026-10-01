@@ -2,9 +2,9 @@
 
 ``modal billing report`` (read-only) is the billed side. The lab side sums
 catalog ``trials.cost_usd`` for self-hosted MiMo trials per UTC day. Ingested
-self-hosted trials record the native model id
-(``XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B``), not the ``selfhosted/`` queue
-selector, so both spellings match. Missing data is ``None`` with a reason,
+self-hosted trials record a native model id (the base
+``XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B`` or an admitted ``...:<adapter>``),
+not the ``selfhosted/`` queue selector, so both spellings match. Missing data is ``None`` with a reason,
 never 0: the self-hosted route bills by server time, so per-trial cost is
 routinely absent from the catalog.
 """
@@ -17,7 +17,8 @@ from typing import Any
 
 import psycopg
 
-from evallab.modal_ops import SELFHOSTED_CATALOG_MODELS, daytona_sandbox_counts
+from evallab.execution_contracts import MIMO_SELFHOSTED_NATIVE_MODELS
+from evallab.modal_ops import daytona_sandbox_counts
 
 #: Catalog table holding fetched Modal billing rows. Also applied through
 #: ``sql/schema.sql``; created here too so direct users get the same shape.
@@ -200,16 +201,15 @@ def lab_selfhosted_daily(database_url: str, day: date) -> tuple[float | None, in
 
     Returns ``(total_or_None, trial_count, trials_without_cost, reason)``.
     """
-    native = SELFHOSTED_CATALOG_MODELS[0]
     with psycopg.connect(database_url) as connection:
         row = connection.execute(
             """
             SELECT coalesce(sum(cost_usd), 0), count(cost_usd), count(*)
             FROM trials
-            WHERE (model_name = %s OR model_name LIKE 'selfhosted/%%')
+            WHERE (model_name = ANY(%s) OR model_name LIKE 'selfhosted/%%')
               AND (started_at::timestamptz AT TIME ZONE 'UTC')::date = %s
             """,
-            (native, day.isoformat()),
+            (sorted(MIMO_SELFHOSTED_NATIVE_MODELS), day.isoformat()),
         ).fetchone()
     if row is None:
         return None, 0, 0, "catalog query returned no row"

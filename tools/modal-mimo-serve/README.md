@@ -48,3 +48,30 @@ A trial's cost is time-based, not token-based:
   server $/h ($2.8149 for GPU, CPU and memory together) × trial hours ÷ concurrent trials + Daytona sandbox time
 
 A cold start and the 5-minute idle tail are billed once per warm period.
+
+## Base + adapter on one server (`serve_lora.py`, HAR-129)
+
+`serve_lora.py` deploys app `evallab-mimo-v26-9b-lora`. It serves the base model and one PEFT LoRA adapter from the SFT volume, `evallab-mimo-v26-9b-sft`, written by `tools/modal-mimo-sft/sft.py train`.
+
+It uses the same image digest, weights, GPU, scaling and secret as production, and the exact `serve.py` launch command (`sglang_command`). It adds only:
+- `--enable-lora --lora-paths <name>=/sft/<run>/adapter --max-lora-rank 64 --max-loras-per-batch 1 --lora-strict-loading`;
+- the SFT volume, mounted read-only.
+
+Production is a separate app and is never touched.
+
+| Model name in the request | Serves |
+|---|---|
+| `XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` | base weights |
+| `XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:<name>` | base + adapter (SGLang's `base:adapter` syntax; the response echoes the name) |
+
+```bash
+EVALLAB_MIMO_LORA_ADAPTER=<run>/adapter EVALLAB_MIMO_LORA_NAME=<name> \
+  uv run --project tools/modal-mimo-serve --locked modal deploy tools/modal-mimo-serve/serve_lora.py
+# parity and validity: the LoRA server's two names against production, temperature 0, inside Modal
+uv run --project tools/modal-mimo-serve --locked modal run tools/modal-mimo-serve/lora_smoke.py \
+  --prompts <prompts.json> --lora-url <lora url> --prod-url <prod url> --adapter <name> --out raw.json
+uv run python research/experiments/har129-lora/smoke_parity.py score raw.json scored.json
+uv run --project tools/modal-mimo-serve --locked modal app stop -y evallab-mimo-v26-9b-lora
+```
+
+With LoRA enabled, SGLang turns off the linear-attention fused GEMM fast path (`qwen3_5.py:661-665` at v0.5.20), and its LoRA kernels run with untuned defaults. Both cost speed, not output. On 2026-10-01 the base name matched production byte for byte on 5 of 5 Terminus prompts at temperature 0 (`research/experiments/har129-lora/`).

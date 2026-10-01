@@ -170,10 +170,13 @@ def authorized_dispatch(
 
 
 def reasons_for(queue: DirectoryQueue, spec_id: str) -> list[dict]:
-    return [
-        json.loads(path.read_text())
-        for path in sorted(queue.reasons_dir.glob(f"{spec_id}-*.json"))
+    """Same-millisecond ULIDs are not chronological; use recorded timestamps."""
+    loaded = [
+        (path.name, json.loads(path.read_text()))
+        for path in queue.reasons_dir.glob(f"{spec_id}-*.json")
     ]
+    loaded.sort(key=lambda item: (datetime.fromisoformat(item[1]["occurred_at"]), item[0]))
+    return [reason for _, reason in loaded]
 
 
 # --- trap 1: an unavailable reading is never headroom -----------------------
@@ -337,9 +340,9 @@ def test_a_configured_threshold_refuses_under_its_own_reason_code(tmp_path: Path
         tmp_path, headroom(used_percent=92.0), refuse_billable_at_used_percent=90.0
     )
     assert requests == []
-    # Selected by code rather than by taking the last file: two reasons written
-    # in the same millisecond sort arbitrarily, because a reason filename's ULID
-    # randomness is its low bits.
+    # Selected by code rather than by taking the last file: that holds even
+    # under a same-millisecond ULID tie, where filenames alone order the two
+    # refusals arbitrarily (HAR-89).
     reasons = reasons_for(service.queue, spec_id)
     ceilings = [reason for reason in reasons if reason["code"] == "subscription_quota_ceiling"]
     assert len(ceilings) == 1, [reason["code"] for reason in reasons]

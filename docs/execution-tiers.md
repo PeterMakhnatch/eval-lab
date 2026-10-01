@@ -194,6 +194,14 @@ implementations. Metered routes, all host-side through the same loopback proxy:
   `2.8149 x trial_hours / concurrency + sandbox_usd`. With zero rates the
   proxy's cost ceiling cannot trip; its request and token ceilings still
   bound the run.
+  `selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129` (HAR-129) is the
+  same route on the LoRA-enabled twin server
+  (`tools/modal-mimo-serve/serve_lora.py`, pointed at by the same upstream
+  variable). It selects the `har129` SFT adapter through SGLang's
+  `base:adapter` model name and gets the same forced generation_config and
+  `(0, 0)` prices. Only the adapter names in
+  `execution_contracts.MIMO_SELFHOSTED_ADAPTERS` are admitted, and a reply
+  echoing the base id fails the run's model-identity check.
 
 - `openrouter-metered/xiaomi/mimo-v2.6-flash` (HAR-104) — MiMo-V2.6-Flash via
   OpenRouter's OpenAI-compatible endpoint, pinned to
@@ -654,10 +662,11 @@ uv run python -m evallab.sft_split freeze \
 #    a held-out task (matched by sealed task_version_digest when the pinned
 #    snapshot task directory is available, else by task name/id) REFUSES the
 #    export; exceptions and reward < threshold are excluded and counted by
-#    reason in manifest.json.
+#    reason in manifest.json. An optional `--selection FILE` picks specific
+#    trials and can truncate at a given `cut_step_id`. Optional
+#    `--per-turn-stride N` expands conversations into per-turn trainer rows.
 uv run python -m evallab.sft_terminus export \
   --root teacher=runs/mimo-teacher --split-manifest split.json --out export/
-
 # 3. Offline render + cost report (free; downloads tokenizer files only).
 #    The renderer runs inside the isolated, locked project tools/tinker-sft
 #    (tinker==0.30.4, tinker-cookbook==0.5.7, own uv.lock; never part of the
@@ -679,13 +688,15 @@ sequence-extension property, so earlier assistant turns train on prefixes
 that differ from their generation-time prompts; the protocol keeps one
 conversation per linear segment and no per-turn export.
 
-The exporter only accepts trials recorded in raw-content mode (parsed
-`tool_calls` trajectories lost the model's raw emission and are excluded),
-and each Terminus continuation segment (`trajectory.cont-N.json`) becomes
-its own flagged conversation. Teacher reasoning is dropped by default
-(`--keep-reasoning` opts in). chat_sl 0.5.7 takes `key=value` arguments,
-not `--flags`; the launcher emits the verified form.
-
+The exporter accepts trials recorded in raw-content mode or with `step_layers`
+retaining the raw proposed message (trajectories with parsed `tool_calls`
+lacking raw step layers are excluded), and each Terminus continuation segment
+(`trajectory.cont-N.json`) becomes its own flagged conversation. Teacher
+reasoning is dropped by default (`--keep-reasoning` opts in). Optional
+`--selection` admits explicit trial choices and step truncation (`cut_step_id`).
+Optional `--per-turn-stride N` expands conversations into one row per kept
+assistant turn with loss only on the target turn. chat_sl 0.5.7 takes
+`key=value` arguments, not `--flags`; the launcher emits the verified form.
 ## Running on Modal (binding rules)
 
 **Any cloud/remote execution is `escalate_to_human` per

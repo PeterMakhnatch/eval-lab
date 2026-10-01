@@ -39,7 +39,6 @@ Key design points (see README.md for evidence and the cost formula):
 from __future__ import annotations
 
 import argparse
-import asyncio
 import hashlib
 import json
 import re
@@ -71,12 +70,20 @@ BASE_DIR = f"{WEIGHTS_MOUNT}/{MODEL_ID}/{MODEL_REVISION}"
 # Source: modal.com/pricing via src/evallab/execution_contracts.py
 # MIMO_SELFHOSTED_SERVER_USD_PER_HOUR (2026-09-28).
 MODAL_USD_PER_HOUR = 2.814912
-# Labeled throughput assumption for the time estimate: 9B bf16 LoRA,
-# grad checkpointing, ~32K context on one A100-80GB. Rough on purpose;
-# the dry run prints it next to every estimate and the receipt records it.
-ASSUMED_TRAIN_THROUGHPUT_TOK_S = 1000.0
+# Measured throughput for the time estimate (HAR-129 dry run, 2026-10-01):
+# one step over 3 Terminus segments, 143,829 sequence tokens (longest
+# 51,700), took 256.9 s on one A100-80GB with fla kernels, gradient
+# checkpointing and the chunked selected-token loss. Every token of a sample
+# costs a forward and backward, so the estimate counts sequence tokens, not
+# trained tokens. Shorter samples run faster per token.
+MEASURED_TRAIN_THROUGHPUT_TOK_S = 560.0
 
-DEFAULT_MAX_LENGTH = 32768
+# The served context (tools/modal-mimo-serve CONTEXT_LENGTH); no Terminus
+# segment can be longer than what the server accepted.
+DEFAULT_MAX_LENGTH = 65536
+# Trained positions per lm_head chunk in the selected-token loss: 4096 x
+# 248320 fp32 logits is about 4 GiB, recomputed in backward.
+LOSS_CHUNK_TOKENS = 4096
 # Right-truncate (TRL SFTConfig truncation_mode="keep_start"); conversations
 # left with zero trained tokens after truncation are dropped, mirroring
 # SFTTrainer preparation. Recorded in every receipt.
@@ -115,7 +122,10 @@ DEFAULTS = {
 # and ships src/transformers/models/qwen3_5/modeling_qwen3_5.py (verified at
 # tag v5.12.1); trl==1.14.0 requires transformers>=4.56.2 and natively folds
 # an `assistant_masks` dataset column into labels. All versions verified
-# present on PyPI 2026-09-29.
+# present on PyPI 2026-09-29. flash-linear-attention / fla-core 0.5.2 (pure
+# Triton wheels, PyPI 2026-07-27) give transformers the fused gated-delta-rule
+# kernels for the 24 linear-attention layers; without them it falls back to
+# a slow torch loop.
 TRAIN_IMAGE_PACKAGES = [
     "torch==2.14.0",
     "transformers==5.12.1",
@@ -124,6 +134,8 @@ TRAIN_IMAGE_PACKAGES = [
     "accelerate==1.15.0",
     "datasets==5.0.1",
     "huggingface_hub==1.9.2",
+    "flash-linear-attention==0.5.2",
+    "fla-core==0.5.2",
 ]
 
 _THINK_PREFIX_RE = re.compile(r"\A<think>\n(.*?)\n</think>(?:\n\n|\n)?(.*)\Z", re.DOTALL)
@@ -146,13 +158,36 @@ def _sha256_file(path: Path) -> str:
     return f"sha256:{digest.hexdigest()}"
 
 
-def load_conversations(path: Path) -> list[list[dict[str, Any]]]:
-    """Strictly validate ``conversations.jsonl`` rows (role/content only)."""
+def _module_version(name: str) -> str | None:
+    """``__version__`` of an importable module, else None."""
+    try:
+        module = __import__(name)
+    except ImportError:
+        return None
+    return str(getattr(module, "__version__", "unknown"))
+
+
+@dataclass
+class Conversation:
+    """One training row: its messages and which assistant turns carry loss.
+
+    ``loss="all"`` (the default) trains every assistant turn. ``loss="last"``
+    trains only the final assistant turn: a per-call sample whose history is
+    exactly what the served model saw (assistant turns without reasoning)
+    and whose target is that call's full generation.
+    """
+
+    messages: list[dict[str, Any]]
+    loss: str = "all"
+
+
+def load_conversations(path: Path) -> list[Conversation]:
+    """Strictly validate ``conversations.jsonl`` rows (role/content, optional loss)."""
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
         raise SftError(f"cannot read {path}: {exc}") from exc
-    conversations: list[list[dict[str, Any]]] = []
+    conversations: list[Conversation] = []
     for number, line in enumerate(text.splitlines(), start=1):
         if not line.strip():
             continue
@@ -160,19 +195,33 @@ def load_conversations(path: Path) -> list[list[dict[str, Any]]]:
             row = json.loads(line)
         except ValueError as exc:
             raise SftError(f"{path}:{number} is not JSON: {exc}") from exc
-        if not isinstance(row, dict) or set(row) != {"messages"}:
-            raise SftError(f"{path}:{number} must hold exactly a 'messages' key")
+        if not isinstance(row, dict) or set(row) - {"loss"} != {"messages"}:
+            raise SftError(f"{path}:{number} must hold a 'messages' key and optionally 'loss'")
         messages = row["messages"]
         if not isinstance(messages, list) or not messages:
             raise SftError(f"{path}:{number} 'messages' must be a non-empty list")
         for message in messages:
-            if not isinstance(message, dict) or set(message) != {"role", "content"}:
-                raise SftError(f"{path}:{number} messages need exactly role/content")
+            keys = set(message) if isinstance(message, dict) else set()
+            if keys != {"role", "content"} and not (
+                keys == {"role", "content", "reasoning_content"}
+                and message.get("role") == "assistant"
+            ):
+                raise SftError(
+                    f"{path}:{number} messages need exactly role/content "
+                    "(assistant turns may add reasoning_content)"
+                )
             if message["role"] not in ALLOWED_ROLES:
                 raise SftError(f"{path}:{number} unsupported role {message['role']!r}")
-            if not isinstance(message["content"], str):
-                raise SftError(f"{path}:{number} content must be a string")
-        conversations.append(messages)
+            if not isinstance(message["content"], str) or not isinstance(
+                message.get("reasoning_content", ""), str
+            ):
+                raise SftError(f"{path}:{number} content and reasoning_content must be strings")
+        loss = row.get("loss", "all")
+        if loss not in ("all", "last"):
+            raise SftError(f"{path}:{number} 'loss' must be 'all' or 'last'")
+        if loss == "last" and messages[-1]["role"] != "assistant":
+            raise SftError(f"{path}:{number} loss='last' needs a final assistant turn")
+        conversations.append(Conversation(messages=messages, loss=loss))
     if not conversations:
         raise SftError(f"{path} contains no conversations")
     return conversations
@@ -183,7 +232,7 @@ class Export:
     """A verified export dir plus the digests the receipt must record."""
 
     data_dir: Path
-    conversations: list[list[dict[str, Any]]]
+    conversations: list[Conversation]
     manifest: dict[str, Any]
     manifest_sha256: str
     conversations_sha256: str
@@ -243,18 +292,31 @@ def split_think_prefix(content: str) -> tuple[str | None, str]:
 def to_template_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Map export rows onto the fields the distill template renders.
 
-    Assistant ``<think>`` prefixes become ``reasoning_content`` (the only
-    field the template renders inside ``<think>``); every other assistant
-    turn omits it and renders an empty ``<think></think>``. Tool calls stay
-    verbatim ``<tool_call><function=...>`` text inside ``content`` — the
-    export carries no structured ``tool_calls`` field (parsed-step
-    trajectories are excluded upstream), so the template's structured
-    branch is never triggered.
+    An assistant turn's reasoning reaches the template as ``reasoning_content``
+    (the only field it renders inside ``<think>``). Rows may carry it
+    explicitly, exactly as the model emitted it; otherwise a leading
+    ``<think>`` block in ``content`` is split off. Turns without reasoning
+    render an empty ``<think></think>``. Tool calls stay verbatim
+    ``<tool_call><function=...>`` text inside ``content`` — the export
+    carries no structured ``tool_calls`` field (parsed-step trajectories are
+    excluded upstream), so the template's structured branch is never
+    triggered.
     """
     rendered: list[dict[str, Any]] = []
     for message in messages:
         if message["role"] != "assistant":
             rendered.append({"role": message["role"], "content": message["content"]})
+            continue
+        if "reasoning_content" in message:
+            if message["content"].lstrip().startswith("<think>"):
+                raise SftError("assistant turn has both reasoning_content and a <think> prefix")
+            rendered.append(
+                {
+                    "role": "assistant",
+                    "content": message["content"],
+                    "reasoning_content": message["reasoning_content"],
+                }
+            )
             continue
         reasoning, body = split_think_prefix(message["content"])
         turn: dict[str, Any] = {"role": "assistant", "content": body}
@@ -299,16 +361,26 @@ def render_and_mask(
     *,
     max_length: int,
     label: str,
+    loss: str = "all",
 ) -> Rendered:
     """Render with the model's own template; derive verified assistant spans.
 
-    Primary signal: the template's ``{% generation %}`` markers via
-    ``return_assistant_tokens_mask``. Verification: incremental prefix
-    rendering — every prefix must be an exact token-prefix of the full
-    render, and the union of assistant-turn suffixes must equal the template
-    mask. Anything else raises :class:`SftError` naming the conversation.
-    ``enable_thinking=True`` matches serving; with ``add_generation_prompt``
-    unset it changes no training token, only the (absent) trailing prompt.
+    ``loss="all"``: the template's ``{% generation %}`` markers (via
+    ``return_assistant_tokens_mask``) are the primary signal, verified by
+    incremental prefix rendering — every prefix must be an exact token-prefix
+    of the full render, and the union of assistant-turn suffixes must equal
+    the template mask. These spans include each turn's
+    ``<|im_start|>assistant\\n`` header.
+
+    ``loss="last"``: exactly the tokens the served model generated for the
+    final call. The served prompt is ``messages[:-1]`` rendered with
+    ``add_generation_prompt=True``; it must be a token-prefix of the full
+    render, every token after it must sit inside the template's assistant
+    mask, and only those tokens train. The header is part of the prompt, so
+    it never trains.
+
+    Anything else raises :class:`SftError` naming the conversation.
+    ``enable_thinking=True`` matches serving.
     """
     tmpl = to_template_messages(messages)
     full = tokenizer.apply_chat_template(
@@ -322,28 +394,46 @@ def render_and_mask(
     mask = [int(bit) for bit in full["assistant_masks"]]
     assistant_turns = sum(1 for message in tmpl if message["role"] == "assistant")
 
-    # Verified prefix property + cross-check against the template markers.
-    derived = [0] * len(ids)
-    previous = 0
-    for end in range(1, len(tmpl) + 1):
-        part = list(
+    if loss == "last":
+        if tmpl[-1]["role"] != "assistant":
+            raise SftError(f"{label}: loss='last' needs a final assistant turn")
+        prompt = list(
             tokenizer.apply_chat_template(
-                tmpl[:end],
+                tmpl[:-1],
                 tokenize=True,
-                add_generation_prompt=False,
+                add_generation_prompt=True,
                 enable_thinking=True,
             )["input_ids"]
         )
-        if len(part) <= previous or part != ids[: len(part)]:
-            raise SftError(f"{label}: prefix property broken at message {end}")
-        if tmpl[end - 1]["role"] == "assistant":
-            for pos in range(previous, len(part)):
-                derived[pos] = 1
-        previous = len(part)
-    if previous != len(ids):
-        raise SftError(f"{label}: prefix render diverged from full render")
-    if derived != mask:
-        raise SftError(f"{label}: template mask disagrees with prefix spans")
+        start = len(prompt)
+        if start >= len(ids) or prompt != ids[:start]:
+            raise SftError(f"{label}: served prompt is not a prefix of the full render")
+        if not all(mask[start:]):
+            raise SftError(f"{label}: completion falls outside the template's assistant mask")
+        mask = [int(pos >= start) for pos in range(len(ids))]
+    else:
+        # Verified prefix property + cross-check against the template markers.
+        derived = [0] * len(ids)
+        previous = 0
+        for end in range(1, len(tmpl) + 1):
+            part = list(
+                tokenizer.apply_chat_template(
+                    tmpl[:end],
+                    tokenize=True,
+                    add_generation_prompt=False,
+                    enable_thinking=True,
+                )["input_ids"]
+            )
+            if len(part) <= previous or part != ids[: len(part)]:
+                raise SftError(f"{label}: prefix property broken at message {end}")
+            if tmpl[end - 1]["role"] == "assistant":
+                for pos in range(previous, len(part)):
+                    derived[pos] = 1
+            previous = len(part)
+        if previous != len(ids):
+            raise SftError(f"{label}: prefix render diverged from full render")
+        if derived != mask:
+            raise SftError(f"{label}: template mask disagrees with prefix spans")
     if not any(mask):
         raise SftError(f"{label}: conversation has zero trainable tokens")
 
@@ -393,8 +483,14 @@ def run_dry_run(
 ) -> DryRun:
     """Render every conversation; fail loudly on the first broken one."""
     renders = [
-        render_and_mask(tokenizer, messages, max_length=max_length, label=f"conversation {index}")
-        for index, messages in enumerate(export.conversations)
+        render_and_mask(
+            tokenizer,
+            row.messages,
+            max_length=max_length,
+            label=f"conversation {index}",
+            loss=row.loss,
+        )
+        for index, row in enumerate(export.conversations)
     ]
     return DryRun(
         export=export,
@@ -405,13 +501,13 @@ def run_dry_run(
     )
 
 
-def estimate_cost_usd(train_tokens_total: int) -> dict[str, float]:
-    """A100-80GB time estimate from dry-run trained tokens (labeled guess)."""
-    seconds = train_tokens_total / ASSUMED_TRAIN_THROUGHPUT_TOK_S
+def estimate_cost_usd(sequence_tokens_total: int) -> dict[str, float]:
+    """A100-80GB time estimate from dry-run sequence tokens (measured rate)."""
+    seconds = sequence_tokens_total / MEASURED_TRAIN_THROUGHPUT_TOK_S
     hours = seconds / 3600.0
     return {
-        "train_tokens_total": float(train_tokens_total),
-        "assumed_throughput_tok_s": ASSUMED_TRAIN_THROUGHPUT_TOK_S,
+        "sequence_tokens_total": float(sequence_tokens_total),
+        "measured_throughput_tok_s": MEASURED_TRAIN_THROUGHPUT_TOK_S,
         "seconds": seconds,
         "hours": hours,
         "usd_per_hour": MODAL_USD_PER_HOUR,
@@ -433,7 +529,8 @@ def print_dry_run(dry: DryRun, tokenizer: Any) -> None:
         trained = item.trained_after
         flag = "TRUNCATED" if item.truncated else ("DROPPED" if item.dropped else "ok")
         print(
-            f"  [{index}] msgs={len(export.conversations[index])} "
+            f"  [{index}] msgs={len(export.conversations[index].messages)} "
+            f"loss={export.conversations[index].loss} "
             f"asst_turns={item.assistant_turns} "
             f"tokens={item.tokens_before}->{len(item.input_ids)} "
             f"trained={trained} {flag}"
@@ -469,13 +566,13 @@ def print_dry_run(dry: DryRun, tokenizer: Any) -> None:
             pos += 1
     print("--- end masked view ---")
 
-    total = dry.trained_tokens * dry.epochs
+    total = dry.total_tokens * dry.epochs
     quote = estimate_cost_usd(total)
     print(
-        f"cost estimate: {dry.trained_tokens} trained-tokens x {dry.epochs} epochs "
-        f"= {total} tokens / {ASSUMED_TRAIN_THROUGHPUT_TOK_S:g} tok/s (ASSUMED throughput) "
+        f"cost estimate: {dry.total_tokens} sequence tokens x {dry.epochs} epochs "
+        f"= {total} tokens / {MEASURED_TRAIN_THROUGHPUT_TOK_S:g} tok/s (measured, HAR-129) "
         f"= {quote['hours']:.3f} h x ${MODAL_USD_PER_HOUR:.6f}/h "
-        f"= ${quote['usd']:.2f} (A100-80GB time only; +5-min idle tail per warm period)"
+        f"= ${quote['usd']:.2f} (A100-80GB time only; +model load and 5-min idle tail)"
     )
 
 
@@ -487,12 +584,13 @@ def build_receipt(
     learning_rate: float,
     epochs: int,
     run_name: str,
+    grad_accum_steps: int = DEFAULTS["grad_accum_steps"],
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Training manifest: everything needed to reproduce or audit the run."""
     import transformers
 
-    total = dry.trained_tokens * epochs
+    total = dry.total_tokens * epochs
     receipt: dict[str, Any] = {
         "tool": "tools/modal-mimo-sft/sft.py",
         "model": MODEL_ID,
@@ -512,10 +610,18 @@ def build_receipt(
             "think_mapping": "<think> content prefix -> reasoning_content field",
             "tool_calls": "verbatim <tool_call><function=...> text in content",
             "mask": "assistant_masks (template generation markers), "
-            "prefix-property verified per conversation",
+            "prefix-property verified per conversation; rows with loss='last' "
+            "train only the final call's served completion (after the "
+            "add_generation_prompt render of messages[:-1])",
+            "loss_rows": {
+                scope: sum(1 for row in dry.export.conversations if row.loss == scope)
+                for scope in ("all", "last")
+            },
         },
         "train": {
-            "trainer": "trl.SFTTrainer on pre-rendered input_ids+assistant_masks",
+            "trainer": "trl.SFTTrainer on pre-rendered input_ids+assistant_masks; "
+            "loss = token-mean cross-entropy over assistant tokens, computed from "
+            f"their hidden states in checkpointed lm_head chunks of {LOSS_CHUNK_TOKENS}",
             "max_length": dry.max_length,
             "truncation": TRUNCATION_POLICY,
             "dtype": "bfloat16",
@@ -533,7 +639,7 @@ def build_receipt(
                 "warmup_ratio": DEFAULTS["warmup_ratio"],
                 "num_epochs": epochs,
                 "per_device_batch": DEFAULTS["per_device_batch"],
-                "grad_accum_steps": DEFAULTS["grad_accum_steps"],
+                "grad_accum_steps": grad_accum_steps,
                 "seed": DEFAULTS["seed"],
             },
             "image_packages": list(TRAIN_IMAGE_PACKAGES),
@@ -567,6 +673,128 @@ sft_volume = modal.Volume.from_name(SFT_VOLUME, create_if_missing=True)
 app = modal.App(APP_NAME)
 
 
+def selected_token_loss_trainer_class() -> type:
+    """``SFTTrainer`` whose loss never builds full-sequence logits (imports TRL lazily).
+
+    The stock loss materializes [sequence, 248320] logits: about 26 GB in
+    bf16 at 52K tokens before the fp32 upcast, more than an A100-80GB has
+    left. Here only the hidden states of trained positions reach lm_head, in
+    checkpointed chunks, so peak logits memory is one chunk. The loss is the
+    same token-mean cross-entropy over label != -100 positions.
+    """
+    import torch
+    import torch.nn.functional as F
+    from torch.utils.checkpoint import checkpoint
+    from trl import SFTTrainer
+
+    class SelectedTokenLossTrainer(SFTTrainer):
+        def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+            base = model.get_base_model() if hasattr(model, "get_base_model") else model
+            labels = inputs["labels"][:, 1:]
+            hidden = base.model(
+                input_ids=inputs["input_ids"],
+                attention_mask=inputs.get("attention_mask"),
+                use_cache=False,
+            ).last_hidden_state[:, :-1]
+            selected = labels != -100
+            hidden, targets = hidden[selected], labels[selected]
+
+            def chunk_loss(h: Any, t: Any) -> Any:
+                return F.cross_entropy(base.lm_head(h).float(), t, reduction="sum")
+
+            total = hidden.new_zeros((), dtype=torch.float32)
+            for start in range(0, targets.numel(), LOSS_CHUNK_TOKENS):
+                end = start + LOSS_CHUNK_TOKENS
+                total = total + checkpoint(
+                    chunk_loss, hidden[start:end], targets[start:end], use_reentrant=False
+                )
+            denominator = num_items_in_batch if num_items_in_batch is not None else targets.numel()
+            loss = total / denominator
+            return (loss, None) if return_outputs else loss
+
+    return SelectedTokenLossTrainer
+
+
+def build_trainer(
+    model: Any,
+    tokenizer: Any,
+    rows: list[dict[str, Any]],
+    config: dict[str, Any],
+    *,
+    output_dir: Path,
+    bf16: bool = True,
+) -> Any:
+    """The exact trainer ``train_remote`` runs, from pre-rendered rows."""
+    from datasets import Dataset
+    from peft import LoraConfig, TaskType
+    from trl import SFTConfig
+
+    peft_config = LoraConfig(
+        r=int(config["lora_rank"]),
+        lora_alpha=int(config["lora_alpha"]),
+        lora_dropout=float(config["lora_dropout"]),
+        bias="none",
+        task_type=TaskType.CAUSAL_LM,
+        target_modules=list(config["target_modules"]),
+    )
+    args = SFTConfig(
+        output_dir=str(output_dir),
+        max_length=int(config["max_length"]),
+        truncation_mode="keep_start",
+        packing=False,
+        per_device_train_batch_size=int(config["per_device_batch"]),
+        gradient_accumulation_steps=int(config["grad_accum_steps"]),
+        num_train_epochs=float(config["num_epochs"]),
+        learning_rate=float(config["learning_rate"]),
+        lr_scheduler_type=str(config["lr_scheduler"]),
+        warmup_ratio=float(config["warmup_ratio"]),
+        bf16=bf16,
+        gradient_checkpointing=True,
+        gradient_checkpointing_kwargs={"use_reentrant": False},
+        logging_steps=1,
+        save_strategy="no",
+        seed=int(config["seed"]),
+        report_to="none",
+    )
+    trainer = selected_token_loss_trainer_class()(
+        model=model,
+        args=args,
+        train_dataset=Dataset.from_list(rows),
+        processing_class=tokenizer,
+        peft_config=peft_config,
+    )
+    # compute_loss already divides by the accumulated token count.
+    trainer.model_accepts_loss_kwargs = True
+    return trainer
+
+
+def collated_label_check(trainer: Any, rows: list[dict[str, Any]]) -> dict[str, int]:
+    """Prove the loss sees exactly the rendered masks, through TRL's own pipeline.
+
+    TRL folds ``assistant_masks`` into ``labels`` while preparing the dataset
+    and drops the column, so the prepared rows are compared with the rows we
+    rendered: same count and order, identical ``input_ids``, and collated
+    labels (``!= -100``) equal to our mask at every position. Any difference
+    (a dropped, reordered or truncated row, or a shifted label) raises.
+    """
+    prepared = trainer.train_dataset
+    if len(prepared) != len(rows):
+        raise RuntimeError(f"TRL prepared {len(prepared)} rows from {len(rows)}")
+    check = {"rows": 0, "label_tokens": 0, "mask_tokens": 0, "mismatched_rows": 0}
+    for example, row in zip(prepared, rows, strict=True):
+        batch = trainer.data_collator([example])
+        labelled = (batch["labels"][0] != -100).tolist()
+        masked = [bool(bit) for bit in row["assistant_masks"]]
+        check["rows"] += 1
+        check["label_tokens"] += sum(labelled)
+        check["mask_tokens"] += sum(masked)
+        if list(example["input_ids"]) != row["input_ids"] or labelled != masked:
+            check["mismatched_rows"] += 1
+    if check["mismatched_rows"]:
+        raise RuntimeError(f"collated labels differ from rendered masks: {check}")
+    return check
+
+
 @app.function(
     image=train_image,
     gpu="A100-80GB",
@@ -577,11 +805,12 @@ app = modal.App(APP_NAME)
 )
 def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict[str, Any]:
     """LoRA SFT on one A100-80GB; writes adapter + receipt to the SFT volume."""
+    import time
+
     import torch
-    from datasets import Dataset
-    from peft import LoraConfig, TaskType
     from transformers import AutoModelForCausalLM, AutoTokenizer
-    from trl import SFTConfig, SFTTrainer
+
+    started = time.monotonic()
 
     out_dir = Path(SFT_MOUNT) / run_name
     if not Path(BASE_DIR, "config.json").is_file():
@@ -596,68 +825,62 @@ def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict
     rows: list[dict[str, Any]] = []
     data_root = Path(SFT_MOUNT) / export_rel
     export = verify_export(data_root)
-    for index, messages in enumerate(export.conversations):
+    for index, row in enumerate(export.conversations):
         rendered = render_and_mask(
             tokenizer,
-            messages,
+            row.messages,
             max_length=int(config["max_length"]),
             label=f"conversation {index}",
+            loss=row.loss,
         )
         if rendered.dropped:
             continue
         rows.append({"input_ids": rendered.input_ids, "assistant_masks": rendered.mask})
     if not rows:
         raise RuntimeError("no trainable conversations after masking/truncation")
-    dataset = Dataset.from_list(rows)
 
-    model = AutoModelForCausalLM.from_pretrained(
+    model, loading = AutoModelForCausalLM.from_pretrained(
         BASE_DIR,
-        torch_dtype=torch.bfloat16,
+        dtype=torch.bfloat16,
         trust_remote_code=False,
+        output_loading_info=True,
     )
+    # The checkpoint is the multimodal Qwen3_5ForConditionalGeneration; the
+    # text-only class must find every one of its own weights in it.
+    if loading.get("missing_keys"):
+        raise RuntimeError(f"base weights missing for {sorted(loading['missing_keys'])[:5]}")
     model.config.use_cache = False
-    peft_config = LoraConfig(
-        r=int(config["lora_rank"]),
-        lora_alpha=int(config["lora_alpha"]),
-        lora_dropout=float(config["lora_dropout"]),
-        bias="none",
-        task_type=TaskType.CAUSAL_LM,
-        target_modules=list(config["target_modules"]),
-    )
-    args = SFTConfig(
-        output_dir=str(out_dir / "adapter"),
-        max_length=int(config["max_length"]),
-        truncation_mode="keep_start",
-        packing=False,
-        per_device_train_batch_size=int(config["per_device_batch"]),
-        gradient_accumulation_steps=int(config["grad_accum_steps"]),
-        num_train_epochs=float(config["num_epochs"]),
-        learning_rate=float(config["learning_rate"]),
-        lr_scheduler_type=str(config["lr_scheduler"]),
-        warmup_ratio=float(config["warmup_ratio"]),
-        bf16=True,
-        gradient_checkpointing=True,
-        logging_steps=10,
-        save_steps=100,
-        save_total_limit=2,
-        seed=int(config["seed"]),
-        report_to="none",
-    )
-    trainer = SFTTrainer(
-        model=model,
-        args=args,
-        train_dataset=dataset,
-        processing_class=tokenizer,
-        peft_config=peft_config,
-    )
+    trainer = build_trainer(model, tokenizer, rows, config, output_dir=out_dir / "adapter")
+    label_check = collated_label_check(trainer, rows)
+    torch.cuda.reset_peak_memory_stats()
+    train_started = time.monotonic()
     trainer.train()
+    train_seconds = time.monotonic() - train_started
     trainer.save_model(str(out_dir / "adapter"))
+    adapter_files = {
+        path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted((out_dir / "adapter").iterdir())
+        if path.is_file()
+    }
     receipt = dict(config["receipt"])
     receipt["remote"] = {
         "train_rows": len(rows),
         "adapter": f"{run_name}/adapter",
+        "adapter_files_sha256": adapter_files,
+        "adapter_model_sha256": adapter_files.get("adapter_model.safetensors"),
         "torch": torch.__version__,
+        "fla": _module_version("fla"),
+        "train_seconds": round(train_seconds, 1),
+        "wall_seconds": round(time.monotonic() - started, 1),
+        "trained_tokens": int(sum(sum(row["assistant_masks"]) for row in rows)),
+        "max_tokens": max(len(row["input_ids"]) for row in rows),
+        "peak_gpu_memory_gib": round(torch.cuda.max_memory_allocated() / 2**30, 2),
+        "collated_label_check": label_check,
+        "log_history": trainer.state.log_history,
     }
+    # Plain JSON both on the volume and over the wire: log_history can hold
+    # tensors, which the CPU-only local client cannot unpickle.
+    receipt = json.loads(json.dumps(receipt, default=float))
     (out_dir / "receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True))
     sft_volume.commit()
     return receipt
@@ -709,10 +932,12 @@ def merge_remote(adapter_rel: str, merged_rel: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-async def _upload_export(data_dir: Path, dest_rel: str) -> None:
+def _upload_export(data_dir: Path, dest_rel: str) -> None:
+    # The destination is named by the manifest digest, so a re-upload writes
+    # the same bytes.
     volume = modal.Volume.from_name(SFT_VOLUME, create_if_missing=True)
-    async with volume.batch_upload() as batch:
-        await batch.put_directory(str(data_dir), dest_rel, recursive=True)
+    with volume.batch_upload(force=True) as batch:
+        batch.put_directory(str(data_dir), dest_rel)
 
 
 def _resolve_hparams(args: argparse.Namespace) -> dict[str, Any]:
@@ -725,7 +950,7 @@ def _resolve_hparams(args: argparse.Namespace) -> dict[str, Any]:
         "warmup_ratio": DEFAULTS["warmup_ratio"],
         "num_epochs": args.epochs,
         "per_device_batch": DEFAULTS["per_device_batch"],
-        "grad_accum_steps": DEFAULTS["grad_accum_steps"],
+        "grad_accum_steps": args.grad_accum,
         "max_length": args.max_length,
         "seed": DEFAULTS["seed"],
         "target_modules": list(DEFAULT_LORA_TARGET_MODULES),
@@ -761,14 +986,15 @@ def cmd_train(args: argparse.Namespace) -> int:
         learning_rate=params["learning_rate"],
         epochs=params["num_epochs"],
         run_name=run_name,
+        grad_accum_steps=params["grad_accum_steps"],
     )
     params["receipt"] = receipt
     quote = receipt["cost_estimate"]
     print(
-        f"train estimate: {quote['train_tokens_total']:.0f} tokens "
+        f"train estimate: {quote['sequence_tokens_total']:.0f} sequence tokens "
         f"= {quote['hours']:.3f} h x ${quote['usd_per_hour']:.6f}/h "
         f"= ${quote['usd']:.2f} on one A100-80GB "
-        f"(assumed {quote['assumed_throughput_tok_s']:g} tok/s; "
+        f"(measured {quote['measured_throughput_tok_s']:g} tok/s; "
         f"run {run_name} -> volume {SFT_VOLUME})"
     )
     if not args.confirm_spend:
@@ -779,7 +1005,7 @@ def cmd_train(args: argparse.Namespace) -> int:
         )
         return 2
     dest_rel = f"uploads/{export.manifest_sha256[7:]}"
-    asyncio.run(_upload_export(args.data, dest_rel))
+    _upload_export(args.data, dest_rel)
     with app.run():
         result = train_remote.remote(dest_rel, run_name, params)
     print(json.dumps(result, indent=2, sort_keys=True))

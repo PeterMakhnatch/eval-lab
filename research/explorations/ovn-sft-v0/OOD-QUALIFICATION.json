@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "card": "HAR-134",
+  "recorded_at_utc": "2026-10-01T04:53:04.617458+00:00",
+  "status": "source_qualified_runtime_not_admitted",
+  "library_spend_usd": 0,
+  "benchmark": {
+    "name": "SWE-bench Verified",
+    "registry_name": "swebench-verified@1.0",
+    "task_repository": "https://github.com/harbor-framework/harbor-datasets",
+    "task_revision": "86723674f04e4209ac479d0fb75d9d9f44b4377e",
+    "adapter_evidence_revision": "99218a4611e3bd76e49ce3b5f977e8c8134ad3ac"
+  },
+  "manifest": {
+    "path": "OOD-SLICE.csv",
+    "sha256": "b6fd7b2b3483ef8da8022c04bd836aaef29a4fb397bcfd159a7be1820dfa8566",
+    "tasks": 20,
+    "repositories": 8,
+    "original_source_packages": true,
+    "image_tag_resolution_is_not_a_dockerfile_pin": true
+  },
+  "selection": {
+    "salt": "har134-sweverified-python-v1",
+    "rank": "sha256(UTF8(salt + NUL + value)), ascending hexadecimal",
+    "repository_key": "task_id without final hyphen and issue number",
+    "round_robin": "hash-order repositories; hash-order tasks within each; at most three rounds; stop at20",
+    "frame_tasks": 500,
+    "frame_sorted_ids_sha256": "a6b0fd7c8c2969a0eef892e032250adcfa6d32362d395c246930e61b575ac9b9",
+    "frame_digest_serialization": "sorted task IDs, one per line, trailing LF",
+    "excluded_repositories": [
+      "astropy__astropy",
+      "matplotlib__matplotlib",
+      "pydata__xarray",
+      "scikit-learn__scikit-learn"
+    ],
+    "known_oracle_issue_exclusions": [
+      "astropy__astropy-7606",
+      "astropy__astropy-8707",
+      "astropy__astropy-8872",
+      "django__django-10097",
+      "scikit-learn__scikit-learn-14710",
+      "sphinx-doc__sphinx-8595",
+      "sphinx-doc__sphinx-9711"
+    ],
+    "eligible_tasks": 387,
+    "repository_order": [
+      "mwaskom__seaborn",
+      "django__django",
+      "pytest-dev__pytest",
+      "pylint-dev__pylint",
+      "pallets__flask",
+      "sphinx-doc__sphinx",
+      "psf__requests",
+      "sympy__sympy"
+    ],
+    "ordered_task_ids": [
+      "mwaskom__seaborn-3069",
+      "django__django-14373",
+      "pytest-dev__pytest-6197",
+      "pylint-dev__pylint-4604",
+      "pallets__flask-5014",
+      "sphinx-doc__sphinx-10466",
+      "psf__requests-1766",
+      "sympy__sympy-13091",
+      "mwaskom__seaborn-3187",
+      "django__django-15957",
+      "pytest-dev__pytest-5840",
+      "pylint-dev__pylint-4661",
+      "sphinx-doc__sphinx-7757",
+      "psf__requests-6028",
+      "sympy__sympy-13615",
+      "django__django-16819",
+      "pytest-dev__pytest-7571",
+      "pylint-dev__pylint-8898",
+      "sphinx-doc__sphinx-7440",
+      "psf__requests-2317"
+    ],
+    "ledger": {
+      "path": "research/experiments/python-task-ledger/ledger.csv",
+      "sha256": "0d4ffc0fcd3cfa4ddf1b783287464c6e6d34bda17ded81836ecbbeef769ca13f",
+      "rows": 1180,
+      "train_rows": 1047,
+      "screen": "declared project labels plus sklearn alias; usable and review rows both excluded",
+      "canonical_identity_clearance": false,
+      "final_G3_GEPA_overlap_clearance": false
+    }
+  },
+  "exercised": {
+    "harbor_version": "0.21.0",
+    "eval_lab_preparation_revision": "5f372233ff862baa0b88d9b271576b53f20b9fb1",
+    "native_dataset_download_tasks": 20,
+    "harbor_Task_model_loads": 20,
+    "native_cli_preparation": true,
+    "prepare_task_API_accepted": 20,
+    "prepared_null_spec_id_and_submitted_at": 20,
+    "oci_linux_amd64_manifests_resolved": 20,
+    "selection_replay_identical": true,
+    "queue_submissions": 0,
+    "trial_executions": 0,
+    "model_calls": 0,
+    "cloud_environments_started": 0,
+    "image_layers_pulled": 0,
+    "selected_manifest_image_compressed_bytes_min": 1014443126,
+    "selected_manifest_image_compressed_bytes_max": 1295121476
+  },
+  "normalized_task_resources": {
+    "os": "linux",
+    "cpus": 1,
+    "memory_mb": 4096,
+    "storage_mb": 10240,
+    "gpus": null,
+    "network_mode": "public",
+    "agent_network_override": null,
+    "verifier_network_override": null,
+    "build_timeout_sec": 1800,
+    "agent_timeout_sec": 3000,
+    "verifier_timeout_sec": 3000
+  },
+  "cost_model": {
+    "prices_read_date": "2026-10-01",
+    "modal_source": "https://modal.com/pricing",
+    "daytona_source": "https://www.daytona.io/pricing",
+    "modal_A100_80GB_gpu_usd_per_second": 0.000694,
+    "modal_cpu_cores": 4,
+    "modal_cpu_usd_per_core_second": 1.31e-05,
+    "modal_memory_gib": 16,
+    "modal_memory_usd_per_gib_second": 2.22e-06,
+    "modal_total_usd_per_hour": 2.814912,
+    "daytona_cpu_usd_per_hour": 0.0504,
+    "daytona_memory_usd_per_gib_hour": 0.0162,
+    "daytona_storage_free_gib": 5,
+    "daytona_storage_usd_per_gib_hour": 0.000108,
+    "daytona_total_usd_per_hour": 0.11574,
+    "cold_start_seconds_assumption": 208,
+    "tail_seconds_assumption": 300,
+    "one_session_warm_cost_usd": 0.39721536,
+    "scenarios": [
+      {
+        "scenario": "short",
+        "agent_seconds": 600,
+        "setup_seconds": 300,
+        "verifier_seconds": 300,
+        "effective_concurrency": 4,
+        "per_trial_usd": 0.273156,
+        "one_arm_20_plus_one_warm_usd": 5.86033536,
+        "two_arms_40_plus_one_warm_usd": 11.32345536
+      },
+      {
+        "scenario": "short",
+        "agent_seconds": 600,
+        "setup_seconds": 300,
+        "verifier_seconds": 300,
+        "effective_concurrency": 1,
+        "per_trial_usd": 0.976884,
+        "one_arm_20_plus_one_warm_usd": 19.93489536,
+        "two_arms_40_plus_one_warm_usd": 39.47257535999999
+      },
+      {
+        "scenario": "middle",
+        "agent_seconds": 1200,
+        "setup_seconds": 600,
+        "verifier_seconds": 600,
+        "effective_concurrency": 4,
+        "per_trial_usd": 0.546312,
+        "one_arm_20_plus_one_warm_usd": 11.32345536,
+        "two_arms_40_plus_one_warm_usd": 22.24969536
+      },
+      {
+        "scenario": "middle",
+        "agent_seconds": 1200,
+        "setup_seconds": 600,
+        "verifier_seconds": 600,
+        "effective_concurrency": 1,
+        "per_trial_usd": 1.953768,
+        "one_arm_20_plus_one_warm_usd": 39.47257535999999,
+        "two_arms_40_plus_one_warm_usd": 78.54793536
+      },
+      {
+        "scenario": "phase_ceilings",
+        "agent_seconds": 3000,
+        "setup_seconds": 1800,
+        "verifier_seconds": 3000,
+        "effective_concurrency": 4,
+        "per_trial_usd": 1.7755139999999998,
+        "one_arm_20_plus_one_warm_usd": 35.90749535999999,
+        "two_arms_40_plus_one_warm_usd": 71.41777536
+      },
+      {
+        "scenario": "phase_ceilings",
+        "agent_seconds": 3000,
+        "setup_seconds": 1800,
+        "verifier_seconds": 3000,
+        "effective_concurrency": 1,
+        "per_trial_usd": 6.349746,
+        "one_arm_20_plus_one_warm_usd": 127.39213536,
+        "two_arms_40_plus_one_warm_usd": 254.38705535999998
+      }
+    ],
+    "measured_MiMo_OOD_latencies": false,
+    "cloud_spending_approval": false
+  },
+  "prelaunch_conditions": [
+    "Clear canonical repository, task identity and content overlap against final G3 and GEPA exposure.",
+    "Pin effective image/runtime/harness/model/adapter identities and update affected package/spec digests.",
+    "Approve bounded spend; execute oracle/nop controls for all20 plus exact-route canary.",
+    "Prove intended grader isolation, network/proxy behavior and lifecycle timeouts.",
+    "Measure resource and billing envelope; freeze authorized sweep and statistical design before outcomes."
+  ]
+}

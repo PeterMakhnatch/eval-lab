@@ -108,6 +108,9 @@ developer's Keychain, `~/.codex`, Docker daemon, network, wall clock, database, 
 other host state. Use explicit temporary homes, fixed dates/times, stub credential
 sets, fake runtimes, and injected I/O collaborators. A test that passes because a
 developer happens to be authenticated is a failing test design.
+Event filenames are not a chronology guarantee: same-millisecond ULIDs may sort
+out of order. Check semantic reason codes, or order by recorded timestamps when
+the latest event matters; inject reversed IDs and a fixed clock for that boundary.
 
 ## Merge rule
 

@@ -23,17 +23,41 @@ uv run --project tools/modal-mimo-sft --locked \
 
 ## Cost
 
-`cost = trained_tokens x epochs / 1000 tok/s (ASSUMED) / 3600 x $2.814912/h` (A100-80GB + 4 CPU + 16 GiB, the HAR-90 serve shape; `MIMO_SELFHOSTED_SERVER_USD_PER_HOUR` in `src/evallab/execution_contracts.py`, rates from modal.com/pricing 2026-09-28). Time only, plus the 5-minute idle tail per warm period. The throughput is a labeled guess recorded in every receipt, not a measurement.
+`cost = sequence_tokens x epochs / 560 tok/s / 3600 x $2.814912/h`. The cost counts sequence tokens, not trained tokens, because every token of a sample costs a forward and backward pass.
+
+- **Hardware:** A100-80GB + 4 CPU + 16 GiB, the HAR-90 serve shape. The rate is `MIMO_SELFHOSTED_SERVER_USD_PER_HOUR` in `src/evallab/execution_contracts.py`, from modal.com/pricing (2026-09-28).
+- **Throughput** was measured in the HAR-129 dry run (2026-10-01):
+  - 3 Terminus segments, 143,829 sequence tokens (longest 51,700), one step in 256.9 s;
+  - peak GPU memory 52.7 GiB;
+  - setup: fla kernels, gradient checkpointing, the chunked selected-token loss.
+- **Fixed overhead:** model load and image start are about 60 s, plus the 5-minute idle tail.
+
+The loss is token-mean cross-entropy over trained positions. Only those positions' hidden states reach `lm_head`, in checkpointed chunks of 4,096. The stock path materializes `[sequence, 248320]` logits, about 26 GB in bf16 at 52K tokens, which does not fit next to the model and activations. Before step 1, the trainer runs every row through TRL's own collator and requires the collated labels (`!= -100`) to equal the rendered mask. The counts go into the receipt as `collated_label_check`.
 
 ## Pins
 
-Local lock (CPU-only, no torch): `modal==1.5.5`, `transformers==5.12.1`, `huggingface_hub==1.9.2`, `jinja2==3.1.6`. Modal image (`TRAIN_IMAGE_PACKAGES` in `sft.py`): `torch==2.14.0`, `transformers==5.12.1`, `trl==1.14.0`, `peft==0.21.0`, `accelerate==1.15.0`, `datasets==5.0.1`, `huggingface_hub==1.9.2` (all verified on PyPI 2026-09-29; the set resolves for Python 3.12). `transformers==5.12.1` is the version stamped in the model's own `config.json` and ships `src/transformers/models/qwen3_5/modeling_qwen3_5.py` (tag `v5.12.1`); it also already supports `return_assistant_tokens_mask` (verified locally).
+**Local lock** (CPU-only, no torch): `modal==1.5.5`, `transformers==5.12.1`, `huggingface_hub==1.9.2`, `jinja2==3.1.6`.
+
+**Modal image** (`TRAIN_IMAGE_PACKAGES` in `sft.py`): `torch==2.14.0`, `transformers==5.12.1`, `trl==1.14.0`, `peft==0.21.0`, `accelerate==1.15.0`, `datasets==5.0.1`, `huggingface_hub==1.9.2`, `flash-linear-attention==0.5.2`, `fla-core==0.5.2`.
+- All were verified on PyPI and the set resolves for Python 3.12.
+- `transformers==5.12.1` is the version stamped in the model's own `config.json`. It ships `src/transformers/models/qwen3_5/modeling_qwen3_5.py` (tag `v5.12.1`) and already supports `return_assistant_tokens_mask` (verified locally).
+- fla supplies the fused gated-delta-rule kernels for the 24 linear-attention layers.
+
+The model loads as the text-only `Qwen3_5ForCausalLM`, and loading fails if any of its weights is missing from the multimodal checkpoint.
 
 ## Rendering choices
 
-- The template always wraps assistant turns as `<think>{reasoning_content}</think>{content}` (`chat_template.jinja`, pinned revision, assistant macro), identically for final and non-final turns — so the export's `<think>` prefix maps to `reasoning_content` on every assistant turn, and turns without it render `<think></think>`. Tool calls stay verbatim `<tool_call><function=...>` text in `content` (the export has no structured `tool_calls` field).
-- Training passes `enable_thinking=True`, matching the proxy-enforced serving route (`mimo_selfhosted` in `containers/zai_openapi_secret_proxy.py`). With no trailing generation prompt it changes no training token; it is passed for consistency and recorded.
-- Masks come from the template's `{% generation %}` markers, cross-checked against incremental prefix rendering with a verified prefix property (both agree on the fixture). Any prefix break, mask disagreement, or zero-trainable-token conversation raises loudly. Truncation mirrors TRL: right-truncate at `max_length` (default 32768, `keep_start`), drop fully-masked rows. LoRA defaults (recorded in the receipt): rank 16, alpha 32, dropout 0.05, lr 1e-4 cosine, 1 epoch, batch 1 x 16 accum, bf16, grad checkpointing, no packing.
+- **Think blocks.** The template always wraps assistant turns as `<think>{reasoning_content}</think>{content}` (`chat_template.jinja`, pinned revision, assistant macro), the same way for final and non-final turns, with no newlines around the block. Turns without reasoning render `<think></think>`.
+  - An assistant message may carry its reasoning in an explicit `reasoning_content` field, exactly as the model emitted it. This is the preferred form; HAR-127 matched it to recorded `completion_tokens` on 217/217 calls.
+  - Otherwise a leading `<think>` block in `content` is split off.
+  - A message with both forms is rejected.
+  - Tool calls stay verbatim `<tool_call><function=...>` text in `content`; the export has no structured `tool_calls` field.
+- Training passes `enable_thinking=True`, matching the proxy-enforced serving route (`mimo_selfhosted` in `containers/zai_openapi_secret_proxy.py`). It is the flag the served prompt was rendered with, which matters for the `loss: "last"` prompt render.
+- **Masks for `loss: "all"`** (the default) come from the template's `{% generation %}` markers. They are cross-checked against incremental prefix rendering with a verified prefix property, and they include each turn's `<|im_start|>assistant\n` header.
+- **Masks for `loss: "last"`** cover exactly the tokens the served model generated for the final call. The served prompt is `messages[:-1]` rendered with `add_generation_prompt=True`, which includes the header. It must be a token prefix of the full render, every token after it must lie inside the template's assistant mask, and only those tokens train: `<think>{r}</think>{m}<|im_end|>`. This is the per-call shape: the history is exactly what the served model saw, with assistant turns carrying no reasoning.
+- Any prefix break, mask disagreement or conversation with zero trainable tokens raises an error.
+- **Truncation** mirrors TRL: right-truncate at `max_length`, keeping the start, and drop fully masked rows. The default `max_length` is 65,536, the served context, so no Terminus segment is truncated.
+- **LoRA defaults** (recorded in the receipt): rank 16, alpha 32, dropout 0.05, lr 1e-4 cosine, 1 epoch, batch 1 × 16 accumulation, bf16, gradient checkpointing, no packing. `--grad-accum` overrides the accumulation.
 
 ## Adapter vs merge: adapter wins (primary evidence, SGLang v0.5.20)
 

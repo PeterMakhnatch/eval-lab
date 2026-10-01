@@ -48,6 +48,20 @@ def test_command_run_nudges_once_then_stops_after_grace() -> None:
     assert "repeating" in LOOP_NUDGE_MESSAGE
 
 
+def test_threshold_overrides_move_nudge_and_stop() -> None:
+    steps = [_step("pytest -q\n") for _ in range(8 + 12)]
+    assert loop_decision(steps)["stop_call"] == COMMAND_RUN_MIN + LOOP_GRACE_CALLS
+    slow = loop_decision(steps, command_run_min=8, grace_calls=12)
+    assert (slow["nudge_call"], slow["stop_call"]) == (8, 20)
+    assert live_loop_action(steps[:8], command_run_min=8, grace_calls=12) == "nudge"
+    assert live_loop_action(steps, command_run_min=8, grace_calls=12) == "stop"
+    messages = [
+        _step(f"probe-{chr(97 + index)} /app\n", "same status update") for index in range(9)
+    ]
+    assert loop_decision(messages)["nudge_call"] is None
+    assert loop_decision(messages, message_run_min=9)["nudge_call"] == 9
+
+
 def test_loop_that_ends_does_not_stop() -> None:
     steps = [_step("pytest -q\n") for _ in range(COMMAND_RUN_MIN)]
     steps.append(_step("ls /app\n", "trying something else"))

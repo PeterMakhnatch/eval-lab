@@ -292,12 +292,12 @@ def _parse_sha_manifest(manifest_path: Path, root: Path) -> dict[str, str]:
 def _load_frozen_labels(
     repo_root: Path, derived_root: Path | None
 ) -> tuple[dict[str, list[dict[str, Any]]], dict[str, str], dict[str, Any]]:
-    """Load frozen rater and hand labels verified against their manifests.
+    """Load frozen rater, hand and adjudicated labels with verified manifests.
 
     Every declared file must still match the freeze; a corrupt or incomplete
     freeze aborts instead of silently changing calibration denominators.
     Heuristic ``behavior_labels`` parquet rows are NEVER merged here:
-    ``labels_json`` carries frozen rater entries only.
+    ``labels_json`` carries verified annotations with their original label scope.
     """
     del derived_root
     labels_by_trial: dict[str, list[dict[str, Any]]] = {}
@@ -407,6 +407,45 @@ def _load_frozen_labels(
     else:
         har109_report["manifest"] = "missing"
     verification["har109"] = har109_report
+
+    # 3. HAR-128 adjudicated SFT-pass gate (not loop-kind ground truth).
+    gate_dir = repo_root / "research/explorations/trace-lab/har128/sft_gate"
+    gate_manifest = gate_dir / "labels.sha256"
+    gate_labels = gate_dir / "labels.jsonl"
+    gate_report: dict[str, Any] = {
+        "verified": 0, "rows": 0, "failed": [], "manifest": "missing"
+    }
+    if gate_manifest.is_file() or gate_labels.is_file():
+        if not gate_manifest.is_file() or not gate_labels.is_file():
+            raise ValueError(f"Incomplete frozen SFT-pass gate: {gate_dir}")
+        expected = _parse_sha_manifest(gate_manifest, gate_dir)
+        if "labels.jsonl" not in expected:
+            raise ValueError(f"SFT-pass freeze does not declare labels.jsonl: {gate_manifest}")
+        manifest_hashes["har128-sft-pass"] = _file_sha256(gate_manifest)
+        gate_report["manifest"] = str(gate_manifest.relative_to(repo_root))
+        seen_trials: set[str] = set()
+        for line in gate_labels.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            data = json.loads(line)
+            if not isinstance(data, dict) or not isinstance(data.get("trial"), str):
+                raise ValueError(f"Invalid frozen SFT-pass row: {gate_labels}")
+            trial_name = data["trial"]
+            if not trial_name or trial_name in seen_trials or not isinstance(data.get("clean"), bool):
+                raise ValueError(f"Invalid or duplicate SFT-pass identity: {trial_name!r}")
+            seen_trials.add(trial_name)
+            labels_by_trial.setdefault(trial_name, []).append({
+                "cohort": "har128-sft-pass",
+                "rater": None,
+                "provenance": "frozen_adjudication",
+                "label_scope": "sft_pass_cleanliness",
+                "label": data,
+                "source_file": str(gate_labels.relative_to(repo_root)),
+                "source_sha256": expected["labels.jsonl"],
+            })
+        gate_report["verified"] = 1
+        gate_report["rows"] = len(seen_trials)
+    verification["har128-sft-pass"] = gate_report
     for cohort, report in verification.items():
         if report["failed"]:
             raise ValueError(f"Invalid frozen labels for {cohort}: {report['failed']}")
@@ -1166,7 +1205,7 @@ def connect_trace_query(
     )
 
     # Load canonical queries into views (fail loudly: this SQL ships with the module)
-    queries_sql_path = root / "sql" / "trace_queries.sql"
+    queries_sql_path = Path(__file__).resolve().parents[2] / "sql" / "trace_queries.sql"
     if not queries_sql_path.is_file():
         raise FileNotFoundError(f"canonical trace queries missing: {queries_sql_path}")
     conn.execute(queries_sql_path.read_text(encoding="utf-8"))

@@ -160,3 +160,42 @@ provides an unambiguous step mapping, otherwise on the trace root. Reviewed
 annotations are imported only when Phoenix reports authenticated UI provenance
 (`HUMAN`, `APP`, and a non-empty `user_id`). Harbor ATIF and the Eval Lab evidence
 store remain canonical.
+
+## 6. Recorded-run queries and the Python failure atlas
+
+The [trace attach surface](attach-surface.md) exposes transient DuckDB trial and
+step views over retained ATIF, Parquet and processed reports. Trial aggregates
+use native job/trial identities; a missing trajectory contributes no invented
+steps. Proxy tokens require the processor's validated single-trial attribution.
+Missing counts, token attribution or annotations remain unknown.
+
+The [failure atlas](../research/explorations/trace-lab/failure-atlas/README.md)
+is an inspection report, not an exhaustive causal taxonomy. It retains category
+denominators, raw step links, input hashes and intervention hypotheses. Page
+opinions carry their measured calibration scope; historical accuracy is not
+transferred to a new cohort.
+
+Frozen annotations are separate authorities:
+
+- HAR-119 contains blind agent-rater failure labels.
+- HAR-109 contains frozen hand annotations, not authenticated human provenance.
+- HAR-128's adjudicated SFT-pass gate concerns cleanliness and cut points. A
+  genuine `counted_pass` can be unsuitable for SFT. These annotations are not
+  loop-kind ground truth and never rewrite counts.
+
+Rebuild from the current published corpus:
+
+```bash
+uv run python research/explorations/trace-lab/failure-atlas/build.py \
+  --repo-root . --out-dir research/explorations/trace-lab/failure-atlas
+```
+
+`--repo-root` selects the experiment/label input checkout; canonical SQL comes
+from the executing code checkout. Use an explicit `--derived-root` to read an
+approved shared Parquet tree from an isolated worktree.
+
+The full atlas may contain held-out evidence and must not be sent to a prompt
+proposer. Reflection export requires explicit authorized task/package bindings
+and canonical usable-training, countability and frozen-eval exclusions. Only
+the separately gated training payload is eligible for that use; missing or
+invalid authorization is not an empty successful export.

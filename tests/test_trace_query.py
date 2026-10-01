@@ -13,23 +13,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
 from pathlib import Path
 
 import pytest
 
 from evallab.cli import run_cli
 from evallab.trace_query import connect_trace_query
-
-
-@pytest.fixture(autouse=True)
-def trace_workspace(tmp_path: Path) -> None:
-    sql_dir = tmp_path / "sql"
-    sql_dir.mkdir()
-    shutil.copyfile(
-        Path(__file__).resolve().parents[1] / "sql" / "trace_queries.sql",
-        sql_dir / "trace_queries.sql",
-    )
 
 
 def _create_minimal_trial(
@@ -285,6 +274,39 @@ def test_unlabeled_is_empty_list_not_clean(tmp_path: Path) -> None:
             "SELECT labels_json FROM v_trace_trials"
         ).fetchone()[0]
         assert labels_json == "[]"
+    finally:
+        con.close()
+
+
+@pytest.mark.parametrize("duplicate", [False, True])
+def test_frozen_pass_gate_is_separate_from_counts_and_loop_truth(
+    tmp_path: Path, duplicate: bool
+) -> None:
+    job = tmp_path / "job_pass"
+    _create_minimal_trial(job, "trial_pass")
+    gate = tmp_path / "research/explorations/trace-lab/har128/sft_gate"
+    gate.mkdir(parents=True)
+    row = {"trial": "trial_pass", "clean": False, "genuine": True, "cut_step_id": None}
+    body = (json.dumps(row) + "\n") * (2 if duplicate else 1)
+    (gate / "labels.jsonl").write_text(body)
+    (gate / "labels.sha256").write_text(
+        hashlib.sha256(body.encode()).hexdigest() + "  labels.jsonl\n"
+    )
+    if duplicate:
+        with pytest.raises(ValueError, match="duplicate"):
+            connect_trace_query(repo_root=tmp_path, job_dirs=[job])
+        return
+    con, _ = connect_trace_query(repo_root=tmp_path, job_dirs=[job])
+    try:
+        verdict, labels = con.execute(
+            "SELECT counts_verdict, labels_json FROM v_trace_trials"
+        ).fetchone()
+        annotation = json.loads(labels)[0]
+        assert verdict == "counted_pass"
+        assert annotation["label"]["clean"] is False
+        assert annotation["label"]["genuine"] is True
+        assert annotation["rater"] is None
+        assert "loop_kind" not in annotation
     finally:
         con.close()
 

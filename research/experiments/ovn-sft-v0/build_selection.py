@@ -9,10 +9,14 @@ A trial is selected when all of these hold:
 2. its task is ``train`` in the sealed split
    (``../har81-mimo-sft/split.json``, ``c3df70a5…``; it agrees with the
    ledger on all 1,180 Python tasks) and ``usable`` in the Python task ledger;
-3. Traces (HAR-128) labelled it ``clean``; its ``cut_step_id``/``cut_file``
-   come from that label;
-4. its source is admissible: proxy-captured, or ``reconstructed`` only when
-   ``--allow-reconstructed`` (Research-Harbor's scope decision on HAR-127);
+3. Traces (HAR-128) labelled it ``clean`` and its kept window ends with the
+   model's own completion (``ends_with_completion``: a window cut before a
+   loop-break or budget stop would teach stopping mid-task); its
+   ``cut_step_id``/``cut_file`` come from that label;
+4. its source is admissible: proxy-captured, or ``reconstructed_validated``
+   only when ``--qualification`` (``qualify_reconstruction.py``'s
+   ``qualification.json``) says ``admit_reconstructed`` (Research-Harbor's
+   04:45Z ruling on HAR-127); its sha256 is recorded in the selection;
 5. at most ``MAX_PER_TASK`` per task: captured before reconstructed, then
    the newer job, then trial name.
 
@@ -22,7 +26,7 @@ Every candidate that fails a rule is listed with its reason in
 Usage (from the checkout root):
     uv run python research/experiments/ovn-sft-v0/build_selection.py \\
         --job JOB_DIR ... --labels LABELS.jsonl [--captured JOB_NAME ...] \\
-        [--allow-reconstructed] --out DIR
+        [--qualification QUAL/qualification.json] --out DIR
 """
 
 from __future__ import annotations
@@ -73,10 +77,15 @@ def main() -> None:
     parser.add_argument("--job", type=Path, action="append", required=True)
     parser.add_argument("--labels", type=Path, action="append", default=[])
     parser.add_argument("--captured", action="append", default=[], help="job names with capture")
-    parser.add_argument("--allow-reconstructed", action="store_true")
+    parser.add_argument("--qualification", type=Path, help="qualify_reconstruction.py output")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
 
+    admit_reconstructed = False
+    if args.qualification is not None:
+        admit_reconstructed = (
+            json.loads(args.qualification.read_text())["admit_reconstructed"] is True
+        )
     split = json.loads(SPLIT.read_text())
     split_of = {entry["task_id"]: entry["split"] for entry in split["tasks"]}
     ledger = {row["task_id"]: row for row in csv.DictReader(LEDGER.open())}
@@ -108,8 +117,10 @@ def main() -> None:
                 reason = "traces:unlabelled"
             elif labels[key].get("clean") is not True:
                 reason = f"traces:not_clean ({labels[key].get('reason')})"
-            elif job.name not in args.captured and not args.allow_reconstructed:
-                reason = "source:reconstructed_not_allowed"
+            elif labels[key].get("ends_with_completion") is not True:
+                reason = "traces:no_completion_in_kept_window"
+            elif job.name not in args.captured and not admit_reconstructed:
+                reason = "source:reconstruction_not_qualified"
             if reason is not None:
                 exclusions.append({**base, "reason": reason})
                 continue
@@ -140,11 +151,14 @@ def main() -> None:
         "schema": SCHEMA,
         "split_manifest_digest": split["manifest_digest"],
         "labels": {path.name: sha256(path) for path in args.labels},
+        "qualification": sha256(args.qualification) if args.qualification else None,
         "trials": [
             {
                 "job": c["job"],
                 "trial": c["trial"],
-                "source": "captured" if c["captured"] else "reconstructed_token_verified",
+                "source": "captured" if c["captured"] else "reconstructed_validated",
+                # Traces' note: kept steps whose observation carries a Terminus warning.
+                "format_warning_steps_kept": c["label"].get("format_warning_steps_kept"),
                 "cut_step_id": c["label"].get("cut_step_id"),
                 "cut_file": c["label"].get("cut_file"),
             }

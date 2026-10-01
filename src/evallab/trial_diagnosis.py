@@ -91,6 +91,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from evallab.edit_signals import EDIT_COMMAND_PATTERNS, EDIT_TOOL_NAMES
 from evallab.labels import propose_heuristic_label
 from evallab.step_layers import (
     STEP_LAYERS_KEY,
@@ -101,8 +102,6 @@ from evallab.step_layers import (
 )
 from evallab.tracing import TraceError, is_job_dir, is_trial_dir
 from evallab.traj import (
-    EDIT_COMMAND_PATTERNS,
-    EDIT_TOOL_NAMES,
     TrajectoryError,
     TrajectoryOutline,
     outline_trajectory,
@@ -180,7 +179,9 @@ _SECRET_RES = (
     re.compile(r"\b(?:ghp|gho|ghs|ghu|ghr)_[A-Za-z0-9]{20,}\b|\bgithub_pat_[A-Za-z0-9_]{20,}"),
     re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),
     re.compile(r"\bxox[abpr]-[A-Za-z0-9-]{10,}"),
-    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)", re.S),
+    re.compile(
+        r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)", re.S
+    ),
     re.compile(r"(?i)\b(bearer\s+[A-Za-z0-9._~+/-]{8,}|api[_-]?key\s*[:=]\s*\S+)"),
     re.compile(
         r"(?i)\b(?:password|passwd|secret|access[_-]?token|auth[_-]?token|client[_-]?secret)"
@@ -495,6 +496,7 @@ def _raw_steps(trial_dir: Path) -> tuple[list[dict[str, Any]], tuple[str, ...]]:
         )
     return [step for step in unique if isinstance(step, dict)], tuple(notices)
 
+
 def _envelope_returncode(content: Any) -> int | None:
     """Return the mini-swe-agent JSON envelope returncode, if present."""
     return split_envelope(content)[0]
@@ -730,9 +732,7 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
             _mode(
                 "no_tool_use",
                 [anchor_id],
-                anchor.message
-                if anchor and anchor.message.strip()
-                else "no tool calls recorded",
+                anchor.message if anchor and anchor.message.strip() else "no tool calls recorded",
             )
         )
 
@@ -753,9 +753,7 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
             message_ids = _message_run(agent_views)
             if message_ids:
                 excerpt = ""
-                first = next(
-                    view for view in agent_views if view.step_id == message_ids[0]
-                )
+                first = next(view for view in agent_views if view.step_id == message_ids[0])
                 excerpt = first.message
                 modes.append(
                     _mode(
@@ -817,13 +815,11 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
     # A single quiet shell command (mkdir, cd) is routine traffic, hence the
     # two-silence minimum -- but a stateful REPL whose only feedback is a
     # bare "exit 0" tells the agent nothing, so one suffices there.
-    tool_names = {
-        tool.lower() for view in tool_views for tool in view.all_tools
-    } | {(view.tool_name or "").lower() for view in tool_views}
+    tool_names = {tool.lower() for view in tool_views for tool in view.all_tools} | {
+        (view.tool_name or "").lower() for view in tool_views
+    }
     repl_protocols = {"execute", "run_bash", "read_file"}
-    silent_min = (
-        1 if tool_names and tool_names <= repl_protocols else _MIN_SILENT_OUTPUTS
-    )
+    silent_min = 1 if tool_names and tool_names <= repl_protocols else _MIN_SILENT_OUTPUTS
     if len(silent_views) >= silent_min:
         silent_cmds = [
             view.command or view.tool_name or "" for view in silent_views[:_MAX_EVIDENCE_STEPS]
@@ -873,9 +869,10 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
             # agent itself defined earlier signals assumed-persistent state.
             # On REPL tools every exec call is a fresh cell, so any NameError
             # in a failing exec is the state signal directly.
-            repl_cell = any(
-                tool.lower() in repl_tools for tool in view.all_tools
-            ) or (view.tool_name or "").lower() in repl_tools
+            repl_cell = (
+                any(tool.lower() in repl_tools for tool in view.all_tools)
+                or (view.tool_name or "").lower() in repl_tools
+            )
             if name_match and (repl_cell or name_match.group(1) in defined_names):
                 state_ids.append(view.step_id)
                 if not state_excerpt:
@@ -889,8 +886,7 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
     if cd_ids:
         for view in tool_views:
             if view.step_id > cd_ids[0] and any(
-                _MISSING_FILE_RE.search(out)
-                and not _COMMAND_NOT_FOUND_RE.search(out)
+                _MISSING_FILE_RE.search(out) and not _COMMAND_NOT_FOUND_RE.search(out)
                 for out in view.outputs
             ):
                 state_ids.extend([cd_ids[0], view.step_id])
@@ -979,9 +975,7 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
             for cmd in (*view.all_commands, view.command or "")
             if cmd
             for segment in _CHAIN_SPLIT_RE.split(cmd)
-            if not (
-                _REDIRECT_RE.search(segment) or _HEREDOC_RE.search(segment)
-            )
+            if not (_REDIRECT_RE.search(segment) or _HEREDOC_RE.search(segment))
         )
         if not reads_json:
             continue
@@ -993,9 +987,7 @@ def _detect(ctx: _DetectContext, views: list[_StepView]) -> list[FailureMode]:
                     artifact_excerpt = spans[0]
                 break
     if artifact_ids:
-        modes.append(
-            _mode("malformed_artifact", artifact_ids, artifact_excerpt)
-        )
+        modes.append(_mode("malformed_artifact", artifact_ids, artifact_excerpt))
 
     if not modes:
         terminal_id = views[-1].step_id if views else 0
@@ -1037,9 +1029,7 @@ def _stop_note(trial_dir: Path, steps: Sequence[dict[str, Any]]) -> str | None:
     reason, detail = classify_stop_reason(
         agent_metadata=metadata if isinstance(metadata, dict) else {},
         exception_info=exception if isinstance(exception, dict) else {},
-        last_task_complete=accepted.get("task_complete")
-        if accepted is not None
-        else None,
+        last_task_complete=accepted.get("task_complete") if accepted is not None else None,
         last_prose_completion=accepted.get("kind") == "prose_completion"
         if accepted is not None
         else None,
@@ -1215,9 +1205,7 @@ def diagnose_atif(
             modes=(),
             notices=("no numeric reward recorded; never labeled as a task failure",),
         )
-    notices: list[str] = [
-        "document-level diagnosis (no trial dir); heuristic label unavailable"
-    ]
+    notices: list[str] = ["document-level diagnosis (no trial dir); heuristic label unavailable"]
     views = _step_views(steps)
     modes: tuple[FailureMode, ...] = ()
     if reward >= PASS_THRESHOLD:

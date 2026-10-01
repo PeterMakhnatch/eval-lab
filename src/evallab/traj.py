@@ -27,6 +27,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from evallab.edit_signals import EDIT_COMMAND_PATTERNS, EDIT_TOOL_NAMES
 from evallab.results import sha256_file
 from evallab.step_layers import StitchStats, effective_tool_calls, stitch_steps
 from evallab.storage.paths import (
@@ -47,28 +48,9 @@ PhaseType = Literal["setup", "prompt", "work", "verifier", "unknown"]
 AvailabilityStatus = Literal["featured", "accounted_unavailable"]
 
 CONTROL_AGENTS = frozenset({"oracle", "nop"})
-EDIT_TOOL_NAMES = frozenset(
-    {
-        "ast_edit",
-        "apply_patch",
-        "create_file",
-        "edit",
-        "edit_file",
-        "file_change",
-        "patch",
-        "sed",
-        "write",
-        "write_file",
-    }
-)
-EDIT_COMMAND_PATTERNS = re.compile(
-    r"\b("
-    r"apply_patch|git\s+(?:apply|checkout\s+--)|"
-    r"sed\s+-i|echo\s+.*>|cat\s+.*>|tee\s+|touch\s+|truncate\s+|"
-    r"python\s+.*(?:write|open\(|write_text)|"
-    r"node\s+.*(?:writeFileSync|writeFile)|fs\.writeFileSync"
-    r")\b"
-)
+
+#: Re-exported from :mod:`evallab.edit_signals` (single source of truth);
+#: kept here so existing ``evallab.traj.EDIT_*`` references keep working.
 
 _REDACTION_PATTERN = re.compile(
     r"<<evallab-redacted: (?P<bytes>\d+) bytes, (?P<digest>sha256:[0-9a-f]{64})>>"

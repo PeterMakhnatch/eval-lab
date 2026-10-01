@@ -1,6 +1,6 @@
 # HAR-131 failure atlas (inspection-only, PROVISIONAL)
 
-Generated 2026-10-01T05:10:47+00:00 from current trace-query rows. PROVISIONAL: the query surface is under independent-review fix and published counts/pages are stale pending the parent reprocess -- no finished atlas claim until the fix and parent refresh land. Every number below is computed from current rows; unknown stays unknown and `counts_verdict` is the sole counted authority. Overlapping patterns are not an exhaustive causal partition.
+Generated 2026-10-01T05:18:17+00:00 from current trace-query rows. PROVISIONAL: the query surface is under independent-review fix and published counts/pages are stale pending the parent reprocess -- no finished atlas claim until the fix and parent refresh land. Every number below is computed from current rows; unknown stays unknown and `counts_verdict` is the sole counted authority. Overlapping patterns are not an exhaustive causal partition.
 
 ## Corpus
 
@@ -16,6 +16,7 @@ Generated 2026-10-01T05:10:47+00:00 from current trace-query rows. PROVISIONAL: 
 - 55/83 (eligible trials (stop_reason is always recorded; 'unknown' stays separate))
 - Predicate: `stop_reason in {TrialBudgetExhaustedError, ceiling:input_tokens, ceiling:requests}`
 - `har104-d-000226__JCDfZFi` head#121 (agent/trajectory.json, recorded-command, raw-verified=True) :: echo complete
+
 - `har104-d-000383__PmZMZ6z` head#68 (agent/trajectory.json, recorded-command, raw-verified=True) :: mark_task_complete
 - Lever (hypothesis): Harness budget/ceiling policy or agent time-to-first-edit efficiency; causal evidence absent.
 
@@ -24,6 +25,7 @@ Generated 2026-10-01T05:10:47+00:00 from current trace-query rows. PROVISIONAL: 
 - Predicate: `decision loop_kind.kind == 'completion-claim' (producer rule HAR-119)`
 - Opinion limits: loop rule 7/11 vs rater-agreed (HAR-119 only); first_failure usually absent; blame near-constant prior.
 - `har116-a-002864-baseline__LnaWDq6` head#22 (agent/trajectory.json, recorded-command, raw-verified=True) :: true
+
 - `har116-b-000146-original__JT6tRiN` head#59 (agent/trajectory.json, observation-only, raw-verified=True) :: Previous response had parsing errors:
 ERROR: No valid JSON found in response
 WARNINGS: - No valid JSON object found
@@ -53,21 +55,26 @@ ERROR: No valid JSON found in response
 WARNINGS: - No valid JSON object found
 
 Ple
-- `har116-b-002308-leakclosed__idknFAu` head#14 (agent/trajectory.json, recorded-command, raw-verified=True) :: pip download pre-commit==2.15.0 --no-deps -d /tmp/pc 2>&1 | tail -2; ls /tmp/pc 2>/dev/null; grep -rn "post-rewrite\|rew
+- `har116-b-002308-leakclosed__idknFAu` head#14 (agent/trajectory.json, recorded-command, raw-verified=True) :: pip download pre-commit==2.15.0 --no-deps -d /tmp/pc 2>&1 | tail -2; ls /tmp/pc 2>/dev/null
+
+grep -rn "post-rewrite\|rew
 - Lever (hypothesis): Data integrity: keep excluded from training; upstream-fetch guard is a hypothesis.
 
 ### counts-excluded-infra [fact; generalized]
 - 10/40 (eligible trials with counts_verdict non-null)
 - Predicate: `counts_verdict == 'excluded' with reason infra (canonical counts)`
-- `har116-a-000383-loopfix__wgujpBQ` head#1 (agent/trajectory.json, none, raw-verified=True) :: 
-- `har116-a-000495-loopfix__rXR8je7` head#1 (agent/trajectory.json, none, raw-verified=True) :: 
+- `har116-a-000383-loopfix__wgujpBQ` head#1 (agent/trajectory.json, reconstructed-command (not proof of execution), raw-verified=True) :: ls -la; cd project
+- `har116-a-000495-loopfix__rXR8je7` head#1 (agent/trajectory.json, reconstructed-command (not proof of execution), raw-verified=True) :: ls -la; cd project
 - Lever (hypothesis): Infra reliability (harness/sandbox), not model capability; kept out of pass-rate denominator.
 
 ### recorded-upstream-fetch-signal [fact-signal; generalized]
 - 9/55 (eligible trials with processed_available (taint lives in processed reports))
 - Predicate: `processed taint contains an upstream_fetch entry (recorded command, NOT proof of copying)`
 - `har110-001161-plain__RZ8qyUu` head#27 (agent/trajectory.json, recorded-command, raw-verified=True) :: pip download docformatter==1.7.1 --no-deps -d /tmp/dfdl 2>&1 | tail -3
-- `har110-001181-plain__AnjbfwU` head#12 (agent/trajectory.json, recorded-command, raw-verified=True) :: cd /testbed && git log --all --oneline | head -20 && git branch -a && git tag | tail -5; pip download rich==13.7.0 --no-
+
+- `har110-001181-plain__AnjbfwU` head#12 (agent/trajectory.json, recorded-command, raw-verified=True) :: cd /testbed && git log --all --oneline | head -20 && git branch -a && git tag | tail -5
+
+pip download rich==13.7.0 --no-
 - Lever (hypothesis): Fetch command != fetched solution; treat as audit signal only.
 
 ## Rare cases

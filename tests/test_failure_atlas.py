@@ -167,10 +167,15 @@ def _write_minimal_job(root: Path, job_name: str, trial_name: str, *,
 
 def test_consumer_boundary_on_throwaway_corpus(tmp_path):
     """Atlas consumes the real view surface on a synthetic 2-trial corpus."""
+    import shutil
     tq = pytest.importorskip("evallab.trace_query", reason="needs parent trace_query integration")
     connect_trace_query = tq.connect_trace_query
 
     repo = tmp_path / "repo"
+    real_sql = Path(atlas_build.__file__).parents[4] / "sql" / "trace_queries.sql"
+    if real_sql.is_file():
+        (repo / "sql").mkdir(parents=True, exist_ok=True)
+        shutil.copy(real_sql, repo / "sql" / "trace_queries.sql")
     (repo / "research/experiments/python-task-ledger").mkdir(parents=True)
     (repo / "research/experiments/python-task-ledger/ledger.csv").write_text(
         "task_id,split,project,image_mib,status,reason,run,run_digest\n"

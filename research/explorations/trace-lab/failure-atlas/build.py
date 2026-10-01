@@ -471,7 +471,7 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
         "atlas_input_digest": f"sha256:{input_hasher.hexdigest()}",
         "source_hashes": {
             "trace_query_py": trace_query_sha,
-            "trace_query_note": "Runtime dependency owned by the query worker; exercised here as a local copy of commit e27ccb7d pending parent integration.",
+            "trace_query_note": "Runtime dependency owned by the query worker; exercised here as a local copy of review-fix commit ed727120 pending parent integration.",
             "ledger_csv": ledger["sha256"],
             "page_scores_json": _optional_sha(repo_root / "research/explorations/trace-lab/har119/page_scores.json"),
             "har119_manifest": freeze.get("manifest_sha256"),

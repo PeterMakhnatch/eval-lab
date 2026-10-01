@@ -56,8 +56,11 @@ The model loads as the text-only `Qwen3_5ForCausalLM`, and loading fails if any 
 - **Masks for `loss: "all"`** (the default) come from the template's `{% generation %}` markers. They are cross-checked against incremental prefix rendering with a verified prefix property, and they include each turn's `<|im_start|>assistant\n` header.
 - **Masks for `loss: "last"`** cover exactly the tokens the served model generated for the final call. The served prompt is `messages[:-1]` rendered with `add_generation_prompt=True`, which includes the header. It must be a token prefix of the full render, every token after it must lie inside the template's assistant mask, and only those tokens train: `<think>{r}</think>{m}<|im_end|>`. This is the per-call shape: the history is exactly what the served model saw, with assistant turns carrying no reasoning.
 - Any prefix break, mask disagreement or conversation with zero trainable tokens raises an error.
-- **Truncation** mirrors TRL: right-truncate at `max_length`, keeping the start, and drop fully masked rows. The default `max_length` is 65,536, the served context, so no Terminus segment is truncated.
-- **LoRA defaults** (recorded in the receipt): rank 16, alpha 32, dropout 0.05, lr 1e-4 cosine, 1 epoch, batch 1 × 16 accumulation, bf16, gradient checkpointing, no packing. `--grad-accum` overrides the accumulation.
+- **Length:** a row longer than `max_length` is refused with its label, never truncated, because a cut row would train on a partial target. The default `max_length` is 65,536, the served context, so no served call can exceed it.
+- **LoRA defaults** (recorded in the receipt): rank 16, alpha 32, dropout 0.05, lr 5e-5 cosine with 3% warmup, 1 epoch, batch 1 × 16 accumulation, seed 42, bf16, gradient checkpointing, no packing. `--grad-accum` overrides the accumulation.
+- **Seed:** `transformers.set_seed(seed)` runs before TRL builds the PEFT model, so the initial LoRA_A is a function of the seed alone. The receipt records its digest.
+- **Real update:** training refuses fewer than 2 optimizer steps, because the first warmup step has learning rate 0. The receipt records the learning rates and the LoRA_B max |value|, which starts at 0. The run raises if either never became positive.
+- **Render stack:** the GPU image pins transformers 5.12.1, tokenizers 0.22.2 and jinja2 3.1.6, which match this project's lock. `train_remote` refuses to start if the image's stack differs from the one that ran the dry run.
 
 ## Adapter vs merge: adapter wins (primary evidence, SGLang v0.5.20)
 

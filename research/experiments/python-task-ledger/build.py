@@ -104,6 +104,17 @@ REASONS = {
     "format-code-task-002595": "a nested pytest fails with 'LazySchema' object has no "
     "attribute 'hooks'; tests run, no environment repair identified",
 }
+#: Defects found in real runs after the census, bound to the exact package
+#: digest that showed them: task -> (run_digest, reason). The row is
+#: discarded only while the ledger still runs that digest; a different run
+#: digest (e.g. a new repair variant) fails the build until reviewed.
+RUN_DEFECTS = {
+    "format-code-task-001269": (
+        "sha256:541d416818c79503818c096a4e7ba4c2bc6ee37ba05684534a46a12464c3e18c",
+        "image leaks the fix: /testbed/build/lib holds the fixed module, copied in "
+        "G2 001269-a2-r2 (Traces HAR-128 labels_g2_tail; Cdx 1 HAR-127 11:01Z)",
+    ),
+}
 COLUMNS = (
     "task_id",
     "split",
@@ -363,8 +374,15 @@ def main() -> None:
     ]
     for row in rows:
         triage(row, checker.get(row["task_id"]), hand.get(row["task_id"], {}))
+    # The HAR-120 proposal was frozen before G2 found run defects; keep it.
+    proposal = [dict(row) for row in propose(rows)]
+    for row in rows:
+        if row["task_id"] in RUN_DEFECTS:
+            digest, reason = RUN_DEFECTS[row["task_id"]]
+            if row["run_digest"] != digest:
+                raise SystemExit(f"{row['task_id']}: run digest changed; review RUN_DEFECTS")
+            row["status"], row["reason"] = "discarded", reason
     write(HERE / "ledger.csv", rows, COLUMNS)
-    proposal = propose(rows)
     write(
         HERE / "har120_proposal.csv",
         proposal,

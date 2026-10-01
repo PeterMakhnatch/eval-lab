@@ -13,11 +13,17 @@ window end (the launch time), respecting expiry even with an older --since.
 Source rules (each row carries ``basis`` so billed figures are never
 mixed with estimates):
 
-- ``modal`` (basis ``billed``): the HAR-107 billing-reconcile rows in
+:- ``modal`` (basis ``billed``): the HAR-107 billing-reconcile rows in
   catalog table ``modal_billing_rows``. Modal bills the account, not
-  jobs, so this is one row per day under the ``unattributed`` card.
+  jobs, so costs split by billed app (``description``), one row per app;
+  an app lands on a card only through an explicit app -> card binding,
+  and every app without one stays on its own ``unattributed`` row as the
+  unknown residual. The per-(object, day) ``max(daily, hourly)`` rule is
+  unchanged, so the split conserves the billed total exactly.
   When the table holds no rows for the day the ledger says so; this
   module never fetches billing itself (the reconcile path owns that).
+  Per-job GPU shares come only from an explicit HAR-131 session receipt
+  (:func:`session_spend_for_job`), never from dividing these rows.
 - ``daytona`` (basis ``estimate``): the Daytona SDK (0.220.0) exposes
   only quota/current-usage snapshots
   (``OrganizationUsageOverview``: CPU/memory/disk quotas, no dollars,
@@ -40,9 +46,17 @@ mixed with estimates):
   (pricing 0/0, billed instead through Modal server time) and
   contribute no model row, so they are never double counted.
 
-Card attribution derives from the job-name prefix (``har81-...`` ->
-``HAR-81``) or the ledger path (``har111/...`` -> ``HAR-111``);
-anything else lands in ``unattributed`` and is never guessed.
+Card attribution is explicit-only and fail-closed: the catalog
+``lab_metadata`` ``experiment.linear_card`` (copied from the submitting
+``ExperimentSpec.linear_card``) wins, the job-name prefix (``har81-...``
+-> ``HAR-81``) or the ledger path (``har111/...`` -> ``HAR-111``) covers
+the rest; disagreement or a malformed explicit card fails closed to
+``unattributed`` with a conflict note and is never guessed. Task,
+model, harness, and app names are never attribution: jobs that predate
+the explicit field (e.g. the 2026-10-01 ``ovn-g5-*`` runs) stay
+``unattributed`` until republished with an explicit binding such as
+``publication_card``. Billed Daytona dollars are unavailable from the
+provider API, so Daytona rows stay estimates.
 Model-ledger dollars attribute to the day the job finished;
 ``spend.jsonl`` rows attribute to the day of their own timestamp.
 
@@ -78,7 +92,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 
-from evallab.schemas import StandingApprovalsPolicy, effective_daily_cost_ceiling
+from evallab.schemas import StandingApprovalsPolicy, effective_daily_cost_ceiling, normalize_linear_card
 
 #: Lab day-spend cap (USD) the ledger reports against.
 DEFAULT_CAP_USD = 20.0
@@ -162,6 +176,41 @@ def card_for_ledger_path(path: str | Path) -> str:
             if match:
                 return f"HAR-{int(match.group(1))}"
     return UNATTRIBUTED
+
+def resolve_job_card(job_name: str | None, *, linear_card: str | None = None) -> str:
+    """Card for a job: explicit ``linear_card`` first, job-name prefix second.
+
+    The explicit card (``ExperimentSpec.linear_card`` carried through run
+    provenance into the catalog) wins when it agrees with the job-name
+    prefix or when the name carries none. A malformed explicit card, or
+    one that disagrees with the job-name prefix, raises ``ValueError``
+    fail-closed: the ledger never guesses, and query paths that catch
+    this per job leave the row ``unattributed`` with a conflict note.
+    Task, model, and app names are never consulted here.
+    """
+    explicit = normalize_linear_card(linear_card)
+    inferred = card_for_job(job_name)
+    if explicit is not None:
+        if inferred != UNATTRIBUTED and inferred != explicit:
+            raise ValueError(
+                f"explicit card {explicit} conflicts with job-name card "
+                f"{inferred} for {job_name!r}"
+            )
+        return explicit
+    return inferred
+
+
+def explicit_card_from_lab_metadata(lab_metadata: Any) -> str | None:
+    """Explicit card carried in catalog ``lab_metadata`` (``experiment``), if any.
+
+    Returns the normalized card, ``None`` when the job predates the field
+    or leaves it blank, and raises ``ValueError`` on a malformed value.
+    """
+    if isinstance(lab_metadata, Mapping):
+        experiment = lab_metadata.get("experiment")
+        if isinstance(experiment, Mapping):
+            return normalize_linear_card(experiment.get("linear_card"))
+    return None
 
 
 def parse_dt(value: Any) -> datetime | None:
@@ -574,8 +623,12 @@ REASON_STALE_MODAL = "stale_modal_billing"
 
 
 def query_modal_rows(
-    database_url: str, window_start: datetime, window_end: datetime
-) -> tuple[SpendRow | None, str]:
+    database_url: str,
+    window_start: datetime,
+    window_end: datetime,
+    *,
+    card_by_app: Mapping[str, str] | None = None,
+) -> tuple[list[SpendRow], str]:
     """Billed Modal rows from catalog cache for ``[window_start, window_end)``.
 
     Per-(object_id, UTC day) rule: for each object/day, take
@@ -583,9 +636,24 @@ def query_modal_rows(
     (resolution not in key) and partial snapshots without double-counting.
     For intra-day windows, if an object/day has only a daily row, it counts
     the full daily row conservatively.
+
+    Costs are then split by billed app (``description``) instead of one
+    ``modal-account`` line. An app lands on an explicit card only through
+    ``card_by_app`` (an operator-supplied app -> HAR card binding validated
+    fail-closed); every app without a binding stays on its own
+    ``unattributed`` row as the unknown residual. The split conserves the
+    per-object total exactly: no daily+hourly double count, and never an
+    inferred per-job model charge (Modal bills the account, not jobs).
+    When no explicit binding is configured the note says so honestly.
     """
     import psycopg
 
+    bound: dict[str, str] = {}
+    for app, card in (card_by_app or {}).items():
+        normalized = normalize_linear_card(card)
+        if normalized is None:
+            raise ValueError(f"explicit card binding for app {app!r} is empty")
+        bound[app] = normalized
     window_start = _coerce_utc(window_start)
     window_end = _coerce_utc(window_end)
     with psycopg.connect(database_url) as connection:
@@ -593,6 +661,7 @@ def query_modal_rows(
             """
             WITH hourly_per_obj AS (
                 SELECT object_id,
+                       description AS app,
                        (interval_start AT TIME ZONE 'UTC')::date AS day,
                        coalesce(sum(cost_usd), 0) AS hourly_usd,
                        count(*) AS hourly_count,
@@ -600,10 +669,11 @@ def query_modal_rows(
                 FROM modal_billing_rows
                 WHERE resolution = 'h'
                   AND interval_start >= %s AND interval_start < %s
-                GROUP BY object_id, (interval_start AT TIME ZONE 'UTC')::date
+                GROUP BY object_id, description, (interval_start AT TIME ZONE 'UTC')::date
             ),
             daily_per_obj AS (
                 SELECT object_id,
+                       description AS app,
                        (interval_start AT TIME ZONE 'UTC')::date AS day,
                        coalesce(sum(cost_usd), 0) AS daily_usd,
                        count(*) AS daily_count,
@@ -611,15 +681,16 @@ def query_modal_rows(
                 FROM modal_billing_rows
                 WHERE resolution = 'd'
                   AND interval_start < %s AND interval_start + interval '1 day' > %s
-                GROUP BY object_id, (interval_start AT TIME ZONE 'UTC')::date
+                GROUP BY object_id, description, (interval_start AT TIME ZONE 'UTC')::date
             ),
             combined_keys AS (
-                SELECT object_id, day FROM hourly_per_obj
+                SELECT object_id, app, day FROM hourly_per_obj
                 UNION
-                SELECT object_id, day FROM daily_per_obj
+                SELECT object_id, app, day FROM daily_per_obj
             )
             SELECT
                 k.object_id,
+                k.app,
                 k.day,
                 coalesce(h.hourly_usd, 0) AS hourly_usd,
                 coalesce(d.daily_usd, 0) AS daily_usd,
@@ -627,22 +698,26 @@ def query_modal_rows(
                 coalesce(d.daily_count, 0) AS daily_count,
                 greatest(h.hourly_reported, d.daily_reported) AS reported_at
             FROM combined_keys k
-            LEFT JOIN hourly_per_obj h ON h.object_id = k.object_id AND h.day = k.day
-            LEFT JOIN daily_per_obj d ON d.object_id = k.object_id AND d.day = k.day
+            LEFT JOIN hourly_per_obj h
+                ON h.object_id = k.object_id AND h.app = k.app AND h.day = k.day
+            LEFT JOIN daily_per_obj d
+                ON d.object_id = k.object_id AND d.app = k.app AND d.day = k.day
             """,
             (window_start, window_end, window_end, window_start),
         ).fetchall()
 
     label = f"{window_start.isoformat()}..{window_end.isoformat()}"
     if not rows:
-        return None, f"modal: no billing rows matching {label} in modal_billing_rows"
+        return [], f"modal: no billing rows matching {label} in modal_billing_rows"
 
-    total_usd = 0.0
+    per_app_usd: dict[str, float] = {}
+    per_app_count: dict[str, int] = {}
+    per_app_objects: dict[str, set[str]] = {}
     total_count = 0
     max_reported: datetime | None = None
     sub_notes: list[str] = []
 
-    for obj_id, d, h_usd, d_usd, h_cnt, d_cnt, reported in rows:
+    for obj_id, app, d, h_usd, d_usd, h_cnt, d_cnt, reported in rows:
         h_val = float(h_usd)
         d_val = float(d_usd)
         if h_cnt > 0 and d_cnt > 0:
@@ -661,26 +736,50 @@ def query_modal_rows(
                     f"object {obj_id} on {d} has only daily row; counted ${d_val:.4f} conservatively"
                 )
 
-        total_usd += cost
+        app_name = app if isinstance(app, str) and app else str(obj_id)
+        per_app_usd[app_name] = per_app_usd.get(app_name, 0.0) + cost
+        per_app_count[app_name] = per_app_count.get(app_name, 0) + cnt
+        per_app_objects.setdefault(app_name, set()).add(str(obj_id))
         total_count += cnt
         if reported is not None:
             max_reported = reported if max_reported is None else max(max_reported, reported)
 
-    note_text = f"modal: billed ${total_usd:.4f} across {total_count} rows in {label}" + (
-        f" (last reported {max_reported})" if max_reported else ""
+    total_usd = math.fsum(per_app_usd.values())
+    modal_rows = [
+        SpendRow(
+            source="modal",
+            card=bound.get(app_name, UNATTRIBUTED),
+            job=app_name,
+            usd=usd,
+            basis=BASIS_BILLED,
+            evidence=(
+                f"catalog:modal_billing_rows:{per_app_count[app_name]} rows:"
+                f"{len(per_app_objects[app_name])} objects"
+            ),
+        )
+        for app_name, usd in sorted(per_app_usd.items())
+    ]
+    residual = [app for app in per_app_usd if app not in bound]
+    if bound:
+        binding_note = (
+            f"{len(bound)} explicit app->card binding(s) applied; "
+            f"{len(residual)} app(s) unattributed residual"
+            if residual
+            else f"{len(bound)} explicit app->card binding(s) applied; no unattributed residual"
+        )
+    else:
+        binding_note = (
+            "no explicit app->card bindings recorded; every app is unattributed "
+            "residual (Modal bills the account, not jobs)"
+        )
+    note_text = (
+        f"modal: billed ${total_usd:.4f} across {total_count} rows "
+        f"in {label} split by app ({len(modal_rows)} apps; {binding_note})"
+        + (f" (last reported {max_reported})" if max_reported else "")
     )
     if sub_notes:
         note_text += " (" + "; ".join(sub_notes[:3]) + ")"
-
-    modal_row = SpendRow(
-        source="modal",
-        card=UNATTRIBUTED,
-        job="modal-account",
-        usd=total_usd,
-        basis=BASIS_BILLED,
-        evidence=f"catalog:modal_billing_rows:{total_count} rows",
-    )
-    return modal_row, note_text
+    return modal_rows, note_text
 
 
 def query_modal_latest_interval(database_url: str) -> datetime | None:
@@ -730,6 +829,7 @@ def query_model_job_rows(
     without_settled = 0
     selfhosted_zero = 0
     unfinished = 0
+    model_conflicts: list[str] = []
     for job_name, evidence_path, job_id, finished_at_raw, lab_metadata in rows:
         finished = None
         if isinstance(lab_metadata, dict) and lab_metadata.get("finished_at"):
@@ -785,10 +885,20 @@ def query_model_job_rows(
             if "self-hosted" in reason:
                 selfhosted_zero += 1
             continue
+        try:
+            model_card = resolve_job_card(
+                job_name if isinstance(job_name, str) else None,
+                linear_card=explicit_card_from_lab_metadata(lab_metadata),
+            )
+        except ValueError as exc:
+            model_card = UNATTRIBUTED
+            model_conflicts.append(
+                f"{job_name if isinstance(job_name, str) else job_id}: {exc}"
+            )
         spend_rows.append(
             SpendRow(
                 source="model",
-                card=card_for_job(job_name if isinstance(job_name, str) else None),
+                card=model_card,
                 job=job_name if isinstance(job_name, str) else str(job_id),
                 usd=used_usd,
                 basis=BASIS_LEDGER,
@@ -810,6 +920,11 @@ def query_model_job_rows(
         )
     if unfinished:
         notes.append(f"model: {unfinished} jobs lack finished_at; unattributable")
+    if model_conflicts:
+        notes.append(
+            "model: fail-closed to unattributed on card conflict: "
+            + "; ".join(model_conflicts[:3])
+        )
     return spend_rows, notes, unresolved_model_usd
 
 
@@ -929,6 +1044,13 @@ def query_daytona_rows(
     ``[window_start, window_end)`` (intervals crossing a boundary split).
     Per-job rows aggregate trial slices; every dollar here is basis
     ``estimate`` from the Daytona list-price card.
+
+    Card attribution is explicit-only: the catalog ``lab_metadata``
+    ``experiment.linear_card`` first, the job-name prefix second, failing
+    closed (unattributed with a conflict note) on disagreement. Task,
+    model, and harness path substrings are never treated as attribution,
+    so jobs that predate the explicit field stay ``unattributed`` with an
+    honest note instead of a guessed card.
     """
     import psycopg
 
@@ -942,7 +1064,7 @@ def query_daytona_rows(
             """
             SELECT t.trial_name, t.task_name, t.started_at, t.finished_at,
                    t.duration_seconds, t.raw_config, t.raw_lock,
-                   j.job_name, j.evidence_path, j.raw_config
+                   j.job_name, j.evidence_path, j.raw_config, j.lab_metadata
             FROM trials t JOIN jobs j ON j.id = t.job_id
             WHERE t.started_at IS NOT NULL AND t.finished_at IS NOT NULL
             """
@@ -955,18 +1077,21 @@ def query_daytona_rows(
     unrated = 0
     measured = 0
     fallback = 0
-    for (
-        trial_name,
-        task_name,
-        started_raw,
-        finished_raw,
-        duration_seconds,
-        trial_config,
-        trial_lock,
-        job_name,
-        evidence_path,
-        job_config,
-    ) in trials:
+    card_conflicts: list[str] = []
+    for row in trials:
+        (
+            trial_name,
+            task_name,
+            started_raw,
+            finished_raw,
+            duration_seconds,
+            trial_config,
+            trial_lock,
+            job_name,
+            evidence_path,
+            job_config,
+        ) = row[:10]
+        job_metadata = row[10] if len(row) > 10 else None
         started = parse_dt(started_raw)
         finished = parse_dt(finished_raw)
         if started is None or finished is None or finished <= started:
@@ -1027,13 +1152,25 @@ def query_daytona_rows(
         meta = per_job_meta.setdefault(
             key,
             {
-                "card": card_for_job(job_name if isinstance(job_name, str) else None),
+                "card": UNATTRIBUTED,
+                "explicit": False,
                 "evidence": evidence_path
                 if isinstance(evidence_path, str) and evidence_path
                 else key,
                 "trials": 0,
             },
         )
+        if meta["trials"] == 0:
+            try:
+                explicit = explicit_card_from_lab_metadata(job_metadata)
+                meta["card"] = resolve_job_card(
+                    job_name if isinstance(job_name, str) else None,
+                    linear_card=explicit,
+                )
+                meta["explicit"] = explicit is not None
+            except ValueError as exc:
+                meta["card"] = UNATTRIBUTED
+                card_conflicts.append(f"{key}: {exc}")
         meta["trials"] += 1
     spend_rows = [
         SpendRow(
@@ -1046,12 +1183,30 @@ def query_daytona_rows(
         )
         for key, usd in sorted(per_job_usd.items())
     ]
+    explicit_jobs = sum(1 for key in per_job_usd if per_job_meta[key]["explicit"])
+    unattributed_jobs = sum(1 for key in per_job_usd if per_job_meta[key]["card"] == UNATTRIBUTED)
     notes = [
         f"daytona: {trials_in_window} trial slices across {len(spend_rows)} jobs "
         f"(rate measured {measured}, family fallback {fallback}); "
         f"{unrated} slices unratable, {skipped_backend} non-daytona, "
         f"{skipped_time} missing time"
     ]
+    if explicit_jobs:
+        notes.append(
+            f"daytona: {explicit_jobs} jobs attributed via explicit linear_card "
+            "from catalog lab_metadata"
+        )
+    if unattributed_jobs:
+        notes.append(
+            f"daytona: {unattributed_jobs} jobs unattributed (no explicit "
+            "linear_card in catalog lab_metadata and no HAR job-name prefix; "
+            "harness/task path substrings are never attribution)"
+        )
+    if card_conflicts:
+        notes.append(
+            "daytona: fail-closed to unattributed on card conflict: "
+            + "; ".join(card_conflicts[:3])
+        )
     return spend_rows, notes
 
 
@@ -1155,10 +1310,9 @@ def build_window_ledger(
         if live_modal_row is not None:
             rows.append(live_modal_row)
     else:
-        modal_row, modal_note = query_modal_rows(database_url, window_start, window_end)
+        modal_rows, modal_note = query_modal_rows(database_url, window_start, window_end)
         notes.append(modal_note)
-        if modal_row is not None:
-            rows.append(modal_row)
+        rows.extend(modal_rows)
         if window_end.date() >= datetime.now(UTC).date():
             notes.append(
                 "modal: current-day billing data is partial; unsettled usage may still accumulate"
@@ -1607,7 +1761,7 @@ def check_launch(
     # 4. Live fetch failure -> unverified (exit 2) unless --allow-stale-modal.
     # -----------------------------------------------------------------------
     try:
-        cached_modal_row, _ = query_modal_rows(database_url, window_start, window_end)
+        cached_modal_rows, _ = query_modal_rows(database_url, window_start, window_end)
     except Exception as exc:
         # An unreadable cache is unknown spend, never $0 (even with
         # --allow-stale-modal, which only admits a readable stale cache).
@@ -1623,7 +1777,14 @@ def check_launch(
             cap_usd=cap_usd,
         )
 
-    cached_modal_usd = cached_modal_row.usd if cached_modal_row is not None else 0.0
+    cached_modal_usd = math.fsum(row.usd for row in cached_modal_rows)
+    cached_modal_evidence = (
+        cached_modal_rows[0].evidence
+        if len(cached_modal_rows) == 1
+        else f"catalog:modal_billing_rows:{len(cached_modal_rows)} app rows"
+        if cached_modal_rows
+        else "catalog:modal_billing_rows"
+    )
 
     start_date = window_start.date()
     end_date = (window_end - timedelta(microseconds=1)).date()
@@ -1683,11 +1844,7 @@ def check_launch(
             evidence = (
                 f"modal:live_report:{len(matching_rows)} rows"
                 if effective_modal_usd == live_modal_usd
-                else (
-                    cached_modal_row.evidence
-                    if cached_modal_row is not None
-                    else "catalog:modal_billing_rows"
-                )
+                else cached_modal_evidence
             )
             effective_modal_row = SpendRow(
                 source="modal",
@@ -1730,7 +1887,18 @@ def check_launch(
             f"modal: live billing fetch failed ({modal_fetch_error or 'no live rows'}); "
             f"fell back to catalog cache (${cached_modal_usd:.4f}) (--allow-stale-modal recorded)"
         )
-        effective_modal_row = cached_modal_row
+        effective_modal_row = (
+            SpendRow(
+                source="modal",
+                card=UNATTRIBUTED,
+                job="modal-account",
+                usd=cached_modal_usd,
+                basis=BASIS_BILLED,
+                evidence=cached_modal_evidence,
+            )
+            if cached_modal_rows
+            else None
+        )
 
     try:
         ledger = build_window_ledger(

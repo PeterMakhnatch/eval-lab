@@ -36,6 +36,21 @@ An older `--since` does not revive an expired approval. An explicit
 `--cap-usd` takes precedence in either command; reporting a past override
 never renews authorization to spend.
 
+Card attribution is explicit-only and fail-closed. A queued spec may declare
+`linear_card: HAR-126`; the runner carries it through run provenance into the
+catalog, and `spend day` attributes that job's Daytona/model rows to the card.
+An explicit card that disagrees with the job-name prefix fails closed to
+`unattributed` with a conflict note — task, model, harness, and app names are
+never attribution. Modal billed cost splits by app (one row per billed app);
+an app takes a card only through an explicit binding, otherwise it stays an
+`unattributed` residual line. Jobs that predate the explicit field and carry no
+HAR job-name prefix (e.g. the 2026-10-01 `ovn-g5-*` runs) stay `unattributed`
+in the ledger; republishing with an explicit `publication_card` binds the
+results home without rewriting raw records. Provider limits: the Daytona API
+exposes quota snapshots only (no billed dollars, so Daytona rows stay
+estimates), and Modal bills the account rather than jobs (per-job GPU shares
+come only from an explicit HAR-131 session receipt).
+
 ## 1. Data
 
 - **Input** is an `evallab.sft_terminus/1` export: a directory with `conversations.jsonl` and `manifest.json`, which carries `conversations_sha256`. Training refuses anything else.

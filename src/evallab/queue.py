@@ -2257,6 +2257,7 @@ class Executor:
                 campaign_attempt_index=spec.campaign_attempt_index,
                 campaign_manifest_digest=spec.campaign_manifest_digest,
                 campaign_spec_digest=spec.campaign_spec_digest,
+                linear_card=spec.linear_card,
             ),
         )
         job_dir = self._run_with_transient_retries(spec, request)

@@ -202,19 +202,22 @@ class _FakeConnection:
     def execute(self, sql: str, params: tuple = ()) -> _FakeResult:
         if "hourly_per_obj" in sql:
             start, end = params[0], params[1]
-            by_obj: dict[tuple[str, date], dict[str, Any]] = {}
+            by_obj: dict[tuple[str, str, date], dict[str, Any]] = {}
             for r in self._modal_rows:
                 if len(r) == 3:
-                    obj, dt, usd, rep, res = "app-default", r[0], r[1], r[2], "h"
+                    obj, desc, dt, usd, rep, res = "app-default", "app-default", r[0], r[1], r[2], "h"
                 elif len(r) == 4:
-                    obj, dt, usd, rep, res = "app-default", r[0], r[1], r[2], r[3]
+                    obj, desc, dt, usd, rep, res = "app-default", "app-default", r[0], r[1], r[2], r[3]
                 elif len(r) == 5:
                     obj, dt, usd, rep, res = r[0], r[1], r[2], r[3], r[4]
+                    desc = obj
+                elif len(r) == 6:
+                    obj, desc, dt, usd, rep, res = r[0], r[1], r[2], r[3], r[4], r[5]
                 else:
                     continue
                 d = dt.date()
                 entry = by_obj.setdefault(
-                    (obj, d), {"h_usd": 0.0, "d_usd": 0.0, "h_cnt": 0, "d_cnt": 0, "rep": None}
+                    (obj, desc, d), {"h_usd": 0.0, "d_usd": 0.0, "h_cnt": 0, "d_cnt": 0, "rep": None}
                 )
                 if res == "h":
                     if start <= dt < end:
@@ -227,7 +230,7 @@ class _FakeConnection:
                 if rep is not None:
                     entry["rep"] = rep if entry["rep"] is None else max(entry["rep"], rep)
             res_rows = [
-                (k[0], k[1], v["h_usd"], v["d_usd"], v["h_cnt"], v["d_cnt"], v["rep"])
+                (k[0], k[1], k[2], v["h_usd"], v["d_usd"], v["h_cnt"], v["d_cnt"], v["rep"])
                 for k, v in by_obj.items()
                 if v["h_cnt"] > 0 or v["d_cnt"] > 0
             ]
@@ -280,15 +283,15 @@ def test_modal_window_counts_hour_starting_in_window_whole(
         ],
         latest=datetime(2026, 10, 1, 6, 0, tzinfo=UTC),
     )
-    row, _note = query_modal_rows(
+    rows, _note = query_modal_rows(
         "postgresql://fake/db",
         datetime(2026, 10, 1, 4, 0, tzinfo=UTC),
         datetime(2026, 10, 1, 6, 0, tzinfo=UTC),
     )
-    assert row is not None
+    assert len(rows) == 1
     # The 05:00 hourly row counts whole even though its hour runs past 06:00.
-    assert row.usd == pytest.approx(2.5)
-    assert row.basis == "billed"
+    assert rows[0].usd == pytest.approx(2.5)
+    assert rows[0].basis == "billed"
 
 
 # ---------------------------------------------------------------------------
@@ -551,7 +554,7 @@ def test_unratable_spec_fails_closed_with_ledger_shown(
             cap_usd=30.0,
         ),
     )
-    monkeypatch.setattr("evallab.spend_day.query_modal_rows", lambda *a, **k: (None, []))
+    monkeypatch.setattr("evallab.spend_day.query_modal_rows", lambda *a, **k: ([], "fixture"))
     decision = check_launch(
         repo_root=tmp_path,
         queue_root=queue_root,
@@ -679,7 +682,7 @@ def test_cli_allowed_refused_and_unratable_exits(
         )
 
     monkeypatch.setattr("evallab.spend_day.build_window_ledger", _settled_two_dollars)
-    monkeypatch.setattr("evallab.spend_day.query_modal_rows", lambda *a, **k: (None, []))
+    monkeypatch.setattr("evallab.spend_day.query_modal_rows", lambda *a, **k: ([], "fixture"))
 
     def _check(candidate: str, *extra: str) -> int:
         return _run_check(
@@ -1079,6 +1082,7 @@ def test_defect5_modal_live_fetch_failure_fails_closed_unless_allow_stale(
                     [
                         (
                             "app-daily",
+                            "app-daily",
                             datetime(2026, 10, 1, tzinfo=UTC).date(),
                             0.0,
                             25.0,
@@ -1235,14 +1239,14 @@ def test_modal_partial_hourly_falls_back_to_daily_without_undercount(
     monkeypatch.setattr(psycopg, "connect", lambda url: conn)
 
     # 1. Whole-day window [00:00, 24:00) MUST report $4.1540 from daily rows
-    row, _ = query_modal_rows(
+    rows, _ = query_modal_rows(
         "postgresql://fake/db",
         datetime(2026, 10, 1, 0, 0, tzinfo=UTC),
         datetime(2026, 10, 2, 0, 0, tzinfo=UTC),
     )
-    assert row is not None
-    assert row.usd == pytest.approx(4.1540)
-    assert row.basis == "billed"
+    assert len(rows) == 1
+    assert rows[0].usd == pytest.approx(4.1540)
+    assert rows[0].basis == "billed"
 
     # 2. Live fetch failure without allow_stale_modal fails closed with REASON_STALE_MODAL
     refused = check_launch(
@@ -1320,12 +1324,12 @@ def test_modal_per_object_query_survives_pk_collision_and_partial_snapshots(
 
     monkeypatch.setattr(psycopg, "connect", lambda url: conn)
 
-    row, _ = query_modal_rows(
+    rows, _ = query_modal_rows(
         "postgresql://fake/db",
         datetime(2026, 10, 1, 0, 0, tzinfo=UTC),
         datetime(2026, 10, 2, 0, 0, tzinfo=UTC),
     )
-    assert row is not None
+    assert len(rows) == 2
     # Must be $26.0 (A: max(1, 1)=1; B: max(0, 20+5)=25; sum = 26.0)
-    assert row.usd == pytest.approx(26.0)
-    assert row.basis == "billed"
+    assert sum(row.usd for row in rows) == pytest.approx(26.0)
+    assert all(row.basis == "billed" for row in rows)

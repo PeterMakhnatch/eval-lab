@@ -758,15 +758,18 @@ def test_infra_error_raises_evaluation_unavailable(tmp_path: Path) -> None:
         ("TrialBudgetExhaustedError", 1.0, 1.0),
         ("TrialBudgetExhaustedError", 0.0, 0.0),
         ("AgentTimeoutError", 1.0, 1.0),
+        ("LoopBreakStop", 1.0, 1.0),
+        ("LoopBreakStop", 0.0, 0.0),
+        ("LoopBreakStop", None, None),
         ("TrialBudgetExhaustedError", None, None),
         ("RuntimeError", 1.0, None),
     ],
-    ids=["ceiling-pass", "ceiling-fail", "timeout-pass", "ceiling-unscored", "other-error"],
+    ids=["ceiling-pass", "ceiling-fail", "timeout-pass", "loop-pass", "loop-fail", "loop-unscored", "ceiling-unscored", "other-error"],
 )
 def test_agent_stop_with_verifier_reward_is_scored(
     tmp_path: Path, exception_type: str, reward: float | None, expected: float | None
 ) -> None:
-    """A trial-ceiling or agent-timeout stop the verifier scored is the agent's outcome.
+    """A verifier-scored trial-ceiling, timeout, or active-loop stop is the agent's outcome.
 
     Only a finite reward after an agent stop is scored; an unscored stop or any other
     exception still halts the campaign as an unavailable evaluation.

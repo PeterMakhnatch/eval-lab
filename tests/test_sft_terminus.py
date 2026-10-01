@@ -1329,3 +1329,52 @@ def test_per_turn_mutual_exclusion_with_keep_reasoning(tmp_path: Path) -> None:
             split_manifest_path=split,
             per_turn_stride=0,
         )
+
+
+def _per_turn_export(tmp_path: Path, root: Path, stride: int = 1) -> Path:
+    split = _freeze_split(tmp_path, ["task-a"], heldout=[])
+    out = tmp_path / "out-turns"
+    code = cli_main(
+        [
+            "export",
+            "--root",
+            f"teacher={root}",
+            "--split-manifest",
+            str(split),
+            "--out",
+            str(out),
+            "--per-turn-stride",
+            str(stride),
+        ]
+    )
+    assert code == 0
+    return out
+
+
+def test_per_turn_never_targets_replayed_copied_context(tmp_path: Path) -> None:
+    # cont-1 replays assistant step 3 (is_copied_context) before its fresh step 5.
+    root = tmp_path / "runs"
+    root.mkdir()
+    _write_trial(
+        root, "trial-split", continuations=[_continuation_steps()], summarization_count=1
+    )
+    out = _per_turn_export(tmp_path, root)
+    targets = [row["messages"][-1]["content"] for row in _rows(out)]
+    assert "What state is the repo in?" not in targets
+    assert any('"analysis":"resume"' in target for target in targets)
+    # The replayed turn stays in the continuation's history.
+    resume = next(r for r in _rows(out) if '"analysis":"resume"' in r["messages"][-1]["content"])
+    assert "What state is the repo in?" in [m["content"] for m in resume["messages"][:-1]]
+
+
+def test_per_turn_excludes_a_trial_with_a_redaction_marker_in_reasoning(tmp_path: Path) -> None:
+    root = tmp_path / "runs"
+    root.mkdir()
+    marker = "<<evallab-redacted: 12 bytes, sha256:" + "0" * 64 + ">>"
+    steps = _terminus_steps()
+    steps[1]["reasoning_content"] = f"use the key {marker}"
+    _write_trial(root, "trial-redacted", steps=steps)
+    out = _per_turn_export(tmp_path, root)
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert _rows(out) == []
+    assert manifest["counts"]["trials_excluded"] == 1

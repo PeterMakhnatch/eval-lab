@@ -385,7 +385,7 @@ inputs:
   - path: src/evallab/sft_split.py
     digest: sha256:148ea0474a49f42ae27f61aaf8b6022a3da129c45d94f6592b0e2caee09d73e7
   - path: src/evallab/sft_terminus.py
-    digest: sha256:2630f15999745693d33d6063c6b51c29d1ae013d7481fcd6ca664c51976632c8
+    digest: sha256:1e550e459f610af74e4c399001abdcdcf63d7c16bd0ebb943007bd46f1421dcb
   - path: src/evallab/sft_tinker.py
     digest: sha256:c3803fb755b9f82efbcc8e623a095e9280ffc8c77b998357f3d96be2d8f3bf28
   - path: src/evallab/smoke.py

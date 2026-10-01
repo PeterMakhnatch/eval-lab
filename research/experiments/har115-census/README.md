@@ -8,10 +8,11 @@ The scripts reuse HAR-113's toolbox in `../har113-variants/` (repair kinds,
 | Part | Result |
 |---|---|
 | 1. Repairs of the 51 tasks HAR-113's waves found | 44 repaired: broken before, `sound` after, `validated` (35 keep-build-outputs, 5 login-path, 2 pin, 1 keep-files, 1 new login-pythonpath). 1 more was a Daytona conflict (re-nop sound), 1 a census false positive (001860). 5 remain (below) |
-| 2. Census nops of the last 198 unknowns | 198 of 198 nopped: 165 sound, 32 broken_environment, 1 grader_suspect. The census has no `unknown` left |
+| 2. Census nops of the last 198 unknowns | 198 of 198 nopped: 165 sound, 32 broken_environment, 1 grader_suspect. The census has no `unknown` left. Of the 33 new finds, 21 whose error line names a known kind got one repair nop each: 15 `validated`, 6 `rejected`; the other 12 were not attempted (fix-or-discard rule below) |
 | 3. Classifier false positives | 000211, 001981, 002207 now `sound`, plus 001860 of the same shape; 002307's post-repair nop too. No other label moved across 979 re-labelled nops |
 | 4. Defect origins | [`ORIGINS.md`](ORIGINS.md) |
-| Spend | $1.7927 Daytona over 253 trials (cap $2.25); no model calls |
+| 5. Python task ledger | [`../python-task-ledger/`](../python-task-ledger/): all 1,180 tasks as usable / review / discarded / unchecked, the package to run, and 30 proposed for HAR-120 |
+| Spend | $1.9807 Daytona over 274 trials (cap $2.25); no model calls |
 
 Census (`../har108-python-census/task_health.parquet`, [`SUMMARY.md`](../har108-python-census/SUMMARY.md)):
 sound 1040, broken_environment 135, grader_suspect 5, unknown 0 (was 870 / 107 / 5 / 198).
@@ -114,9 +115,13 @@ under the card's $2.25. `census_update.py` rebuilt the catalog's
 `task_qualification.parquet` (1416 nop jobs: HAR-113's runs from its locked
 worktree, HAR-115's from this checkout) and then `task_health.parquet`.
 
-The 198 heaviest images added 33 tasks that are not sound. They were found
-after the repairs were planned and are not repaired here; the repair column
-is a guess from the evidence:
+The 198 heaviest images added 33 tasks that are not sound. Under Peter's
+2026-09-30 scope ("document them, either fix them or discard them... and move
+on"; Research-Harbor's HAR-115 comment: fix only with a known repair kind, at
+most one diagnosis per unknown error), the 21 whose error line names a known
+kind got one repair nop each (below); the rest are discarded or in review in
+the ledger with their census evidence as the reason. The last column was the
+guess before the repair nops:
 
 | task | label | project | split | evidence | likely repair [INFERENCE] |
 |---|---|---|---|---|---|
@@ -154,6 +159,33 @@ is a guess from the evidence:
 | 003009 | broken_environment | pyte | train | `________ ERROR collecting usercase-test-coderl/test_diffscreen_dirty.py ________` | diagnose |
 | 003014 | broken_environment | format-code-task-003014 | train | `_________________ ERROR collecting tests/dialects/test_smt.py __________________` | diagnose |
 
+Round four, the repair nops (`specs.py` `KEEP_BUILD_4`, `LOGIN_PATH_4`; a
+rejected repair is not retried):
+
+| task | cause | repair | nop after | variant | status |
+|---|---|---|---|---|---|
+| 000022 | ape.version, a generated version module | keep-build-outputs | sound `har115-rnop-000022-57763bd07c79` | `57763bd07c79` | validated |
+| 000023 | pytest: command not found | login-path-pyenv | sound `har115-rnop-000023-1d9811ed4138` | `1d9811ed4138` | validated |
+| 000238 | cargo: command not found | login-path-pyenv | broken_environment `har115-rnop-000238-a3485fb06ded`: `/testbed/.build_env/test_command.sh: line 4: cargo: command not found` | `a3485fb06ded` | rejected |
+| 000392 | package metadata (DistributionNotFound) | keep-build-outputs | sound `har115-rnop-000392-4193bdb781fb` | `4193bdb781fb` | validated |
+| 000737 | package metadata (DistributionNotFound) | keep-build-outputs | sound `har115-rnop-000737-d9096c3e229d` | `d9096c3e229d` | validated |
+| 000966 | py.test: command not found | login-path-pyenv | sound `har115-rnop-000966-918b471e2cb1` | `918b471e2cb1` | validated |
+| 000974 | setuptools_scm missing for the non-login python | login-path-pyenv | broken_environment `har115-rnop-000974-3db9afa4324a`: `ModuleNotFoundError: No module named 'setuptools_scm'` | `3db9afa4324a` | rejected |
+| 000994 | nosetests: command not found | login-path-pyenv | sound `har115-rnop-000994-e22775f3015e` | `e22775f3015e` | validated |
+| 001073 | /usr/bin/python has no pytest | login-path-pyenv | broken_environment `har115-rnop-001073-39c2a76f357c`: `ImportError while loading conftest '/testbed/pandas/conftest.py'.` | `39c2a76f357c` | rejected |
+| 001078 | pytest: command not found | login-path-pyenv | broken_environment `har115-rnop-001078-cd85a596321e`: `_______ ERROR collecting tests/common/test_dataloader_backend_neutral.py _______` | `cd85a596321e` | rejected |
+| 001079 | ape.version, a generated version module | keep-build-outputs | sound `har115-rnop-001079-90f59eb79181` | `90f59eb79181` | validated |
+| 001080 | pytest: command not found | login-path-pyenv | sound `har115-rnop-001080-6ca9c62cdf6a` | `6ca9c62cdf6a` | validated |
+| 001081 | python2: command not found | login-path-pyenv | sound `har115-rnop-001081-bcb1d8b56a9e` | `bcb1d8b56a9e` | validated |
+| 001092 | /usr/bin/python has no pytest | login-path-pyenv | sound `har115-rnop-001092-8d49432685d0` | `8d49432685d0` | validated |
+| 001095 | cherrypy missing for the non-login python | login-path-pyenv | sound `har115-rnop-001095-eb2334e4dedd` | `eb2334e4dedd` | validated |
+| 001124 | nosetests: command not found | login-path-pyenv | sound `har115-rnop-001124-00d10ce4d002` | `00d10ce4d002` | validated |
+| 001138 | django missing for the non-login python | login-path-pyenv | sound `har115-rnop-001138-493f544b83ce` | `493f544b83ce` | validated |
+| 001160 | pytest: command not found | login-path-pyenv | broken_environment `har115-rnop-001160-d187122ce9ea`: `ConftestImportFailure: ModuleNotFoundError: No module named 'opentrons_shared_data' (from ` | `d187122ce9ea` | rejected |
+| 001163 | pytest missing for the non-login python | login-path-pyenv | sound `har115-rnop-001163-ea51dfa22d93` | `ea51dfa22d93` | validated |
+| 001226 | a compiled extension (the nop re-runs build_ext) | keep-build-outputs | broken_environment `har115-rnop-001226-a1eb01868dce`: `running build_ext` | `a1eb01868dce` | rejected |
+| 002016 | napari._version, a generated version module | keep-build-outputs | sound `har115-rnop-002016-8bbbe0974e77` | `8bbbe0974e77` | validated |
+
 ## 3. Classifier false positives
 
 `evallab.task_health` excuses a nop failure that is only the agent's missing
@@ -174,8 +206,8 @@ only the four census rows above changed. Real breakage (`pandas._libs.tslib`,
 
 ## Spend
 
-$1.7927 Daytona over 253 trials (`qualify-collect` estimate): census nops
-$1.6702 (199, including the 002649 re-nop), repair nops $0.0980 (45),
+$1.9807 Daytona over 274 trials (`qualify-collect` estimate): census nops
+$1.6702 (199, including the 002649 re-nop), repair nops $0.2860 (66),
 diagnoses $0.0245 (9). No model calls.
 
 ## Reproduce

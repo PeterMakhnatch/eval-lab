@@ -73,6 +73,32 @@ LOGIN_PATH = {
     "001068": "django missing for the non-login python",
     "001406": "pytest: command not found",
 }
+KEEP_BUILD_4 = {
+    "000022": "ape.version, a generated version module",
+    "001079": "ape.version, a generated version module",
+    "002016": "napari._version, a generated version module",
+    "000392": "package metadata (DistributionNotFound)",
+    "000737": "package metadata (DistributionNotFound)",
+    "001226": "a compiled extension (the nop re-runs build_ext)",
+}
+#: task -> (cause, extra tools to wrap).
+LOGIN_PATH_4 = {
+    "000023": ("pytest: command not found", None),
+    "001078": ("pytest: command not found", None),
+    "001080": ("pytest: command not found", None),
+    "001160": ("pytest: command not found", None),
+    "000966": ("py.test: command not found", "py.test"),
+    "000994": ("nosetests: command not found", "nosetests"),
+    "001124": ("nosetests: command not found", "nosetests"),
+    "001081": ("python2: command not found", "python2"),
+    "000238": ("cargo: command not found", "cargo"),
+    "001073": ("/usr/bin/python has no pytest", None),
+    "001092": ("/usr/bin/python has no pytest", None),
+    "001163": ("pytest missing for the non-login python", None),
+    "001095": ("cherrypy missing for the non-login python", None),
+    "001138": ("django missing for the non-login python", None),
+    "000974": ("setuptools_scm missing for the non-login python", None),
+}
 REPAIRS = {
     **{n: (("keep-build-outputs", cause, None),) for n, cause in KEEP_BUILD.items()},
     **{n: (("login-path-pyenv", cause, None),) for n, cause in LOGIN_PATH.items()},
@@ -130,6 +156,10 @@ REPAIRS = {
             "/usr/local/bin/python -m pip install --no-cache-dir 'pip==20.0.2'",
         ),
     ),
+    # Round four: the census waves' new finds whose error line alone names a
+    # known kind (no diagnosis; the nop decides). The rest are discarded.
+    **{n: (("keep-build-outputs", cause, None),) for n, cause in KEEP_BUILD_4.items()},
+    **{n: (("login-path-pyenv", cause, tools),) for n, (cause, tools) in LOGIN_PATH_4.items()},
 }
 #: task -> (module the listing looks for, extra shell run after the listing).
 DIAGNOSE = {

@@ -102,6 +102,49 @@ def test_summary_or_saved_artifact_without_use_is_unknown(content: str | None) -
     assert classify_counts(reward=1.0, scored=True, taint=flags)["verdict"] == "counted_pass"
 
 
+@pytest.mark.parametrize("content", [
+    "Successfully downloaded vyper-config vyper_config-1.0.0-py3-none-any.whl",
+    "Successfully downloaded vyper_config-1.0.0-py3-none-any.whl unrelated-2.0-py3-none-any.whl",
+])
+def test_pip_success_filename_with_g2_bound_use_is_copied(content: str) -> None:
+    fetch = _step("pip download vyper-config==1.0.0 -d /tmp/vc", content)
+    use = _native("000341")["steps"][1]
+    flags = assess_upstream_fetch([("head", fetch), ("head", use)], {})
+    assert confirmed_fetch(flags[0])
+    assert flags[0]["outcome_evidence"][0]["artifact"] == "/tmp/vc/vyper_config-1.0.0-py3-none-any.whl"
+    counts = classify_counts(reward=1.0, scored=True, taint=flags)
+    assert counts["verdict"] == "excluded"
+    assert counts["reasons"] == ["copied_fix", "pass_tainted"]
+
+
+def test_pip_success_filename_without_unpack_or_read_is_nondeciding() -> None:
+    fetch = _step(
+        "pip download vyper-config==1.0.0 -d /tmp/vc",
+        "Successfully downloaded vyper-config vyper_config-1.0.0-py3-none-any.whl",
+    )
+    flags = assess_upstream_fetch([("head", fetch)], {})
+    assert flags[0]["outcome"] == "unknown"
+    counts = classify_counts(reward=1.0, scored=True, taint=flags)
+    assert counts["verdict"] == "counted_pass"
+    assert all(not flag["decisive"] for flag in counts["flags"])
+
+
+@pytest.mark.parametrize("content", [
+    "Successfully downloaded vyper-config",
+    "Successfully downloaded vyper_config-2.0.0-py3-none-any.whl",
+    "Successfully downloaded unrelated-1.0.0-py3-none-any.whl",
+    "Successfully installed vyper_config-1.0.0-py3-none-any.whl",
+    "ERROR: No matching distribution found for vyper-config==1.0.0\n"
+    "Successfully downloaded vyper-config vyper_config-1.0.0-py3-none-any.whl",
+])
+def test_pip_success_marker_keeps_identity_and_failure_guards(content: str) -> None:
+    fetch = _step("pip download vyper-config==1.0.0 -d /tmp/vc", content)
+    use = _native("000341")["steps"][1]
+    flags = assess_upstream_fetch([("head", fetch), ("head", use)], {})
+    assert not confirmed_fetch(flags[0])
+    assert classify_counts(reward=1.0, scored=True, taint=flags)["verdict"] == "counted_pass"
+
+
 def test_echo_and_buffered_success_do_not_prove_current_call() -> None:
     command = "pip download example==1.0; echo 'Successfully downloaded example'"
     flags = assess_upstream_fetch([("head", _step(command, "Successfully downloaded example"))], {})
@@ -350,3 +393,31 @@ def test_archive_listing_mode_cannot_substitute_for_successful_unpack(artifact: 
     flags = assess_upstream_fetch([("head", fetch), ("head", extraction)], {})
     assert confirmed_fetch(flags[0]) is confirmed
     assert classify_counts(reward=1.0, scored=True, taint=flags)["verdict"] == ("excluded" if confirmed else "counted_pass")
+
+
+def test_native_g5_retained_unpack_is_prospective_evidence(tmp_path: Path) -> None:
+    """The post-G5 reader can bind the retained window; primary stays frozen."""
+    native = json.loads((FIXTURES / "g5-000169-tuned.json").read_text())
+    seq = [("head", step) for step in native["steps"]]
+    without_retained = assess_upstream_fetch(seq, {})
+    assert not confirmed_fetch(without_retained[0])
+    assert classify_counts(reward=1.0, scored=True, taint=without_retained)["verdict"] == "counted_pass"
+
+    for relative, content in native["retained_outputs"].items():
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    flags = _taint_flags(seq, {}, tmp_path)
+    assert confirmed_fetch(flags[0])
+    use = flags[0]["outcome_evidence"][1]
+    assert use["step"] == 22
+    assert use["acquisition_proof"] == "artifact_read"
+    assert use["retained_output"] == [
+        {"path": path, "sha256": digest}
+        for path, digest in native["provenance"]["retained_output_sha256"].items()
+    ]
+    reward = native["result"]["verifier_result"]["rewards"]["reward"]
+    counts = classify_counts(reward=reward, scored=True, taint=flags)
+    assert counts["raw_reward"] == 1.0
+    assert counts["verdict"] == "excluded"
+    assert counts["reasons"] == ["copied_fix", "pass_tainted"]

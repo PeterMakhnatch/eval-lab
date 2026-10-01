@@ -158,6 +158,7 @@ Parallelism plan:
 
 1. **Run at 20-way, in 3 waves of 20.** 20 parallel is proven (HAR-116
    round 2: 20 trials, 37 min wall).
+
 2. **Do NOT go to 30.** The Modal app runs a single container
    (`tools/modal-mimo-serve/serve.py`: `max_containers=1`), and SGLang
    captures decode CUDA graphs only to batch 16
@@ -174,3 +175,31 @@ Parallelism plan:
    once, against the $20/day standing ceiling — so submit/approve in
    waves (<= 10 specs ≈ $18.50 per the HAR-116 precedent) unless Peter
    raises the ceiling. Per-job $1.85 is fine.
+
+## 6. GEPA reuse (seed evaluations via `prior_run_reference`)
+
+Per Research-Harbor (HAR-126, 04:21Z): G2's rollouts double as GEPA seed
+evaluations, the way HAR-110 reused HAR-104's trials. No GEPA campaign is
+built here; this is the attach recipe for whoever builds one.
+
+- Everything the evaluator needs is kept: the runner's standard job
+  layout (job dir `har120-<short>-a<N>/`, finished trial subdirs
+  `<job>__<trial>/` with trial-level `result.json`, published by
+  `process-job` to the results home), and the exact task bytes digest —
+  every spec carries `task_package_digest`, and `cohort.json` records the
+  package + verifier digests per kept task.
+- Digest match is by construction: the campaign stages the same proposal
+  `run_digest` bytes (originals from the pinned snapshot, variants via
+  `materialize` of the same records), so `task_directory_digest` of the
+  campaign's staged dir equals the spec's `task_package_digest`, which is
+  what `validate_prior_run_reference`
+  (`src/evallab/gepa_optimizer/feedback.py`) compares.
+- Attach follows `har110-python-gepa/fill_refs.py`: stage the chosen
+  finished trial subdirs under the campaign's gitignored `prior-trials/`
+  (repo-jailed, no symlinks — the validator refuses otherwise), then
+  record `{trial_path, result_sha256}` of the trial-level `result.json`
+  plus `task_package_digest` per example.
+- One difference from HAR-104: G2 runs **2 attempts per task**, so a
+  fill-style "exactly one finished trial" lookup refuses as ambiguous.
+  Pick one trial per task first (e.g. the `counted_pass` trial Traces
+  marks clean, else the first finished), then attach.

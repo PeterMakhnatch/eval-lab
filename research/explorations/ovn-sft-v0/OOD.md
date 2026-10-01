@@ -100,7 +100,7 @@ Prices read on 2026-10-01 from [Modal][modal-price] and [Daytona][daytona-price]
 
 - Modal **A100 80GB**: `$0.000694/s`. A serving container with 4 physical CPU cores (`$0.0000131/core/s`) and 16 GiB memory (`$0.00000222/GiB/s`) costs **$2.814912/hour**. This is the assumed serving shape, not a claim about a future reservation.
 - Daytona 1 vCPU + 4 GiB + 10 GiB disk: `$0.0504 + 4×0.0162 + 5×0.000108` = **$0.11574/hour**, using the published 5-GiB free disk allowance. Account-specific credits, storage lifetimes, and billing details can differ.
-- Illustrative one-session warm overhead: 208 seconds cold start plus 300 seconds tail, **$0.3972**. The 208 seconds came from an earlier serving receipt, not an OOD measurement. Actual startup/shutdown is billable and must be observed.
+- Illustrative one-session warm overhead: 208 seconds cold start plus 300 seconds tail, **$0.3972**. The 208 seconds came from the [HAR-90 serving smoke receipt](../../experiments/har90-modal-mimo/README.md), not an OOD measurement. Actual startup/shutdown is billable and must be observed.
 
 Use actual server billable time and sandbox lifetimes:
 

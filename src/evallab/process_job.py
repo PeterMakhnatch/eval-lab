@@ -906,6 +906,12 @@ def process_job(
         if not isinstance(allocation, dict):
             raise ValueError(f"Invalid session spend allocation for {job_path} from {receipt}")
     out_dir = Path(output_dir).resolve() if output_dir is not None else job_path / "processed"
+    if publish:
+        from evallab.results_home import results_root
+
+        home = Path(results_home).resolve() if results_home is not None else results_root().resolve()
+        if out_dir.is_relative_to(home):
+            raise ValueError("Processed report input must be outside the results home when publishing")
     out_dir.mkdir(parents=True, exist_ok=True)
     repo_root = Path(root).resolve() if root is not None else job_path.parent
     from evallab.counts import find_label_root, summarize_counts

@@ -513,6 +513,22 @@ def test_custom_output_dir_publishes_fresh_report_not_stale_processed(tmp_path: 
         still_published = json.loads((republished / "processed" / "job.json").read_text())
         assert still_published["summary"]["n_pass"] == 1
 
+    # Reject a live publication as output before writing a different outcome into it.
+    published_before = (republished / "processed" / "job.json").read_bytes()
+    (job / "trial-one" / "result.json").write_text(
+        json.dumps({"trial_name": "trial-one", "verifier_result": {"rewards": {"reward": 0.0}}}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError):
+        process_job(
+            job,
+            output_dir=republished / "processed",
+            ingest=False,
+            pr_lookup=lambda _commit: None,
+            results_home=home,
+        )
+    assert (republished / "processed" / "job.json").read_bytes() == published_before
+
 
 def _spend_job(root: Path, name: str = "har131-session") -> Path:
     """Job whose native id/spec/commit bind it to the test session receipt."""
@@ -523,6 +539,10 @@ def _spend_job(root: Path, name: str = "har131-session") -> Path:
     experiment["spec_id"] = "spec-A"
     metadata["experiment"] = experiment
     (job / "lab-metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
+    spec_path = job / "experiment-spec.json"
+    spec = json.loads(spec_path.read_text(encoding="utf-8"))
+    spec["spec_id"] = "spec-A"
+    spec_path.write_text(json.dumps(spec), encoding="utf-8")
     return job
 
 
@@ -682,7 +702,5 @@ def test_process_job_without_receipt_leaves_spend_untouched(tmp_path: Path) -> N
     before = [path.read_bytes() for path in raw]
     report = process_job(job, output_dir=tmp_path / "out", ingest=False, publish=False)
     assert "session_spend" not in report["summary"]
-    markdown = (tmp_path / "out" / "job.md").read_text(encoding="utf-8")
-    assert "session spend" not in markdown
-    for path, content in zip(raw, before):
+    for path, content in zip(raw, before, strict=True):
         assert path.read_bytes() == content

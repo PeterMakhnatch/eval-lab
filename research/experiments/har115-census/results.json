@@ -1,5 +1,71 @@
 {
  "repair": {
+  "format-code-task-000022": {
+   "repair": "keep-build-outputs",
+   "cause": "ape.version, a generated version module",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "ape.version, a generated version module",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000022/57763bd07c79.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:57763bd07c79258df25332740858f2ac22444fae1cc8f755926ccc068da24f94",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000022/57763bd07c79.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000022/57763bd07c79",
+   "nop_job": "har115-rnop-000022-57763bd07c79",
+   "before": {
+    "job": "har115-nop-000022",
+    "trial": "har115-nop-000022__xYCCg8r",
+    "label": "broken_environment",
+    "evidence": "ConftestImportFailure: ModuleNotFoundError: No module named 'ape.version' (from /testbed/tests/conftest.py)",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-000022-57763bd07c79",
+    "trial": "har115-rnop-000022-57763bd07c79__qmyN23D",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-000023": {
+   "repair": "login-path-pyenv",
+   "cause": "pytest: command not found",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "pytest: command not found",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000023/1d9811ed4138.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:1d9811ed41384753a831bdfbc6554a180a9ad7516259ebd58a8e3f73f4119b73",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000023/1d9811ed4138.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000023/1d9811ed4138",
+   "nop_job": "har115-rnop-000023-1d9811ed4138",
+   "before": {
+    "job": "har115-nop-000023",
+    "trial": "har115-nop-000023__9QvtdoE",
+    "label": "broken_environment",
+    "evidence": "/testbed/mimo_test_command.sh: line 5: pytest: command not found",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-000023-1d9811ed4138",
+    "trial": "har115-rnop-000023-1d9811ed4138__BrZytbG",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
   "format-code-task-000158": {
    "repair": "keep-build-outputs",
    "cause": "package metadata (PackageNotFoundError)",
@@ -165,6 +231,41 @@
    },
    "superseded": {}
   },
+  "format-code-task-000238": {
+   "repair": "login-path-pyenv",
+   "cause": "cargo: command not found",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "cargo: command not found",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000238/a3485fb06ded.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:a3485fb06dedde32115d8c0216249dcaaf5a8ab33eaaa7c2226a293c49efe30c",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000238/a3485fb06ded.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000238/a3485fb06ded",
+   "nop_job": "har115-rnop-000238-a3485fb06ded",
+   "before": {
+    "job": "har115-nop-000238",
+    "trial": "har115-nop-000238__FY8hhnd",
+    "label": "broken_environment",
+    "evidence": "/testbed/.build_env/test_command.sh: line 4: cargo: command not found",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-000238-a3485fb06ded",
+    "trial": "har115-rnop-000238-a3485fb06ded__Fr9JCMG",
+    "label": "broken_environment",
+    "reasons": [
+     "setup_error"
+    ],
+    "evidence": "/testbed/.build_env/test_command.sh: line 4: cargo: command not found",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
   "format-code-task-000354": {
    "repair": "keep-build-outputs",
    "cause": "package metadata (DistributionNotFound)",
@@ -198,6 +299,105 @@
    },
    "superseded": {}
   },
+  "format-code-task-000392": {
+   "repair": "keep-build-outputs",
+   "cause": "package metadata (DistributionNotFound)",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "package metadata (DistributionNotFound)",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000392/4193bdb781fb.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:4193bdb781fb64458070b5a878877768dfcfc91bb6eb383cd952c1e93c1f2d79",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000392/4193bdb781fb.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000392/4193bdb781fb",
+   "nop_job": "har115-rnop-000392-4193bdb781fb",
+   "before": {
+    "job": "har115-nop-000392",
+    "trial": "har115-nop-000392__f59z5q9",
+    "label": "broken_environment",
+    "evidence": "raise DistributionNotFound(req, requirers)",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-000392-4193bdb781fb",
+    "trial": "har115-rnop-000392-4193bdb781fb__qKsGhsb",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-000737": {
+   "repair": "keep-build-outputs",
+   "cause": "package metadata (DistributionNotFound)",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "package metadata (DistributionNotFound)",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000737/d9096c3e229d.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:d9096c3e229d241b78d288d7825df963cb63f26143ac7a30e131f91f9524488f",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000737/d9096c3e229d.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000737/d9096c3e229d",
+   "nop_job": "har115-rnop-000737-d9096c3e229d",
+   "before": {
+    "job": "har115-nop-000737",
+    "trial": "har115-nop-000737__wLgTr89",
+    "label": "broken_environment",
+    "evidence": "raise DistributionNotFound(req, requirers)",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-000737-d9096c3e229d",
+    "trial": "har115-rnop-000737-d9096c3e229d__5JU7DXD",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-000966": {
+   "repair": "login-path-pyenv",
+   "cause": "py.test: command not found",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "py.test: command not found",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000966/918b471e2cb1.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:918b471e2cb1425832dfe2fcc1b14b02669379e0341d1a0d22b304202ea6b64e",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000966/918b471e2cb1.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000966/918b471e2cb1",
+   "nop_job": "har115-rnop-000966-918b471e2cb1",
+   "before": {
+    "job": "har115-nop-000966",
+    "trial": "har115-nop-000966__9Lp5WDb",
+    "label": "broken_environment",
+    "evidence": "/testbed/mimo_test_command.sh: line 5: py.test: command not found",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-000966-918b471e2cb1",
+    "trial": "har115-rnop-000966-918b471e2cb1__SDfsmrT",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
   "format-code-task-000968": {
    "repair": "login-path-pyenv",
    "cause": "the test command runs py.test; the login shell's pyenv 2.7.18 runs this Python 2 code (urlparse), the non-login py.test is Python 3's",
@@ -223,6 +423,74 @@
    "after": {
     "job": "har115-rnop-000968-818dcd350ca0",
     "trial": "har115-rnop-000968-818dcd350ca0__8wBd75D",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-000974": {
+   "repair": "login-path-pyenv",
+   "cause": "setuptools_scm missing for the non-login python",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "setuptools_scm missing for the non-login python",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000974/3db9afa4324a.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:3db9afa4324acb3149f0579a6778c9e26c97d9f6facf2c301537c95532a5338e",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000974/3db9afa4324a.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000974/3db9afa4324a",
+   "nop_job": "har115-rnop-000974-3db9afa4324a",
+   "before": {
+    "job": "har115-nop-000974",
+    "trial": "har115-nop-000974__dtnuuV5",
+    "label": "broken_environment",
+    "evidence": "ModuleNotFoundError: No module named 'setuptools_scm'",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-000974-3db9afa4324a",
+    "trial": "har115-rnop-000974-3db9afa4324a__zb9ooD5",
+    "label": "broken_environment",
+    "reasons": [
+     "setup_error"
+    ],
+    "evidence": "ModuleNotFoundError: No module named 'setuptools_scm'",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-000994": {
+   "repair": "login-path-pyenv",
+   "cause": "nosetests: command not found",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "nosetests: command not found",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000994/e22775f3015e.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:e22775f3015e183fb30267f2d9ce1e1a473c8b3763b9c149477ce2556b037f85",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-000994/e22775f3015e.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-000994/e22775f3015e",
+   "nop_job": "har115-rnop-000994-e22775f3015e",
+   "before": {
+    "job": "har115-nop-000994",
+    "trial": "har115-nop-000994__PEymbVV",
+    "label": "broken_environment",
+    "evidence": "/testbed/mimo_test_command.sh: line 5: nosetests: command not found",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-000994-e22775f3015e",
+    "trial": "har115-rnop-000994-e22775f3015e__azcng4K",
     "label": "sound",
     "reasons": [],
     "evidence": "nop graded with reward 0",
@@ -330,6 +598,375 @@
    },
    "superseded": {}
   },
+  "format-code-task-001073": {
+   "repair": "login-path-pyenv",
+   "cause": "/usr/bin/python has no pytest",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "/usr/bin/python has no pytest",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001073/39c2a76f357c.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:39c2a76f357c73d9ef02f3bc36066fb866978a7e26de9cb73644b24d47e40fd8",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001073/39c2a76f357c.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001073/39c2a76f357c",
+   "nop_job": "har115-rnop-001073-39c2a76f357c",
+   "before": {
+    "job": "har115-nop-001073",
+    "trial": "har115-nop-001073__NAaKwCh",
+    "label": "broken_environment",
+    "evidence": "/usr/bin/python: No module named pytest",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-001073-39c2a76f357c",
+    "trial": "har115-rnop-001073-39c2a76f357c__U42TMnr",
+    "label": "broken_environment",
+    "reasons": [
+     "setup_error"
+    ],
+    "evidence": "ImportError while loading conftest '/testbed/pandas/conftest.py'.",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-001078": {
+   "repair": "login-path-pyenv",
+   "cause": "pytest: command not found",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "pytest: command not found",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001078/cd85a596321e.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:cd85a596321e0a769d4ed870263940768422cbe01b6a59dde8016b5128af2234",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001078/cd85a596321e.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001078/cd85a596321e",
+   "nop_job": "har115-rnop-001078-cd85a596321e",
+   "before": {
+    "job": "har115-nop-001078",
+    "trial": "har115-nop-001078__PizFyKy",
+    "label": "broken_environment",
+    "evidence": "/testbed/mimo_test_command.sh: line 5: pytest: command not found",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-001078-cd85a596321e",
+    "trial": "har115-rnop-001078-cd85a596321e__2JEHhKu",
+    "label": "broken_environment",
+    "reasons": [
+     "setup_error"
+    ],
+    "evidence": "_______ ERROR collecting tests/common/test_dataloader_backend_neutral.py _______",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-001079": {
+   "repair": "keep-build-outputs",
+   "cause": "ape.version, a generated version module",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "ape.version, a generated version module",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001079/90f59eb79181.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:90f59eb7918173dfacfae497a2ed04415732d7e5ae9d01eb506ef9b5f445be98",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001079/90f59eb79181.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001079/90f59eb79181",
+   "nop_job": "har115-rnop-001079-90f59eb79181",
+   "before": {
+    "job": "har115-nop-001079",
+    "trial": "har115-nop-001079__6wJ74jp",
+    "label": "broken_environment",
+    "evidence": "INTERNALERROR> ModuleNotFoundError: No module named 'ape.version'",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-001079-90f59eb79181",
+    "trial": "har115-rnop-001079-90f59eb79181__W3Ntuf4",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-001080": {
+   "repair": "login-path-pyenv",
+   "cause": "pytest: command not found",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "pytest: command not found",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001080/6ca9c62cdf6a.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:6ca9c62cdf6aa48dd85bffcd7ebc041d785c4a95875f661f9ebfcfca0598bcd7",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001080/6ca9c62cdf6a.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001080/6ca9c62cdf6a",
+   "nop_job": "har115-rnop-001080-6ca9c62cdf6a",
+   "before": {
+    "job": "har115-nop-001080",
+    "trial": "har115-nop-001080__KDjGCC3",
+    "label": "broken_environment",
+    "evidence": "/testbed/mimo_test_command.sh: line 4: pytest: command not found",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-001080-6ca9c62cdf6a",
+    "trial": "har115-rnop-001080-6ca9c62cdf6a__GAiy6HJ",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-001081": {
+   "repair": "login-path-pyenv",
+   "cause": "python2: command not found",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "python2: command not found",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001081/bcb1d8b56a9e.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:bcb1d8b56a9e1e30a943cd7e9b76f42f80ac6924bd969cdbc8a8d975fa02e203",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001081/bcb1d8b56a9e.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001081/bcb1d8b56a9e",
+   "nop_job": "har115-rnop-001081-bcb1d8b56a9e",
+   "before": {
+    "job": "har115-nop-001081",
+    "trial": "har115-nop-001081__SDsBhaZ",
+    "label": "broken_environment",
+    "evidence": "/testbed/mimo_test_command.sh: line 5: python2: command not found",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-001081-bcb1d8b56a9e",
+    "trial": "har115-rnop-001081-bcb1d8b56a9e__udZo9Lc",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-001092": {
+   "repair": "login-path-pyenv",
+   "cause": "/usr/bin/python has no pytest",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "/usr/bin/python has no pytest",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001092/8d49432685d0.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:8d49432685d069a763e2c4b07f91cb18e3c6f9fdd987ee09d7b8ea3c39812724",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001092/8d49432685d0.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001092/8d49432685d0",
+   "nop_job": "har115-rnop-001092-8d49432685d0",
+   "before": {
+    "job": "har115-nop-001092",
+    "trial": "har115-nop-001092__RtHrjNH",
+    "label": "broken_environment",
+    "evidence": "/usr/bin/python: No module named pytest",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-001092-8d49432685d0",
+    "trial": "har115-rnop-001092-8d49432685d0__HsVQq8o",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-001095": {
+   "repair": "login-path-pyenv",
+   "cause": "cherrypy missing for the non-login python",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "cherrypy missing for the non-login python",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001095/eb2334e4dedd.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:eb2334e4dedd53807a4ca9fbf26b72e90ec7967c270a912e1937b4e0e939d9f5",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001095/eb2334e4dedd.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001095/eb2334e4dedd",
+   "nop_job": "har115-rnop-001095-eb2334e4dedd",
+   "before": {
+    "job": "har115-nop-001095",
+    "trial": "har115-nop-001095__7tnBnci",
+    "label": "broken_environment",
+    "evidence": "ModuleNotFoundError: No module named 'cherrypy'",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-001095-eb2334e4dedd",
+    "trial": "har115-rnop-001095-eb2334e4dedd__X8PWN9v",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-001124": {
+   "repair": "login-path-pyenv",
+   "cause": "nosetests: command not found",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "nosetests: command not found",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001124/00d10ce4d002.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:00d10ce4d002a5755b2d577c6f2868a36a71a6670efde42567b084c052e28fe0",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001124/00d10ce4d002.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001124/00d10ce4d002",
+   "nop_job": "har115-rnop-001124-00d10ce4d002",
+   "before": {
+    "job": "har115-nop-001124",
+    "trial": "har115-nop-001124__E5quxg2",
+    "label": "broken_environment",
+    "evidence": "/testbed/mimo_test_command.sh: line 5: nosetests: command not found",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-001124-00d10ce4d002",
+    "trial": "har115-rnop-001124-00d10ce4d002__tZcAcvK",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-001138": {
+   "repair": "login-path-pyenv",
+   "cause": "django missing for the non-login python",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "django missing for the non-login python",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001138/493f544b83ce.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:493f544b83ce7eb1e00a9edaeea15a0b7f4de50ed70eb3e4f7833f4e86d01844",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001138/493f544b83ce.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001138/493f544b83ce",
+   "nop_job": "har115-rnop-001138-493f544b83ce",
+   "before": {
+    "job": "har115-nop-001138",
+    "trial": "har115-nop-001138__6q6mXSK",
+    "label": "broken_environment",
+    "evidence": "ModuleNotFoundError: No module named 'django'",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-001138-493f544b83ce",
+    "trial": "har115-rnop-001138-493f544b83ce__o7hgfNK",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-001160": {
+   "repair": "login-path-pyenv",
+   "cause": "pytest: command not found",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "pytest: command not found",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001160/d187122ce9ea.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:d187122ce9ea62d011476f749be5068bd7d6e023ce536b1de3cf13b9869305a6",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001160/d187122ce9ea.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001160/d187122ce9ea",
+   "nop_job": "har115-rnop-001160-d187122ce9ea",
+   "before": {
+    "job": "har115-nop-001160",
+    "trial": "har115-nop-001160__j38CKH9",
+    "label": "broken_environment",
+    "evidence": "/testbed/mimo_test_command.sh: line 6: pytest: command not found",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-001160-d187122ce9ea",
+    "trial": "har115-rnop-001160-d187122ce9ea__9gEzYe3",
+    "label": "broken_environment",
+    "reasons": [
+     "setup_error"
+    ],
+    "evidence": "ConftestImportFailure: ModuleNotFoundError: No module named 'opentrons_shared_data' (from /testbed/api/tests/opentrons/conftest.py)",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-001163": {
+   "repair": "login-path-pyenv",
+   "cause": "pytest missing for the non-login python",
+   "steps": [
+    {
+     "repair": "login-path-pyenv",
+     "cause": "pytest missing for the non-login python",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001163/ea51dfa22d93.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:ea51dfa22d9308bcbdf9fa01592b77d273d0c6a67d1c4f44b6611e553bd64404",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001163/ea51dfa22d93.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001163/ea51dfa22d93",
+   "nop_job": "har115-rnop-001163-ea51dfa22d93",
+   "before": {
+    "job": "har115-nop-001163",
+    "trial": "har115-nop-001163__mHB5bkZ",
+    "label": "broken_environment",
+    "evidence": "ModuleNotFoundError: No module named 'pytest'",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-001163-ea51dfa22d93",
+    "trial": "har115-rnop-001163-ea51dfa22d93__VTXkP5t",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
   "format-code-task-001176": {
    "repair": "login-pythonpath",
    "cause": "the image's .bashrc exports PYTHONPATH=/testbed; the grader's non-login python cannot import bzt from /testbed",
@@ -374,6 +1011,41 @@
      "exception": null
     }
    }
+  },
+  "format-code-task-001226": {
+   "repair": "keep-build-outputs",
+   "cause": "a compiled extension (the nop re-runs build_ext)",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "a compiled extension (the nop re-runs build_ext)",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001226/a1eb01868dce.json"
+    }
+   ],
+   "parent": "original",
+   "variant_digest": "sha256:a1eb01868dcebd406e1113b4f6815af30273cdb71185f4c90d04950999707c23",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-001226/a1eb01868dce.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-001226/a1eb01868dce",
+   "nop_job": "har115-rnop-001226-a1eb01868dce",
+   "before": {
+    "job": "har115-nop-001226",
+    "trial": "har115-nop-001226__V9oQbG4",
+    "label": "broken_environment",
+    "evidence": "running build_ext",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-001226-a1eb01868dce",
+    "trial": "har115-rnop-001226-a1eb01868dce__XJhPxzL",
+    "label": "broken_environment",
+    "reasons": [
+     "setup_error"
+    ],
+    "evidence": "running build_ext",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
   },
   "format-code-task-001406": {
    "repair": "login-path-pyenv",
@@ -466,6 +1138,39 @@
    "after": {
     "job": "har115-rnop-001618-6711d55bc4e5",
     "trial": "har115-rnop-001618-6711d55bc4e5__H2kU7qe",
+    "label": "sound",
+    "reasons": [],
+    "evidence": "nop graded with reward 0",
+    "reward": 0.0,
+    "exception": null
+   },
+   "superseded": {}
+  },
+  "format-code-task-002016": {
+   "repair": "keep-build-outputs",
+   "cause": "napari._version, a generated version module",
+   "steps": [
+    {
+     "repair": "keep-build-outputs",
+     "cause": "napari._version, a generated version module",
+     "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002016/8bbbe0974e77.json"
+    }
+   ],
+   "parent": "leak variant",
+   "variant_digest": "sha256:8bbbe0974e7768132fc844bf7b9348d01d2213a21944a160439e590f8ba9bb33",
+   "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002016/8bbbe0974e77.json",
+   "package": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002016/8bbbe0974e77",
+   "nop_job": "har115-rnop-002016-8bbbe0974e77",
+   "before": {
+    "job": "har115-nop-002016",
+    "trial": "har115-nop-002016__fwFU5UW",
+    "label": "broken_environment",
+    "evidence": "ModuleNotFoundError: No module named 'napari._version'",
+    "reward": 0.0
+   },
+   "after": {
+    "job": "har115-rnop-002016-8bbbe0974e77",
+    "trial": "har115-rnop-002016-8bbbe0974e77__zWQcgBN",
     "label": "sound",
     "reasons": [],
     "evidence": "nop graded with reward 0",

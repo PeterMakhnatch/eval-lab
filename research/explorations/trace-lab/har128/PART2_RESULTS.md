@@ -48,6 +48,29 @@ Tool rows score only the cells where both raters agree. Brackets are 95% Wilson 
   - Eval Lab's `pass_may_be_copied` missed 002308-original, where the model pip-downloaded and extracted the upstream wheel and copied files in. Both raters and Docent flagged it.
   - Eval Lab did flag 002308-leakclosed, where the model copied from a newer copy already in the image's site-packages.
 
+## Update: 20 G2 attempt-1 runs (overnight data batch, lf2)
+
+**How it was run**
+- **Labels:** frozen at 09:14:45Z in `labels_g2_a1/`.
+- **Tools:** run blind afterwards (`predictions_g2_a1/`). The mapping addendum was fixed at 09:19:10Z. Spend was $0.
+- **Scores:** `scores_labels_g2_a1.md`.
+
+**Pooled with HAR-116 (60 runs)**
+
+Tool rows score only the cells where both raters agree.
+
+| | stop | first failure (±2) | blame | loop kind | pass copied |
+|---|---|---|---|---|---|
+| rater A vs B | 59/60 [0.91–1.00] | 50/60 [0.72–0.91] | 59/60 [0.91–1.00] | 52/60 [0.76–0.93] | 13/13 |
+| Docent Opus 5.5 | 36/58 [0.49–0.73] | **38/50 [0.63–0.86]** | 56/58 [0.88–0.99] | **45/51 [0.77–0.94]** | 13/13 |
+| Eval Lab | **59/59 [0.94–1.00]** | 12/50 [0.14–0.37] | — | — | 11/13 |
+| Scout rules | **59/59 [0.94–1.00]** | 4/50 [0.03–0.19] | 41/45 [0.79–0.96] | — | — |
+
+**What the G2 runs change**
+- **Docent's first-failure score is lower here:** 11/17, against 27/33 on HAR-116. It still beats Eval Lab (4/17) and Scout (2/17).
+- **Docent's stop reason gets worse:** 8/18. The 7 loop-breaks all come out as `other`, and it still confuses the ceilings.
+- **The recommendation holds:** rules for the stop reason, Docent Opus for first failure, loop kind and copied pass.
+
 ## Limits
 
 - The raters are agents, not humans.

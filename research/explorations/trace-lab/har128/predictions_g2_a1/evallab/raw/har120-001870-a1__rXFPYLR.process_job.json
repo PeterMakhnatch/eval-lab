@@ -1,0 +1,1430 @@
+{
+  "acceptance": {
+    "agreement": {
+      "agree_accept": 117,
+      "agree_reject": 0,
+      "disagree": 0,
+      "inferred_unknown": 0
+    },
+    "counts": {
+      "false": 0,
+      "true": 117,
+      "unknown": 0
+    },
+    "provenance": {
+      "inferred": 0,
+      "reconstructed": 0,
+      "recorded": 117
+    }
+  },
+  "agent_steps": 117,
+  "assembly_pattern": "single_head",
+  "claim_regime": null,
+  "completion_refs": [],
+  "confirmation_loop": null,
+  "cost_attempted_usd": 0.0,
+  "cost_estimate_reason": "shared GPU, not additive; excludes sandbox and warm periods; see evallab spend day",
+  "cost_estimate_usd": 0.7560989443684799,
+  "cost_reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+  "cost_source": "proxy_ledger_x_pinned_price",
+  "cost_usd": null,
+  "counts": {
+    "evidence": [
+      {
+        "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -2; python -c \"import markdownify,inspect;print(markdownify.__file__)\"",
+        "detector": "upstream_fetch",
+        "excerpt": "head#13",
+        "path": "agent/trajectory.json",
+        "reason": "copied_fix"
+      },
+      {
+        "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -3; ls /tmp/md 2>/dev/null",
+        "detector": "upstream_fetch",
+        "excerpt": "head#14",
+        "path": "agent/trajectory.json",
+        "reason": "copied_fix"
+      },
+      {
+        "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -3; ls /tmp/md 2>/dev/null",
+        "detector": "upstream_fetch",
+        "excerpt": "head#15",
+        "path": "agent/trajectory.json",
+        "reason": "copied_fix"
+      },
+      {
+        "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -2; python -c \"import markdownify,inspect;print(markdownify.__file__)\"",
+        "detector": "upstream_fetch",
+        "excerpt": "upstream_fetch:pip-download-remote-package",
+        "path": "agent/trajectory.json",
+        "reason": "pass_tainted"
+      },
+      {
+        "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -3; ls /tmp/md 2>/dev/null",
+        "detector": "upstream_fetch",
+        "excerpt": "upstream_fetch:pip-download-remote-package",
+        "path": "agent/trajectory.json",
+        "reason": "pass_tainted"
+      },
+      {
+        "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -3; ls /tmp/md 2>/dev/null",
+        "detector": "upstream_fetch",
+        "excerpt": "upstream_fetch:pip-download-remote-package",
+        "path": "agent/trajectory.json",
+        "reason": "pass_tainted"
+      }
+    ],
+    "flags": [],
+    "judgments": [
+      {
+        "accuracy": null,
+        "accuracy_note": "display only; HAR-119 pending; never decides",
+        "attribution": "n/a",
+        "label": "blame",
+        "value": "R-NONE-01"
+      },
+      {
+        "accuracy": null,
+        "accuracy_note": "display only; HAR-119 pending; never decides",
+        "attribution": null,
+        "label": "loop_kind",
+        "value": "identical_loop"
+      }
+    ],
+    "raw_reward": 1.0,
+    "reasons": [
+      "copied_fix",
+      "pass_tainted"
+    ],
+    "schema": "evallab.counts/v1",
+    "scored": true,
+    "task_status": {
+      "digest_match": true,
+      "evidence": [
+        "research/experiments/har108-python-census/task_health.parquet#format-code-task-001870",
+        "library/task-variants/mimo-v2.6-rl__format-code-task-001870/be5cf80bcb8f.json",
+        "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-001870"
+      ],
+      "ledger_status": "usable",
+      "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-001870",
+      "reason": "status=usable; nop sound, leak closed",
+      "run_digest": "sha256:be5cf80bcb8ff71e8f6212c7929e9a849b1aff95641fb115b92f1d1ce1d7f197",
+      "source": "python_task_ledger",
+      "source_sha256": "949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a",
+      "status": "usable",
+      "task_id": "format-code-task-001870",
+      "trial_digest": "sha256:be5cf80bcb8ff71e8f6212c7929e9a849b1aff95641fb115b92f1d1ce1d7f197"
+    },
+    "verdict": "excluded"
+  },
+  "coverage": {
+    "complete": true,
+    "continuation_count": 0,
+    "continuation_indices": [],
+    "continuations_missing": [
+      1
+    ],
+    "copied_context_steps": 0,
+    "duplicate_segments": {},
+    "duplicated_steps": 0,
+    "gaps": [],
+    "malformed_steps": 0,
+    "notes": [
+      "1 summarization attempt(s) left no continuation file: [1]"
+    ],
+    "parts": [
+      {
+        "copied_steps": 0,
+        "index": 0,
+        "kind": "head",
+        "path": "trajectory.json",
+        "readable": true,
+        "session_id": "5c492a3d-26b7-41b2-ab8c-1e289d444f6a",
+        "steps": 120
+      }
+    ],
+    "summarization_count": 1,
+    "trajectory_head": true,
+    "unique_steps": 120
+  },
+  "decision": {
+    "asked": {
+      "excerpt": null,
+      "grader_gap": "instruction.md not located; deliverable check skipped",
+      "grader_tests_asked": "unknown",
+      "instruction_bytes": null,
+      "instruction_present": false
+    },
+    "attribution": "n/a",
+    "counts": {
+      "evidence": [
+        {
+          "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -2; python -c \"import markdownify,inspect;print(markdownify.__file__)\"",
+          "detector": "upstream_fetch",
+          "excerpt": "head#13",
+          "path": "agent/trajectory.json",
+          "reason": "copied_fix"
+        },
+        {
+          "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -3; ls /tmp/md 2>/dev/null",
+          "detector": "upstream_fetch",
+          "excerpt": "head#14",
+          "path": "agent/trajectory.json",
+          "reason": "copied_fix"
+        },
+        {
+          "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -3; ls /tmp/md 2>/dev/null",
+          "detector": "upstream_fetch",
+          "excerpt": "head#15",
+          "path": "agent/trajectory.json",
+          "reason": "copied_fix"
+        },
+        {
+          "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -2; python -c \"import markdownify,inspect;print(markdownify.__file__)\"",
+          "detector": "upstream_fetch",
+          "excerpt": "upstream_fetch:pip-download-remote-package",
+          "path": "agent/trajectory.json",
+          "reason": "pass_tainted"
+        },
+        {
+          "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -3; ls /tmp/md 2>/dev/null",
+          "detector": "upstream_fetch",
+          "excerpt": "upstream_fetch:pip-download-remote-package",
+          "path": "agent/trajectory.json",
+          "reason": "pass_tainted"
+        },
+        {
+          "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -3; ls /tmp/md 2>/dev/null",
+          "detector": "upstream_fetch",
+          "excerpt": "upstream_fetch:pip-download-remote-package",
+          "path": "agent/trajectory.json",
+          "reason": "pass_tainted"
+        }
+      ],
+      "note": "Rendered from the HAR-78 counts field. Not computed here.",
+      "reasons": [
+        "copied_fix",
+        "pass_tainted"
+      ],
+      "status": "rendered",
+      "task_ledger": {
+        "digest_match": true,
+        "evidence": [
+          "research/experiments/har108-python-census/task_health.parquet#format-code-task-001870",
+          "library/task-variants/mimo-v2.6-rl__format-code-task-001870/be5cf80bcb8f.json",
+          "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-001870"
+        ],
+        "ledger_status": "usable",
+        "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-001870",
+        "reason": "status=usable; nop sound, leak closed",
+        "run_digest": "sha256:be5cf80bcb8ff71e8f6212c7929e9a849b1aff95641fb115b92f1d1ce1d7f197",
+        "source": "python_task_ledger",
+        "source_sha256": "949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a",
+        "status": "usable",
+        "task_id": "format-code-task-001870",
+        "trial_digest": "sha256:be5cf80bcb8ff71e8f6212c7929e9a849b1aff95641fb115b92f1d1ce1d7f197"
+      },
+      "verdict": "excluded"
+    },
+    "did": {
+      "evidence_steps": [
+        "head#95",
+        "head#120"
+      ],
+      "last_edit_excerpt": "python - <<'PYEOF'",
+      "last_edit_step": 91,
+      "note": "scored pass with no outcome-relevant failure",
+      "secondary": "error_recovery/model secondary: identical run head#95-head#120",
+      "step": null
+    },
+    "facts": {
+      "calls": 117,
+      "fetches": [
+        {
+          "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -2; python -c \"import markdownify,inspect;print(markdownify.__file__)\"",
+          "step": "head#13"
+        },
+        {
+          "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -3; ls /tmp/md 2>/dev/null",
+          "step": "head#14"
+        },
+        {
+          "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -3; ls /tmp/md 2>/dev/null",
+          "step": "head#15"
+        }
+      ],
+      "grader_gap": "instruction.md not located; deliverable check skipped",
+      "instruction_excerpt": null,
+      "nop_same_crash": {
+        "answer": "unknown",
+        "nop_trial": null,
+        "reason": "No same-task nop crash comparison was recorded."
+      },
+      "stop_reason": "ceiling:requests",
+      "tokens": {
+        "attribution": "single_trial",
+        "input_tokens": 2365815,
+        "output_tokens": 32329,
+        "path": "lab-metadata.json#provider_usage",
+        "reason": null,
+        "scope": "job",
+        "source": "proxy_settled_ledger",
+        "total_tokens": 2398144
+      },
+      "verifier_message": ""
+    },
+    "fetched_fix": {
+      "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -2; python -c \"import markdownify,inspect;print(markdownify.__file__)\"",
+      "fetched": true,
+      "kind": "upstream_fetch:pip-download-remote-package",
+      "note": "A fetch command was observed. Whether it supplied the graded fix is unjudged: a fetch is a signal, not proof.",
+      "step": "head#13"
+    },
+    "first_failure": null,
+    "judgments": {
+      "agreement": {
+        "abstentions": 0,
+        "artifact": "research/explorations/trace-lab/har119/page_scores.json",
+        "blame_abstentions": 0,
+        "cohort": "HAR-119 part 2: 12 HAR-110 split-v2 runs",
+        "eligible_n": 11,
+        "excluded_rater_disagreement": 1,
+        "first_failure_coverage": {
+          "abstentions": 11,
+          "expressed": 1,
+          "of": 12
+        },
+        "frozen_at": "2026-10-01T00:00:02Z",
+        "grader_alignment": "opinion with no page-measured calibration on this cohort",
+        "in_sample": false,
+        "limits": "Out-of-sample for the loop rule. Loop kind: n=11 agreed cells. First failure: n=9 agreed cells with page coverage 1/12 (11 abstentions). Blame 11/11 is uninformative on this cohort: the raters say model on every failure, so a constant prior scores the same. Grader alignment stays opinion.",
+        "method": "research/explorations/trace-lab/har119/score_page.py",
+        "page_vs_agreed_blame": {
+          "agree": 11,
+          "n": 11
+        },
+        "page_vs_agreed_first_failure": {
+          "agree": 1,
+          "n": 9
+        },
+        "page_vs_agreed_loop_kind": {
+          "agree": 7,
+          "n": 11
+        },
+        "page_vs_agreed_loop_present": {
+          "agree": 7,
+          "n": 11
+        },
+        "page_vs_loop_rule_kind": {
+          "agree": 12,
+          "n": 12
+        },
+        "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+        "predictor_functions": {
+          "names": [
+            "trial_decision.classify_loop_kind",
+            "trial_decision._claim_bearing",
+            "token_flow._loop_onset"
+          ],
+          "sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae"
+        },
+        "rater_agreement_blame": {
+          "agree": 11,
+          "n": 12
+        },
+        "rater_agreement_first_failure": {
+          "agree": 9,
+          "n": 12
+        },
+        "rater_agreement_loop_kind": {
+          "agree": 11,
+          "n": 12
+        },
+        "rater_agreement_loop_present": {
+          "agree": 11,
+          "n": 12
+        },
+        "selection_sha256": "941db9c064e34a2d6f9f7209df42a92cee13b20e776c8fd28c7cc72bc4de860f"
+      },
+      "blame": {
+        "attribution": "n/a",
+        "note": "scored pass with no outcome-relevant failure",
+        "rule_id": "R-NONE-01",
+        "whose": "none"
+      },
+      "first_failure": null,
+      "grader_alignment": {
+        "answer": "unknown",
+        "why": "instruction.md not located; deliverable check skipped"
+      },
+      "label": "opinion",
+      "loop_kind": {
+        "claim_bearing_turns": 0,
+        "claim_fraction": 0.0,
+        "first_prompt_step": null,
+        "kind": "none",
+        "loop_onset_step": null,
+        "rule": "HAR-119",
+        "stop_reason": "ceiling:requests",
+        "turns_after_prompt": 0
+      }
+    },
+    "nop_same_crash": {
+      "answer": "unknown",
+      "nop_trial": null,
+      "reason": "No same-task nop crash comparison was recorded."
+    },
+    "pass_tainted": {
+      "flagged": true,
+      "reasons": [
+        "upstream_fetch:upstream_fetch:pip-download-remote-package",
+        "upstream_fetch:upstream_fetch:pip-download-remote-package",
+        "upstream_fetch:upstream_fetch:pip-download-remote-package"
+      ],
+      "status": "candidate"
+    },
+    "reward": 1.0,
+    "reward_why": "Reward `1.0`. Scored pass with no outcome-relevant failure.",
+    "rule_id": "R-NONE-01",
+    "schema": "trial_decision/v3",
+    "scored": true,
+    "whose": "none"
+  },
+  "diagnosis": {
+    "exception_class": "TrialBudgetExhaustedError",
+    "heuristic_label": "tool_use_loop",
+    "modes": [],
+    "notices": [
+      "stop reason: trial_budget_exhausted (agent metadata stop_reason)",
+      "scored pass; no failure modes proposed"
+    ],
+    "outcome": "scored",
+    "reward": 1.0
+  },
+  "errors": {
+    "analysis": null,
+    "decision": null,
+    "diagnosis": null,
+    "outline": null,
+    "token_flow": null
+  },
+  "first_failure": null,
+  "flags": [
+    "token_ceiling:requests",
+    "identical_loop:26x:head#95-head#120",
+    "wedged_terminal:1-stretches",
+    "outcome:R-NONE-01:n/a",
+    "taint_candidate:upstream_fetch",
+    "post_edit_input_share:6%",
+    "summarised:1/1-shrunk",
+    "max_prompt:53018"
+  ],
+  "grader_evidence": null,
+  "handshake": null,
+  "identical_runs": [
+    {
+      "end": "head#16",
+      "length": 15,
+      "start": "head#2"
+    },
+    {
+      "end": "head#120",
+      "length": 26,
+      "start": "head#95"
+    }
+  ],
+  "loop_cost": {
+    "all_steps": {
+      "completion": 32145,
+      "prompt": 2257535,
+      "steps": 117,
+      "steps_without_metrics": 0
+    },
+    "confirmation": null,
+    "identical": {
+      "completion": 7356,
+      "prompt": 169452,
+      "steps": 41,
+      "steps_without_metrics": 0
+    },
+    "in_loops": {
+      "completion": 7356,
+      "prompt": 169452,
+      "steps": 41,
+      "steps_without_metrics": 0
+    },
+    "loop_prompt_share": 0.0751,
+    "result_input_tokens": 2365815,
+    "spans": [
+      {
+        "kind": "identical",
+        "length": 15,
+        "span": [
+          "head#2",
+          "head#16"
+        ]
+      },
+      {
+        "kind": "identical",
+        "length": 26,
+        "span": [
+          "head#95",
+          "head#120"
+        ]
+      }
+    ]
+  },
+  "loop_suspicion": {
+    "cyclic_patterns_count": 0,
+    "detected": false,
+    "reasons": [],
+    "repeated_command_count": 0,
+    "repeated_error_count": 0,
+    "score": 0.0
+  },
+  "model_name": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+  "model_steps": 117,
+  "outcome_failure": {
+    "attribution": "n/a",
+    "evidence_step_refs": [
+      "head#95",
+      "head#120"
+    ],
+    "note": "scored pass with no outcome-relevant failure",
+    "rule_id": "R-NONE-01",
+    "secondary": "error_recovery/model secondary: identical run head#95-head#120",
+    "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): continuation after head#96 (`cd /testbed && git diff HEAD~1 | cd /testbed && grep -n \"ind`), 24 turns head#97-head#120 with no interrupt, until run end",
+    "step_id": null,
+    "step_ref": null,
+    "tag": "none"
+  },
+  "outline": {
+    "agent_steps": 0,
+    "exception_class": null,
+    "primary_reward": null,
+    "status": "accounted_unavailable",
+    "total_steps": 0
+  },
+  "rejection_causes": {},
+  "reward": 1.0,
+  "reward_source": "verifier_result",
+  "schema": "process_job/v1",
+  "scored": true,
+  "secondaries": [
+    "context markers present (see coverage/stop) but not the outcome rule"
+  ],
+  "shape_counts": {
+    "prose": 117
+  },
+  "stitched_steps": 120,
+  "stop_reason": "ceiling:requests",
+  "taint": [
+    {
+      "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -2; python -c \"import markdownify,inspect;print(markdownify.__file__)\"",
+      "evidence": "head#13",
+      "kind": "upstream_fetch",
+      "names_task_repo": false,
+      "rule": "upstream_fetch:pip-download-remote-package"
+    },
+    {
+      "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -3; ls /tmp/md 2>/dev/null",
+      "evidence": "head#14",
+      "kind": "upstream_fetch",
+      "names_task_repo": false,
+      "rule": "upstream_fetch:pip-download-remote-package"
+    },
+    {
+      "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -3; ls /tmp/md 2>/dev/null",
+      "evidence": "head#15",
+      "kind": "upstream_fetch",
+      "names_task_repo": false,
+      "rule": "upstream_fetch:pip-download-remote-package"
+    }
+  ],
+  "task_name": "mimo-v2.6-rl/format-code-task-001870",
+  "task_package_digest": "sha256:be5cf80bcb8ff71e8f6212c7929e9a849b1aff95641fb115b92f1d1ce1d7f197",
+  "token_flow": {
+    "last_useful_edit": {
+      "call_index": 90,
+      "command_excerpt": "python - <<'PYEOF'",
+      "kind": "shell-redirect",
+      "persistence_reason": "no touched basename in final diff (edit reverted or elsewhere)",
+      "persists_in_final_diff": false,
+      "step_id": 91,
+      "touched_paths": [
+        "<li>a</li><li>b</li></ol>",
+        "<li><p>1</p><p>2</p></li></ul>",
+        "<p>1</p><p>2</p></blockquote>",
+        "Hello</blockquote>"
+      ]
+    },
+    "loop_onset": {
+      "reason": "no repeat run detected",
+      "step_id": null
+    },
+    "prompt_series": [
+      {
+        "call_index": 1,
+        "completion_tokens": 49,
+        "prompt_tokens": 948,
+        "step_id": 2
+      },
+      {
+        "call_index": 2,
+        "completion_tokens": 49,
+        "prompt_tokens": 1154,
+        "step_id": 3
+      },
+      {
+        "call_index": 3,
+        "completion_tokens": 81,
+        "prompt_tokens": 1879,
+        "step_id": 4
+      },
+      {
+        "call_index": 4,
+        "completion_tokens": 150,
+        "prompt_tokens": 2670,
+        "step_id": 5
+      },
+      {
+        "call_index": 5,
+        "completion_tokens": 71,
+        "prompt_tokens": 3414,
+        "step_id": 6
+      },
+      {
+        "call_index": 6,
+        "completion_tokens": 61,
+        "prompt_tokens": 4094,
+        "step_id": 7
+      },
+      {
+        "call_index": 7,
+        "completion_tokens": 41,
+        "prompt_tokens": 4890,
+        "step_id": 8
+      },
+      {
+        "call_index": 8,
+        "completion_tokens": 399,
+        "prompt_tokens": 5560,
+        "step_id": 9
+      },
+      {
+        "call_index": 9,
+        "completion_tokens": 749,
+        "prompt_tokens": 5774,
+        "step_id": 10
+      },
+      {
+        "call_index": 10,
+        "completion_tokens": 57,
+        "prompt_tokens": 6084,
+        "step_id": 11
+      },
+      {
+        "call_index": 11,
+        "completion_tokens": 1137,
+        "prompt_tokens": 6883,
+        "step_id": 12
+      },
+      {
+        "call_index": 12,
+        "completion_tokens": 2044,
+        "prompt_tokens": 7775,
+        "step_id": 13
+      },
+      {
+        "call_index": 13,
+        "completion_tokens": 62,
+        "prompt_tokens": 7976,
+        "step_id": 14
+      },
+      {
+        "call_index": 14,
+        "completion_tokens": 62,
+        "prompt_tokens": 8133,
+        "step_id": 15
+      },
+      {
+        "call_index": 15,
+        "completion_tokens": 1193,
+        "prompt_tokens": 8455,
+        "step_id": 16
+      },
+      {
+        "call_index": 16,
+        "completion_tokens": 2400,
+        "prompt_tokens": 9279,
+        "step_id": 17
+      },
+      {
+        "call_index": 17,
+        "completion_tokens": 3442,
+        "prompt_tokens": 10323,
+        "step_id": 18
+      },
+      {
+        "call_index": 18,
+        "completion_tokens": 346,
+        "prompt_tokens": 10569,
+        "step_id": 19
+      },
+      {
+        "call_index": 19,
+        "completion_tokens": 134,
+        "prompt_tokens": 11340,
+        "step_id": 20
+      },
+      {
+        "call_index": 20,
+        "completion_tokens": 62,
+        "prompt_tokens": 11657,
+        "step_id": 21
+      },
+      {
+        "call_index": 21,
+        "completion_tokens": 26,
+        "prompt_tokens": 11819,
+        "step_id": 22
+      },
+      {
+        "call_index": 22,
+        "completion_tokens": 576,
+        "prompt_tokens": 12259,
+        "step_id": 23
+      },
+      {
+        "call_index": 23,
+        "completion_tokens": 57,
+        "prompt_tokens": 12724,
+        "step_id": 24
+      },
+      {
+        "call_index": 24,
+        "completion_tokens": 140,
+        "prompt_tokens": 12939,
+        "step_id": 25
+      },
+      {
+        "call_index": 25,
+        "completion_tokens": 111,
+        "prompt_tokens": 13347,
+        "step_id": 26
+      },
+      {
+        "call_index": 26,
+        "completion_tokens": 58,
+        "prompt_tokens": 13639,
+        "step_id": 27
+      },
+      {
+        "call_index": 27,
+        "completion_tokens": 200,
+        "prompt_tokens": 13836,
+        "step_id": 28
+      },
+      {
+        "call_index": 28,
+        "completion_tokens": 82,
+        "prompt_tokens": 14320,
+        "step_id": 29
+      },
+      {
+        "call_index": 29,
+        "completion_tokens": 112,
+        "prompt_tokens": 14949,
+        "step_id": 30
+      },
+      {
+        "call_index": 30,
+        "completion_tokens": 214,
+        "prompt_tokens": 15275,
+        "step_id": 31
+      },
+      {
+        "call_index": 31,
+        "completion_tokens": 93,
+        "prompt_tokens": 15750,
+        "step_id": 32
+      },
+      {
+        "call_index": 32,
+        "completion_tokens": 97,
+        "prompt_tokens": 16425,
+        "step_id": 33
+      },
+      {
+        "call_index": 33,
+        "completion_tokens": 123,
+        "prompt_tokens": 16733,
+        "step_id": 34
+      },
+      {
+        "call_index": 34,
+        "completion_tokens": 129,
+        "prompt_tokens": 17391,
+        "step_id": 35
+      },
+      {
+        "call_index": 35,
+        "completion_tokens": 105,
+        "prompt_tokens": 17756,
+        "step_id": 36
+      },
+      {
+        "call_index": 36,
+        "completion_tokens": 172,
+        "prompt_tokens": 18048,
+        "step_id": 37
+      },
+      {
+        "call_index": 37,
+        "completion_tokens": 178,
+        "prompt_tokens": 18453,
+        "step_id": 38
+      },
+      {
+        "call_index": 38,
+        "completion_tokens": 243,
+        "prompt_tokens": 18915,
+        "step_id": 39
+      },
+      {
+        "call_index": 39,
+        "completion_tokens": 67,
+        "prompt_tokens": 19484,
+        "step_id": 40
+      },
+      {
+        "call_index": 40,
+        "completion_tokens": 129,
+        "prompt_tokens": 19824,
+        "step_id": 41
+      },
+      {
+        "call_index": 41,
+        "completion_tokens": 85,
+        "prompt_tokens": 20167,
+        "step_id": 42
+      },
+      {
+        "call_index": 42,
+        "completion_tokens": 188,
+        "prompt_tokens": 20450,
+        "step_id": 43
+      },
+      {
+        "call_index": 43,
+        "completion_tokens": 101,
+        "prompt_tokens": 20952,
+        "step_id": 44
+      },
+      {
+        "call_index": 44,
+        "completion_tokens": 160,
+        "prompt_tokens": 21248,
+        "step_id": 45
+      },
+      {
+        "call_index": 45,
+        "completion_tokens": 169,
+        "prompt_tokens": 21792,
+        "step_id": 46
+      },
+      {
+        "call_index": 46,
+        "completion_tokens": 170,
+        "prompt_tokens": 22184,
+        "step_id": 47
+      },
+      {
+        "call_index": 47,
+        "completion_tokens": 91,
+        "prompt_tokens": 22614,
+        "step_id": 48
+      },
+      {
+        "call_index": 48,
+        "completion_tokens": 204,
+        "prompt_tokens": 22891,
+        "step_id": 49
+      },
+      {
+        "call_index": 49,
+        "completion_tokens": 95,
+        "prompt_tokens": 23379,
+        "step_id": 50
+      },
+      {
+        "call_index": 50,
+        "completion_tokens": 95,
+        "prompt_tokens": 23695,
+        "step_id": 51
+      },
+      {
+        "call_index": 51,
+        "completion_tokens": 96,
+        "prompt_tokens": 23952,
+        "step_id": 52
+      },
+      {
+        "call_index": 52,
+        "completion_tokens": 160,
+        "prompt_tokens": 24564,
+        "step_id": 53
+      },
+      {
+        "call_index": 53,
+        "completion_tokens": 163,
+        "prompt_tokens": 24964,
+        "step_id": 54
+      },
+      {
+        "call_index": 54,
+        "completion_tokens": 199,
+        "prompt_tokens": 25430,
+        "step_id": 55
+      },
+      {
+        "call_index": 55,
+        "completion_tokens": 161,
+        "prompt_tokens": 25896,
+        "step_id": 56
+      },
+      {
+        "call_index": 56,
+        "completion_tokens": 150,
+        "prompt_tokens": 26311,
+        "step_id": 57
+      },
+      {
+        "call_index": 57,
+        "completion_tokens": 170,
+        "prompt_tokens": 26898,
+        "step_id": 58
+      },
+      {
+        "call_index": 58,
+        "completion_tokens": 138,
+        "prompt_tokens": 27325,
+        "step_id": 59
+      },
+      {
+        "call_index": 59,
+        "completion_tokens": 177,
+        "prompt_tokens": 27786,
+        "step_id": 60
+      },
+      {
+        "call_index": 60,
+        "completion_tokens": 208,
+        "prompt_tokens": 28216,
+        "step_id": 61
+      },
+      {
+        "call_index": 61,
+        "completion_tokens": 214,
+        "prompt_tokens": 28724,
+        "step_id": 62
+      },
+      {
+        "call_index": 62,
+        "completion_tokens": 574,
+        "prompt_tokens": 29154,
+        "step_id": 63
+      },
+      {
+        "call_index": 63,
+        "completion_tokens": 133,
+        "prompt_tokens": 30351,
+        "step_id": 64
+      },
+      {
+        "call_index": 64,
+        "completion_tokens": 627,
+        "prompt_tokens": 30760,
+        "step_id": 65
+      },
+      {
+        "call_index": 65,
+        "completion_tokens": 155,
+        "prompt_tokens": 32083,
+        "step_id": 66
+      },
+      {
+        "call_index": 66,
+        "completion_tokens": 316,
+        "prompt_tokens": 32809,
+        "step_id": 67
+      },
+      {
+        "call_index": 67,
+        "completion_tokens": 440,
+        "prompt_tokens": 33373,
+        "step_id": 68
+      },
+      {
+        "call_index": 68,
+        "completion_tokens": 431,
+        "prompt_tokens": 34072,
+        "step_id": 69
+      },
+      {
+        "call_index": 69,
+        "completion_tokens": 149,
+        "prompt_tokens": 34783,
+        "step_id": 70
+      },
+      {
+        "call_index": 70,
+        "completion_tokens": 171,
+        "prompt_tokens": 35178,
+        "step_id": 71
+      },
+      {
+        "call_index": 71,
+        "completion_tokens": 148,
+        "prompt_tokens": 35896,
+        "step_id": 72
+      },
+      {
+        "call_index": 72,
+        "completion_tokens": 228,
+        "prompt_tokens": 36363,
+        "step_id": 73
+      },
+      {
+        "call_index": 73,
+        "completion_tokens": 263,
+        "prompt_tokens": 37024,
+        "step_id": 74
+      },
+      {
+        "call_index": 74,
+        "completion_tokens": 242,
+        "prompt_tokens": 37581,
+        "step_id": 75
+      },
+      {
+        "call_index": 75,
+        "completion_tokens": 222,
+        "prompt_tokens": 38242,
+        "step_id": 76
+      },
+      {
+        "call_index": 76,
+        "completion_tokens": 253,
+        "prompt_tokens": 38757,
+        "step_id": 77
+      },
+      {
+        "call_index": 77,
+        "completion_tokens": 273,
+        "prompt_tokens": 39721,
+        "step_id": 78
+      },
+      {
+        "call_index": 78,
+        "completion_tokens": 315,
+        "prompt_tokens": 40280,
+        "step_id": 79
+      },
+      {
+        "call_index": 79,
+        "completion_tokens": 238,
+        "prompt_tokens": 40877,
+        "step_id": 80
+      },
+      {
+        "call_index": 80,
+        "completion_tokens": 2830,
+        "prompt_tokens": 41453,
+        "step_id": 81
+      },
+      {
+        "call_index": 81,
+        "completion_tokens": 92,
+        "prompt_tokens": 44628,
+        "step_id": 82
+      },
+      {
+        "call_index": 82,
+        "completion_tokens": 77,
+        "prompt_tokens": 44998,
+        "step_id": 83
+      },
+      {
+        "call_index": 83,
+        "completion_tokens": 171,
+        "prompt_tokens": 45388,
+        "step_id": 84
+      },
+      {
+        "call_index": 84,
+        "completion_tokens": 1553,
+        "prompt_tokens": 45852,
+        "step_id": 85
+      },
+      {
+        "call_index": 85,
+        "completion_tokens": 159,
+        "prompt_tokens": 48102,
+        "step_id": 86
+      },
+      {
+        "call_index": 86,
+        "completion_tokens": 157,
+        "prompt_tokens": 48817,
+        "step_id": 87
+      },
+      {
+        "call_index": 87,
+        "completion_tokens": 113,
+        "prompt_tokens": 49214,
+        "step_id": 88
+      },
+      {
+        "call_index": 88,
+        "completion_tokens": 88,
+        "prompt_tokens": 49864,
+        "step_id": 89
+      },
+      {
+        "call_index": 89,
+        "completion_tokens": 1529,
+        "prompt_tokens": 50365,
+        "step_id": 90
+      },
+      {
+        "call_index": 90,
+        "completion_tokens": 143,
+        "prompt_tokens": 52588,
+        "step_id": 91
+      },
+      {
+        "call_index": 91,
+        "completion_tokens": 209,
+        "prompt_tokens": 53018,
+        "step_id": 92
+      },
+      {
+        "call_index": 92,
+        "completion_tokens": 98,
+        "prompt_tokens": 2015,
+        "step_id": 95
+      },
+      {
+        "call_index": 93,
+        "completion_tokens": 78,
+        "prompt_tokens": 2376,
+        "step_id": 96
+      },
+      {
+        "call_index": 94,
+        "completion_tokens": 29,
+        "prompt_tokens": 2600,
+        "step_id": 97
+      },
+      {
+        "call_index": 95,
+        "completion_tokens": 69,
+        "prompt_tokens": 2680,
+        "step_id": 98
+      },
+      {
+        "call_index": 96,
+        "completion_tokens": 31,
+        "prompt_tokens": 2840,
+        "step_id": 99
+      },
+      {
+        "call_index": 97,
+        "completion_tokens": 108,
+        "prompt_tokens": 2924,
+        "step_id": 100
+      },
+      {
+        "call_index": 98,
+        "completion_tokens": 25,
+        "prompt_tokens": 3068,
+        "step_id": 101
+      },
+      {
+        "call_index": 99,
+        "completion_tokens": 38,
+        "prompt_tokens": 3140,
+        "step_id": 102
+      },
+      {
+        "call_index": 100,
+        "completion_tokens": 46,
+        "prompt_tokens": 3202,
+        "step_id": 103
+      },
+      {
+        "call_index": 101,
+        "completion_tokens": 37,
+        "prompt_tokens": 3286,
+        "step_id": 104
+      },
+      {
+        "call_index": 102,
+        "completion_tokens": 37,
+        "prompt_tokens": 3382,
+        "step_id": 105
+      },
+      {
+        "call_index": 103,
+        "completion_tokens": 37,
+        "prompt_tokens": 3478,
+        "step_id": 106
+      },
+      {
+        "call_index": 104,
+        "completion_tokens": 37,
+        "prompt_tokens": 3574,
+        "step_id": 107
+      },
+      {
+        "call_index": 105,
+        "completion_tokens": 37,
+        "prompt_tokens": 3670,
+        "step_id": 108
+      },
+      {
+        "call_index": 106,
+        "completion_tokens": 37,
+        "prompt_tokens": 3766,
+        "step_id": 109
+      },
+      {
+        "call_index": 107,
+        "completion_tokens": 37,
+        "prompt_tokens": 3862,
+        "step_id": 110
+      },
+      {
+        "call_index": 108,
+        "completion_tokens": 37,
+        "prompt_tokens": 3958,
+        "step_id": 111
+      },
+      {
+        "call_index": 109,
+        "completion_tokens": 37,
+        "prompt_tokens": 4054,
+        "step_id": 112
+      },
+      {
+        "call_index": 110,
+        "completion_tokens": 37,
+        "prompt_tokens": 4150,
+        "step_id": 113
+      },
+      {
+        "call_index": 111,
+        "completion_tokens": 37,
+        "prompt_tokens": 4246,
+        "step_id": 114
+      },
+      {
+        "call_index": 112,
+        "completion_tokens": 37,
+        "prompt_tokens": 4342,
+        "step_id": 115
+      },
+      {
+        "call_index": 113,
+        "completion_tokens": 37,
+        "prompt_tokens": 4438,
+        "step_id": 116
+      },
+      {
+        "call_index": 114,
+        "completion_tokens": 37,
+        "prompt_tokens": 4534,
+        "step_id": 117
+      },
+      {
+        "call_index": 115,
+        "completion_tokens": 37,
+        "prompt_tokens": 4630,
+        "step_id": 118
+      },
+      {
+        "call_index": 116,
+        "completion_tokens": 37,
+        "prompt_tokens": 4726,
+        "step_id": 119
+      },
+      {
+        "call_index": 117,
+        "completion_tokens": 37,
+        "prompt_tokens": 4822,
+        "step_id": 120
+      }
+    ],
+    "prompt_summary": {
+      "first": 948,
+      "max": 53018,
+      "max_step_id": 92,
+      "median": 16733.0,
+      "n_calls": 117,
+      "reason": null,
+      "slope_per_call": 68.42730297172145,
+      "steps_without_metrics": 0
+    },
+    "schema": "token_flow/v1",
+    "stop": {
+      "exception_type": "TrialBudgetExhaustedError",
+      "metadata_stop_reason": "trial_budget_exhausted",
+      "reason": null,
+      "stop_reason": "ceiling:requests"
+    },
+    "summarisations": {
+      "discrepancy": null,
+      "events": [
+        {
+          "index": 1,
+          "kept": {
+            "chars": 330685,
+            "files": [
+              "trajectory.summarization-1-answers.json",
+              "trajectory.summarization-1-questions.json",
+              "trajectory.summarization-1-summary.json"
+            ],
+            "parts": [
+              "handoff_user_message",
+              "3 subagent trajectories"
+            ]
+          },
+          "prompt_after": {
+            "prompt_tokens": 2015,
+            "step_id": 95
+          },
+          "prompt_before": {
+            "prompt_tokens": 53018,
+            "step_id": 92
+          },
+          "prompt_delta": -51003,
+          "step_id": 93,
+          "success": true,
+          "success_reason": null
+        }
+      ],
+      "metadata_count": 1,
+      "metadata_reason": null
+    },
+    "tokens_after_last_edit": {
+      "input_tokens": 146781,
+      "note": null,
+      "output_tokens": 1360,
+      "share_input": 0.062,
+      "share_output": 0.0421,
+      "totals_source": "agent_result"
+    },
+    "tokens_after_reason": null,
+    "top_terminal_outputs": [
+      {
+        "call_index": 2,
+        "chars": 2248,
+        "est_tokens": 562,
+        "next_prompt_tokens": 1879,
+        "step_id": 3
+      },
+      {
+        "call_index": 3,
+        "chars": 2247,
+        "est_tokens": 561,
+        "next_prompt_tokens": 2670,
+        "step_id": 4
+      },
+      {
+        "call_index": 5,
+        "chars": 2247,
+        "est_tokens": 561,
+        "next_prompt_tokens": 4094,
+        "step_id": 6
+      },
+      {
+        "call_index": 7,
+        "chars": 2247,
+        "est_tokens": 561,
+        "next_prompt_tokens": 5560,
+        "step_id": 8
+      },
+      {
+        "call_index": 89,
+        "chars": 2247,
+        "est_tokens": 561,
+        "next_prompt_tokens": 52588,
+        "step_id": 90
+      }
+    ],
+    "trajectory": {
+      "agent_steps_without_metrics": 0,
+      "n_agent_steps": 117,
+      "n_steps_stitched": 120
+    },
+    "trajectory_reason": null,
+    "trial_name": "har120-001870-a1__rXFPYLR"
+  },
+  "tokens_attempted_proxy": 2398144,
+  "tokens_native": {
+    "input_tokens": 2365815,
+    "output_tokens": 32329,
+    "source": "result.json#agent_result"
+  },
+  "tokens_proxy": {
+    "attribution": "single_trial",
+    "input_tokens": 2365815,
+    "output_tokens": 32329,
+    "path": "lab-metadata.json#provider_usage",
+    "reason": null,
+    "scope": "job",
+    "source": "proxy_settled_ledger",
+    "total_tokens": 2398144
+  },
+  "tokens_steps": {
+    "agent_steps": 117,
+    "completion_tokens": 32145,
+    "metered_steps": 117,
+    "prompt_tokens": 2257535,
+    "reason": null,
+    "total_tokens": 2289680,
+    "unmetered_steps": 0
+  },
+  "trial_concurrency": 1,
+  "trial_name": "har120-001870-a1__rXFPYLR",
+  "trial_wall_hours": 0.2686048247222222,
+  "trial_wall_reason": null,
+  "wedge": {
+    "executed_turns": 117,
+    "keystroke_source": "recorded",
+    "short_stretches": 3,
+    "states": {
+      "continuation": 25,
+      "no_prompt": 5,
+      "pager": 2,
+      "prompt": 85
+    },
+    "stretches": [
+      {
+        "cause": "continuation",
+        "end_ref": "head#120",
+        "interrupt_keys": null,
+        "interrupt_ref": null,
+        "prompt_returned": false,
+        "prompt_tokens": 89372,
+        "screen": ">",
+        "start_ref": "head#97",
+        "steps_without_metrics": 0,
+        "trigger_command": "cd /testbed && git diff HEAD~1 | cd /testbed && grep -n \"indent\\|ljust\\|rstrip\\|'\\s'\" markdownify/__init__.py | head -40",
+        "trigger_ref": "head#96",
+        "turns": 24,
+        "until_run_end": true
+      }
+    ]
+  }
+}

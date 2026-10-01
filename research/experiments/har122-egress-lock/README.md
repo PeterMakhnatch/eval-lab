@@ -111,6 +111,50 @@ run data).
 8 GiB on the list-price rate card, plus about 15 s for the tier check. Cap $0.50. No model
 calls.
 
+## HAR-140: the lab default, re-probed and checked on every usable task (2026-10-01)
+
+**Probe through the queue.** The same two probe packages ran as `oracle` queue specs
+(`har140-probe-{000226,000927}`) through `evallab submit/approve/tick` from merged `main`
+(b6c2647d, #682), with no `egress_lock` field: the lab default locked both
+(`egress-lock.json`: `requested`, `applied`, `network_block_all: true`, locked 22:02:38Z).
+`probe_solve.sh` gained a name-based HTTPS fetch of pypi.org, `git clone`, Python `urllib`
+fetches and DNS lookups for pypi.org and github.com. As root, after rewriting `/etc/hosts`:
+
+| attempt | 000226 | 000927 |
+|---|---|---|
+| `pip download` PyPI (pinned) / tuna / aliyun | exit 1 / 1 / 1 | exit 1 / 1 / 1 |
+| `curl https://pypi.org` (name), pinned IP with SNI, bare IP, 1.1.1.1, example.com, Daytona API | 000 (no connection) for all six | same |
+| `git ls-remote` / `git clone` GitHub | could not resolve host / same, nothing cloned | same |
+| TCP pypi IP:443, 8.8.8.8:53, 1.1.1.1:443 | connection refused | same |
+| IPv6 | network unreachable | same |
+| `urllib` pypi.org / example.com | connection refused / name resolution failure | same |
+| DNS example.com, github.com | resolution failure | same |
+| DNS pypi.org | the `/etc/hosts` pin answers locally (no network involved) | same |
+| verifier | reward 0, no exception | same |
+
+Every escape failed. Spend $0.0197.
+
+**No-agent check under the lock.** `har140-locked-nop.csv` (`task_id, unlocked_nop,
+locked_nop, changed`) covers every task the ledger marks `usable`. `unlocked_nop` is the
+ledger's census label on the same package; `locked_nop` is HAR-113's `results.graded()` label
+of the locked `har140-lnop-<id>` nop (`infra:<exception>` when the trial has no verifier
+result; empty when not run). Specs: HAR-120's ledger staging plus HAR-105's `nop_spec`,
+dispatched by HAR-113's `runner.py --prefix har140-lnop-`.
+
+Result at the 23:00Z hard stop: 563 of 1,149 usable tasks ran (lightest images first);
+586 were submitted but rejected undispatched at the stop (`not_run`, empty `locked_nop`).
+- 557 grade the same (`sound` → `sound`), each with `egress-lock.json` `applied: true`.
+- **2 change grading under the lock** (`sound` → `broken_environment`), both because the
+  verifier itself needs the network: `format-code-task-000450` (hera) runs `pip install`
+  during verification; `format-code-task-002978` (kwave) downloads binaries from the
+  network when the test module imports `kwave` (`URLError`, name resolution).
+- 4 are `infra:DaytonaConflictError` (000229, 000624, 001760, 002892): cold-image trials
+  that stalled a wave for 20+ minutes and were killed by the operator before the lock was
+  taken (`egress-lock.json`: "trial ended before the egress lock was applied"). Not a lock
+  effect.
+
+Spend: $2.01 Daytona (rate card on trial lifetimes: 563 nops $1.99, probe $0.0197).
+
 ## What the block cuts off
 
 Everything outbound, for the agent and the verifier. What an agent might legitimately need:
@@ -142,9 +186,8 @@ under the lock; this is the price of a block that cannot be undone.
   the run) is Harbor 0.21's for every agent. Terminus-2 itself was not run locked here,
   since that needs a model.
 - **Daytona only, single-container tasks only.** Docker and other backends are untouched.
-- **Not in the setup key.** Data's `trial_treatment` key reads agent kwargs, not environment
-  kwargs, so a locked trial would pool with unlocked ones. An adopting card should add
-  `egress_lock` to the key, or keep locked runs under their own names.
+- **Setup key.** Since HAR-140 (#682) `egress_lock` is part of the trial treatment key, so
+  locked and unlocked trials no longer pool.
 
 ## Reproduce
 

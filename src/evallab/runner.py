@@ -51,7 +51,7 @@ from evallab.execution_contracts import (
     MAX_TRIAL_TIMEOUT_SECONDS,
     MIMO_SELFHOSTED_CAPABILITY_EXPIRES_AT_ENV,
     MIMO_SELFHOSTED_MODEL_PRICES_MICROS,
-    MIMO_SELFHOSTED_NATIVE_MODEL,
+    MIMO_SELFHOSTED_NATIVE_MODELS,
     MIMO_SELFHOSTED_PROXY_ATTEMPT_ID_ENV,
     MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV,
     MIMO_SELFHOSTED_PROXY_PROVIDER,
@@ -791,7 +791,7 @@ def _terminus_proxy_env(
     env["PYTHONUNBUFFERED"] = "1"
     env["EVALLAB_PROXY_PROVIDER"] = provider
     if provider == MIMO_SELFHOSTED_PROXY_PROVIDER:
-        if mimo_native != MIMO_SELFHOSTED_NATIVE_MODEL:
+        if mimo_native not in MIMO_SELFHOSTED_NATIVE_MODELS:
             raise ValueError("mimo_selfhosted proxy env requires the parsed native model")
         env[MIMO_SELFHOSTED_SECRET_PATH_ENV] = str(secret_path)
         upstream = os.environ.get(MIMO_SELFHOSTED_UPSTREAM_ENV)
@@ -2154,6 +2154,9 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
         decision = preflight_request(request)
         if not decision.proceed:
             raise RuntimeError(f"{request.agent} credential preflight stopped: {decision.reason}")
+    harness_refusal = preflight_harness_agent_imports(request, repo_root=repo_root)
+    if harness_refusal is not None:
+        raise RuntimeError(harness_refusal)
     local_binding = (
         resolve_ollama_binding(TERMINUS_LOCAL_MODEL_SELECTOR)
         if request.agent == TERMINUS_AGENT and request.model == TERMINUS_LOCAL_MODEL_SELECTOR
@@ -2712,6 +2715,106 @@ def preflight_request(
             keychain_account=env.get("HARBOR_CLAUDE_KEYCHAIN_ACCOUNT", env.get("USER", "")),
         )
     return profiles_module.preflight(profile, probe)
+
+
+# ---------------------------------------------------------------------------
+# HAR-126 G0: harness agent-import preflight. HAR-116 wave A burned its
+# dispatch on an agent-side import (ModuleNotFoundError: duckdb) that failed
+# inside Harbor's tool venv, which never had the package. When a spec's
+# harness tree enables lab agent knobs, the trial loads lab adapter code in
+# that venv — so dispatch first proves the import works there, before any
+# sandbox or Modal spend. Runs once per spec, only when knobs are on.
+# ---------------------------------------------------------------------------
+
+#: Harness-tree knobs whose code executes inside Harbor's tool venv at trial
+#: time. A tree enabling any of them opts into the import preflight.
+LAB_AGENT_KNOB_KEYS = ("loop_break", "output_cap_chars", "completion_fix")
+
+#: The adapter plus the live closure the loop break and completion fix run:
+#: exactly the import chain that died as ModuleNotFoundError in wave A.
+HARBOR_AGENT_PROBE_IMPORTS = (
+    "evallab.harbor_terminus",
+    "evallab.loopfix",
+    "evallab.token_flow",
+    "evallab.edit_signals",
+    "evallab.mimo_tool_calls",
+)
+
+#: Env override for the Harbor tool python (tests point it at a fake).
+HARBOR_PYTHON_ENV = "EVALLAB_HARBOR_PYTHON"
+
+
+def _harbor_tool_python() -> Path | None:
+    """Harbor's tool-venv python, the interpreter trial agents run in."""
+    override = os.environ.get(HARBOR_PYTHON_ENV)
+    if override:
+        candidate = Path(override)
+        return candidate if candidate.exists() else None
+    harbor = shutil.which("harbor")
+    if not harbor:
+        return None
+    candidate = Path(harbor).resolve().parent / "python"
+    return candidate if candidate.exists() else None
+
+
+def preflight_harness_agent_imports(
+    request: RunRequest,
+    *,
+    repo_root: Path,
+    python: Path | None = None,
+) -> str | None:
+    """Refusal reason, or None when the spec may dispatch.
+
+    Only harness-tree terminus-2 specs enabling lab agent knobs pay for this:
+    one subprocess running Harbor's python with the lab ``src`` on its path,
+    importing the agent modules the trial will load. Anything else returns
+    None without spawning anything.
+    """
+    if request.agent != TERMINUS_AGENT or request.harness_tree_path is None:
+        return None
+    from evallab.terminus_harness import load_harness_tree
+
+    tree = load_harness_tree(request.harness_tree_path, request.harness_tree_sha256)
+    enabled = sorted(key for key in LAB_AGENT_KNOB_KEYS if tree.config.get(key))
+    if not enabled:
+        return None
+    exe = Path(python) if python is not None else _harbor_tool_python()
+    if exe is None or not exe.exists():
+        return (
+            f"refusing {request.name}: harness tree enables lab agent knobs "
+            f"({', '.join(enabled)}) but Harbor's python is unavailable, so the "
+            "trial's agent import cannot be proven before dispatch"
+        )
+    env = dict(os.environ)
+    src = str(Path(repo_root) / "src")
+    env["PYTHONPATH"] = src + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+    try:
+        completed = subprocess.run(
+            [str(exe), "-c", "import " + ", ".join(HARBOR_AGENT_PROBE_IMPORTS)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=60,
+            cwd=repo_root,
+            env=env,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return (
+            f"refusing {request.name}: harness tree enables lab agent knobs "
+            f"({', '.join(enabled)}) but the agent-import probe could not run "
+            f"({exe}: {exc})"
+        )
+    if completed.returncode != 0:
+        detail = (completed.stderr or "").strip().splitlines()
+        tail = " ".join(detail[-3:])[:500] or f"exit {completed.returncode}"
+        return (
+            f"refusing {request.name}: harness tree enables lab agent knobs "
+            f"({', '.join(enabled)}) but Harbor's python cannot import the trial "
+            f"agent modules ({tail}) — fix the agent closure before dispatch; "
+            "no sandbox or Modal spend happened"
+        )
+    return None
 
 
 def _security_status(args: list[str]) -> int:

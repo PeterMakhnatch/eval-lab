@@ -315,3 +315,124 @@ def test_automatic_publish_shows_processed_reward_and_spend(tmp_path: Path) -> N
     full = (home / "INDEX-all.md").read_text()
     assert "1 pass, 0 fail, 0 unscored" in full
     assert "unprocessed" not in full
+
+
+def _write_report(job: Path, summary: dict) -> None:
+    processed = job / "processed"
+    processed.mkdir(parents=True, exist_ok=True)
+    (processed / "job.json").write_text(
+        json.dumps({"schema": "process-job/v1", "job_name": job.name, "summary": summary}),
+        encoding="utf-8",
+    )
+
+
+def test_index_shows_raw_pass_alongside_counted_exclusion(tmp_path: Path) -> None:
+    """A raw pass excluded as copied_fix is visibly both: raw pass, counted excluded."""
+    from evallab.results_home import _counts_summary
+
+    job = _job(
+        tmp_path,
+        "har131-counted",
+        agent="evallab.harbor_terminus:SecretSafeTerminus2",
+        model="selfhosted/example",
+    )
+    _write_report(
+        job,
+        {
+            "n_pass": 1,
+            "n_fail": 0,
+            "n_unscored": 0,
+            "n_counted_pass": 0,
+            "n_counted_fail": 0,
+            "n_excluded": 1,
+            "excluded_reasons": {"copied_fix": 1},
+        },
+    )
+    home = tmp_path / "results"
+    published = Path(
+        publish_job(job, root=home, pr_lookup=lambda _commit: None)["published"]
+    )
+    assert _counts_summary(published) == (
+        "0 counted pass, 0 counted fail, 1 excluded (copied_fix: 1)"
+    )
+    for name in ("INDEX.md", "INDEX-all.md"):
+        text = (home / name).read_text()
+        assert "1 pass, 0 fail, 0 unscored" in text
+        assert "0 counted pass, 0 counted fail, 1 excluded (copied_fix: 1)" in text
+    agent_header = next(
+        line for line in (home / "INDEX.md").read_text().splitlines() if line.startswith("| Date")
+    )
+    agent_row = next(
+        line
+        for line in (home / "INDEX.md").read_text().splitlines()
+        if "har131-counted" in line
+    )
+    assert agent_row.count("|") == agent_header.count("|")
+
+
+def test_old_report_without_counts_stays_unknown_never_zero(tmp_path: Path) -> None:
+    """Reports predating counts render unknown, never a fabricated 0."""
+    from evallab.results_home import _counts_summary
+
+    job = _job(tmp_path, "har117-legacy")
+    _write_report(job, {"n_pass": 2, "n_fail": 1, "n_unscored": 0})
+    home = tmp_path / "results"
+    published = Path(
+        publish_job(job, root=home, pr_lookup=lambda _commit: None)["published"]
+    )
+    assert _counts_summary(published) == "counts unknown"
+    full = (home / "INDEX-all.md").read_text()
+    assert "2 pass, 1 fail, 0 unscored" in full
+    assert "counts unknown" in full
+    row = next(line for line in full.splitlines() if "har117-legacy" in line)
+    assert "0 counted" not in row
+
+
+def test_counts_cell_matches_canonical_multi_trial_summary(tmp_path: Path) -> None:
+    """The INDEX cell echoes the stored summary verbatim, reasons sorted."""
+    from evallab.results_home import _counts_summary
+
+    job = _job(tmp_path, "har117-multi")
+    _write_report(
+        job,
+        {
+            "n_pass": 2,
+            "n_fail": 1,
+            "n_unscored": 1,
+            "n_counted_pass": 1,
+            "n_counted_fail": 1,
+            "n_excluded": 2,
+            "excluded_reasons": {"infra": 1, "copied_fix": 1},
+        },
+    )
+    home = tmp_path / "results"
+    published = Path(
+        publish_job(job, root=home, pr_lookup=lambda _commit: None)["published"]
+    )
+    assert _counts_summary(published) == (
+        "1 counted pass, 1 counted fail, 2 excluded (copied_fix: 1, infra: 1)"
+    )
+    full = (home / "INDEX-all.md").read_text()
+    assert "1 counted pass, 1 counted fail, 2 excluded (copied_fix: 1, infra: 1)" in full
+
+
+def test_partial_counts_fields_stay_unknown(tmp_path: Path) -> None:
+    """A summary missing any one counted field is unknown, not partial zeros."""
+    from evallab.results_home import _counts_summary
+
+    job = _job(tmp_path, "har117-partial")
+    _write_report(
+        job, {"n_pass": 1, "n_fail": 0, "n_unscored": 0, "n_counted_pass": 1}
+    )
+    home = tmp_path / "results"
+    published = Path(
+        publish_job(job, root=home, pr_lookup=lambda _commit: None)["published"]
+    )
+    assert _counts_summary(published) == "counts unknown"
+    row = next(
+        line
+        for line in (home / "INDEX-all.md").read_text().splitlines()
+        if "har117-partial" in line
+    )
+    assert "counts unknown" in row
+    assert "1 counted pass" not in row

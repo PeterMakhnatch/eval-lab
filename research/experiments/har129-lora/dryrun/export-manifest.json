@@ -1,0 +1,10 @@
+{
+  "contract": "evallab.sft_terminus/1",
+  "conversations_sha256": "sha256:9498cddc40013202bde9a8ff0a064612fe92dcc90c2a7116068ceb3990e896d3",
+  "note": "HAR-129 dry run only: approximated from step layers; not a training set",
+  "sources": [
+    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har104-runs/runs/har104-d-002391/har104-d-002391__WxBjcjX/",
+    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har104-runs/runs/har104-d-002864/har104-d-002864__B7cJ4cG/",
+    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har116-live/runs/har116-a-000495-loopfix-r2/har116-a-000495-loopfix-r2__42F3G5T/"
+  ]
+}

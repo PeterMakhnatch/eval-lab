@@ -201,12 +201,21 @@ def load_conversations(path: Path) -> list[Conversation]:
         if not isinstance(messages, list) or not messages:
             raise SftError(f"{path}:{number} 'messages' must be a non-empty list")
         for message in messages:
-            if not isinstance(message, dict) or set(message) != {"role", "content"}:
-                raise SftError(f"{path}:{number} messages need exactly role/content")
+            keys = set(message) if isinstance(message, dict) else set()
+            if keys != {"role", "content"} and not (
+                keys == {"role", "content", "reasoning_content"}
+                and message.get("role") == "assistant"
+            ):
+                raise SftError(
+                    f"{path}:{number} messages need exactly role/content "
+                    "(assistant turns may add reasoning_content)"
+                )
             if message["role"] not in ALLOWED_ROLES:
                 raise SftError(f"{path}:{number} unsupported role {message['role']!r}")
-            if not isinstance(message["content"], str):
-                raise SftError(f"{path}:{number} content must be a string")
+            if not isinstance(message["content"], str) or not isinstance(
+                message.get("reasoning_content", ""), str
+            ):
+                raise SftError(f"{path}:{number} content and reasoning_content must be strings")
         loss = row.get("loss", "all")
         if loss not in ("all", "last"):
             raise SftError(f"{path}:{number} 'loss' must be 'all' or 'last'")
@@ -283,18 +292,31 @@ def split_think_prefix(content: str) -> tuple[str | None, str]:
 def to_template_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Map export rows onto the fields the distill template renders.
 
-    Assistant ``<think>`` prefixes become ``reasoning_content`` (the only
-    field the template renders inside ``<think>``); every other assistant
-    turn omits it and renders an empty ``<think></think>``. Tool calls stay
-    verbatim ``<tool_call><function=...>`` text inside ``content`` — the
-    export carries no structured ``tool_calls`` field (parsed-step
-    trajectories are excluded upstream), so the template's structured
-    branch is never triggered.
+    An assistant turn's reasoning reaches the template as ``reasoning_content``
+    (the only field it renders inside ``<think>``). Rows may carry it
+    explicitly, exactly as the model emitted it; otherwise a leading
+    ``<think>`` block in ``content`` is split off. Turns without reasoning
+    render an empty ``<think></think>``. Tool calls stay verbatim
+    ``<tool_call><function=...>`` text inside ``content`` — the export
+    carries no structured ``tool_calls`` field (parsed-step trajectories are
+    excluded upstream), so the template's structured branch is never
+    triggered.
     """
     rendered: list[dict[str, Any]] = []
     for message in messages:
         if message["role"] != "assistant":
             rendered.append({"role": message["role"], "content": message["content"]})
+            continue
+        if "reasoning_content" in message:
+            if message["content"].lstrip().startswith("<think>"):
+                raise SftError("assistant turn has both reasoning_content and a <think> prefix")
+            rendered.append(
+                {
+                    "role": "assistant",
+                    "content": message["content"],
+                    "reasoning_content": message["reasoning_content"],
+                }
+            )
             continue
         reasoning, body = split_think_prefix(message["content"])
         turn: dict[str, Any] = {"role": "assistant", "content": body}
@@ -343,14 +365,22 @@ def render_and_mask(
 ) -> Rendered:
     """Render with the model's own template; derive verified assistant spans.
 
-    Primary signal: the template's ``{% generation %}`` markers via
-    ``return_assistant_tokens_mask``. Verification: incremental prefix
-    rendering — every prefix must be an exact token-prefix of the full
-    render, and the union of assistant-turn suffixes must equal the template
-    mask. Anything else raises :class:`SftError` naming the conversation.
-    ``loss="last"`` then keeps only the final assistant turn's span.
-    ``enable_thinking=True`` matches serving; with ``add_generation_prompt``
-    unset it changes no training token, only the (absent) trailing prompt.
+    ``loss="all"``: the template's ``{% generation %}`` markers (via
+    ``return_assistant_tokens_mask``) are the primary signal, verified by
+    incremental prefix rendering — every prefix must be an exact token-prefix
+    of the full render, and the union of assistant-turn suffixes must equal
+    the template mask. These spans include each turn's
+    ``<|im_start|>assistant\\n`` header.
+
+    ``loss="last"``: exactly the tokens the served model generated for the
+    final call. The served prompt is ``messages[:-1]`` rendered with
+    ``add_generation_prompt=True``; it must be a token-prefix of the full
+    render, every token after it must sit inside the template's assistant
+    mask, and only those tokens train. The header is part of the prompt, so
+    it never trains.
+
+    Anything else raises :class:`SftError` naming the conversation.
+    ``enable_thinking=True`` matches serving.
     """
     tmpl = to_template_messages(messages)
     full = tokenizer.apply_chat_template(
@@ -364,37 +394,48 @@ def render_and_mask(
     mask = [int(bit) for bit in full["assistant_masks"]]
     assistant_turns = sum(1 for message in tmpl if message["role"] == "assistant")
 
-    # Verified prefix property + cross-check against the template markers.
-    derived = [0] * len(ids)
-    last_span = (0, 0)
-    previous = 0
-    for end in range(1, len(tmpl) + 1):
-        part = list(
-            tokenizer.apply_chat_template(
-                tmpl[:end],
-                tokenize=True,
-                add_generation_prompt=False,
-                enable_thinking=True,
-            )["input_ids"]
-        )
-        if len(part) <= previous or part != ids[: len(part)]:
-            raise SftError(f"{label}: prefix property broken at message {end}")
-        if tmpl[end - 1]["role"] == "assistant":
-            last_span = (previous, len(part))
-            for pos in range(previous, len(part)):
-                derived[pos] = 1
-        previous = len(part)
-    if previous != len(ids):
-        raise SftError(f"{label}: prefix render diverged from full render")
-    if derived != mask:
-        raise SftError(f"{label}: template mask disagrees with prefix spans")
-    if not any(mask):
-        raise SftError(f"{label}: conversation has zero trainable tokens")
     if loss == "last":
         if tmpl[-1]["role"] != "assistant":
             raise SftError(f"{label}: loss='last' needs a final assistant turn")
-        start, stop = last_span
-        mask = [int(start <= pos < stop) for pos in range(len(ids))]
+        prompt = list(
+            tokenizer.apply_chat_template(
+                tmpl[:-1],
+                tokenize=True,
+                add_generation_prompt=True,
+                enable_thinking=True,
+            )["input_ids"]
+        )
+        start = len(prompt)
+        if start >= len(ids) or prompt != ids[:start]:
+            raise SftError(f"{label}: served prompt is not a prefix of the full render")
+        if not all(mask[start:]):
+            raise SftError(f"{label}: completion falls outside the template's assistant mask")
+        mask = [int(pos >= start) for pos in range(len(ids))]
+    else:
+        # Verified prefix property + cross-check against the template markers.
+        derived = [0] * len(ids)
+        previous = 0
+        for end in range(1, len(tmpl) + 1):
+            part = list(
+                tokenizer.apply_chat_template(
+                    tmpl[:end],
+                    tokenize=True,
+                    add_generation_prompt=False,
+                    enable_thinking=True,
+                )["input_ids"]
+            )
+            if len(part) <= previous or part != ids[: len(part)]:
+                raise SftError(f"{label}: prefix property broken at message {end}")
+            if tmpl[end - 1]["role"] == "assistant":
+                for pos in range(previous, len(part)):
+                    derived[pos] = 1
+            previous = len(part)
+        if previous != len(ids):
+            raise SftError(f"{label}: prefix render diverged from full render")
+        if derived != mask:
+            raise SftError(f"{label}: template mask disagrees with prefix spans")
+    if not any(mask):
+        raise SftError(f"{label}: conversation has zero trainable tokens")
 
     tokens_before = len(ids)
     truncated = tokens_before > max_length
@@ -570,7 +611,8 @@ def build_receipt(
             "tool_calls": "verbatim <tool_call><function=...> text in content",
             "mask": "assistant_masks (template generation markers), "
             "prefix-property verified per conversation; rows with loss='last' "
-            "keep only the final assistant turn",
+            "train only the final call's served completion (after the "
+            "add_generation_prompt render of messages[:-1])",
             "loss_rows": {
                 scope: sum(1 for row in dry.export.conversations if row.loss == scope)
                 for scope in ("all", "last")
@@ -631,36 +673,21 @@ sft_volume = modal.Volume.from_name(SFT_VOLUME, create_if_missing=True)
 app = modal.App(APP_NAME)
 
 
-@app.function(
-    image=train_image,
-    gpu="A100-80GB",
-    cpu=4.0,
-    memory=16 * 1024,
-    volumes={WEIGHTS_MOUNT: weights_volume, SFT_MOUNT: sft_volume},
-    timeout=6 * 3600,
-)
-def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict[str, Any]:
-    """LoRA SFT on one A100-80GB; writes adapter + receipt to the SFT volume."""
-    import time
+def selected_token_loss_trainer_class() -> type:
+    """``SFTTrainer`` whose loss never builds full-sequence logits (imports TRL lazily).
 
+    The stock loss materializes [sequence, 248320] logits: about 26 GB in
+    bf16 at 52K tokens before the fp32 upcast, more than an A100-80GB has
+    left. Here only the hidden states of trained positions reach lm_head, in
+    checkpointed chunks, so peak logits memory is one chunk. The loss is the
+    same token-mean cross-entropy over label != -100 positions.
+    """
     import torch
     import torch.nn.functional as F
-    from datasets import Dataset
-    from peft import LoraConfig, TaskType
     from torch.utils.checkpoint import checkpoint
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-    from trl import SFTConfig, SFTTrainer
+    from trl import SFTTrainer
 
     class SelectedTokenLossTrainer(SFTTrainer):
-        """Cross-entropy over assistant tokens only, without full-sequence logits.
-
-        The stock loss materializes [sequence, 248320] logits: about 26 GB in
-        bf16 at 52K tokens before the fp32 upcast, more than an A100-80GB has
-        left. Here only the hidden states of trained positions reach lm_head,
-        in checkpointed chunks, so peak logits memory is one chunk. The loss is
-        the same token-mean cross-entropy over label != -100 positions.
-        """
-
         def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
             base = model.get_base_model() if hasattr(model, "get_base_model") else model
             labels = inputs["labels"][:, 1:]
@@ -684,6 +711,104 @@ def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict
             denominator = num_items_in_batch if num_items_in_batch is not None else targets.numel()
             loss = total / denominator
             return (loss, None) if return_outputs else loss
+
+    return SelectedTokenLossTrainer
+
+
+def build_trainer(
+    model: Any,
+    tokenizer: Any,
+    rows: list[dict[str, Any]],
+    config: dict[str, Any],
+    *,
+    output_dir: Path,
+    bf16: bool = True,
+) -> Any:
+    """The exact trainer ``train_remote`` runs, from pre-rendered rows."""
+    from datasets import Dataset
+    from peft import LoraConfig, TaskType
+    from trl import SFTConfig
+
+    peft_config = LoraConfig(
+        r=int(config["lora_rank"]),
+        lora_alpha=int(config["lora_alpha"]),
+        lora_dropout=float(config["lora_dropout"]),
+        bias="none",
+        task_type=TaskType.CAUSAL_LM,
+        target_modules=list(config["target_modules"]),
+    )
+    args = SFTConfig(
+        output_dir=str(output_dir),
+        max_length=int(config["max_length"]),
+        truncation_mode="keep_start",
+        packing=False,
+        per_device_train_batch_size=int(config["per_device_batch"]),
+        gradient_accumulation_steps=int(config["grad_accum_steps"]),
+        num_train_epochs=float(config["num_epochs"]),
+        learning_rate=float(config["learning_rate"]),
+        lr_scheduler_type=str(config["lr_scheduler"]),
+        warmup_ratio=float(config["warmup_ratio"]),
+        bf16=bf16,
+        gradient_checkpointing=True,
+        gradient_checkpointing_kwargs={"use_reentrant": False},
+        logging_steps=1,
+        save_strategy="no",
+        seed=int(config["seed"]),
+        report_to="none",
+    )
+    trainer = selected_token_loss_trainer_class()(
+        model=model,
+        args=args,
+        train_dataset=Dataset.from_list(rows),
+        processing_class=tokenizer,
+        peft_config=peft_config,
+    )
+    # compute_loss already divides by the accumulated token count.
+    trainer.model_accepts_loss_kwargs = True
+    return trainer
+
+
+def collated_label_check(trainer: Any, rows: list[dict[str, Any]]) -> dict[str, int]:
+    """Prove the loss sees exactly the rendered masks, through TRL's own pipeline.
+
+    TRL folds ``assistant_masks`` into ``labels`` while preparing the dataset
+    and drops the column, so the prepared rows are compared with the rows we
+    rendered: same count and order, identical ``input_ids``, and collated
+    labels (``!= -100``) equal to our mask at every position. Any difference
+    (a dropped, reordered or truncated row, or a shifted label) raises.
+    """
+    prepared = trainer.train_dataset
+    if len(prepared) != len(rows):
+        raise RuntimeError(f"TRL prepared {len(prepared)} rows from {len(rows)}")
+    check = {"rows": 0, "label_tokens": 0, "mask_tokens": 0, "mismatched_rows": 0}
+    for example, row in zip(prepared, rows, strict=True):
+        batch = trainer.data_collator([example])
+        labelled = (batch["labels"][0] != -100).tolist()
+        masked = [bool(bit) for bit in row["assistant_masks"]]
+        check["rows"] += 1
+        check["label_tokens"] += sum(labelled)
+        check["mask_tokens"] += sum(masked)
+        if list(example["input_ids"]) != row["input_ids"] or labelled != masked:
+            check["mismatched_rows"] += 1
+    if check["mismatched_rows"]:
+        raise RuntimeError(f"collated labels differ from rendered masks: {check}")
+    return check
+
+
+@app.function(
+    image=train_image,
+    gpu="A100-80GB",
+    cpu=4.0,
+    memory=16 * 1024,
+    volumes={WEIGHTS_MOUNT: weights_volume, SFT_MOUNT: sft_volume},
+    timeout=6 * 3600,
+)
+def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict[str, Any]:
+    """LoRA SFT on one A100-80GB; writes adapter + receipt to the SFT volume."""
+    import time
+
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
 
     started = time.monotonic()
 
@@ -713,7 +838,6 @@ def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict
         rows.append({"input_ids": rendered.input_ids, "assistant_masks": rendered.mask})
     if not rows:
         raise RuntimeError("no trainable conversations after masking/truncation")
-    dataset = Dataset.from_list(rows)
 
     model, loading = AutoModelForCausalLM.from_pretrained(
         BASE_DIR,
@@ -726,56 +850,8 @@ def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict
     if loading.get("missing_keys"):
         raise RuntimeError(f"base weights missing for {sorted(loading['missing_keys'])[:5]}")
     model.config.use_cache = False
-    peft_config = LoraConfig(
-        r=int(config["lora_rank"]),
-        lora_alpha=int(config["lora_alpha"]),
-        lora_dropout=float(config["lora_dropout"]),
-        bias="none",
-        task_type=TaskType.CAUSAL_LM,
-        target_modules=list(config["target_modules"]),
-    )
-    args = SFTConfig(
-        output_dir=str(out_dir / "adapter"),
-        max_length=int(config["max_length"]),
-        truncation_mode="keep_start",
-        packing=False,
-        per_device_train_batch_size=int(config["per_device_batch"]),
-        gradient_accumulation_steps=int(config["grad_accum_steps"]),
-        num_train_epochs=float(config["num_epochs"]),
-        learning_rate=float(config["learning_rate"]),
-        lr_scheduler_type=str(config["lr_scheduler"]),
-        warmup_ratio=float(config["warmup_ratio"]),
-        bf16=True,
-        gradient_checkpointing=True,
-        gradient_checkpointing_kwargs={"use_reentrant": False},
-        logging_steps=1,
-        save_strategy="no",
-        seed=int(config["seed"]),
-        report_to="none",
-    )
-    trainer = SelectedTokenLossTrainer(
-        model=model,
-        args=args,
-        train_dataset=dataset,
-        processing_class=tokenizer,
-        peft_config=peft_config,
-    )
-    # compute_loss already divides by the accumulated token count.
-    trainer.model_accepts_loss_kwargs = True
-    # Audit what the loss actually sees: TRL's own collator must turn exactly
-    # the template's assistant positions into labels and nothing else.
-    label_check = {"rows": 0, "label_tokens": 0, "mask_tokens": 0, "mismatched_rows": 0}
-    for example in trainer.train_dataset:
-        batch = trainer.data_collator([example])
-        labelled = (batch["labels"][0] != -100).tolist()
-        masked = [bool(bit) for bit in example["assistant_masks"]]
-        label_check["rows"] += 1
-        label_check["label_tokens"] += sum(labelled)
-        label_check["mask_tokens"] += sum(masked)
-        if labelled != masked:
-            label_check["mismatched_rows"] += 1
-    if label_check["mismatched_rows"]:
-        raise RuntimeError(f"collated labels differ from assistant masks: {label_check}")
+    trainer = build_trainer(model, tokenizer, rows, config, output_dir=out_dir / "adapter")
+    label_check = collated_label_check(trainer, rows)
     torch.cuda.reset_peak_memory_stats()
     train_started = time.monotonic()
     trainer.train()

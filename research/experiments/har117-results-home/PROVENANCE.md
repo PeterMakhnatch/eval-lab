@@ -87,6 +87,45 @@ inside the job directory. Publish copies it verbatim.
   `research/**` doc whose path contains the card slug. Absent when none
   matches.
 
+## INDEX reward columns
+
+Each INDEX row keeps two verdicts side by side. `Reward (raw)` is the
+verifier pass/fail/unscored from the job report and never changes. `Counted`
+is the `evallab.counts` verdict stored in the same report summary
+(`n_counted_pass` / `n_counted_fail` / `n_excluded` / `excluded_reasons`), so
+the INDEX matches the canonical report. A raw pass excluded as `copied_fix`
+reads as a raw pass and a counted exclusion on the same row. Reports that
+predate counts have none of those fields and render `counts unknown`, never
+`0`.
+
+## Token facts and attribution
+
+Processed trial pages use **proxy-settled** input/output tokens from
+`lab-metadata.json#provider_usage`, validated through `ledger.split_usage`.
+They never substitute Harbor's native counters or divide a job's usage
+equally among trials. A single-trial job permits attribution of the job
+ledger; a multi-trial job has unknown per-trial proxy usage unless a
+per-trial meter exists. The complete job ledger remains in `job.json`.
+Missing or invalid ledgers stay unknown, not zero.
+
+The report keeps three distinct measurements:
+
+- `tokens_proxy`: settled usage with `source`, `scope`, `attribution`, and
+  an unavailable-data reason where needed. Decision token facts use this.
+- `tokens_native`: Harbor's `result.json#agent_result` counters.
+- `tokens_steps`: the stitched-step sum. Existing `tokens_used` summary
+  fields retain this step-sum meaning; they are **not** settled proxy totals.
+
+`tokens_attempted_proxy` is the settled usage plus unresolved reservations,
+with the same single-trial attribution requirement, not an equal split.
+It is a ceiling footprint, not an additional settled usage measurement.
+
+HAR-116 `har116-a-001181-baseline` demonstrates the distinction: native
+input/output is **2,410,295 / 7,444**, while its 89 settled ledger calls
+sum to **2,423,707 / 11,540**. The permanent regression fixture retains the
+actual accounting fields plus hashes of the original metadata and result.
+Raw source artifacts are not rewritten during reprocessing.
+
 ## Backfill
 
 Jobs that predate the run-time snapshot have `repository.commit` and

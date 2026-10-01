@@ -64,6 +64,7 @@ TOP_LEVEL_COMMANDS = (
     "regrade",
     "process-job",
     "results",
+    "telemetry",
 )
 
 

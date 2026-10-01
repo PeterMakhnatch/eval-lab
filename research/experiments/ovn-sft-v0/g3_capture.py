@@ -22,6 +22,16 @@ from typing import Any
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 UV_TOKENIZER = ["uv", "run", "--no-project", "--with", "transformers", "--with", "jinja2"]
+#: What ``AutoTokenizer`` and the chat template read; never weight shards.
+TOKENIZER_FILES = (
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "chat_template.jinja",
+    "special_tokens_map.json",
+    "added_tokens.json",
+    "vocab.json",
+    "merges.txt",
+)
 PRODUCER_FILES = (
     "src/evallab/sft_terminus.py",
     "src/evallab/model_capture.py",
@@ -159,7 +169,9 @@ def producer(tokenizer: Path) -> dict[str, Any]:
     return {
         "files": {name: sha256(ROOT / name) for name in PRODUCER_FILES},
         "tokenizer_files": {
-            path.name: sha256(path) for path in sorted(tokenizer.iterdir()) if path.is_file()
+            name: sha256(tokenizer / name)
+            for name in TOKENIZER_FILES
+            if (tokenizer / name).is_file()
         },
         "libraries": json.loads(versions),
     }

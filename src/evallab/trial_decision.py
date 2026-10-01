@@ -15,8 +15,27 @@ import json
 from pathlib import Path
 from typing import Any
 
-DECISION_SCHEMA = "trial_decision/v1"
+DECISION_SCHEMA = "trial_decision/v2"
 _EXCERPT_CHARS = 400
+#: HAR-119 published rule: 10 turns after the first confirm prompt, and at
+#: least half of those turns claim completion. Not a new detector.
+CLAIM_LOOP_MIN_TURNS = 10
+CLAIM_LOOP_MIN_FRACTION = 0.5
+COUNTED_VERDICTS = frozenset({"counted_pass", "counted_fail", "excluded"})
+#: In-sample only. Replaced after measurement against the HAR-109 keys.
+JUDGMENT_AGREEMENT = {
+    "source": "HAR-109 hand labels, in-sample",
+    "n": 10,
+    "out_of_sample": "pending HAR-119 part 2; those labels are not frozen",
+    "first_failure_within_2": "3/10 (30%)",
+    "blame_exact": "8/10 (80%)",
+    "loop_kind": "not measured; HAR-119 part 2 labels are not frozen",
+    "note": (
+        "First failure within +-2 steps: 3/10 (compare Who&When benchmark best: 14.2%, "
+        "arXiv 2505.00212). Blame under stated mapping: 8/10 (2 misses are leaked passes "
+        "graded 1.0 by the verifier). In-sample numbers from HAR-109."
+    ),
+}
 
 
 def build_decision(
@@ -29,8 +48,12 @@ def build_decision(
     grader_evidence: dict[str, Any] | None,
     taint: list[dict[str, Any]] | None,
     token_flow: dict[str, Any] | None,
+    stop_reason: str | None = None,
+    calls: int | None = None,
+    tokens: dict[str, Any] | None = None,
+    counts: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build the ``trial_decision/v1`` page for one trial directory."""
+    """Build the ``trial_decision/v2`` page for one trial directory."""
     from evallab import probe03
 
     trial = Path(trial_dir)
@@ -54,13 +77,56 @@ def build_decision(
         taint_status = "not_a_pass"
     edit = (token_flow or {}).get("last_useful_edit") if isinstance(token_flow, dict) else None
     edit = edit if isinstance(edit, dict) else None
+    nop = _nop_same_crash(grader_evidence if isinstance(grader_evidence, dict) else None)
+    fetched = _fetched_fix(fetches)
+    loop = classify_loop_kind(trial, stop_reason, token_flow if isinstance(token_flow, dict) else None)
+    whose = _whose(rule_id, attribution)
     return {
         "schema": DECISION_SCHEMA,
         "reward": reward,
         "scored": scored,
         "rule_id": rule_id,
         "attribution": attribution,
-        "whose": _whose(rule_id, attribution),
+        "whose": whose,
+        "counts": render_counts(counts),
+        "facts": {
+            "stop_reason": stop_reason,
+            "calls": calls,
+            "tokens": tokens,
+            "fetches": [
+                {"step": flag.get("evidence"), "command": flag.get("command")}
+                for flag in fetches
+            ],
+            "verifier_message": _verifier_message(trial),
+            "nop_same_crash": nop,
+            "task_ledger": {
+                "status": "unchecked",
+                "reason": "No task ledger was passed to this page. HAR-115's ledger is not read here.",
+            },
+            "instruction_excerpt": _excerpt(instruction),
+            "grader_tests_asked": grader_tests,
+            "grader_gap": grader_gap,
+        },
+        "judgments": {
+            "label": "opinion",
+            "agreement": dict(JUDGMENT_AGREEMENT),
+            "first_failure": (
+                None
+                if first is None
+                else {
+                    "rule_id": first.get("rule_id"),
+                    "attribution": first.get("attribution"),
+                    "step": first.get("step_ref"),
+                }
+            ),
+            "blame": {
+                "attribution": attribution,
+                "whose": whose,
+                "rule_id": rule_id,
+                "note": outcome.get("note"),
+            },
+            "loop_kind": loop,
+        },
         "asked": {
             "instruction_present": instruction is not None,
             "instruction_bytes": instruction_bytes,
@@ -91,54 +157,177 @@ def build_decision(
             "status": taint_status,
             "reasons": _taint_reasons(fetches, guards),
         },
-        "nop_same_crash": _nop_same_crash(
-            grader_evidence if isinstance(grader_evidence, dict) else None
-        ),
-        "fetched_fix": _fetched_fix(fetches),
+        "nop_same_crash": nop,
+        "fetched_fix": fetched,
     }
 
 
+def render_counts(counts: dict[str, Any] | None) -> dict[str, Any]:
+    """Render HAR-78's field. Never compute a verdict."""
+    if not isinstance(counts, dict) or counts.get("verdict") not in COUNTED_VERDICTS:
+        return {
+            "status": "pending",
+            "verdict": None,
+            "reasons": [],
+            "evidence": [],
+            "note": (
+                "Pending. HAR-78 has not written counts on this record. "
+                "This page does not decide whether the result counts."
+            ),
+        }
+    return {
+        "status": "rendered",
+        "verdict": counts.get("verdict"),
+        "reasons": list(counts.get("reasons") or []),
+        "evidence": list(counts.get("evidence") or []),
+        "note": "Rendered from the HAR-78 counts field. Not computed here.",
+    }
+
+
+def classify_loop_kind(
+    trial_dir: str | Path,
+    stop_reason: str | None,
+    token_flow: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """HAR-119's published split: completion-claim loop vs repetition."""
+    from evallab import probe03
+
+    onset = (token_flow or {}).get("loop_onset") if isinstance(token_flow, dict) else None
+    onset_step = onset.get("step_id") if isinstance(onset, dict) else None
+    try:
+        _coverage, assembled = probe03.assemble_trial(Path(trial_dir))
+    except (OSError, ValueError):
+        assembled = []
+    agent_seq = [
+        (doc, step)
+        for doc, step in assembled
+        if str(step.get("source", "")).lower() in probe03.AGENT_SOURCES
+    ]
+    first = None
+    for index, (_doc, step) in enumerate(agent_seq):
+        if probe03.CONFIRM_PROMPT_RE.search(str(probe03.obs_content(step) or "")):
+            first = index
+            break
+    after = agent_seq[first + 1 :] if first is not None else []
+    claim = sum(1 for _doc, step in after if _claim_bearing(step))
+    turns = len(after)
+    fraction = (claim / turns) if turns else 0.0
+    if turns >= CLAIM_LOOP_MIN_TURNS and fraction >= CLAIM_LOOP_MIN_FRACTION:
+        kind = "completion-claim"
+    elif onset_step is not None:
+        kind = "repetition"
+    else:
+        kind = "none"
+    return {
+        "kind": kind,
+        "rule": "HAR-119",
+        "turns_after_prompt": turns,
+        "claim_bearing_turns": claim,
+        "claim_fraction": round(fraction, 4),
+        "first_prompt_step": agent_seq[first][1].get("step_id") if first is not None else None,
+        "loop_onset_step": onset_step,
+        "stop_reason": stop_reason,
+    }
+
+
+def _claim_bearing(step: dict) -> bool:
+    from evallab import probe03
+
+    text = str(step.get("message") or "")
+    if probe03.COMPLETION_CLAIM_RE.search(text) or probe03.ECHO_TASK_COMPLETE_RE.search(text):
+        return True
+    if "task_complete" in text.lower():
+        return True
+    raw_extra = step.get("extra")
+    extra: dict[str, Any] = raw_extra if isinstance(raw_extra, dict) else {}
+    raw_layer = extra.get("step_layers")
+    layer: dict[str, Any] = raw_layer if isinstance(raw_layer, dict) else {}
+    return layer.get("task_complete") is True or bool(layer.get("prose_completion"))
+
+
 def render_decision_markdown(decision: dict[str, Any] | None) -> list[str]:
-    """Plain-language lines for the top of the trial report."""
+    """Facts first, then the pending-or-rendered verdict, then opinions."""
     if not decision:
         return ["## Decision", "", "Unavailable. The composer did not run.", ""]
-    asked = decision.get("asked") or {}
-    did = decision.get("did") or {}
-    tainted = decision.get("pass_tainted") or {}
-    nop = decision.get("nop_same_crash") or {}
-    fetch = decision.get("fetched_fix") or {}
+    facts = decision.get("facts") or {}
+    judgments = decision.get("judgments") or {}
+    counts = decision.get("counts") or {}
+    agreement = judgments.get("agreement") or {}
+    nop = facts.get("nop_same_crash") or {}
+    fetches = facts.get("fetches") or []
+    blame = judgments.get("blame") or {}
+    first = judgments.get("first_failure") or {}
+    loop = judgments.get("loop_kind") or {}
+    tokens = facts.get("tokens") or {}
+    fetch_line = (
+        "; ".join(f"`{item.get('step')}` `{item.get('command')}`" for item in fetches)
+        or "no"
+    )
     lines = [
         "## Decision",
         "",
-        decision.get("reward_why") or "Reward unknown.",
+        "### Counts",
+        "",
+        str(counts.get("note") or "Pending."),
+        f"Verdict: `{counts.get('verdict') or 'pending'}`.",
+        "",
+        "### Facts",
+        "",
+        "Copied from the trial records. Not a reading of why it failed.",
+        f"- Stop reason: `{facts.get('stop_reason')}`.",
+        f"- Calls: `{facts.get('calls')}`.",
         (
-            f"Probe-03 attribution `{decision.get('attribution')}` "
-            f"(`{decision.get('rule_id')}`). The page reads that as "
-            f"**{decision.get('whose')}**."
+            f"- Tokens: input `{tokens.get('input_tokens')}`, "
+            f"output `{tokens.get('output_tokens')}`."
+            if isinstance(tokens, dict)
+            else "- Tokens: not on the record."
         ),
-        "",
-        "**What the task asked.** "
+        f"- Fetched outside code: {fetch_line}.",
+        f"- Verifier: reward `{decision.get('reward')}`"
         + (
-            asked["excerpt"]
-            if asked.get("excerpt")
-            else "Instruction not located, so this page cannot quote it."
+            f"; `{str(facts.get('verifier_message'))[:180]}`."
+            if facts.get("verifier_message")
+            else "."
+        ),
+        (
+            f"- Nop crash the same way: {_answer_words(nop.get('answer'))}. "
+            f"{nop.get('reason')}"
+        ),
+        (
+            f"- Task ledger: `{(facts.get('task_ledger') or {}).get('status')}`. "
+            f"{(facts.get('task_ledger') or {}).get('reason') or ''}"
+        ),
+        "- What the task asked: "
+        + (facts.get("instruction_excerpt") or "instruction not located."),
+        (
+            f"- Does the grader test that? {facts.get('grader_tests_asked')}. "
+            + (facts.get("grader_gap") or "No named grader gap.")
         ),
         "",
-        f"**Does the grader test that?** {asked.get('grader_tests_asked')}. "
-        + (asked.get("grader_gap") or "No named grader gap."),
+        "### Judgments",
         "",
-        "**What the model did.** "
-        + _ended(did.get("secondary") or did.get("note") or "No outcome note.")
-        + _step_sentence(did)
-        + _edit_sentence(did),
-        "",
-        "**Pass tainted?** "
-        + _taint_sentence(tainted)
-        + " "
-        + _fetch_sentence(fetch),
-        "",
-        "**Nop crash the same way?** "
-        + f"{_answer_words(nop.get('answer'))}. {nop.get('reason')}",
+        "Opinions. Do not treat these as facts.",
+        (
+            f"Measured agreement: {agreement.get('source')}, n={agreement.get('n')}. "
+            f"Out of sample: {agreement.get('out_of_sample')}."
+        ),
+        (
+            f"- First failure: `{first.get('rule_id')}` at `{first.get('step')}`. "
+            f"In-sample within ±2 steps: `{agreement.get('first_failure_within_2')}`."
+            if first
+            else "- First failure: none recorded."
+        ),
+        (
+            f"- Blame: probe-03 `{blame.get('attribution')}` (`{blame.get('rule_id')}`), "
+            f"page reading `{blame.get('whose')}`. "
+            f"In-sample exact match under the stated mapping: `{agreement.get('blame_exact')}`."
+        ),
+        (
+            f"- Loop kind: `{loop.get('kind')}`. "
+            f"{loop.get('claim_bearing_turns')} of {loop.get('turns_after_prompt')} "
+            "turns after the confirm prompt claimed completion. "
+            f"Agreement: {agreement.get('loop_kind')}."
+        ),
         "",
     ]
     return lines

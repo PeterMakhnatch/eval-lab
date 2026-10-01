@@ -529,6 +529,10 @@ def _process_trial(
             grader_evidence=(analysis or {}).get("grader_evidence") if analysis else None,
             taint=taint,
             token_flow=token_flow if isinstance(token_flow, dict) else None,
+            stop_reason=stop_reason,
+            calls=record.get("agent_steps"),
+            tokens=record.get("tokens_proxy") if isinstance(record.get("tokens_proxy"), dict) else None,
+            counts=record.get("counts") if isinstance(record.get("counts"), dict) else None,
         )
         decision_error = None
     except Exception as exc:  # noqa: BLE001 -- one bad trial must not kill the job

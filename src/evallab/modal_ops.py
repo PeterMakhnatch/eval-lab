@@ -60,6 +60,16 @@ TEARDOWN_FILENAME = "modal-teardown.json"
 #: Queue event recorded per drained spec.
 TEARDOWN_EVENT = "modal_teardown"
 
+#: Queue event the operator path records after a ``modal deploy`` of the
+#: self-hosted app once the warm smoke passes (``evallab modal record-warm``).
+#: The quiet-failure guard treats a ``ServiceUnavailableError`` on the
+#: ``mimo_selfhosted`` route as cold-start noise only inside the grace window
+#: after this event; 503s without one, or past its window, still count.
+SELFHOSTED_WARM_EVENT = "selfhosted_warm"
+
+#: Default reason recorded with a deploy/warm event.
+SELFHOSTED_WARM_REASON = "deploy_or_warm_smoke_passed"
+
 #: Runs ``modal <argv>`` and returns the completed process. Raising on
 #: transport failure is allowed; the teardown records it instead of crashing
 #: the tick.
@@ -409,3 +419,65 @@ def _describe_daytona_sandboxes(sandboxes: object) -> str:
             f"; daytona sandboxes: {matched} job-matched / {managed} harbor-managed / {total} total"
         )
     return f"; daytona sandboxes: {managed} harbor-managed / {total} total"
+
+
+def record_selfhosted_warm(
+    queue: DirectoryQueue,
+    *,
+    now: datetime | None = None,
+    actor: str = "operator",
+    reason_code: str = SELFHOSTED_WARM_REASON,
+) -> QueueEvent:
+    """Record that the self-hosted app was deployed and passed its warm smoke.
+
+    The round script calls this (via ``evallab modal record-warm``) after
+    ``modal deploy`` plus the smoke probe succeed. The returned event's
+    ``occurred_at`` opens the grace window during which self-hosted 503s are
+    cold-start noise to the quiet-failure guard.
+    """
+    moment = now or datetime.now(UTC)
+    event = QueueEvent(
+        event_id=new_ulid(),
+        spec_id=f"system-{new_ulid()}",
+        occurred_at=moment,
+        event=SELFHOSTED_WARM_EVENT,
+        actor=actor,
+        reason_code=reason_code,
+        job_name=MODAL_APP_NAME,
+    )
+    queue.append_event(event)
+    return event
+
+
+def latest_selfhosted_warm_at(events_path: Path) -> datetime | None:
+    """Return the newest deploy/warm event time, or None when never recorded.
+
+    Malformed lines are skipped and a missing log reads as no warm event, so
+    the guard fails closed: without a recorded warm, self-hosted 503s count.
+    """
+    latest: datetime | None = None
+    try:
+        lines = events_path.read_text().splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        if SELFHOSTED_WARM_EVENT not in line:
+            continue
+        try:
+            payload = json.loads(line)
+        except ValueError:
+            continue
+        if payload.get("event") != SELFHOSTED_WARM_EVENT:
+            continue
+        raw = payload.get("occurred_at")
+        if not isinstance(raw, str):
+            continue
+        try:
+            moment = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=UTC)
+        if latest is None or moment > latest:
+            latest = moment
+    return latest
